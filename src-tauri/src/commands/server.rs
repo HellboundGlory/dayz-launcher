@@ -1,9 +1,9 @@
+use crate::state::AppState;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use tauri::{Emitter, State};
-use crate::state::AppState;
 use tetra_core::classify::keywords::parse_keywords;
-use tetra_net::{ProbeConfig, Prober};
+use tetra_net::Prober;
 use tetra_registry::filter::{ServerFilter, SortDir, SortKey};
 use tetra_registry::rows::ServerKey;
 use tetra_steam::to_server_row;
@@ -23,6 +23,57 @@ const WRITE_BATCH: usize = 200;
 /// Ceiling on one server's whole A2S_RULES retry chain.
 const RULES_DEADLINE: std::time::Duration = std::time::Duration::from_secs(8);
 
+/// Borrow the process-wide `Prober` from application state.
+///
+/// Every probing path must go through this. `probe_info` and `probe_rules` each
+/// used to build their own `Prober::new(ProbeConfig::default())`, and a `Prober`
+/// owns its concurrency semaphore — so each fresh one came with a *full*
+/// `MAX_IN_FLIGHT` budget of its own. Two overlapping refreshes therefore opened
+/// up to 2048 sockets between them, and a refresh overlapping a launch's rules
+/// query added more still, despite `MAX_IN_FLIGHT` documenting itself as "the
+/// one tuning constant for transport concurrency". Sharing the single instance
+/// created in `setup` is what makes that true.
+fn prober(state: &AppState) -> Result<Prober, String> {
+    let guard = state.prober.lock().map_err(|e| e.to_string())?;
+    Ok(guard.as_ref().ok_or("Prober not initialized")?.clone())
+}
+
+/// Open a read connection, releasing the state lock before returning.
+///
+/// The tight scope is load-bearing twice over. `state.registry` is a
+/// `std::sync::Mutex`, whose guard is not `Send`, so an `async` command that
+/// held one across an `.await` would not compile. And a `Reader` owns its own
+/// SQLite connection, so handing it to a blocking task keeps no lock at all —
+/// the writer thread stays free to commit while the query runs.
+fn reader(state: &AppState) -> Result<tetra_registry::Reader, String> {
+    let guard = state.registry.lock().map_err(|e| e.to_string())?;
+    guard
+        .as_ref()
+        .ok_or("Registry not initialized")?
+        .reader()
+        .map_err(|e| e.to_string())
+}
+
+/// Run a blocking registry read off the main thread.
+///
+/// **Every query command must go through this.** A non-`async` Tauri command
+/// runs on the main thread and the IPC response is dispatched synchronously, so
+/// the SQLite work happened between paint frames: `get_server_list` alone builds
+/// a filtered query, walks up to `SortParams::limit` (5000) rows and allocates a
+/// `Server32` for each, and it re-runs on every filter edit, sort click and
+/// throttled reload during discovery. That was the window freezing while the
+/// table repopulated.
+async fn blocking_read<T, F>(state: &AppState, work: F) -> Result<T, String>
+where
+    F: FnOnce(tetra_registry::Reader) -> Result<T, String> + Send + 'static,
+    T: Send + 'static,
+{
+    let reader = reader(state)?;
+    tokio::task::spawn_blocking(move || work(reader))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))?
+}
+
 /// Serializable server type for the Tauri bridge (32-bit safe).
 #[derive(serde::Serialize, Clone)]
 pub struct Server32 {
@@ -40,7 +91,10 @@ pub struct Server32 {
     pub locked: bool,
     pub vac: bool,
     pub version: String,
-    pub keywords: Option<String>,
+    // No `keywords`: it was serialised as a permanent `null` (the row's raw
+    // keyword string is never read back out), and the frontend type declared it
+    // as `string | null`, which invited a reader that could only ever get null.
+    // Everything derived from keywords is already on the row as a flag.
     pub in_game_time: Option<String>,
     pub mod_count: Option<i32>,
     pub country_code: Option<String>,
@@ -100,7 +154,6 @@ fn to_server32(r: &tetra_registry::filter::ServerListRow) -> Server32 {
         locked: r.locked,
         vac: r.vac,
         version: r.version.clone().unwrap_or_default(),
-        keywords: None,
         in_game_time: r.in_game_time.clone(),
         mod_count: r.mod_count,
         country_code: r.country_code.clone(),
@@ -125,17 +178,9 @@ pub async fn discover_servers(
         Arc::clone(guard.as_ref().ok_or("Steam not initialized")?)
     };
 
-    {
-        let _guard = state.registry.lock().map_err(|e| e.to_string())?;
-        if _guard.is_none() {
-            return Err("Registry not initialized".into());
-        }
-    }
-
     let writer = {
         let guard = state.registry.lock().map_err(|e| e.to_string())?;
-        let registry = guard.as_ref().ok_or("Registry not initialized")?;
-        registry.writer()
+        guard.as_ref().ok_or("Registry not initialized")?.writer()
     };
 
     // Steam takes tens of seconds to walk the full internet list, delivering
@@ -196,23 +241,20 @@ pub async fn discover_servers(
 
 /// Query the SQLite registry for the filtered/sorted server list.
 #[tauri::command]
-pub fn get_server_list(
-    state: State<AppState>,
+pub async fn get_server_list(
+    state: State<'_, AppState>,
     filter_params: FilterParams,
     sort_params: SortParams,
 ) -> Result<Vec<Server32>, String> {
-    let guard = state.registry.lock().map_err(|e| e.to_string())?;
-    let registry = guard.as_ref().ok_or("Registry not initialized")?;
-    let reader = registry.reader().map_err(|e| e.to_string())?;
-
-    let filter = filter_from_params(filter_params);
-    let (sort_key, sort_dir) = sort_from_params(&sort_params);
-
-    let rows = reader
-        .list(&filter, sort_key, sort_dir, sort_params.limit)
-        .map_err(|e| e.to_string())?;
-
-    Ok(rows.iter().map(to_server32).collect())
+    blocking_read(&state, move |reader| {
+        let filter = filter_from_params(filter_params);
+        let (sort_key, sort_dir) = sort_from_params(&sort_params);
+        let rows = reader
+            .list(&filter, sort_key, sort_dir, sort_params.limit)
+            .map_err(|e| e.to_string())?;
+        Ok(rows.iter().map(to_server32).collect())
+    })
+    .await
 }
 
 /// One server's A2S_INFO probe outcome, on the way into a registry write.
@@ -237,12 +279,12 @@ struct InfoBatchResult {
 /// address it's given is one the user is looking at right now, so a miss is
 /// exactly the "did this go offline" signal the UI wants.
 async fn probe_info(
+    prober: &Prober,
     addrs: Vec<SocketAddr>,
     writer: &tetra_registry::Writer,
     window: &tauri::Window,
     mark_offline: bool,
 ) -> InfoBatchResult {
-    let prober = Prober::new(ProbeConfig::default());
     let mut rx = prober.refresh(addrs);
 
     let mut refreshed = 0usize;
@@ -261,7 +303,10 @@ async fn probe_info(
             SocketAddr::V4(v4) => v4,
             SocketAddr::V6(_) => continue,
         };
-        let key = ServerKey { ip: *addr.ip(), query_port: addr.port() };
+        let key = ServerKey {
+            ip: *addr.ip(),
+            query_port: addr.port(),
+        };
 
         let info = match outcome.result {
             Ok(info) => info,
@@ -276,7 +321,12 @@ async fn probe_info(
         refreshed += 1;
         online_keys.push(key);
 
-        if info.keywords.as_deref().map(parse_keywords).is_some_and(|k| k.modded) {
+        if info
+            .keywords
+            .as_deref()
+            .map(parse_keywords)
+            .is_some_and(|k| k.modded)
+        {
             modded.push((key, outcome.addr));
         }
 
@@ -324,7 +374,11 @@ async fn probe_info(
     }
     let _ = window.emit("server-refreshed", serde_json::json!({ "phase": "info" }));
 
-    InfoBatchResult { refreshed, failed, modded }
+    InfoBatchResult {
+        refreshed,
+        failed,
+        modded,
+    }
 }
 
 /// Phase 2 of a refresh: A2S_RULES for whatever phase 1 found modded,
@@ -332,10 +386,13 @@ async fn probe_info(
 /// list that came back — the caller needs that list to ask Steam about
 /// pending updates without a second registry round trip.
 async fn probe_rules(
+    prober: &Prober,
     modded: Vec<(ServerKey, SocketAddr)>,
     writer: &tetra_registry::Writer,
-) -> (usize, Vec<(ServerKey, Vec<tetra_core::a2s::dayz::ServerMod>)>) {
-    let prober = Prober::new(ProbeConfig::default());
+) -> (
+    usize,
+    Vec<(ServerKey, Vec<tetra_core::a2s::dayz::ServerMod>)>,
+) {
     let mut rules_tasks = Vec::with_capacity(modded.len());
 
     for (key, addr) in modded {
@@ -351,7 +408,10 @@ async fn probe_rules(
                 // "asked, declared nothing" as mod_count = 0, which the UI
                 // shows differently from never-probed (NULL).
                 Ok(Ok(rules)) => {
-                    let ok = writer.upsert_server_mods(key, rules.mods.clone()).await.is_ok();
+                    let ok = writer
+                        .upsert_server_mods(key, rules.mods.clone())
+                        .await
+                        .is_ok();
                     (ok, Some((key, rules.mods)))
                 }
                 _ => (false, None),
@@ -396,7 +456,12 @@ pub async fn refresh_servers(
 
         let reader = registry.reader().map_err(|e| e.to_string())?;
         let rows = reader
-            .list(&filter, SortKey::RefreshPriority, SortDir::Desc, PROBE_WINDOW)
+            .list(
+                &filter,
+                SortKey::RefreshPriority,
+                SortDir::Desc,
+                PROBE_WINDOW,
+            )
             .map_err(|e| e.to_string())?;
 
         rows.iter()
@@ -410,8 +475,9 @@ pub async fn refresh_servers(
         registry.writer()
     };
 
-    let info = probe_info(addrs, &writer, &window, false).await;
-    let (mods_updated, _mod_lists) = probe_rules(info.modded, &writer).await;
+    let prober = prober(&state)?;
+    let info = probe_info(&prober, addrs, &writer, &window, false).await;
+    let (mods_updated, _mod_lists) = probe_rules(&prober, info.modded, &writer).await;
 
     let _ = window.emit(
         "refresh-complete",
@@ -454,10 +520,18 @@ pub async fn refresh_visible_servers(
     window: tauri::Window,
     addrs: Vec<AddrPort>,
 ) -> Result<(), String> {
+    // Unparseable entries are skipped, not fatal. Collecting into a `Result`
+    // meant one malformed address failed the whole click — the user pressed
+    // REFRESH and nothing on screen updated, with an error naming an address
+    // they never typed.
     let socket_addrs: Vec<SocketAddr> = addrs
         .iter()
-        .map(|a| server_key(&a.addr, a.query_port).map(|k| SocketAddr::from((k.ip, k.query_port))))
-        .collect::<Result<_, String>>()?;
+        .filter_map(|a| server_key(&a.addr, a.query_port).ok())
+        .map(|k| SocketAddr::from((k.ip, k.query_port)))
+        .collect();
+    if socket_addrs.is_empty() {
+        return Ok(());
+    }
 
     let writer = {
         let guard = state.registry.lock().map_err(|e| e.to_string())?;
@@ -465,14 +539,20 @@ pub async fn refresh_visible_servers(
         registry.writer()
     };
 
-    let info = probe_info(socket_addrs, &writer, &window, true).await;
-    let (mods_updated, mod_lists) = probe_rules(info.modded, &writer).await;
+    let prober = prober(&state)?;
+    let info = probe_info(&prober, socket_addrs, &writer, &window, true).await;
+    let (mods_updated, mod_lists) = probe_rules(&prober, info.modded, &writer).await;
 
     // Phase 3: ask Steam whether any of the mods just re-declared need an
     // update. Best-effort — Steam not being connected, or the lookup
     // failing, just means the launcher stays silent on this rather than
     // failing the whole refresh.
-    let steam = state.steam.lock().map_err(|e| e.to_string())?.as_ref().map(Arc::clone);
+    let steam = state
+        .steam
+        .lock()
+        .map_err(|e| e.to_string())?
+        .as_ref()
+        .map(Arc::clone);
     if let (Some(steam), false) = (steam, mod_lists.is_empty()) {
         let mut ids: Vec<u64> = mod_lists
             .iter()
@@ -523,33 +603,24 @@ pub struct ModEntry {
 }
 
 #[tauri::command]
-pub fn get_server_mods(
-    state: State<AppState>,
+pub async fn get_server_mods(
+    state: State<'_, AppState>,
     addr: String,
     query_port: u16,
 ) -> Result<Vec<ModEntry>, String> {
-    let guard = state.registry.lock().map_err(|e| e.to_string())?;
-    let registry = guard.as_ref().ok_or("Registry not initialized")?;
-    let reader = registry.reader().map_err(|e| e.to_string())?;
-
-    let mods = reader
-        .mods_for(server_key(&addr, query_port)?)
-        .map_err(|e| e.to_string())?;
-
-    Ok(mods.into_iter().map(|m| ModEntry {
-        workshop_id: m.workshop_id.to_string(),
-        name: m.name,
-    }).collect())
-}
-
-/// Get details for a single server.
-#[tauri::command]
-pub fn get_server_details(
-    _state: State<AppState>,
-    _addr: String,
-    _query_port: u16,
-) -> Result<Option<Server32>, String> {
-    Ok(None)
+    let key = server_key(&addr, query_port)?;
+    blocking_read(&state, move |reader| {
+        let mods = reader.mods_for(key).map_err(|e| e.to_string())?;
+        Ok(mods
+            .into_iter()
+            .map(|m| ModEntry {
+                // Stringified: workshop ids exceed JS's safe integer range.
+                workshop_id: m.workshop_id.to_string(),
+                name: m.name,
+            })
+            .collect())
+    })
+    .await
 }
 
 /// Set a server's favourite flag, persisted in the registry.
@@ -579,32 +650,35 @@ pub struct ServerCounts {
 }
 
 #[tauri::command]
-pub fn get_server_counts(state: State<AppState>) -> Result<ServerCounts, String> {
-    let guard = state.registry.lock().map_err(|e| e.to_string())?;
-    let registry = guard.as_ref().ok_or("Registry not initialized")?;
-    let reader = registry.reader().map_err(|e| e.to_string())?;
-
-    let total = reader.count().map_err(|e| e.to_string())?;
-    let populated: i64 = reader
-        .raw()
-        .query_row("SELECT COUNT(*) FROM servers WHERE players > 0", [], |r| {
-            r.get(0)
-        })
-        .map_err(|e| e.to_string())?;
-
-    Ok(ServerCounts {
-        total,
-        populated: populated as usize,
+pub async fn get_server_counts(state: State<'_, AppState>) -> Result<ServerCounts, String> {
+    blocking_read(&state, |reader| {
+        let (total, populated) = reader.counts().map_err(|e| e.to_string())?;
+        Ok(ServerCounts { total, populated })
     })
+    .await
+}
+
+/// Whether the registry fell back to in-memory storage at startup.
+///
+/// `true` means the app works but forgets everything on exit — see the fallback
+/// in `lib.rs`'s setup. Read once at startup so the UI can warn; previously this
+/// only ever reached an `eprintln!` nobody sees in a windowed build.
+#[tauri::command]
+pub fn registry_degraded(state: State<AppState>) -> Result<bool, String> {
+    state
+        .registry_degraded
+        .lock()
+        .map(|flag| *flag)
+        .map_err(|e| e.to_string())
 }
 
 /// Get map list from registry.
 #[tauri::command]
-pub fn get_map_list(state: State<AppState>) -> Result<Vec<(String, String)>, String> {
-    let guard = state.registry.lock().map_err(|e| e.to_string())?;
-    let registry = guard.as_ref().ok_or("Registry not initialized")?;
-    let reader = registry.reader().map_err(|e| e.to_string())?;
-    reader.distinct_maps().map_err(|e| e.to_string())
+pub async fn get_map_list(state: State<'_, AppState>) -> Result<Vec<(String, String)>, String> {
+    blocking_read(&state, |reader| {
+        reader.distinct_maps().map_err(|e| e.to_string())
+    })
+    .await
 }
 
 // ── helpers ─────────────────────────────────────────────────────

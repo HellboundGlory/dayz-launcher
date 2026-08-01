@@ -1,10 +1,12 @@
-use crate::error::SteamError;
-use std::path::PathBuf;
-use std::sync::Mutex;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct WorkshopId(pub u64);
-
+/// Steam's `EItemState` bit values, and the classification the launcher derives
+/// from them.
+///
+/// A `WorkshopSource` trait plus a `FakeWorkshop` in-process double used to live
+/// here, alongside `WorkshopId`/`Resolution`/`UgcDetails`/`InstallInfo`. Their
+/// only consumer was `tetra_launch::gate::Gate`, an earlier design of the
+/// pre-launch check that the launcher never called — `commands::launch` verifies
+/// mods against `SteamHandle` directly. Both are gone; what remains is the part
+/// that is actually load-bearing.
 pub struct ItemFlags(pub u32);
 
 /// Steam's `EItemState` bitmask.
@@ -107,156 +109,6 @@ impl ModState {
     }
 }
 
-pub struct DownloadInfo {
-    pub bytes_downloaded: u64,
-    pub bytes_total: u64,
-}
-
-pub struct InstallInfo {
-    pub folder: PathBuf,
-    pub size_on_disk: u64,
-}
-
-pub struct UgcDetails {
-    pub id: WorkshopId,
-    pub title: String,
-    pub banned: bool,
-    pub file_size: u64,
-}
-
-pub enum Resolution {
-    Found(UgcDetails),
-    Removed(UgcDetails),
-    Unresolved(WorkshopId),
-}
-
-pub trait WorkshopSource: Send + Sync {
-    fn resolve(&self, ids: &[WorkshopId]) -> Result<Vec<Resolution>, SteamError>;
-    fn item_flags(&self, id: WorkshopId) -> Result<ItemFlags, SteamError>;
-    fn subscribe(&self, id: WorkshopId) -> Result<(), SteamError>;
-    fn unsubscribe(&self, id: WorkshopId) -> Result<(), SteamError>;
-    fn download(&self, id: WorkshopId, high_priority: bool) -> Result<(), SteamError>;
-    fn download_info(&self, id: WorkshopId) -> Result<Option<DownloadInfo>, SteamError>;
-    fn install_info(&self, id: WorkshopId) -> Result<Option<InstallInfo>, SteamError>;
-}
-
-/// An in-process stand-in for Workshop UGC operations. For offline testing
-/// of the pre-launch mod gate without Steam running.
-pub struct FakeWorkshop {
-    mods: Mutex<Vec<FakeModEntry>>,
-}
-
-#[derive(Clone)]
-pub struct FakeModEntry {
-    pub id: u64,
-    pub title: String,
-    pub subscribed: bool,
-    pub installed: bool,
-    pub needs_update: bool,
-    pub downloading: bool,
-    pub download_pending: bool,
-    pub bytes_downloaded: u64,
-    pub bytes_total: u64,
-    pub folder: Option<PathBuf>,
-    pub file_size: u64,
-}
-
-impl FakeWorkshop {
-    pub fn new(mods: Vec<FakeModEntry>) -> Self {
-        Self {
-            mods: Mutex::new(mods),
-        }
-    }
-}
-
-impl WorkshopSource for FakeWorkshop {
-    fn resolve(&self, ids: &[WorkshopId]) -> Result<Vec<Resolution>, SteamError> {
-        let mods = self.mods.lock().unwrap();
-        let mut results = Vec::new();
-        for WorkshopId(id) in ids {
-            match mods.iter().find(|m| m.id == *id) {
-                Some(entry) => {
-                    let details = UgcDetails {
-                        id: WorkshopId(entry.id),
-                        title: entry.title.clone(),
-                        banned: false,
-                        file_size: entry.file_size,
-                    };
-                    if entry.installed && !entry.needs_update {
-                        results.push(Resolution::Found(details));
-                    } else {
-                        results.push(Resolution::Removed(details));
-                    }
-                }
-                None => results.push(Resolution::Unresolved(WorkshopId(*id))),
-            }
-        }
-        Ok(results)
-    }
-
-    fn item_flags(&self, id: WorkshopId) -> Result<ItemFlags, SteamError> {
-        let mods = self.mods.lock().unwrap();
-        let entry = mods.iter().find(|m| m.id == id.0);
-        let mut flags = ItemFlags(0);
-        if let Some(e) = entry {
-            if e.subscribed { flags.0 |= ItemFlags::SUBSCRIBED; }
-            if e.installed { flags.0 |= ItemFlags::INSTALLED; }
-            if e.needs_update { flags.0 |= ItemFlags::NEEDS_UPDATE; }
-            if e.downloading { flags.0 |= ItemFlags::DOWNLOADING; }
-            if e.download_pending { flags.0 |= ItemFlags::DOWNLOAD_PENDING; }
-        }
-        Ok(flags)
-    }
-
-    fn subscribe(&self, id: WorkshopId) -> Result<(), SteamError> {
-        let mut mods = self.mods.lock().unwrap();
-        if let Some(e) = mods.iter_mut().find(|m| m.id == id.0) {
-            e.subscribed = true;
-        }
-        Ok(())
-    }
-
-    fn unsubscribe(&self, id: WorkshopId) -> Result<(), SteamError> {
-        let mut mods = self.mods.lock().unwrap();
-        if let Some(e) = mods.iter_mut().find(|m| m.id == id.0) {
-            e.subscribed = false;
-        }
-        Ok(())
-    }
-
-    fn download(&self, id: WorkshopId, _high_priority: bool) -> Result<(), SteamError> {
-        let mut mods = self.mods.lock().unwrap();
-        if let Some(e) = mods.iter_mut().find(|m| m.id == id.0) {
-            e.downloading = true;
-            e.download_pending = false;
-        }
-        Ok(())
-    }
-
-    fn download_info(&self, id: WorkshopId) -> Result<Option<DownloadInfo>, SteamError> {
-        let mods = self.mods.lock().unwrap();
-        if let Some(e) = mods.iter().find(|m| m.id == id.0 && m.downloading) {
-            Ok(Some(DownloadInfo {
-                bytes_downloaded: e.bytes_downloaded,
-                bytes_total: e.bytes_total,
-            }))
-        } else {
-            Ok(None)
-        }
-    }
-
-    fn install_info(&self, id: WorkshopId) -> Result<Option<InstallInfo>, SteamError> {
-        let mods = self.mods.lock().unwrap();
-        if let Some(e) = mods.iter().find(|m| m.id == id.0 && m.installed) {
-            Ok(Some(InstallInfo {
-                folder: e.folder.clone().unwrap_or_default(),
-                size_on_disk: e.file_size,
-            }))
-        } else {
-            Ok(None)
-        }
-    }
-}
 #[cfg(test)]
 mod tests {
     use super::{ItemFlags, ModState};
@@ -330,7 +182,10 @@ mod tests {
 
     #[test]
     fn no_bits_is_not_subscribed() {
-        assert_eq!(ModState::from_bits(ItemFlags::NONE), ModState::NotSubscribed);
+        assert_eq!(
+            ModState::from_bits(ItemFlags::NONE),
+            ModState::NotSubscribed
+        );
     }
 
     /// `LEGACY_ITEM` occupies bit 2. Under the old (wrong) constants that bit

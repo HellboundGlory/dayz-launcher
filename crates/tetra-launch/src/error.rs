@@ -1,49 +1,16 @@
 use thiserror::Error;
 
-/// Eleven failure surfaces for the pre-launch mod gate (spec §5.6).
+/// Failure starting a child process.
 ///
-/// Every branch in the gate state machine that can refuse to start DayZ
-/// produces a distinct variant here, so the UI can tell the user exactly
-/// what went wrong and what action (if any) might fix it.
+/// This was `GateError`, an eleven-variant enum enumerating every way the
+/// pre-launch mod gate could refuse to start DayZ (spec §5.6). Ten of those
+/// variants were only ever constructed by `gate::Gate`, a design the launcher
+/// never adopted — `commands::launch` runs the gate itself and reports blockers
+/// as grouped, user-facing prose via `describe_blockers`. With `Gate` removed,
+/// spawning is all this crate can still fail at, so the type says that and
+/// nothing more.
 #[derive(Debug, Error)]
-pub enum GateError {
-    #[error("server at {0} did not respond to the launch-time A2S_RULES query")]
-    ServerUnreachable(String),
-
-    #[error("server at {0} refused the A2S_RULES query (challenge loop)")]
-    RulesQueryRefused(String),
-
-    #[error("server at {0} returned unreadable A2S_RULES")]
-    RulesUnreadable(String),
-
-    #[error("Steam is not running; it is required for mod verification")]
-    SteamNotRunning,
-
-    #[error("DayZ is not installed in the Steam library")]
-    DayzNotInstalled,
-
-    #[error("required mod '{0}' has been removed from the Steam Workshop")]
-    ModRemoved(String),
-
-    #[error("required mod '{0}' could not be resolved (not found on Workshop)")]
-    ModUnresolvable(String),
-
-    #[error("download of mod '{0}' has stalled (no progress for too long)")]
-    DownloadStalled(String),
-
-    #[error("not enough disk space for required mods")]
-    InsufficientDiskSpace,
-
-    #[error("mod '{name}' is outdated: server requires {required}, installed is {installed}")]
-    VersionMismatch {
-        name: String,
-        required: String,
-        installed: String,
-    },
-
-    #[error("Steam is in offline mode; mod sync requires an online connection")]
-    SteamOffline,
-
+pub enum SpawnError {
     #[error("launch process error: {0}")]
     Launch(#[from] std::io::Error),
 }

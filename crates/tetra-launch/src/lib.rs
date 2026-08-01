@@ -13,7 +13,6 @@
 //! a shell — and no string interpolated into it is user-controlled.
 
 pub mod error;
-pub mod gate;
 pub mod modline;
 pub mod protocol;
 pub mod registry_discovery;

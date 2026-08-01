@@ -9,7 +9,12 @@ license.workspace = true
 tetra-core = { path = "../tetra-core" }
 thiserror.workspace = true
 tokio.workspace = true
-tracing.workspace = true
+
+# The A2S CLI probe. Lives here rather than in tetra-core because the queries it
+# issues are this crate's — tetra-core is parsing only and has no transport.
+[[bin]]
+name = "tetra-probe"
+path = "src/bin/tetra-probe.rs"
 
 [lints.rust]
 unsafe_code = "forbid"

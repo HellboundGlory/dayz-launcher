@@ -14,6 +14,11 @@ pub struct AppState {
     pub steam: Mutex<Option<Arc<SteamHandle>>>,
     pub prober: Mutex<Option<Prober>>,
     pub steam_ready: Mutex<bool>,
+    /// Set when the on-disk registry could not be opened and an in-memory one
+    /// was substituted. Everything works, but nothing survives a restart, so
+    /// the frontend warns rather than letting the user find out by losing
+    /// their favourites.
+    pub registry_degraded: Mutex<bool>,
 }
 
 impl AppState {
@@ -23,6 +28,16 @@ impl AppState {
             steam: Mutex::new(None),
             prober: Mutex::new(None),
             steam_ready: Mutex::new(false),
+            registry_degraded: Mutex::new(false),
         }
+    }
+}
+
+// Tauri constructs this once via `Builder::manage`; `Default` exists because a
+// `new()` with no arguments and no `Default` is a clippy lint and a papercut for
+// anyone writing a test fixture.
+impl Default for AppState {
+    fn default() -> Self {
+        Self::new()
     }
 }

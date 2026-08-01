@@ -9,8 +9,14 @@ struct Migration {
 }
 
 const MIGRATIONS: &[Migration] = &[
-    Migration { version: 1, sql: V1 },
-    Migration { version: 2, sql: V2 },
+    Migration {
+        version: 1,
+        sql: V1,
+    },
+    Migration {
+        version: 2,
+        sql: V2,
+    },
 ];
 
 /// Connection-level settings. Applied to every connection, reader or writer.

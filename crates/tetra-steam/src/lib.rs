@@ -8,7 +8,6 @@
 //! discovery be tested with Steam not running.
 
 mod actor;
-pub mod discovery;
 pub mod error;
 pub mod handle;
 pub mod rows;
@@ -19,5 +18,5 @@ pub use actor::{DownloadRow, MutationResult, StreamChunk, DAYZ_APP_ID};
 pub use error::{InitFailure, SteamError};
 pub use handle::SteamHandle;
 pub use rows::{to_server_row, GameServerRow};
-pub use source::{FakeSource, Filters, ServerListSource};
-pub use workshop::{FakeWorkshop, WorkshopSource};
+pub use source::{Filters, ServerListSource};
+pub use workshop::ModState;
