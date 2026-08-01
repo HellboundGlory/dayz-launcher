@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerStore } from "@/stores/server-store";
 import { useSettingsStore } from "@/stores/settings-store";
-import { Play, ChevronRight, Star, Download, Trash2, Loader2 } from "lucide-react";
+import { Play, ChevronRight, Star, Download, Trash2, Loader2, Check } from "lucide-react";
 import {
   launchGame,
   getServerMods,
@@ -64,6 +64,16 @@ const FIX_DEADLINE_MS = 45 * 60 * 1000;
  */
 const FIX_STALL_MS = 3 * 60 * 1000;
 
+/**
+ * How long the JOIN button holds its "DayZ is starting" confirmation.
+ *
+ * Long enough to still be on screen once DayZ's own window appears — that is
+ * the moment the player stops looking at the launcher — and short enough that
+ * the button is back to normal if they alt-tab out of a session that failed to
+ * connect.
+ */
+const LAUNCHED_NOTICE_MS = 15_000;
+
 /** Summary line above the mod list. Order is most-blocking first. */
 function summarise(states: Map<string, ModState>, total: number) {
   if (states.size === 0) return null;
@@ -110,6 +120,19 @@ export function ServerDetails() {
   const autoJoinAfterDownload = useSettingsStore((s) => s.autoJoinAfterDownload);
   const [launching, setLaunching] = useState(false);
   /**
+   * Holds a confirmation on the button after DayZ has actually been spawned.
+   *
+   * `launching` alone is not visible feedback any more. Until v1.0.0
+   * `spawn_dayz` waited for DayZ to exit, so the command did not resolve until
+   * the player quit — which is exactly why the button used to sit on
+   * "LAUNCHING..." for the whole session. Removing that wait was right, but it
+   * left the command resolving in about a second, so `launching` flips
+   * true→false faster than the eye catches and the button appears not to
+   * respond at all. A launch is a one-way action; it gets acknowledged for
+   * longer than the call takes.
+   */
+  const [justLaunched, setJustLaunched] = useState(false);
+  /**
    * The launch outcome, tagged with the server it belongs to.
    *
    * A bare message string leaked across selections: `handleJoin` awaits the
@@ -154,11 +177,20 @@ export function ServerDetails() {
     setActionNote(null);
     setConfirmUnsub(false);
     setFixNote(null);
+    setJustLaunched(false);
     // Abandon any subscribe-and-join still waiting on the previous server,
     // otherwise it would launch a server the user has navigated away from.
     if (fixCancel.current) fixCancel.current.cancelled = true;
     setBusy(null);
   }, [selectedServer?.addr, selectedServer?.query_port]);
+
+  // Let the confirmation lapse on its own. Cleared early by the effect above
+  // if the user picks a different server in the meantime.
+  useEffect(() => {
+    if (!justLaunched) return;
+    const timer = window.setTimeout(() => setJustLaunched(false), LAUNCHED_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [justLaunched]);
 
   useEffect(() => {
     if (!selectedServer) return;
@@ -240,6 +272,7 @@ export function ServerDetails() {
     try {
       const outcome = await launchGame(addr, gamePort, launchOptions());
       setLaunchResult({ addr, message: outcome.message });
+      setJustLaunched(true);
     } catch (e) {
       setLaunchResult({ addr, error: String(e) });
     } finally {
@@ -368,6 +401,7 @@ export function ServerDetails() {
       try {
         const outcome = await launchGame(addr, gamePort, launchOptions());
         setLaunchResult({ addr, message: outcome.message });
+        setJustLaunched(true);
       } catch (e) {
         // The gate re-queries the server live, so this also catches the case
         // where the server changed its mod list while the download ran.
@@ -771,21 +805,39 @@ export function ServerDetails() {
         ) : (
           <button
             onClick={joinBlocked ? handleSubscribeAndJoin : handleJoin}
-            disabled={launching || busy !== null}
+            disabled={launching || justLaunched || busy !== null}
             title={
-              joinBlocked
-                ? `Subscribe to what's missing, wait for Steam, then join — ${summary?.text ?? ""}`
-                : "Verify mods and join this server"
+              justLaunched
+                ? "DayZ has been started — it can take a moment to appear"
+                : joinBlocked
+                  ? `Subscribe to what's missing, wait for Steam, then join — ${summary?.text ?? ""}`
+                  : "Verify mods and join this server"
             }
-            className="flex w-full items-center justify-center gap-2 rounded bg-[#38bdf8] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#0b0f17] transition-colors hover:bg-[#7dd3fc] disabled:cursor-not-allowed disabled:opacity-50"
+            className={cn(
+              "flex w-full items-center justify-center gap-2 rounded px-4 py-2 text-xs font-bold uppercase tracking-wider transition-colors disabled:cursor-not-allowed",
+              // The confirmation keeps full contrast rather than the usual
+              // dimmed disabled look — it is a result to be read, not a
+              // control that happens to be unavailable.
+              justLaunched
+                ? "bg-[#22c55e] text-[#0b0f17] disabled:opacity-100"
+                : "bg-[#38bdf8] text-[#0b0f17] hover:bg-[#7dd3fc] disabled:opacity-50",
+            )}
           >
-            {joinBlocked ? <Download className="size-3.5" /> : <Play className="size-3.5" />}
+            {justLaunched ? (
+              <Check className="size-3.5" />
+            ) : joinBlocked ? (
+              <Download className="size-3.5" />
+            ) : (
+              <Play className="size-3.5" />
+            )}
             <span>
               {launching
                 ? "LAUNCHING..."
-                : joinBlocked
-                  ? "SUBSCRIBE AND JOIN"
-                  : "JOIN SERVER"}
+                : justLaunched
+                  ? "DAYZ IS STARTING"
+                  : joinBlocked
+                    ? "SUBSCRIBE AND JOIN"
+                    : "JOIN SERVER"}
             </span>
           </button>
         )}

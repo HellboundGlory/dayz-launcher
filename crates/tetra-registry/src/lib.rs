@@ -81,6 +81,6 @@ impl Registry {
     /// A fresh read connection. Readers are cheap and independent; WAL lets
     /// them run while the writer thread is mid-transaction.
     pub fn reader(&self) -> Result<Reader, RegistryError> {
-        Ok(Reader::new(Self::connect(&self.uri)?))
+        Reader::new(Self::connect(&self.uri)?)
     }
 }

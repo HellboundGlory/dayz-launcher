@@ -96,6 +96,7 @@ export const useServerStore = create<ServerState>((set) => ({
     official: null,
     modded: null,
     first_person: null,
+    latin_names: null,
   },
   ...loadSort(),
   isLoading: false,

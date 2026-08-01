@@ -11,6 +11,11 @@ export interface ServerFilter {
   official: boolean | null;
   modded: boolean | null;
   first_person: boolean | null;
+  /**
+   * ENGLISH ONLY. `true` keeps Latin-script names, `false` keeps only
+   * non-Latin ones, `null` does not filter on script at all.
+   */
+  latin_names: boolean | null;
 }
 
 export type SortKey = 'players' | 'ping' | 'mod_count' | 'name' | 'map' | 'last_played';
