@@ -1,6 +1,6 @@
 [package]
 name = "tetra-launcher"
-version = "0.2.0"
+version = "1.0.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -13,13 +13,15 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+# `tray-icon` is kept ahead of its consumer: the `closeToTray` setting already
+# exists and "minimise to tray instead of closing" is a tracked backlog item.
 tauri = { version = "2", features = ["tray-icon"] }
+# Only the plugins something actually calls. `os`, `fs`, `dialog` and `store`
+# were registered here (and permissioned in capabilities/default.json) without
+# a single call site: settings are read/written by commands::settings through
+# std::fs, and path discovery goes through commands::launch, not a file dialog.
 tauri-plugin-shell = "2"
-tauri-plugin-os = "2"
-tauri-plugin-fs = "2"
 tauri-plugin-process = "2"
-tauri-plugin-dialog = "2"
-tauri-plugin-store = "2"
 tauri-plugin-window-state = "2"
 tauri-plugin-updater = "2"
 serde = { workspace = true }
