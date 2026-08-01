@@ -1,0 +1,59 @@
+name: Check
+
+# The regression net for ordinary work. `release.yml` only ever runs on a
+# version tag, so before this workflow existed nothing verified a commit —
+# a build break could sit on `main` until the next release attempt found it.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+# A new push to the same branch makes the in-flight run obsolete.
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    # Windows, not ubuntu: the workspace pulls in winreg and window-vibrancy,
+    # and tetra-launch's registry discovery is Windows-only. A Linux runner
+    # cannot compile this.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Matches the typecheck half of `npm run build`. The Vite build itself is
+      # covered by the release workflow's `tauri build`.
+      - name: Typecheck
+        run: npx tsc --noEmit
