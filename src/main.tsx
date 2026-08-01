@@ -3,6 +3,13 @@ import ReactDOM from "react-dom/client";
 import { App } from "./App";
 import "./main.css";
 
+// The launcher runs in a webview, and the native browser context menu ("Back",
+// "Reload", "Inspect") makes no sense inside a desktop app shell. Suppressed
+// globally rather than per-component so nothing has to remember to do it; a
+// custom in-app context menu, when one exists, can `stopPropagation()` on its
+// own trigger element to be exempted from this.
+document.addEventListener("contextmenu", (e) => e.preventDefault());
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />

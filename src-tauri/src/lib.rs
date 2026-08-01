@@ -57,6 +57,7 @@ pub fn run() {
             commands::server::get_server_counts,
             commands::server::discover_servers,
             commands::server::refresh_servers,
+            commands::server::refresh_visible_servers,
             commands::steam::steam_init,
             commands::steam::steam_get_user,
             commands::steam::steam_connection_state,

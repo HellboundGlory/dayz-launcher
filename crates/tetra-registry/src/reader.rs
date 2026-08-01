@@ -64,6 +64,7 @@ impl Reader {
                     battleye: r.get::<_, i64>(17)? != 0,
                     vac: r.get::<_, i64>(18)? != 0,
                     version: r.get(19)?,
+                    online: r.get::<_, i64>(20)? != 0,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;

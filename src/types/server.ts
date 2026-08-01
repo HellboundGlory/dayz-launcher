@@ -29,6 +29,12 @@ export interface Server {
   first_person: boolean;
   battleye: boolean;
   mod_list: Mod[] | null;
+  /**
+   * Whether the last targeted refresh that reached for this server got an
+   * answer. `true` for anything only ever seen through discovery or a bulk
+   * refresh — it only ever goes `false` from a REFRESH click that missed it.
+   */
+  online: boolean;
 }
 
 export interface Mod {

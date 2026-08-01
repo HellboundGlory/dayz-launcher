@@ -50,6 +50,9 @@ pub struct Server32 {
     pub modded: bool,
     pub first_person: bool,
     pub battleye: bool,
+    /// Whether the last targeted refresh that reached for this server got an
+    /// answer. See the `online` column comment in `tetra_registry::schema`.
+    pub online: bool,
 }
 
 #[derive(serde::Deserialize)]
@@ -107,6 +110,7 @@ fn to_server32(r: &tetra_registry::filter::ServerListRow) -> Server32 {
         modded: r.modded,
         first_person: r.first_person,
         battleye: r.battleye,
+        online: r.online,
     }
 }
 
@@ -211,70 +215,66 @@ pub fn get_server_list(
     Ok(rows.iter().map(to_server32).collect())
 }
 
-/// A2S-refresh servers using the active frontend filter.
-/// After all info probes complete, batch-queries A2S_RULES for modded servers.
-#[tauri::command]
-pub async fn refresh_servers(
-    state: State<'_, AppState>,
-    window: tauri::Window,
-    filter_params: Option<FilterParams>,
-) -> Result<(), String> {
-    let filter = filter_params.map(filter_from_params).unwrap_or_default();
+/// One server's A2S_INFO probe outcome, on the way into a registry write.
+struct InfoBatchResult {
+    refreshed: usize,
+    failed: usize,
+    /// Servers that answered *and* whose keywords declare mods. Only these are
+    /// worth an A2S_RULES probe — rules is the expensive query (a
+    /// multi-fragment response that must reassemble intact) and on this
+    /// dataset ~89% of servers declare mods, so probing the rest is wasted
+    /// budget.
+    modded: Vec<(ServerKey, SocketAddr)>,
+}
 
-    let (addrs, prober) = {
-        let guard = state.registry.lock().map_err(|e| e.to_string())?;
-        let registry = guard.as_ref().ok_or("Registry not initialized")?;
-
-        let reader = registry.reader().map_err(|e| e.to_string())?;
-        let rows = reader
-            .list(&filter, SortKey::RefreshPriority, SortDir::Desc, PROBE_WINDOW)
-            .map_err(|e| e.to_string())?;
-
-        let addrs: Vec<SocketAddr> = rows
-            .iter()
-            .map(|r| SocketAddr::from((r.key.ip, r.key.query_port)))
-            .collect();
-
-        let config = ProbeConfig::default();
-        let prober = Prober::new(config);
-        (addrs, prober)
-    };
-
+/// Phase 1 of a refresh: A2S_INFO every address, writing results in batches.
+///
+/// `mark_offline` controls whether a probe that never answered flips that
+/// server's `online` flag. A bulk refresh (`refresh_servers`) leaves it
+/// `false` — its probe window doesn't necessarily cover the whole registry,
+/// so a miss there says nothing about whether the server is actually down.
+/// The targeted refresh (`refresh_visible_servers`) passes `true`: every
+/// address it's given is one the user is looking at right now, so a miss is
+/// exactly the "did this go offline" signal the UI wants.
+async fn probe_info(
+    addrs: Vec<SocketAddr>,
+    writer: &tetra_registry::Writer,
+    window: &tauri::Window,
+    mark_offline: bool,
+) -> InfoBatchResult {
+    let prober = Prober::new(ProbeConfig::default());
     let mut rx = prober.refresh(addrs);
+
     let mut refreshed = 0usize;
     let mut failed = 0usize;
-    // Servers that answered A2S_INFO *and* whose keywords declare mods. Only
-    // these are worth an A2S_RULES probe — rules is the expensive query (a
-    // multi-fragment response that must reassemble intact) and on this dataset
-    // ~89% of servers declare mods, so probing the rest is wasted budget.
     let mut modded: Vec<(ServerKey, SocketAddr)> = Vec::new();
+    let mut online_keys: Vec<ServerKey> = Vec::new();
+    let mut offline_keys: Vec<ServerKey> = Vec::new();
 
-    let writer = {
-        let guard = state.registry.lock().map_err(|e| e.to_string())?;
-        let registry = guard.as_ref().ok_or("Registry not initialized")?;
-        registry.writer()
-    };
-
-    // Phase 1: A2S_INFO probes, written in batches.
     // One `upsert_servers(vec![single])` per server means one channel
     // round-trip and one SQLite transaction each; batching cuts both by
     // ~`WRITE_BATCH`x over a refresh of this size.
     let mut batch: Vec<tetra_registry::rows::ServerRow> = Vec::with_capacity(WRITE_BATCH);
 
     while let Some(outcome) = rx.recv().await {
-        let info = match outcome.result {
-            Ok(info) => info,
-            Err(_) => {
-                failed += 1;
-                continue;
-            }
-        };
         let addr = match outcome.addr {
             SocketAddr::V4(v4) => v4,
             SocketAddr::V6(_) => continue,
         };
-        refreshed += 1;
         let key = ServerKey { ip: *addr.ip(), query_port: addr.port() };
+
+        let info = match outcome.result {
+            Ok(info) => info,
+            Err(_) => {
+                failed += 1;
+                if mark_offline {
+                    offline_keys.push(key);
+                }
+                continue;
+            }
+        };
+        refreshed += 1;
+        online_keys.push(key);
 
         if info.keywords.as_deref().map(parse_keywords).is_some_and(|k| k.modded) {
             modded.push((key, outcome.addr));
@@ -316,14 +316,30 @@ pub async fn refresh_servers(
     if !batch.is_empty() {
         let _ = writer.upsert_servers(batch).await;
     }
+    if !online_keys.is_empty() {
+        let _ = writer.set_online(online_keys, true).await;
+    }
+    if !offline_keys.is_empty() {
+        let _ = writer.set_online(offline_keys, false).await;
+    }
     let _ = window.emit("server-refreshed", serde_json::json!({ "phase": "info" }));
 
-    // Phase 2: A2S_RULES for the modded servers, concurrently.
-    let prober2 = Prober::new(ProbeConfig::default());
+    InfoBatchResult { refreshed, failed, modded }
+}
+
+/// Phase 2 of a refresh: A2S_RULES for whatever phase 1 found modded,
+/// concurrently. Returns how many writes succeeded and, for each, the mod
+/// list that came back — the caller needs that list to ask Steam about
+/// pending updates without a second registry round trip.
+async fn probe_rules(
+    modded: Vec<(ServerKey, SocketAddr)>,
+    writer: &tetra_registry::Writer,
+) -> (usize, Vec<(ServerKey, Vec<tetra_core::a2s::dayz::ServerMod>)>) {
+    let prober = Prober::new(ProbeConfig::default());
     let mut rules_tasks = Vec::with_capacity(modded.len());
 
     for (key, addr) in modded {
-        let prober = prober2.clone();
+        let prober = prober.clone();
         let writer = writer.clone();
         rules_tasks.push(tokio::spawn(async move {
             // A whole refresh must not be held hostage by a handful of servers
@@ -334,22 +350,167 @@ pub async fn refresh_servers(
                 // Writing an empty mod list is deliberate: it records
                 // "asked, declared nothing" as mod_count = 0, which the UI
                 // shows differently from never-probed (NULL).
-                Ok(Ok(rules)) => writer.upsert_server_mods(key, rules.mods).await.is_ok(),
-                _ => false,
+                Ok(Ok(rules)) => {
+                    let ok = writer.upsert_server_mods(key, rules.mods.clone()).await.is_ok();
+                    (ok, Some((key, rules.mods)))
+                }
+                _ => (false, None),
             }
         }));
     }
 
     let mut mods_updated = 0usize;
+    let mut mod_lists = Vec::new();
     for task in rules_tasks {
-        if let Ok(true) = task.await {
-            mods_updated += 1;
+        if let Ok((ok, entry)) = task.await {
+            if ok {
+                mods_updated += 1;
+            }
+            if let Some(pair) = entry {
+                mod_lists.push(pair);
+            }
+        }
+    }
+
+    (mods_updated, mod_lists)
+}
+
+/// A2S-refresh servers using the active frontend filter.
+///
+/// This is the *bulk* refresh — it walks up to `PROBE_WINDOW` servers picked
+/// by refresh priority, independent of what's currently on screen. It backs
+/// the initial post-discovery load and the DISCOVER button, both of which run
+/// before the frontend has any server list to be "visible" against. The
+/// REFRESH button instead calls `refresh_visible_servers`.
+#[tauri::command]
+pub async fn refresh_servers(
+    state: State<'_, AppState>,
+    window: tauri::Window,
+    filter_params: Option<FilterParams>,
+) -> Result<(), String> {
+    let filter = filter_params.map(filter_from_params).unwrap_or_default();
+
+    let addrs = {
+        let guard = state.registry.lock().map_err(|e| e.to_string())?;
+        let registry = guard.as_ref().ok_or("Registry not initialized")?;
+
+        let reader = registry.reader().map_err(|e| e.to_string())?;
+        let rows = reader
+            .list(&filter, SortKey::RefreshPriority, SortDir::Desc, PROBE_WINDOW)
+            .map_err(|e| e.to_string())?;
+
+        rows.iter()
+            .map(|r| SocketAddr::from((r.key.ip, r.key.query_port)))
+            .collect::<Vec<_>>()
+    };
+
+    let writer = {
+        let guard = state.registry.lock().map_err(|e| e.to_string())?;
+        let registry = guard.as_ref().ok_or("Registry not initialized")?;
+        registry.writer()
+    };
+
+    let info = probe_info(addrs, &writer, &window, false).await;
+    let (mods_updated, _mod_lists) = probe_rules(info.modded, &writer).await;
+
+    let _ = window.emit(
+        "refresh-complete",
+        serde_json::json!({ "ok": info.refreshed, "failed": info.failed, "mods_updated": mods_updated }),
+    );
+    Ok(())
+}
+
+/// One server the frontend wants re-probed, identified the same way the
+/// bridge already identifies one for `toggle_favourite` / `get_server_mods`.
+#[derive(serde::Deserialize)]
+pub struct AddrPort {
+    pub addr: String,
+    pub query_port: u16,
+}
+
+/// Whether a server's declared mods have a Steam update pending.
+#[derive(serde::Serialize, Clone)]
+pub struct ModsPendingEntry {
+    pub addr: String,
+    pub query_port: u16,
+    pub pending: bool,
+}
+
+/// A2S-refresh exactly the servers the frontend passes in — what's actually
+/// on screen, per `rowVirtualizer.getVirtualItems()` — rather than
+/// re-querying the registry for a broad, possibly out-of-sync window. This is
+/// what the REFRESH button calls.
+///
+/// Unlike `refresh_servers`, a probe that gets no answer here does mean
+/// something: every address came from a row the user can currently see, so a
+/// miss is written as `online = false` and the row can render OFFLINE.
+///
+/// Also re-asks Steam whether any declared mod has an update pending, for
+/// whatever came back modded — the A2S_RULES pass alone only tells you the
+/// server's mod *list*, not whether Steam's copy is stale.
+#[tauri::command]
+pub async fn refresh_visible_servers(
+    state: State<'_, AppState>,
+    window: tauri::Window,
+    addrs: Vec<AddrPort>,
+) -> Result<(), String> {
+    let socket_addrs: Vec<SocketAddr> = addrs
+        .iter()
+        .map(|a| server_key(&a.addr, a.query_port).map(|k| SocketAddr::from((k.ip, k.query_port))))
+        .collect::<Result<_, String>>()?;
+
+    let writer = {
+        let guard = state.registry.lock().map_err(|e| e.to_string())?;
+        let registry = guard.as_ref().ok_or("Registry not initialized")?;
+        registry.writer()
+    };
+
+    let info = probe_info(socket_addrs, &writer, &window, true).await;
+    let (mods_updated, mod_lists) = probe_rules(info.modded, &writer).await;
+
+    // Phase 3: ask Steam whether any of the mods just re-declared need an
+    // update. Best-effort — Steam not being connected, or the lookup
+    // failing, just means the launcher stays silent on this rather than
+    // failing the whole refresh.
+    let steam = state.steam.lock().map_err(|e| e.to_string())?.as_ref().map(Arc::clone);
+    if let (Some(steam), false) = (steam, mod_lists.is_empty()) {
+        let mut ids: Vec<u64> = mod_lists
+            .iter()
+            .flat_map(|(_, mods)| mods.iter().map(|m| m.workshop_id))
+            .collect();
+        ids.sort_unstable();
+        ids.dedup();
+
+        let states = tokio::task::spawn_blocking(move || steam.mod_states(&ids)).await;
+        if let Ok(Ok(states)) = states {
+            let state_map: std::collections::HashMap<u64, tetra_steam::workshop::ModState> =
+                states.into_iter().collect();
+
+            let pending: Vec<ModsPendingEntry> = mod_lists
+                .iter()
+                .map(|(key, mods)| {
+                    let has_pending = mods.iter().any(|m| {
+                        matches!(
+                            state_map.get(&m.workshop_id),
+                            Some(tetra_steam::workshop::ModState::NeedsUpdate)
+                                | Some(tetra_steam::workshop::ModState::Downloading)
+                        )
+                    });
+                    ModsPendingEntry {
+                        addr: format!("{}:{}", key.ip, key.query_port),
+                        query_port: key.query_port,
+                        pending: has_pending,
+                    }
+                })
+                .collect();
+
+            let _ = window.emit("mods-pending", pending);
         }
     }
 
     let _ = window.emit(
         "refresh-complete",
-        serde_json::json!({ "ok": refreshed, "failed": failed, "mods_updated": mods_updated }),
+        serde_json::json!({ "ok": info.refreshed, "failed": info.failed, "mods_updated": mods_updated }),
     );
     Ok(())
 }

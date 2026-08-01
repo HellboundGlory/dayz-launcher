@@ -517,6 +517,7 @@ export function ServerDetails() {
         </div>
 
         <div className="mt-1.5 flex flex-wrap gap-1">
+          {!selectedServer.online && <Badge color="#ef4444">OFFLINE</Badge>}
           {selectedServer.official && <Badge color="#22c55e">OFFICIAL</Badge>}
           {selectedServer.first_person && <Badge color="#64748b">1PP</Badge>}
           {selectedServer.modded && <Badge color="#f59e0b">MODDED</Badge>}
@@ -532,14 +533,20 @@ export function ServerDetails() {
           label="PLAYERS"
           value={`${selectedServer.players}/${selectedServer.max_players}`}
           color={
-            selectedServer.players >= selectedServer.max_players
-              ? "text-[#f59e0b]"
-              : selectedServer.players === 0
-                ? "text-[#64748b]"
-                : "text-[#f1f5f9]"
+            !selectedServer.online
+              ? "text-[#64748b]"
+              : selectedServer.players >= selectedServer.max_players
+                ? "text-[#f59e0b]"
+                : selectedServer.players === 0
+                  ? "text-[#64748b]"
+                  : "text-[#f1f5f9]"
           }
         />
-        <StatCard label="PING" value={ping !== null ? `${ping} ms` : "—"} color={pingColor} />
+        <StatCard
+          label="PING"
+          value={selectedServer.online && ping !== null ? `${ping} ms` : "—"}
+          color={selectedServer.online ? pingColor : "text-[#64748b]"}
+        />
         <StatCard
           label="TIME"
           value={selectedServer.in_game_time ?? "--:--"}
