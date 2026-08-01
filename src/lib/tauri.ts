@@ -52,6 +52,26 @@ export async function refreshServers(filter?: FilterParams): Promise<void> {
   });
 }
 
+export interface AddrPort {
+  addr: string;
+  query_port: number;
+}
+
+/**
+ * A2S-refresh exactly the given servers, rather than a broad backend-picked
+ * window — pass whatever is actually on screen. A miss here is written back
+ * as `online: false`, unlike {@link refreshServers}.
+ */
+export async function refreshVisibleServers(addrs: AddrPort[]): Promise<void> {
+  return invoke<void>("refresh_visible_servers", { addrs });
+}
+
+export interface ModsPendingEntry {
+  addr: string;
+  query_port: number;
+  pending: boolean;
+}
+
 export async function getMapList(): Promise<[string, string][]> {
   return invoke<[string, string][]>("get_map_list");
 }

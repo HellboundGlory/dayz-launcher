@@ -21,6 +21,29 @@ interface ServerState {
   downloadsActive: boolean;
   setDownloadsActive: (active: boolean) => void;
 
+  /**
+   * The row-index range the table currently has mounted, per
+   * `rowVirtualizer.getVirtualItems()` in `server-table.tsx`.
+   *
+   * Written on every scroll/resize, but nothing selects it reactively — it
+   * exists purely so `handleRefresh` in `App.tsx` can read
+   * `useServerStore.getState()` at click time and know which rows are
+   * actually visible, without ServerTable and the refresh button needing a
+   * direct reference to each other.
+   */
+  visibleRange: { start: number; end: number } | null;
+  setVisibleRange: (range: { start: number; end: number } | null) => void;
+
+  /**
+   * Servers whose declared mods came back with a Steam update pending, from
+   * the last targeted refresh. Keyed by `addr` (already `ip:query_port`,
+   * unique). Merged rather than replaced on each refresh — only the servers
+   * that were actually re-probed are touched, so a server currently off
+   * screen keeps whatever it last reported.
+   */
+  modPending: Record<string, boolean>;
+  mergeModPending: (entries: { addr: string; pending: boolean }[]) => void;
+
   setServers: (servers: Server[]) => void;
   setSelectedServer: (server: Server | null) => void;
   setFilter: (filter: Partial<ServerFilter>) => void;
@@ -79,6 +102,8 @@ export const useServerStore = create<ServerState>((set) => ({
   totalCount: 0,
   loadVersion: 0,
   downloadsActive: false,
+  visibleRange: null,
+  modPending: {},
 
   setServers: (servers) => set({ servers }),
   setSelectedServer: (server) => set({ selectedServer: server }),
@@ -95,6 +120,14 @@ export const useServerStore = create<ServerState>((set) => ({
   setLoading: (isLoading) => set({ isLoading }),
   setDownloadsActive: (downloadsActive) => set({ downloadsActive }),
   setTotalCount: (totalCount) => set({ totalCount }),
+  setVisibleRange: (visibleRange) => set({ visibleRange }),
+  mergeModPending: (entries) =>
+    set((state) => {
+      if (entries.length === 0) return state;
+      const modPending = { ...state.modPending };
+      for (const e of entries) modPending[e.addr] = e.pending;
+      return { modPending };
+    }),
   toggleFavourite: (addr) =>
     set((state) => ({
       servers: state.servers.map((s) =>

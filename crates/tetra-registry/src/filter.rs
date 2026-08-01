@@ -96,6 +96,10 @@ pub struct ServerListRow {
     pub battleye: bool,
     pub vac: bool,
     pub version: Option<String>,
+    /// Whether the last *targeted* A2S refresh that touched this server got an
+    /// answer. `true` for anything only ever seen through Steam discovery or a
+    /// bulk refresh — see the `online` column comment in `schema.rs`.
+    pub online: bool,
 }
 
 pub(crate) fn build(
@@ -167,7 +171,7 @@ pub(crate) fn build(
         "SELECT ip, query_port, game_port, name, map_raw, players, max_players,
                 mod_count, ping_ms, locked, in_game_time, country_code,
                 last_played, favourite,
-                official, first_person, modded, battleye, vac, version
+                official, first_person, modded, battleye, vac, version, online
          FROM servers
          {where_sql}
          ORDER BY {} {} , name ASC
