@@ -8,7 +8,6 @@ interface FilterBarProps {
   onRefresh: () => void;
   onDiscover: () => void;
   refreshing: boolean;
-  discovering: boolean;
 }
 
 type TagOption = { key: string; label: string; field: "official" | "modded" | "first_person" };
@@ -19,7 +18,7 @@ const TAG_OPTIONS: TagOption[] = [
   { key: "first_person", label: "1PP ONLY", field: "first_person" },
 ];
 
-export function FilterBar({ onRefresh, onDiscover, refreshing, discovering }: FilterBarProps) {
+export function FilterBar({ onRefresh, onDiscover, refreshing }: FilterBarProps) {
   const filter = useServerStore((s) => s.filter);
   const setFilter = useServerStore((s) => s.setFilter);
 
@@ -84,17 +83,24 @@ export function FilterBar({ onRefresh, onDiscover, refreshing, discovering }: Fi
         />
       </div>
 
-      {/* Refresh button */}
+      {/* Refresh button.
+          Gated on `refreshing` alone, not `discovering`: discovery streams
+          rows into the table as Steam reports them (see the
+          `discovery-progress` listener in App.tsx), so there can already be
+          servers on screen worth re-probing well before the Steam walk
+          finishes. Both commands go through the same registry writer thread,
+          so nothing about running them at once is unsafe — it would just
+          queue. */}
       <button
         onClick={onRefresh}
-        disabled={refreshing || discovering}
+        disabled={refreshing}
         className={cn(
           "flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors",
-          refreshing || discovering
+          refreshing
             ? "cursor-not-allowed text-[#475569]"
             : "bg-[#38bdf8] text-[#0b0f17] hover:bg-[#7dd3fc]",
         )}
-        title="Refresh live server data"
+        title="Re-probe the servers currently on screen — ping, lock, mods, online status"
       >
         <RefreshCw className={cn("size-3", refreshing && "animate-spin")} />
         {refreshing ? "REFRESHING..." : "REFRESH"}

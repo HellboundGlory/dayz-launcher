@@ -125,6 +125,7 @@ export function ServerTable() {
   const setLoading = useServerStore((s) => s.setLoading);
   const setSort = useServerStore((s) => s.setSort);
   const toggleFavouriteLocal = useServerStore((s) => s.toggleFavourite);
+  const modPending = useServerStore((s) => s.modPending);
 
   const [widths, setWidths] = useState<Widths>(loadWidths);
   // Live drag state lives in a ref: the pointer handlers are bound once, and
@@ -144,6 +145,29 @@ export function ServerTable() {
     estimateSize: () => 29,
     overscan: 12,
   });
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  // `getVirtualItems()` pads `overscan` (12) rows on each side onto the true
+  // visible range, so it can't be used directly as "what the user can see" —
+  // that would refresh (and on a miss, mark OFFLINE) up to 24 rows that
+  // never rendered on screen. `rowVirtualizer.range` is the pre-overscan
+  // range the same calculation starts from.
+  const visibleRange = rowVirtualizer.range;
+  const startIndex = visibleRange?.startIndex ?? null;
+  const endIndex = visibleRange?.endIndex ?? null;
+
+  // Published non-reactively (`setState`, not a subscribed selector) so the
+  // REFRESH button can read "what's on screen right now" from
+  // `useServerStore.getState()` at click time, without ServerTable and
+  // App.tsx needing a direct reference to each other. Nothing in this
+  // component subscribes to `visibleRange`, so this can't cause a render loop.
+  useEffect(() => {
+    if (startIndex === null || endIndex === null) {
+      useServerStore.setState({ visibleRange: null });
+      return;
+    }
+    useServerStore.setState({ visibleRange: { start: startIndex, end: endIndex } });
+  }, [startIndex, endIndex]);
 
   const persist = useCallback((next: Widths) => {
     try {
@@ -341,9 +365,10 @@ export function ServerTable() {
             actually mounted below, each pinned to its slot via translateY.
             This is what makes a 5000-row list cost the same as a 50-row one. */}
         <div style={{ position: "relative", height: rowVirtualizer.getTotalSize() }}>
-        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+        {virtualItems.map((virtualRow) => {
           const server = servers[virtualRow.index];
           const isSelected = selectedServer?.addr === server.addr;
+          const offline = !server.online;
           return (
             <div
               key={`${server.addr}:${server.query_port}`}
@@ -354,6 +379,7 @@ export function ServerTable() {
                 "grid cursor-pointer items-center border-b border-[#1e293b]/50 transition-colors hover:bg-[#16202e]/50",
                 isSelected && "bg-[#16202e] ring-1 ring-inset ring-[#38bdf8]/40",
                 virtualRow.index % 2 === 0 ? "bg-[#0b0f17]/80" : "bg-[#0b0f17]",
+                offline && "opacity-50",
               )}
               style={{
                 gridTemplateColumns: template,
@@ -391,10 +417,16 @@ export function ServerTable() {
                   {server.name}
                 </span>
                 <div className="flex shrink-0 gap-0.5">
+                  {offline && <Tag color="#ef4444">OFFLINE</Tag>}
                   {server.official && <Tag color="#22c55e">OFFICIAL</Tag>}
                   {server.first_person && <Tag color="#64748b">1PP</Tag>}
                   {server.modded && <Tag color="#f59e0b">MODDED</Tag>}
                   {server.locked && <Tag color="#ef4444">LOCKED</Tag>}
+                  {modPending[server.addr] && (
+                    <Tag color="#38bdf8" title="A declared mod has a Steam update pending">
+                      UPDATE
+                    </Tag>
+                  )}
                 </div>
               </div>
 
@@ -424,13 +456,16 @@ export function ServerTable() {
 
               <div className="min-w-0 px-2 py-1.5 text-right">
                 <span
+                  title={offline ? "Last known player count — server did not respond" : undefined}
                   className={cn(
                     "font-mono-data text-[11px] tabular-nums",
-                    server.players >= server.max_players
-                      ? "text-[#f59e0b]"
-                      : server.players === 0
-                        ? "text-[#64748b]"
-                        : "text-[#f1f5f9]",
+                    offline
+                      ? "text-[#64748b]"
+                      : server.players >= server.max_players
+                        ? "text-[#f59e0b]"
+                        : server.players === 0
+                          ? "text-[#64748b]"
+                          : "text-[#f1f5f9]",
                   )}
                 >
                   {server.players}/{server.max_players}
@@ -452,9 +487,10 @@ export function ServerTable() {
 
               <div className="min-w-0 px-2 py-1.5 text-right">
                 <span
+                  title={offline ? "Server did not respond to the last refresh" : undefined}
                   className={cn(
                     "font-mono-data text-[11px] tabular-nums",
-                    server.ping === null
+                    offline || server.ping === null
                       ? "text-[#64748b]"
                       : server.ping > 120
                         ? "text-[#ef4444]"
@@ -463,7 +499,7 @@ export function ServerTable() {
                           : "text-[#22c55e]",
                   )}
                 >
-                  {server.ping ?? "—"}
+                  {offline ? "—" : (server.ping ?? "—")}
                 </span>
               </div>
 
@@ -477,9 +513,18 @@ export function ServerTable() {
   );
 }
 
-function Tag({ color, children }: { color: string; children: React.ReactNode }) {
+function Tag({
+  color,
+  title,
+  children,
+}: {
+  color: string;
+  title?: string;
+  children: React.ReactNode;
+}) {
   return (
     <span
+      title={title}
       className="rounded border px-1 text-[8px] font-semibold uppercase leading-[1.4]"
       style={{ borderColor: `${color}66`, color }}
     >

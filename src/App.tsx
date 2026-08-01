@@ -15,9 +15,11 @@ import {
   steamConnectionState,
   discoverServers,
   refreshServers,
+  refreshVisibleServers,
   getServerCounts,
   type SteamInitError,
   type SteamInitFailure,
+  type ModsPendingEntry,
 } from "./lib/tauri";
 import { listen } from "@tauri-apps/api/event";
 
@@ -151,7 +153,18 @@ export function App() {
     };
   }, [flushSettings]);
 
-  /** First full population of the list. Only runs once Steam is connected. */
+  /**
+   * First full population of the list. Only runs once Steam is connected.
+   *
+   * Deliberately does *not* follow discovery with a bulk A2S refresh. Steam's
+   * server-list response already carries name/map/players/ping/locked/tags —
+   * enough to paint the table immediately — and running an up-to-5000-server
+   * probe pass here used to tie up the network and the registry's single
+   * writer thread right when the table first appears, which made the REFRESH
+   * button (now a small, targeted probe of whatever's on screen) feel stuck
+   * for however long that pass took. Mod counts and live pings arrive the
+   * moment the user hits REFRESH instead.
+   */
   const runInitialLoad = useCallback(async () => {
     setDiscovering(true);
     try {
@@ -160,12 +173,6 @@ export function App() {
       console.error("Discovery failed:", e);
     } finally {
       setDiscovering(false);
-    }
-
-    try {
-      await refreshServers();
-    } catch (e) {
-      console.error("Refresh failed:", e);
     }
 
     triggerReload();
@@ -282,6 +289,10 @@ export function App() {
       scheduleReload();
     });
 
+    const unlistenModsPending = listen<ModsPendingEntry[]>("mods-pending", (event) => {
+      useServerStore.getState().mergeModPending(event.payload);
+    });
+
     // Completion is the one event that reloads immediately rather than on the
     // throttle, so the final state is never left a beat behind.
     const unlistenComplete = listen<{ ok: number; failed: number }>(
@@ -296,11 +307,20 @@ export function App() {
     return () => {
       unlistenProgress.then((fn) => fn());
       unlistenRefreshed.then((fn) => fn());
+      unlistenModsPending.then((fn) => fn());
       unlistenComplete.then((fn) => fn());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * Re-probe only the servers currently on screen, rather than the backend's
+   * whole refresh-priority window. `visibleRange` is published by
+   * `server-table.tsx` from `rowVirtualizer.getVirtualItems()`; reading both
+   * it and `servers` via `getState()` here (not a subscribed selector) keeps
+   * this callback stable and picks up whatever the table has mounted right
+   * up to the moment of the click.
+   */
   const handleRefresh = useCallback(async () => {
     if (!steamConnected) return;
     // An A2S refresh opens thousands of UDP sockets; don't run it against a
@@ -309,10 +329,17 @@ export function App() {
       setError("Paused while mods are downloading — try again once they finish.");
       return;
     }
+    const { servers, visibleRange } = useServerStore.getState();
+    if (!visibleRange || servers.length === 0) return;
+    const targets = servers
+      .slice(visibleRange.start, visibleRange.end + 1)
+      .map((s) => ({ addr: s.addr, query_port: s.query_port }));
+    if (targets.length === 0) return;
+
     setRefreshing(true);
     setError(null);
     try {
-      await refreshServers();
+      await refreshVisibleServers(targets);
       triggerReload();
       setRefreshedAt(new Date().toLocaleTimeString());
     } catch (e) {
@@ -356,7 +383,6 @@ export function App() {
         onRefresh={handleRefresh}
         onDiscover={handleDiscover}
         refreshing={refreshing}
-        discovering={discovering}
       />
 
       {error && (

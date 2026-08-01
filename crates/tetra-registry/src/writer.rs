@@ -15,6 +15,7 @@ pub(crate) enum Job {
     Mods(Vec<ModRow>, Ack<usize>),
     Favourite(ServerKey, bool, Ack<()>),
     LastPlayed(ServerKey, Ack<()>),
+    SetOnline(Vec<ServerKey>, bool, Ack<()>),
 }
 
 /// Handle to the single writer thread. Cheap to clone.
@@ -69,6 +70,19 @@ impl Writer {
     pub async fn mark_played(&self, key: ServerKey) -> Result<(), RegistryError> {
         self.send(|ack| Job::LastPlayed(key, ack)).await
     }
+
+    /// Flip `online` for a batch of servers.
+    ///
+    /// A targeted `UPDATE`, like `set_favourite` — not folded into
+    /// `upsert_servers`, because that upsert's CASE guards only ever look at
+    /// whether *this* row responded and cannot express "this key didn't
+    /// answer at all" (there is no row to carry that). Only the targeted A2S
+    /// refresh calls this; a bulk refresh leaves `online` alone so a probe
+    /// window that doesn't cover the whole registry can't mass-mark
+    /// unreached servers as down.
+    pub async fn set_online(&self, keys: Vec<ServerKey>, online: bool) -> Result<(), RegistryError> {
+        self.send(|ack| Job::SetOnline(keys, online, ack)).await
+    }
 }
 
 pub(crate) fn run(conn: Connection, mut rx: mpsc::Receiver<Job>) {
@@ -88,6 +102,9 @@ pub(crate) fn run(conn: Connection, mut rx: mpsc::Receiver<Job>) {
             }
             Job::LastPlayed(key, ack) => {
                 let _ = ack.send(mark_played(&conn, key));
+            }
+            Job::SetOnline(keys, online, ack) => {
+                let _ = ack.send(set_online(&conn, &keys, online));
             }
         }
     }
@@ -280,6 +297,20 @@ fn mark_played(conn: &Connection, key: ServerKey) -> Result<(), RegistryError> {
         "UPDATE servers SET last_played = unixepoch() WHERE ip = ?1 AND query_port = ?2",
         params![key.ip.to_string(), key.query_port],
     )?;
+    Ok(())
+}
+
+fn set_online(conn: &Connection, keys: &[ServerKey], online: bool) -> Result<(), RegistryError> {
+    let tx = conn.unchecked_transaction()?;
+    {
+        let mut stmt = tx.prepare_cached(
+            "UPDATE servers SET online = ?3 WHERE ip = ?1 AND query_port = ?2",
+        )?;
+        for key in keys {
+            stmt.execute(params![key.ip.to_string(), key.query_port, online])?;
+        }
+    }
+    tx.commit()?;
     Ok(())
 }
 

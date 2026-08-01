@@ -1,17 +1,17 @@
 use crate::error::RegistryError;
 use rusqlite::Connection;
 
-pub const LATEST_VERSION: u32 = 1;
+pub const LATEST_VERSION: u32 = 2;
 
 struct Migration {
     version: u32,
     sql: &'static str,
 }
 
-const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    sql: V1,
-}];
+const MIGRATIONS: &[Migration] = &[
+    Migration { version: 1, sql: V1 },
+    Migration { version: 2, sql: V2 },
+];
 
 /// Connection-level settings. Applied to every connection, reader or writer.
 ///
@@ -107,4 +107,14 @@ CREATE INDEX idx_servers_map         ON servers(map_normalised);
 CREATE INDEX idx_servers_country     ON servers(country_code);
 CREATE INDEX idx_servers_last_played ON servers(last_played);
 CREATE INDEX idx_server_mods_workshop ON server_mods(workshop_id);
+"#;
+
+/// `online` is written only by a targeted A2S refresh (see
+/// `commands::server::refresh_visible_servers` / `Writer::set_online`), never
+/// by the upsert guard in `writer.rs` — that guard already ignores rows that
+/// didn't respond, so it has no signal to flip this from. Defaults to `1`:
+/// a server the launcher has only ever discovered through Steam, and never
+/// itself failed to reach, has not been shown to be down.
+const V2: &str = r#"
+ALTER TABLE servers ADD COLUMN online INTEGER NOT NULL DEFAULT 1;
 "#;
