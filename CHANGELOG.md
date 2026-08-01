@@ -1,5 +1,37 @@
 # Changelog
 
+## v1.0.1 — 2026-08-01
+
+### Fixed
+
+- **JOIN gave no sign it had worked.** The button stayed on "JOIN SERVER" even
+  while you were in the game. It now turns green and reads "DAYZ IS STARTING"
+  for a few seconds after launching. (Introduced in v1.0.0 — removing the bug
+  that pinned the button on "LAUNCHING..." for the whole session left nothing in
+  its place.)
+
+### Added
+
+- **The server browser hides junk entries by default.** Roughly a quarter of
+  every list was servers with no name at all — ones Steam lists but that have
+  never answered a query — plus hosting-company defaults like
+  `nitrado.net gameserver`, `Hosted by GTXGaming.co.uk` and `EXAMPLE NAME`. On a
+  typical list that is about 2,200 rows of nothing. Both are checkboxes under
+  **Settings → Server Browser** if you want them back.
+
+  Servers whose admin kept the hoster prefix but did name the thing —
+  `4Netplayers Purgatorio [ESP]` — are *not* hidden.
+
+- **An ENGLISH ONLY tag** in the TAGS dropdown, for filtering by the script a
+  server's name is written in. Off by default. ✓ shows only names you can read
+  in the Latin alphabet, ✗ shows only the ones you can't, blank shows
+  everything.
+
+### Changed
+
+- The TAGS chip now counts excluded tags as well as included ones. Setting a tag
+  to ✗ previously still showed "Any".
+
 ## v1.0.0 — 2026-08-01
 
 A stability and performance release. No new features; the launcher does the
