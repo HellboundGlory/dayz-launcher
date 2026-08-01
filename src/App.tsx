@@ -8,6 +8,7 @@ import { SettingsModal } from "./components/settings-modal";
 import { SteamRequiredModal } from "./components/steam-required-modal";
 import { useServerStore } from "./stores/server-store";
 import { useSettingsStore } from "./stores/settings-store";
+import { useUpdateStore } from "./stores/update-store";
 import {
   steamInit,
   asSteamInitError,
@@ -43,6 +44,15 @@ const STEAM_RETRY_MS = 4000;
  * often costs nothing.
  */
 const CONNECTION_POLL_MS = 3000;
+
+/**
+ * How often to recheck for a new release once the app is running.
+ *
+ * Unlike the Steam connection, there's no urgency here — a few hours' delay
+ * before noticing a new release costs nothing, so this is picked to be
+ * unobtrusive rather than fast.
+ */
+const UPDATE_RECHECK_MS = 6 * 60 * 60 * 1000;
 
 export function App() {
   const [activeTab, setActiveTab] = useState("servers");
@@ -109,6 +119,20 @@ export function App() {
   // the user's file.
   const loadSettings = useSettingsStore((s) => s.load);
   const flushSettings = useSettingsStore((s) => s.flush);
+
+  // Independent of Steam entirely — a release check is just a request to
+  // GitHub, so it runs regardless of whether Steam ever connects.
+  const resolveInstalled = useUpdateStore((s) => s.resolveInstalled);
+  const checkForUpdates = useUpdateStore((s) => s.checkNow);
+  const updateAvailable = useUpdateStore((s) => s.available);
+
+  useEffect(() => {
+    void resolveInstalled();
+    void checkForUpdates();
+    const timer = window.setInterval(() => void checkForUpdates(), UPDATE_RECHECK_MS);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     void loadSettings();
@@ -325,6 +349,7 @@ export function App() {
         onTabChange={handleTabChange}
         steamConnected={steamConnected}
         onOpenSettings={() => setSettingsOpen(true)}
+        updateAvailable={updateAvailable !== null}
       />
 
       <FilterBar

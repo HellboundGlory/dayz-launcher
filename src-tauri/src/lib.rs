@@ -22,6 +22,7 @@ pub fn run() {
         // the saved geometry is applied, so it never flashes at the default
         // size first.
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         // Steamworks' overlay hook creates native windows of its own, outside
         // tao's tracking — on at least some machines that stops the window
         // count from ever reaching zero, so the implicit "exit when the last
@@ -70,6 +71,7 @@ pub fn run() {
             commands::launch::open_steam,
             commands::settings::get_settings,
             commands::settings::save_settings,
+            commands::update::is_installed_copy,
         ])
         .setup(|app| {
             let state = app.state::<state::AppState>();
