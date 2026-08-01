@@ -358,6 +358,101 @@ async fn counts_are_zero_on_an_untouched_registry() {
     assert_eq!(reader.counts().expect("counts"), (0, 0));
 }
 
+/// The browser's noise filters, end to end through the SQL.
+///
+/// These run against `tetra_is_placeholder` / `tetra_is_latin`, registered as
+/// SQLite functions on every read connection — so this also proves the
+/// registration actually happens, which a unit test of the classifier cannot.
+#[tokio::test]
+async fn name_filters_hide_noise_and_keep_real_servers() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let writer = registry.writer();
+
+    let named = |n: u8, name: &str| ServerRow {
+        key: ServerKey {
+            ip: Ipv4Addr::new(203, 0, 113, n),
+            query_port: 27016,
+        },
+        name: name.into(),
+        ..live_row()
+    };
+
+    writer
+        .upsert_servers(vec![
+            named(40, "Survivor Haven | PVE"),
+            named(41, "nitrado.net gameserver"),
+            named(42, "Hosted by GTXGaming.co.uk"),
+            // Hoster prefix, but the admin named it — must survive.
+            named(43, "4Netplayers Purgatorio [ESP]"),
+            named(44, "Русский сервер PVE"),
+            named(45, "生存服务器"),
+            // Never answered a probe, so no name was ever written.
+            ServerRow {
+                key: ServerKey {
+                    ip: Ipv4Addr::new(203, 0, 113, 46),
+                    query_port: 27016,
+                },
+                responded: false,
+                ..Default::default()
+            },
+        ])
+        .await
+        .expect("rows");
+
+    let reader = registry.reader().expect("reader");
+    let names = |f: &ServerFilter| -> Vec<String> {
+        let mut v: Vec<String> = reader
+            .list(f, SortKey::Name, SortDir::Asc, 50)
+            .expect("list")
+            .into_iter()
+            .map(|r| r.name)
+            .collect();
+        v.sort();
+        v
+    };
+
+    assert_eq!(
+        names(&ServerFilter::default()).len(),
+        7,
+        "no filter shows all"
+    );
+
+    let hidden = ServerFilter {
+        hide_unnamed: true,
+        hide_placeholder: true,
+        ..Default::default()
+    };
+    let kept = names(&hidden);
+    assert!(kept.contains(&"Survivor Haven | PVE".to_string()));
+    assert!(
+        kept.contains(&"4Netplayers Purgatorio [ESP]".to_string()),
+        "a hoster prefix on a named server is not a placeholder"
+    );
+    assert!(!kept.iter().any(|n| n.contains("nitrado")));
+    assert!(!kept.iter().any(|n| n.contains("GTXGaming")));
+    assert!(!kept.iter().any(|n| n.is_empty()), "unnamed row survived");
+    // The two non-Latin names are untouched by these two filters.
+    assert_eq!(kept.len(), 4, "kept: {kept:?}");
+
+    let english = ServerFilter {
+        latin_names: Some(true),
+        ..Default::default()
+    };
+    let kept = names(&english);
+    assert!(!kept.iter().any(|n| n.contains('Р') || n.contains('生')));
+    assert!(kept.contains(&"Survivor Haven | PVE".to_string()));
+
+    // Inverted, for a player who wants exactly those servers. The unnamed row
+    // must not be swept in — it has nothing to read either way.
+    let not_english = ServerFilter {
+        latin_names: Some(false),
+        ..Default::default()
+    };
+    let kept = names(&not_english);
+    assert_eq!(kept.len(), 2, "kept: {kept:?}");
+    assert!(kept.iter().all(|n| !n.is_empty()));
+}
+
 #[tokio::test]
 async fn favourites_and_recent_filters_select_the_right_rows() {
     let registry = Registry::open_in_memory().expect("registry");

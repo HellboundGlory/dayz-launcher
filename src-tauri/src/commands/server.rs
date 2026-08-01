@@ -124,6 +124,14 @@ pub struct FilterParams {
     pub official: Option<bool>,
     pub modded: Option<bool>,
     pub first_person: Option<bool>,
+    // Defaulted so a frontend that predates these still deserialises — and so
+    // the omission means "show everything", never "hide silently".
+    #[serde(default)]
+    pub hide_unnamed: bool,
+    #[serde(default)]
+    pub hide_placeholder: bool,
+    #[serde(default)]
+    pub latin_names: Option<bool>,
 }
 
 #[derive(serde::Deserialize)]
@@ -712,6 +720,9 @@ fn filter_from_params(p: FilterParams) -> ServerFilter {
         official: p.official,
         modded: p.modded,
         first_person: p.first_person,
+        hide_unnamed: p.hide_unnamed,
+        hide_placeholder: p.hide_placeholder,
+        latin_names: p.latin_names,
     }
 }
 

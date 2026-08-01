@@ -10,12 +10,20 @@ interface FilterBarProps {
 }
 
 /** The tri-state tag filters, which are exactly the boolean-or-null fields. */
-type TagField = "official" | "modded" | "first_person";
+type TagField = "official" | "modded" | "first_person" | "latin_names";
 
-const TAG_OPTIONS: { label: string; field: TagField }[] = [
+const TAG_OPTIONS: { label: string; field: TagField; title?: string }[] = [
   { label: "OFFICIAL", field: "official" },
   { label: "MODDED", field: "modded" },
   { label: "1PP ONLY", field: "first_person" },
+  {
+    label: "ENGLISH ONLY",
+    field: "latin_names",
+    // Tri-state earns its keep here: ✗ is how someone who *wants* the Chinese
+    // or Russian servers finds them, which a plain on/off toggle could not do.
+    title:
+      "✓ only servers whose name reads in Latin script · ✗ only those that don't · blank shows all",
+  },
 ];
 
 /**
@@ -74,6 +82,7 @@ export function FilterBar({ onRefresh, refreshing }: FilterBarProps) {
         official={filter.official}
         modded={filter.modded}
         firstPerson={filter.first_person}
+        latinNames={filter.latin_names}
         onChange={(field, value) => setFilter({ [field]: value })}
       />
 
@@ -266,11 +275,13 @@ function TagsDropdown({
   official,
   modded,
   firstPerson,
+  latinNames,
   onChange,
 }: {
   official: boolean | null;
   modded: boolean | null;
   firstPerson: boolean | null;
+  latinNames: boolean | null;
   // `TagField`, not `string`: the caller spreads this straight into `setFilter`,
   // so an untyped key silently wrote a filter field that does not exist.
   onChange: (field: TagField, value: boolean | null) => void;
@@ -282,9 +293,12 @@ function TagsDropdown({
     official,
     modded,
     first_person: firstPerson,
+    latin_names: latinNames,
   };
 
-  const activeCount = [official, modded, firstPerson].filter((v) => v === true).length;
+  // Any non-null state counts: excluding is as much a choice as including, and
+  // a "✗ 1PP" filter with the chip reading "Any" would be a lie.
+  const activeCount = Object.values(values).filter((v) => v !== null).length;
   const label = activeCount === 0 ? "Any" : `${activeCount} tag${activeCount > 1 ? "s" : ""}`;
 
   // include -> exclude -> don't care.
@@ -318,13 +332,14 @@ function TagsDropdown({
         <ChevronDown className="size-3 text-[#64748b]" />
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-44 rounded border border-[#1e293b] bg-[#111823] shadow-xl">
+        <div className="absolute left-0 top-full z-50 mt-1 w-52 rounded border border-[#1e293b] bg-[#111823] shadow-xl">
           {TAG_OPTIONS.map((opt) => {
             const val = values[opt.field];
             return (
               <button
                 key={opt.field}
                 onClick={() => cycle(opt.field)}
+                title={opt.title}
                 className="flex w-full items-center justify-between px-2 py-1.5 text-[11px] text-[#94a3b8] hover:bg-[#16202e]"
               >
                 <span>{opt.label}</span>

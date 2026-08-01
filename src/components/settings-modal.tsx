@@ -15,6 +15,35 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
+/** A checkbox with a label and an explanatory line, the shape every toggle in
+ *  this modal uses. Extracted once there were three of them. */
+function CheckboxRow({
+  checked,
+  onChange,
+  label,
+  hint,
+}: {
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  label: string;
+  hint: string;
+}) {
+  return (
+    <label className="mb-2 flex cursor-pointer items-start gap-2 last:mb-0">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5 size-3.5 shrink-0 accent-[#38bdf8]"
+      />
+      <span>
+        <span className="block text-xs text-[#f1f5f9]">{label}</span>
+        <span className="mt-0.5 block text-[10px] leading-relaxed text-[#64748b]">{hint}</span>
+      </span>
+    </label>
+  );
+}
+
 export function SettingsModal({ open: isOpen, onClose }: SettingsModalProps) {
   // Field selectors rather than a whole-store subscription. This modal really
   // does read most of the store, but `setSetting` is what the inputs call and
@@ -23,6 +52,8 @@ export function SettingsModal({ open: isOpen, onClose }: SettingsModalProps) {
   const dayzPath = useSettingsStore((s) => s.dayzPath);
   const workshopPath = useSettingsStore((s) => s.workshopPath);
   const autoJoinAfterDownload = useSettingsStore((s) => s.autoJoinAfterDownload);
+  const hideUnnamedServers = useSettingsStore((s) => s.hideUnnamedServers);
+  const hidePlaceholderServers = useSettingsStore((s) => s.hidePlaceholderServers);
   const setSetting = useSettingsStore((s) => s.setSetting);
   const [detecting, setDetecting] = useState(false);
   const [currentVersion, setCurrentVersion] = useState<string | null>(null);
@@ -125,25 +156,39 @@ export function SettingsModal({ open: isOpen, onClose }: SettingsModalProps) {
           </div>
 
           {/* Auto-join behaviour */}
-          <div>
-            <label className="flex cursor-pointer items-start gap-2">
-              <input
-                type="checkbox"
-                checked={autoJoinAfterDownload}
-                onChange={(e) => setSetting("autoJoinAfterDownload", e.target.checked)}
-                className="mt-0.5 size-3.5 shrink-0 accent-[#38bdf8]"
-              />
-              <span>
-                <span className="block text-xs text-[#f1f5f9]">
-                  Auto-join after downloading
-                </span>
-                <span className="mt-0.5 block text-[10px] leading-relaxed text-[#64748b]">
-                  "Subscribe and join" launches DayZ automatically once every required mod
-                  has finished downloading. Turn this off to subscribe and download only,
-                  then join manually.
-                </span>
-              </span>
+          <CheckboxRow
+            checked={autoJoinAfterDownload}
+            onChange={(v) => setSetting("autoJoinAfterDownload", v)}
+            label="Auto-join after downloading"
+            hint={`"Subscribe and join" launches DayZ automatically once every required mod
+                   has finished downloading. Turn this off to subscribe and download only,
+                   then join manually.`}
+          />
+
+          {/* Server browser noise filters */}
+          <div className="border-t border-[#1e293b] pt-4">
+            <label className="mb-2 block text-[10px] font-semibold uppercase tracking-wider text-[#64748b]">
+              Server Browser
             </label>
+            <CheckboxRow
+              checked={hideUnnamedServers}
+              onChange={(v) => setSetting("hideUnnamedServers", v)}
+              label="Hide servers with no name"
+              hint="Servers Steam lists but that have never answered a probe, so they have
+                    no name to show. They always read 0 players and are roughly a quarter
+                    of the list."
+            />
+            <CheckboxRow
+              checked={hidePlaceholderServers}
+              onChange={(v) => setSetting("hidePlaceholderServers", v)}
+              label="Hide default hoster names"
+              hint='Names nobody ever set — "nitrado.net gameserver", "Hosted by
+                    GTXGaming.co.uk", "EXAMPLE NAME". A server whose admin kept the
+                    hoster prefix but did name it is not hidden.'
+            />
+            <p className="mt-2 text-[10px] leading-relaxed text-[#475569]">
+              To filter by language instead, use the ENGLISH ONLY tag in the TAGS dropdown.
+            </p>
           </div>
 
           {/* Workshop Path (read-only, auto-detected) */}
