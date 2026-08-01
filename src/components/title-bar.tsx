@@ -8,9 +8,18 @@ interface TitleBarProps {
   steamConnected: boolean;
   className?: string;
   onOpenSettings: () => void;
+  /** Shows a dot on the settings gear so a background update check is discoverable. */
+  updateAvailable?: boolean;
 }
 
-export function TitleBar({ activeTab, onTabChange, steamConnected, className, onOpenSettings }: TitleBarProps) {
+export function TitleBar({
+  activeTab,
+  onTabChange,
+  steamConnected,
+  className,
+  onOpenSettings,
+  updateAvailable,
+}: TitleBarProps) {
   function minimizeWindow() {
     import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
       getCurrentWindow().minimize();
@@ -97,10 +106,13 @@ export function TitleBar({ activeTab, onTabChange, steamConnected, className, on
         <div className="flex">
           <button
             onClick={onOpenSettings}
-            className="inline-flex h-10 w-[46px] items-center justify-center text-[#64748b] hover:bg-[#16202e] hover:text-[#f1f5f9]"
-            title="Settings"
+            className="relative inline-flex h-10 w-[46px] items-center justify-center text-[#64748b] hover:bg-[#16202e] hover:text-[#f1f5f9]"
+            title={updateAvailable ? "Settings — update available" : "Settings"}
           >
             <Settings className="size-3.5" />
+            {updateAvailable && (
+              <span className="absolute right-2.5 top-2.5 size-1.5 rounded-full bg-[#38bdf8]" />
+            )}
           </button>
           <button
             onClick={minimizeWindow}

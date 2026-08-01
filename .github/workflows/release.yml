@@ -1,0 +1,68 @@
+name: Release
+
+# Release ritual: bump the version in package.json + src-tauri/tauri.conf.json
+# (kept in lockstep — the updater compares against tauri.conf.json's version),
+# commit, tag as vX.Y.Z, then push the tag. That push is this workflow's only
+# trigger — nothing here runs on an ordinary commit.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # Builds, signs the updater artifacts (TAURI_SIGNING_PRIVATE_KEY*), and
+      # creates+publishes the GitHub release with the NSIS installer,
+      # signatures, and latest.json attached.
+      - name: Build and publish release
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Tetra Launcher ${{ github.ref_name }}"
+          releaseDraft: false
+          prerelease: false
+
+      # tauri-action only uploads the NSIS installer bundle — the portable
+      # distribution (raw exe + steam_api64.dll, which tauri build already
+      # places side by side in target/release) is packaged separately and
+      # uploaded onto the same release the step above just published.
+      - name: Package portable build
+        shell: pwsh
+        run: |
+          $dest = "Tetra-Launcher-${{ github.ref_name }}-portable"
+          New-Item -ItemType Directory -Path $dest | Out-Null
+          Copy-Item "target/release/tetra-launcher.exe" $dest
+          Copy-Item "target/release/steam_api64.dll" $dest
+          Compress-Archive -Path "$dest/*" -DestinationPath "$dest.zip"
+
+      - name: Upload portable build to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.ref_name }}" "Tetra-Launcher-${{ github.ref_name }}-portable.zip" --clobber
