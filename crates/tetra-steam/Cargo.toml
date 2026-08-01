@@ -1,0 +1,22 @@
+[package]
+name = "tetra-steam"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+tetra-core = { path = "../tetra-core" }
+tetra-registry = { path = "../tetra-registry" }
+steamworks.workspace = true
+serde = { workspace = true }
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints.rust]
+# Not `forbid`: the steamworks crate's own FFI is unsafe, but nothing in this
+# crate may add to it. Deny catches any attempt.
+unsafe_code = "deny"

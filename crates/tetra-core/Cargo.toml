@@ -1,0 +1,17 @@
+[package]
+name = "tetra-core"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+serde.workspace = true
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[[bin]]
+name = "tetra-probe"
+path = "src/bin/tetra-probe.rs"
