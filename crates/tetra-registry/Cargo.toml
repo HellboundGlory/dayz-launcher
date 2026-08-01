@@ -1,0 +1,16 @@
+[package]
+name = "tetra-registry"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+tetra-core = { path = "../tetra-core" }
+rusqlite.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[lints.rust]
+unsafe_code = "forbid"

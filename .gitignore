@@ -1,0 +1,20 @@
+# Build output
+/dist
+/target
+/src-tauri/gen/schemas
+
+# Dependencies
+/node_modules
+
+# Local runtime data — machine-specific, not source
+tetra.db
+tetra.db-shm
+tetra.db-wal
+
+# Project notes kept local, not published
+progress.md
+implementation_plan.md
+
+# Editor / tooling
+.claude/
+*.log

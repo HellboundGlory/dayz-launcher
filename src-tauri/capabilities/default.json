@@ -1,0 +1,34 @@
+{
+  "identifier": "default",
+  "description": "enables the default permissions",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:path:default",
+    "core:event:default",
+    "core:window:default",
+    "core:webview:default",
+    "core:webview:allow-create-webview-window",
+    "core:app:default",
+    "core:resources:default",
+    "core:image:default",
+    "core:menu:default",
+    "core:tray:default",
+    "shell:allow-open",
+    "os:allow-arch",
+    "os:allow-os-type",
+    "core:window:allow-start-dragging",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-minimize",
+    "core:window:allow-close",
+    "process:allow-exit",
+    "window-state:default",
+    "fs:default",
+    "fs:allow-appdata-read",
+    "fs:allow-appdata-write",
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [{ "path": "$APPDATA/*" }]
+    }
+  ]
+}

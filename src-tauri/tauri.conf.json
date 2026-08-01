@@ -1,0 +1,41 @@
+{
+  "productName": "Tetra Launcher",
+  "version": "0.1.0",
+  "identifier": "com.tetra.launcher",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Tetra Launcher",
+        "width": 1400,
+        "minWidth": 975,
+        "height": 800,
+        "minHeight": 700,
+        "resizable": true,
+        "transparent": true,
+        "decorations": false,
+        "fullscreen": false,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "resources": [
+      "steam_api64.dll"
+    ],
+    "icon": [
+      "icons/icon.png",
+      "icons/icon.ico"
+    ]
+  }
+}
