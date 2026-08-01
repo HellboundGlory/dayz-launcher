@@ -177,6 +177,11 @@ export function ServerTable() {
     }
   }, []);
 
+  // Mirrors `widths` so the pointer-up handler — bound once — can read the
+  // final value without the effect re-subscribing on every pixel of a drag.
+  const widthsRef = useRef(widths);
+  widthsRef.current = widths;
+
   useEffect(() => {
     function onMove(e: PointerEvent) {
       const d = drag.current;
@@ -191,10 +196,11 @@ export function ServerTable() {
       drag.current = null;
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
-      setWidths((w) => {
-        persist(w);
-        return w;
-      });
+      // Read through the ref rather than `setWidths((w) => { persist(w); return w; })`.
+      // A state updater must be pure: React invokes it twice under StrictMode,
+      // so that shape wrote to localStorage twice per drag, and any future
+      // re-render triggered by an unrelated `setWidths` would have replayed it.
+      persist(widthsRef.current);
     }
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
@@ -248,7 +254,20 @@ export function ServerTable() {
     }
   }
 
+  // Results are applied only if this effect run is still the current one.
+  //
+  // Load-bearing since `get_server_list` became an async command. A synchronous
+  // Tauri command runs inline on the main thread and responds before the next
+  // one is dispatched, so replies could not overtake each other and the last
+  // request was always the last reply. Async commands are spawned onto the
+  // runtime and the query itself runs on a blocking pool, so a cheap request
+  // issued second can now finish first — toggle HIDE EMPTY off then straight
+  // back on and the slow unfiltered query lands *after* the fast filtered one,
+  // repainting the table with rows the active filter excludes. Every dependency
+  // here is high-traffic: filter edits, sort clicks, and a `loadVersion` bump
+  // every 250ms while discovery streams.
   useEffect(() => {
+    let cancelled = false;
     async function load() {
       setLoading(true);
       try {
@@ -275,14 +294,19 @@ export function ServerTable() {
           limit: 5000,
         };
         const rows = await getServerList(filterParams, sortParams);
-        setServers(rows);
+        if (!cancelled) setServers(rows);
       } catch (e) {
-        console.error("Failed to load servers:", e);
+        if (!cancelled) console.error("Failed to load servers:", e);
       } finally {
-        setLoading(false);
+        // Guarded too: a superseded run resolving late would otherwise clear the
+        // spinner while the current request is still in flight.
+        if (!cancelled) setLoading(false);
       }
     }
     load();
+    return () => {
+      cancelled = true;
+    };
   }, [filter, sortKey, sortDir, loadVersion]);
 
   // The trailing `minmax(0, 1fr)` soaks up width left over on a wide window, so
@@ -357,7 +381,12 @@ export function ServerTable() {
 
         {servers.length === 0 && (
           <div className="flex h-32 items-center justify-center">
-            <span className="text-xs text-[#64748b]">Click DISCOVER to find servers</span>
+            {/* Was "Click DISCOVER to find servers", naming a button that has
+                never existed in the UI. Discovery runs by itself as soon as
+                Steam connects. */}
+            <span className="text-xs text-[#64748b]">
+              No servers yet — the list fills in once Steam connects.
+            </span>
           </div>
         )}
 

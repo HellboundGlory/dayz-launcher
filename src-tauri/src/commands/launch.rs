@@ -1,7 +1,7 @@
+use crate::state::AppState;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tauri::State;
-use crate::state::AppState;
 
 use tetra_launch::modline::build_mod_string;
 use tetra_launch::protocol::register_dzsa_protocol;
@@ -29,7 +29,11 @@ fn describe_blockers(blocked: &[(String, ModState)]) -> String {
         if names.len() <= SHOWN {
             return names.join(", ");
         }
-        format!("{}, and {} more", names[..SHOWN].join(", "), names.len() - SHOWN)
+        format!(
+            "{}, and {} more",
+            names[..SHOWN].join(", "),
+            names.len() - SHOWN
+        )
     }
 
     let mut parts: Vec<String> = Vec::new();
@@ -71,6 +75,76 @@ pub struct LaunchOutcome {
     pub message: String,
 }
 
+/// What checking a server's declared mods against Steam found.
+struct ModVerification {
+    /// Install folders of the ready mods, in the server's declared order.
+    /// Order is load-bearing — see `build_mod_string`.
+    ready_paths: Vec<String>,
+    /// `(name, state)` for every mod that would stop the launch.
+    blocked: Vec<(String, ModState)>,
+    /// Workshop mods considered. Excludes id-0 server-side entries.
+    checked: usize,
+}
+
+/// Verify every declared mod against Steam.
+///
+/// **Blocking.** Each `SteamHandle` call dispatches to the Steam actor thread
+/// and waits on a channel, so this must run on a blocking task — it used to be
+/// called inline from the `async` command, parking a Tokio worker for as long as
+/// Steam took to answer for a 93-mod server.
+///
+/// Non-Workshop entries (id 0 — server-side or locally-installed mods) are
+/// skipped: there is nothing to verify, nothing to download, and no install
+/// folder to put on the `-mod=` line. Blocking the launch on them would make
+/// every server that declares one permanently unjoinable over something the user
+/// cannot act on.
+fn verify_mods(
+    steam: &tetra_steam::SteamHandle,
+    mods: &[tetra_core::a2s::dayz::ServerMod],
+) -> Result<ModVerification, String> {
+    // One batched round trip rather than a dispatch per mod.
+    let ids: Vec<u64> = mods
+        .iter()
+        .map(|m| m.workshop_id)
+        .filter(|id| ModState::is_workshop_id(*id))
+        .collect();
+    let states = steam
+        .mod_states(&ids)
+        .map_err(|e| format!("Could not read Workshop state from Steam: {e}"))?;
+
+    let mut out = ModVerification {
+        ready_paths: Vec::with_capacity(ids.len()),
+        blocked: Vec::new(),
+        checked: 0,
+    };
+
+    for m in mods
+        .iter()
+        .filter(|m| ModState::is_workshop_id(m.workshop_id))
+    {
+        out.checked += 1;
+        let state = states
+            .iter()
+            .find(|(id, _)| *id == m.workshop_id)
+            .map(|(_, s)| *s)
+            .unwrap_or(ModState::NotSubscribed);
+
+        if !state.is_ready() {
+            out.blocked.push((m.name.clone(), state));
+            continue;
+        }
+
+        // Installed per Steam, but the folder still has to exist — spec §5.4 is
+        // explicit that "installed" is Steam's claim, not a verified fact.
+        match steam.mod_folder(m.workshop_id) {
+            Ok(Some(folder)) => out.ready_paths.push(folder.to_string_lossy().into_owned()),
+            _ => out.blocked.push((m.name.clone(), ModState::NotInstalled)),
+        }
+    }
+
+    Ok(out)
+}
+
 /// Run the pre-launch mod gate and spawn DayZ.
 ///
 /// Flow (spec §5):
@@ -88,13 +162,16 @@ pub async fn launch_game(
     password: Option<String>,
     profile_name: Option<String>,
     dayz_path_override: Option<String>,
+    launch_params: Option<Vec<String>>,
 ) -> Result<LaunchOutcome, String> {
     // The frontend sends addr as "IP:query_port" — extract just the IP
     let ip = addr
         .split(':')
         .next()
         .ok_or_else(|| format!("Invalid address: {addr}"))?;
-    let _server_addr: SocketAddr = format!("{ip}:{game_port}")
+    // Parsed purely to reject a malformed IP before anything is spawned; the
+    // game connection is built from `ip` and `game_port` separately below.
+    let _: SocketAddr = format!("{ip}:{game_port}")
         .parse()
         .map_err(|e| format!("Invalid address: {e}"))?;
     let query_addr: SocketAddr = addr
@@ -120,11 +197,12 @@ pub async fn launch_game(
         paths.dayz_install.clone()
     };
 
-    let dayz_exe = find_dayz_exe(&dayz_dir)
-        .ok_or_else(|| format!(
+    let dayz_exe = find_dayz_exe(&dayz_dir).ok_or_else(|| {
+        format!(
             "DayZ executable not found at {}. Try verifying game files in Steam.",
             dayz_dir.display()
-        ))?;
+        )
+    })?;
 
     // Get the Steam handle for Workshop operations
     let steam = {
@@ -132,81 +210,45 @@ pub async fn launch_game(
         Arc::clone(guard.as_ref().ok_or("Steam not initialized")?)
     };
 
-    // 1. Fetch live A2S_RULES from the server
-    let rules_payload = prober
-        .rules(query_addr)
+    // 1. Fetch live A2S_RULES from the server. Unqueued: this is one query on a
+    //    click, and it must not wait behind a refresh's thousands.
+    let rules_payload = prober.rules_unqueued(query_addr).await.map_err(|_| {
+        format!(
+            "Could not query server rules at {addr}:{game_port}. \
+                              The server may be offline or behind a firewall."
+        )
+    })?;
+
+    // 2. Check each mod's install state, off the async runtime — every Steam
+    //    call in `verify_mods` blocks on the actor thread.
+    let mods = rules_payload.mods;
+    let verification = tokio::task::spawn_blocking(move || verify_mods(&steam, &mods))
         .await
-        .map_err(|_| format!("Could not query server rules at {addr}:{game_port}. \
-                              The server may be offline or behind a firewall."))?;
+        .map_err(|e| format!("Task join error: {e}"))??;
 
-    // 2. Check each mod's install state
-    let mods = &rules_payload.mods;
-    let mut mod_paths: Vec<String> = Vec::new();
-    let mut missing: Vec<(String, ModState)> = Vec::new();
-    let mut mods_checked = 0usize;
-    let mut mods_ready = 0usize;
-
-    // One batched round trip rather than a dispatch per mod.
-    // Non-Workshop entries (id 0 — server-side or locally-installed mods) are
-    // excluded: there is nothing to verify, nothing to download, and no install
-    // folder to put on the `-mod=` line. Blocking the launch on them would make
-    // 175 servers in the registry permanently unjoinable over something the
-    // user cannot act on.
-    let ids: Vec<u64> = mods
-        .iter()
-        .map(|m| m.workshop_id)
-        .filter(|id| ModState::is_workshop_id(*id))
-        .collect();
-    let states = steam
-        .mod_states(&ids)
-        .map_err(|e| format!("Could not read Workshop state from Steam: {e}"))?;
-
-    for m in mods {
-        if !ModState::is_workshop_id(m.workshop_id) {
-            continue;
-        }
-        mods_checked += 1;
-        let state = states
-            .iter()
-            .find(|(id, _)| *id == m.workshop_id)
-            .map(|(_, s)| *s)
-            .unwrap_or(ModState::NotSubscribed);
-
-        if !state.is_ready() {
-            missing.push((m.name.clone(), state));
-            continue;
-        }
-
-        // Installed per Steam, but the folder still has to exist — spec §5.4 is
-        // explicit that "installed" is Steam's claim, not a verified fact.
-        match steam.mod_folder(m.workshop_id) {
-            Ok(Some(folder)) => {
-                mod_paths.push(folder.to_string_lossy().into_owned());
-                mods_ready += 1;
-            }
-            _ => missing.push((m.name.clone(), ModState::NotInstalled)),
-        }
+    if !verification.blocked.is_empty() {
+        return Err(describe_blockers(&verification.blocked));
     }
-
-    if !missing.is_empty() {
-        return Err(describe_blockers(&missing));
-    }
+    let mods_ready = verification.ready_paths.len();
 
     // 3. Build -mod= in server-declared order
-    let mod_arg = build_mod_string(&mod_paths);
+    let mod_arg = build_mod_string(&verification.ready_paths);
 
-    // 4. Spawn DayZ
+    // 4. Spawn DayZ. The user's own `launchParams` go in ahead of `-mod=`, which
+    //    `build_launch_args` keeps last. These were previously dropped: the call
+    //    site passed a hardcoded `&[]`, so a setting that persisted fine and had
+    //    a slot waiting for it never reached the command line.
+    let extra_params = launch_params.unwrap_or_default();
     let args = build_launch_args(
         ip,
         game_port,
         password.as_deref(),
         &mod_arg,
-        &[],
+        &extra_params,
         profile_name.as_deref(),
     );
 
-    spawn_dayz(&dayz_exe, &args)
-        .map_err(|e| format!("Failed to launch DayZ: {e}"))?;
+    spawn_dayz(&dayz_exe, &args).map_err(|e| format!("Failed to launch DayZ: {e}"))?;
 
     // Record the visit only after the process actually started, so a failed
     // gate never shows up in the RECENT list.
@@ -228,21 +270,13 @@ pub async fn launch_game(
 
     Ok(LaunchOutcome {
         status: "launched".into(),
-        mods_checked,
+        mods_checked: verification.checked,
         mods_ready,
-        mods_needing_action: missing.len(),
-        message: format!("Launched DayZ with {} mods", mods_ready),
+        // Reaching here means nothing was blocked — an early return covers the
+        // other case.
+        mods_needing_action: 0,
+        message: format!("Launched DayZ with {mods_ready} mods"),
     })
-}
-
-/// Launch DayZ without mods (vanilla).
-#[tauri::command]
-pub async fn launch_vanilla(
-    state: State<'_, AppState>,
-    addr: String,
-    port: u16,
-) -> Result<LaunchOutcome, String> {
-    launch_game(state, addr, port, None, None, None).await
 }
 
 /// Register the dzsa:// protocol handler in the Windows registry.

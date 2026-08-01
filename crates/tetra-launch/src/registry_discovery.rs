@@ -67,26 +67,24 @@ pub fn find_steam_exe() -> Option<PathBuf> {
 
 fn find_dayz_install(steam_dir: &std::path::Path) -> Option<PathBuf> {
     // Default Steam library location
-    let default = steam_dir
-        .join("steamapps")
-        .join("common")
-        .join("DayZ");
+    let default = steam_dir.join("steamapps").join("common").join("DayZ");
 
     if default.exists() {
         return Some(default);
     }
 
     // Check LibraryFolders for alternate install locations
-    let library_folders = steam_dir
-        .join("steamapps")
-        .join("libraryfolders.vdf");
+    let library_folders = steam_dir.join("steamapps").join("libraryfolders.vdf");
 
     if let Ok(contents) = std::fs::read_to_string(&library_folders) {
         for line in contents.lines() {
             // Parse lines like: "1"		"E:\\SteamLibrary"
             if let Some(path_str) = line.split('"').nth(3) {
                 if path_str.contains(':') {
-                    let path = PathBuf::from(path_str).join("steamapps").join("common").join("DayZ");
+                    let path = PathBuf::from(path_str)
+                        .join("steamapps")
+                        .join("common")
+                        .join("DayZ");
                     if path.exists() {
                         return Some(path);
                     }

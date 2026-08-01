@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, ChevronDown, RefreshCw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useServerStore } from "@/stores/server-store";
@@ -6,35 +6,62 @@ import { getMapList } from "@/lib/tauri";
 
 interface FilterBarProps {
   onRefresh: () => void;
-  onDiscover: () => void;
   refreshing: boolean;
 }
 
-type TagOption = { key: string; label: string; field: "official" | "modded" | "first_person" };
+/** The tri-state tag filters, which are exactly the boolean-or-null fields. */
+type TagField = "official" | "modded" | "first_person";
 
-const TAG_OPTIONS: TagOption[] = [
-  { key: "official", label: "OFFICIAL", field: "official" },
-  { key: "modded", label: "MODDED", field: "modded" },
-  { key: "first_person", label: "1PP ONLY", field: "first_person" },
+const TAG_OPTIONS: { label: string; field: TagField }[] = [
+  { label: "OFFICIAL", field: "official" },
+  { label: "MODDED", field: "modded" },
+  { label: "1PP ONLY", field: "first_person" },
 ];
 
-export function FilterBar({ onRefresh, onDiscover, refreshing }: FilterBarProps) {
+/**
+ * Close a popover when a pointer goes down anywhere outside it.
+ *
+ * The MAP, TAGS and REGION dropdowns each carried their own byte-identical copy
+ * of this effect. Bound only while the popover is open, so a closed dropdown no
+ * longer keeps a document-level listener alive.
+ */
+function useCloseOnOutsideClick(open: boolean, onClose: () => void) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open, onClose]);
+
+  return ref;
+}
+
+/**
+ * How long typing has to pause before the list is re-queried.
+ *
+ * Every change to `filter` re-runs `get_server_list` — a fresh SQL query with a
+ * `LIKE '%…%'` over the whole table, up to 5000 rows marshalled across the IPC
+ * bridge, and a re-render. Bound straight to `onChange`, that was one full round
+ * trip per keystroke, so a ten-character search ran ten of them and the last one
+ * to land won. Long enough to collapse a burst of typing, short enough that the
+ * result still feels like it arrives as you type.
+ */
+const SEARCH_DEBOUNCE_MS = 250;
+
+export function FilterBar({ onRefresh, refreshing }: FilterBarProps) {
   const filter = useServerStore((s) => s.filter);
   const setFilter = useServerStore((s) => s.setFilter);
 
   return (
     <div className="flex items-center gap-2 border-b border-[#1e293b] bg-[#0b0f17] px-3 py-1.5">
-      {/* Search */}
-      <div className="relative flex-1 max-w-[240px]">
-        <Search className="absolute left-2 top-1/2 size-3 -translate-y-1/2 text-[#64748b]" />
-        <input
-          type="text"
-          placeholder="Search name or description"
-          value={filter.search ?? ""}
-          onChange={(e) => setFilter({ search: e.target.value || null })}
-          className="w-full rounded bg-[#16202e] py-1 pl-7 pr-2 text-xs text-[#f1f5f9] placeholder-[#64748b] outline-none ring-1 ring-[#1e293b] focus:ring-[#38bdf8]"
-        />
-      </div>
+      <SearchInput
+        value={filter.search}
+        onChange={(search) => setFilter({ search })}
+      />
 
       {/* Map filter */}
       <MapDropdown
@@ -109,6 +136,60 @@ export function FilterBar({ onRefresh, onDiscover, refreshing }: FilterBarProps)
   );
 }
 
+// ─── Search ──────────────────────────────────────────────────────
+
+/**
+ * Search box that keeps its own text and reports it on a trailing debounce.
+ *
+ * The input is uncontrolled with respect to the store deliberately: driving it
+ * from `filter.search` would make every keystroke wait for the debounced round
+ * trip before the character appeared, which is the one thing a search box must
+ * never do.
+ */
+function SearchInput({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (search: string | null) => void;
+}) {
+  const [text, setText] = useState(value ?? "");
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  // Re-sync when the store's value changes from somewhere other than this box
+  // (a filter reset, say). Comparing first keeps this from clobbering in-flight
+  // typing with the value it just published.
+  useEffect(() => {
+    setText((current) => (current === (value ?? "") ? current : value ?? ""));
+  }, [value]);
+
+  useEffect(() => {
+    const next = text.trim() || null;
+    // Nothing to publish while the box already agrees with the store — this is
+    // also what stops the re-sync effect above and this one from ping-ponging.
+    if (next === (value ?? null)) return;
+    const timer = window.setTimeout(() => onChangeRef.current(next), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+    // `value` is read for the comparison but must not re-arm the timer on its
+    // own — only a change to `text` should.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text]);
+
+  return (
+    <div className="relative flex-1 max-w-[240px]">
+      <Search className="absolute left-2 top-1/2 size-3 -translate-y-1/2 text-[#64748b]" />
+      <input
+        type="text"
+        placeholder="Search name or description"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        className="w-full rounded bg-[#16202e] py-1 pl-7 pr-2 text-xs text-[#f1f5f9] placeholder-[#64748b] outline-none ring-1 ring-[#1e293b] focus:ring-[#38bdf8]"
+      />
+    </div>
+  );
+}
+
 // ─── Map Dropdown ────────────────────────────────────────────────
 
 function MapDropdown({
@@ -120,20 +201,12 @@ function MapDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const [maps, setMaps] = useState<[string, string][]>([]);
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useCloseOnOutsideClick(open, useCallback(() => setOpen(false), []));
 
   useEffect(() => {
     getMapList()
       .then(setMaps)
       .catch(() => setMaps([]));
-  }, []);
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
   const label = selectedMaps.length === 0
@@ -198,34 +271,26 @@ function TagsDropdown({
   official: boolean | null;
   modded: boolean | null;
   firstPerson: boolean | null;
-  onChange: (field: string, value: boolean | null) => void;
+  // `TagField`, not `string`: the caller spreads this straight into `setFilter`,
+  // so an untyped key silently wrote a filter field that does not exist.
+  onChange: (field: TagField, value: boolean | null) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useCloseOnOutsideClick(open, useCallback(() => setOpen(false), []));
 
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
+  const values: Record<TagField, boolean | null> = {
+    official,
+    modded,
+    first_person: firstPerson,
+  };
 
   const activeCount = [official, modded, firstPerson].filter((v) => v === true).length;
   const label = activeCount === 0 ? "Any" : `${activeCount} tag${activeCount > 1 ? "s" : ""}`;
 
-  const getValue = (field: string): boolean | null => {
-    if (field === "official") return official;
-    if (field === "modded") return modded;
-    if (field === "first_person") return firstPerson;
-    return null;
-  };
-
-  const cycle = (field: string) => {
-    const cur = getValue(field);
-    if (cur === null) onChange(field, true);
-    else if (cur === true) onChange(field, false);
-    else onChange(field, null);
+  // include -> exclude -> don't care.
+  const cycle = (field: TagField) => {
+    const cur = values[field];
+    onChange(field, cur === null ? true : cur === true ? false : null);
   };
 
   const indicator = (val: boolean | null): string => {
@@ -255,10 +320,10 @@ function TagsDropdown({
       {open && (
         <div className="absolute left-0 top-full z-50 mt-1 w-44 rounded border border-[#1e293b] bg-[#111823] shadow-xl">
           {TAG_OPTIONS.map((opt) => {
-            const val = getValue(opt.field);
+            const val = values[opt.field];
             return (
               <button
-                key={opt.key}
+                key={opt.field}
                 onClick={() => cycle(opt.field)}
                 className="flex w-full items-center justify-between px-2 py-1.5 text-[11px] text-[#94a3b8] hover:bg-[#16202e]"
               >
@@ -293,15 +358,7 @@ function CountryDropdown({
   onChange: (countries: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
+  const ref = useCloseOnOutsideClick(open, useCallback(() => setOpen(false), []));
 
   const label = selectedCountries.length === 0
     ? "Any"
@@ -371,7 +428,10 @@ function PingSlider({
 }) {
   const SLIDER_MAX = 500;
   const sliderValue = maxPing >= SLIDER_MAX ? SLIDER_MAX : Math.max(50, maxPing);
-  const isUnlimited = maxPing >= SLIDER_MAX || maxPing === 500;
+  // At the top of the range the filter is cleared entirely (`onChange(null)`)
+  // rather than capped at 500ms. The `|| maxPing === 500` this used to carry was
+  // already covered by the `>=`.
+  const isUnlimited = maxPing >= SLIDER_MAX;
 
   return (
     <div className="flex items-center gap-1.5">

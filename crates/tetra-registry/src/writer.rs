@@ -2,8 +2,8 @@ use crate::error::RegistryError;
 use crate::rows::{ModRow, ServerKey, ServerRow};
 use rusqlite::{params, Connection};
 use tetra_core::a2s::dayz::ServerMod;
-use tetra_core::classify::keywords::parse_keywords;
 use tetra_core::classify::geoip::country_code as geo_country_code;
+use tetra_core::classify::keywords::parse_keywords;
 use tetra_core::classify::maps::normalise_map;
 use tokio::sync::{mpsc, oneshot};
 
@@ -80,7 +80,11 @@ impl Writer {
     /// refresh calls this; a bulk refresh leaves `online` alone so a probe
     /// window that doesn't cover the whole registry can't mass-mark
     /// unreached servers as down.
-    pub async fn set_online(&self, keys: Vec<ServerKey>, online: bool) -> Result<(), RegistryError> {
+    pub async fn set_online(
+        &self,
+        keys: Vec<ServerKey>,
+        online: bool,
+    ) -> Result<(), RegistryError> {
         self.send(|ack| Job::SetOnline(keys, online, ack)).await
     }
 }
@@ -303,9 +307,8 @@ fn mark_played(conn: &Connection, key: ServerKey) -> Result<(), RegistryError> {
 fn set_online(conn: &Connection, keys: &[ServerKey], online: bool) -> Result<(), RegistryError> {
     let tx = conn.unchecked_transaction()?;
     {
-        let mut stmt = tx.prepare_cached(
-            "UPDATE servers SET online = ?3 WHERE ip = ?1 AND query_port = ?2",
-        )?;
+        let mut stmt =
+            tx.prepare_cached("UPDATE servers SET online = ?3 WHERE ip = ?1 AND query_port = ?2")?;
         for key in keys {
             stmt.execute(params![key.ip.to_string(), key.query_port, online])?;
         }

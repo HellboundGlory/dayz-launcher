@@ -1,43 +1,44 @@
-use crate::error::GateError;
+use crate::error::SpawnError;
 use std::path::PathBuf;
-use std::process::{Command, ExitStatus};
+use std::process::Command;
 
-/// Spawn DayZ with the given launch arguments.
+/// Start DayZ with the given launch arguments and return as soon as the process
+/// exists.
+///
+/// # Why this does not wait
+///
+/// It used to end in `.wait()`, which blocks until DayZ exits. Nothing wanted
+/// that: the only caller discarded the `ExitStatus`, and waiting cost three
+/// things. The Tauri command that calls this is `async`, so the wait pinned a
+/// Tokio worker thread for the entire play session; the frontend's `launching`
+/// flag is cleared when the command resolves, so the JOIN button read
+/// "LAUNCHING..." until the player quit the game; and `mark_played` runs after
+/// this returns, so a server only entered the RECENT list once the session was
+/// over. `DayZ_BE.exe` masked it — the BattlEye stub exits quickly after
+/// handing off — but an install with only `DayZ_x64.exe` hit all three.
 ///
 /// # Safety
 ///
-/// This function spawns a child process. It never passes arguments through
-/// `cmd.exe` or any shell — `std::process::Command` calls `CreateProcess`
-/// directly on Windows.
-///
-/// # Game executable
-///
-/// When BattlEye is required, `DayZ_BE.exe` is used. Otherwise
-/// `DayZ_x64.exe` is the standard binary.
-pub fn spawn_dayz(
-    exe_path: &std::path::Path,
-    args: &[String],
-) -> Result<ExitStatus, GateError> {
-    let mut cmd = Command::new(exe_path);
-    for arg in args {
-        cmd.arg(arg);
-    }
-    cmd.spawn()
-        .map_err(GateError::Launch)?
-        .wait()
-        .map_err(GateError::Launch)
+/// Arguments never pass through `cmd.exe` or any shell — `std::process::Command`
+/// calls `CreateProcess` directly on Windows. Dropping the `Child` does not
+/// terminate the process.
+pub fn spawn_dayz(exe_path: &std::path::Path, args: &[String]) -> Result<(), SpawnError> {
+    Command::new(exe_path)
+        .args(args)
+        .spawn()
+        .map(|_child| ())
+        .map_err(SpawnError::Launch)
 }
 
 /// Start the Steam client and return immediately.
 ///
-/// Unlike [`spawn_dayz`] this never waits on the child. Steam's first process
-/// stays alive for the whole session, so waiting would block the caller until
-/// the user quit Steam. Dropping the `Child` does not terminate it on Windows.
-pub fn spawn_steam(exe_path: &std::path::Path) -> Result<(), GateError> {
+/// Steam's first process stays alive for the whole session, so waiting on it
+/// would block the caller until the user quit Steam.
+pub fn spawn_steam(exe_path: &std::path::Path) -> Result<(), SpawnError> {
     Command::new(exe_path)
         .spawn()
         .map(|_child| ())
-        .map_err(GateError::Launch)
+        .map_err(SpawnError::Launch)
 }
 
 /// Locate the DayZ executable.
@@ -146,5 +147,53 @@ mod tests {
     fn name_omitted_when_none() {
         let args = build_launch_args("127.0.0.1", 2302, None, "", &[], None);
         assert!(!args.iter().any(|a| a.starts_with("-name=")));
+    }
+
+    /// The user's own parameters must never land after `-mod=`.
+    ///
+    /// DayZ takes the mod line as one argument, and a flag placed after it is
+    /// read by some builds as part of the final mod path. Keeping `-mod=` last
+    /// is why `build_launch_args` appends it rather than interleaving.
+    #[test]
+    fn user_parameters_precede_the_mod_line() {
+        let args = build_launch_args(
+            "127.0.0.1",
+            2302,
+            None,
+            "-mod=C:\\mods\\@a;C:\\mods\\@b",
+            &[
+                "-noSplash".into(),
+                "-skipIntro".into(),
+                "-cpuCount=4".into(),
+            ],
+            None,
+        );
+
+        let mod_index = args.iter().position(|a| a.starts_with("-mod=")).unwrap();
+        assert_eq!(
+            mod_index,
+            args.len() - 1,
+            "-mod= must be the final argument"
+        );
+        for flag in ["-noSplash", "-skipIntro", "-cpuCount=4"] {
+            let at = args
+                .iter()
+                .position(|a| a == flag)
+                .expect("flag was dropped");
+            assert!(at < mod_index, "{flag} must come before -mod=");
+        }
+    }
+
+    /// Regression guard for the wiring bug this audit fixed: `commands::launch`
+    /// passed a hardcoded `&[]` here, so a populated `launchParams` setting
+    /// serialised to disk, round-tripped through the store, and was then
+    /// silently dropped on the way to the command line.
+    #[test]
+    fn every_supplied_parameter_reaches_the_command_line() {
+        let extra: Vec<String> = vec!["-noSplash".into(), "-window".into()];
+        let args = build_launch_args("127.0.0.1", 2302, None, "", &extra, None);
+        for flag in &extra {
+            assert!(args.contains(flag), "{flag} was dropped");
+        }
     }
 }

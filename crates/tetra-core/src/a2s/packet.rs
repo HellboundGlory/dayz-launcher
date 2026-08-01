@@ -114,10 +114,7 @@ pub fn reassemble_split(packets: &[Vec<u8>]) -> Result<Vec<u8>, ParseError> {
                     total = t;
                 } else if t != total {
                     return Err(ParseError::MalformedSplit {
-                        reason: format!(
-                            "packets disagree on total: expected {}, got {}",
-                            total, t
-                        ),
+                        reason: format!("packets disagree on total: expected {}, got {}", total, t),
                     });
                 }
 
@@ -298,9 +295,7 @@ mod tests {
 
     #[test]
     fn rejects_lone_challenge_packet() {
-        let packets = vec![vec![
-            0xff, 0xff, 0xff, 0xff, 0x41, 0xde, 0xad, 0xbe, 0xef,
-        ]];
+        let packets = vec![vec![0xff, 0xff, 0xff, 0xff, 0x41, 0xde, 0xad, 0xbe, 0xef]];
         assert!(matches!(
             reassemble_split(&packets),
             Err(ParseError::MalformedSplit { .. })

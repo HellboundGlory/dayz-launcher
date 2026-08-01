@@ -18,7 +18,9 @@ pub fn is_installed_copy() -> bool {
     const PRODUCT_DIR: &str = "Tetra Launcher";
 
     for var in ["LOCALAPPDATA", "ProgramFiles", "ProgramFiles(x86)"] {
-        let Ok(root) = std::env::var(var) else { continue };
+        let Ok(root) = std::env::var(var) else {
+            continue;
+        };
         let installed_root = std::path::Path::new(&root).join(PRODUCT_DIR);
         if exe.starts_with(&installed_root) {
             return true;

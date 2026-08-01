@@ -100,7 +100,14 @@ export function ServerDetails() {
   const selectedServer = useServerStore((s) => s.selectedServer);
   const toggleFavouriteLocal = useServerStore((s) => s.toggleFavourite);
   const setDownloadsActive = useServerStore((s) => s.setDownloadsActive);
-  const settings = useSettingsStore();
+  // Field selectors, not a bare `useSettingsStore()`. Subscribing to the whole
+  // store re-rendered this panel — mod list, per-mod progress rows and all — on
+  // every keystroke in the settings modal's name box, none of which this panel
+  // displays.
+  const profileName = useSettingsStore((s) => s.profileName);
+  const dayzPath = useSettingsStore((s) => s.dayzPath);
+  const launchParams = useSettingsStore((s) => s.launchParams);
+  const autoJoinAfterDownload = useSettingsStore((s) => s.autoJoinAfterDownload);
   const [launching, setLaunching] = useState(false);
   /**
    * The launch outcome, tagged with the server it belongs to.
@@ -231,15 +238,22 @@ export function ServerDetails() {
     setLaunching(true);
     setLaunchResult(null);
     try {
-      const profileName = settings.profileName || undefined;
-      const dayzPath = settings.dayzPath || undefined;
-      const outcome = await launchGame(addr, gamePort, undefined, profileName, dayzPath);
+      const outcome = await launchGame(addr, gamePort, launchOptions());
       setLaunchResult({ addr, message: outcome.message });
     } catch (e) {
       setLaunchResult({ addr, error: String(e) });
     } finally {
       setLaunching(false);
     }
+  }
+
+  /** The launch-affecting settings, in the shape {@link launchGame} wants. */
+  function launchOptions() {
+    return {
+      profileName: profileName || undefined,
+      dayzPath: dayzPath || undefined,
+      launchParams: launchParams.length > 0 ? launchParams : undefined,
+    };
   }
 
   function describeOutcome(verb: string, outcome: { succeeded: number; failures: [string, string][] }) {
@@ -345,20 +359,14 @@ export function ServerDetails() {
 
       setFixNote(null);
 
-      if (!settings.autoJoinAfterDownload) {
+      if (!autoJoinAfterDownload) {
         setActionNote("All mods ready — press JOIN SERVER when you are.");
         return;
       }
 
       setLaunching(true);
       try {
-        const outcome = await launchGame(
-          addr,
-          gamePort,
-          undefined,
-          settings.profileName || undefined,
-          settings.dayzPath || undefined,
-        );
+        const outcome = await launchGame(addr, gamePort, launchOptions());
         setLaunchResult({ addr, message: outcome.message });
       } catch (e) {
         // The gate re-queries the server live, so this also catches the case

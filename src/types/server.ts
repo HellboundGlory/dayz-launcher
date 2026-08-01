@@ -10,7 +10,6 @@ export interface Server {
   locked: boolean;
   vac: boolean;
   version: string;
-  keywords: string | null;
   in_game_time: string | null;
   /**
    * Number of mods the server declared over A2S_RULES.
@@ -28,19 +27,10 @@ export interface Server {
   modded: boolean;
   first_person: boolean;
   battleye: boolean;
-  mod_list: Mod[] | null;
   /**
    * Whether the last targeted refresh that reached for this server got an
    * answer. `true` for anything only ever seen through discovery or a bulk
    * refresh — it only ever goes `false` from a REFRESH click that missed it.
    */
   online: boolean;
-}
-
-export interface Mod {
-  workshop_id: string;
-  name: string;
-  install_state: string | null;
-  size_on_disk: number | null;
-  install_path: string | null;
 }

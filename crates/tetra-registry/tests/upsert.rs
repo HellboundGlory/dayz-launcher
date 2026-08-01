@@ -282,7 +282,12 @@ async fn refresh_priority_puts_never_probed_servers_first() {
     let reader = registry.reader().expect("reader");
 
     let by_players = reader
-        .list(&ServerFilter::default(), SortKey::Players, SortDir::Desc, 10)
+        .list(
+            &ServerFilter::default(),
+            SortKey::Players,
+            SortDir::Desc,
+            10,
+        )
         .expect("list");
     assert_eq!(
         by_players[0].key, busy,
@@ -302,6 +307,55 @@ async fn refresh_priority_puts_never_probed_servers_first() {
         "the never-probed server must be refreshed first"
     );
     assert_eq!(by_priority[1].key, busy);
+}
+
+/// `counts()` folds what used to be two separate scans — a `count()` plus an
+/// ad-hoc `SELECT COUNT(*) ... WHERE players > 0` written at the command layer
+/// through a `raw()` connection escape hatch — into one statement inside the
+/// crate that owns the SQL.
+#[tokio::test]
+async fn counts_reports_total_and_populated_separately() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let writer = registry.writer();
+
+    let empty = ServerKey {
+        ip: Ipv4Addr::new(203, 0, 113, 30),
+        query_port: 27016,
+    };
+    let full = ServerKey {
+        ip: Ipv4Addr::new(203, 0, 113, 31),
+        query_port: 27016,
+    };
+
+    writer
+        .upsert_servers(vec![
+            // Populated, from `live_row`'s 42 players.
+            live_row(),
+            ServerRow {
+                key: empty,
+                name: "Empty".into(),
+                players: 0,
+                ..live_row()
+            },
+            ServerRow {
+                key: full,
+                name: "Full".into(),
+                players: 60,
+                ..live_row()
+            },
+        ])
+        .await
+        .expect("rows");
+
+    let reader = registry.reader().expect("reader");
+    assert_eq!(reader.counts().expect("counts"), (3, 2));
+}
+
+#[tokio::test]
+async fn counts_are_zero_on_an_untouched_registry() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let reader = registry.reader().expect("reader");
+    assert_eq!(reader.counts().expect("counts"), (0, 0));
 }
 
 #[tokio::test]

@@ -15,8 +15,6 @@
     "core:menu:default",
     "core:tray:default",
     "shell:allow-open",
-    "os:allow-arch",
-    "os:allow-os-type",
     "core:window:allow-start-dragging",
     "core:window:allow-toggle-maximize",
     "core:window:allow-minimize",
@@ -24,13 +22,6 @@
     "process:allow-exit",
     "process:allow-restart",
     "updater:default",
-    "window-state:default",
-    "fs:default",
-    "fs:allow-appdata-read",
-    "fs:allow-appdata-write",
-    {
-      "identifier": "fs:allow-exists",
-      "allow": [{ "path": "$APPDATA/*" }]
-    }
+    "window-state:default"
   ]
 }

@@ -16,7 +16,14 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ open: isOpen, onClose }: SettingsModalProps) {
-  const settings = useSettingsStore();
+  // Field selectors rather than a whole-store subscription. This modal really
+  // does read most of the store, but `setSetting` is what the inputs call and
+  // pulling it out separately keeps the subscription list explicit.
+  const profileName = useSettingsStore((s) => s.profileName);
+  const dayzPath = useSettingsStore((s) => s.dayzPath);
+  const workshopPath = useSettingsStore((s) => s.workshopPath);
+  const autoJoinAfterDownload = useSettingsStore((s) => s.autoJoinAfterDownload);
+  const setSetting = useSettingsStore((s) => s.setSetting);
   const [detecting, setDetecting] = useState(false);
   const [currentVersion, setCurrentVersion] = useState<string | null>(null);
 
@@ -46,9 +53,9 @@ export function SettingsModal({ open: isOpen, onClose }: SettingsModalProps) {
     try {
       const paths = await discoverSteamPaths();
       if (paths) {
-        settings.setSetting("steamPath", paths.steam_install);
-        settings.setSetting("dayzPath", paths.dayz_install);
-        settings.setSetting("workshopPath", paths.workshop_dir);
+        setSetting("steamPath", paths.steam_install);
+        setSetting("dayzPath", paths.dayz_install);
+        setSetting("workshopPath", paths.workshop_dir);
       }
     } catch {
       // ignore
@@ -80,8 +87,8 @@ export function SettingsModal({ open: isOpen, onClose }: SettingsModalProps) {
             </label>
             <input
               type="text"
-              value={settings.profileName}
-              onChange={(e) => settings.setSetting("profileName", e.target.value)}
+              value={profileName}
+              onChange={(e) => setSetting("profileName", e.target.value)}
               placeholder="Set your DayZ profile name"
               className="w-full rounded bg-[#16202e] px-2 py-1.5 text-xs text-[#f1f5f9] placeholder-[#475569] outline-none ring-1 ring-[#1e293b] focus:ring-[#38bdf8]"
             />
@@ -98,8 +105,8 @@ export function SettingsModal({ open: isOpen, onClose }: SettingsModalProps) {
             <div className="flex gap-2">
               <input
                 type="text"
-                value={settings.dayzPath ?? ""}
-                onChange={(e) => settings.setSetting("dayzPath", e.target.value || null)}
+                value={dayzPath ?? ""}
+                onChange={(e) => setSetting("dayzPath", e.target.value || null)}
                 placeholder="C:\Program Files (x86)\Steam\steamapps\common\DayZ"
                 className="flex-1 rounded bg-[#16202e] px-2 py-1.5 text-xs text-[#f1f5f9] placeholder-[#475569] outline-none ring-1 ring-[#1e293b] focus:ring-[#38bdf8]"
               />
@@ -122,8 +129,8 @@ export function SettingsModal({ open: isOpen, onClose }: SettingsModalProps) {
             <label className="flex cursor-pointer items-start gap-2">
               <input
                 type="checkbox"
-                checked={settings.autoJoinAfterDownload}
-                onChange={(e) => settings.setSetting("autoJoinAfterDownload", e.target.checked)}
+                checked={autoJoinAfterDownload}
+                onChange={(e) => setSetting("autoJoinAfterDownload", e.target.checked)}
                 className="mt-0.5 size-3.5 shrink-0 accent-[#38bdf8]"
               />
               <span>
@@ -140,14 +147,14 @@ export function SettingsModal({ open: isOpen, onClose }: SettingsModalProps) {
           </div>
 
           {/* Workshop Path (read-only, auto-detected) */}
-          {settings.workshopPath && (
+          {workshopPath && (
             <div>
               <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-[#64748b]">
                 Workshop Content
               </label>
               <input
                 type="text"
-                value={settings.workshopPath}
+                value={workshopPath}
                 readOnly
                 className="w-full rounded bg-[#0b0f17] px-2 py-1.5 text-xs text-[#475569] outline-none ring-1 ring-[#1e293b]"
               />
