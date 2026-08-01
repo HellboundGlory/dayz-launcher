@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useServerStore } from "@/stores/server-store";
+import { useSettingsStore } from "@/stores/settings-store";
 import {
   getServerList,
   toggleFavourite,
@@ -126,6 +127,8 @@ export function ServerTable() {
   const setSort = useServerStore((s) => s.setSort);
   const toggleFavouriteLocal = useServerStore((s) => s.toggleFavourite);
   const modPending = useServerStore((s) => s.modPending);
+  const hideUnnamed = useSettingsStore((s) => s.hideUnnamedServers);
+  const hidePlaceholder = useSettingsStore((s) => s.hidePlaceholderServers);
 
   const [widths, setWidths] = useState<Widths>(loadWidths);
   // Live drag state lives in a ref: the pointer handlers are bound once, and
@@ -284,6 +287,12 @@ export function ServerTable() {
           official: filter.official,
           modded: filter.modded,
           first_person: filter.first_person,
+          latin_names: filter.latin_names,
+          // Preferences rather than view state, so they come from Settings
+          // instead of the filter bar — you decide once that a nameless or
+          // default-named server is not worth a row.
+          hide_unnamed: hideUnnamed,
+          hide_placeholder: hidePlaceholder,
         };
         const sortParams: SortParams = {
           sort_key: sortKey,
@@ -307,7 +316,7 @@ export function ServerTable() {
     return () => {
       cancelled = true;
     };
-  }, [filter, sortKey, sortDir, loadVersion]);
+  }, [filter, sortKey, sortDir, loadVersion, hideUnnamed, hidePlaceholder]);
 
   // The trailing `minmax(0, 1fr)` soaks up width left over on a wide window, so
   // surplus becomes empty space on the right rather than inflating a column.

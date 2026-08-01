@@ -1,19 +1,45 @@
 use crate::error::RegistryError;
 use crate::filter::{self, ServerFilter, ServerListRow, SortDir, SortKey};
 use crate::rows::ServerKey;
+use rusqlite::functions::FunctionFlags;
 use rusqlite::{params, Connection};
 use std::net::Ipv4Addr;
 use std::str::FromStr;
 use tetra_core::a2s::dayz::ServerMod;
 use tetra_core::classify::maps::display_name;
+use tetra_core::classify::names::{is_latin_name, is_placeholder_name};
+
+/// Expose the name classifiers to SQL as `tetra_is_placeholder(name)` and
+/// `tetra_is_latin(name)`.
+///
+/// Registered per read connection rather than baked into a column, which is the
+/// pattern the tag flags (`official`, `modded`) use. Those are derived at write
+/// time because they come from `keywords`, which only a probe supplies. These
+/// come from `name`, which every row already has — so a stored column would
+/// need a migration *and* a backfill, and would read as stale until every
+/// server had been re-probed. As functions the filters apply correctly to the
+/// whole existing registry the moment the build lands.
+///
+/// `DETERMINISTIC` lets SQLite hoist and cache calls; the classifiers are pure.
+fn register_name_functions(conn: &Connection) -> Result<(), RegistryError> {
+    let flags = FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC;
+    conn.create_scalar_function("tetra_is_placeholder", 1, flags, |ctx| {
+        Ok(is_placeholder_name(ctx.get_raw(0).as_str().unwrap_or("")))
+    })?;
+    conn.create_scalar_function("tetra_is_latin", 1, flags, |ctx| {
+        Ok(is_latin_name(ctx.get_raw(0).as_str().unwrap_or("")))
+    })?;
+    Ok(())
+}
 
 pub struct Reader {
     conn: Connection,
 }
 
 impl Reader {
-    pub(crate) fn new(conn: Connection) -> Self {
-        Self { conn }
+    pub(crate) fn new(conn: Connection) -> Result<Self, RegistryError> {
+        register_name_functions(&conn)?;
+        Ok(Self { conn })
     }
 
     /// `(total, populated)` — every known server, and how many have a player on

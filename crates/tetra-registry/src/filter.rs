@@ -17,6 +17,21 @@ pub struct ServerFilter {
     pub official: Option<bool>,
     pub modded: Option<bool>,
     pub first_person: Option<bool>,
+    /// Drop servers with no name at all.
+    ///
+    /// These are rows Steam listed but that have never answered a probe, so
+    /// `name` was never written. They always read 0 players and are a quarter
+    /// of a typical registry — the single largest source of clutter in the
+    /// browser.
+    pub hide_unnamed: bool,
+    /// Drop hosting-company defaults and template names — see
+    /// `tetra_core::classify::names::is_placeholder_name`.
+    pub hide_placeholder: bool,
+    /// Keep only names that read in Latin script.
+    ///
+    /// `Some(true)` is the ENGLISH ONLY tag; `Some(false)` inverts it, which is
+    /// how a player who *wants* the Chinese or Russian servers finds them.
+    pub latin_names: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -151,6 +166,24 @@ pub(crate) fn build(
             clauses.push(format!("{column} = ?"));
             binds.push(Value::Integer(v as i64));
         }
+    }
+    // Name-based noise filters. `tetra_is_placeholder`/`tetra_is_latin` are
+    // registered on every read connection — see `reader::register_name_functions`.
+    if filter.hide_unnamed {
+        clauses.push("TRIM(name) <> ''".into());
+    }
+    if filter.hide_placeholder {
+        clauses.push("NOT tetra_is_placeholder(name)".into());
+    }
+    if let Some(latin) = filter.latin_names {
+        // An unnamed row has nothing to read either way, so it must not be
+        // dragged in by `Some(false)` — that would make "show me the non-English
+        // servers" return two thousand blanks.
+        clauses.push(if latin {
+            "tetra_is_latin(name)".into()
+        } else {
+            "(NOT tetra_is_latin(name) AND TRIM(name) <> '')".to_string()
+        });
     }
     if let Some(text) = &filter.search {
         clauses.push(

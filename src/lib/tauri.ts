@@ -16,6 +16,9 @@ export interface FilterParams {
   official: boolean | null;
   modded: boolean | null;
   first_person: boolean | null;
+  hide_unnamed: boolean;
+  hide_placeholder: boolean;
+  latin_names: boolean | null;
 }
 
 export interface SortParams {
@@ -262,6 +265,10 @@ export interface AppSettingsDto {
   closeToTray: boolean;
   autoRefreshIntervalSecs: number;
   autoJoinAfterDownload: boolean;
+  /** Hide servers that have never answered a probe and so have no name. */
+  hideUnnamedServers: boolean;
+  /** Hide hosting-company defaults like "nitrado.net gameserver". */
+  hidePlaceholderServers: boolean;
 }
 
 export async function getSettings(): Promise<AppSettingsDto> {

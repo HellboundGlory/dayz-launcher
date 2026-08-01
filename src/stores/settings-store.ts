@@ -17,6 +17,10 @@ export interface AppSettings {
   autoRefreshIntervalSecs: number;
   /** Launch automatically once every required mod has downloaded. */
   autoJoinAfterDownload: boolean;
+  /** Hide servers that have never answered a probe and so have no name. */
+  hideUnnamedServers: boolean;
+  /** Hide hosting-company defaults like "nitrado.net gameserver". */
+  hidePlaceholderServers: boolean;
 }
 
 interface SettingsState extends AppSettings {
@@ -38,6 +42,8 @@ const defaults: AppSettings = {
   closeToTray: true,
   autoRefreshIntervalSecs: 60,
   autoJoinAfterDownload: true,
+  hideUnnamedServers: true,
+  hidePlaceholderServers: true,
 };
 
 const KEYS = Object.keys(defaults) as (keyof AppSettings)[];

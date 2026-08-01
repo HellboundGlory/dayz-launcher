@@ -27,6 +27,12 @@ pub struct AppSettings {
     /// When off, "Subscribe and join" still subscribes and downloads, but stops
     /// there and leaves the join to a second click.
     pub auto_join_after_download: bool,
+    /// Hide servers Steam lists but that have never answered a probe, so carry
+    /// no name at all. Roughly a quarter of a typical registry.
+    pub hide_unnamed_servers: bool,
+    /// Hide hosting-company defaults and template names ("nitrado.net
+    /// gameserver", "EXAMPLE NAME") — see `classify::names::is_placeholder_name`.
+    pub hide_placeholder_servers: bool,
 }
 
 impl Default for AppSettings {
@@ -42,6 +48,10 @@ impl Default for AppSettings {
             close_to_tray: true,
             auto_refresh_interval_secs: 60,
             auto_join_after_download: true,
+            // On by default: both hide servers that carry no information a
+            // player could choose by. Both are reversible in Settings.
+            hide_unnamed_servers: true,
+            hide_placeholder_servers: true,
         }
     }
 }
@@ -108,4 +118,62 @@ pub async fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), 
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AppSettings;
+
+    /// A settings file written by an older build must pick up new fields at
+    /// their defaults, not at `false`.
+    ///
+    /// This is what `#[serde(default)]` on the container buys, and it is load
+    /// bearing for every upgrade: `hideUnnamedServers` and
+    /// `hidePlaceholderServers` arrived in v1.0.1, so every existing install has
+    /// a file without them. Falling back to `bool::default()` would silently
+    /// turn the new browser filters off for exactly the users the release was
+    /// for, and nothing else in the app would report it.
+    #[test]
+    fn a_settings_file_from_an_older_build_gains_the_new_defaults() {
+        let old = r#"{
+            "profileName": "James",
+            "steamPath": null,
+            "dayzPath": "C:\\DayZ",
+            "workshopPath": null,
+            "maxConcurrentQueries": 1024,
+            "queryTimeoutMs": 1000,
+            "launchParams": [],
+            "closeToTray": true,
+            "autoRefreshIntervalSecs": 60,
+            "autoJoinAfterDownload": true
+        }"#;
+
+        let parsed: AppSettings = serde_json::from_str(old).expect("older file should still load");
+        assert_eq!(
+            parsed.profile_name, "James",
+            "existing values are preserved"
+        );
+        assert_eq!(parsed.dayz_path.as_deref(), Some("C:\\DayZ"));
+        assert!(parsed.hide_unnamed_servers, "new filter defaulted off");
+        assert!(parsed.hide_placeholder_servers, "new filter defaulted off");
+    }
+
+    /// The round trip the frontend store relies on: every field it sends back
+    /// must survive serialise → deserialise unchanged, including `false`.
+    #[test]
+    fn settings_round_trip_preserves_an_opted_out_user() {
+        let opted_out = AppSettings {
+            hide_unnamed_servers: false,
+            hide_placeholder_servers: false,
+            ..AppSettings::default()
+        };
+        let json = serde_json::to_string(&opted_out).expect("serialise");
+        assert!(
+            json.contains("hideUnnamedServers"),
+            "must serialise in camelCase to match the frontend: {json}"
+        );
+        let back: AppSettings = serde_json::from_str(&json).expect("deserialise");
+        assert!(!back.hide_unnamed_servers, "an explicit false was lost");
+        assert!(!back.hide_placeholder_servers, "an explicit false was lost");
+    }
 }
