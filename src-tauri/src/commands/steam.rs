@@ -1,12 +1,6 @@
+use crate::state::AppState;
 use std::sync::Arc;
 use tauri::State;
-use crate::state::AppState;
-
-#[derive(serde::Serialize)]
-pub struct SteamUser {
-    pub display_name: String,
-    pub steam_id: String,
-}
 
 /// Why Steam could not be connected, in the shape the startup modal reads.
 ///
@@ -110,14 +104,6 @@ pub async fn steam_init(state: State<'_, AppState>) -> Result<(), SteamInitError
     }
 
     Ok(())
-}
-
-#[tauri::command]
-pub fn steam_get_user(_state: State<AppState>) -> Result<SteamUser, String> {
-    Ok(SteamUser {
-        display_name: "Connected".into(),
-        steam_id: "0".into(),
-    })
 }
 
 /// Whether the live Steam backend connection is still up.

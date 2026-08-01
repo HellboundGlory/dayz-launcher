@@ -10,7 +10,6 @@ tetra-core = { path = "../tetra-core" }
 rusqlite.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
-tracing.workspace = true
 
 [lints.rust]
 unsafe_code = "forbid"

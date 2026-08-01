@@ -51,20 +51,28 @@ export function regionName(code: string | null): string {
   );
 }
 
-export function formatBytes(bytes: number, decimals = 2) {
-  if (!+bytes) return "0 Bytes";
+/**
+ * Byte count as a human-readable size.
+ *
+ * 1024-based, labelled KB/MB/GB — matching what Steam and Windows show, since
+ * these numbers sit next to Steam's own download UI. The unit table previously
+ * read `["Bytes", "KiB", "MB", "GB", "TB"]`, mixing the binary label for
+ * kilobytes with decimal labels for everything above it, so the same scale was
+ * named two different ways depending on the size.
+ */
+export function formatBytes(bytes: number, decimals = 2): string {
+  const UNITS = ["bytes", "KB", "MB", "GB", "TB", "PB"];
+
+  // NaN, negatives and 0 all have no meaningful size to render. Left unguarded,
+  // a negative fed `Math.log` a NaN index and produced "NaN undefined".
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 bytes";
 
   const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = [
-    "Bytes",
-    "KiB",
-    "MB",
-    "GB",
-    "TB",
-  ];
+  // Clamped so a value past the end of the table cannot index off it.
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), UNITS.length - 1);
+  const value = bytes / Math.pow(k, i);
+  // Whole bytes never want a fractional part.
+  const dm = i === 0 ? 0 : Math.max(0, decimals);
 
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+  return `${parseFloat(value.toFixed(dm))} ${UNITS[i]}`;
 }

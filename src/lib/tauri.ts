@@ -46,6 +46,17 @@ export async function toggleFavourite(
   return invoke<void>("toggle_favourite", { addr, queryPort, favourite });
 }
 
+/**
+ * Bulk A2S refresh over the backend's own refresh-priority window, independent
+ * of what is on screen.
+ *
+ * Currently has no caller. The only one was a manual re-discover path in
+ * `App.tsx` that was never reachable — its button was never rendered — and the
+ * REFRESH button uses {@link refreshVisibleServers} instead. Kept because the
+ * backend command is live and this is the shape the planned periodic
+ * auto-refresh needs; a miss here deliberately does *not* mark a server
+ * offline, which is what makes it safe to run unattended.
+ */
 export async function refreshServers(filter?: FilterParams): Promise<void> {
   return invoke<void>("refresh_servers", {
     filterParams: filter ?? null,
@@ -83,6 +94,17 @@ export interface ServerCounts {
 
 export async function getServerCounts(): Promise<ServerCounts> {
   return invoke<ServerCounts>("get_server_counts");
+}
+
+/**
+ * Whether the registry fell back to in-memory storage at startup.
+ *
+ * `true` means browsing and launching work, but favourites and recently-played
+ * are lost on exit. Worth telling the user up front rather than letting them
+ * discover it when their favourites vanish.
+ */
+export async function registryDegraded(): Promise<boolean> {
+  return invoke<boolean>("registry_degraded");
 }
 
 // ── Steam Commands ──
@@ -260,27 +282,38 @@ export interface LaunchOutcome {
   message: string;
 }
 
+export interface LaunchOptions {
+  password?: string;
+  profileName?: string;
+  dayzPath?: string;
+  /** Extra DayZ command-line flags, e.g. `-noSplash`. Placed before `-mod=`. */
+  launchParams?: string[];
+}
+
+/**
+ * Run the pre-launch mod gate and start DayZ.
+ *
+ * Resolves as soon as the process has been spawned — it does not wait for the
+ * play session to end.
+ *
+ * Takes an options object rather than five positional optionals: the previous
+ * signature was `(addr, gamePort, password, profileName, dayzPath)`, and every
+ * call site passed `undefined` for `password` just to reach the two it cared
+ * about.
+ */
 export async function launchGame(
   addr: string,
   gamePort: number,
-  password?: string,
-  profileName?: string,
-  dayzPath?: string,
+  options: LaunchOptions = {},
 ): Promise<LaunchOutcome> {
   return invoke<LaunchOutcome>("launch_game", {
     addr,
     gamePort,
-    password: password ?? null,
-    profileName: profileName ?? null,
-    dayzPathOverride: dayzPath ?? null,
+    password: options.password ?? null,
+    profileName: options.profileName ?? null,
+    dayzPathOverride: options.dayzPath ?? null,
+    launchParams: options.launchParams ?? null,
   });
-}
-
-export async function launchVanilla(
-  addr: string,
-  port: number,
-): Promise<void> {
-  return invoke<void>("launch_vanilla", { addr, port });
 }
 
 export async function getServerMods(

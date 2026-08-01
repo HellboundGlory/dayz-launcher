@@ -52,7 +52,8 @@ fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
         .path()
         .app_data_dir()
         .map_err(|e| format!("Could not resolve app data directory: {e}"))?;
-    std::fs::create_dir_all(&dir).map_err(|e| format!("Could not create {}: {e}", dir.display()))?;
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| format!("Could not create {}: {e}", dir.display()))?;
     Ok(dir.join("settings.json"))
 }
 
@@ -61,19 +62,29 @@ fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
 /// A missing file is the ordinary first-run case, not an error. A *corrupt*
 /// file is also non-fatal: returning defaults keeps the app usable, and the
 /// next save overwrites the bad file.
+/// `async` so the file read lands on a blocking task instead of the main
+/// thread — a synchronous Tauri command runs inline on the UI thread, and disk
+/// I/O there stalls painting. Same reasoning as `save_settings` below.
 #[tauri::command]
-pub fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
+pub async fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
     let path = settings_path(&app)?;
-    let Ok(raw) = std::fs::read_to_string(&path) else {
-        return Ok(AppSettings::default());
-    };
-    match serde_json::from_str(&raw) {
-        Ok(settings) => Ok(settings),
-        Err(e) => {
-            eprintln!("[settings] {} is unreadable ({e}); using defaults", path.display());
-            Ok(AppSettings::default())
+    tokio::task::spawn_blocking(move || {
+        let Ok(raw) = std::fs::read_to_string(&path) else {
+            return AppSettings::default();
+        };
+        match serde_json::from_str(&raw) {
+            Ok(settings) => settings,
+            Err(e) => {
+                eprintln!(
+                    "[settings] {} is unreadable ({e}); using defaults",
+                    path.display()
+                );
+                AppSettings::default()
+            }
         }
-    }
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))
 }
 
 /// Write settings to disk.
@@ -82,15 +93,19 @@ pub fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
 /// write cannot leave a half-written settings file behind — the rename is
 /// atomic and the old file survives until it succeeds.
 #[tauri::command]
-pub fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), String> {
+pub async fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), String> {
     let path = settings_path(&app)?;
-    let tmp = path.with_extension("json.tmp");
-
     let json = serde_json::to_string_pretty(&settings)
         .map_err(|e| format!("Could not serialise settings: {e}"))?;
 
-    std::fs::write(&tmp, json).map_err(|e| format!("Could not write {}: {e}", tmp.display()))?;
-    std::fs::rename(&tmp, &path)
-        .map_err(|e| format!("Could not replace {}: {e}", path.display()))?;
-    Ok(())
+    tokio::task::spawn_blocking(move || {
+        let tmp = path.with_extension("json.tmp");
+        std::fs::write(&tmp, json)
+            .map_err(|e| format!("Could not write {}: {e}", tmp.display()))?;
+        std::fs::rename(&tmp, &path)
+            .map_err(|e| format!("Could not replace {}: {e}", path.display()))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
 }

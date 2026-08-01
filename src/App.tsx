@@ -14,9 +14,9 @@ import {
   asSteamInitError,
   steamConnectionState,
   discoverServers,
-  refreshServers,
   refreshVisibleServers,
   getServerCounts,
+  registryDegraded,
   type SteamInitError,
   type SteamInitFailure,
   type ModsPendingEntry,
@@ -87,6 +87,15 @@ export function App() {
   const [counts, setCounts] = useState({ total: 0, populated: 0 });
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** Registry fell back to in-memory: nothing the user saves will survive. */
+  const [storageDegraded, setStorageDegraded] = useState(false);
+
+  // Checked once. The flag is decided during backend setup and never changes.
+  useEffect(() => {
+    registryDegraded()
+      .then(setStorageDegraded)
+      .catch(() => {});
+  }, []);
 
   /**
    * Coalesce reload requests.
@@ -349,26 +358,6 @@ export function App() {
     }
   }, [steamConnected]);
 
-  const handleDiscover = useCallback(async () => {
-    if (!steamConnected || discovering) return;
-    if (useServerStore.getState().downloadsActive) {
-      setError("Paused while mods are downloading — try again once they finish.");
-      return;
-    }
-    setDiscovering(true);
-    setError(null);
-    try {
-      await discoverServers();
-      await refreshServers();
-      triggerReload();
-      setRefreshedAt(new Date().toLocaleTimeString());
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setDiscovering(false);
-    }
-  }, [steamConnected, discovering]);
-
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#0b0f17]">
       <TitleBar
@@ -379,11 +368,19 @@ export function App() {
         updateAvailable={updateAvailable !== null}
       />
 
-      <FilterBar
-        onRefresh={handleRefresh}
-        onDiscover={handleDiscover}
-        refreshing={refreshing}
-      />
+      <FilterBar onRefresh={handleRefresh} refreshing={refreshing} />
+
+      {/* Not dismissible: it stays true for the whole session, and silently
+          losing favourites is exactly what this exists to prevent. */}
+      {storageDegraded && (
+        <div className="flex items-center gap-2 border-b border-[#f59e0b]/30 bg-[#f59e0b]/5 px-3 py-1.5">
+          <span className="text-[10px] font-semibold uppercase text-[#f59e0b]">STORAGE</span>
+          <span className="text-[11px] text-[#f1f5f9]">
+            The server database could not be opened, so this session is running from memory —
+            favourites and recently-played will not be saved.
+          </span>
+        </div>
+      )}
 
       {error && (
         <div className="flex items-center gap-2 border-b border-[#ef4444]/30 bg-[#ef4444]/5 px-3 py-1.5">

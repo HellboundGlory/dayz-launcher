@@ -3,13 +3,25 @@
 //! Maps IPv4 addresses to broad region codes (EU, NA, AS, OC, SA)
 //! matching the launcher's region filter dropdown.
 //!
-//! Uses a baked-in table of /8 and /16 prefixes covering DayZ
-//! server-hosting networks. No external database, no async I/O,
-//! no extra crate dependencies.
+//! Uses a baked-in table of `/8` prefixes covering DayZ server-hosting
+//! networks. No external database, no async I/O, no extra crate dependencies.
+//!
+//! # Why an array
+//!
+//! This was a `LazyLock<HashMap<(u8, u8), &str>>` populated by ~200 nested
+//! `for b2 in 0..=255` loops — roughly 50,000 entries, every one of which
+//! mapped a whole `/8` and so ignored the second octet entirely. The map was
+//! several hundred kilobytes of heap built on first use, hashed a tuple on
+//! every lookup, and encoded no information an array indexed by the first
+//! octet does not. `REGIONS` is 256 entries resolved at compile time.
+//!
+//! Prefix order is still load-bearing: the original inserted some octets twice
+//! and relied on the later write winning (`194` is listed under Oceania and
+//! again under Germany, and resolves to EU; `200` under Oceania and again under
+//! South America, and resolves to SA). `build_table` applies the blocks in the
+//! same order for the same reason, and the tests below pin the overlaps.
 
-use std::collections::HashMap;
 use std::net::Ipv4Addr;
-use std::sync::LazyLock;
 
 /// Region codes used by the filter dropdown and stored in the registry.
 pub const REGION_OCEANIA: &str = "OC";
@@ -18,288 +30,63 @@ pub const REGION_EUROPE: &str = "EU";
 pub const REGION_NORTH_AMERICA: &str = "NA";
 pub const REGION_SOUTH_AMERICA: &str = "SA";
 
-/// Lookup: `(first_byte, second_byte)` → region code.
-static HOSTING_MAP: LazyLock<HashMap<(u8, u8), &'static str>> = LazyLock::new(|| {
-    let mut m = HashMap::new();
+/// First-octet blocks per region, applied in this order.
+///
+/// Several octets appear in more than one list. That is inherited, not
+/// accidental, and the later block wins — see the module note and the
+/// `overlapping_prefixes_resolve_to_the_last_block` test.
+const OCEANIA: &[u8] = &[
+    1, 27, 58, 60, 61, 101, 103, 106, 110, 111, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122,
+    123, 124, 125, 126, 144, 147, 149, 150, 153, 155, 167, 168, 175, 180, 194, 200, 202, 203, 210,
+    211, 218, 219, 220, 221,
+];
+const ASIA: &[u8] = &[14, 36, 39, 42, 43, 49, 59, 112, 133, 182, 183, 222, 223];
+const EUROPE: &[u8] = &[
+    51, 54, 178, 5, 88, 176, 185, 188, 193, 194, 195, 212, 217, 31, 57, 77, 80, 81, 82, 83, 90,
+    109, 128, 129, 135, 2, 25, 86, 130, 131, 37, 79, 89, 91, 94, 95, 46, 78, 85, 92, 93, 84, 62,
+    87, 136, 141, 145,
+];
+const NORTH_AMERICA: &[u8] = &[
+    3, 4, 6, 7, 8, 9, 11, 12, 13, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 26, 28, 29, 30, 32, 33,
+    34, 35, 38, 40, 44, 45, 47, 48, 50, 52, 55, 56, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74,
+    75, 76, 96, 97, 98, 99, 100, 104, 107, 108, 137, 138, 139, 140, 142, 143, 144, 146, 147, 148,
+    149, 152, 155, 156, 157, 158, 159, 160, 161, 162, 164, 165, 166, 167, 168, 169, 170, 172, 173,
+    174, 192, 198, 199, 204, 205, 206, 207, 208, 209, 216, 132,
+];
+const SOUTH_AMERICA: &[u8] = &[177, 179, 186, 187, 189, 190, 191, 200, 201];
+/// Resolved at compile time: 256 entries, indexed by the first octet.
+static REGIONS: [Option<&str>; 256] = build_table();
 
-    // ── Oceania ──────────────────────────────────────────────────
+const fn build_table() -> [Option<&'static str>; 256] {
+    let mut table = [None; 256];
+    table = assign(table, OCEANIA, REGION_OCEANIA);
+    table = assign(table, ASIA, REGION_ASIA);
+    table = assign(table, EUROPE, REGION_EUROPE);
+    table = assign(table, NORTH_AMERICA, REGION_NORTH_AMERICA);
+    table = assign(table, SOUTH_AMERICA, REGION_SOUTH_AMERICA);
+    table
+}
 
-    for b2 in 0..=255u8 {
-        m.insert((1, b2), REGION_OCEANIA);
-        m.insert((27, b2), REGION_OCEANIA);
-        m.insert((58, b2), REGION_OCEANIA);
-        m.insert((60, b2), REGION_OCEANIA);
-        m.insert((61, b2), REGION_OCEANIA);
-        m.insert((101, b2), REGION_OCEANIA);
-        m.insert((103, b2), REGION_OCEANIA);
-        m.insert((106, b2), REGION_OCEANIA);
-        m.insert((110, b2), REGION_OCEANIA);
-        m.insert((111, b2), REGION_OCEANIA);
-        m.insert((113, b2), REGION_OCEANIA);
-        m.insert((114, b2), REGION_OCEANIA);
-        m.insert((115, b2), REGION_OCEANIA);
-        m.insert((116, b2), REGION_OCEANIA);
-        m.insert((117, b2), REGION_OCEANIA);
-        m.insert((118, b2), REGION_OCEANIA);
-        m.insert((119, b2), REGION_OCEANIA);
-        m.insert((120, b2), REGION_OCEANIA);
-        m.insert((121, b2), REGION_OCEANIA);
-        m.insert((122, b2), REGION_OCEANIA);
-        m.insert((123, b2), REGION_OCEANIA);
-        m.insert((124, b2), REGION_OCEANIA);
-        m.insert((125, b2), REGION_OCEANIA);
-        m.insert((126, b2), REGION_OCEANIA);
-        m.insert((144, b2), REGION_OCEANIA);
-        m.insert((147, b2), REGION_OCEANIA);
-        m.insert((149, b2), REGION_OCEANIA);
-        m.insert((150, b2), REGION_OCEANIA);
-        m.insert((153, b2), REGION_OCEANIA);
-        m.insert((155, b2), REGION_OCEANIA);
-        m.insert((167, b2), REGION_OCEANIA);
-        m.insert((168, b2), REGION_OCEANIA);
-        m.insert((175, b2), REGION_OCEANIA);
-        m.insert((180, b2), REGION_OCEANIA);
-        m.insert((194, b2), REGION_OCEANIA);
-        m.insert((200, b2), REGION_OCEANIA);
-        m.insert((202, b2), REGION_OCEANIA);
-        m.insert((203, b2), REGION_OCEANIA);
-        m.insert((210, b2), REGION_OCEANIA);
-        m.insert((211, b2), REGION_OCEANIA);
-        m.insert((218, b2), REGION_OCEANIA);
-        m.insert((219, b2), REGION_OCEANIA);
-        m.insert((220, b2), REGION_OCEANIA);
-        m.insert((221, b2), REGION_OCEANIA);
+const fn assign(
+    mut table: [Option<&'static str>; 256],
+    octets: &[u8],
+    region: &'static str,
+) -> [Option<&'static str>; 256] {
+    let mut i = 0;
+    while i < octets.len() {
+        table[octets[i] as usize] = Some(region);
+        i += 1;
     }
-
-    // ── Asia ─────────────────────────────────────────────────────
-
-    for b2 in 0..=255u8 {
-        m.insert((14, b2), REGION_ASIA);
-        m.insert((36, b2), REGION_ASIA);
-        m.insert((39, b2), REGION_ASIA);
-        m.insert((42, b2), REGION_ASIA);
-        m.insert((43, b2), REGION_ASIA);
-        m.insert((49, b2), REGION_ASIA);
-        m.insert((59, b2), REGION_ASIA);
-        m.insert((112, b2), REGION_ASIA);
-        m.insert((133, b2), REGION_ASIA);
-        m.insert((182, b2), REGION_ASIA);
-        m.insert((183, b2), REGION_ASIA);
-        m.insert((222, b2), REGION_ASIA);
-        m.insert((223, b2), REGION_ASIA);
-    }
-
-    // ── Europe ───────────────────────────────────────────────────
-
-    // OVH & wide EU hosting ranges — must come early to cover large blocks
-    for b2 in 0..=255u8 {
-        m.insert((51, b2), REGION_EUROPE);   // OVH France/UK
-        m.insert((54, b2), REGION_EUROPE);   // OVH / AWS EU
-        m.insert((178, b2), REGION_EUROPE);  // OVH
-    }
-    // Germany (Hetzner + others)
-    for b2 in 0..=255u8 {
-        m.insert((5, b2), REGION_EUROPE);
-        m.insert((88, b2), REGION_EUROPE);
-        m.insert((176, b2), REGION_EUROPE);
-        m.insert((185, b2), REGION_EUROPE);
-        m.insert((188, b2), REGION_EUROPE);
-        m.insert((193, b2), REGION_EUROPE);
-        m.insert((194, b2), REGION_EUROPE);
-        m.insert((195, b2), REGION_EUROPE);
-        m.insert((212, b2), REGION_EUROPE);
-        m.insert((217, b2), REGION_EUROPE);
-    }
-    // France
-    for b2 in 0..=255u8 {
-        m.insert((31, b2), REGION_EUROPE);
-        m.insert((57, b2), REGION_EUROPE);
-        m.insert((77, b2), REGION_EUROPE);
-        m.insert((80, b2), REGION_EUROPE);
-        m.insert((81, b2), REGION_EUROPE);
-        m.insert((82, b2), REGION_EUROPE);
-        m.insert((83, b2), REGION_EUROPE);
-        m.insert((90, b2), REGION_EUROPE);
-        m.insert((109, b2), REGION_EUROPE);
-        m.insert((128, b2), REGION_EUROPE);
-        m.insert((129, b2), REGION_EUROPE);
-        m.insert((135, b2), REGION_EUROPE);   // additional FR / misc EU
-    }
-    // United Kingdom
-    for b2 in 0..=255u8 {
-        m.insert((2, b2), REGION_EUROPE);
-        m.insert((25, b2), REGION_EUROPE);
-        m.insert((86, b2), REGION_EUROPE);
-        m.insert((130, b2), REGION_EUROPE);
-        m.insert((131, b2), REGION_EUROPE);
-    }
-    // Poland
-    for b2 in 0..=255u8 {
-        m.insert((37, b2), REGION_EUROPE);
-        m.insert((79, b2), REGION_EUROPE);
-        m.insert((89, b2), REGION_EUROPE);
-        m.insert((91, b2), REGION_EUROPE);
-        m.insert((94, b2), REGION_EUROPE);
-        m.insert((95, b2), REGION_EUROPE);
-    }
-    // Russia
-    for b2 in 0..=255u8 {
-        m.insert((46, b2), REGION_EUROPE);
-        m.insert((78, b2), REGION_EUROPE);
-        m.insert((85, b2), REGION_EUROPE);
-        m.insert((92, b2), REGION_EUROPE);
-        m.insert((93, b2), REGION_EUROPE);
-    }
-    // Sweden
-    for b2 in 0..=255u8 {
-        m.insert((84, b2), REGION_EUROPE);
-    }
-    // Finland
-    for b2 in 0..=255u8 {
-        m.insert((62, b2), REGION_EUROPE);
-        m.insert((87, b2), REGION_EUROPE);
-    }
-    // Netherlands
-    for b2 in 0..=255u8 {
-        m.insert((136, b2), REGION_EUROPE);
-        m.insert((141, b2), REGION_EUROPE);
-        m.insert((145, b2), REGION_EUROPE);
-    }
-
-    // ── North America ────────────────────────────────────────────
-
-    // United States
-    for b2 in 0..=255u8 {
-        m.insert((3, b2), REGION_NORTH_AMERICA);
-        m.insert((4, b2), REGION_NORTH_AMERICA);
-        m.insert((6, b2), REGION_NORTH_AMERICA);
-        m.insert((7, b2), REGION_NORTH_AMERICA);
-        m.insert((8, b2), REGION_NORTH_AMERICA);
-        m.insert((9, b2), REGION_NORTH_AMERICA);
-        m.insert((11, b2), REGION_NORTH_AMERICA);
-        m.insert((12, b2), REGION_NORTH_AMERICA);
-        m.insert((13, b2), REGION_NORTH_AMERICA);
-        m.insert((15, b2), REGION_NORTH_AMERICA);
-        m.insert((16, b2), REGION_NORTH_AMERICA);
-        m.insert((17, b2), REGION_NORTH_AMERICA);
-        m.insert((18, b2), REGION_NORTH_AMERICA);
-        m.insert((19, b2), REGION_NORTH_AMERICA);
-        m.insert((20, b2), REGION_NORTH_AMERICA);
-        m.insert((21, b2), REGION_NORTH_AMERICA);
-        m.insert((22, b2), REGION_NORTH_AMERICA);
-        m.insert((23, b2), REGION_NORTH_AMERICA);
-        m.insert((24, b2), REGION_NORTH_AMERICA);
-        m.insert((26, b2), REGION_NORTH_AMERICA);
-        m.insert((28, b2), REGION_NORTH_AMERICA);
-        m.insert((29, b2), REGION_NORTH_AMERICA);
-        m.insert((30, b2), REGION_NORTH_AMERICA);
-        m.insert((32, b2), REGION_NORTH_AMERICA);
-        m.insert((33, b2), REGION_NORTH_AMERICA);
-        m.insert((34, b2), REGION_NORTH_AMERICA);
-        m.insert((35, b2), REGION_NORTH_AMERICA);
-        m.insert((38, b2), REGION_NORTH_AMERICA);
-        m.insert((40, b2), REGION_NORTH_AMERICA);
-        m.insert((44, b2), REGION_NORTH_AMERICA);
-        m.insert((45, b2), REGION_NORTH_AMERICA);
-        m.insert((47, b2), REGION_NORTH_AMERICA);
-        m.insert((48, b2), REGION_NORTH_AMERICA);
-        m.insert((50, b2), REGION_NORTH_AMERICA);
-        m.insert((52, b2), REGION_NORTH_AMERICA);
-        m.insert((55, b2), REGION_NORTH_AMERICA);
-        m.insert((56, b2), REGION_NORTH_AMERICA);
-        m.insert((63, b2), REGION_NORTH_AMERICA);
-        m.insert((64, b2), REGION_NORTH_AMERICA);
-        m.insert((65, b2), REGION_NORTH_AMERICA);
-        m.insert((66, b2), REGION_NORTH_AMERICA);
-        m.insert((67, b2), REGION_NORTH_AMERICA);
-        m.insert((68, b2), REGION_NORTH_AMERICA);
-        m.insert((69, b2), REGION_NORTH_AMERICA);
-        m.insert((70, b2), REGION_NORTH_AMERICA);
-        m.insert((71, b2), REGION_NORTH_AMERICA);
-        m.insert((72, b2), REGION_NORTH_AMERICA);
-        m.insert((73, b2), REGION_NORTH_AMERICA);
-        m.insert((74, b2), REGION_NORTH_AMERICA);
-        m.insert((75, b2), REGION_NORTH_AMERICA);
-        m.insert((76, b2), REGION_NORTH_AMERICA);
-        m.insert((96, b2), REGION_NORTH_AMERICA);
-        m.insert((97, b2), REGION_NORTH_AMERICA);
-        m.insert((98, b2), REGION_NORTH_AMERICA);
-        m.insert((99, b2), REGION_NORTH_AMERICA);
-        m.insert((100, b2), REGION_NORTH_AMERICA);
-        m.insert((104, b2), REGION_NORTH_AMERICA);
-        m.insert((107, b2), REGION_NORTH_AMERICA);
-        m.insert((108, b2), REGION_NORTH_AMERICA);
-        m.insert((137, b2), REGION_NORTH_AMERICA);
-        m.insert((138, b2), REGION_NORTH_AMERICA);
-        m.insert((139, b2), REGION_NORTH_AMERICA);
-        m.insert((140, b2), REGION_NORTH_AMERICA);
-        m.insert((142, b2), REGION_NORTH_AMERICA);
-        m.insert((143, b2), REGION_NORTH_AMERICA);
-        m.insert((144, b2), REGION_NORTH_AMERICA);
-        m.insert((146, b2), REGION_NORTH_AMERICA);
-        m.insert((147, b2), REGION_NORTH_AMERICA);
-        m.insert((148, b2), REGION_NORTH_AMERICA);
-        m.insert((149, b2), REGION_NORTH_AMERICA);
-        m.insert((152, b2), REGION_NORTH_AMERICA);
-        m.insert((155, b2), REGION_NORTH_AMERICA);
-        m.insert((156, b2), REGION_NORTH_AMERICA);
-        m.insert((157, b2), REGION_NORTH_AMERICA);
-        m.insert((158, b2), REGION_NORTH_AMERICA);
-        m.insert((159, b2), REGION_NORTH_AMERICA);
-        m.insert((160, b2), REGION_NORTH_AMERICA);
-        m.insert((161, b2), REGION_NORTH_AMERICA);
-        m.insert((162, b2), REGION_NORTH_AMERICA);
-        m.insert((164, b2), REGION_NORTH_AMERICA);
-        m.insert((165, b2), REGION_NORTH_AMERICA);
-        m.insert((166, b2), REGION_NORTH_AMERICA);
-        m.insert((167, b2), REGION_NORTH_AMERICA);
-        m.insert((168, b2), REGION_NORTH_AMERICA);
-        m.insert((169, b2), REGION_NORTH_AMERICA);
-        m.insert((170, b2), REGION_NORTH_AMERICA);
-        m.insert((172, b2), REGION_NORTH_AMERICA);
-        m.insert((173, b2), REGION_NORTH_AMERICA);
-        m.insert((174, b2), REGION_NORTH_AMERICA);
-        m.insert((192, b2), REGION_NORTH_AMERICA);
-        m.insert((198, b2), REGION_NORTH_AMERICA);
-        m.insert((199, b2), REGION_NORTH_AMERICA);
-        m.insert((204, b2), REGION_NORTH_AMERICA);
-        m.insert((205, b2), REGION_NORTH_AMERICA);
-        m.insert((206, b2), REGION_NORTH_AMERICA);
-        m.insert((207, b2), REGION_NORTH_AMERICA);
-        m.insert((208, b2), REGION_NORTH_AMERICA);
-        m.insert((209, b2), REGION_NORTH_AMERICA);
-        m.insert((216, b2), REGION_NORTH_AMERICA);
-    }
-    // Canada
-    for b2 in 0..=255u8 {
-        m.insert((132, b2), REGION_NORTH_AMERICA);
-    }
-
-    // ── South America ────────────────────────────────────────────
-
-    for b2 in 0..=255u8 {
-        m.insert((177, b2), REGION_SOUTH_AMERICA);
-        m.insert((179, b2), REGION_SOUTH_AMERICA);
-        m.insert((186, b2), REGION_SOUTH_AMERICA);
-        m.insert((187, b2), REGION_SOUTH_AMERICA);
-        m.insert((189, b2), REGION_SOUTH_AMERICA);
-        m.insert((190, b2), REGION_SOUTH_AMERICA);
-        m.insert((191, b2), REGION_SOUTH_AMERICA);
-        m.insert((200, b2), REGION_SOUTH_AMERICA);
-        m.insert((201, b2), REGION_SOUTH_AMERICA);
-    }
-
-    m
-});
+    table
+}
 
 /// True for addresses that are not globally routable, so cannot belong to any
 /// geographic region.
 ///
-/// This has to be checked *before* the table lookup, not after. The table is
-/// keyed on the first two octets and several entries are blanket `/8`s — both
-/// `172.x` and `192.x` are mapped wholesale to North America — which quietly
-/// swallows `172.16.0.0/12` and `192.168.0.0/16`. A LAN server would otherwise
-/// be labelled NA and get caught by the region filter.
+/// This has to be checked *before* the table lookup, not after. Every table
+/// entry is a whole `/8` — both `172` and `192` map wholesale to North America —
+/// which quietly swallows `172.16.0.0/12` and `192.168.0.0/16`. A LAN server
+/// would otherwise be labelled NA and get caught by the region filter.
 fn is_non_routable(ip: Ipv4Addr) -> bool {
     let [a, b, ..] = ip.octets();
     ip.is_private()
@@ -321,8 +108,7 @@ pub fn region_code(ip: Ipv4Addr) -> Option<&'static str> {
     if is_non_routable(ip) {
         return None;
     }
-    let octets = ip.octets();
-    HOSTING_MAP.get(&(octets[0], octets[1])).copied()
+    REGIONS[ip.octets()[0] as usize]
 }
 
 /// Legacy alias matching the old `country_code` API.
@@ -337,25 +123,43 @@ mod tests {
 
     #[test]
     fn hetzner_is_eu() {
-        assert_eq!(region_code(Ipv4Addr::new(88, 198, 1, 1)), Some(REGION_EUROPE));
+        assert_eq!(
+            region_code(Ipv4Addr::new(88, 198, 1, 1)),
+            Some(REGION_EUROPE)
+        );
     }
 
     #[test]
     fn ovh_france_is_eu() {
-        assert_eq!(region_code(Ipv4Addr::new(51, 38, 100, 1)), Some(REGION_EUROPE));
-        assert_eq!(region_code(Ipv4Addr::new(178, 33, 0, 1)), Some(REGION_EUROPE));
+        assert_eq!(
+            region_code(Ipv4Addr::new(51, 38, 100, 1)),
+            Some(REGION_EUROPE)
+        );
+        assert_eq!(
+            region_code(Ipv4Addr::new(178, 33, 0, 1)),
+            Some(REGION_EUROPE)
+        );
     }
 
     #[test]
     fn ovh_uk_is_eu() {
         // 51.254.46.15 — OVH UK
-        assert_eq!(region_code(Ipv4Addr::new(51, 254, 46, 15)), Some(REGION_EUROPE));
+        assert_eq!(
+            region_code(Ipv4Addr::new(51, 254, 46, 15)),
+            Some(REGION_EUROPE)
+        );
     }
 
     #[test]
     fn us_is_na() {
-        assert_eq!(region_code(Ipv4Addr::new(4, 2, 2, 2)), Some(REGION_NORTH_AMERICA));
-        assert_eq!(region_code(Ipv4Addr::new(8, 8, 8, 8)), Some(REGION_NORTH_AMERICA));
+        assert_eq!(
+            region_code(Ipv4Addr::new(4, 2, 2, 2)),
+            Some(REGION_NORTH_AMERICA)
+        );
+        assert_eq!(
+            region_code(Ipv4Addr::new(8, 8, 8, 8)),
+            Some(REGION_NORTH_AMERICA)
+        );
     }
 
     #[test]
@@ -365,13 +169,19 @@ mod tests {
 
     #[test]
     fn br_is_sa() {
-        assert_eq!(region_code(Ipv4Addr::new(177, 54, 0, 1)), Some(REGION_SOUTH_AMERICA));
+        assert_eq!(
+            region_code(Ipv4Addr::new(177, 54, 0, 1)),
+            Some(REGION_SOUTH_AMERICA)
+        );
     }
 
     #[test]
     fn cn_is_as() {
         assert_eq!(region_code(Ipv4Addr::new(14, 0, 0, 1)), Some(REGION_ASIA));
-        assert_eq!(region_code(Ipv4Addr::new(223, 255, 0, 1)), Some(REGION_ASIA));
+        assert_eq!(
+            region_code(Ipv4Addr::new(223, 255, 0, 1)),
+            Some(REGION_ASIA)
+        );
     }
 
     #[test]
@@ -399,6 +209,55 @@ mod tests {
             region_code(Ipv4Addr::new(192, 30, 0, 1)),
             Some(REGION_NORTH_AMERICA)
         );
+    }
+
+    /// Nine `/8`s are claimed by two region blocks. The table is built by
+    /// applying the blocks in order and letting the later one win, which
+    /// reproduces what the old insert-ordered `HashMap` resolved to. Reordering
+    /// the blocks in `build_table` silently moves these servers between regions,
+    /// so they are pinned rather than left to the reader to infer.
+    #[test]
+    fn overlapping_prefixes_resolve_to_the_last_block() {
+        // Oceania, then Germany.
+        assert_eq!(
+            region_code(Ipv4Addr::new(194, 1, 1, 1)),
+            Some(REGION_EUROPE)
+        );
+        // Oceania, then South America.
+        assert_eq!(
+            region_code(Ipv4Addr::new(200, 1, 1, 1)),
+            Some(REGION_SOUTH_AMERICA)
+        );
+        // Oceania, then the United States block.
+        for octet in [144, 147, 149, 155, 167, 168] {
+            assert_eq!(
+                region_code(Ipv4Addr::new(octet, 1, 1, 1)),
+                Some(REGION_NORTH_AMERICA),
+                "{octet}.x should resolve to NA"
+            );
+        }
+        // Claimed only by Oceania, so unaffected by any later block.
+        for octet in [150, 153, 175, 180, 202, 203, 210, 211] {
+            assert_eq!(
+                region_code(Ipv4Addr::new(octet, 1, 1, 1)),
+                Some(REGION_OCEANIA),
+                "{octet}.x should stay OC"
+            );
+        }
+    }
+
+    /// The lookup ignores every octet but the first, so a `/8` must answer the
+    /// same for its whole range. This is what makes the array equivalent to the
+    /// `(first, second)`-keyed map it replaced, whose entries were all blanket
+    /// `/8`s written out 256 times each.
+    #[test]
+    fn the_second_octet_never_changes_the_answer() {
+        for second in [0u8, 1, 64, 128, 200, 255] {
+            assert_eq!(
+                region_code(Ipv4Addr::new(88, second, 1, 1)),
+                Some(REGION_EUROPE)
+            );
+        }
     }
 
     #[test]

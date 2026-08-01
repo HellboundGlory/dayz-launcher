@@ -16,16 +16,21 @@ impl Reader {
         Self { conn }
     }
 
-    /// Escape hatch for ad-hoc counts in the CLI and for tests.
-    pub fn raw(&self) -> &Connection {
-        &self.conn
-    }
-
-    pub fn count(&self) -> Result<usize, RegistryError> {
-        let n: i64 = self
-            .conn
-            .query_row("SELECT COUNT(*) FROM servers", [], |r| r.get(0))?;
-        Ok(n as usize)
+    /// `(total, populated)` — every known server, and how many have a player on
+    /// them right now.
+    ///
+    /// One statement rather than two. This replaces a `count()` plus a
+    /// `raw().query_row("SELECT COUNT(*) ... WHERE players > 0")` issued from
+    /// the Tauri command layer: two full scans where one does, and a query
+    /// written outside the one crate that is supposed to own all SQL. `raw()`
+    /// existed only to permit that and is gone with it.
+    pub fn counts(&self) -> Result<(usize, usize), RegistryError> {
+        let (total, populated): (i64, i64) = self.conn.query_row(
+            "SELECT COUNT(*), COUNT(*) FILTER (WHERE players > 0) FROM servers",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?;
+        Ok((total as usize, populated as usize))
     }
 
     pub fn list(

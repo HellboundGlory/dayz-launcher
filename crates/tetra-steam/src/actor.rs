@@ -263,10 +263,12 @@ pub(crate) fn run(
                     &mut deferred,
                 ));
             }
-            Ok(cmd @ (Command::UGCItemState(..)
-            | Command::UGCItemStates(..)
-            | Command::UGCInstallInfo(..)
-            | Command::UGCDownloadInfo(..))) => {
+            Ok(
+                cmd @ (Command::UGCItemState(..)
+                | Command::UGCItemStates(..)
+                | Command::UGCInstallInfo(..)
+                | Command::UGCDownloadInfo(..)),
+            ) => {
                 service_instant(&client, cmd);
             }
             Ok(Command::UGCSubscribe(ids, ack)) => {

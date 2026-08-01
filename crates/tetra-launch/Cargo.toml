@@ -6,18 +6,8 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-tetra-core = { path = "../tetra-core" }
-tetra-net = { path = "../tetra-net" }
-tetra-steam = { path = "../tetra-steam" }
 thiserror.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-tokio.workspace = true
-tracing.workspace = true
 winreg.workspace = true
-
-[dev-dependencies]
-tokio = { workspace = true, features = ["test-util"] }
 
 [lints.rust]
 unsafe_code = "forbid"

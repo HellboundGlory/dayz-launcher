@@ -7,11 +7,6 @@ license.workspace = true
 
 [dependencies]
 thiserror.workspace = true
-serde.workspace = true
 
 [lints.rust]
 unsafe_code = "forbid"
-
-[[bin]]
-name = "tetra-probe"
-path = "src/bin/tetra-probe.rs"
