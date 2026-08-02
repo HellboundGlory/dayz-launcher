@@ -695,7 +695,7 @@ pub async fn get_map_list(state: State<'_, AppState>) -> Result<Vec<(String, Str
 /// port the frontend sends alongside it. The port in the string is the same
 /// value; `query_port` is taken as authoritative and the string is only read
 /// for its IP.
-fn server_key(addr: &str, query_port: u16) -> Result<ServerKey, String> {
+pub(crate) fn server_key(addr: &str, query_port: u16) -> Result<ServerKey, String> {
     let ip: Ipv4Addr = addr
         .split(':')
         .next()
@@ -741,4 +741,40 @@ fn sort_from_params(p: &SortParams) -> (SortKey, SortDir) {
         _ => SortDir::Desc,
     };
     (key, dir)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::server_key;
+
+    /// The wire convention, pinned because getting it wrong is silent until a
+    /// click fails. The frontend sends `addr` as `"IP:query_port"` *and* sends
+    /// `query_port` separately, so a caller that appends the port again builds
+    /// `"1.2.3.4:2303:2303"` — which is what broke VERIFY & JOIN with "invalid
+    /// socket address syntax". Everything that needs a socket address for a
+    /// server goes through here rather than formatting one itself.
+    #[test]
+    fn an_address_already_carrying_a_port_is_not_given_a_second_one() {
+        let key = server_key("172.111.51.137:27022", 27022).expect("should parse");
+        assert_eq!(key.ip.to_string(), "172.111.51.137");
+        assert_eq!(key.query_port, 27022);
+
+        let socket = std::net::SocketAddr::from((key.ip, key.query_port));
+        assert_eq!(socket.to_string(), "172.111.51.137:27022");
+    }
+
+    /// `query_port` is authoritative; the port inside the string is ignored
+    /// rather than trusted, so the two disagreeing cannot produce a key that
+    /// points at a port nothing is listening on.
+    #[test]
+    fn the_separate_query_port_wins_over_the_one_in_the_string() {
+        let key = server_key("1.2.3.4:9999", 2303).expect("should parse");
+        assert_eq!(key.query_port, 2303);
+    }
+
+    #[test]
+    fn a_malformed_address_is_rejected_rather_than_guessed_at() {
+        assert!(server_key("not-an-ip:2303", 2303).is_err());
+        assert!(server_key("", 2303).is_err());
+    }
 }

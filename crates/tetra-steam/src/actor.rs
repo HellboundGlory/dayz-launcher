@@ -4,7 +4,7 @@ use crate::source::Filters;
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -81,6 +81,13 @@ pub(crate) enum Command {
     UGCSubscribe(Vec<u64>, Sender<Result<Vec<MutationResult>, SteamError>>),
     /// Unsubscribe from each id. Steam removes the content from disk.
     UGCUnsubscribe(Vec<u64>, Sender<Result<Vec<MutationResult>, SteamError>>),
+    /// Ask the Workshop itself which of these items have been updated since the
+    /// installed copy was written, and queue a download for the ones that have.
+    ///
+    /// Answers with the ids it queued. Issued instantly and completed later by
+    /// `poll_refreshes`, so it is serviceable from inside a discovery's pump
+    /// rather than queued behind the discovery — see `PendingRefresh`.
+    UGCRefreshStale(Vec<u64>, Sender<Result<Vec<u64>, SteamError>>),
     Shutdown(Sender<()>),
 }
 
@@ -109,8 +116,23 @@ const MUTATION_DEADLINE: Duration = Duration::from_secs(60);
 /// they are safe to service *inside* a long-running server-list request, which
 /// is what stops a mod-state lookup from waiting on a discovery that may run
 /// for a minute.
-fn service_instant(client: &Client, cmd: Command) -> Option<Command> {
+fn service_instant(
+    client: &Client,
+    cmd: Command,
+    pending: &mut Vec<PendingRefresh>,
+) -> Option<Command> {
     match cmd {
+        // Instant in the sense that matters here: issuing the queries needs no
+        // pump of its own, so this is safe to service from inside one. The
+        // replies are collected by `poll_refreshes` on a later turn of whatever
+        // loop is running — which is what keeps a join clicked during a
+        // discovery from waiting for the discovery to end.
+        Command::UGCRefreshStale(ids, ack) => {
+            if let Some(started) = start_refresh(client, ids, ack) {
+                pending.push(started);
+            }
+            None
+        }
         Command::UGCItemState(id, ack) => {
             let _ = ack.send(Ok(client
                 .ugc()
@@ -222,9 +244,13 @@ pub(crate) fn run(
     // Commands that arrived while a server-list request held the thread, and
     // could not be answered inline.
     let mut deferred: VecDeque<Command> = VecDeque::new();
+    // Freshness checks issued but not yet answered. Drained by `poll_refreshes`
+    // on every turn of this loop and of `request_list`'s.
+    let mut pending: Vec<PendingRefresh> = Vec::new();
 
     loop {
         client.run_callbacks();
+        poll_refreshes(&client, &mut pending);
 
         let next = match deferred.pop_front() {
             Some(cmd) => Ok(cmd),
@@ -240,6 +266,7 @@ pub(crate) fn run(
                     None,
                     &rx,
                     &mut deferred,
+                    &mut pending,
                 ));
             }
             Ok(Command::InternetListStream(filters, tx)) => {
@@ -250,6 +277,7 @@ pub(crate) fn run(
                     Some(&tx),
                     &rx,
                     &mut deferred,
+                    &mut pending,
                 );
                 let _ = tx.send(StreamChunk::Done(result.map(|_| ())));
             }
@@ -261,15 +289,17 @@ pub(crate) fn run(
                     None,
                     &rx,
                     &mut deferred,
+                    &mut pending,
                 ));
             }
             Ok(
                 cmd @ (Command::UGCItemState(..)
                 | Command::UGCItemStates(..)
                 | Command::UGCInstallInfo(..)
-                | Command::UGCDownloadInfo(..)),
+                | Command::UGCDownloadInfo(..)
+                | Command::UGCRefreshStale(..)),
             ) => {
-                service_instant(&client, cmd);
+                service_instant(&client, cmd, &mut pending);
             }
             Ok(Command::UGCSubscribe(ids, ack)) => {
                 let _ = ack.send(Ok(mutate(&client, &ids, Mutation::Subscribe)));
@@ -386,6 +416,165 @@ fn mutate(client: &Client, ids: &[u64], kind: Mutation) -> Vec<MutationResult> {
     out
 }
 
+/// Steam's cap on results per UGC details request (`kNumUGCResultsPerPage`).
+/// A 104-mod server — which the DayZ browser is full of — is three requests.
+const UGC_QUERY_PAGE: usize = 50;
+
+/// Ceiling on the whole batch of details queries.
+///
+/// Shorter than `MUTATION_DEADLINE` because this is on the path of a button
+/// click: a join that cannot check freshness should get on with launching
+/// against what Steam already believes, not sit for a minute first.
+const QUERY_DEADLINE: Duration = Duration::from_secs(20);
+
+/// A freshness check that has been issued to Steam and is waiting on replies.
+///
+/// **The reason this is a struct rather than a loop.** The first version pumped
+/// callbacks itself, which made it un-serviceable inside `request_list` — so it
+/// went onto `deferred` and waited for the whole discovery to finish. A join
+/// clicked in the first minute of a session therefore never got its mods
+/// checked, which is precisely the minute in which people click join. Splitting
+/// the work in two fixes that: *issuing* the queries is instant and needs no
+/// pump, and the replies are delivered by whichever `run_callbacks` loop happens
+/// to be running — including the discovery's own.
+struct PendingRefresh {
+    ids: Vec<u64>,
+    /// Install timestamps, read up front while the ids were to hand.
+    installed: HashMap<u64, u32>,
+    /// Workshop update times, filled in by the query callbacks.
+    updated: Arc<Mutex<HashMap<u64, u32>>>,
+    /// Chunks that have answered, however they answered.
+    finished: Arc<AtomicUsize>,
+    /// Chunks actually issued. Fewer than expected if Steam refused a request.
+    issued: usize,
+    deadline: Instant,
+    ack: Sender<Result<Vec<u64>, SteamError>>,
+}
+
+/// Ask the Workshop which of `ids` has been updated since the copy on disk.
+///
+/// Returns the in-flight state, or `None` when the answer needed no query at
+/// all — in which case the caller has already been acknowledged.
+///
+/// `SetAllowCachedResponse(0)` is the whole point of the query: with any cache
+/// age Steam may answer from the same stale metadata that produced the wrong
+/// `NEEDS_UPDATE` bit in the first place, so the query would only confirm its
+/// own mistake.
+fn start_refresh(
+    client: &Client,
+    ids: Vec<u64>,
+    ack: Sender<Result<Vec<u64>, SteamError>>,
+) -> Option<PendingRefresh> {
+    let ids: Vec<u64> = {
+        let mut seen = std::collections::HashSet::new();
+        ids.into_iter()
+            .filter(|id| crate::workshop::ModState::is_workshop_id(*id))
+            .filter(|id| seen.insert(*id))
+            .collect()
+    };
+    if ids.is_empty() {
+        let _ = ack.send(Ok(Vec::new()));
+        return None;
+    }
+
+    let ugc = client.ugc();
+
+    // What is on disk. Local calls, no pump needed.
+    let installed: HashMap<u64, u32> = ids
+        .iter()
+        .filter_map(|&id| {
+            ugc.item_install_info(steamworks::PublishedFileId(id))
+                .map(|info| (id, info.timestamp))
+        })
+        .collect();
+
+    // Every chunk is issued before anything is awaited, so the round trips
+    // overlap instead of running one page at a time.
+    let updated: Arc<Mutex<HashMap<u64, u32>>> = Arc::new(Mutex::new(HashMap::new()));
+    let finished = Arc::new(AtomicUsize::new(0));
+    let mut issued = 0usize;
+
+    for chunk in ids.chunks(UGC_QUERY_PAGE) {
+        let page: Vec<steamworks::PublishedFileId> = chunk
+            .iter()
+            .map(|&id| steamworks::PublishedFileId(id))
+            .collect();
+        let Ok(query) = ugc.query_items(page) else {
+            continue;
+        };
+        issued += 1;
+        let slot = Arc::clone(&updated);
+        let done = Arc::clone(&finished);
+        query.allow_cached_response(0).fetch(move |result| {
+            if let Ok(results) = result {
+                let mut guard = slot.lock().unwrap_or_else(|e| e.into_inner());
+                for item in results.iter().flatten() {
+                    guard.insert(item.published_file_id.0, item.time_updated);
+                }
+            }
+            done.fetch_add(1, Ordering::Relaxed);
+        });
+    }
+
+    if issued == 0 {
+        // Steam would not accept a single request. Nothing is coming.
+        let _ = ack.send(Err(SteamError::Request(
+            "Steam refused the Workshop details request".into(),
+        )));
+        return None;
+    }
+
+    Some(PendingRefresh {
+        ids,
+        installed,
+        updated,
+        finished,
+        issued,
+        deadline: Instant::now() + QUERY_DEADLINE,
+        ack,
+    })
+}
+
+/// Finish any freshness check whose replies have all landed, or whose deadline
+/// has passed, and start a download for each mod the Workshop has moved past.
+///
+/// Called from every loop that pumps callbacks, so a check issued during a
+/// discovery completes during that discovery rather than after it.
+fn poll_refreshes(client: &Client, pending: &mut Vec<PendingRefresh>) {
+    if pending.is_empty() {
+        return;
+    }
+    let ugc = client.ugc();
+    pending.retain(|p| {
+        let answered = p.finished.load(Ordering::Relaxed) >= p.issued;
+        let expired = Instant::now() > p.deadline;
+        if !answered && !expired {
+            return true;
+        }
+
+        // A timed-out check still uses whatever did answer. Ids the Workshop
+        // said nothing about read as `updated_at == 0`, which `is_stale` treats
+        // as "leave it alone" — partial data can only ever mean fewer forced
+        // downloads, never spurious ones.
+        let updated = p.updated.lock().unwrap_or_else(|e| e.into_inner()).clone();
+        let mut queued = Vec::new();
+        for &id in &p.ids {
+            let installed_at = p.installed.get(&id).copied().unwrap_or(0);
+            let updated_at = updated.get(&id).copied().unwrap_or(0);
+            if !crate::workshop::is_stale(installed_at, updated_at) {
+                continue;
+            }
+            // High priority: someone is waiting on this to join, so it must not
+            // queue behind an unrelated library download.
+            if ugc.download_item(steamworks::PublishedFileId(id), true) {
+                queued.push(id);
+            }
+        }
+        let _ = p.ack.send(Ok(queued));
+        false
+    });
+}
+
 #[derive(Clone, Copy)]
 enum ListKind {
     Internet,
@@ -404,6 +593,7 @@ fn request_list(
     stream: Option<&Sender<StreamChunk>>,
     rx: &Receiver<Command>,
     deferred: &mut VecDeque<Command>,
+    pending: &mut Vec<PendingRefresh>,
 ) -> Result<Vec<GameServerRow>, SteamError> {
     let mms = client.matchmaking_servers();
 
@@ -501,10 +691,15 @@ fn request_list(
         // in flight waits for the whole discovery, which made clicking a server
         // during a refresh appear to hang for tens of seconds.
         while let Ok(cmd) = rx.try_recv() {
-            if let Some(unhandled) = service_instant(client, cmd) {
+            if let Some(unhandled) = service_instant(client, cmd, pending) {
                 deferred.push_back(unhandled);
             }
         }
+
+        // Complete any freshness check issued above. Without this a join
+        // clicked during a discovery would have its queries answered by this
+        // very loop and still sit unacknowledged until the discovery ended.
+        poll_refreshes(client, pending);
 
         if !flush(false, &mut streamed) {
             break;

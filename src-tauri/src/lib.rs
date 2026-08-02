@@ -49,19 +49,44 @@ fn shutdown_steam(app: &AppHandle) {
 
 /// Bring the main window back from the tray (or from minimised).
 ///
-/// All three calls are needed: `show` undoes `hide`, `unminimize` undoes the
-/// taskbar, and `set_focus` is what actually raises it above whatever the user
-/// is looking at.
+/// All three calls are needed: `unminimize` undoes the taskbar, `show` undoes
+/// `hide`, and `set_focus` is what actually raises it above whatever the user is
+/// looking at.
+///
+/// **`unminimize` goes first, and that ordering is load-bearing** now that
+/// minimise-to-tray hides on any resize that leaves the window minimised.
+/// Showing a still-minimised window can emit a `Resized` whose handler would
+/// see `is_minimized() == true` and hide it straight back — the click on the
+/// tray icon would do nothing. Clearing the minimised state first means no
+/// event raised by this function can satisfy that condition.
 fn reveal_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
         let _ = window.unminimize();
+        let _ = window.show();
         let _ = window.set_focus();
     }
 }
 
 pub fn run() {
     tauri::Builder::default()
+        // **First**, ahead of every other plugin. A duplicate launch has to die
+        // before it opens the registry, rewrites settings.json or starts a
+        // second Steam session against the same appid — all of which the
+        // plugins below would have done by the time a later registration ran.
+        //
+        // The callback runs in the *original* process, with the duplicate's
+        // command line. Two things have to happen there: show the window the
+        // user was evidently trying to open, and take over the arguments the
+        // dead process was carrying, since a `dzsa://` link arrives as argv and
+        // would otherwise be silently discarded from this point on.
+        //
+        // Note the plugin keys on the bundle identifier, so a debug build and
+        // an installed release build count as the same app and will refuse to
+        // run alongside each other.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            protocol::handle_argv(app, &argv);
+            reveal_main_window(app);
+        }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
         // Remembers each window's size, position and maximised state across
@@ -102,8 +127,8 @@ pub fn run() {
         // window closes" path never fires and the process (and its Steam
         // session) lingers after the window disappears. Forced explicitly
         // rather than relying on that heuristic.
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
                 let app = window.app_handle();
                 let to_tray = app
                     .try_state::<state::AppState>()
@@ -123,6 +148,25 @@ pub fn run() {
                 // the tray's Quit and the updater's restart.
                 app.exit(0);
             }
+            // Minimising to the tray. There is no `Minimized` window event to
+            // hang this off — tao reports a minimise as a resize — so the state
+            // is queried rather than inferred from the size, which is 0×0 for
+            // several unrelated reasons.
+            //
+            // Hiding an already-minimised window is what takes it off the
+            // taskbar; `reveal_main_window` undoes both halves, which is why it
+            // calls `unminimize` as well as `show`.
+            tauri::WindowEvent::Resized(_) => {
+                let app = window.app_handle();
+                let to_tray = app
+                    .try_state::<state::AppState>()
+                    .map(|s| s.minimise_to_tray.load(Ordering::Relaxed))
+                    .unwrap_or(false);
+                if to_tray && window.is_minimized().unwrap_or(false) {
+                    let _ = window.hide();
+                }
+            }
+            _ => {}
         })
         .manage(state::AppState::new())
         .invoke_handler(tauri::generate_handler![
@@ -142,11 +186,13 @@ pub fn run() {
             commands::steam::steam_subscribe_mods,
             commands::steam::steam_unsubscribe_mods,
             commands::launch::launch_game,
+            commands::launch::verify_server_mods,
             commands::launch::register_protocol_handler,
             commands::launch::discover_steam_paths,
             commands::launch::open_steam,
             commands::settings::get_settings,
             commands::settings::save_settings,
+            commands::settings::set_ui_scale,
             commands::update::is_installed_copy,
         ])
         .setup(|app| {
@@ -202,7 +248,10 @@ pub fn run() {
             let saved = commands::settings::load_at_startup(app.handle());
             state
                 .close_to_tray
-                .store(saved.close_to_tray, Ordering::Relaxed);
+                .store(saved.closes_to_tray(), Ordering::Relaxed);
+            state
+                .minimise_to_tray
+                .store(saved.minimise_to_tray, Ordering::Relaxed);
             if let Ok(mut guard) = state.on_join.lock() {
                 *guard = saved.on_join;
             }
@@ -248,6 +297,18 @@ pub fn run() {
             // Reconcile the OS entry with the setting — a no-op in debug builds,
             // see `apply_autostart`.
             commands::settings::apply_autostart(app.handle(), saved.start_with_windows);
+
+            // Before the window is revealed, never after. Zooming a visible
+            // window reflows the whole layout in front of the user, which is
+            // the same class of flash the hidden-window dance above exists to
+            // avoid.
+            commands::settings::apply_ui_scale(app.handle(), saved.scale());
+
+            // A `dzsa://` link on this process's own command line — the case
+            // where the launcher was not already running, so single-instance
+            // never fired.
+            let argv: Vec<String> = std::env::args().collect();
+            protocol::handle_argv(app.handle(), &argv);
 
             let start_hidden = launched_by_os() && saved.start_minimised;
             if start_hidden {

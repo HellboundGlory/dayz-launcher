@@ -9,6 +9,13 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
+/// How long a freshness check may take, queue time included.
+///
+/// Comfortably above the actor's own 20-second query deadline, so this only
+/// fires when the command is stuck *behind* something — a discovery holding the
+/// Steam thread — rather than cutting short a query that is genuinely working.
+const REFRESH_STALE_BUDGET: std::time::Duration = std::time::Duration::from_secs(25);
+
 /// Handle to the Steam thread.
 pub struct SteamHandle {
     tx: Mutex<Sender<Command>>,
@@ -80,6 +87,36 @@ impl SteamHandle {
             .send(make(ack))
             .map_err(|_| SteamError::Closed)?;
         rx.recv().map_err(|_| SteamError::Closed)?
+    }
+
+    /// Like [`Self::dispatch`], but gives up waiting.
+    ///
+    /// The actor services one command at a time and a server-list request can
+    /// hold it for `REQUEST_DEADLINE` — five minutes — with everything else
+    /// queued behind it. That is tolerable for work nobody is watching, and not
+    /// for work behind a button: a discovery is still running for the first
+    /// half-minute after the launcher opens, which is exactly when someone
+    /// clicks a favourite and joins.
+    ///
+    /// Abandoning the wait does not cancel the command. It runs when the actor
+    /// reaches it and answers a receiver that has been dropped, which `ack.send`
+    /// already tolerates.
+    fn dispatch_within<T>(
+        &self,
+        timeout: std::time::Duration,
+        make: impl FnOnce(Sender<Result<T, SteamError>>) -> Command,
+    ) -> Result<T, SteamError> {
+        let (ack, rx) = channel();
+        self.tx
+            .lock()
+            .map_err(|_| SteamError::Closed)?
+            .send(make(ack))
+            .map_err(|_| SteamError::Closed)?;
+        match rx.recv_timeout(timeout) {
+            Ok(result) => result,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Err(SteamError::Timeout),
+            Err(_) => Err(SteamError::Closed),
+        }
     }
 
     /// Whether DayZ can be launched against this mod as-is.
@@ -173,6 +210,28 @@ impl SteamHandle {
         }
         let owned = ids.to_vec();
         self.dispatch(|ack| Command::UGCUnsubscribe(owned, ack))
+    }
+
+    /// Ask the Workshop which of these items is out of date on disk, and start
+    /// a download for each one that is.
+    ///
+    /// Returns the ids it queued. Distinct from reading `mod_states`: that
+    /// reports what the Steam *client* last noticed, which lags the Workshop
+    /// and is exactly how a server comes to refuse a connection for an outdated
+    /// mod list that the launcher had just called ready.
+    ///
+    /// Best-effort — an id the Workshop cannot answer for is left alone, and a
+    /// check that cannot start promptly is abandoned rather than made to wait
+    /// (see [`Self::dispatch_within`]). The caller reports an unchecked join as
+    /// unchecked; it does not refuse to join.
+    pub fn refresh_stale(&self, ids: &[u64]) -> Result<Vec<u64>, SteamError> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let owned = ids.to_vec();
+        self.dispatch_within(REFRESH_STALE_BUDGET, |ack| {
+            Command::UGCRefreshStale(owned, ack)
+        })
     }
 
     /// Get the install folder for a workshop item.
