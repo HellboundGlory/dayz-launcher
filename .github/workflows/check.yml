@@ -57,3 +57,36 @@ jobs:
       # covered by the release workflow's `tauri build`.
       - name: Typecheck
         run: npx tsc --noEmit
+
+  repoos:
+    # Guards the .ai/ knowledge layer and the CLAUDE.md generated from it.
+    # Deliberately a separate job with no dependency on the other two: it can be
+    # deleted wholesale without touching the Rust or frontend checks.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      # The RepoOS CLI is zero-dependency, so a shallow clone is the whole
+      # install — no npm ci, no lockfile. Not published to npm yet; when it is,
+      # this step collapses to `npx repoos`.
+      - name: Fetch RepoOS CLI
+        run: git clone --depth 1 https://github.com/HellboundGlory/repository-operating-system.git "$RUNNER_TEMP/repoos"
+
+      # Catches unfilled template placeholders, tasks pointing at workflows that
+      # do not exist, workflows missing Steps/Validation, and a destructive
+      # workflow with no Rollback. Warnings never fail the build — only errors.
+      - name: Validate the .ai/ layer
+        run: node "$RUNNER_TEMP/repoos/cli/bin/repoos.js" validate .
+
+      # CLAUDE.md is GENERATED from .ai/. Hand-editing it recreates exactly the
+      # problem RepoOS removes: two sources of truth that quietly diverge.
+      # When this fails, the fix is always the same single command —
+      #   node <repoos>/cli/bin/repoos.js generate .
+      # — which is what makes it fair to block a build on.
+      - name: CLAUDE.md is in sync with .ai/
+        run: node "$RUNNER_TEMP/repoos/cli/bin/repoos.js" generate . --check
