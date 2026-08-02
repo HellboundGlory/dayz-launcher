@@ -57,3 +57,31 @@ jobs:
       # covered by the release workflow's `tauri build`.
       - name: Typecheck
         run: npx tsc --noEmit
+
+  devtools:
+    # Deliberately a separate job with no dependency on the other two: it can be
+    # deleted wholesale without touching the Rust or frontend checks.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      # The devtools CLI is zero-dependency, so a shallow clone is the whole
+      # install — no npm ci, no lockfile. Not published to npm yet; when it is,
+      # this step collapses to `npx devtools`.
+      - name: Fetch devtools CLI
+
+      # Catches unfilled template placeholders, tasks pointing at workflows that
+      # do not exist, workflows missing Steps/Validation, and a destructive
+      # workflow with no Rollback. Warnings never fail the build — only errors.
+        run: node "$RUNNER_TEMP/devtools/cli/bin/devtools.js" validate .
+
+      # problem devtools removes: two sources of truth that quietly diverge.
+      # When this fails, the fix is always the same single command —
+      #   node <devtools>/cli/bin/devtools.js generate .
+      # — which is what makes it fair to block a build on.
+        run: node "$RUNNER_TEMP/devtools/cli/bin/devtools.js" generate . --check
