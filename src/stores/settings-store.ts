@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { getSettings, saveSettings } from "@/lib/tauri";
+import { getSettings, saveSettings, type OnJoin } from "@/lib/tauri";
 
 /**
  * Field names match the Rust `AppSettings` exactly — it serialises in camelCase
@@ -13,14 +13,43 @@ export interface AppSettings {
   maxConcurrentQueries: number;
   queryTimeoutMs: number;
   launchParams: string[];
+  /** Closing the window hides it to the tray instead of quitting. */
   closeToTray: boolean;
+  /** Seconds between automatic refreshes of the visible rows. `0` is off. */
   autoRefreshIntervalSecs: number;
+  /**
+   * Register the launcher to start with Windows.
+   *
+   * The toggle saves in a debug build but deliberately does not touch the OS —
+   * a debug entry would point at `target/debug` and clobber the installed
+   * build's. Test it against a release build.
+   */
+  startWithWindows: boolean;
+  /**
+   * Start hidden, leaving only the tray icon.
+   *
+   * Only applies when Windows did the starting — a double-click always shows
+   * the window, or enabling this would leave no way to open the launcher.
+   */
+  startMinimised: boolean;
+  /** What the launcher does with itself once DayZ is starting. */
+  onJoin: OnJoin;
   /** Launch automatically once every required mod has downloaded. */
   autoJoinAfterDownload: boolean;
   /** Hide servers that have never answered a probe and so have no name. */
   hideUnnamedServers: boolean;
   /** Hide hosting-company defaults like "nitrado.net gameserver". */
   hidePlaceholderServers: boolean;
+  /**
+   * The ENGLISH ONLY tag, remembered across restarts. `true` keeps English
+   * names, `false` keeps only the non-English ones, `null` does not filter on
+   * language.
+   *
+   * It lives in settings rather than the filter store because it defaults to
+   * on, and a default-on filter held in transient state would turn itself back
+   * on every launch.
+   */
+  englishNamesFilter: boolean | null;
 }
 
 interface SettingsState extends AppSettings {
@@ -40,10 +69,16 @@ const defaults: AppSettings = {
   queryTimeoutMs: 1000,
   launchParams: [],
   closeToTray: true,
-  autoRefreshIntervalSecs: 60,
+  // Off by default — see the Rust `AppSettings::default` for why this is 0 and
+  // not the 60 it carried while nothing read it.
+  autoRefreshIntervalSecs: 0,
+  startWithWindows: false,
+  startMinimised: false,
+  onJoin: "stay",
   autoJoinAfterDownload: true,
   hideUnnamedServers: true,
   hidePlaceholderServers: true,
+  englishNamesFilter: true,
 };
 
 const KEYS = Object.keys(defaults) as (keyof AppSettings)[];

@@ -1,6 +1,6 @@
 [package]
 name = "tetra-launcher"
-version = "1.0.1"
+version = "1.0.2"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -22,6 +22,10 @@ tauri = { version = "2", features = ["tray-icon"] }
 # std::fs, and path discovery goes through commands::launch, not a file dialog.
 tauri-plugin-shell = "2"
 tauri-plugin-process = "2"
+# Driven entirely from Rust — `save_settings` applies the change and `setup`
+# reconciles at startup — so no JS counterpart and no capability entry: the
+# permissions only gate the frontend API, which nothing calls.
+tauri-plugin-autostart = "2"
 tauri-plugin-window-state = "2"
 tauri-plugin-updater = "2"
 serde = { workspace = true }

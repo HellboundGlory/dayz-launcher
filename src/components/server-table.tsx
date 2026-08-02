@@ -129,6 +129,7 @@ export function ServerTable() {
   const modPending = useServerStore((s) => s.modPending);
   const hideUnnamed = useSettingsStore((s) => s.hideUnnamedServers);
   const hidePlaceholder = useSettingsStore((s) => s.hidePlaceholderServers);
+  const englishNames = useSettingsStore((s) => s.englishNamesFilter);
 
   const [widths, setWidths] = useState<Widths>(loadWidths);
   // Live drag state lives in a ref: the pointer handlers are bound once, and
@@ -287,12 +288,14 @@ export function ServerTable() {
           official: filter.official,
           modded: filter.modded,
           first_person: filter.first_person,
-          latin_names: filter.latin_names,
           // Preferences rather than view state, so they come from Settings
           // instead of the filter bar — you decide once that a nameless or
-          // default-named server is not worth a row.
+          // default-named server is not worth a row. ENGLISH ONLY joins them
+          // for the same reason even though its control lives in TAGS: it is
+          // on by default, so its opt-out has to survive a restart.
           hide_unnamed: hideUnnamed,
           hide_placeholder: hidePlaceholder,
+          english_names: englishNames,
         };
         const sortParams: SortParams = {
           sort_key: sortKey,
@@ -316,7 +319,7 @@ export function ServerTable() {
     return () => {
       cancelled = true;
     };
-  }, [filter, sortKey, sortDir, loadVersion, hideUnnamed, hidePlaceholder]);
+  }, [filter, sortKey, sortDir, loadVersion, hideUnnamed, hidePlaceholder, englishNames]);
 
   // The trailing `minmax(0, 1fr)` soaks up width left over on a wide window, so
   // surplus becomes empty space on the right rather than inflating a column.
