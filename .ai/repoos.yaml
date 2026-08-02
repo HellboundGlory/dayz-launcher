@@ -1,0 +1,43 @@
+# RepoOS manifest — https://github.com/HellboundGlory/repository-operating-system
+# Spec: 1.2.0   Reference: SPECIFICATION.md §9
+
+repoos:
+  spec_version: "1.2.0"
+  profile: standard
+
+project:
+  name: tetra-launcher
+  description: >
+    Tauri desktop launcher for DayZ server browsing and joining. Rust
+    workspace (tetra-core/net/registry/steam/launch) behind a React + Vite
+    frontend. The repo is named dayz-launcher; the product and binary are
+    Tetra Launcher / tetra-launcher.exe.
+  languages: [rust, typescript]
+  repository: https://github.com/HellboundGlory/dayz-launcher
+
+entrypoint: AGENTS.md
+
+modules:
+  knowledge: { enabled: true }
+  conventions: { enabled: true }
+  workflows: { enabled: true }
+  decisions: { enabled: true }
+  memory: { enabled: true }
+  meta: { enabled: true }
+
+# Pointer map only — trigger phrases live in the workflow files.
+tasks:
+  build-debug: { workflow: workflows/build-debug.md }
+  check: { workflow: workflows/check.md }
+  release: { workflow: workflows/release.md, confirm: required }
+
+context:
+  always:
+    - AGENTS.md
+    - .ai/meta/agent-policy.md
+    - .ai/conventions/**
+    - .ai/knowledge/where-things-live.md
+  budget_hint: 8000
+
+conventions:
+  frontmatter_required: true

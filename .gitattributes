@@ -1,0 +1,11 @@
+# RepoOS — append-only files that must not conflict across branches.
+#
+# If your project already has a .gitattributes, copy these two lines into it
+# instead of overwriting the file.
+#
+# Why: agents append to the memory inbox and the usage log on whatever branch
+# they're working on. Without merge=union, every parallel session produces a
+# merge conflict in a file whose contents are order-independent anyway.
+
+.ai/memory/inbox/**   merge=union
+.ai/meta/usage.jsonl  merge=union
