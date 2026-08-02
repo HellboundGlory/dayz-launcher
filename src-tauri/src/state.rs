@@ -20,7 +20,7 @@ pub struct AppState {
     /// the frontend warns rather than letting the user find out by losing
     /// their favourites.
     pub registry_degraded: Mutex<bool>,
-    /// Whether closing the window hides to the tray instead of quitting.
+    /// Whether the close button hides to the tray instead of quitting.
     ///
     /// A mirror of `AppSettings::close_to_tray`, which is otherwise only ever
     /// on disk and in the frontend store. The window-event handler has to
@@ -28,6 +28,10 @@ pub struct AppState {
     /// access to the frontend and no business doing file I/O, so the flag is
     /// seeded at startup and re-published by `save_settings` on every write.
     pub close_to_tray: AtomicBool,
+    /// Whether minimising hides to the tray instead of the taskbar. Mirrored
+    /// for the same reason, and read from the resize handler — which fires
+    /// often enough that an atomic load matters.
+    pub minimise_to_tray: AtomicBool,
     /// What the launcher does with itself once DayZ is starting.
     ///
     /// Mirrored from `AppSettings::on_join` for the same reason as
@@ -44,10 +48,12 @@ impl AppState {
             prober: Mutex::new(None),
             steam_ready: Mutex::new(false),
             registry_degraded: Mutex::new(false),
-            // Overwritten from the settings file in `setup` before the window
-            // can be closed. `false` until then, so a close during startup
-            // quits rather than hiding into a tray that may not exist yet.
+            // Both overwritten from the settings file in `setup` before the
+            // window can be closed or minimised. `false` until then, so a close
+            // during startup quits rather than hiding into a tray that may not
+            // exist yet.
             close_to_tray: AtomicBool::new(false),
+            minimise_to_tray: AtomicBool::new(false),
             on_join: Mutex::new(crate::commands::settings::OnJoin::Stay),
         }
     }

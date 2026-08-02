@@ -10,6 +10,7 @@ import {
   steamDownloadProgress,
   steamSubscribeMods,
   steamUnsubscribeMods,
+  verifyServerMods,
   type ModState,
 } from "@/lib/tauri";
 import { cn, formatBytes, regionName } from "@/lib/utils";
@@ -73,6 +74,66 @@ const FIX_STALL_MS = 3 * 60 * 1000;
  * connect.
  */
 const LAUNCHED_NOTICE_MS = 15_000;
+
+/**
+ * How long to keep waiting after forcing an update, before an all-ready reading
+ * is believed.
+ *
+ * `download_item` returns as soon as Steam accepts the request; the item's
+ * state bits change a moment later. Poll inside that gap and every mod still
+ * reports installed and current — including the one just condemned as stale —
+ * so the join would proceed against exactly the content the verification set
+ * out to replace.
+ */
+const REFRESH_SETTLE_MS = 5_000;
+
+/**
+ * Short codes for anything that went sideways, in place of a paragraph.
+ *
+ * The panel has one narrow line to say this in, and an explanation long enough
+ * to be complete is long enough to push the JOIN button around and be skipped
+ * anyway. A code plus five words fits, stays readable, and is something you can
+ * quote in a bug report — the full text is still there on hover.
+ *
+ * `W` is a warning: the join went ahead, but something was not done.
+ * `E` stopped it.
+ */
+const NOTICES = {
+  W01: {
+    text: "Mod versions not checked",
+    detail:
+      "Steam did not answer the Workshop query in time, so the launcher could " +
+      "not tell whether any mod is out of date. The mod list itself is current. " +
+      "This usually means Steam was busy with a server discovery; joining again " +
+      "in a moment will check properly.",
+  },
+  W02: {
+    text: "Downloads stalled",
+    detail:
+      "Nothing has progressed for a few minutes. Steam pauses Workshop " +
+      "downloads during gameplay by default, and it sees this launcher as DayZ. " +
+      "Enable Steam → Settings → Downloads → 'Allow downloads during gameplay'.",
+  },
+  W03: {
+    text: "Gave up waiting for downloads",
+    detail: "Still not finished after 45 minutes. Steam is still downloading in the background.",
+  },
+  W04: {
+    text: "Stopped waiting",
+    detail: "Downloads continue in Steam. Press VERIFY & JOIN again when they finish.",
+  },
+  E01: {
+    text: "Could not subscribe",
+    detail: "Steam refused to subscribe to one or more of this server's mods.",
+  },
+} as const;
+
+type NoticeCode = keyof typeof NOTICES;
+
+/** A line under the buttons: either a coded problem or a plain result. */
+type Notice =
+  | { kind: "code"; code: NoticeCode; extra?: string }
+  | { kind: "plain"; text: string };
 
 /** Summary line above the mod list. Order is most-blocking first. */
 function summarise(states: Map<string, ModState>, total: number) {
@@ -166,7 +227,7 @@ export function ServerDetails() {
   const [fixNote, setFixNote] = useState<string | null>(null);
   /** Lets the in-flight subscribe-and-join loop be stopped from outside it. */
   const fixCancel = useRef<{ cancelled: boolean } | null>(null);
-  const [actionNote, setActionNote] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [confirmUnsub, setConfirmUnsub] = useState(false);
 
   useEffect(() => {
@@ -174,7 +235,7 @@ export function ServerDetails() {
     setModsOpen(false);
     setModStates(new Map());
     setDownloads(new Map());
-    setActionNote(null);
+    setNotice(null);
     setConfirmUnsub(false);
     setFixNote(null);
     setJustLaunched(false);
@@ -261,19 +322,23 @@ export function ServerDetails() {
     );
   }
 
-  async function handleJoin() {
-    if (!selectedServer) return;
-    // Captured before the await so the result is tagged with the server that
-    // was actually launched, not whatever happens to be selected on resolve.
-    const addr = selectedServer.addr;
-    const gamePort = selectedServer.game_port;
+  /**
+   * Spawn DayZ against a server, and record the outcome against *that* server.
+   *
+   * `addr` is passed in rather than read from `selectedServer` because the
+   * caller captured it before a long await: the result has to be tagged with
+   * the server that was actually launched, not with whatever happens to be
+   * selected by the time the promise resolves.
+   */
+  async function launch(addr: string, gamePort: number) {
     setLaunching(true);
-    setLaunchResult(null);
     try {
       const outcome = await launchGame(addr, gamePort, launchOptions());
       setLaunchResult({ addr, message: outcome.message });
       setJustLaunched(true);
     } catch (e) {
+      // `launch_game` runs its own gate off a live re-query, so this also
+      // catches a server that changed its mod list while the download ran.
       setLaunchResult({ addr, error: String(e) });
     } finally {
       setLaunching(false);
@@ -300,7 +365,15 @@ export function ServerDetails() {
   }
 
   /**
-   * Subscribe to whatever is missing, wait for Steam to finish, then join.
+   * Verify, fix, then join. The one path behind the button.
+   *
+   * There is deliberately no second "just launch" handler any more. The bug
+   * that motivated this was a join the launcher was happy to allow: every mod
+   * read as installed and current, DayZ started, and the server refused the
+   * connection over an outdated mod list. Both halves of that could be stale —
+   * the mod list the panel is showing, and Steam's idea of each mod's version —
+   * and neither is something the user can be expected to notice, so both are
+   * checked every time rather than only when something already looks wrong.
    *
    * Orchestrated here rather than as a long-running Rust command because every
    * step already exists as a proven command, and driving it from the frontend
@@ -311,31 +384,74 @@ export function ServerDetails() {
    * updated by a separate effect, and reading it from inside this closure would
    * see the value captured when the loop started.
    */
-  async function handleSubscribeAndJoin() {
-    if (!modList || modList.length === 0) return;
-    const addr = selectedServer!.addr;
-    const gamePort = selectedServer!.game_port;
-    const ids = modList.map((m) => m.workshop_id);
+  async function handleVerifyAndJoin() {
+    if (!selectedServer) return;
+    const addr = selectedServer.addr;
+    const queryPort = selectedServer.query_port;
+    const gamePort = selectedServer.game_port;
 
     const cancel = { cancelled: false };
     fixCancel.current = cancel;
     setBusy("fixing");
     // Stop the launcher probing servers while it waits on its own downloads.
     setDownloadsActive(true);
-    setActionNote(null);
+    setNotice(null);
     setLaunchResult(null);
 
     try {
-      const missing = ids.filter((id) => modStates.get(id) === "not_subscribed");
+      setFixNote("VERIFYING…");
+      const verified = await verifyServerMods(addr, queryPort);
+      if (cancel.cancelled) return;
+
+      // The server is the authority on what it runs, so its answer replaces
+      // whatever the registry had cached — this is the "update the details
+      // page" step, and it happens before anything is subscribed so the counts
+      // below are about the real list.
+      setModList(verified.mods);
+
+      // Say so when the check did not happen. The button promises verification;
+      // proceeding quietly on Steam's cached opinion would be the same silence
+      // that produced the bug this whole path exists to fix — the difference is
+      // only that this time the launcher knows it did not look.
+      if (!verified.checked_workshop) {
+        setNotice({ kind: "code", code: "W01" });
+      }
+
+      const ids = verified.mods.map((m) => m.workshop_id);
+      if (ids.length === 0) {
+        await launch(addr, gamePort);
+        return;
+      }
+
+      setFixNote("CHECKING STEAM…");
+      const initial = await steamModStates(ids);
+      if (cancel.cancelled) return;
+
+      const missing = initial
+        .filter((s) => s.state === "not_subscribed")
+        .map((s) => s.workshop_id);
       if (missing.length > 0) {
-        setFixNote(`Subscribing to ${missing.length} mod${missing.length === 1 ? "" : "s"}…`);
+        setFixNote(`SUBSCRIBING ${missing.length}…`);
         const outcome = await steamSubscribeMods(missing);
+        if (cancel.cancelled) return;
         if (outcome.failures.length > 0) {
           const [, reason] = outcome.failures[0];
-          setActionNote(`Could not subscribe to ${outcome.failures.length} mod(s): ${reason}`);
+          setNotice({
+            kind: "code",
+            code: "E01",
+            extra: `${outcome.failures.length} of ${missing.length} — ${reason}`,
+          });
           return;
         }
       }
+
+      // Steam sets the downloading bits a moment after accepting a forced
+      // update, so a mod that is *about* to be replaced still reads "ready" on
+      // the first poll. Without this window the loop would see nothing to wait
+      // for and launch against the very content the verification just
+      // condemned — the original bug, reintroduced by the fix for it.
+      const settleUntil =
+        verified.refreshed.length > 0 ? Date.now() + REFRESH_SETTLE_MS : 0;
 
       // Wait for Steam. Progress is judged by a fingerprint of every mod's
       // state plus total bytes moved; if that fingerprint stops changing for
@@ -359,7 +475,7 @@ export function ServerDetails() {
         const moved = progress.reduce((n, p) => n + Number(p.downloaded), 0);
         const totalBytes = progress.reduce((n, p) => n + Number(p.total), 0);
 
-        if (notReady.length === 0) break;
+        if (notReady.length === 0 && Date.now() >= settleUntil) break;
 
         const fingerprint = `${states.map((s) => s.state).join(",")}|${moved}`;
         if (fingerprint !== lastFingerprint) {
@@ -367,23 +483,23 @@ export function ServerDetails() {
           lastChange = Date.now();
         }
 
+        // Kept short: this renders inside the button, in bold uppercase with
+        // wide tracking, and anything longer is truncated to an ellipsis that
+        // says less than a single word would have.
         setFixNote(
-          totalBytes > 0
-            ? `${notReady.length} remaining · ${formatBytes(moved, 1)} / ${formatBytes(totalBytes, 1)}`
-            : `Waiting on ${notReady.length} mod${notReady.length === 1 ? "" : "s"}…`,
+          notReady.length === 0
+            ? "STARTING UPDATE…"
+            : totalBytes > 0
+              ? `${notReady.length} LEFT · ${formatBytes(moved, 1)} / ${formatBytes(totalBytes, 1)}`
+              : `WAITING ON ${notReady.length}…`,
         );
 
         if (Date.now() - lastChange > FIX_STALL_MS) {
-          setActionNote(
-            "Downloads have stalled — nothing has progressed for a few minutes. " +
-              "Steam pauses Workshop downloads during gameplay by default, and it sees " +
-              "this launcher as DayZ. Enable Steam → Settings → Downloads → " +
-              "'Allow downloads during gameplay'.",
-          );
+          setNotice({ kind: "code", code: "W02" });
           return;
         }
         if (Date.now() - started > FIX_DEADLINE_MS) {
-          setActionNote("Gave up waiting for downloads after 45 minutes.");
+          setNotice({ kind: "code", code: "W03" });
           return;
         }
 
@@ -392,25 +508,18 @@ export function ServerDetails() {
 
       setFixNote(null);
 
-      if (!autoJoinAfterDownload) {
-        setActionNote("All mods ready — press JOIN SERVER when you are.");
+      // Only meaningful when something actually had to be fixed. Stopping to
+      // ask after a verification that changed nothing would put a second click
+      // in front of every ordinary join.
+      const fixedSomething = missing.length > 0 || verified.refreshed.length > 0;
+      if (fixedSomething && !autoJoinAfterDownload) {
+        setNotice({ kind: "plain", text: "All mods ready — press VERIFY & JOIN when you are." });
         return;
       }
 
-      setLaunching(true);
-      try {
-        const outcome = await launchGame(addr, gamePort, launchOptions());
-        setLaunchResult({ addr, message: outcome.message });
-        setJustLaunched(true);
-      } catch (e) {
-        // The gate re-queries the server live, so this also catches the case
-        // where the server changed its mod list while the download ran.
-        setLaunchResult({ addr, error: String(e) });
-      } finally {
-        setLaunching(false);
-      }
+      await launch(addr, gamePort);
     } catch (e) {
-      setActionNote(String(e));
+      setNotice({ kind: "plain", text: String(e) });
     } finally {
       setFixNote(null);
       setBusy(null);
@@ -428,14 +537,14 @@ export function ServerDetails() {
     if (ids.length === 0) return;
 
     setBusy("subscribe");
-    setActionNote(null);
+    setNotice(null);
     try {
       const outcome = await steamSubscribeMods(ids);
-      setActionNote(describeOutcome("Subscribed to", outcome));
+      setNotice({ kind: "plain", text: describeOutcome("Subscribed to", outcome) });
       // The polling effect picks up the new state; Steam lags the callback, so
       // reading it here would often return the pre-mutation value anyway.
     } catch (e) {
-      setActionNote(String(e));
+      setNotice({ kind: "plain", text: String(e) });
     } finally {
       setBusy(null);
     }
@@ -453,12 +562,12 @@ export function ServerDetails() {
 
     setBusy("unsubscribe");
     setConfirmUnsub(false);
-    setActionNote(null);
+    setNotice(null);
     try {
       const outcome = await steamUnsubscribeMods(ids);
-      setActionNote(describeOutcome("Unsubscribed from", outcome));
+      setNotice({ kind: "plain", text: describeOutcome("Unsubscribed from", outcome) });
     } catch (e) {
-      setActionNote(String(e));
+      setNotice({ kind: "plain", text: String(e) });
     } finally {
       setBusy(null);
     }
@@ -509,8 +618,8 @@ export function ServerDetails() {
   );
   const readyText = selectedServer.modded
     ? knownModCount != null && knownModCount > 0
-      ? `Mod gate will verify ${knownModCount} Workshop mod${knownModCount === 1 ? "" : "s"} before launch`
-      : "Mod gate will verify Workshop mods before launch"
+      ? `Re-reads the mod list and checks all ${knownModCount} for updates before launching`
+      : "Re-reads the mod list and checks for updates before launching"
     : "Vanilla server — ready to join";
 
   const ping = selectedServer.ping;
@@ -775,17 +884,20 @@ export function ServerDetails() {
           </div>
         )}
 
-        {actionNote && (
-          <p className="mb-2 text-center text-[10px] text-[#94a3b8]">{actionNote}</p>
-        )}
+        {notice && <NoticeLine notice={notice} />}
 
         {/* When mods are missing the button becomes the fix-and-join action
             rather than a dead end — greying it out told the user what was wrong
             but gave them nothing to press. */}
         {busy === "fixing" ? (
           <div className="flex gap-2">
-            <div className="flex flex-1 items-center justify-center gap-2 rounded bg-[#16202e] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#38bdf8] ring-1 ring-[#38bdf8]/30">
-              <Loader2 className="size-3.5 animate-spin" />
+            {/* `min-w-0` is load-bearing: a flex item's min-width defaults to
+                its content's, so without it this box refuses to shrink below
+                the width of the status line and pushes Cancel off the panel.
+                `truncate` on the span cannot help — the span is not what is
+                being asked to shrink. */}
+            <div className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded bg-[#16202e] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#38bdf8] ring-1 ring-[#38bdf8]/30">
+              <Loader2 className="size-3.5 shrink-0 animate-spin" />
               <span className="truncate">{fixNote ?? "Working…"}</span>
             </div>
             <button
@@ -795,23 +907,28 @@ export function ServerDetails() {
                 setFixNote(null);
                 setDownloadsActive(false);
                 // Steam keeps downloading; only the wait is abandoned.
-                setActionNote("Stopped waiting. Downloads continue in Steam.");
+                setNotice({ kind: "code", code: "W04" });
               }}
-              className="rounded bg-[#16202e] px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#94a3b8] ring-1 ring-[#1e293b] hover:text-[#ef4444]"
+              className="shrink-0 rounded bg-[#16202e] px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#94a3b8] ring-1 ring-[#1e293b] hover:text-[#ef4444]"
             >
               Cancel
             </button>
           </div>
         ) : (
           <button
-            onClick={joinBlocked ? handleSubscribeAndJoin : handleJoin}
+            onClick={handleVerifyAndJoin}
             disabled={launching || justLaunched || busy !== null}
             title={
               justLaunched
                 ? "DayZ has been started — it can take a moment to appear"
                 : joinBlocked
                   ? `Subscribe to what's missing, wait for Steam, then join — ${summary?.text ?? ""}`
-                  : "Verify mods and join this server"
+                  : // The disclaimer that used to sit in the status bar. It
+                    // belongs on the control that says "verify": what is being
+                    // checked is the server's declared list and Steam's record
+                    // of each mod's version, not the bytes on disk.
+                    "Re-reads the server's mod list, updates any mod the Workshop has moved past, then joins. " +
+                    "Verified means Steam reports each mod installed and current — not a checksum."
             }
             className={cn(
               "flex w-full items-center justify-center gap-2 rounded px-4 py-2 text-xs font-bold uppercase tracking-wider transition-colors disabled:cursor-not-allowed",
@@ -836,8 +953,8 @@ export function ServerDetails() {
                 : justLaunched
                   ? "DAYZ IS STARTING"
                   : joinBlocked
-                    ? "SUBSCRIBE AND JOIN"
-                    : "JOIN SERVER"}
+                    ? "SUBSCRIBE & JOIN"
+                    : "VERIFY & JOIN"}
             </span>
           </button>
         )}
@@ -867,6 +984,45 @@ export function ServerDetails() {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * One line under the buttons, coded when it is a problem.
+ *
+ * The code carries the meaning; the sentence beside it is a reminder, and the
+ * full explanation is on hover. That ordering is the point — the previous
+ * version put a four-line paragraph above the JOIN button, which moved the
+ * button, dominated the panel, and still did not get read.
+ */
+function NoticeLine({ notice }: { notice: Notice }) {
+  if (notice.kind === "plain") {
+    return <p className="mb-2 text-center text-[10px] text-[#94a3b8]">{notice.text}</p>;
+  }
+
+  const { text, detail } = NOTICES[notice.code];
+  const isError = notice.code.startsWith("E");
+  return (
+    <p
+      title={detail}
+      className={cn(
+        "mb-2 flex cursor-help items-center justify-center gap-1.5 text-[10px]",
+        isError ? "text-[#ef4444]" : "text-[#f59e0b]",
+      )}
+    >
+      <span
+        className={cn(
+          "shrink-0 rounded px-1 font-mono-data text-[9px] font-semibold",
+          isError ? "bg-[#ef4444]/15" : "bg-[#f59e0b]/15",
+        )}
+      >
+        {notice.code}
+      </span>
+      <span className="truncate">
+        {text}
+        {notice.extra ? ` · ${notice.extra}` : ""}
+      </span>
+    </p>
   );
 }
 

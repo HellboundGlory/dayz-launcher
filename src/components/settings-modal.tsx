@@ -129,6 +129,7 @@ export function SettingsModal({ open: isOpen, onClose }: SettingsModalProps) {
   const englishNamesFilter = useSettingsStore((s) => s.englishNamesFilter);
   const launchParams = useSettingsStore((s) => s.launchParams);
   const closeToTray = useSettingsStore((s) => s.closeToTray);
+  const minimiseToTray = useSettingsStore((s) => s.minimiseToTray);
   const startWithWindows = useSettingsStore((s) => s.startWithWindows);
   const startMinimised = useSettingsStore((s) => s.startMinimised);
   const onJoin = useSettingsStore((s) => s.onJoin);
@@ -375,12 +376,24 @@ export function SettingsModal({ open: isOpen, onClose }: SettingsModalProps) {
               <>
                 <div>
                   <h3 className="mb-2 text-xs font-medium text-[#f1f5f9]">Window</h3>
+                  {/* Two independent switches, not one list. Each names the
+                      button it changes — the question is never "tray or
+                      taskbar?" in the abstract, it is "what should *this*
+                      button do?", and a single dropdown could not say that. */}
                   <CheckboxRow
-                    checked={closeToTray}
-                    onChange={(v) => setSetting("closeToTray", v)}
-                    label="Close to tray"
-                    hint="The close button hides the launcher instead of quitting. Quit from the tray icon."
+                    checked={minimiseToTray}
+                    onChange={(v) => setSetting("minimiseToTray", v)}
+                    label="Minimise to the system tray"
+                    hint="The minimise button hides the launcher instead of leaving it on the taskbar."
                   />
+                  <div className="mt-3">
+                    <CheckboxRow
+                      checked={closeToTray}
+                      onChange={(v) => setSetting("closeToTray", v)}
+                      label="Close to the system tray"
+                      hint="The close button hides the launcher instead of quitting. Quit from the tray icon's menu."
+                    />
+                  </div>
                 </div>
 
                 <div className="border-t border-[#1e293b] pt-4">

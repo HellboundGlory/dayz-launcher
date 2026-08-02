@@ -323,6 +323,122 @@ pub async fn launch_game(
     })
 }
 
+/// What a pre-launch verification found.
+#[derive(serde::Serialize)]
+pub struct VerifyOutcome {
+    /// The server's mod list as it declares it *right now*, in declared order.
+    /// The details panel replaces its own list with this.
+    pub mods: Vec<crate::commands::server::ModEntry>,
+    /// Workshop ids a fresh copy was queued for, stringified for JS.
+    pub refreshed: Vec<String>,
+    /// Whether Steam was reachable enough to check freshness at all. `false`
+    /// means `refreshed` is empty because nothing was asked, not because
+    /// everything was current.
+    pub checked_workshop: bool,
+}
+
+/// Re-read a server's mod list and bring the local copies up to date, without
+/// launching anything.
+///
+/// This is the "Verify" half of VERIFY & JOIN, and it exists because two
+/// separate things could be out of date at the point someone clicks join:
+///
+/// 1. **The mod list.** The details panel renders whatever the registry last
+///    recorded. A server that added a mod since the last refresh would be
+///    launched against the old list.
+/// 2. **The mods themselves.** `item_state` reports what the Steam *client*
+///    last noticed about the Workshop, and it lags. A mod that has been updated
+///    but that Steam has not looked at yet reports as installed and current;
+///    the gate passes it, DayZ starts, and the server rejects the connection
+///    over an outdated mod list. See `SteamHandle::refresh_stale`.
+///
+/// Deliberately *not* folded into `launch_game`. Verifying is slow — a live
+/// A2S_RULES round trip plus a Workshop query — and the frontend needs to show
+/// progress and stay cancellable across it. `launch_game` keeps its own gate
+/// and remains the authority on whether DayZ actually starts; this only means
+/// the gate is far less likely to have to say no.
+#[tauri::command]
+pub async fn verify_server_mods(
+    state: State<'_, AppState>,
+    addr: String,
+    query_port: u16,
+) -> Result<VerifyOutcome, String> {
+    // `addr` already carries a port — the frontend sends "IP:query_port" — so
+    // appending `query_port` produced "1.2.3.4:2303:2303" and every click on
+    // VERIFY & JOIN failed with "invalid socket address syntax". `server_key`
+    // is the one place that convention is decoded; going through it means this
+    // cannot drift again, and it yields the registry key for free.
+    let key = crate::commands::server::server_key(&addr, query_port)?;
+    let query_addr = SocketAddr::from((key.ip, key.query_port));
+
+    let prober = {
+        let guard = state.prober.lock().map_err(|e| e.to_string())?;
+        guard.as_ref().ok_or("Prober not initialized")?.clone()
+    };
+
+    // Unqueued for the same reason `launch_game` is: this is one query on a
+    // click and must not wait behind a refresh's thousands.
+    let rules = prober.rules_unqueued(query_addr).await.map_err(|_| {
+        format!(
+            "Could not read the mod list from {query_addr}. \
+             The server may be offline or behind a firewall."
+        )
+    })?;
+    let declared = rules.mods;
+
+    // Write the fresh list back, so the MODS column and a later `get_server_mods`
+    // agree with what the panel is about to show.
+    let writer = {
+        let guard = state.registry.lock().map_err(|e| e.to_string())?;
+        guard.as_ref().map(|r| r.writer())
+    };
+    if let Some(writer) = writer {
+        let _ = writer.upsert_server_mods(key, declared.clone()).await;
+    }
+
+    let ids: Vec<u64> = declared
+        .iter()
+        .map(|m| m.workshop_id)
+        .filter(|id| ModState::is_workshop_id(*id))
+        .collect();
+
+    let steam = {
+        let guard = state.steam.lock().map_err(|e| e.to_string())?;
+        guard.as_ref().map(Arc::clone)
+    };
+
+    // Steam being absent is not a failure of verification — the mod list was
+    // still refreshed, which is half the job. The gate will refuse the launch
+    // later if that matters.
+    let (refreshed, checked_workshop) = match steam {
+        None => (Vec::new(), false),
+        Some(steam) => {
+            let queued = tokio::task::spawn_blocking(move || steam.refresh_stale(&ids))
+                .await
+                .map_err(|e| format!("Task join error: {e}"))?;
+            match queued {
+                Ok(ids) => (ids, true),
+                Err(e) => {
+                    eprintln!("[verify] Workshop freshness check failed: {e}");
+                    (Vec::new(), false)
+                }
+            }
+        }
+    };
+
+    Ok(VerifyOutcome {
+        mods: declared
+            .into_iter()
+            .map(|m| crate::commands::server::ModEntry {
+                workshop_id: m.workshop_id.to_string(),
+                name: m.name,
+            })
+            .collect(),
+        refreshed: refreshed.into_iter().map(|id| id.to_string()).collect(),
+        checked_workshop,
+    })
+}
+
 /// Register the dzsa:// protocol handler in the Windows registry.
 #[tauri::command]
 pub fn register_protocol_handler() -> Result<(), String> {

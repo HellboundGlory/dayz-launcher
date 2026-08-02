@@ -24,6 +24,35 @@ pub enum OnJoin {
     Close,
 }
 
+/// Retired. Read once to migrate, never written.
+///
+/// A short-lived attempt to express close behaviour as one dropdown. It was the
+/// wrong shape: tray-versus-taskbar is a property of *each* window button, not a
+/// single choice between them, so "hide to the tray" and "minimise to the
+/// taskbar" sat in one list looking like alternatives when the real question was
+/// which button each applied to. Two independent checkboxes replaced it —
+/// `minimise_to_tray` and `close_to_tray`.
+///
+/// It exists only because an unreleased debug build wrote `onClose` into a real
+/// settings file. Nothing shipped with it, so this can go after one release.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OnClose {
+    Tray,
+    Minimise,
+    Quit,
+}
+
+/// Interface scale, as a webview zoom factor.
+///
+/// The floor is 1.0 because the app's type sizes are hard-coded in pixels
+/// (`text-[10px]` and up) and were already at the edge of readable at 100%.
+/// The ceiling is 1.5 because [`MIN_WINDOW`] is multiplied by this: much beyond
+/// 1.5 and the smallest permitted window stops fitting on a 1080p screen.
+pub const MIN_UI_SCALE: f64 = 1.0;
+pub const MAX_UI_SCALE: f64 = 1.5;
+pub const DEFAULT_UI_SCALE: f64 = 1.25;
+
 /// User settings, persisted as JSON beside the registry in the app data dir.
 ///
 /// Serialised in camelCase so the on-disk shape and the wire shape match the
@@ -43,11 +72,38 @@ pub struct AppSettings {
     pub max_concurrent_queries: usize,
     pub query_timeout_ms: u64,
     pub launch_params: Vec<String>,
-    /// Closing the window hides it to the tray instead of quitting.
+    /// The close button hides the launcher to the tray instead of quitting.
+    ///
+    /// `Option` only so that "absent" is distinguishable from "chosen", which is
+    /// what `migrate` needs to seed it from the retired `onClose`. Read it
+    /// through [`AppSettings::closes_to_tray`] rather than unwrapping it.
     ///
     /// Mirrored into `AppState::close_to_tray`, which is what the window-event
     /// handler actually reads — see that field.
-    pub close_to_tray: bool,
+    pub close_to_tray: Option<bool>,
+    /// The minimise button hides the launcher to the tray instead of putting it
+    /// on the taskbar.
+    ///
+    /// Independent of `close_to_tray` on purpose. They are two different
+    /// buttons, and wanting the launcher out of the taskbar while you play says
+    /// nothing about whether closing it should quit.
+    pub minimise_to_tray: bool,
+    /// Retired in favour of the two booleans above; read once, never written.
+    ///
+    /// `skip_serializing` is what retires it: the value migrates an existing
+    /// file, and the next save drops it. Deleting the field outright would have
+    /// been silently wrong — serde ignores unknown keys, so a settings file
+    /// carrying `"onClose": "quit"` would have parsed clean and then had
+    /// close-to-tray switched back on underneath it.
+    #[serde(skip_serializing)]
+    pub on_close: Option<OnClose>,
+    /// Interface scale, applied as a webview zoom factor.
+    ///
+    /// Defaults to 1.25 rather than 1.0, and deliberately applies to existing
+    /// installs on upgrade: at 100% the launcher's 10–11px labels were too
+    /// small to read comfortably, which is a defect rather than a preference
+    /// someone opted into. Adjustable from the slider in the status bar.
+    pub ui_scale: f64,
     /// Seconds between automatic refreshes of the visible rows. `0` is off.
     pub auto_refresh_interval_secs: u64,
     /// Register the launcher to start when Windows does.
@@ -100,7 +156,17 @@ impl Default for AppSettings {
             max_concurrent_queries: tetra_net::MAX_IN_FLIGHT,
             query_timeout_ms: 1000,
             launch_params: Vec::new(),
-            close_to_tray: true,
+            // `None`, not `Some(true)`. The container's `#[serde(default)]`
+            // fills an absent field from *here*, so a concrete value would make
+            // "the file never had closeToTray" indistinguishable from "the user
+            // chose it" — and the migration in `closes_to_tray` reads exactly
+            // that distinction. The `true` default lives there instead.
+            close_to_tray: None,
+            // Off: the launcher disappearing from the taskbar is surprising
+            // unless it was asked for.
+            minimise_to_tray: false,
+            on_close: None,
+            ui_scale: DEFAULT_UI_SCALE,
             // Off, not the 60 this field carried while nothing read it. Turning
             // a previously-inert setting into a live one would have switched
             // auto-refresh on for every existing user without their asking, and
@@ -123,6 +189,43 @@ impl Default for AppSettings {
     }
 }
 
+impl AppSettings {
+    /// Whether the close button hides to the tray, with the retired dropdown
+    /// folded in.
+    ///
+    /// The one place `close_to_tray` is read. Everything else goes through here
+    /// so there is no call site that could unwrap the `None` differently.
+    pub fn closes_to_tray(&self) -> bool {
+        self.close_to_tray.unwrap_or(match self.on_close {
+            // The dropdown's two non-tray options both meant "do not hide".
+            // `Minimise` is not lost — it becomes `minimise_to_tray: false`,
+            // which is the same taskbar behaviour by the ordinary route.
+            Some(OnClose::Minimise) | Some(OnClose::Quit) => false,
+            // Either the dropdown's tray option, or a file predating all of
+            // this — and hiding to the tray has been the default throughout.
+            Some(OnClose::Tray) | None => true,
+        })
+    }
+
+    /// The zoom factor to actually apply, with a hand-edited value brought back
+    /// into range. A `0` in the file would otherwise collapse the window.
+    pub fn scale(&self) -> f64 {
+        if self.ui_scale.is_finite() {
+            self.ui_scale.clamp(MIN_UI_SCALE, MAX_UI_SCALE)
+        } else {
+            DEFAULT_UI_SCALE
+        }
+    }
+
+    /// Fold retired fields into their replacements, so everything downstream —
+    /// including the frontend store — sees one canonical shape.
+    fn migrate(&mut self) {
+        self.close_to_tray = Some(self.closes_to_tray());
+        self.on_close = None;
+        self.ui_scale = self.scale();
+    }
+}
+
 /// `<app data>/settings.json`, the same directory the registry lives in.
 fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app
@@ -140,19 +243,21 @@ fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
 /// file is also non-fatal: returning defaults keeps the app usable, and the
 /// next save overwrites the bad file.
 fn read_from_disk(path: &std::path::Path) -> AppSettings {
-    let Ok(raw) = std::fs::read_to_string(path) else {
-        return AppSettings::default();
-    };
-    match serde_json::from_str(&raw) {
-        Ok(settings) => settings,
-        Err(e) => {
+    let mut settings = match std::fs::read_to_string(path) {
+        Err(_) => AppSettings::default(),
+        Ok(raw) => serde_json::from_str::<AppSettings>(&raw).unwrap_or_else(|e| {
             eprintln!(
                 "[settings] {} is unreadable ({e}); using defaults",
                 path.display()
             );
             AppSettings::default()
-        }
-    }
+        }),
+    };
+    // On every path, including the defaults ones: `migrate` is what turns the
+    // parse-time `None` that marks an absent `onClose` into the concrete value
+    // the frontend store and the window handler both expect.
+    settings.migrate();
+    settings
 }
 
 /// Make the OS startup entry match `start_with_windows`.
@@ -193,6 +298,87 @@ pub fn apply_autostart(app: &AppHandle, enabled: bool) {
             if enabled { "enable" } else { "disable" }
         );
     }
+}
+
+/// The smallest window the layout is designed to survive, in CSS pixels at
+/// 100% scale.
+///
+/// Width is set by the filter bar, which puts MAP/TAGS/REGION/PING and the
+/// three HIDE toggles plus REFRESH on one row. Height is set by the details
+/// panel's pinned regions — identity, stat cards, properties and the join
+/// button — which do not scroll.
+///
+/// Mirrored by `minWidth`/`minHeight` in tauri.conf.json, which is the floor
+/// tao applies before `setup` runs. `apply_ui_scale` then multiplies it. JSON
+/// takes no comments, which is why the explanation lives here.
+const MIN_WINDOW: (f64, f64) = (975.0, 620.0);
+
+/// Apply the interface scale to the window: zoom the webview, and raise the
+/// minimum window size to match.
+///
+/// The minimum has to move with the zoom. It is expressed in window pixels,
+/// while every `min-w`/`min-h` in the layout is in CSS pixels, and zooming
+/// divides one into the other — at 1.25 a 975px window gives the layout only
+/// 780px to work with, which is narrower than the filter bar can render. Tying
+/// the two together means the layout always gets [`MIN_WINDOW`] whatever the
+/// slider says.
+///
+/// Both failures are logged and swallowed. A webview that will not zoom is a
+/// launcher that looks wrong, not one that should refuse to open.
+pub fn apply_ui_scale(app: &AppHandle, scale: f64) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    if let Err(e) = window.set_zoom(scale) {
+        eprintln!("[settings] Could not set interface scale to {scale}: {e}");
+    }
+    let min = tauri::LogicalSize::new(MIN_WINDOW.0 * scale, MIN_WINDOW.1 * scale);
+    if let Err(e) = window.set_min_size(Some(min)) {
+        eprintln!("[settings] Could not raise the minimum window size: {e}");
+    }
+
+    // A minimum constrains future sizing; it does not resize a window that is
+    // already smaller. This runs after the window-state plugin has restored
+    // saved geometry, so someone whose remembered window was near the old floor
+    // would otherwise keep it and hand the layout less room than the floor
+    // exists to guarantee — the one case raising the minimum was meant to cover.
+    if let (Ok(size), Ok(factor)) = (window.inner_size(), window.scale_factor()) {
+        let current = size.to_logical::<f64>(factor);
+        if current.width < min.width || current.height < min.height {
+            let grown = tauri::LogicalSize::new(
+                current.width.max(min.width),
+                current.height.max(min.height),
+            );
+            if let Err(e) = window.set_size(grown) {
+                eprintln!("[settings] Could not grow the window to the minimum: {e}");
+            } else {
+                eprintln!(
+                    "[settings] Window was {}x{}, grown to the {}x{} minimum",
+                    current.width, current.height, grown.width, grown.height
+                );
+            }
+        }
+    }
+
+    eprintln!(
+        "[settings] Interface scale {scale}, minimum window {}x{}",
+        min.width, min.height
+    );
+}
+
+/// Apply the interface scale live, from the status-bar slider.
+///
+/// Separate from `save_settings` so dragging the slider is immediate rather
+/// than one round trip through a settings write per pixel of travel. The
+/// frontend persists the value once the drag ends.
+#[tauri::command]
+pub fn set_ui_scale(app: AppHandle, scale: f64) {
+    let scale = if scale.is_finite() {
+        scale.clamp(MIN_UI_SCALE, MAX_UI_SCALE)
+    } else {
+        DEFAULT_UI_SCALE
+    };
+    apply_ui_scale(&app, scale);
 }
 
 /// Read settings synchronously, for `setup` — which runs before any window
@@ -241,14 +427,21 @@ pub async fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), 
     // disagree if the write fails, and in that case the in-memory one is the
     // behaviour the user just asked for.
     if let Some(state) = app.try_state::<crate::state::AppState>() {
+        use std::sync::atomic::Ordering;
         state
             .close_to_tray
-            .store(settings.close_to_tray, std::sync::atomic::Ordering::Relaxed);
+            .store(settings.closes_to_tray(), Ordering::Relaxed);
+        state
+            .minimise_to_tray
+            .store(settings.minimise_to_tray, Ordering::Relaxed);
         if let Ok(mut guard) = state.on_join.lock() {
             *guard = settings.on_join;
         }
     }
     apply_autostart(&app, settings.start_with_windows);
+    // Idempotent when the slider already applied it live, and the one thing
+    // that puts the scale back after a settings import or a hand-edited file.
+    apply_ui_scale(&app, settings.scale());
 
     tokio::task::spawn_blocking(move || {
         let tmp = path.with_extension("json.tmp");
@@ -264,7 +457,88 @@ pub async fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), 
 
 #[cfg(test)]
 mod tests {
-    use super::AppSettings;
+    use super::{AppSettings, DEFAULT_UI_SCALE, MAX_UI_SCALE};
+
+    /// Parse the way `read_from_disk` does — the migration is part of reading a
+    /// file, not of deserialising the struct.
+    fn load(raw: &str) -> AppSettings {
+        let mut settings: AppSettings = serde_json::from_str(raw).expect("should parse");
+        settings.migrate();
+        settings
+    }
+
+    /// An explicit opt-out has to survive. Serde ignores unknown keys, so had
+    /// `closeToTray` simply been deleted when the dropdown arrived, a file
+    /// carrying `false` would have parsed clean and handed the user back the
+    /// tray behaviour they had turned off.
+    #[test]
+    fn an_explicit_close_to_tray_opt_out_survives() {
+        assert!(!load(r#"{ "closeToTray": false }"#).closes_to_tray());
+    }
+
+    #[test]
+    fn close_to_tray_defaults_on() {
+        assert!(load(r#"{ "closeToTray": true }"#).closes_to_tray());
+        // And a file predating every version of this setting.
+        assert!(load("{}").closes_to_tray());
+    }
+
+    /// The dropdown existed only in an unreleased debug build, but it did write
+    /// real settings files. Both of its non-tray options meant "closing should
+    /// not hide me", so both come back as `false`.
+    #[test]
+    fn the_retired_dropdown_migrates_to_the_boolean() {
+        assert!(load(r#"{ "onClose": "tray" }"#).closes_to_tray());
+        assert!(!load(r#"{ "onClose": "quit" }"#).closes_to_tray());
+        assert!(!load(r#"{ "onClose": "minimise" }"#).closes_to_tray());
+    }
+
+    /// The live field is the authority — a stale `onClose` left behind must not
+    /// override a choice made since.
+    #[test]
+    fn close_to_tray_wins_over_the_retired_dropdown() {
+        assert!(load(r#"{ "closeToTray": true, "onClose": "quit" }"#).closes_to_tray());
+    }
+
+    /// The retired field is read, never written. One save and it is gone from
+    /// disk, which is what makes the migration a single-release affair.
+    #[test]
+    fn the_retired_dropdown_is_not_written_back() {
+        let settings = load(r#"{ "onClose": "quit" }"#);
+        let json = serde_json::to_string(&settings).expect("serialise");
+        assert!(
+            !json.contains("onClose"),
+            "the retired field was written back: {json}"
+        );
+        assert!(json.contains("\"closeToTray\":false"), "{json}");
+    }
+
+    /// The two window behaviours are independent: hiding on minimise says
+    /// nothing about what closing should do, and vice versa.
+    #[test]
+    fn minimise_and_close_to_tray_do_not_imply_each_other() {
+        let settings = load(r#"{ "closeToTray": false, "minimiseToTray": true }"#);
+        assert!(!settings.closes_to_tray());
+        assert!(settings.minimise_to_tray);
+
+        // Off by default — vanishing from the taskbar unasked is surprising.
+        assert!(!load("{}").minimise_to_tray);
+    }
+
+    /// Existing installs get the larger interface, because 100% was too small
+    /// to read rather than a preference anyone chose.
+    #[test]
+    fn a_file_predating_ui_scale_gets_the_new_default() {
+        assert_eq!(load("{}").scale(), DEFAULT_UI_SCALE);
+    }
+
+    /// A hand-edited file must not be able to collapse the window or blow the
+    /// minimum size past the screen.
+    #[test]
+    fn an_out_of_range_scale_is_clamped() {
+        assert_eq!(load(r#"{ "uiScale": 0 }"#).scale(), 1.0);
+        assert_eq!(load(r#"{ "uiScale": 9 }"#).scale(), MAX_UI_SCALE);
+    }
 
     /// A settings file written by an older build must pick up new fields at
     /// their defaults, not at `false`.

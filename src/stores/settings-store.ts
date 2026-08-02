@@ -13,8 +13,21 @@ export interface AppSettings {
   maxConcurrentQueries: number;
   queryTimeoutMs: number;
   launchParams: string[];
-  /** Closing the window hides it to the tray instead of quitting. */
+  /** The close button hides the launcher to the tray instead of quitting. */
   closeToTray: boolean;
+  /**
+   * The minimise button hides the launcher to the tray instead of putting it on
+   * the taskbar. Independent of `closeToTray` — two buttons, two questions.
+   */
+  minimiseToTray: boolean;
+  /**
+   * Interface scale, applied as a webview zoom factor rather than a CSS one.
+   *
+   * CSS `zoom` would put `getBoundingClientRect` (which the server table's
+   * virtualiser measures rows with) and `scrollTop` into different coordinate
+   * spaces. Zooming the webview keeps one space and lets the layout reflow.
+   */
+  uiScale: number;
   /** Seconds between automatic refreshes of the visible rows. `0` is off. */
   autoRefreshIntervalSecs: number;
   /**
@@ -69,6 +82,10 @@ const defaults: AppSettings = {
   queryTimeoutMs: 1000,
   launchParams: [],
   closeToTray: true,
+  minimiseToTray: false,
+  // Matches the Rust `DEFAULT_UI_SCALE`. Only ever seen for the instant before
+  // `load()` returns — the file is the authority.
+  uiScale: 1.25,
   // Off by default — see the Rust `AppSettings::default` for why this is 0 and
   // not the 60 it carried while nothing read it.
   autoRefreshIntervalSecs: 0,

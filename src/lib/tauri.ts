@@ -262,7 +262,12 @@ export interface AppSettingsDto {
   maxConcurrentQueries: number;
   queryTimeoutMs: number;
   launchParams: string[];
+  /** The close button hides the launcher to the tray instead of quitting. */
   closeToTray: boolean;
+  /** The minimise button hides to the tray instead of the taskbar. */
+  minimiseToTray: boolean;
+  /** Interface scale, as a webview zoom factor. 1.0–1.5. */
+  uiScale: number;
   /** Seconds between automatic refreshes of the visible rows. `0` is off. */
   autoRefreshIntervalSecs: number;
   autoJoinAfterDownload: boolean;
@@ -283,8 +288,24 @@ export interface AppSettingsDto {
 /** Matches the Rust `OnJoin` enum, which serialises lowercase. */
 export type OnJoin = "stay" | "tray" | "close";
 
+/** The range the Rust side clamps `uiScale` to. Keep the two in step. */
+export const UI_SCALE_MIN = 1.0;
+export const UI_SCALE_MAX = 1.5;
+export const UI_SCALE_STEP = 0.05;
+
 export async function getSettings(): Promise<AppSettingsDto> {
   return invoke<AppSettingsDto>("get_settings");
+}
+
+/**
+ * Apply the interface scale without persisting it.
+ *
+ * Dragging a slider fires a change per pixel of travel; each one is a webview
+ * zoom (cheap) but would also be a settings write and a file rewrite (not).
+ * The store's own debounced save handles persistence.
+ */
+export async function setUiScale(scale: number): Promise<void> {
+  return invoke<void>("set_ui_scale", { scale });
 }
 
 export async function saveSettings(settings: AppSettingsDto): Promise<void> {
@@ -292,6 +313,31 @@ export async function saveSettings(settings: AppSettingsDto): Promise<void> {
 }
 
 // ── Launch Commands ──
+
+/** What a pre-launch verification found. Mirrors the Rust `VerifyOutcome`. */
+export interface VerifyOutcome {
+  /** The server's mod list as it declares it right now, in declared order. */
+  mods: { workshop_id: string; name: string }[];
+  /** Workshop ids a fresh copy was queued for. */
+  refreshed: string[];
+  /**
+   * Whether Steam was reachable enough to check freshness. `false` means
+   * `refreshed` is empty because nothing was asked, not because everything was
+   * already current.
+   */
+  checked_workshop: boolean;
+}
+
+/**
+ * Re-read a server's mod list and update any local copy the Workshop has moved
+ * past. Does not launch anything.
+ */
+export async function verifyServerMods(
+  addr: string,
+  queryPort: number,
+): Promise<VerifyOutcome> {
+  return invoke<VerifyOutcome>("verify_server_mods", { addr, queryPort });
+}
 
 export interface LaunchOutcome {
   status: string;

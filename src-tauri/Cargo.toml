@@ -1,6 +1,6 @@
 [package]
 name = "tetra-launcher"
-version = "1.0.2"
+version = "1.1.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -27,6 +27,10 @@ tauri-plugin-process = "2"
 # permissions only gate the frontend API, which nothing calls.
 tauri-plugin-autostart = "2"
 tauri-plugin-window-state = "2"
+# Keeps a second launch from starting a second launcher. Registered before every
+# other plugin so the duplicate process dies before it can touch the registry,
+# the settings file or Steam.
+tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
 serde = { workspace = true }
 serde_json = { workspace = true }
