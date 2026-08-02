@@ -1,5 +1,86 @@
 # Changelog
 
+## v1.1.0 — 2026-08-02
+
+### Fixed
+
+- **A server could refuse your connection for outdated mods the launcher had
+  just called ready.** Everything showed installed and current, DayZ started,
+  and the server rejected it over an out-of-date mod list — and hitting REFRESH
+  did not help.
+
+  The reason is that "needs an update" was never a fact about the Workshop. It
+  is what the *Steam client last noticed*, and the client only notices when
+  something asks. Until then a mod that was updated an hour ago still reports as
+  current, and every check in the launcher believed it.
+
+  JOIN SERVER is now **VERIFY & JOIN**, and it asks rather than believes:
+
+  1. re-reads the server's mod list live, so a mod the server added since your
+     last refresh cannot be missed, and updates the details panel with it;
+  2. asks the Workshop directly for the version of every mod, with Steam's
+     cache explicitly bypassed — the cache is what produced the wrong answer in
+     the first place, so consulting it would only confirm the mistake;
+  3. compares that against the copy on disk and starts a download for anything
+     that has moved on;
+  4. waits for those downloads, then launches.
+
+  Servers running 90+ mods are queried in pages, because Steam answers 50 at a
+  time. If Steam cannot be reached the join still proceeds — the pre-launch gate
+  is unchanged and still has the final say on whether DayZ starts.
+
+- **The CANCEL button was pushed off the edge of the panel** while mods were
+  downloading, once the status line beside it grew long enough.
+
+- **VERIFY & JOIN failed with "invalid socket address syntax"** on every server.
+  The address the panel holds already carries the query port, and the new
+  verification step appended it a second time.
+
+- **The version check was skipped for anyone who joined shortly after opening
+  the launcher** — which is most people. The Steam connection handles one
+  request at a time, and a server discovery holds it for as long as it runs, so
+  the check queued behind it and eventually gave up. It now completes alongside
+  a discovery instead of waiting for one: measured at 0.7 seconds against a
+  93-mod server with a discovery still streaming.
+
+- **Problems below the JOIN button are now a short coded line** — `W01 Mod
+  versions not checked` — instead of a paragraph that moved the button and got
+  skipped anyway. Hovering gives the full explanation, and the code is
+  something you can quote in a bug report. `W` means the join went ahead with
+  something left undone; `E` means it stopped.
+
+- **The button no longer runs its own text off the edge** while it works.
+  "Checking the server's mod list…" became `VERIFYING…`.
+
+### Added
+
+- **An interface scale slider**, in the status bar, from 100% to 150%. The
+  default is now **125%** rather than 100%, for everyone — the 10 and 11 pixel
+  labels the launcher was built with were too small to read comfortably, which
+  is a defect rather than a preference anyone chose. Expect fewer rows on screen
+  and legible ones.
+
+  The smallest permitted window grows with the setting, so the layout always has
+  the room it was designed for. It replaces the "Verify = Steam reports
+  installed & current" line, which has moved onto the VERIFY & JOIN button it
+  describes.
+
+- **Only one launcher can run at a time.** Opening a second copy now brings the
+  first one back to the front instead of starting a rival that fights it over
+  the same database, settings file and Steam session.
+
+### Changed
+
+- **Minimising can now go to the system tray too**, alongside closing. Settings
+  → Launcher has a switch for each: *Minimise to the system tray* (off) and
+  *Close to the system tray* (on, as before).
+
+  They are separate because they are separate buttons. Wanting the launcher out
+  of the taskbar while you play says nothing about whether closing it should
+  quit, and the tray icon restores it either way.
+
+  If you had close-to-tray switched off, you keep quitting on close.
+
 ## v1.0.2 — 2026-08-02
 
 ### Added
