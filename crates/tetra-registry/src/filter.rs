@@ -31,7 +31,7 @@ pub struct ServerFilter {
     ///
     /// `Some(true)` is the ENGLISH ONLY tag; `Some(false)` inverts it, which is
     /// how a player who *wants* the Chinese or Russian servers finds them.
-    pub latin_names: Option<bool>,
+    pub english_names: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -167,7 +167,7 @@ pub(crate) fn build(
             binds.push(Value::Integer(v as i64));
         }
     }
-    // Name-based noise filters. `tetra_is_placeholder`/`tetra_is_latin` are
+    // Name-based noise filters. `tetra_is_placeholder`/`tetra_is_english` are
     // registered on every read connection — see `reader::register_name_functions`.
     if filter.hide_unnamed {
         clauses.push("TRIM(name) <> ''".into());
@@ -175,14 +175,14 @@ pub(crate) fn build(
     if filter.hide_placeholder {
         clauses.push("NOT tetra_is_placeholder(name)".into());
     }
-    if let Some(latin) = filter.latin_names {
+    if let Some(english) = filter.english_names {
         // An unnamed row has nothing to read either way, so it must not be
         // dragged in by `Some(false)` — that would make "show me the non-English
         // servers" return two thousand blanks.
-        clauses.push(if latin {
-            "tetra_is_latin(name)".into()
+        clauses.push(if english {
+            "tetra_is_english(name)".into()
         } else {
-            "(NOT tetra_is_latin(name) AND TRIM(name) <> '')".to_string()
+            "(NOT tetra_is_english(name) AND TRIM(name) <> '')".to_string()
         });
     }
     if let Some(text) = &filter.search {
