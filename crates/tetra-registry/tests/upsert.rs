@@ -360,7 +360,7 @@ async fn counts_are_zero_on_an_untouched_registry() {
 
 /// The browser's noise filters, end to end through the SQL.
 ///
-/// These run against `tetra_is_placeholder` / `tetra_is_latin`, registered as
+/// These run against `tetra_is_placeholder` / `tetra_is_english`, registered as
 /// SQLite functions on every read connection — so this also proves the
 /// registration actually happens, which a unit test of the classifier cannot.
 #[tokio::test]
@@ -382,10 +382,14 @@ async fn name_filters_hide_noise_and_keep_real_servers() {
             named(40, "Survivor Haven | PVE"),
             named(41, "nitrado.net gameserver"),
             named(42, "Hosted by GTXGaming.co.uk"),
-            // Hoster prefix, but the admin named it — must survive.
+            // Hoster branding plus a real name. Hidden all the same — the
+            // filter is "no hoster names in my list", not "no unnamed servers".
             named(43, "4Netplayers Purgatorio [ESP]"),
             named(44, "Русский сервер PVE"),
             named(45, "生存服务器"),
+            // Latin script, but not English — the case that prompted the
+            // language rule. Caught by its bracket tag.
+            named(47, "[GER][PvE] Zockerfreunde | Trader | Helis"),
             // Never answered a probe, so no name was ever written.
             ServerRow {
                 key: ServerKey {
@@ -413,7 +417,7 @@ async fn name_filters_hide_noise_and_keep_real_servers() {
 
     assert_eq!(
         names(&ServerFilter::default()).len(),
-        7,
+        8,
         "no filter shows all"
     );
 
@@ -425,32 +429,43 @@ async fn name_filters_hide_noise_and_keep_real_servers() {
     let kept = names(&hidden);
     assert!(kept.contains(&"Survivor Haven | PVE".to_string()));
     assert!(
-        kept.contains(&"4Netplayers Purgatorio [ESP]".to_string()),
-        "a hoster prefix on a named server is not a placeholder"
+        !kept.contains(&"4Netplayers Purgatorio [ESP]".to_string()),
+        "a hoster name anywhere in the string is hidden, named or not"
     );
     assert!(!kept.iter().any(|n| n.contains("nitrado")));
     assert!(!kept.iter().any(|n| n.contains("GTXGaming")));
     assert!(!kept.iter().any(|n| n.is_empty()), "unnamed row survived");
-    // The two non-Latin names are untouched by these two filters.
+    // The non-English names are untouched by these two filters.
     assert_eq!(kept.len(), 4, "kept: {kept:?}");
 
     let english = ServerFilter {
-        latin_names: Some(true),
+        english_names: Some(true),
         ..Default::default()
     };
     let kept = names(&english);
     assert!(!kept.iter().any(|n| n.contains('Р') || n.contains('生')));
+    assert!(
+        !kept.iter().any(|n| n.contains("Zockerfreunde")),
+        "a [GER]-tagged server is Latin script but not English: {kept:?}"
+    );
     assert!(kept.contains(&"Survivor Haven | PVE".to_string()));
 
     // Inverted, for a player who wants exactly those servers. The unnamed row
     // must not be swept in — it has nothing to read either way.
     let not_english = ServerFilter {
-        latin_names: Some(false),
+        english_names: Some(false),
         ..Default::default()
     };
     let kept = names(&not_english);
-    assert_eq!(kept.len(), 2, "kept: {kept:?}");
+    // Cyrillic, Chinese, the [GER] tag — and `4Netplayers Purgatorio [ESP]`,
+    // which this filter alone does not hide (it is `hide_placeholder`'s job)
+    // and whose [ESP] tag makes it non-English.
+    assert_eq!(kept.len(), 4, "kept: {kept:?}");
     assert!(kept.iter().all(|n| !n.is_empty()));
+    assert!(
+        kept.iter().any(|n| n.contains("Zockerfreunde")),
+        "inverting the tag is how someone finds the German servers: {kept:?}"
+    );
 }
 
 #[tokio::test]

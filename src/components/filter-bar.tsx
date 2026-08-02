@@ -9,21 +9,22 @@ interface FilterBarProps {
   refreshing: boolean;
 }
 
-/** The tri-state tag filters, which are exactly the boolean-or-null fields. */
-type TagField = "official" | "modded" | "first_person" | "latin_names";
+/**
+ * The tri-state tag filters — all `ServerFilter` keys, all ordinary view state
+ * that resets with the window.
+ *
+ * Language used to live here as an ENGLISH ONLY tag. It moved to
+ * Settings → Server Browser, next to the other two name-based noise filters, so
+ * that all three are in one place rather than one being three clicks away in a
+ * different menu. It is also the only one of the four that persists, which made
+ * it the odd one out here.
+ */
+type TagField = "official" | "modded" | "first_person";
 
 const TAG_OPTIONS: { label: string; field: TagField; title?: string }[] = [
   { label: "OFFICIAL", field: "official" },
   { label: "MODDED", field: "modded" },
   { label: "1PP ONLY", field: "first_person" },
-  {
-    label: "ENGLISH ONLY",
-    field: "latin_names",
-    // Tri-state earns its keep here: ✗ is how someone who *wants* the Chinese
-    // or Russian servers finds them, which a plain on/off toggle could not do.
-    title:
-      "✓ only servers whose name reads in Latin script · ✗ only those that don't · blank shows all",
-  },
 ];
 
 /**
@@ -82,7 +83,6 @@ export function FilterBar({ onRefresh, refreshing }: FilterBarProps) {
         official={filter.official}
         modded={filter.modded}
         firstPerson={filter.first_person}
-        latinNames={filter.latin_names}
         onChange={(field, value) => setFilter({ [field]: value })}
       />
 
@@ -275,15 +275,14 @@ function TagsDropdown({
   official,
   modded,
   firstPerson,
-  latinNames,
   onChange,
 }: {
   official: boolean | null;
   modded: boolean | null;
   firstPerson: boolean | null;
-  latinNames: boolean | null;
-  // `TagField`, not `string`: the caller spreads this straight into `setFilter`,
-  // so an untyped key silently wrote a filter field that does not exist.
+  // `TagField`, not `string`: the caller spreads this key straight into
+  // `setFilter`, so an untyped key silently wrote a filter field that does not
+  // exist.
   onChange: (field: TagField, value: boolean | null) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -293,7 +292,6 @@ function TagsDropdown({
     official,
     modded,
     first_person: firstPerson,
-    latin_names: latinNames,
   };
 
   // Any non-null state counts: excluding is as much a choice as including, and

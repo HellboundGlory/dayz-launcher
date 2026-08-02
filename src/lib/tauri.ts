@@ -18,7 +18,7 @@ export interface FilterParams {
   first_person: boolean | null;
   hide_unnamed: boolean;
   hide_placeholder: boolean;
-  latin_names: boolean | null;
+  english_names: boolean | null;
 }
 
 export interface SortParams {
@@ -263,13 +263,25 @@ export interface AppSettingsDto {
   queryTimeoutMs: number;
   launchParams: string[];
   closeToTray: boolean;
+  /** Seconds between automatic refreshes of the visible rows. `0` is off. */
   autoRefreshIntervalSecs: number;
   autoJoinAfterDownload: boolean;
   /** Hide servers that have never answered a probe and so have no name. */
   hideUnnamedServers: boolean;
   /** Hide hosting-company defaults like "nitrado.net gameserver". */
   hidePlaceholderServers: boolean;
+  /** ENGLISH ONLY, remembered across restarts. `null` does not filter. */
+  englishNamesFilter: boolean | null;
+  /** Register the launcher to start with Windows. No-op in debug builds. */
+  startWithWindows: boolean;
+  /** Start hidden in the tray. Only applies when Windows did the starting. */
+  startMinimised: boolean;
+  /** What the launcher does with itself once DayZ is starting. */
+  onJoin: OnJoin;
 }
+
+/** Matches the Rust `OnJoin` enum, which serialises lowercase. */
+export type OnJoin = "stay" | "tray" | "close";
 
 export async function getSettings(): Promise<AppSettingsDto> {
   return invoke<AppSettingsDto>("get_settings");

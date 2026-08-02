@@ -131,7 +131,7 @@ pub struct FilterParams {
     #[serde(default)]
     pub hide_placeholder: bool,
     #[serde(default)]
-    pub latin_names: Option<bool>,
+    pub english_names: Option<bool>,
 }
 
 #[derive(serde::Deserialize)]
@@ -722,7 +722,7 @@ fn filter_from_params(p: FilterParams) -> ServerFilter {
         first_person: p.first_person,
         hide_unnamed: p.hide_unnamed,
         hide_placeholder: p.hide_placeholder,
-        latin_names: p.latin_names,
+        english_names: p.english_names,
     }
 }
 

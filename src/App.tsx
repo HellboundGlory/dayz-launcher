@@ -83,6 +83,10 @@ export function App() {
   const [autoRetryExhausted, setAutoRetryExhausted] = useState(false);
   const [discovering, setDiscovering] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const autoRefreshSecs = useSettingsStore((s) => s.autoRefreshIntervalSecs);
+  const settingsLoaded = useSettingsStore((s) => s.loaded);
+  /** Guards the auto-refresh timer against overlapping runs. */
+  const autoRefreshInFlight = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [counts, setCounts] = useState({ total: 0, populated: 0 });
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
@@ -357,6 +361,32 @@ export function App() {
       setRefreshing(false);
     }
   }, [steamConnected]);
+
+  // Auto-refresh on a timer.
+  //
+  // `autoRefreshIntervalSecs` has been persisted since the first release with
+  // nothing whatsoever reading it — the setting existed, defaulted to 60, and
+  // never refreshed anything. This is the loop behind it.
+  //
+  // It reuses `handleRefresh` rather than calling the backend directly, so the
+  // automatic path inherits every guard the button has: Steam connected, no
+  // download in flight, and only the rows actually on screen.
+  useEffect(() => {
+    if (!settingsLoaded || autoRefreshSecs <= 0 || !steamConnected) return;
+    const id = window.setInterval(() => {
+      // A slow refresh must not have another stacked on top of it — with a
+      // 30-second interval and a window full of dead servers, it can still be
+      // running when the next tick arrives.
+      if (autoRefreshInFlight.current) return;
+      // Nothing worth re-querying while hidden in the tray.
+      if (document.hidden) return;
+      autoRefreshInFlight.current = true;
+      void handleRefresh().finally(() => {
+        autoRefreshInFlight.current = false;
+      });
+    }, autoRefreshSecs * 1000);
+    return () => clearInterval(id);
+  }, [settingsLoaded, autoRefreshSecs, steamConnected, handleRefresh]);
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#0b0f17]">

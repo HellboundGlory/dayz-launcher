@@ -1,7 +1,8 @@
+use crate::commands::settings::OnJoin;
 use crate::state::AppState;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 
 use tetra_launch::modline::build_mod_string;
 use tetra_launch::protocol::register_dzsa_protocol;
@@ -154,8 +155,46 @@ fn verify_mods(
 /// 4. Spawns DayZ via CreateProcess (never through shell)
 ///
 /// Fails closed: if the server's rules are unreadable, DayZ does not launch.
+/// How long the launcher stays put after a join before hiding or quitting.
+///
+/// DayZ takes several seconds to put a window up. Vanishing the instant the
+/// process spawns leaves the user staring at their desktop wondering whether
+/// the click registered, so the confirmation gets to be read first.
+const ON_JOIN_GRACE: std::time::Duration = std::time::Duration::from_secs(4);
+
+/// Hide or quit the launcher after a join, per `AppSettings::on_join`.
+///
+/// Spawned rather than awaited so `launch_game` returns immediately and the
+/// frontend still receives its `LaunchOutcome` — a command that exited the
+/// process before replying would look like a failed launch.
+fn apply_on_join(app: &AppHandle, on_join: OnJoin) {
+    if on_join == OnJoin::Stay {
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(ON_JOIN_GRACE).await;
+        match on_join {
+            OnJoin::Tray => {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.hide();
+                }
+            }
+            // Goes through the same `exit` every other quit path uses, so
+            // `RunEvent::Exit` still shuts Steam down cleanly.
+            OnJoin::Close => app.exit(0),
+            OnJoin::Stay => {}
+        }
+    });
+}
+
+// Two of the eight are Tauri injections (`app`, `state`) rather than a caller's
+// choice, and the remaining six are the launch's actual inputs. Grouping them
+// into a struct would change the shape the frontend invokes with for no gain.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn launch_game(
+    app: AppHandle,
     state: State<'_, AppState>,
     addr: String,
     game_port: u16,
@@ -267,6 +306,11 @@ pub async fn launch_game(
         };
         let _ = writer.mark_played(key).await;
     }
+
+    // Get out of the way, if that is what the user asked for. Deliberately
+    // after `mark_played`: closing the launcher must not cost the RECENT entry.
+    let on_join = state.on_join.lock().map(|g| *g).unwrap_or_default();
+    apply_on_join(&app, on_join);
 
     Ok(LaunchOutcome {
         status: "launched".into(),
