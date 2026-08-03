@@ -18,6 +18,7 @@ behind a React + Vite frontend.
 | Repo layout and what's *not* committed | [`where-things-live`](.ai/knowledge/where-things-live.md) |
 | CI, signing, auto-update | [`release-pipeline`](.ai/knowledge/release-pipeline.md) |
 | What agents may and may not do | [`agent-policy`](.ai/meta/agent-policy.md) |
+| **You edited `.ai/`** | run `npm run repoos:generate` before committing |
 
 ## Working here
 
@@ -35,6 +36,10 @@ behind a React + Vite frontend.
 - Clippy warnings are CI errors (`-D warnings`).
 - `progress.md` is the feature backlog and is **gitignored** — it isn't in a
   fresh clone. Ask rather than assuming there's no backlog.
+- **Edit anything under `.ai/`? Run `npm run repoos:generate` in the same
+  change.** `CLAUDE.md` is generated from `.ai/` and is never hand-edited; CI
+  fails if the two have drifted. The command fetches the pinned CLI on first
+  use and is offline afterwards.
 
 ## Common tasks
 
