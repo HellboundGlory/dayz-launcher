@@ -9,3 +9,6 @@
 
 .ai/memory/inbox/**   merge=union
 .ai/meta/usage.jsonl  merge=union
+
+# The RepoOS pin is a plain tag; a CRLF here would break the CI clone.
+.repoos-version  text eol=lf
