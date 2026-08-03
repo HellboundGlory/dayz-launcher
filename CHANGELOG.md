@@ -1,5 +1,58 @@
 # Changelog
 
+## v1.2.0 — 2026-08-03
+
+### Fixed
+
+- **Changing any setting shunted a maximised window down and to the right.**
+  Introduced in v1.1.0 by the interface-scale work: the launcher re-applied the
+  scale on every settings write, and re-applying it re-set the minimum window
+  size, which Windows treats as a reason to drop a maximised window back to a
+  restored one. The scale is now applied only when it actually changes.
+
+- **The horizontal scrollbar under the server list had no height**, so once the
+  window was narrow enough for the columns to overflow there was content you
+  could not reach and a scrollbar you could not grab. Styling the scrollbar at
+  all opts out of the platform default for *both* axes, and only the vertical
+  one had ever been given a size. It is now visible and deliberately a little
+  thicker than the vertical bar, since it sits on the window's bottom edge where
+  there is no room to overshoot.
+
+  The wheel reaches sideways too: **Shift + wheel** anywhere over the table, or
+  a plain wheel over the column headers.
+
+- **The details panel went stale.** Ping, players, mods and the rest were a
+  snapshot taken when you clicked the row, so REFRESH updated the table while
+  the panel beside it kept showing the old numbers — the only way to see current
+  values was to click away and back. It now follows the row it is showing.
+
+- **The join button ignored "auto-join after downloading".** It read
+  "SUBSCRIBE & JOIN" whether or not the setting would actually let it join.
+
+- **The join button did not notice that downloading had started.** It stayed on
+  "SUBSCRIBE & JOIN" while Steam downloaded — describing work already done —
+  because one flag covered both "not subscribed" and "downloading". It now says
+  which half of the job is left: SUBSCRIBE & JOIN, DOWNLOAD & JOIN, or
+  VERIFY & JOIN, and drops the "& JOIN" when auto-join is off.
+
+### Added
+
+- **A refresh button on every row**, after the ping, for re-probing one server
+  without re-probing everything on screen.
+
+### Changed
+
+- **Servers that have never answered a probe are now always hidden**, and the
+  checkbox is gone. A row with no name, no player count and no map has nothing
+  a player could choose it by — about 3,000 of a 10,500-row list. It was a
+  setting only because it started life next to one that genuinely is a matter
+  of taste.
+
+- **"Subscribe all" is gone.** VERIFY & JOIN already subscribes to whatever is
+  missing, waits for it and then launches, so the separate button was a slower
+  route to the same place. **Unsubscribe** has moved below the join button,
+  where a destructive, once-in-a-while action belongs.
+
 ## v1.1.0 — 2026-08-02
 
 ### Fixed

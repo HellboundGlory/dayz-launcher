@@ -4,12 +4,14 @@ import { useServerStore } from "@/stores/server-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import {
   getServerList,
+  refreshVisibleServers,
   toggleFavourite,
   type FilterParams,
   type SortParams,
 } from "@/lib/tauri";
 import type { Server } from "@/types/server";
 import type { SortKey } from "@/types/filters";
+import { RefreshCw } from "lucide-react";
 import { cn, formatLastPlayed, regionName } from "@/lib/utils";
 
 type Align = "left" | "right" | "center";
@@ -127,11 +129,18 @@ export function ServerTable() {
   const setSort = useServerStore((s) => s.setSort);
   const toggleFavouriteLocal = useServerStore((s) => s.toggleFavourite);
   const modPending = useServerStore((s) => s.modPending);
-  const hideUnnamed = useSettingsStore((s) => s.hideUnnamedServers);
   const hidePlaceholder = useSettingsStore((s) => s.hidePlaceholderServers);
   const englishNames = useSettingsStore((s) => s.englishNamesFilter);
 
   const [widths, setWidths] = useState<Widths>(loadWidths);
+  /**
+   * Which single row is being re-probed, as `addr:query_port`.
+   *
+   * One at a time on purpose: the button is for "is this one still up?", and a
+   * user clicking down a column would otherwise fan out a probe per click
+   * against the shared connection budget.
+   */
+  const [refreshingRow, setRefreshingRow] = useState<string | null>(null);
   // Live drag state lives in a ref: the pointer handlers are bound once, and
   // reading the start values from state would capture them stale.
   const drag = useRef<{ key: string; startX: number; startWidth: number } | null>(null);
@@ -238,6 +247,50 @@ export function ServerTable() {
     persist(next);
   }
 
+  /**
+   * Re-probe one server. Scoped as `"row"` so finishing cannot clear the main
+   * REFRESH button's spinner — both raise the same completion event.
+   */
+  async function handleRefreshRow(server: Server) {
+    const key = `${server.addr}:${server.query_port}`;
+    if (refreshingRow !== null) return;
+    setRefreshingRow(key);
+    try {
+      await refreshVisibleServers(
+        [{ addr: server.addr, query_port: server.query_port }],
+        "row",
+      );
+    } catch (e) {
+      console.error("Failed to refresh server:", e);
+    } finally {
+      setRefreshingRow(null);
+    }
+  }
+
+  /**
+   * Wheel handling for the horizontal axis.
+   *
+   * The wheel has to keep scrolling the list vertically — it is thousands of
+   * rows — so it cannot simply be reassigned. Two ways to reach sideways
+   * instead, neither of which fights that:
+   *
+   *  - **Shift + wheel**, the universal convention, made explicit here rather
+   *    than left to the browser so it behaves the same regardless of what the
+   *    embedded webview decides to do with it.
+   *  - **Wheel over the header row.** The header scrolls with the columns and
+   *    has no vertical content of its own, so it is unambiguous — a natural
+   *    place to scrub sideways without holding a modifier.
+   */
+  function scrollHorizontally(e: React.WheelEvent) {
+    const el = scrollRef.current;
+    if (!el || el.scrollWidth <= el.clientWidth) return;
+    // `deltaY`, not `deltaX`: this is a normal vertical wheel being redirected.
+    // `deltaX` is only non-zero on a tilt wheel or trackpad, which the browser
+    // already routes to the horizontal axis by itself.
+    el.scrollLeft += e.deltaY;
+    e.preventDefault();
+  }
+
   function handleSort(key: SortKey) {
     // Same column toggles direction; a new column starts descending, which is
     // the useful default for players/mods/last-played.
@@ -293,7 +346,6 @@ export function ServerTable() {
           // default-named server is not worth a row. ENGLISH ONLY joins them
           // for the same reason even though its control lives in TAGS: it is
           // on by default, so its opt-out has to survive a restart.
-          hide_unnamed: hideUnnamed,
           hide_placeholder: hidePlaceholder,
           english_names: englishNames,
         };
@@ -319,7 +371,7 @@ export function ServerTable() {
     return () => {
       cancelled = true;
     };
-  }, [filter, sortKey, sortDir, loadVersion, hideUnnamed, hidePlaceholder, englishNames]);
+  }, [filter, sortKey, sortDir, loadVersion, hidePlaceholder, englishNames]);
 
   // The trailing `minmax(0, 1fr)` soaks up width left over on a wide window, so
   // surplus becomes empty space on the right rather than inflating a column.
@@ -329,9 +381,17 @@ export function ServerTable() {
   return (
     // One scroll container for both axes keeps the header locked to the rows
     // horizontally; the header stays put vertically via `sticky`.
-    <div ref={scrollRef} className="flex-1 overflow-auto">
+    <div
+      ref={scrollRef}
+      onWheel={(e) => {
+        if (e.shiftKey) scrollHorizontally(e);
+      }}
+      className="flex-1 overflow-auto"
+    >
       <div style={{ minWidth: totalWidth }}>
         <div
+          onWheel={scrollHorizontally}
+          title="Scroll here — or hold Shift anywhere — to move the columns sideways"
           className="sticky top-0 z-10 grid items-center border-b border-[#1e293b] bg-[#111823]"
           style={{ gridTemplateColumns: template }}
         >
@@ -544,7 +604,35 @@ export function ServerTable() {
                 </span>
               </div>
 
-              <div />
+              {/* The trailing spacer column, which had nothing in it. A probe
+                  for this one server: the main REFRESH covers everything on
+                  screen, which is the wrong grain when you only want to know
+                  whether the server you are looking at came back up. */}
+              <div className="flex items-center justify-start pl-1">
+                <button
+                  onClick={(e) => {
+                    // Without this the click also selects the row.
+                    e.stopPropagation();
+                    void handleRefreshRow(server);
+                  }}
+                  disabled={refreshingRow !== null}
+                  title={`Re-probe ${server.name || server.addr}`}
+                  aria-label="Refresh this server"
+                  className={cn(
+                    "rounded p-1 transition-colors disabled:cursor-not-allowed",
+                    refreshingRow === `${server.addr}:${server.query_port}`
+                      ? "text-[#38bdf8]"
+                      : "text-[#334155] hover:text-[#94a3b8] disabled:opacity-40",
+                  )}
+                >
+                  <RefreshCw
+                    className={cn(
+                      "size-3",
+                      refreshingRow === `${server.addr}:${server.query_port}` && "animate-spin",
+                    )}
+                  />
+                </button>
+              </div>
             </div>
           );
         })}

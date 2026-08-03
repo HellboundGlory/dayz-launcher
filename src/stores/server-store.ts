@@ -60,6 +60,19 @@ interface ServerState {
  * Tauri bridge for every header click would be wasteful. Column widths persist
  * the same way, in `server-table.tsx`.
  */
+/**
+ * Whether two rows for the same server carry identical values.
+ *
+ * A shallow compare over every key rather than a hand-picked list of "the ones
+ * that change": a field added to `Server` later would silently stop propagating
+ * to the details panel if this only checked a fixed set, and that failure looks
+ * exactly like the staleness bug this exists to fix.
+ */
+function sameRow(a: Server, b: Server): boolean {
+  const keys = Object.keys(a) as (keyof Server)[];
+  return keys.length === Object.keys(b).length && keys.every((k) => a[k] === b[k]);
+}
+
 const SORT_KEY_STORAGE = "tetra.sort.v1";
 
 function loadSort(): { sortKey: SortKey; sortDir: SortDir } {
@@ -105,7 +118,40 @@ export const useServerStore = create<ServerState>((set) => ({
   visibleRange: null,
   modPending: {},
 
-  setServers: (servers) => set({ servers }),
+  /**
+   * Replace the table's rows, and re-point the selection at its new row.
+   *
+   * The re-point is what makes the details panel live. `selectedServer` was a
+   * snapshot taken at click time and never touched again, so a refresh updated
+   * every row in the table while the panel beside it went on showing the ping,
+   * player count and mod count from whenever the row was first clicked. The only
+   * way to see current values was to click away and back.
+   *
+   * Matched on `addr` *and* `query_port`: one machine commonly runs several
+   * servers, so the address alone is not unique — GulagZ answers on 2303 and
+   * 2403 from one IP, and matching on address would have pointed the panel at
+   * whichever came first.
+   *
+   * A selection with no row in the new list keeps its old object rather than
+   * being cleared. It is usually still on screen and simply excluded by the
+   * current filter or search; blanking the panel mid-read would be worse than
+   * showing values a moment old.
+   */
+  setServers: (servers) =>
+    set((state) => {
+      const selected = state.selectedServer;
+      if (!selected) return { servers };
+      const fresh = servers.find(
+        (s) => s.addr === selected.addr && s.query_port === selected.query_port,
+      );
+      // Keep the existing object when nothing about the row changed. The
+      // identity is what the details panel re-renders on, and `setServers` runs
+      // roughly four times a second while discovery streams — swapping in an
+      // equal-but-new object would repaint the panel, its stat cards and a
+      // 93-row mod list on every one of those for no visible difference.
+      if (!fresh || sameRow(fresh, selected)) return { servers };
+      return { servers, selectedServer: fresh };
+    }),
   setSelectedServer: (server) => set({ selectedServer: server }),
   setFilter: (filter) =>
     set((state) => ({ filter: { ...state.filter, ...filter } })),

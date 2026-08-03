@@ -49,8 +49,6 @@ export interface AppSettings {
   onJoin: OnJoin;
   /** Launch automatically once every required mod has downloaded. */
   autoJoinAfterDownload: boolean;
-  /** Hide servers that have never answered a probe and so have no name. */
-  hideUnnamedServers: boolean;
   /** Hide hosting-company defaults like "nitrado.net gameserver". */
   hidePlaceholderServers: boolean;
   /**
@@ -93,7 +91,6 @@ const defaults: AppSettings = {
   startMinimised: false,
   onJoin: "stay",
   autoJoinAfterDownload: true,
-  hideUnnamedServers: true,
   hidePlaceholderServers: true,
   englishNamesFilter: true,
 };
