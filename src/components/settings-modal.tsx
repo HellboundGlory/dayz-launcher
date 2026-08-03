@@ -124,7 +124,6 @@ export function SettingsModal({ open: isOpen, onClose }: SettingsModalProps) {
   const dayzPath = useSettingsStore((s) => s.dayzPath);
   const workshopPath = useSettingsStore((s) => s.workshopPath);
   const autoJoinAfterDownload = useSettingsStore((s) => s.autoJoinAfterDownload);
-  const hideUnnamedServers = useSettingsStore((s) => s.hideUnnamedServers);
   const hidePlaceholderServers = useSettingsStore((s) => s.hidePlaceholderServers);
   const englishNamesFilter = useSettingsStore((s) => s.englishNamesFilter);
   const launchParams = useSettingsStore((s) => s.launchParams);
@@ -471,15 +470,11 @@ export function SettingsModal({ open: isOpen, onClose }: SettingsModalProps) {
                   <h3 className="mb-1 text-xs font-medium text-[#f1f5f9]">Hide noise</h3>
                   <p className="mb-2 text-[10px] leading-relaxed" style={{ color: MUTED }}>
                     Roughly a third of a raw server list is entries you can do nothing
-                    with. All of this is judged on the server's name alone, offline.
+                    with. Servers that have never answered a probe — no name, no
+                    players, no map — are always hidden. The rest is judged on the
+                    server&apos;s name alone, offline.
                   </p>
                   <div className="space-y-0.5">
-                    <CheckboxRow
-                      checked={hideUnnamedServers}
-                      onChange={(v) => setSetting("hideUnnamedServers", v)}
-                      label="Servers with no name"
-                      hint="Never answered a probe, so they show no name and 0 players."
-                    />
                     <CheckboxRow
                       checked={hidePlaceholderServers}
                       onChange={(v) => setSetting("hidePlaceholderServers", v)}

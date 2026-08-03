@@ -53,9 +53,18 @@
   }
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar.
+   `width` sizes the vertical bar and `height` the horizontal one. Only `width`
+   was set, and styling `::-webkit-scrollbar` at all opts out of the platform
+   defaults for both — so the horizontal bar rendered with no height at all.
+   Narrowing the window until the server table overflowed sideways produced
+   content you could not reach and a scrollbar you could not grab.
+   The horizontal bar is deliberately the thicker of the two: it sits on the
+   window's bottom edge, where there is no overshoot room to catch a 6px
+   target. */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {

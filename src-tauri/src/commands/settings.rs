@@ -123,9 +123,6 @@ pub struct AppSettings {
     /// When off, "Subscribe and join" still subscribes and downloads, but stops
     /// there and leaves the join to a second click.
     pub auto_join_after_download: bool,
-    /// Hide servers Steam lists but that have never answered a probe, so carry
-    /// no name at all. Roughly a quarter of a typical registry.
-    pub hide_unnamed_servers: bool,
     /// Hide hosting-company defaults and template names ("nitrado.net
     /// gameserver", "EXAMPLE NAME") — see `classify::names::is_placeholder_name`.
     pub hide_placeholder_servers: bool,
@@ -179,9 +176,11 @@ impl Default for AppSettings {
             start_minimised: false,
             on_join: OnJoin::Stay,
             auto_join_after_download: true,
-            // On by default: both hide servers that carry no information a
-            // player could choose by. Both are reversible in Settings.
-            hide_unnamed_servers: true,
+            // On by default, and reversible in Settings. Its counterpart —
+            // hiding servers with no name at all — is no longer a setting: a
+            // row that has never answered a probe carries no name, no player
+            // count and nothing to choose by, so there was never a reason to
+            // show one. It is applied unconditionally in `filter_from_params`.
             hide_placeholder_servers: true,
             // On by default too. `Some(true)`, not `None` — see the field docs.
             english_names_filter: Some(true),
@@ -323,47 +322,79 @@ const MIN_WINDOW: (f64, f64) = (975.0, 620.0);
 /// the two together means the layout always gets [`MIN_WINDOW`] whatever the
 /// slider says.
 ///
+/// **Does nothing when the scale has not changed, and that guard is the whole
+/// point.** `save_settings` calls this on every write, and the frontend store
+/// debounces a write after *any* field changes — so ticking a checkbox used to
+/// re-run `set_min_size`, which tao implements as a `SetWindowPos`. On a
+/// maximised window that drops it out of the maximised state into an offset
+/// restored geometry: changing any setting visibly shunted the window down and
+/// to the right.
+///
 /// Both failures are logged and swallowed. A webview that will not zoom is a
 /// launcher that looks wrong, not one that should refuse to open.
 pub fn apply_ui_scale(app: &AppHandle, scale: f64) {
+    if let Some(state) = app.try_state::<crate::state::AppState>() {
+        if let Ok(mut applied) = state.applied_ui_scale.lock() {
+            if (*applied - scale).abs() < f64::EPSILON {
+                return;
+            }
+            *applied = scale;
+        }
+    }
+
     let Some(window) = app.get_webview_window("main") else {
         return;
     };
     if let Err(e) = window.set_zoom(scale) {
         eprintln!("[settings] Could not set interface scale to {scale}: {e}");
     }
-    let min = tauri::LogicalSize::new(MIN_WINDOW.0 * scale, MIN_WINDOW.1 * scale);
-    if let Err(e) = window.set_min_size(Some(min)) {
+    if let Err(e) = window.set_min_size(Some(minimum_size(scale))) {
         eprintln!("[settings] Could not raise the minimum window size: {e}");
     }
+    eprintln!("[settings] Interface scale {scale}");
+}
 
-    // A minimum constrains future sizing; it does not resize a window that is
-    // already smaller. This runs after the window-state plugin has restored
-    // saved geometry, so someone whose remembered window was near the old floor
-    // would otherwise keep it and hand the layout less room than the floor
-    // exists to guarantee — the one case raising the minimum was meant to cover.
-    if let (Ok(size), Ok(factor)) = (window.inner_size(), window.scale_factor()) {
-        let current = size.to_logical::<f64>(factor);
-        if current.width < min.width || current.height < min.height {
-            let grown = tauri::LogicalSize::new(
-                current.width.max(min.width),
-                current.height.max(min.height),
-            );
-            if let Err(e) = window.set_size(grown) {
-                eprintln!("[settings] Could not grow the window to the minimum: {e}");
-            } else {
-                eprintln!(
-                    "[settings] Window was {}x{}, grown to the {}x{} minimum",
-                    current.width, current.height, grown.width, grown.height
-                );
-            }
-        }
+/// The smallest permitted window at a given scale.
+fn minimum_size(scale: f64) -> tauri::LogicalSize<f64> {
+    tauri::LogicalSize::new(MIN_WINDOW.0 * scale, MIN_WINDOW.1 * scale)
+}
+
+/// Grow the window if the geometry restored from a previous run is smaller than
+/// the current scale allows. **Startup only.**
+///
+/// A minimum constrains future sizing; it does not resize a window that is
+/// already below it, and the window-state plugin restores saved geometry before
+/// `setup` runs — so without this, a remembered window near the old floor keeps
+/// less room than the floor exists to guarantee.
+///
+/// Deliberately *not* part of `apply_ui_scale`. That function is on the
+/// settings-save path, and a `set_size` reachable from a checkbox is what made
+/// changing any setting move the window.
+pub fn fit_window_to_minimum(app: &AppHandle, scale: f64) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    // Nothing to correct on a maximised window, and resizing one un-maximises it.
+    if window.is_maximized().unwrap_or(false) {
+        return;
     }
-
-    eprintln!(
-        "[settings] Interface scale {scale}, minimum window {}x{}",
-        min.width, min.height
-    );
+    let (Ok(size), Ok(factor)) = (window.inner_size(), window.scale_factor()) else {
+        return;
+    };
+    let min = minimum_size(scale);
+    let current = size.to_logical::<f64>(factor);
+    if current.width >= min.width && current.height >= min.height {
+        return;
+    }
+    let grown =
+        tauri::LogicalSize::new(current.width.max(min.width), current.height.max(min.height));
+    match window.set_size(grown) {
+        Ok(()) => eprintln!(
+            "[settings] Window was {}x{}, grown to the {}x{} minimum",
+            current.width, current.height, grown.width, grown.height
+        ),
+        Err(e) => eprintln!("[settings] Could not grow the window to the minimum: {e}"),
+    }
 }
 
 /// Apply the interface scale live, from the status-bar slider.
@@ -570,7 +601,6 @@ mod tests {
             "existing values are preserved"
         );
         assert_eq!(parsed.dayz_path.as_deref(), Some("C:\\DayZ"));
-        assert!(parsed.hide_unnamed_servers, "new filter defaulted off");
         assert!(parsed.hide_placeholder_servers, "new filter defaulted off");
         // The `Option` case is the one worth pinning. Serde fills a missing
         // `Option<T>` with `None` when there is no default in play, and every
@@ -620,17 +650,15 @@ mod tests {
     #[test]
     fn settings_round_trip_preserves_an_opted_out_user() {
         let opted_out = AppSettings {
-            hide_unnamed_servers: false,
             hide_placeholder_servers: false,
             ..AppSettings::default()
         };
         let json = serde_json::to_string(&opted_out).expect("serialise");
         assert!(
-            json.contains("hideUnnamedServers"),
+            json.contains("hidePlaceholderServers"),
             "must serialise in camelCase to match the frontend: {json}"
         );
         let back: AppSettings = serde_json::from_str(&json).expect("deserialise");
-        assert!(!back.hide_unnamed_servers, "an explicit false was lost");
         assert!(!back.hide_placeholder_servers, "an explicit false was lost");
     }
 }
