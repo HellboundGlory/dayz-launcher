@@ -35,12 +35,16 @@ whole install) and runs two checks. The second one — `generate --check` — is
 only place in this repository where documentation drift blocks a build, and it
 earns that because the fix is always one command.
 
-**That clone is pinned to a RepoOS tag** — `REPOOS_VERSION` in `check.yml`,
-currently `v1.3.0`. Upgrading is a deliberate two-part change: bump the tag,
-run `repoos generate .`, and commit both together. They belong in one commit
+**That clone is pinned**, and the tag lives in **`.repoos-version`** at the repo
+root — that file is the only place the version appears. Both `check.yml` and
+`scripts/repoos.mjs` read it, so a local run and CI cannot end up on different
+CLI versions.
+
+Upgrading is a deliberate two-part change that belongs in **one commit**: edit
+`.repoos-version`, then run `npm run repoos:generate`. They travel together
 because `generate --check` compares `CLAUDE.md` against whatever the *fetched*
-CLI produces, so a newer CLI plus an unregenerated `CLAUDE.md` fails the build
-— splitting them across two commits leaves `main` red in between.
+CLI produces — a newer CLI beside an unregenerated `CLAUDE.md` fails the build,
+so splitting them across two commits leaves `main` red in between.
 
 `release.yml` does not run on ordinary commits. Pushing the tag is the only
 thing that publishes — which is why that push is gated (see

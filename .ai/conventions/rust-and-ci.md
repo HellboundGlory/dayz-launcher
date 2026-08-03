@@ -26,13 +26,25 @@ summary: >
 | Lints | `cargo clippy --workspace --all-targets -- -D warnings` | **Warnings are errors** |
 | Tests | `cargo test --workspace` | Whole workspace |
 | Types | `npx tsc --noEmit` | Frontend |
-| RepoOS | `repoos validate .` + `repoos generate . --check` | `.ai/` is valid and `CLAUDE.md` hasn't drifted |
+| RepoOS | `npm run repoos:check` | `.ai/` is valid and `CLAUDE.md` hasn't drifted |
 
 Run the first four locally before pushing — see [`check`](../workflows/check.md).
 There is nothing CI can tell you that this doesn't.
 
-The RepoOS job is the exception: you only need it after editing `.ai/`, and if
-it fails the fix is to regenerate rather than to change anything by hand.
+The RepoOS job is the exception — it only matters once you have touched `.ai/`:
+
+```bash
+npm run repoos:generate    # after editing .ai/ — rewrites CLAUDE.md
+npm run repoos:check       # what CI runs; writes nothing
+```
+
+If it fails, **regenerate**. Never hand-edit `CLAUDE.md` to make it pass — that
+recreates the two-sources-of-truth problem RepoOS exists to remove, and the next
+regeneration silently discards whatever you wrote.
+
+The CLI is fetched on first use at the tag in `.repoos-version` and cached in
+your user cache directory — outside the repository, and shared across projects —
+so later runs need no network.
 
 **`-D warnings` means a clippy warning fails the build.** Don't leave them for
 CI to find, and don't `#[allow]` them to make CI pass without saying why in the
