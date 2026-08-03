@@ -16,4 +16,5 @@ pub mod error;
 pub mod modline;
 pub mod protocol;
 pub mod registry_discovery;
+pub mod running;
 pub mod spawn;

@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useServerStore } from "@/stores/server-store";
 import { useSettingsStore } from "@/stores/settings-store";
+import { useLaunchStore, type ActiveOp } from "@/stores/launch-store";
 import { Play, ChevronRight, Star, Download, Trash2, Loader2, Check } from "lucide-react";
 import {
   launchGame,
@@ -13,6 +14,7 @@ import {
   verifyServerMods,
   type ModState,
 } from "@/lib/tauri";
+import { joinAction } from "@/lib/join-action";
 import { cn, formatBytes, regionName } from "@/lib/utils";
 
 /**
@@ -120,7 +122,7 @@ const NOTICES = {
   },
   W04: {
     text: "Stopped waiting",
-    detail: "Downloads continue in Steam. Press VERIFY & JOIN again when they finish.",
+    detail: "Downloads continue in Steam. Press the join button again when they finish.",
   },
   E01: {
     text: "Could not subscribe",
@@ -134,6 +136,31 @@ type NoticeCode = keyof typeof NOTICES;
 type Notice =
   | { kind: "code"; code: NoticeCode; extra?: string }
   | { kind: "plain"; text: string };
+
+/**
+ * What the working box reads while an operation runs.
+ *
+ * Most phases carry their own live detail — a count, bytes moved — and the
+ * fallbacks are for the two that have nothing to report but still must not
+ * render as a generic "Working…". That generic string is what made a failing
+ * launch indistinguishable from a slow verification in the one bug report this
+ * was written for: every step of the operation looked identical.
+ */
+function phaseLabel(op: ActiveOp): string {
+  if (op.note) return op.note;
+  switch (op.phase) {
+    case "launching":
+      return "LAUNCHING…";
+    case "starting":
+      return "STARTING DAYZ…";
+    case "subscribing":
+      return "SUBSCRIBING…";
+    case "downloading":
+      return "DOWNLOADING…";
+    case "verifying":
+      return "VERIFYING…";
+  }
+}
 
 /** Summary line above the mod list. Order is most-blocking first. */
 function summarise(states: Map<string, ModState>, total: number) {
@@ -179,34 +206,27 @@ export function ServerDetails() {
   const dayzPath = useSettingsStore((s) => s.dayzPath);
   const launchParams = useSettingsStore((s) => s.launchParams);
   const autoJoinAfterDownload = useSettingsStore((s) => s.autoJoinAfterDownload);
-  const [launching, setLaunching] = useState(false);
   /**
-   * Holds a confirmation on the button after DayZ has actually been spawned.
+   * The one app-wide operation, and whether DayZ is up.
    *
-   * `launching` alone is not visible feedback any more. Until v1.0.0
-   * `spawn_dayz` waited for DayZ to exit, so the command did not resolve until
-   * the player quit — which is exactly why the button used to sit on
-   * "LAUNCHING..." for the whole session. Removing that wait was right, but it
-   * left the command resolving in about a second, so `launching` flips
-   * true→false faster than the eye catches and the button appears not to
-   * respond at all. A launch is a one-way action; it gets acknowledged for
-   * longer than the call takes.
-   */
-  const [justLaunched, setJustLaunched] = useState(false);
-  /**
-   * The launch outcome, tagged with the server it belongs to.
+   * All of this was component state until it turned out that switching servers
+   * mid-download cancelled the download and erased every trace of it. It lives
+   * in a store now so the button tells the truth on every server, not just the
+   * one that started the work. See `stores/launch-store`.
    *
-   * A bare message string leaked across selections: `handleJoin` awaits the
-   * whole mod gate (live A2S_RULES + Workshop checks + spawn), and if the user
-   * picked a different server while that was in flight, the resolving promise
-   * wrote the old server's result into the new server's panel. Clearing on
-   * selection change can't fix that — the write happens after the clear.
-   * Tagging it does, because rendering is then conditional on the address
-   * still matching, regardless of when the promise lands.
+   * The launch result stays tagged with its server for the reason it always
+   * was: the gate takes seconds, and a result resolving after the user has
+   * moved on must not be painted into a different server's panel.
    */
-  const [launchResult, setLaunchResult] = useState<
-    { addr: string; message?: string; error?: string } | null
-  >(null);
+  const op = useLaunchStore((s) => s.op);
+  const dayzUp = useLaunchStore((s) => s.dayzRunning);
+  const launchResult = useLaunchStore((s) => s.result);
+  const beginOp = useLaunchStore((s) => s.begin);
+  const setPhase = useLaunchStore((s) => s.setPhase);
+  const setNote = useLaunchStore((s) => s.setNote);
+  const endOp = useLaunchStore((s) => s.end);
+  const cancelOp = useLaunchStore((s) => s.cancel);
+  const setLaunchResult = useLaunchStore((s) => s.setResult);
   const [modList, setModList] = useState<{ workshop_id: string; name: string }[] | null>(null);
   /**
    * The mod list is collapsed by default and is the only thing in the panel
@@ -221,12 +241,22 @@ export function ServerDetails() {
   const [downloads, setDownloads] = useState<
     Map<string, { downloaded: number; total: number }>
   >(new Map());
-  /** Which batched Steam operation is in flight, if any. */
-  const [busy, setBusy] = useState<null | "subscribe" | "unsubscribe" | "fixing">(null);
-  /** Live status line while subscribe-and-join waits on Steam. */
-  const [fixNote, setFixNote] = useState<string | null>(null);
-  /** Lets the in-flight subscribe-and-join loop be stopped from outside it. */
-  const fixCancel = useRef<{ cancelled: boolean } | null>(null);
+  /**
+   * Unsubscribing, which stays local on purpose.
+   *
+   * Unlike a launch it is per-server, quick, and there is no reason to stop
+   * someone doing it on one server while another is downloading.
+   */
+  const [unsubscribing, setUnsubscribing] = useState(false);
+
+  /**
+   * A running operation belonging to some other server.
+   *
+   * The working box renders for `op` whoever owns it — there is only ever one,
+   * and it replaces the button, so no second launch can be started from any
+   * server. This only decides whether to caption it with whose it is.
+   */
+  const otherOp = op && (!selectedServer || op.addr !== selectedServer.addr) ? op : null;
   const [notice, setNotice] = useState<Notice | null>(null);
   const [confirmUnsub, setConfirmUnsub] = useState(false);
 
@@ -237,21 +267,30 @@ export function ServerDetails() {
     setDownloads(new Map());
     setNotice(null);
     setConfirmUnsub(false);
-    setFixNote(null);
-    setJustLaunched(false);
-    // Abandon any subscribe-and-join still waiting on the previous server,
-    // otherwise it would launch a server the user has navigated away from.
-    if (fixCancel.current) fixCancel.current.cancelled = true;
-    setBusy(null);
+    // Deliberately does *not* touch the running operation any more. It used to
+    // cancel it, on the reasoning that the wait would otherwise launch a server
+    // the user had navigated away from — but `handleVerifyAndJoin` captures its
+    // address up front and launches that one regardless of what is selected
+    // later. All the cancel achieved was abandoning a download the moment
+    // anyone clicked another row, while Steam carried on downloading with
+    // nothing on screen to say so.
   }, [selectedServer?.addr, selectedServer?.query_port]);
 
-  // Let the confirmation lapse on its own. Cleared early by the effect above
-  // if the user picks a different server in the meantime.
+  /**
+   * Give up on "starting" if DayZ never appears.
+   *
+   * The happy path ends this phase the moment the process shows up — see
+   * `watchDayz`. This is the other case: a spawn that reported success and then
+   * produced nothing, usually BattlEye refusing to hand off. Without it the
+   * button would sit on STARTING DAYZ… forever and block every other server.
+   */
   useEffect(() => {
-    if (!justLaunched) return;
-    const timer = window.setTimeout(() => setJustLaunched(false), LAUNCHED_NOTICE_MS);
+    if (op?.phase !== "starting") return;
+    const timer = window.setTimeout(() => {
+      if (useLaunchStore.getState().op?.phase === "starting") endOp();
+    }, LAUNCHED_NOTICE_MS);
     return () => clearTimeout(timer);
-  }, [justLaunched]);
+  }, [op?.phase, endOp]);
 
   useEffect(() => {
     if (!selectedServer) return;
@@ -331,17 +370,20 @@ export function ServerDetails() {
    * selected by the time the promise resolves.
    */
   async function launch(addr: string, gamePort: number) {
-    setLaunching(true);
+    // Its own phase, so the button can say LAUNCHING… instead of the generic
+    // working state. It could not before: the whole operation was covered by
+    // one spinner, so `launching` was set and cleared behind a box that never
+    // rendered it — the launch step was indistinguishable from verifying.
+    setPhase("launching");
     try {
       const outcome = await launchGame(addr, gamePort, launchOptions());
       setLaunchResult({ addr, message: outcome.message });
-      setJustLaunched(true);
+      // Handed to `starting`, which ends when DayZ shows up as a process.
+      setPhase("starting");
     } catch (e) {
       // `launch_game` runs its own gate off a live re-query, so this also
       // catches a server that changed its mod list while the download ran.
       setLaunchResult({ addr, error: String(e) });
-    } finally {
-      setLaunching(false);
     }
   }
 
@@ -390,16 +432,13 @@ export function ServerDetails() {
     const queryPort = selectedServer.query_port;
     const gamePort = selectedServer.game_port;
 
-    const cancel = { cancelled: false };
-    fixCancel.current = cancel;
-    setBusy("fixing");
+    const cancel = beginOp(addr, selectedServer.name || addr);
     // Stop the launcher probing servers while it waits on its own downloads.
     setDownloadsActive(true);
     setNotice(null);
-    setLaunchResult(null);
 
     try {
-      setFixNote("VERIFYING…");
+      setPhase("verifying", "VERIFYING…");
       const verified = await verifyServerMods(addr, queryPort);
       if (cancel.cancelled) return;
 
@@ -423,7 +462,7 @@ export function ServerDetails() {
         return;
       }
 
-      setFixNote("CHECKING STEAM…");
+      setPhase("verifying", "CHECKING STEAM…");
       const initial = await steamModStates(ids);
       if (cancel.cancelled) return;
 
@@ -431,7 +470,7 @@ export function ServerDetails() {
         .filter((s) => s.state === "not_subscribed")
         .map((s) => s.workshop_id);
       if (missing.length > 0) {
-        setFixNote(`SUBSCRIBING ${missing.length}…`);
+        setPhase("subscribing", `SUBSCRIBING ${missing.length}…`);
         const outcome = await steamSubscribeMods(missing);
         if (cancel.cancelled) return;
         if (outcome.failures.length > 0) {
@@ -486,7 +525,8 @@ export function ServerDetails() {
         // Kept short: this renders inside the button, in bold uppercase with
         // wide tracking, and anything longer is truncated to an ellipsis that
         // says less than a single word would have.
-        setFixNote(
+        setPhase(
+          "downloading",
           notReady.length === 0
             ? "STARTING UPDATE…"
             : totalBytes > 0
@@ -506,14 +546,28 @@ export function ServerDetails() {
         await new Promise((r) => setTimeout(r, MOD_STATE_POLL_MS));
       }
 
-      setFixNote(null);
+      setNote(null);
 
-      // Only meaningful when something actually had to be fixed. Stopping to
-      // ask after a verification that changed nothing would put a second click
-      // in front of every ordinary join.
-      const fixedSomething = missing.length > 0 || verified.refreshed.length > 0;
-      if (fixedSomething && !autoJoinAfterDownload) {
-        setNotice({ kind: "plain", text: "All mods ready — press VERIFY & JOIN when you are." });
+      // Whether this press turned out to involve a download the button could
+      // not have predicted — either mods that had to be subscribed, or a stale
+      // one the Workshop check caught that Steam had not noticed.
+      const downloaded = missing.length > 0 || verified.refreshed.length > 0;
+
+      // The one case where a press does not end in DayZ starting.
+      //
+      // `autoJoinAfterDownload` governs exactly this: being dropped into the
+      // game on the far side of a wait. When the button said SUBSCRIBE or
+      // FINISH DOWNLOADS the label already carried that; here it said JOIN,
+      // because nothing visible needed doing, and the check then found
+      // something. Stopping is what the setting is for, and the message names
+      // what happened so pressing again is obviously the next move — the label
+      // stays JOIN throughout, and the second press has nothing left to
+      // download, so it joins.
+      if (downloaded && !autoJoinAfterDownload) {
+        setNotice({
+          kind: "plain",
+          text: "Mods updated — press JOIN to go in.",
+        });
         return;
       }
 
@@ -521,10 +575,11 @@ export function ServerDetails() {
     } catch (e) {
       setNotice({ kind: "plain", text: String(e) });
     } finally {
-      setFixNote(null);
-      setBusy(null);
+      // A launch that got as far as spawning hands the operation to `starting`,
+      // which ends when DayZ appears. Ending it here would erase that in the
+      // same tick.
+      if (useLaunchStore.getState().op?.phase !== "starting") endOp();
       setDownloadsActive(false);
-      fixCancel.current = null;
     }
   }
 
@@ -538,7 +593,7 @@ export function ServerDetails() {
       });
     if (ids.length === 0) return;
 
-    setBusy("unsubscribe");
+    setUnsubscribing(true);
     setConfirmUnsub(false);
     setNotice(null);
     try {
@@ -547,7 +602,7 @@ export function ServerDetails() {
     } catch (e) {
       setNotice({ kind: "plain", text: String(e) });
     } finally {
-      setBusy(null);
+      setUnsubscribing(false);
     }
   }
 
@@ -598,30 +653,11 @@ export function ServerDetails() {
   ).length;
 
   /**
-   * What the button says and does next.
-   *
-   * `autoJoinAfterDownload` belongs here rather than only in the handler: with
-   * it off the click subscribes and downloads but deliberately stops short of
-   * launching, and a button that promised "& JOIN" and then did not was the
-   * setting appearing to have no effect.
+   * What the button says and does next. The rule itself lives in
+   * {@link joinAction} — one pure function, so the label and the behaviour are
+   * read from the same place instead of being derived twice.
    */
-  const action = (() => {
-    if (missingCount > 0) {
-      return {
-        label: autoJoinAfterDownload ? "SUBSCRIBE & JOIN" : "SUBSCRIBE & DOWNLOAD",
-        icon: "download" as const,
-      };
-    }
-    if (arrivingCount > 0) {
-      return {
-        label: autoJoinAfterDownload ? "DOWNLOAD & JOIN" : "FINISH DOWNLOADS",
-        icon: "download" as const,
-      };
-    }
-    // Nothing outstanding, so nothing to wait for and `autoJoinAfterDownload`
-    // does not apply — it governs what happens *after* a download.
-    return { label: "VERIFY & JOIN", icon: "play" as const };
-  })();
+  const action = joinAction({ missingCount, arrivingCount, autoJoinAfterDownload });
 
   // Aggregate transfer, summed across everything Steam is currently moving.
   // `total` is only whatever Steam has told us so far — see the note next to
@@ -838,10 +874,18 @@ export function ServerDetails() {
       <div className="shrink-0 border-t border-[#1e293b] p-3">
         {notice && <NoticeLine notice={notice} />}
 
-        {/* When mods are missing the button becomes the fix-and-join action
-            rather than a dead end — greying it out told the user what was wrong
-            but gave them nothing to press. */}
-        {busy === "fixing" ? (
+        {/* Precedence, and the reason for it:
+            1. A running operation, *whoever it belongs to*. It is the most
+               specific thing happening and the only one with a deadline.
+            2. A live DayZ session, which makes every join impossible until it
+               ends — one game, one process.
+            3. The ordinary action.
+
+            The first case used to be conditional on the operation being this
+            server's, because it could not be anything else: switching servers
+            cancelled it. Now it survives, so the panel has to be able to render
+            somebody else's work. */}
+        {op ? (
           <div className="flex gap-2">
             {/* `min-w-0` is load-bearing: a flex item's min-width defaults to
                 its content's, so without it this box refuses to shrink below
@@ -850,59 +894,68 @@ export function ServerDetails() {
                 being asked to shrink. */}
             <div className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded bg-[#16202e] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#38bdf8] ring-1 ring-[#38bdf8]/30">
               <Loader2 className="size-3.5 shrink-0 animate-spin" />
-              <span className="truncate">{fixNote ?? "Working…"}</span>
+              <span className="truncate">{phaseLabel(op)}</span>
             </div>
-            <button
-              onClick={() => {
-                if (fixCancel.current) fixCancel.current.cancelled = true;
-                setBusy(null);
-                setFixNote(null);
-                setDownloadsActive(false);
-                // Steam keeps downloading; only the wait is abandoned.
-                setNotice({ kind: "code", code: "W04" });
-              }}
-              className="shrink-0 rounded bg-[#16202e] px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#94a3b8] ring-1 ring-[#1e293b] hover:text-[#ef4444]"
-            >
-              Cancel
-            </button>
+            {/* Only while there is a wait to abandon. A spawn already handed to
+                Windows is not something Cancel can take back. */}
+            {op.phase !== "launching" && op.phase !== "starting" && (
+              <button
+                onClick={() => {
+                  cancelOp();
+                  setDownloadsActive(false);
+                  // Steam keeps downloading; only the wait is abandoned.
+                  setNotice({ kind: "code", code: "W04" });
+                }}
+                className="shrink-0 rounded bg-[#16202e] px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#94a3b8] ring-1 ring-[#1e293b] hover:text-[#ef4444]"
+              >
+                Cancel
+              </button>
+            )}
           </div>
+        ) : dayzUp ? (
+          <button
+            disabled
+            title="DayZ is running. Quit the game before joining another server."
+            className="flex w-full items-center justify-center gap-2 rounded bg-[#22c55e] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#0b0f17] disabled:cursor-not-allowed disabled:opacity-100"
+          >
+            <Check className="size-3.5" />
+            <span>PLAYING</span>
+          </button>
         ) : (
           <button
             onClick={handleVerifyAndJoin}
-            disabled={launching || justLaunched || busy !== null}
             title={
-              justLaunched
-                ? "DayZ has been started — it can take a moment to appear"
-                : joinBlocked
-                  ? `Subscribe to what's missing, wait for Steam, then join — ${summary?.text ?? ""}`
-                  : // The disclaimer that used to sit in the status bar. It
-                    // belongs on the control that says "verify": what is being
-                    // checked is the server's declared list and Steam's record
+              joinBlocked
+                ? `Subscribe to what's missing, wait for Steam, then join — ${summary?.text ?? ""}`
+                : action.joins
+                  ? // The check still happens on every press — it is just not
+                    // the button's job to say so. This is where it gets said,
+                    // including the part people assume otherwise: what is
+                    // compared is the server's declared list and Steam's record
                     // of each mod's version, not the bytes on disk.
-                    "Re-reads the server's mod list, updates any mod the Workshop has moved past, then joins. " +
-                    "Verified means Steam reports each mod installed and current — not a checksum."
+                    "Re-reads the server's mod list and updates any mod the Workshop has moved past, " +
+                    "then joins. Checked means Steam reports each mod installed and current — not a checksum."
+                  : "Auto-join after downloading is off, so this subscribes and downloads and then stops. " +
+                    "The button becomes JOIN once everything is ready."
             }
-            className={cn(
-              "flex w-full items-center justify-center gap-2 rounded px-4 py-2 text-xs font-bold uppercase tracking-wider transition-colors disabled:cursor-not-allowed",
-              // The confirmation keeps full contrast rather than the usual
-              // dimmed disabled look — it is a result to be read, not a
-              // control that happens to be unavailable.
-              justLaunched
-                ? "bg-[#22c55e] text-[#0b0f17] disabled:opacity-100"
-                : "bg-[#38bdf8] text-[#0b0f17] hover:bg-[#7dd3fc] disabled:opacity-50",
-            )}
+            className="flex w-full items-center justify-center gap-2 rounded bg-[#38bdf8] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#0b0f17] transition-colors hover:bg-[#7dd3fc] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {justLaunched ? (
-              <Check className="size-3.5" />
-            ) : action.icon === "download" ? (
+            {action.icon === "download" ? (
               <Download className="size-3.5" />
             ) : (
               <Play className="size-3.5" />
             )}
-            <span>
-              {launching ? "LAUNCHING..." : justLaunched ? "DAYZ IS STARTING" : action.label}
-            </span>
+            <span>{action.label}</span>
           </button>
+        )}
+
+        {/* Whose work the box above is showing. Only when it is not this
+            server's — saying "for this server" on the server you are looking at
+            is noise. */}
+        {otherOp && (
+          <p className="mt-2 truncate text-center text-[10px] text-[#38bdf8]">
+            for {otherOp.serverName}
+          </p>
         )}
 
         {/* Secondary, and below the primary action rather than beside it.
@@ -912,12 +965,12 @@ export function ServerDetails() {
         {modStates.size > 0 && subscribedCount > 0 && !confirmUnsub && (
           <button
             onClick={() => setConfirmUnsub(true)}
-            disabled={busy !== null}
+            disabled={unsubscribing || op !== null}
             title="Unsubscribe from every mod this server uses"
             className="mt-2 flex w-full items-center justify-center gap-1 rounded px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#64748b] transition-colors hover:text-[#ef4444] disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Trash2 className="size-3" />
-            {busy === "unsubscribe" ? "Removing…" : `Unsubscribe from ${subscribedCount} mods`}
+            {unsubscribing ? "Removing…" : `Unsubscribe from ${subscribedCount} mods`}
           </button>
         )}
 
@@ -955,8 +1008,19 @@ export function ServerDetails() {
         {result?.message && (
           <p className="mt-2 text-center text-[10px] text-[#22c55e]">{result.message}</p>
         )}
+        {/* A refused launch used to be 10px centred red text, quieter than the
+            coded warnings above the button and easy to miss entirely — the
+            button simply appeared to bounce back. `launch_game` names exactly
+            why it refused (DayZ path, Steam, an unreachable server, a mod it
+            will not accept), and that sentence is the whole diagnosis, so it
+            gets a block of its own and the full text rather than a whisper. */}
         {result?.error && (
-          <p className="mt-2 text-center text-[10px] text-[#ef4444]">{result.error}</p>
+          <div className="mt-2 rounded-md bg-[#ef4444]/10 px-3 py-2 ring-1 ring-[#ef4444]/30">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#ef4444]">
+              Launch refused
+            </p>
+            <p className="mt-1 text-[10px] leading-relaxed text-[#f1f5f9]">{result.error}</p>
+          </div>
         )}
         {!result && (
           <p

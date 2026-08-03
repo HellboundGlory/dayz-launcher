@@ -8,8 +8,10 @@ use tetra_registry::Registry;
 use window_vibrancy::apply_acrylic;
 
 mod commands;
+mod paths;
 mod protocol;
 mod state;
+mod window_state;
 
 /// Added to the command line registered with the OS startup entry.
 ///
@@ -89,29 +91,6 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
-        // Remembers each window's size, position and maximised state across
-        // runs. Restoration happens after window creation, which is why the
-        // window is configured `"visible": false` — the geometry is applied
-        // before anything is painted, so it never flashes at the default size
-        // first.
-        //
-        // `VISIBLE` is deliberately *not* among the restored flags. The plugin
-        // would otherwise show the window itself, during its own restore, which
-        // runs before `setup` — so a start-minimised launch painted the window
-        // and only then hid it, a visible flash on every boot. Visibility is
-        // now decided in exactly one place, at the end of `setup`.
-        //
-        // It also means quitting while hidden in the tray no longer starts the
-        // next session hidden, which was the same flag working as designed and
-        // still not what anyone wants.
-        .plugin(
-            tauri_plugin_window_state::Builder::default()
-                .with_state_flags(
-                    tauri_plugin_window_state::StateFlags::all()
-                        & !tauri_plugin_window_state::StateFlags::VISIBLE,
-                )
-                .build(),
-        )
         .plugin(tauri_plugin_updater::Builder::new().build())
         // The registered startup command carries `--autostart`, which is the
         // only way to tell "Windows started me" from "the user double-clicked
@@ -157,6 +136,12 @@ pub fn run() {
             // taskbar; `reveal_main_window` undoes both halves, which is why it
             // calls `unminimize` as well as `show`.
             tauri::WindowEvent::Resized(_) => {
+                // Cheap enough to run on every event of a drag — it reads the
+                // window and takes a mutex, and never touches the disk. The
+                // one write happens at exit. `remember` is also what filters
+                // out the 0×0 a minimise reports.
+                window_state::remember(window);
+
                 let app = window.app_handle();
                 let to_tray = app
                     .try_state::<state::AppState>()
@@ -166,6 +151,7 @@ pub fn run() {
                     let _ = window.hide();
                 }
             }
+            tauri::WindowEvent::Moved(_) => window_state::remember(window),
             _ => {}
         })
         .manage(state::AppState::new())
@@ -190,29 +176,47 @@ pub fn run() {
             commands::launch::register_protocol_handler,
             commands::launch::discover_steam_paths,
             commands::launch::open_steam,
+            commands::launch::dayz_running,
             commands::settings::get_settings,
             commands::settings::save_settings,
             commands::settings::set_ui_scale,
+            commands::settings::open_data_folder,
+            commands::settings::data_folder_path,
             commands::update::is_installed_copy,
         ])
         .setup(|app| {
             let state = app.state::<state::AppState>();
 
-            // Resolve the registry to the app data directory, not to a bare
-            // relative "tetra.db". A relative path is interpreted against the
-            // process working directory, so the launcher silently used a
-            // different database depending on how it was started — one under
+            // Resolve the registry to the data root, never to a bare relative
+            // "tetra.db". A relative path is interpreted against the process
+            // working directory, so the launcher silently used a different
+            // database depending on how it was started — one under
             // target/debug when the exe was double-clicked, another in the repo
             // root under `tauri dev`. Favourites and discovered servers
             // appeared to vanish purely because of where the shortcut pointed.
-            let db_path = app
-                .path()
-                .app_data_dir()
-                .map(|dir| {
-                    let _ = std::fs::create_dir_all(&dir);
-                    dir.join("tetra.db")
-                })
-                .unwrap_or_else(|_| std::path::PathBuf::from("tetra.db"));
+            //
+            // `paths::data_root` is the single answer for this process: the exe
+            // directory for a copy carrying the portable marker, local app data
+            // otherwise. See that module for why the choice is never inferred
+            // from the exe's location.
+            let data_root = paths::data_root(app.handle());
+            let _ = std::fs::create_dir_all(&data_root);
+
+            // Before anything opens a file in there. A migration that ran after
+            // `Registry::open` would be moving a database out from under a live
+            // connection, and `load_at_startup` below would read the settings
+            // file from the new location before it had arrived.
+            let migration = paths::migrate_from_legacy(app.handle(), &data_root);
+            if !migration.is_empty() {
+                eprintln!(
+                    "[setup] Moved {:?} into {} (kept the newer copy of {:?})",
+                    migration.moved,
+                    data_root.display(),
+                    migration.skipped
+                );
+            }
+
+            let db_path = data_root.join("tetra.db");
 
             // A failure here is not fatal — the launcher still browses and
             // launches — but it is *silent* data loss: an in-memory registry
@@ -282,11 +286,32 @@ pub fn run() {
                 eprintln!("[setup] Acrylic unavailable, using an opaque window: {e}");
             }
 
-            // The window is created hidden so the window-state plugin can apply
-            // saved geometry before it is painted, and the plugin is configured
-            // not to restore visibility — so this is the *only* place the
-            // window is ever revealed, on every run rather than just a first
-            // one.
+            // Put the window back where it was last left, before it is shown.
+            // The window is created `"visible": false` precisely so this can
+            // happen against a window nobody has seen yet — applying a size to
+            // a visible window is a flash at the default size followed by a
+            // jump. This used to be `tauri-plugin-window-state`, which restored
+            // before `setup` ran; it was dropped because it insisted on writing
+            // its own file outside the data root. See `crate::window_state`.
+            //
+            // Seeding the cache here, not only at the `remember` further down,
+            // is what makes a maximised window survive: `capture` deliberately
+            // leaves size and position alone while maximised, so it needs the
+            // pre-maximise geometry already in hand or it would record the
+            // screen's dimensions as the size to un-maximise to.
+            //
+            // Maximising itself is deferred — see `restore_maximized`.
+            if let Some(geometry) = saved.window {
+                if let Ok(mut guard) = state.window_state.lock() {
+                    *guard = Some(geometry);
+                }
+                window_state::restore(&window.as_ref().window(), geometry);
+            }
+
+            // Visibility is decided in exactly one place, at the end of `setup`,
+            // and never restored from disk. Reviving a saved "hidden" would mean
+            // that quitting from the tray started the next session invisible —
+            // the flag working as designed and still not what anyone wants.
             //
             // Start-minimised works by *withholding* this call rather than by
             // minimising afterwards. Minimising would mean painting the window
@@ -306,6 +331,24 @@ pub fn run() {
             // Startup only — see the function's own note on why this is not
             // part of `apply_ui_scale`.
             commands::settings::fit_window_to_minimum(app.handle(), saved.scale());
+
+            // After `apply_ui_scale`, whose `set_min_size` would otherwise undo
+            // it. See `window_state::restore`.
+            if saved.window.is_some_and(|geometry| geometry.maximized) {
+                window_state::restore_maximized(&window.as_ref().window());
+            }
+
+            // Seed the geometry cache from the window as it now stands, after
+            // every startup adjustment above has been applied.
+            //
+            // **Not from `saved.window`, and not conditional on it.** tao emits
+            // no `Moved` or `Resized` for a window that is merely created and
+            // shown, so a session where nobody drags the window would leave the
+            // cache empty and the exit write with nothing to save — the window
+            // position would never be remembered until the first time it was
+            // moved. Reading the live window instead also picks up whatever
+            // `fit_window_to_minimum` just did.
+            window_state::remember(&window.as_ref().window());
 
             // A `dzsa://` link on this process's own command line — the case
             // where the launcher was not already running, so single-instance
@@ -364,6 +407,12 @@ pub fn run() {
         // can skip telling Steam the session is over.
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
+                // Both of these need the one event that fires however the
+                // process is ending, so neither the tray's Quit nor an updater
+                // restart can skip them. The geometry is written from the cache
+                // rather than read off the window here — by this point the
+                // window may be hidden or already gone.
+                commands::settings::persist_window_state(app);
                 shutdown_steam(app);
             }
         });

@@ -45,6 +45,14 @@ pub struct AppState {
     /// `close_to_tray`: `launch_game` runs in Rust and has no way to ask the
     /// frontend store what the user chose.
     pub on_join: Mutex<crate::commands::settings::OnJoin>,
+    /// The window's size, position and maximised state, kept current by the
+    /// move and resize handlers and written to `settings.json` once, at exit.
+    ///
+    /// In memory rather than straight to disk because those events fire
+    /// continuously through a drag. Cached rather than read off the window at
+    /// exit because quitting from the tray quits while the window is hidden —
+    /// see `crate::window_state`.
+    pub window_state: Mutex<Option<crate::window_state::WindowState>>,
 }
 
 impl AppState {
@@ -65,6 +73,9 @@ impl AppState {
             // however the settings file happens to be configured.
             applied_ui_scale: Mutex::new(f64::NAN),
             on_join: Mutex::new(crate::commands::settings::OnJoin::Stay),
+            // Seeded from the settings file in `setup`, so a session that
+            // never moves the window still writes back what it restored.
+            window_state: Mutex::new(None),
         }
     }
 }

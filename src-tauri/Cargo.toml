@@ -26,7 +26,11 @@ tauri-plugin-process = "2"
 # reconciles at startup — so no JS counterpart and no capability entry: the
 # permissions only gate the frontend API, which nothing calls.
 tauri-plugin-autostart = "2"
-tauri-plugin-window-state = "2"
+# `tauri-plugin-window-state` was here. It writes `.window-state.json` to a
+# directory it resolves itself — only the filename is configurable — which put
+# one file outside the data root that `src/paths.rs` chooses. Window geometry
+# now lives in `settings.json`; see `src/window_state.rs`.
+#
 # Keeps a second launch from starting a second launcher. Registered before every
 # other plugin so the duplicate process dies before it can touch the registry,
 # the settings file or Steam.
