@@ -6,3 +6,5 @@
 # they're working on. Without merge=union, every parallel session produces a
 # merge conflict in a file whose contents are order-independent anyway.
 
+
+# The devtools pin is a plain tag; a CRLF here would break the CI clone.
