@@ -35,6 +35,13 @@ whole install) and runs two checks. The second one — `generate --check` — is
 only place in this repository where documentation drift blocks a build, and it
 earns that because the fix is always one command.
 
+**That clone is pinned to a RepoOS tag** — `REPOOS_VERSION` in `check.yml`,
+currently `v1.3.0`. Upgrading is a deliberate two-part change: bump the tag,
+run `repoos generate .`, and commit both together. They belong in one commit
+because `generate --check` compares `CLAUDE.md` against whatever the *fetched*
+CLI produces, so a newer CLI plus an unregenerated `CLAUDE.md` fails the build
+— splitting them across two commits leaves `main` red in between.
+
 `release.yml` does not run on ordinary commits. Pushing the tag is the only
 thing that publishes — which is why that push is gated (see
 [`release`](../workflows/release.md)).
