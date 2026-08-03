@@ -8,3 +8,8 @@
 
 
 # The devtools pin is a plain tag; a CRLF here would break the CI clone.
+
+# NOTES.md is generated, and `generate --check` compares it byte for byte.
+# With core.autocrlf on, a fresh clone would get CRLF while the generator keeps
+# writing LF — so the check fails locally, passes in CI, and the diff is the
+# whole file with nothing in it that mentions line endings.
