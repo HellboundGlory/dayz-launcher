@@ -127,8 +127,6 @@ pub struct FilterParams {
     // Defaulted so a frontend that predates these still deserialises — and so
     // the omission means "show everything", never "hide silently".
     #[serde(default)]
-    pub hide_unnamed: bool,
-    #[serde(default)]
     pub hide_placeholder: bool,
     #[serde(default)]
     pub english_names: Option<bool>,
@@ -527,6 +525,10 @@ pub async fn refresh_visible_servers(
     state: State<'_, AppState>,
     window: tauri::Window,
     addrs: Vec<AddrPort>,
+    // `scope` is echoed back on `refresh-complete` so the frontend can tell
+    // whose refresh finished. Without it, a single-row refresh cleared the
+    // spinner of a full refresh still running — both emit the same event.
+    scope: Option<String>,
 ) -> Result<(), String> {
     // Unparseable entries are skipped, not fatal. Collecting into a `Result`
     // meant one malformed address failed the whole click — the user pressed
@@ -598,7 +600,12 @@ pub async fn refresh_visible_servers(
 
     let _ = window.emit(
         "refresh-complete",
-        serde_json::json!({ "ok": info.refreshed, "failed": info.failed, "mods_updated": mods_updated }),
+        serde_json::json!({
+            "ok": info.refreshed,
+            "failed": info.failed,
+            "mods_updated": mods_updated,
+            "scope": scope,
+        }),
     );
     Ok(())
 }
@@ -720,7 +727,11 @@ fn filter_from_params(p: FilterParams) -> ServerFilter {
         official: p.official,
         modded: p.modded,
         first_person: p.first_person,
-        hide_unnamed: p.hide_unnamed,
+        // Not a setting, and deliberately not one. A row Steam lists but that
+        // has never answered a probe has no name, no player count and no map —
+        // there is nothing a player could choose it by, so showing it was only
+        // ever noise. Roughly 3,000 rows of a 10,500-row registry.
+        hide_unnamed: true,
         hide_placeholder: p.hide_placeholder,
         english_names: p.english_names,
     }

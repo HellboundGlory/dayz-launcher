@@ -308,10 +308,15 @@ export function App() {
 
     // Completion is the one event that reloads immediately rather than on the
     // throttle, so the final state is never left a beat behind.
-    const unlistenComplete = listen<{ ok: number; failed: number }>(
+    const unlistenComplete = listen<{ ok: number; failed: number; scope?: string }>(
       "refresh-complete",
-      () => {
+      (event) => {
+        // Always reload — a row refresh has new data for the table too.
         triggerReload();
+        // But only a full pass owns the spinner and the timestamp. A row
+        // refresh finishing mid-pass would otherwise report the whole refresh
+        // as done and stamp a time nothing had reached.
+        if (event.payload?.scope === "row") return;
         setRefreshing(false);
         setRefreshedAt(new Date().toLocaleTimeString());
       },
@@ -352,7 +357,7 @@ export function App() {
     setRefreshing(true);
     setError(null);
     try {
-      await refreshVisibleServers(targets);
+      await refreshVisibleServers(targets, "visible");
       triggerReload();
       setRefreshedAt(new Date().toLocaleTimeString());
     } catch (e) {

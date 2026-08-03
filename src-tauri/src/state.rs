@@ -32,6 +32,13 @@ pub struct AppState {
     /// for the same reason, and read from the resize handler — which fires
     /// often enough that an atomic load matters.
     pub minimise_to_tray: AtomicBool,
+    /// The zoom factor currently applied to the webview.
+    ///
+    /// Exists so `apply_ui_scale` can tell a real change from the many
+    /// no-op calls it gets: `save_settings` runs it on every write, and the
+    /// frontend saves after *any* setting changes. Re-applying was not free —
+    /// `set_min_size` knocks a maximised window out of maximised.
+    pub applied_ui_scale: Mutex<f64>,
     /// What the launcher does with itself once DayZ is starting.
     ///
     /// Mirrored from `AppSettings::on_join` for the same reason as
@@ -54,6 +61,9 @@ impl AppState {
             // exist yet.
             close_to_tray: AtomicBool::new(false),
             minimise_to_tray: AtomicBool::new(false),
+            // Not any valid scale, so the first application always goes through
+            // however the settings file happens to be configured.
+            applied_ui_scale: Mutex::new(f64::NAN),
             on_join: Mutex::new(crate::commands::settings::OnJoin::Stay),
         }
     }

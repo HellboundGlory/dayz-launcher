@@ -528,28 +528,6 @@ export function ServerDetails() {
     }
   }
 
-  async function handleSubscribeAll() {
-    if (!modList) return;
-    // Only the ones that need it; re-subscribing to a ready mod is wasted work.
-    const ids = modList
-      .map((m) => m.workshop_id)
-      .filter((id) => modStates.get(id) === "not_subscribed");
-    if (ids.length === 0) return;
-
-    setBusy("subscribe");
-    setNotice(null);
-    try {
-      const outcome = await steamSubscribeMods(ids);
-      setNotice({ kind: "plain", text: describeOutcome("Subscribed to", outcome) });
-      // The polling effect picks up the new state; Steam lags the callback, so
-      // reading it here would often return the pre-mutation value anyway.
-    } catch (e) {
-      setNotice({ kind: "plain", text: String(e) });
-    } finally {
-      setBusy(null);
-    }
-  }
-
   async function handleUnsubscribeAll() {
     if (!modList) return;
     const ids = modList
@@ -605,6 +583,45 @@ export function ServerDetails() {
     (s) => isActionable(s) && s !== "ready",
   ).length;
   const joinBlocked = modStates.size > 0 && blockedCount > 0;
+  /**
+   * Mods that are on their way in — subscribed already, just not usable yet.
+   *
+   * Split out from `missingCount` because the button used to be driven by
+   * `joinBlocked` alone, which is one boolean covering both. Subscribing turned
+   * every mod from `not_subscribed` into `downloading`, `joinBlocked` stayed
+   * true throughout, and the button went on reading "SUBSCRIBE AND JOIN" while
+   * Steam downloaded — describing work that was already done. Two counts, so
+   * the label can say which half of the job is left.
+   */
+  const arrivingCount = [...modStates.values()].filter(
+    (s) => s === "downloading" || s === "needs_update" || s === "not_installed",
+  ).length;
+
+  /**
+   * What the button says and does next.
+   *
+   * `autoJoinAfterDownload` belongs here rather than only in the handler: with
+   * it off the click subscribes and downloads but deliberately stops short of
+   * launching, and a button that promised "& JOIN" and then did not was the
+   * setting appearing to have no effect.
+   */
+  const action = (() => {
+    if (missingCount > 0) {
+      return {
+        label: autoJoinAfterDownload ? "SUBSCRIBE & JOIN" : "SUBSCRIBE & DOWNLOAD",
+        icon: "download" as const,
+      };
+    }
+    if (arrivingCount > 0) {
+      return {
+        label: autoJoinAfterDownload ? "DOWNLOAD & JOIN" : "FINISH DOWNLOADS",
+        icon: "download" as const,
+      };
+    }
+    // Nothing outstanding, so nothing to wait for and `autoJoinAfterDownload`
+    // does not apply — it governs what happens *after* a download.
+    return { label: "VERIFY & JOIN", icon: "play" as const };
+  })();
 
   // Aggregate transfer, summed across everything Steam is currently moving.
   // `total` is only whatever Steam has told us so far — see the note next to
@@ -819,71 +836,6 @@ export function ServerDetails() {
 
       {/* ── Actions (pinned) ── */}
       <div className="shrink-0 border-t border-[#1e293b] p-3">
-        {/* Workshop actions. Hidden entirely for vanilla servers and while
-            Steam state is unknown, where they'd be no-ops. */}
-        {modStates.size > 0 && (
-          <div className="mb-2 flex gap-2">
-            <button
-              onClick={handleSubscribeAll}
-              disabled={busy !== null || missingCount === 0}
-              title={
-                missingCount === 0
-                  ? "Every mod this server uses is already subscribed"
-                  : `Subscribe to ${missingCount} missing mod${missingCount === 1 ? "" : "s"} and start downloading`
-              }
-              className="flex flex-1 items-center justify-center gap-1 rounded bg-[#16202e] px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#94a3b8] ring-1 ring-[#1e293b] transition-colors hover:text-[#f1f5f9] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Download className="size-3" />
-              {busy === "subscribe"
-                ? "Subscribing…"
-                : missingCount > 0
-                  ? `Subscribe ${missingCount}`
-                  : "Subscribe all"}
-            </button>
-
-            <button
-              onClick={() => setConfirmUnsub(true)}
-              disabled={busy !== null || subscribedCount === 0}
-              title="Unsubscribe from every mod this server uses"
-              className="flex items-center justify-center gap-1 rounded bg-[#16202e] px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#64748b] ring-1 ring-[#1e293b] transition-colors hover:text-[#ef4444] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Trash2 className="size-3" />
-              {busy === "unsubscribe" ? "Removing…" : "Unsubscribe"}
-            </button>
-          </div>
-        )}
-
-        {confirmUnsub && (
-          <div className="mb-2 rounded border border-[#ef4444]/40 bg-[#ef4444]/5 p-2">
-            <p className="text-[11px] font-semibold text-[#f1f5f9]">
-              Unsubscribe from {subscribedCount} mod{subscribedCount === 1 ? "" : "s"}?
-            </p>
-            {/* The blast radius is wider than this server: Workshop mods are
-                shared, so removing DayZ-Expansion here breaks every other
-                server that uses it. Saying "93 mods" alone would understate
-                it. */}
-            <p className="mt-1 text-[10px] leading-relaxed text-[#94a3b8]">
-              Steam will delete them from disk. Other servers that use any of these
-              mods will have to download them again — this is not limited to{" "}
-              {selectedServer.name}.
-            </p>
-            <div className="mt-2 flex gap-2">
-              <button
-                onClick={handleUnsubscribeAll}
-                className="flex-1 rounded bg-[#ef4444] px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#0b0f17] hover:bg-[#f87171]"
-              >
-                Unsubscribe
-              </button>
-              <button
-                onClick={() => setConfirmUnsub(false)}
-                className="flex-1 rounded bg-[#16202e] px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#94a3b8] ring-1 ring-[#1e293b] hover:text-[#f1f5f9]"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
         {notice && <NoticeLine notice={notice} />}
 
         {/* When mods are missing the button becomes the fix-and-join action
@@ -942,21 +894,62 @@ export function ServerDetails() {
           >
             {justLaunched ? (
               <Check className="size-3.5" />
-            ) : joinBlocked ? (
+            ) : action.icon === "download" ? (
               <Download className="size-3.5" />
             ) : (
               <Play className="size-3.5" />
             )}
             <span>
-              {launching
-                ? "LAUNCHING..."
-                : justLaunched
-                  ? "DAYZ IS STARTING"
-                  : joinBlocked
-                    ? "SUBSCRIBE & JOIN"
-                    : "VERIFY & JOIN"}
+              {launching ? "LAUNCHING..." : justLaunched ? "DAYZ IS STARTING" : action.label}
             </span>
           </button>
+        )}
+
+        {/* Secondary, and below the primary action rather than beside it.
+            Unsubscribing is destructive, shared across every server that uses
+            the same mods, and something you do once in a while — it has no
+            business sitting next to the button you press every session. */}
+        {modStates.size > 0 && subscribedCount > 0 && !confirmUnsub && (
+          <button
+            onClick={() => setConfirmUnsub(true)}
+            disabled={busy !== null}
+            title="Unsubscribe from every mod this server uses"
+            className="mt-2 flex w-full items-center justify-center gap-1 rounded px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#64748b] transition-colors hover:text-[#ef4444] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Trash2 className="size-3" />
+            {busy === "unsubscribe" ? "Removing…" : `Unsubscribe from ${subscribedCount} mods`}
+          </button>
+        )}
+
+        {confirmUnsub && (
+          <div className="mt-2 rounded border border-[#ef4444]/40 bg-[#ef4444]/5 p-2">
+            <p className="text-[11px] font-semibold text-[#f1f5f9]">
+              Unsubscribe from {subscribedCount} mod{subscribedCount === 1 ? "" : "s"}?
+            </p>
+            {/* The blast radius is wider than this server: Workshop mods are
+                shared, so removing DayZ-Expansion here breaks every other
+                server that uses it. Saying "93 mods" alone would understate
+                it. */}
+            <p className="mt-1 text-[10px] leading-relaxed text-[#94a3b8]">
+              Steam will delete them from disk. Other servers that use any of these
+              mods will have to download them again — this is not limited to{" "}
+              {selectedServer.name}.
+            </p>
+            <div className="mt-2 flex gap-2">
+              <button
+                onClick={handleUnsubscribeAll}
+                className="flex-1 rounded bg-[#ef4444] px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#0b0f17] hover:bg-[#f87171]"
+              >
+                Unsubscribe
+              </button>
+              <button
+                onClick={() => setConfirmUnsub(false)}
+                className="flex-1 rounded bg-[#16202e] px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#94a3b8] ring-1 ring-[#1e293b] hover:text-[#f1f5f9]"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         )}
 
         {result?.message && (

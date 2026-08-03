@@ -16,7 +16,6 @@ export interface FilterParams {
   official: boolean | null;
   modded: boolean | null;
   first_person: boolean | null;
-  hide_unnamed: boolean;
   hide_placeholder: boolean;
   english_names: boolean | null;
 }
@@ -71,13 +70,23 @@ export interface AddrPort {
   query_port: number;
 }
 
+/** Who asked for a refresh, echoed back on `refresh-complete`. */
+export type RefreshScope = "visible" | "row";
+
 /**
  * A2S-refresh exactly the given servers, rather than a broad backend-picked
  * window — pass whatever is actually on screen. A miss here is written back
  * as `online: false`, unlike {@link refreshServers}.
+ *
+ * `scope` matters because a single-row refresh and a full one raise the same
+ * completion event: without it, refreshing one row mid-refresh cleared the
+ * main spinner and stamped a "refreshed at" the full pass had not reached.
  */
-export async function refreshVisibleServers(addrs: AddrPort[]): Promise<void> {
-  return invoke<void>("refresh_visible_servers", { addrs });
+export async function refreshVisibleServers(
+  addrs: AddrPort[],
+  scope: RefreshScope = "visible",
+): Promise<void> {
+  return invoke<void>("refresh_visible_servers", { addrs, scope });
 }
 
 export interface ModsPendingEntry {
@@ -271,8 +280,6 @@ export interface AppSettingsDto {
   /** Seconds between automatic refreshes of the visible rows. `0` is off. */
   autoRefreshIntervalSecs: number;
   autoJoinAfterDownload: boolean;
-  /** Hide servers that have never answered a probe and so have no name. */
-  hideUnnamedServers: boolean;
   /** Hide hosting-company defaults like "nitrado.net gameserver". */
   hidePlaceholderServers: boolean;
   /** ENGLISH ONLY, remembered across restarts. `null` does not filter. */

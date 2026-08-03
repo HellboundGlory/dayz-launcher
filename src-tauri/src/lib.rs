@@ -303,6 +303,9 @@ pub fn run() {
             // the same class of flash the hidden-window dance above exists to
             // avoid.
             commands::settings::apply_ui_scale(app.handle(), saved.scale());
+            // Startup only — see the function's own note on why this is not
+            // part of `apply_ui_scale`.
+            commands::settings::fit_window_to_minimum(app.handle(), saved.scale());
 
             // A `dzsa://` link on this process's own command line — the case
             // where the launcher was not already running, so single-instance
