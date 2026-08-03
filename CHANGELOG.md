@@ -1,5 +1,77 @@
 # Changelog
 
+## v1.3.0 — 2026-08-03
+
+### Changed
+
+- **The launcher keeps everything in one folder now, and it moves on first
+  launch.** Your favourites, server list, settings and window position used to
+  live in `%APPDATA%\com.tetra.launcher` — a folder nobody found without being
+  told. They now live in `%LOCALAPPDATA%\com.tetra.launcher`, and the first
+  time you run this version they are moved there for you. Nothing is lost; the
+  move copies before it deletes, and if a copy fails the originals stay exactly
+  where they were.
+
+  Local rather than Roaming because the server list reaches 20 MB in ordinary
+  use, and a roaming Windows profile copies its whole contents every time you
+  sign in.
+
+- **The join button says JOIN.** When you already have every mod a server
+  needs, that is what the button now reads. It used to say VERIFY & JOIN, or
+  just VERIFY if you had auto-join turned off, which described the launcher's
+  housekeeping rather than what you were asking for. The check still runs on
+  every press — the line under the button explains it — it simply is not the
+  button's job to announce it.
+
+  The two download labels are unchanged, because those describe work you can
+  already see in the mod list.
+
+### Added
+
+- **Portable copies keep their data beside the exe.** Unzip the portable build
+  and it stores `tetra.db` and `settings.json` in its own folder, so the whole
+  thing travels on a USB stick. This is switched on by the `portable.txt` file
+  in the zip — delete that file and the copy behaves like an installed one. A
+  portable copy never touches an installed copy's data.
+
+  If the folder it is unzipped into cannot be written to, it quietly falls back
+  to per-user app data rather than failing to start.
+
+- **A Data folder row in Settings → Launcher**, showing exactly where this copy
+  keeps its files, with a button to open it.
+
+- **The button says PLAYING while DayZ is running**, and it says so on every
+  server, not just the one you launched from. The launcher asks Windows whether
+  the game is running rather than counting down from a timer, so it is also
+  right for a session you started from Steam.
+
+### Fixed
+
+- **The join button forgot what it was doing when you clicked another server.**
+  Part-way through a download, selecting a different row silently abandoned the
+  wait — Steam carried on downloading and the launcher stopped showing it. A
+  download, verification or launch now stays on screen whichever server you are
+  looking at, captioned with the server it belongs to.
+
+- **The launcher joined, or refused to join, without saying which.** Every step
+  of a join showed the same spinner, so a refused launch looked like the button
+  simply bouncing back to normal. Verifying, subscribing, downloading,
+  launching and starting are now distinct, and a refused launch shows the
+  reason in a block you cannot miss instead of one small red line.
+
+- **"Auto-join after downloading" fired at random.** With it off, a server you
+  had every mod for would still say VERIFY & JOIN — and if the check then found
+  a mod the Workshop had quietly updated, the launcher downloaded it and
+  stopped, having promised a join. It now says JOIN throughout, and in that one
+  case tells you the mods were updated and to press again.
+
+- **A window quit while maximised came back the wrong size.** Restoring the
+  maximised state ran before the interface scale was applied, and applying the
+  scale resets the minimum window size, which Windows treats as a reason to
+  un-maximise. The window came back at the right size with the maximised flag
+  lost, and the next quit recorded your screen's dimensions as the size you had
+  chosen.
+
 ## v1.2.0 — 2026-08-03
 
 ### Fixed
