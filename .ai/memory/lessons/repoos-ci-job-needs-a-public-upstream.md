@@ -1,23 +1,15 @@
 ---
 title: The repoos CI job only works while its upstream repo is public
 type: memory
-confidence: high
 source: agent:claude-opus-5/session-2026-08-03
 applies_to:
   - ".github/workflows/check.yml"
 related: [release-pipeline, rust-and-ci]
-expires: 2026-09-02
-proposes:
-  action: promote
-  target: .ai/memory/lessons/repoos-ci-job-needs-a-public-upstream.md
-  reason: >
-    A load-bearing dependency on another repository's visibility setting,
-    currently recorded nowhere, that fails with an error message pointing at
-    the wrong cause.
 summary: >
   check.yml's repoos job clones the RepoOS CLI over unauthenticated HTTPS. That
   works only because the upstream repository is public — GITHUB_TOKEN is scoped
   to this repository and cannot read a different private one.
+verified: 2026-08-03
 ---
 
 # The repoos CI job only works while its upstream repo is public
