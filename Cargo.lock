@@ -2210,6 +2210,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 
 [[package]]
+name = "ntapi"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3b335231dfd352ffb0f8017f3b6027a4917f7df785ea2143d8af2adc66980ae"
+dependencies = [
+ "winapi",
+]
+
+[[package]]
 name = "num-conv"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2439,6 +2448,16 @@ dependencies = [
  "block2 0.6.2",
  "libc",
  "objc2 0.6.4",
+ "objc2-core-foundation",
+]
+
+[[package]]
+name = "objc2-io-kit"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "33fafba39597d6dc1fb709123dfa8289d39406734be322956a69f0931c73bb15"
+dependencies = [
+ "libc",
  "objc2-core-foundation",
 ]
 
@@ -3744,6 +3763,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "sysinfo"
+version = "0.36.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "252800745060e7b9ffb7b2badbd8b31cfa4aa2e61af879d0a3bf2a317c20217d"
+dependencies = [
+ "libc",
+ "memchr",
+ "ntapi",
+ "objc2-core-foundation",
+ "objc2-io-kit",
+ "windows",
+]
+
+[[package]]
 name = "system-deps"
 version = "6.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4048,21 +4081,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tauri-plugin-window-state"
-version = "2.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73736611e14142408d15353e21e3cca2f12a3cfb523ad0ce85999b6d2ef1a704"
-dependencies = [
- "bitflags 2.13.1",
- "log",
- "serde",
- "serde_json",
- "tauri",
- "tauri-plugin",
- "thiserror 2.0.19",
-]
-
-[[package]]
 name = "tauri-runtime"
 version = "2.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4195,6 +4213,7 @@ dependencies = [
 name = "tetra-launch"
 version = "0.1.0"
 dependencies = [
+ "sysinfo",
  "thiserror 2.0.19",
  "winreg 0.52.0",
 ]
@@ -4212,7 +4231,6 @@ dependencies = [
  "tauri-plugin-shell",
  "tauri-plugin-single-instance",
  "tauri-plugin-updater",
- "tauri-plugin-window-state",
  "tetra-core",
  "tetra-launch",
  "tetra-net",

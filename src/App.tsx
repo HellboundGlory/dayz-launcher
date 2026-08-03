@@ -9,6 +9,7 @@ import { SteamRequiredModal } from "./components/steam-required-modal";
 import { useServerStore } from "./stores/server-store";
 import { useSettingsStore } from "./stores/settings-store";
 import { useUpdateStore } from "./stores/update-store";
+import { watchDayz } from "./stores/launch-store";
 import {
   steamInit,
   asSteamInitError,
@@ -152,6 +153,11 @@ export function App() {
   useEffect(() => {
     void loadSettings();
   }, [loadSettings]);
+
+  // App-level, not in the details panel: the panel unmounts when nothing is
+  // selected, and "is DayZ running" has to stay true across that. See
+  // `watchDayz`.
+  useEffect(() => watchDayz(), []);
 
   // A pending debounced write would otherwise be lost when the window closes.
   useEffect(() => {

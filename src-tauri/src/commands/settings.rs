@@ -138,6 +138,20 @@ pub struct AppSettings {
     /// the name only: script, bracketed language tags, accented letters and a
     /// word list.
     pub english_names_filter: Option<bool>,
+    /// The window's size, position and maximised state.
+    ///
+    /// Here rather than in the `.window-state.json` that
+    /// `tauri-plugin-window-state` used to write, because that plugin resolves
+    /// its own directory and only lets the filename be configured — one stray
+    /// file outside the data root, which was the entire reason the plugin was
+    /// dropped. See [`crate::window_state`].
+    ///
+    /// **The frontend does not own this field.** It is absent from the settings
+    /// payload the UI sends, which would deserialise to `None` and wipe the
+    /// geometry on every settings write; `save_settings` puts the live value
+    /// back before writing. `None` means "nothing remembered yet" — a first
+    /// run, or an upgrade whose geometry has not been adopted yet.
+    pub window: Option<crate::window_state::WindowState>,
 }
 
 impl Default for AppSettings {
@@ -184,6 +198,9 @@ impl Default for AppSettings {
             hide_placeholder_servers: true,
             // On by default too. `Some(true)`, not `None` — see the field docs.
             english_names_filter: Some(true),
+            // Nothing remembered. The window opens at the size in
+            // tauri.conf.json and the OS places it.
+            window: None,
         }
     }
 }
@@ -225,15 +242,21 @@ impl AppSettings {
     }
 }
 
-/// `<app data>/settings.json`, the same directory the registry lives in.
+/// The settings file's name, in one place because `paths::migrate` also has to
+/// know it.
+pub const FILENAME: &str = "settings.json";
+
+/// `<data root>/settings.json`, the same directory the registry lives in.
+///
+/// The root comes from [`crate::paths::data_root`] rather than straight from
+/// Tauri, which is what keeps a portable copy's settings beside its exe and an
+/// installed copy's in local app data. This and the registry open in `setup`
+/// are the only two places that decide where anything is written.
 fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Could not resolve app data directory: {e}"))?;
+    let dir = crate::paths::data_root(app);
     std::fs::create_dir_all(&dir)
         .map_err(|e| format!("Could not create {}: {e}", dir.display()))?;
-    Ok(dir.join("settings.json"))
+    Ok(dir.join(FILENAME))
 }
 
 /// Read and parse the settings file, falling back to defaults.
@@ -421,13 +444,84 @@ pub fn set_ui_scale(app: AppHandle, scale: f64) {
 /// semaphore, and since neither has a UI, the only way to change one is editing
 /// the JSON by hand — which implies a restart anyway.
 pub fn load_at_startup(app: &AppHandle) -> AppSettings {
-    match settings_path(app) {
+    let mut settings = match settings_path(app) {
         Ok(path) => read_from_disk(&path),
         Err(e) => {
             eprintln!("[settings] {e}; using defaults");
             AppSettings::default()
         }
+    };
+
+    // One-time upgrade path: geometry that `tauri-plugin-window-state` wrote
+    // into its own file, folded in and the file deleted. Guarded on `None` so
+    // it can never overwrite geometry this build has already saved — the
+    // legacy file is stale the moment `window` exists.
+    if settings.window.is_none() {
+        settings.window = crate::window_state::adopt_legacy(&crate::paths::data_root(app));
     }
+    settings
+}
+
+/// Write the window geometry captured during this session, leaving every other
+/// setting as the file has it.
+///
+/// Read-modify-write rather than a save of the in-memory struct: the frontend
+/// owns everything else in that file and may have written since startup, so
+/// serialising a stale copy over the top would undo whatever it changed.
+///
+/// Called from `RunEvent::Exit`, which is the one event that fires however the
+/// launcher is quitting — the window's close button, the tray's Quit, or the
+/// updater restarting us. Synchronous by necessity: the process is going away
+/// and there is nothing left to keep responsive.
+pub fn persist_window_state(app: &AppHandle) {
+    let Some(state) = crate::window_state::cached(app) else {
+        return;
+    };
+    let Ok(path) = settings_path(app) else {
+        return;
+    };
+
+    let mut settings = read_from_disk(&path);
+    if settings.window == Some(state) {
+        return;
+    }
+    settings.window = Some(state);
+
+    let Ok(json) = serde_json::to_string_pretty(&settings) else {
+        return;
+    };
+    let tmp = path.with_extension("json.tmp");
+    if std::fs::write(&tmp, json).is_ok() {
+        if let Err(e) = std::fs::rename(&tmp, &path) {
+            eprintln!("[settings] Could not save the window geometry: {e}");
+        }
+    }
+}
+
+/// Show the data directory in Explorer.
+///
+/// Exists because the answer to "where does the launcher keep my stuff" now
+/// depends on whether this copy is portable, and because the previous single
+/// location — a hashed-looking `com.tetra.launcher` folder under AppData — was
+/// not something anyone found by looking.
+#[tauri::command]
+pub fn open_data_folder(app: AppHandle) -> Result<(), String> {
+    let dir = crate::paths::data_root(&app);
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| format!("Could not create {}: {e}", dir.display()))?;
+    std::process::Command::new("explorer")
+        .arg(&dir)
+        .spawn()
+        // Explorer's exit status is not a reliable success signal, so this only
+        // reports a failure to *start* it.
+        .map(|_| ())
+        .map_err(|e| format!("Could not open {}: {e}", dir.display()))
+}
+
+/// The data directory, for display in Settings.
+#[tauri::command]
+pub fn data_folder_path(app: AppHandle) -> String {
+    crate::paths::data_root(&app).to_string_lossy().into_owned()
 }
 
 /// `async` so the file read lands on a blocking task instead of the main
@@ -447,8 +541,15 @@ pub async fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
 /// write cannot leave a half-written settings file behind — the rename is
 /// atomic and the old file survives until it succeeds.
 #[tauri::command]
-pub async fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), String> {
+pub async fn save_settings(app: AppHandle, mut settings: AppSettings) -> Result<(), String> {
     let path = settings_path(&app)?;
+
+    // Window geometry is not the frontend's to send. The payload from the UI
+    // has no `window` key, which deserialises to `None`, so writing the struct
+    // as received would erase the remembered size and position every time any
+    // setting changed — and the store saves after *any* field changes.
+    settings.window = crate::window_state::cached(&app).or(settings.window);
+
     let json = serde_json::to_string_pretty(&settings)
         .map_err(|e| format!("Could not serialise settings: {e}"))?;
 

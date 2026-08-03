@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useUpdateStore } from "@/stores/update-store";
-import { discoverSteamPaths } from "@/lib/tauri";
+import { dataFolderPath, discoverSteamPaths, openDataFolder } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 
 /** Where the "View Release" link sends a portable user for a manual download. */
@@ -137,6 +137,7 @@ export function SettingsModal({ open: isOpen, onClose }: SettingsModalProps) {
 
   const [detecting, setDetecting] = useState(false);
   const [currentVersion, setCurrentVersion] = useState<string | null>(null);
+  const [dataFolder, setDataFolder] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>("game");
   const tabRefs = useRef<Partial<Record<TabId, HTMLButtonElement | null>>>({});
 
@@ -156,6 +157,11 @@ export function SettingsModal({ open: isOpen, onClose }: SettingsModalProps) {
     if (!isOpen) return;
     getVersion()
       .then(setCurrentVersion)
+      .catch(() => {});
+    // Fixed for the life of the process — the data root is resolved once at
+    // startup — so this is only re-fetched per opening, not per tab change.
+    dataFolderPath()
+      .then(setDataFolder)
       .catch(() => {});
   }, [isOpen]);
 
@@ -460,6 +466,38 @@ export function SettingsModal({ open: isOpen, onClose }: SettingsModalProps) {
                     Start with Windows does nothing in a debug build — the entry would
                     point at the build folder and replace your installed copy's.
                   </p>
+                </div>
+
+                {/* The launcher's own files. Worth showing because the answer
+                    moved and now differs per copy: beside the exe when
+                    portable.txt is present, in local app data otherwise. It
+                    used to be an unguessable folder under AppData that nobody
+                    found without being told. */}
+                <div className="border-t border-[#1e293b] pt-4">
+                  <Field
+                    label="Data folder"
+                    hint="Your favourites, server list and settings. Back this folder up to keep them; deleting it resets the launcher."
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        readOnly
+                        value={dataFolder ?? "Locating…"}
+                        // Selectable so the path can be copied, but not a
+                        // control that pretends to be editable — moving the
+                        // folder is not something typing here would do.
+                        onFocus={(e) => e.currentTarget.select()}
+                        className={cn(INPUT_CLASS, "cursor-text font-mono text-[10px]")}
+                      />
+                      <button
+                        onClick={() => void openDataFolder()}
+                        disabled={!dataFolder}
+                        className="flex shrink-0 items-center gap-1.5 rounded-md bg-[#16202e] px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wider text-[#94a3b8] ring-1 ring-[#1e293b] transition-colors duration-150 hover:text-[#f1f5f9] focus-visible:outline-none focus-visible:ring-[#38bdf8] disabled:opacity-50"
+                      >
+                        <Folder className="size-3" />
+                        Open
+                      </button>
+                    </div>
+                  </Field>
                 </div>
               </>
             )}
