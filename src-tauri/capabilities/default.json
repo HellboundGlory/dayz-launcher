@@ -21,7 +21,6 @@
     "core:window:allow-close",
     "process:allow-exit",
     "process:allow-restart",
-    "updater:default",
-    "window-state:default"
+    "updater:default"
   ]
 }

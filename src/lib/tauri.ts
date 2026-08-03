@@ -405,3 +405,29 @@ export async function discoverSteamPaths(): Promise<{
 } | null> {
   return invoke("discover_steam_paths");
 }
+
+/**
+ * Where this copy keeps `tetra.db` and `settings.json`.
+ *
+ * Depends on how the launcher was distributed — beside the exe for a portable
+ * copy carrying `portable.txt`, in local app data for an installed one — so it
+ * is asked for rather than constructed in the frontend.
+ */
+export async function dataFolderPath(): Promise<string> {
+  return invoke<string>("data_folder_path");
+}
+
+/** Show the data folder in Explorer. */
+export async function openDataFolder(): Promise<void> {
+  return invoke("open_data_folder");
+}
+
+/**
+ * Whether a DayZ process exists right now.
+ *
+ * Asked of the OS rather than inferred from having launched one, so it is also
+ * true for a session started outside the launcher.
+ */
+export async function dayzRunning(): Promise<boolean> {
+  return invoke<boolean>("dayz_running");
+}

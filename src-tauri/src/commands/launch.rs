@@ -470,3 +470,14 @@ pub fn discover_steam_paths() -> Result<Option<SteamPaths>, String> {
         workshop_dir: p.workshop_dir.to_string_lossy().into_owned(),
     }))
 }
+
+/// Whether a DayZ session is running right now.
+///
+/// Polled by the details panel so the join button can say PLAYING instead of
+/// guessing from a timer. The launcher does not wait on the process it spawns —
+/// see `tetra_launch::spawn::spawn_dayz` — so this is the only way to know, and
+/// it is also right for a session the launcher never started.
+#[tauri::command]
+pub fn dayz_running() -> bool {
+    tetra_launch::running::dayz_is_running()
+}

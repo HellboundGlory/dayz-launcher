@@ -6,6 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+sysinfo = { version = "0.36.1", default-features = false, features = ["system"] }
 thiserror.workspace = true
 winreg.workspace = true
 

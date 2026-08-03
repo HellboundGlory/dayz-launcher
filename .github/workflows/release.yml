@@ -60,6 +60,16 @@ jobs:
           New-Item -ItemType Directory -Path $dest | Out-Null
           Copy-Item "target/release/tetra-launcher.exe" $dest
           Copy-Item "target/release/steam_api64.dll" $dest
+          # What makes this copy portable. src-tauri/src/paths.rs looks for this
+          # file beside the exe and keeps tetra.db and settings.json in the same
+          # folder when it is there; without it a portable copy would silently
+          # store its data in per-user app data like an installed one. The
+          # launcher only checks that the file exists — the text is for whoever
+          # opens it.
+          Set-Content -Path "$dest/portable.txt" -Encoding utf8 -Value @(
+            "Delete this file to make this copy store its data in",
+            "%LOCALAPPDATA%\com.tetra.launcher instead of in this folder."
+          )
           Compress-Archive -Path "$dest/*" -DestinationPath "$dest.zip"
 
       - name: Upload portable build to release
