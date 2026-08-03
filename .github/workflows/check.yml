@@ -73,9 +73,23 @@ jobs:
 
       # The RepoOS CLI is zero-dependency, so a shallow clone is the whole
       # install — no npm ci, no lockfile. Not published to npm yet; when it is,
-      # this step collapses to `npx repoos`.
+      # this step collapses to `npx repoos@<version>`.
+      #
+      # PINNED DELIBERATELY. Tracking `main` meant an upstream change could land
+      # here with no commit in this repository: a green build goes red for
+      # reasons unrelated to whatever triggered it, and the diff you are staring
+      # at cannot explain the failure. Bumping this tag is how a RepoOS upgrade
+      # arrives — reviewable, and revertable to the previous one.
+      #
+      # To upgrade: change the tag, run `repoos generate .`, commit both.
+      #
+      # Pinning does not remove the need for the upstream to be public; it
+      # changes which commit is fetched, not whether it can be fetched. See
+      # .ai/memory/lessons/repoos-ci-job-needs-a-public-upstream.md
       - name: Fetch RepoOS CLI
-        run: git clone --depth 1 https://github.com/HellboundGlory/repository-operating-system.git "$RUNNER_TEMP/repoos"
+        env:
+          REPOOS_VERSION: v1.3.0
+        run: git clone --depth 1 --branch "$REPOOS_VERSION" https://github.com/HellboundGlory/repository-operating-system.git "$RUNNER_TEMP/repoos"
 
       # Catches unfilled template placeholders, tasks pointing at workflows that
       # do not exist, workflows missing Steps/Validation, and a destructive
