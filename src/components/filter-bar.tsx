@@ -108,6 +108,11 @@ export function FilterBar({ onRefresh, refreshing }: FilterBarProps) {
           onClick={() => setFilter({ hide_empty: !filter.hide_empty })}
         />
         <ToggleButton
+          label="HIDE OFFLINE"
+          active={filter.hide_offline}
+          onClick={() => setFilter({ hide_offline: !filter.hide_offline })}
+        />
+        <ToggleButton
           label="HIDE FULL"
           active={filter.hide_full}
           onClick={() => setFilter({ hide_full: !filter.hide_full })}
