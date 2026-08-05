@@ -338,12 +338,10 @@ export function App() {
   }, []);
 
   /**
-   * Re-probe only the servers currently on screen, rather than the backend's
-   * whole refresh-priority window. `visibleRange` is published by
-   * `server-table.tsx` from `rowVirtualizer.getVirtualItems()`; reading both
-   * it and `servers` via `getState()` here (not a subscribed selector) keeps
-   * this callback stable and picks up whatever the table has mounted right
-   * up to the moment of the click.
+   * Re-probe every server in the current filtered list. The backend A2S probe
+   * (`refresh_visible_servers`) takes explicit addresses and marks a miss as
+   * OFFLINE, so passing the whole loaded list is the "refresh everything I can
+   * see" action — distinct from DISCOVER, which pulls new servers in.
    */
   const handleRefresh = useCallback(async () => {
     if (!steamConnected) return;
@@ -353,12 +351,13 @@ export function App() {
       setError("Paused while mods are downloading — try again once they finish.");
       return;
     }
-    const { servers, visibleRange } = useServerStore.getState();
-    if (!visibleRange || servers.length === 0) return;
-    const targets = servers
-      .slice(visibleRange.start, visibleRange.end + 1)
-      .map((s) => ({ addr: s.addr, query_port: s.query_port }));
-    if (targets.length === 0) return;
+    const { servers } = useServerStore.getState();
+    if (servers.length === 0) return;
+    // The whole list, not just the rows currently mounted by the virtualizer.
+    // Probing only the on-screen range made the button look broken — it
+    // re-probed whatever was rendered (up to a page) and left the rest with
+    // stale "?" mod counts, so a refetch "did nothing" for most rows.
+    const targets = servers.map((s) => ({ addr: s.addr, query_port: s.query_port }));
 
     setRefreshing(true);
     setError(null);

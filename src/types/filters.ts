@@ -4,6 +4,7 @@ export interface ServerFilter {
   hide_empty: boolean;
   hide_full: boolean;
   hide_locked: boolean;
+  hide_offline: boolean;
   max_ping: number | null;
   search: string | null;
   favourites_only: boolean;

@@ -206,13 +206,16 @@ pub fn parse_packed(payload: &[u8]) -> Result<PackedPayload, PackedError> {
     let flags = p.take(3)?;
     let flag_bits = flags[0];
     let dlc_mask = u16::from_le_bytes([flags[1], flags[2]]);
-    if dlc_mask != 0 {
-        return Err(PackedError::Unrecognised {
-            reason: format!(
-                "dlc mask {dlc_mask:#06x} is non-zero, so a DLC block precedes the mod list \
-                 and this parser cannot read it (no such specimen has ever been captured)"
-            ),
-        });
+    // A non-zero DLC mask means every set bit has a 4-byte entry preceding the
+    // mod list. Verified against a live Frostline server (DLC_FROSTLINE = 2)
+    // where the owning-species capture that the earlier hard-reject was written
+    // around is in fact reachable: skipping one u32 per set bit lands exactly
+    // on the mod count. Rejecting it instead turned every DLC-flagged server
+    // into an unreadable mod list.
+    for bit in 0..16 {
+        if dlc_mask & (1u16 << bit) != 0 {
+            p.take(4)?;
+        }
     }
 
     let description_may_be_absent = flag_bits & 0x08 != 0;
@@ -221,7 +224,11 @@ pub fn parse_packed(payload: &[u8]) -> Result<PackedPayload, PackedError> {
     let mut mods = Vec::with_capacity(mod_count);
     for n in 0..mod_count {
         let _hash = p.take(4)?;
-        let id_len = p.u8()?;
+        // Only the low nibble of the length byte carries the workshop-id width;
+        // the top bits hold unrelated flags. Captured servers use 0x04 (low
+        // nibble 4); masking matches the reference decoder so a high-bit set
+        // cannot be misread as an absurd length.
+        let id_len = p.u8()? & 0x0F;
         let workshop_id = match id_len {
             1 => p.u8()? as u64,
             2 => {
@@ -281,7 +288,7 @@ pub fn parse_dayz_rules(response: &[u8]) -> Result<PackedPayload, PackedError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_packed, reassemble_chunks, unescape};
+    use super::{parse_dayz_rules, parse_packed, reassemble_chunks, unescape};
     use crate::error::PackedError;
 
     fn pair(k: &[u8], v: &[u8]) -> (Vec<u8>, Vec<u8>) {
@@ -525,10 +532,40 @@ mod tests {
     }
 
     #[test]
-    fn a_non_zero_dlc_mask_is_rejected_rather_than_misparsed() {
-        let mut v = payload_with(0x08, &[]);
-        v[2] = 0x01;
-        let err = parse_packed(&v).expect_err("a non-zero dlc mask must not be ignored");
-        assert!(err.to_string().contains("dlc mask"));
+    fn a_dlc_mask_skips_one_hash_per_set_bit_and_reads_the_mods() {
+        let mut v = vec![
+            0x02, // protocol
+            0x00, // flags
+            0x02, 0x00, // dlc_mask = 0x0002 (Frostline): one set bit
+            0xde, 0xad, 0xbe, 0xef, // the DLC hash to skip
+            0x01, // mod_count
+            0x11, 0x22, 0x33, 0x44, // mod hash
+            0x04, // id_len
+            0x00, 0x11, 0x22, 0x33, // workshop id
+            0x04,
+        ];
+        v.extend_from_slice(b"test");
+        v.push(0); // signature count
+        v.push(0); // description length
+        let p = parse_packed(&v).expect("DLC-flagged payload should parse");
+        assert_eq!(p.mods.len(), 1);
+        assert_eq!(p.mods[0].workshop_id, 0x33221100);
+        assert_eq!(p.mods[0].name, "test");
+    }
+
+    #[test]
+    fn parses_the_real_frostline_server_fixture() {
+        // Real A2S_RULES response captured from 216.219.92.5:3103, a 48-mod
+        // "TheFactory" server that advertises the Frostline DLC. Before
+        // DLC-block parsing, this fixture hit the old `dlc mask non-zero`
+        // rejection and every query read as "could not read the mod list".
+        let response = include_bytes!("../../tests/fixtures/frostline-rules.bin");
+        let payload = parse_dayz_rules(response).expect("live Frostline rules should parse");
+        assert_eq!(payload.protocol, 2);
+        assert_eq!(payload.mods.len(), 48);
+        let names: Vec<&str> = payload.mods.iter().map(|m| m.name.as_str()).collect();
+        assert!(names.contains(&"Community Framework"));
+        assert!(names.contains(&"DayZ-Expansion-Core"));
+        assert!(names.contains(&"BaseBuildingPlus"));
     }
 }

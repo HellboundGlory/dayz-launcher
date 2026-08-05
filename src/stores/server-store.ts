@@ -22,19 +22,6 @@ interface ServerState {
   setDownloadsActive: (active: boolean) => void;
 
   /**
-   * The row-index range the table currently has mounted, per
-   * `rowVirtualizer.getVirtualItems()` in `server-table.tsx`.
-   *
-   * Written on every scroll/resize, but nothing selects it reactively — it
-   * exists purely so `handleRefresh` in `App.tsx` can read
-   * `useServerStore.getState()` at click time and know which rows are
-   * actually visible, without ServerTable and the refresh button needing a
-   * direct reference to each other.
-   */
-  visibleRange: { start: number; end: number } | null;
-  setVisibleRange: (range: { start: number; end: number } | null) => void;
-
-  /**
    * Servers whose declared mods came back with a Steam update pending, from
    * the last targeted refresh. Keyed by `addr` (already `ip:query_port`,
    * unique). Merged rather than replaced on each refresh — only the servers
@@ -102,6 +89,7 @@ export const useServerStore = create<ServerState>((set) => ({
     hide_empty: false,
     hide_full: false,
     hide_locked: false,
+    hide_offline: false,
     max_ping: null,
     search: null,
     favourites_only: false,
@@ -115,7 +103,6 @@ export const useServerStore = create<ServerState>((set) => ({
   totalCount: 0,
   loadVersion: 0,
   downloadsActive: false,
-  visibleRange: null,
   modPending: {},
 
   /**
@@ -166,7 +153,6 @@ export const useServerStore = create<ServerState>((set) => ({
   setLoading: (isLoading) => set({ isLoading }),
   setDownloadsActive: (downloadsActive) => set({ downloadsActive }),
   setTotalCount: (totalCount) => set({ totalCount }),
-  setVisibleRange: (visibleRange) => set({ visibleRange }),
   mergeModPending: (entries) =>
     set((state) => {
       if (entries.length === 0) return state;

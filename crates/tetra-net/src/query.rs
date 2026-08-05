@@ -34,7 +34,14 @@ async fn request(
     packet.extend_from_slice(payload);
     sock.send(&packet).await?;
 
-    let mut buf = vec![0u8; 4096];
+    // Sized for the largest possible single A2S datagram (65507 bytes), not
+    // the common case. A `recv` into a buffer smaller than the datagram
+    // silently truncates it — a 4 KiB buffer loses the tail of any RULES
+    // response larger than that (a big mod list arrives as one ~4 KB+
+    // datagram), which then fails to parse and reads as "could not read the
+    // mod list". Split responses are unaffected (each fragment is small); this
+    // covers the single-datagram path.
+    let mut buf = vec![0u8; 65536];
     let mut first = recv_once(&sock, &mut buf, timeout).await?;
 
     if let PacketKind::Challenge(challenge) = classify_packet(&first).map_err(CoreError::from)? {
