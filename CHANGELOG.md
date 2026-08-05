@@ -1,5 +1,33 @@
 # Changelog
 
+## v1.3.1 — 2026-08-05
+
+### Fixed
+
+- **Many modded servers showed a "?" for their mod count, and couldn't be
+  joined because the launcher "could not read the mod list".** Three separate
+  causes, fixed together:
+
+  - The parser refused any server that advertises the Frostline DLC — a large
+    and growing share of modded servers — because a DLC block sits ahead of
+    its mod list. It now reads past that block and gets the mods.
+  - A refresh only fetched mod lists for servers whose A2S keyword string
+    contained the word "mod", which many DayZ servers never provide (their
+    keyword field is junk). It now probes every server that answers.
+  - A mod list larger than 4 KB was silently truncated by the network read,
+    losing its tail and failing the parse. The receive buffer now fits the
+    largest possible response.
+
+- **The REFRESH button only re-probed the rows currently on screen**, leaving
+  the rest of the list with stale data and stale "?" counts. It now re-probes
+  the whole list you are looking at.
+
+### Added
+
+- **A HIDE OFFLINE button**, next to HIDE EMPTY, that drops the servers the
+  last refresh couldn't reach — cleaning up the "?" clutter from rows that are
+  simply offline.
+
 ## v1.3.0 — 2026-08-03
 
 ### Changed
