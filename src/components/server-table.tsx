@@ -160,27 +160,6 @@ export function ServerTable() {
   });
 
   const virtualItems = rowVirtualizer.getVirtualItems();
-  // `getVirtualItems()` pads `overscan` (12) rows on each side onto the true
-  // visible range, so it can't be used directly as "what the user can see" —
-  // that would refresh (and on a miss, mark OFFLINE) up to 24 rows that
-  // never rendered on screen. `rowVirtualizer.range` is the pre-overscan
-  // range the same calculation starts from.
-  const visibleRange = rowVirtualizer.range;
-  const startIndex = visibleRange?.startIndex ?? null;
-  const endIndex = visibleRange?.endIndex ?? null;
-
-  // Published non-reactively (`setState`, not a subscribed selector) so the
-  // REFRESH button can read "what's on screen right now" from
-  // `useServerStore.getState()` at click time, without ServerTable and
-  // App.tsx needing a direct reference to each other. Nothing in this
-  // component subscribes to `visibleRange`, so this can't cause a render loop.
-  useEffect(() => {
-    if (startIndex === null || endIndex === null) {
-      useServerStore.setState({ visibleRange: null });
-      return;
-    }
-    useServerStore.setState({ visibleRange: { start: startIndex, end: endIndex } });
-  }, [startIndex, endIndex]);
 
   const persist = useCallback((next: Widths) => {
     try {
@@ -334,6 +313,7 @@ export function ServerTable() {
           hide_empty: filter.hide_empty,
           hide_full: filter.hide_full,
           hide_locked: filter.hide_locked,
+          hide_offline: filter.hide_offline,
           max_ping: filter.max_ping,
           search: filter.search,
           favourites_only: filter.favourites_only,

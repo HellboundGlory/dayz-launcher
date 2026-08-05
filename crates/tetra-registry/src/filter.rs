@@ -8,6 +8,8 @@ pub struct ServerFilter {
     pub hide_empty: bool,
     pub hide_full: bool,
     pub hide_locked: bool,
+    /// Drop servers the last targeted refresh could not reach (`online = 0`).
+    pub hide_offline: bool,
     pub unresponsive_after_secs: Option<i64>,
     pub max_ping_ms: Option<i32>,
     pub search: Option<String>,
@@ -142,6 +144,9 @@ pub(crate) fn build(
     }
     if filter.hide_locked {
         clauses.push("locked = 0".into());
+    }
+    if filter.hide_offline {
+        clauses.push("online = 1".into());
     }
     if filter.favourites_only {
         clauses.push("favourite = 1".into());

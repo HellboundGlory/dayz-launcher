@@ -2,7 +2,6 @@ use crate::state::AppState;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use tauri::{Emitter, State};
-use tetra_core::classify::keywords::parse_keywords;
 use tetra_net::Prober;
 use tetra_registry::filter::{ServerFilter, SortDir, SortKey};
 use tetra_registry::rows::ServerKey;
@@ -116,6 +115,10 @@ pub struct FilterParams {
     pub hide_empty: bool,
     pub hide_full: bool,
     pub hide_locked: bool,
+    // Defaulted so a frontend that predates this toggle still deserialises and
+    // shows offline servers rather than hiding them.
+    #[serde(default)]
+    pub hide_offline: bool,
     pub max_ping: Option<i32>,
     pub search: Option<String>,
     pub favourites_only: bool,
@@ -267,12 +270,14 @@ pub async fn get_server_list(
 struct InfoBatchResult {
     refreshed: usize,
     failed: usize,
-    /// Servers that answered *and* whose keywords declare mods. Only these are
-    /// worth an A2S_RULES probe — rules is the expensive query (a
-    /// multi-fragment response that must reassemble intact) and on this
-    /// dataset ~89% of servers declare mods, so probing the rest is wasted
-    /// budget.
-    modded: Vec<(ServerKey, SocketAddr)>,
+    /// Servers that answered and should be A2S_RULES-probed for their mod
+    /// list. This used to be gated on the A2S keyword string containing
+    /// "mod", but DayZ servers do not reliably populate that field — many
+    /// ship junk bytes there — so the gate silently skipped genuinely
+    /// modded servers, leaving their mod count at NULL ("?" in the table)
+    /// while JOIN (which always queries rules) worked. Every responding
+    /// server is now a candidate.
+    rules_candidates: Vec<(ServerKey, SocketAddr)>,
 }
 
 /// Phase 1 of a refresh: A2S_INFO every address, writing results in batches.
@@ -295,7 +300,7 @@ async fn probe_info(
 
     let mut refreshed = 0usize;
     let mut failed = 0usize;
-    let mut modded: Vec<(ServerKey, SocketAddr)> = Vec::new();
+    let mut rules_candidates: Vec<(ServerKey, SocketAddr)> = Vec::new();
     let mut online_keys: Vec<ServerKey> = Vec::new();
     let mut offline_keys: Vec<ServerKey> = Vec::new();
 
@@ -327,14 +332,13 @@ async fn probe_info(
         refreshed += 1;
         online_keys.push(key);
 
-        if info
-            .keywords
-            .as_deref()
-            .map(parse_keywords)
-            .is_some_and(|k| k.modded)
-        {
-            modded.push((key, outcome.addr));
-        }
+        // Every server that answered is probed for its mod list. The A2S
+        // keyword field cannot be trusted to say who is modded — DayZ servers
+        // often return junk bytes instead of a "mod" token — so gating the
+        // RULES query on it silently left real modded servers with a stuck
+        // "?" in the table. The INFO query already proves reachability; the
+        // RULES answer fills in the count.
+        rules_candidates.push((key, outcome.addr));
 
         batch.push(tetra_registry::rows::ServerRow {
             key,
@@ -383,25 +387,25 @@ async fn probe_info(
     InfoBatchResult {
         refreshed,
         failed,
-        modded,
+        rules_candidates,
     }
 }
 
-/// Phase 2 of a refresh: A2S_RULES for whatever phase 1 found modded,
+/// Phase 2 of a refresh: A2S_RULES for every server phase 1 answered,
 /// concurrently. Returns how many writes succeeded and, for each, the mod
 /// list that came back — the caller needs that list to ask Steam about
 /// pending updates without a second registry round trip.
 async fn probe_rules(
     prober: &Prober,
-    modded: Vec<(ServerKey, SocketAddr)>,
+    candidates: Vec<(ServerKey, SocketAddr)>,
     writer: &tetra_registry::Writer,
 ) -> (
     usize,
     Vec<(ServerKey, Vec<tetra_core::a2s::dayz::ServerMod>)>,
 ) {
-    let mut rules_tasks = Vec::with_capacity(modded.len());
+    let mut rules_tasks = Vec::with_capacity(candidates.len());
 
-    for (key, addr) in modded {
+    for (key, addr) in candidates {
         let prober = prober.clone();
         let writer = writer.clone();
         rules_tasks.push(tokio::spawn(async move {
@@ -483,7 +487,7 @@ pub async fn refresh_servers(
 
     let prober = prober(&state)?;
     let info = probe_info(&prober, addrs, &writer, &window, false).await;
-    let (mods_updated, _mod_lists) = probe_rules(&prober, info.modded, &writer).await;
+    let (mods_updated, _mod_lists) = probe_rules(&prober, info.rules_candidates, &writer).await;
 
     let _ = window.emit(
         "refresh-complete",
@@ -551,7 +555,7 @@ pub async fn refresh_visible_servers(
 
     let prober = prober(&state)?;
     let info = probe_info(&prober, socket_addrs, &writer, &window, true).await;
-    let (mods_updated, mod_lists) = probe_rules(&prober, info.modded, &writer).await;
+    let (mods_updated, mod_lists) = probe_rules(&prober, info.rules_candidates, &writer).await;
 
     // Phase 3: ask Steam whether any of the mods just re-declared need an
     // update. Best-effort — Steam not being connected, or the lookup
@@ -719,6 +723,7 @@ fn filter_from_params(p: FilterParams) -> ServerFilter {
         hide_empty: p.hide_empty,
         hide_full: p.hide_full,
         hide_locked: p.hide_locked,
+        hide_offline: p.hide_offline,
         unresponsive_after_secs: None,
         max_ping_ms: p.max_ping,
         search: p.search,
