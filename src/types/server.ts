@@ -12,6 +12,14 @@ export interface Server {
   version: string;
   in_game_time: string | null;
   /**
+   * Players waiting in the join queue (`lqs` keyword). `0` means "no queue";
+   * `null` means the server didn't report one.
+   */
+  queue: number | null;
+  /** Day (`etm`) and night (`entm`) time-acceleration multipliers. */
+  day_multiplier: number | null;
+  night_multiplier: number | null;
+  /**
    * Number of mods the server declared over A2S_RULES.
    *
    * `null` means "not probed yet", NOT "no mods" — the rules query is separate

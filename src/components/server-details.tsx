@@ -15,7 +15,7 @@ import {
   type ModState,
 } from "@/lib/tauri";
 import { joinAction } from "@/lib/join-action";
-import { cn, formatBytes, regionName } from "@/lib/utils";
+import { cn, formatBytes, formatGameTime, regionName } from "@/lib/utils";
 
 /**
  * How each state reads and looks. Wording is deliberately factual: Steam cannot
@@ -735,7 +735,11 @@ export function ServerDetails() {
       <div className="grid shrink-0 grid-cols-4 gap-px bg-[#1e293b]">
         <StatCard
           label="PLAYERS"
-          value={`${selectedServer.players}/${selectedServer.max_players}`}
+          value={`${selectedServer.players}/${selectedServer.max_players}${
+            selectedServer.queue != null && selectedServer.queue > 0
+              ? ` +${selectedServer.queue}`
+              : ""
+          }`}
           color={
             !selectedServer.online
               ? "text-[#64748b]"
@@ -753,7 +757,11 @@ export function ServerDetails() {
         />
         <StatCard
           label="TIME"
-          value={selectedServer.in_game_time ?? "--:--"}
+          value={formatGameTime(
+            selectedServer.in_game_time,
+            selectedServer.day_multiplier,
+            selectedServer.night_multiplier,
+          )}
           color="text-[#f1f5f9]"
         />
         <StatCard

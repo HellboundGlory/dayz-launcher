@@ -6,6 +6,7 @@ import { ServerDetails } from "./components/server-details";
 import { FooterBar } from "./components/footer-bar";
 import { SettingsModal } from "./components/settings-modal";
 import { SteamRequiredModal } from "./components/steam-required-modal";
+import type { SplashScreenProps } from "./components/splash-screen";
 import { useServerStore } from "./stores/server-store";
 import { useSettingsStore } from "./stores/settings-store";
 import { useUpdateStore } from "./stores/update-store";
@@ -57,11 +58,28 @@ const CONNECTION_POLL_MS = 3000;
  */
 const UPDATE_RECHECK_MS = 6 * 60 * 60 * 1000;
 
+/**
+ * How long the splash lingers on "Ready — 100%" before the launcher is
+ * revealed and the splash window is closed, so the completion reads as a step
+ * rather than a snap.
+ */
+const SPLASH_READY_MS = 400;
+
+/**
+ * Fail-safe ceiling for the splash. A pathological backend must never be able
+ * to leave the launcher hidden behind a static splash, so it always reveals
+ * and closes eventually, even if `startupReady` never becomes true on its own.
+ */
+const SPLASH_FAILSAFE_MS = 120_000;
+
 export function App() {
   const [activeTab, setActiveTab] = useState("servers");
   const selectedServer = useServerStore((s) => s.selectedServer);
   const triggerReload = useServerStore((s) => s.triggerReload);
   const setFilter = useServerStore((s) => s.setFilter);
+  const serverCount = useServerStore((s) => s.servers.length);
+  const mapsLoaded = useServerStore((s) => s.mapsLoaded);
+  const hasLoadedOnce = useServerStore((s) => s.hasLoadedOnce);
 
   // The tabs were previously display-only — switching them changed the
   // highlight but not the query. Each one is just a filter preset.
@@ -83,6 +101,12 @@ export function App() {
   const steamAttempts = useRef<{ kind: SteamInitFailure; count: number } | null>(null);
   const [autoRetryExhausted, setAutoRetryExhausted] = useState(false);
   const [discovering, setDiscovering] = useState(false);
+  /** Set the moment discovery starts; stays true for the session. The splash
+      uses it to tell "connected but not yet fetching" from "really done". */
+  const [discoveryStarted, setDiscoveryStarted] = useState(false);
+  /** Live count from `discovery-progress` (`payload.found`), currently ignored
+      otherwise — the splash shows it as the "Found N servers" detail line. */
+  const [discovered, setDiscovered] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const autoRefreshSecs = useSettingsStore((s) => s.autoRefreshIntervalSecs);
   const settingsLoaded = useSettingsStore((s) => s.loaded);
@@ -185,6 +209,7 @@ export function App() {
    * moment the user hits REFRESH instead.
    */
   const runInitialLoad = useCallback(async () => {
+    setDiscoveryStarted(true);
     setDiscovering(true);
     try {
       await discoverServers();
@@ -299,7 +324,9 @@ export function App() {
   useEffect(() => {
     const unlistenProgress = listen<{ tier: number; requests: number; found: number }>(
       "discovery-progress",
-      () => {
+      (event) => {
+        // The splash's live detail line ("Found N servers") reads this.
+        setDiscovered(event.payload.found);
         scheduleReload();
       },
     );
@@ -397,6 +424,129 @@ export function App() {
     }, autoRefreshSecs * 1000);
     return () => clearInterval(id);
   }, [settingsLoaded, autoRefreshSecs, steamConnected, handleRefresh]);
+
+  // ── Startup splash (separate window) ────────────────────────────
+  // `main` stays hidden while the 860×484 splash window carries the load. We
+  // publish real progress to it, and once startup is ready (or Steam fails and
+  // the required-modal must take over) we reveal the launcher and close the
+  // splash. `startupReady`'s last clause lets a genuine empty result still
+  // dismiss once discovery has finished, rather than waiting on rows that will
+  // never come.
+  const startupReady =
+    steamConnected &&
+    mapsLoaded &&
+    hasLoadedOnce &&
+    (serverCount > 0 || (discoveryStarted && !discovering));
+
+  // Failures are logged rather than swallowed. `show`/`setFocus` are IPC calls
+  // gated by the window's capability, and a missing permission rejects the
+  // promise instead of throwing anywhere visible — a bare `void` turned "the
+  // launcher is not allowed to reveal itself" into "the splash closes and
+  // nothing happens", with nothing in the console to say why.
+  const revealLauncherWhenReady = useCallback(() => {
+    void import("@tauri-apps/api/window").then(
+      async ({ getCurrentWindow, getAllWindows }) => {
+        const self = getCurrentWindow();
+        try {
+          await self.show();
+          await self.setFocus();
+        } catch (e) {
+          console.error("Could not reveal the launcher window:", e);
+        }
+        // Only after `main` is up. Closing the splash first would leave the
+        // desktop bare for a frame if showing turns out to be slow.
+        try {
+          const windows = await getAllWindows();
+          await windows.find((w) => w.label === "splash")?.close();
+        } catch (e) {
+          console.error("Could not close the splash window:", e);
+        }
+      },
+    );
+  }, []);
+
+  // Give the "Ready — 100%" beat its moment, then reveal the launcher and
+  // close the splash. A Steam failure also reveals: the Steam-required modal
+  // has to be actionable even though startup never completed.
+  useEffect(() => {
+    if (!(startupReady || steamError)) return;
+    const t = window.setTimeout(revealLauncherWhenReady, SPLASH_READY_MS);
+    return () => clearTimeout(t);
+  }, [startupReady, steamError, revealLauncherWhenReady]);
+
+  // Fail-safe: a pathological backend must never leave the launcher hidden
+  // behind a static splash, so always reveal it eventually.
+  useEffect(() => {
+    const t = window.setTimeout(revealLauncherWhenReady, SPLASH_FAILSAFE_MS);
+    return () => clearTimeout(t);
+  }, [revealLauncherWhenReady]);
+
+  // Status / % milestones, in the order startup passes through them. The
+  // percentages are cumulative markers along that journey, not live progress —
+  // on a warm registry the splash flashes through 15→45→100 in well under a
+  // second, which is exactly why it "only lingers when it actually takes a
+  // while".
+  const splash: SplashScreenProps = (() => {
+    if (!steamConnected) {
+      return { status: "Connecting to Steam…", pct: 15 };
+    }
+    if (!discoveryStarted || discovering) {
+      return {
+        status: "Fetching servers from Steam…",
+        pct: 45,
+        detail:
+          discovered > 0
+            ? `Found ${discovered.toLocaleString()} servers`
+            : undefined,
+      };
+    }
+    if (serverCount === 0) {
+      return { status: "Propagating server list…", pct: 70 };
+    }
+    if (!mapsLoaded) {
+      return { status: "Loading server maps…", pct: 95 };
+    }
+    return { status: "Ready", pct: 100 };
+  })();
+
+  // Publish the current milestone to the splash window as it changes. Emitted
+  // app-wide, so the separate `splash` window's `listen` picks it up. The ref
+  // is kept in step here so the replay below always has the live milestone.
+  const latestSplash = useRef(splash);
+  useEffect(() => {
+    latestSplash.current = splash;
+    void import("@tauri-apps/api/event").then(({ emit }) => {
+      void emit("splash-progress", {
+        status: splash.status,
+        detail: splash.detail,
+        pct: splash.pct,
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [splash.status, splash.detail, splash.pct]);
+
+  // Replay the current milestone when the splash announces itself.
+  //
+  // Each milestone is emitted exactly once, as it is reached, so anything that
+  // happens before the splash window finishes registering its listener is gone
+  // for good — and registering it is an async IPC round trip that races this
+  // window's startup. On a warm registry startup can pass 15→45→100 before the
+  // splash is listening, which is precisely how it ends up reading
+  // "Starting… 0%" for the entire load.
+  useEffect(() => {
+    const pending = listen("splash-ready", () => {
+      void import("@tauri-apps/api/event").then(({ emit }) => {
+        void emit("splash-progress", {
+          status: latestSplash.current.status,
+          detail: latestSplash.current.detail,
+          pct: latestSplash.current.pct,
+        });
+      });
+    });
+    return () => {
+      void pending.then((unlisten) => unlisten());
+    };
+  }, []);
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#0b0f17]">

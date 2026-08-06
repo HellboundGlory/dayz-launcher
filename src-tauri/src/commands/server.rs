@@ -106,6 +106,13 @@ pub struct Server32 {
     /// Whether the last targeted refresh that reached for this server got an
     /// answer. See the `online` column comment in `tetra_registry::schema`.
     pub online: bool,
+    /// Players waiting in the join queue (`lqs` keyword). `0` = no queue,
+    /// `null` = server didn't report one.
+    pub queue: Option<i32>,
+    /// Day (`etm`) and night (`entm`) time-acceleration multipliers, for the
+    /// `Nx` shown next to the in-game time.
+    pub day_multiplier: Option<f32>,
+    pub night_multiplier: Option<f32>,
 }
 
 #[derive(serde::Deserialize)]
@@ -173,6 +180,9 @@ fn to_server32(r: &tetra_registry::filter::ServerListRow) -> Server32 {
         first_person: r.first_person,
         battleye: r.battleye,
         online: r.online,
+        queue: r.queue,
+        day_multiplier: r.day_multiplier,
+        night_multiplier: r.night_multiplier,
     }
 }
 

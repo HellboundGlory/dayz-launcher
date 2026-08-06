@@ -31,6 +31,27 @@ interface ServerState {
   modPending: Record<string, boolean>;
   mergeModPending: (entries: { addr: string; pending: boolean }[]) => void;
 
+  /**
+   * Distinct maps seen by the registry, as `[normalised, display]` pairs.
+   *
+   * Refetched on every reload (see `server-table.tsx`), so the filter
+   * dropdown grows live as discovery writes new maps — it previously fetched
+   * once on mount and stayed frozen even as the registry filled.
+   */
+  maps: [string, string][];
+  /** True once `maps` has been fetched at least once (even if empty). */
+  mapsLoaded: boolean;
+  /**
+   * True once the server table has completed its first load, empty or not.
+   *
+   * The splash screen uses this as one of the gates for "startup is ready":
+   * discovery can be done and the list countably present before the first
+   * `get_server_list` ever lands.
+   */
+  hasLoadedOnce: boolean;
+  setMaps: (maps: [string, string][]) => void;
+  setHasLoadedOnce: () => void;
+
   setServers: (servers: Server[]) => void;
   setSelectedServer: (server: Server | null) => void;
   setFilter: (filter: Partial<ServerFilter>) => void;
@@ -104,6 +125,9 @@ export const useServerStore = create<ServerState>((set) => ({
   loadVersion: 0,
   downloadsActive: false,
   modPending: {},
+  maps: [],
+  mapsLoaded: false,
+  hasLoadedOnce: false,
 
   /**
    * Replace the table's rows, and re-point the selection at its new row.
@@ -153,6 +177,8 @@ export const useServerStore = create<ServerState>((set) => ({
   setLoading: (isLoading) => set({ isLoading }),
   setDownloadsActive: (downloadsActive) => set({ downloadsActive }),
   setTotalCount: (totalCount) => set({ totalCount }),
+  setMaps: (maps) => set({ maps, mapsLoaded: true }),
+  setHasLoadedOnce: () => set({ hasLoadedOnce: true }),
   mergeModPending: (entries) =>
     set((state) => {
       if (entries.length === 0) return state;

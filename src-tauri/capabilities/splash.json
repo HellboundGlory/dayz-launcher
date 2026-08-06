@@ -1,0 +1,6 @@
+{
+  "identifier": "splash",
+  "description": "The splash window listens for `splash-progress` and does nothing else. Capabilities are per-window and `default` is scoped to `main`, so without this the splash's `listen()` is rejected and the bar sits at 0% for the whole of startup. Deliberately not folded into `default`: the splash has no business closing windows, exiting the process or driving the updater.",
+  "windows": ["splash"],
+  "permissions": ["core:event:default"]
+}

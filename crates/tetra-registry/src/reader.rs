@@ -96,6 +96,9 @@ impl Reader {
                     vac: r.get::<_, i64>(18)? != 0,
                     version: r.get(19)?,
                     online: r.get::<_, i64>(20)? != 0,
+                    queue: r.get(21)?,
+                    day_multiplier: r.get(22)?,
+                    night_multiplier: r.get(23)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;

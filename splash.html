@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tetra Launcher</title>
+    <style>
+      /* Fallback shown only for the ~instant before React mounts, so the
+         transparent window never reads as empty. The SplashScreen it mounts
+         paints over this. */
+      body { margin: 0; background: transparent; overflow: hidden; }
+      #splash-fallback {
+        position: fixed; inset: 0; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 12px;
+        color: #f1f5f9; font-family: "Inter","Segoe UI",system-ui,sans-serif;
+      }
+      .splash-icon { width: 96px; height: 96px; }
+      .splash-logo { font-size: 28px; font-weight: 700; letter-spacing: 2px; color: #38bdf8; }
+      .splash-sub { font-size: 14px; color: #f1f5f9; }
+    </style>
+  </head>
+  <body>
+    <div id="splash-fallback">
+      <img class="splash-icon" src="/tetra-logo.png" alt="" draggable="false" />
+      <div class="splash-logo">TETRA</div>
+      <div class="splash-sub">Launcher</div>
+    </div>
+    <div id="splash-root"></div>
+    <script type="module" src="/src/splash.tsx"></script>
+  </body>
+</html>

@@ -13,6 +13,8 @@ pub struct Keywords {
     pub day_multiplier: Option<f32>,
     /// `entm` — nighttime acceleration multiplier.
     pub night_multiplier: Option<f32>,
+    /// `lqs` — players currently waiting in the join queue.
+    pub queue: Option<u32>,
 }
 
 fn is_clock(token: &str) -> bool {
@@ -45,6 +47,12 @@ pub fn parse_keywords(raw: &str) -> Keywords {
                     k.night_multiplier = rest.parse().ok();
                 } else if let Some(rest) = token.strip_prefix("etm") {
                     k.day_multiplier = rest.parse().ok();
+                } else if let Some(rest) = token.strip_prefix("lqs") {
+                    // Only a parseable count is taken; a malformed `lqs` must
+                    // not null out a value an earlier token already set.
+                    if let Ok(queue) = rest.parse() {
+                        k.queue = Some(queue);
+                    }
                 } else if is_clock(token) {
                     k.in_game_time = Some(token.to_string());
                 }
@@ -101,6 +109,25 @@ mod tests {
         let k = parse_keywords("battleye");
         assert!(k.battleye);
         assert_eq!(k.in_game_time, None);
+    }
+
+    #[test]
+    fn lqs_is_read_as_the_queue_size() {
+        assert_eq!(
+            parse_keywords("battleye,no3rd,external,privHive,shard,lqs11,etm3.000000,16:14").queue,
+            Some(11)
+        );
+        assert_eq!(parse_keywords("battleye,lqs0").queue, Some(0));
+        assert_eq!(parse_keywords("battleye").queue, None);
+    }
+
+    #[test]
+    fn an_invalid_lqs_does_not_clobber_a_good_one() {
+        // A malformed `lqs` is left-unspecified (None) and cannot overwrite a
+        // value that an earlier token already set.
+        let k = parse_keywords("battleye,lqs7,lqsabc,lqs-3");
+        assert_eq!(k.queue, Some(7));
+        assert_eq!(parse_keywords("battleye,lqsabc").queue, None);
     }
 
     #[test]

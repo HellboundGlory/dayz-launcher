@@ -19,6 +19,8 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-minimize",
     "core:window:allow-close",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
     "process:allow-exit",
     "process:allow-restart",
     "updater:default"
