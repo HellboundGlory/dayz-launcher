@@ -4,6 +4,7 @@ import { useServerStore } from "@/stores/server-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import {
   getServerList,
+  getMapList,
   refreshVisibleServers,
   toggleFavourite,
   type FilterParams,
@@ -12,7 +13,13 @@ import {
 import type { Server } from "@/types/server";
 import type { SortKey } from "@/types/filters";
 import { RefreshCw } from "lucide-react";
-import { cn, formatLastPlayed, regionName } from "@/lib/utils";
+import {
+  cn,
+  formatGameTime,
+  formatLastPlayed,
+  formatMultiplier,
+  regionName,
+} from "@/lib/utils";
 
 type Align = "left" | "right" | "center";
 
@@ -40,10 +47,10 @@ const COLUMNS: {
 }[] = [
   { key: "name", label: "SERVER NAME", sort: "name", align: "left", width: 420, min: 120 },
   { key: "addr", label: "ADDRESS", align: "left", width: 156, min: 90 },
-  { key: "in_game_time", label: "TIME", align: "left", width: 64, min: 48 },
+  { key: "in_game_time", label: "TIME", align: "left", width: 108, min: 78 },
   { key: "last_played", label: "LAST PLAYED", sort: "last_played", align: "left", width: 104, min: 70 },
   { key: "map_display", label: "MAP", sort: "map", align: "left", width: 148, min: 70 },
-  { key: "players", label: "PLAYERS", sort: "players", align: "right", width: 84, min: 60 },
+  { key: "players", label: "PLAYERS", sort: "players", align: "right", width: 104, min: 76 },
   { key: "mods", label: "MODS", sort: "mod_count", align: "right", width: 64, min: 48 },
   { key: "region", label: "REGION", align: "center", width: 76, min: 56 },
   { key: "ping", label: "PING", sort: "ping", align: "right", width: 68, min: 52 },
@@ -126,6 +133,8 @@ export function ServerTable() {
   const sortDir = useServerStore((s) => s.sortDir);
   const loadVersion = useServerStore((s) => s.loadVersion);
   const setLoading = useServerStore((s) => s.setLoading);
+  const setMaps = useServerStore((s) => s.setMaps);
+  const setHasLoadedOnce = useServerStore((s) => s.setHasLoadedOnce);
   const setSort = useServerStore((s) => s.setSort);
   const toggleFavouriteLocal = useServerStore((s) => s.toggleFavourite);
   const modPending = useServerStore((s) => s.modPending);
@@ -339,12 +348,30 @@ export function ServerTable() {
         };
         const rows = await getServerList(filterParams, sortParams);
         if (!cancelled) setServers(rows);
+
+        // Maps are fetched alongside the rows so the drop-down updates in
+        // lockstep with discovery: this effect re-runs on every `loadVersion`
+        // bump (i.e. every time servers change), so `getMapList()` re-runs with
+        // it. The old once-on-mount fetch in `filter-bar.tsx` froze the drop-
+        // down with whatever the (possibly empty) registry held at launch.
+        // Kept out of the `Promise.all` with the rows so a map-query failure
+        // can never drop the servers with it.
+        getMapList()
+          .then((maps) => {
+            if (!cancelled) setMaps(maps);
+          })
+          .catch(() => {});
       } catch (e) {
         if (!cancelled) console.error("Failed to load servers:", e);
       } finally {
         // Guarded too: a superseded run resolving late would otherwise clear the
-        // spinner while the current request is still in flight.
-        if (!cancelled) setLoading(false);
+        // spinner while the current request is still in flight. `hasLoadedOnce`
+        // is guarded the same way — it marks "the first load completed" for the
+        // splash screen and must not be claimed by a stale run.
+        if (!cancelled) {
+          setLoading(false);
+          setHasLoadedOnce();
+        }
       }
     }
     load();
@@ -518,8 +545,23 @@ export function ServerTable() {
               </div>
 
               <div className="min-w-0 px-2 py-1.5">
-                <span className="block truncate font-mono-data text-[11px] tabular-nums text-[#64748b]">
-                  {server.in_game_time ?? "--:--"}
+                <span
+                  className="block truncate font-mono-data text-[11px] tabular-nums text-[#64748b]"
+                  title={
+                    server.in_game_time
+                      ? `In-game: ${server.in_game_time}${
+                          server.day_multiplier != null
+                            ? ` · day ${formatMultiplier(server.day_multiplier)}`
+                            : ""
+                        }`
+                      : undefined
+                  }
+                >
+                  {formatGameTime(
+                    server.in_game_time,
+                    server.day_multiplier,
+                    server.night_multiplier,
+                  )}
                 </span>
               </div>
 
@@ -551,6 +593,14 @@ export function ServerTable() {
                 >
                   {server.players}/{server.max_players}
                 </span>
+                {server.queue != null && server.queue > 0 && (
+                  <span
+                    className="font-mono-data text-[10px] tabular-nums text-[#f59e0b]"
+                    title={`${server.queue} waiting in the join queue`}
+                  >
+                    &nbsp;+{server.queue}
+                  </span>
+                )}
               </div>
 
               <div className="min-w-0 px-2 py-1.5 text-right">

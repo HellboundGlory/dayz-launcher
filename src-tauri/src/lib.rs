@@ -106,53 +106,71 @@ pub fn run() {
         // window closes" path never fires and the process (and its Steam
         // session) lingers after the window disappears. Forced explicitly
         // rather than relying on that heuristic.
-        .on_window_event(|window, event| match event {
-            tauri::WindowEvent::CloseRequested { api, .. } => {
-                let app = window.app_handle();
-                let to_tray = app
-                    .try_state::<state::AppState>()
-                    .map(|s| s.close_to_tray.load(Ordering::Relaxed))
-                    .unwrap_or(false);
-
-                if to_tray {
-                    // Hide, don't quit. `prevent_close` is what stops tao
-                    // destroying the window out from under us — without it the
-                    // window is gone and the tray's Show has nothing to show.
-                    api.prevent_close();
-                    let _ = window.hide();
-                    return;
-                }
-                // Steam shutdown deliberately does not happen here — see
-                // `shutdown_steam`, hung off `RunEvent::Exit` so it also covers
-                // the tray's Quit and the updater's restart.
-                app.exit(0);
+        //
+        // **Scoped to `main`.** This handler is registered app-wide and every
+        // arm below was written when `main` was the only window there was. The
+        // splash window broke all three of them: its `close()` — the frontend's
+        // normal way of dismissing it — arrives here as `CloseRequested` and
+        // falls straight through to `app.exit(0)`, killing the process at the
+        // exact moment the launcher was about to be revealed. (With
+        // close-to-tray on it is worse in a quieter way: `prevent_close` means
+        // the splash never closes at all and lingers as a hidden always-on-top
+        // window.) `Resized`/`Moved` would meanwhile record the splash's fixed
+        // 860×484 and its position as the *launcher's* remembered geometry —
+        // `window_state::remember` filters out the 0×0 of a minimise, not a
+        // second window's perfectly plausible size.
+        .on_window_event(|window, event| {
+            if window.label() != "main" {
+                return;
             }
-            // Minimising to the tray. There is no `Minimized` window event to
-            // hang this off — tao reports a minimise as a resize — so the state
-            // is queried rather than inferred from the size, which is 0×0 for
-            // several unrelated reasons.
-            //
-            // Hiding an already-minimised window is what takes it off the
-            // taskbar; `reveal_main_window` undoes both halves, which is why it
-            // calls `unminimize` as well as `show`.
-            tauri::WindowEvent::Resized(_) => {
-                // Cheap enough to run on every event of a drag — it reads the
-                // window and takes a mutex, and never touches the disk. The
-                // one write happens at exit. `remember` is also what filters
-                // out the 0×0 a minimise reports.
-                window_state::remember(window);
+            match event {
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    let app = window.app_handle();
+                    let to_tray = app
+                        .try_state::<state::AppState>()
+                        .map(|s| s.close_to_tray.load(Ordering::Relaxed))
+                        .unwrap_or(false);
 
-                let app = window.app_handle();
-                let to_tray = app
-                    .try_state::<state::AppState>()
-                    .map(|s| s.minimise_to_tray.load(Ordering::Relaxed))
-                    .unwrap_or(false);
-                if to_tray && window.is_minimized().unwrap_or(false) {
-                    let _ = window.hide();
+                    if to_tray {
+                        // Hide, don't quit. `prevent_close` is what stops tao
+                        // destroying the window out from under us — without it the
+                        // window is gone and the tray's Show has nothing to show.
+                        api.prevent_close();
+                        let _ = window.hide();
+                        return;
+                    }
+                    // Steam shutdown deliberately does not happen here — see
+                    // `shutdown_steam`, hung off `RunEvent::Exit` so it also covers
+                    // the tray's Quit and the updater's restart.
+                    app.exit(0);
                 }
+                // Minimising to the tray. There is no `Minimized` window event to
+                // hang this off — tao reports a minimise as a resize — so the state
+                // is queried rather than inferred from the size, which is 0×0 for
+                // several unrelated reasons.
+                //
+                // Hiding an already-minimised window is what takes it off the
+                // taskbar; `reveal_main_window` undoes both halves, which is why it
+                // calls `unminimize` as well as `show`.
+                tauri::WindowEvent::Resized(_) => {
+                    // Cheap enough to run on every event of a drag — it reads the
+                    // window and takes a mutex, and never touches the disk. The
+                    // one write happens at exit. `remember` is also what filters
+                    // out the 0×0 a minimise reports.
+                    window_state::remember(window);
+
+                    let app = window.app_handle();
+                    let to_tray = app
+                        .try_state::<state::AppState>()
+                        .map(|s| s.minimise_to_tray.load(Ordering::Relaxed))
+                        .unwrap_or(false);
+                    if to_tray && window.is_minimized().unwrap_or(false) {
+                        let _ = window.hide();
+                    }
+                }
+                tauri::WindowEvent::Moved(_) => window_state::remember(window),
+                _ => {}
             }
-            tauri::WindowEvent::Moved(_) => window_state::remember(window),
-            _ => {}
         })
         .manage(state::AppState::new())
         .invoke_handler(tauri::generate_handler![
@@ -308,17 +326,14 @@ pub fn run() {
                 window_state::restore(&window.as_ref().window(), geometry);
             }
 
-            // Visibility is decided in exactly one place, at the end of `setup`,
-            // and never restored from disk. Reviving a saved "hidden" would mean
-            // that quitting from the tray started the next session invisible —
-            // the flag working as designed and still not what anyone wants.
-            //
-            // Start-minimised works by *withholding* this call rather than by
-            // minimising afterwards. Minimising would mean painting the window
-            // and then animating it away, which is the flash the hidden-window
-            // dance exists to avoid. It only applies when the launcher was
-            // started by Windows: someone who double-clicks the icon wants the
-            // window, whatever the setting says.
+            // The main launcher window's visibility is decided by the frontend,
+            // not here: it stays hidden at setup, the separate splash window
+            // carries the load, and once startup is ready the frontend shows
+            // `main` itself and closes the splash (see `App.tsx`). Revealing
+            // `main` here would paint the empty launcher around/behind the
+            // splash, which is exactly what the separate splash window exists
+            // to avoid. It is never hidden by start-minimised either — a hidden
+            // launcher needs no hiding.
             // Reconcile the OS entry with the setting — a no-op in debug builds,
             // see `apply_autostart`.
             commands::settings::apply_autostart(app.handle(), saved.start_with_windows);
@@ -356,11 +371,15 @@ pub fn run() {
             let argv: Vec<String> = std::env::args().collect();
             protocol::handle_argv(app.handle(), &argv);
 
+            // Show the splash window unless this is a silent autostart. A
+            // start-minimised launch goes straight to the tray and wants no
+            // splash; a hand launch gets the floating 860×484 splash while the
+            // (still hidden) launcher boots.
             let start_hidden = launched_by_os() && saved.start_minimised;
-            if start_hidden {
-                let _ = window.hide();
-            } else {
-                let _ = window.show();
+            if !start_hidden {
+                if let Some(splash) = app.get_webview_window("splash") {
+                    let _ = splash.show();
+                }
             }
 
             // The tray. Built unconditionally rather than only when

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, ChevronDown, RefreshCw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useServerStore } from "@/stores/server-store";
-import { getMapList } from "@/lib/tauri";
 
 interface FilterBarProps {
   onRefresh: () => void;
@@ -214,14 +213,12 @@ function MapDropdown({
   onChange: (maps: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [maps, setMaps] = useState<[string, string][]>([]);
+  // Maps come from the store, not a once-on-mount fetch: the store refetches
+  // them on every reload (see `server-table.tsx`), so this drop-down fills
+  // live as discovery writes maps instead of freezing at whatever the empty
+  // first launch had.
+  const maps = useServerStore((s) => s.maps);
   const ref = useCloseOnOutsideClick(open, useCallback(() => setOpen(false), []));
-
-  useEffect(() => {
-    getMapList()
-      .then(setMaps)
-      .catch(() => setMaps([]));
-  }, []);
 
   const label = selectedMaps.length === 0
     ? "Any"
