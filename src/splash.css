@@ -1,0 +1,15 @@
+/*
+ * Splash-window-only overrides, loaded *after* `main.css`.
+ *
+ * `main.css` gives the launcher an opaque `bg-background` body, which is right
+ * for a full window and wrong for this one: the splash window is transparent
+ * and decorationless so the artwork's rounded corners show through to the
+ * desktop. An opaque body squares them back off.
+ *
+ * This has to be a stylesheet imported after `main.css` rather than the inline
+ * `<style>` in `splash.html` — Vite appends its stylesheet after anything in
+ * the document head, so the head block loses to Tailwind's base layer.
+ */
+body {
+  background: transparent;
+}

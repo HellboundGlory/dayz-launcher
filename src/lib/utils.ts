@@ -37,6 +37,54 @@ export function formatLastPlayed(unixSeconds: number | null): string {
   return `${n} ${chosen[1]}${n === 1 ? "" : "s"} ago`;
 }
 
+/** In-game hours are "day" from this hour inclusive… */
+const DAY_START = 6;
+/** …until this hour exclusive. Outside it is night. */
+const DAY_END = 18;
+
+/**
+ * "Nx" for a time-acceleration multiplier, trimming a whole value's fraction so
+ * `4.0` renders `4x` and `4.5` renders `4.5x`.
+ */
+export function formatMultiplier(n: number): string {
+  const trimmed = Number.isInteger(n) ? String(n) : String(parseFloat(n.toFixed(2)));
+  return `${trimmed}x`;
+}
+
+/**
+ * Format a server's in-game clock for the TIME column.
+ *
+ * `in_game_time` is the "HH:MM" (24h) string from the A2S_INFO keywords. We
+ * render it as a 12-hour clock with AM/PM, prefix a sun/moon glyph for the
+ * current day/night phase, and suffix the time-acceleration felt right now —
+ * the day multiplier while it is day, the night multiplier while it is night
+ * (falling back to whichever the server reported). e.g. `☀ 3:15 PM · 4x`.
+ *
+ * Returns `"--:--"` when there is no clock to read.
+ */
+export function formatGameTime(
+  inGameTime: string | null,
+  dayMultiplier: number | null,
+  nightMultiplier: number | null,
+): string {
+  if (!inGameTime) return "--:--";
+  const m = /^(\d{1,2}):(\d{2})$/.exec(inGameTime);
+  if (!m) return "--:--";
+  const hour = Number(m[1]);
+  const minute = m[2];
+
+  const isDay = hour >= DAY_START && hour < DAY_END;
+  const glyph = isDay ? "☀" : "☾";
+
+  const period = hour < 12 ? "AM" : "PM";
+  const h12 = hour % 12 === 0 ? 12 : hour % 12;
+
+  const mult = (isDay ? dayMultiplier : nightMultiplier) ?? dayMultiplier ?? nightMultiplier;
+  const accel = mult != null ? ` · ${formatMultiplier(mult)}` : "";
+
+  return `${glyph} ${h12}:${minute} ${period}${accel}`;
+}
+
 /** Region code (EU/NA/OC/SA/AS) to a full name for tooltips. */
 export function regionName(code: string | null): string {
   if (!code) return "Unknown region";

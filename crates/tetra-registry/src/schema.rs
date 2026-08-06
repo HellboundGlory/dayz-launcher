@@ -1,7 +1,7 @@
 use crate::error::RegistryError;
 use rusqlite::Connection;
 
-pub const LATEST_VERSION: u32 = 2;
+pub const LATEST_VERSION: u32 = 3;
 
 struct Migration {
     version: u32,
@@ -16,6 +16,10 @@ const MIGRATIONS: &[Migration] = &[
     Migration {
         version: 2,
         sql: V2,
+    },
+    Migration {
+        version: 3,
+        sql: V3,
     },
 ];
 
@@ -123,4 +127,15 @@ CREATE INDEX idx_server_mods_workshop ON server_mods(workshop_id);
 /// itself failed to reach, has not been shown to be down.
 const V2: &str = r#"
 ALTER TABLE servers ADD COLUMN online INTEGER NOT NULL DEFAULT 1;
+"#;
+
+/// Server browser extras derived from the A2S_INFO `keywords` string: the
+/// backlog of players waiting in queue (`lqs`) and the day/night time
+/// acceleration multipliers (`etm`/`entm`). All three are keyword-derived like
+/// `in_game_time`, so they are nullable and only ever written by a probe that
+/// carried the keyword (see the COALESCE guards in `writer.rs`).
+const V3: &str = r#"
+ALTER TABLE servers ADD COLUMN queue INTEGER;
+ALTER TABLE servers ADD COLUMN day_multiplier REAL;
+ALTER TABLE servers ADD COLUMN night_multiplier REAL;
 "#;

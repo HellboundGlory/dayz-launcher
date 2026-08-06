@@ -1,6 +1,6 @@
 {
   "productName": "Tetra Launcher",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "identifier": "com.tetra.launcher",
   "build": {
     "frontendDist": "../dist",
@@ -21,6 +21,24 @@
         "decorations": false,
         "fullscreen": false,
         "visible": false
+      },
+      {
+        "label": "splash",
+        "title": "Tetra Launcher",
+        "url": "splash.html",
+        "width": 860,
+        "height": 484,
+        "center": true,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "fullscreen": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "focus": false
       }
     ],
     "security": {

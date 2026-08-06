@@ -120,13 +120,15 @@ INSERT INTO servers (
     players, max_players, bots, ping_ms, locked, vac,
     version, keywords, description, in_game_time, mod_count,
     official, first_person, modded, battleye,
-    first_seen, last_seen, last_responded, last_played, country_code
+    first_seen, last_seen, last_responded, last_played, country_code,
+    queue, day_multiplier, night_multiplier
 ) VALUES (
     ?1, ?2, ?3, ?4, ?5, ?6,
     ?7, ?8, ?9, ?10, ?11, ?12,
     ?13, ?14, ?15, ?16, ?17,
     ?18, ?19, ?20, ?21,
-    unixepoch(), unixepoch(), ?22, ?23, ?24
+    unixepoch(), unixepoch(), ?22, ?23, ?24,
+    ?25, ?26, ?27
 )
 ON CONFLICT(ip, query_port) DO UPDATE SET
     game_port      = CASE WHEN excluded.game_port > 0
@@ -185,6 +187,9 @@ ON CONFLICT(ip, query_port) DO UPDATE SET
     keywords       = COALESCE(excluded.keywords,       servers.keywords),
     description    = COALESCE(excluded.description,    servers.description),
     in_game_time   = COALESCE(excluded.in_game_time,   servers.in_game_time),
+    queue          = COALESCE(excluded.queue,          servers.queue),
+    day_multiplier = COALESCE(excluded.day_multiplier, servers.day_multiplier),
+    night_multiplier = COALESCE(excluded.night_multiplier, servers.night_multiplier),
     mod_count      = COALESCE(excluded.mod_count,      servers.mod_count),
     last_responded = COALESCE(excluded.last_responded, servers.last_responded),
     last_played    = COALESCE(excluded.last_played,    servers.last_played),
@@ -199,6 +204,9 @@ fn upsert_servers(conn: &Connection, rows: &[ServerRow]) -> Result<usize, Regist
         for row in rows {
             let kw = row.keywords.as_deref().map(parse_keywords);
             let in_game_time = kw.as_ref().and_then(|k| k.in_game_time.clone());
+            let queue = kw.as_ref().and_then(|k| k.queue).map(i64::from);
+            let day_multiplier = kw.as_ref().and_then(|k| k.day_multiplier).map(f64::from);
+            let night_multiplier = kw.as_ref().and_then(|k| k.night_multiplier).map(f64::from);
             let official = kw.as_ref().is_some_and(|k| k.official);
             let first_person = kw.as_ref().is_some_and(|k| k.first_person_only);
             let modded = kw.as_ref().is_some_and(|k| k.modded);
@@ -236,6 +244,9 @@ fn upsert_servers(conn: &Connection, rows: &[ServerRow]) -> Result<usize, Regist
                 responded_at,
                 row.last_played,
                 cc,
+                queue,
+                day_multiplier,
+                night_multiplier,
             ])?;
         }
     }

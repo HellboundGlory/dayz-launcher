@@ -1,5 +1,32 @@
 # Changelog
 
+## v1.4.0 — 2026-08-06
+
+### Added
+
+- **A proper splash screen while the launcher starts up.** Instead of an empty
+  window, startup now shows a branded DayZ splash that reports what it is
+  actually doing — connecting to Steam, fetching servers, loading maps — with
+  a live server count and a progress bar. The launcher window appears once
+  everything is ready.
+
+- **A queue count on busy servers.** A server that reports players waiting to
+  get in now shows them next to the player count, as an amber `+3`, in both
+  the server list and the details panel. Servers that don't report a queue
+  look exactly as they did.
+
+- **A far more readable TIME column.** The in-game clock is now a 12-hour time
+  with a ☀/☾ for day or night, plus the time-acceleration the server is
+  running right now — `☀ 3:15 PM · 4x`. It picks the day or night multiplier
+  to match the current phase rather than always showing one of them.
+
+### Fixed
+
+- **The map filter drop-down no longer freezes at whatever the first launch
+  found.** It was filled once when the window opened, so on a fresh install —
+  when the server list is still empty — it stayed empty for the whole session.
+  It now refills as servers are discovered.
+
 ## v1.3.1 — 2026-08-05
 
 ### Fixed

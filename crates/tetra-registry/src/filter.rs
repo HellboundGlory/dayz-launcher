@@ -117,6 +117,13 @@ pub struct ServerListRow {
     /// answer. `true` for anything only ever seen through Steam discovery or a
     /// bulk refresh — see the `online` column comment in `schema.rs`.
     pub online: bool,
+    /// Players waiting in the join queue (`lqs` keyword). `Some(0)` means "no
+    /// queue"; `None` means the server didn't report one.
+    pub queue: Option<i32>,
+    /// Day (`etm`) and night (`entm`) time-acceleration multipliers, from the
+    /// A2S_INFO keywords. Used with `in_game_time` to show sun/moon + "Nx".
+    pub day_multiplier: Option<f32>,
+    pub night_multiplier: Option<f32>,
 }
 
 pub(crate) fn build(
@@ -209,7 +216,8 @@ pub(crate) fn build(
         "SELECT ip, query_port, game_port, name, map_raw, players, max_players,
                 mod_count, ping_ms, locked, in_game_time, country_code,
                 last_played, favourite,
-                official, first_person, modded, battleye, vac, version, online
+                official, first_person, modded, battleye, vac, version, online,
+                queue, day_multiplier, night_multiplier
          FROM servers
          {where_sql}
          ORDER BY {} {} , name ASC
