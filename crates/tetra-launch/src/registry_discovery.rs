@@ -1,7 +1,10 @@
 use std::path::PathBuf;
-use winreg::enums::*;
 
-/// Paths discovered from the Windows registry.
+/// Paths discovered from Steam.
+///
+/// On Windows these come from the registry (`HKLM\...\Valve\Steam`); on Linux
+/// they come from Steam's own files under `~/.local/share/Steam`, mainly the
+/// `steamapps/libraryfolders.vdf` manifest. The two backends live in `imp`.
 pub struct SteamPaths {
     pub steam_install: PathBuf,
     pub dayz_install: PathBuf,
@@ -12,86 +15,210 @@ pub struct SteamPaths {
 ///
 /// Looks in `HKLM\SOFTWARE\WOW6432Node\Valve\Steam` for the Steam
 /// install directory, then derives the DayZ and workshop paths from it.
-pub fn find_steam_paths() -> Option<SteamPaths> {
-    let hklm = winreg::RegKey::predef(HKEY_LOCAL_MACHINE);
-    let steam_key = hklm
-        .open_subkey("SOFTWARE\\WOW6432Node\\Valve\\Steam")
-        .ok()?;
+#[cfg(windows)]
+mod imp {
+    use super::*;
+    use winreg::enums::*;
 
-    let steam_install: String = steam_key.get_value("InstallPath").ok()?;
-    let steam_install = PathBuf::from(steam_install);
-
-    let workshop_dir = steam_install
-        .join("steamapps")
-        .join("workshop")
-        .join("content")
-        .join("221100");
-
-    // DayZ install path: check common locations
-    let dayz_install = find_dayz_install(&steam_install)?;
-
-    Some(SteamPaths {
-        steam_install,
-        dayz_install,
-        workshop_dir,
-    })
-}
-
-/// Locate `steam.exe` so the launcher can offer to start Steam for the user.
-///
-/// Deliberately not derived from [`find_steam_paths`]: that returns `None` when
-/// DayZ itself cannot be found, and the startup "Steam isn't running" prompt has
-/// to work for someone whose DayZ folder is missing or on an unmounted drive —
-/// those are exactly the people who need Steam running to fix it.
-///
-/// `SteamExe` is per-user and holds the full path (with forward slashes, which
-/// Windows accepts); the machine-wide `InstallPath` is the fallback for a
-/// profile that has never launched Steam.
-pub fn find_steam_exe() -> Option<PathBuf> {
-    let from_user = winreg::RegKey::predef(HKEY_CURRENT_USER)
-        .open_subkey("Software\\Valve\\Steam")
-        .ok()
-        .and_then(|key| key.get_value::<String, _>("SteamExe").ok())
-        .map(PathBuf::from)
-        .filter(|path| path.exists());
-
-    from_user.or_else(|| {
-        winreg::RegKey::predef(HKEY_LOCAL_MACHINE)
+    pub fn find_steam_paths() -> Option<SteamPaths> {
+        let hklm = winreg::RegKey::predef(HKEY_LOCAL_MACHINE);
+        let steam_key = hklm
             .open_subkey("SOFTWARE\\WOW6432Node\\Valve\\Steam")
-            .ok()
-            .and_then(|key| key.get_value::<String, _>("InstallPath").ok())
-            .map(|dir| PathBuf::from(dir).join("steam.exe"))
-            .filter(|path| path.exists())
-    })
-}
+            .ok()?;
 
-fn find_dayz_install(steam_dir: &std::path::Path) -> Option<PathBuf> {
-    // Default Steam library location
-    let default = steam_dir.join("steamapps").join("common").join("DayZ");
+        let steam_install: String = steam_key.get_value("InstallPath").ok()?;
+        let steam_install = PathBuf::from(steam_install);
 
-    if default.exists() {
-        return Some(default);
+        let workshop_dir = steam_install
+            .join("steamapps")
+            .join("workshop")
+            .join("content")
+            .join("221100");
+
+        // DayZ install path: check common locations
+        let dayz_install = find_dayz_install(&steam_install)?;
+
+        Some(SteamPaths {
+            steam_install,
+            dayz_install,
+            workshop_dir,
+        })
     }
 
-    // Check LibraryFolders for alternate install locations
-    let library_folders = steam_dir.join("steamapps").join("libraryfolders.vdf");
+    /// Locate `steam.exe` so the launcher can offer to start Steam for the user.
+    pub fn find_steam_exe() -> Option<PathBuf> {
+        let from_user = winreg::RegKey::predef(HKEY_CURRENT_USER)
+            .open_subkey("Software\\Valve\\Steam")
+            .ok()
+            .and_then(|key| key.get_value::<String, _>("SteamExe").ok())
+            .map(PathBuf::from)
+            .filter(|path| path.exists());
 
-    if let Ok(contents) = std::fs::read_to_string(&library_folders) {
-        for line in contents.lines() {
-            // Parse lines like: "1"		"E:\\SteamLibrary"
-            if let Some(path_str) = line.split('"').nth(3) {
-                if path_str.contains(':') {
-                    let path = PathBuf::from(path_str)
-                        .join("steamapps")
-                        .join("common")
-                        .join("DayZ");
-                    if path.exists() {
-                        return Some(path);
+        from_user.or_else(|| {
+            winreg::RegKey::predef(HKEY_LOCAL_MACHINE)
+                .open_subkey("SOFTWARE\\WOW6432Node\\Valve\\Steam")
+                .ok()
+                .and_then(|key| key.get_value::<String, _>("InstallPath").ok())
+                .map(|dir| PathBuf::from(dir).join("steam.exe"))
+                .filter(|path| path.exists())
+        })
+    }
+
+    fn find_dayz_install(steam_dir: &std::path::Path) -> Option<PathBuf> {
+        // Default Steam library location
+        let default = steam_dir.join("steamapps").join("common").join("DayZ");
+
+        if default.exists() {
+            return Some(default);
+        }
+
+        // Check LibraryFolders for alternate install locations
+        let library_folders = steam_dir.join("steamapps").join("libraryfolders.vdf");
+
+        if let Ok(contents) = std::fs::read_to_string(&library_folders) {
+            for line in contents.lines() {
+                // Parse lines like: "1"		"E:\\SteamLibrary"
+                if let Some(path_str) = line.split('"').nth(3) {
+                    if path_str.contains(':') {
+                        let path = PathBuf::from(path_str)
+                            .join("steamapps")
+                            .join("common")
+                            .join("DayZ");
+                        if path.exists() {
+                            return Some(path);
+                        }
                     }
                 }
             }
         }
+
+        None
+    }
+}
+
+/// Discover Steam/DaYZ/Workshop paths on Linux (native Steam).
+///
+/// Native Steam keeps its files under `$XDG_DATA_HOME/Steam` (default
+/// `~/.local/share/Steam`). DayZ and workshop content can live in the root
+/// library or any library listed in `steamapps/libraryfolders.vdf`; all of them
+/// are candidates.
+#[cfg(target_os = "linux")]
+mod imp {
+    use super::*;
+
+    pub fn find_steam_paths() -> Option<SteamPaths> {
+        let steam_install = steam_root()?;
+
+        // Every candidate library root: the Steam root itself plus any extra
+        // libraries declared in libraryfolders.vdf.
+        let mut roots = vec![steam_install.clone()];
+        roots.extend(library_paths(&steam_install));
+
+        let dayz_install = roots
+            .iter()
+            .map(|r| r.join("steamapps").join("common").join("DayZ"))
+            .find(|d| d.exists())?;
+
+        let workshop_dir = roots
+            .iter()
+            .map(|r| {
+                r.join("steamapps")
+                    .join("workshop")
+                    .join("content")
+                    .join("221100")
+            })
+            .find(|w| w.is_dir());
+
+        Some(SteamPaths {
+            steam_install: steam_install.clone(),
+            dayz_install,
+            workshop_dir: workshop_dir.unwrap_or_else(|| {
+                steam_install
+                    .join("steamapps")
+                    .join("workshop")
+                    .join("content")
+                    .join("221100")
+            }),
+        })
     }
 
-    None
+    /// Locate the native `steam` launcher so the launcher can start Steam.
+    pub fn find_steam_exe() -> Option<PathBuf> {
+        if let Some(root) = steam_root() {
+            let sh = root.join("steam.sh");
+            if sh.exists() {
+                return Some(sh);
+            }
+        }
+        find_in_path("steam")
+    }
+
+    /// Resolve the native Steam root from the filesystem.
+    fn steam_root() -> Option<PathBuf> {
+        let base = std::env::var_os("XDG_DATA_HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| {
+                std::env::var_os("HOME")
+                    .map(|h| PathBuf::from(h).join(".local").join("share"))
+                    .unwrap_or_default()
+            });
+        let native = base.join("Steam");
+        if native.join("steam.sh").exists()
+            || native.join("steamapps").join("libraryfolders.vdf").exists()
+        {
+            return Some(native);
+        }
+        None
+    }
+
+    /// Collect library roots declared in `libraryfolders.vdf`.
+    fn library_paths(root: &std::path::Path) -> Vec<PathBuf> {
+        let vdf = root.join("steamapps").join("libraryfolders.vdf");
+        let mut out = Vec::new();
+        let Ok(text) = std::fs::read_to_string(&vdf) else {
+            return out;
+        };
+        for line in text.lines() {
+            // Pull every `"quoted"` token. A line whose first token is "path"
+            // carries the library path as its second token, e.g.:
+            //   "1"  {  "path"  "/mnt/games"  }
+            let mut tokens: Vec<String> = Vec::new();
+            let mut rest = line;
+            while let Some(q) = rest.find('"') {
+                rest = &rest[q + 1..];
+                match rest.find('"') {
+                    Some(e) => tokens.push(rest[..e].to_string()),
+                    None => break,
+                }
+                rest = &rest[rest.find('"').unwrap() + 1..];
+            }
+            if tokens.first().map(|t| t == "path").unwrap_or(false) {
+                if let Some(v) = tokens.get(1) {
+                    out.push(PathBuf::from(v));
+                }
+            }
+        }
+        out
+    }
+
+    fn find_in_path(name: &str) -> Option<PathBuf> {
+        let path = std::env::var_os("PATH")?;
+        for dir in std::env::split_paths(&path) {
+            let cand = dir.join(name);
+            if cand.exists() {
+                return Some(cand);
+            }
+        }
+        None
+    }
+}
+
+/// Discover the Steam, DayZ and workshop directories for this platform.
+pub fn find_steam_paths() -> Option<SteamPaths> {
+    imp::find_steam_paths()
+}
+
+/// Locate the Steam launcher binary so the app can offer to start it.
+pub fn find_steam_exe() -> Option<PathBuf> {
+    imp::find_steam_exe()
 }

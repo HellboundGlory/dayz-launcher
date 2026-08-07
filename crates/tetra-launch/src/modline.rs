@@ -28,14 +28,49 @@ pub fn build_mod_string(mod_paths: &[String]) -> String {
         if i > 0 {
             s.push(';');
         }
-        s.push_str(path);
+        s.push_str(&path_for_platform(path));
     }
     s
+}
+
+/// Translate a mod path to the form the running DayZ process can read.
+///
+/// On Windows the paths are already native (`C:\...`), untouched. On Linux DayZ
+/// is launched under Proton/Wine, so a Linux absolute path like
+/// `/home/james/.../content/221100/123` must become the Wine-visible
+/// `Z:\home\james\...` form or the game cannot find the PBOs and kicks with
+/// "missing pbos".
+fn path_for_platform(path: &str) -> String {
+    #[cfg(target_os = "linux")]
+    {
+        if path.starts_with('/') {
+            format!("Z:{}", path.replace('/', "\\"))
+        } else {
+            path.to_string()
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        path.to_string()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_absolute_paths_become_wine_z_paths() {
+        let paths: Vec<String> = vec![
+            "/home/james/.local/share/Steam/steamapps/workshop/content/221100/123".into(),
+            "/home/james/.local/share/Steam/steamapps/workshop/content/221100/456".into(),
+        ];
+        assert_eq!(
+            build_mod_string(&paths),
+            "-mod=Z:\\home\\james\\.local\\share\\Steam\\steamapps\\workshop\\content\\221100\\123;Z:\\home\\james\\.local\\share\\Steam\\steamapps\\workshop\\content\\221100\\456"
+        );
+    }
 
     #[test]
     fn preserves_declared_order() {
