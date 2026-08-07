@@ -61,6 +61,8 @@ pub fn find_dayz_exe(dayz_dir: &std::path::Path) -> Option<PathBuf> {
 ///
 /// # Arguments
 ///
+/// - `main_menu` — `true` launches DayZ to the main menu with the mods loaded
+///   instead of joining the server: the connection arguments are omitted.
 /// - `server_ip` — The server to connect to (game port, not query port).
 /// - `server_port` — Game port.
 /// - `password` — Optional server password.
@@ -70,6 +72,7 @@ pub fn find_dayz_exe(dayz_dir: &std::path::Path) -> Option<PathBuf> {
 /// The mod argument is always last in the list so the user's parameters
 /// cannot accidentally truncate or interfere with it.
 pub fn build_launch_args(
+    main_menu: bool,
     server_ip: &str,
     server_port: u16,
     password: Option<&str>,
@@ -79,12 +82,16 @@ pub fn build_launch_args(
 ) -> Vec<String> {
     let mut args: Vec<String> = Vec::new();
 
-    // Server connection
-    args.push(format!("-connect={server_ip}"));
-    args.push(format!("-port={server_port}"));
+    // Server connection — skipped for a main-menu launch, which must reach the
+    // menu rather than connect. `-password` goes with the connection, so it is
+    // dropped too: there is no server to hand it to.
+    if !main_menu {
+        args.push(format!("-connect={server_ip}"));
+        args.push(format!("-port={server_port}"));
 
-    if let Some(pw) = password {
-        args.push(format!("-password={pw}"));
+        if let Some(pw) = password {
+            args.push(format!("-password={pw}"));
+        }
     }
 
     if let Some(name) = profile_name {
@@ -110,13 +117,14 @@ mod tests {
 
     #[test]
     fn vanilla_launch_no_extra_params() {
-        let args = build_launch_args("127.0.0.1", 2302, None, "", &[], None);
+        let args = build_launch_args(false, "127.0.0.1", 2302, None, "", &[], None);
         assert_eq!(args, vec!["-connect=127.0.0.1", "-port=2302"]);
     }
 
     #[test]
     fn launch_with_name_and_mods() {
         let args = build_launch_args(
+            false,
             "192.168.1.1",
             27016,
             Some("hunter2"),
@@ -139,13 +147,13 @@ mod tests {
 
     #[test]
     fn mod_arg_given_even_when_empty() {
-        let args = build_launch_args("10.0.0.1", 2302, None, "", &[], None);
+        let args = build_launch_args(false, "10.0.0.1", 2302, None, "", &[], None);
         assert!(!args.contains(&String::from("-mod=")));
     }
 
     #[test]
     fn name_omitted_when_none() {
-        let args = build_launch_args("127.0.0.1", 2302, None, "", &[], None);
+        let args = build_launch_args(false, "127.0.0.1", 2302, None, "", &[], None);
         assert!(!args.iter().any(|a| a.starts_with("-name=")));
     }
 
@@ -157,6 +165,7 @@ mod tests {
     #[test]
     fn user_parameters_precede_the_mod_line() {
         let args = build_launch_args(
+            false,
             "127.0.0.1",
             2302,
             None,
@@ -191,9 +200,44 @@ mod tests {
     #[test]
     fn every_supplied_parameter_reaches_the_command_line() {
         let extra: Vec<String> = vec!["-noSplash".into(), "-window".into()];
-        let args = build_launch_args("127.0.0.1", 2302, None, "", &extra, None);
+        let args = build_launch_args(false, "127.0.0.1", 2302, None, "", &extra, None);
         for flag in &extra {
             assert!(args.contains(flag), "{flag} was dropped");
         }
+    }
+
+    /// A main-menu launch must not carry any server-connection argument, while
+    /// still loading the mods and the user's launch parameters.
+    #[test]
+    fn main_menu_launch_omits_connection_but_keeps_mods() {
+        let args = build_launch_args(
+            true,
+            "127.0.0.1",
+            2302,
+            Some("hunter2"),
+            "-mod=C:\\mods\\@a;C:\\mods\\@b",
+            &["-noSplash".into()],
+            Some("Survivor"),
+        );
+        assert!(
+            !args.iter().any(|a| a.starts_with("-connect=")),
+            "-connect= must be omitted in main-menu mode"
+        );
+        assert!(
+            !args.iter().any(|a| a.starts_with("-port=")),
+            "-port= must be omitted in main-menu mode"
+        );
+        assert!(
+            !args.iter().any(|a| a.starts_with("-password=")),
+            "-password= must be omitted in main-menu mode"
+        );
+        assert!(
+            args.iter().any(|a| a.starts_with("-mod=")),
+            "-mod= must still be present in main-menu mode"
+        );
+        assert!(
+            args.iter().any(|a| a == "-noSplash"),
+            "user launch parameters must still reach main-menu mode"
+        );
     }
 }

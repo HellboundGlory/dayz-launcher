@@ -1,7 +1,7 @@
 {
   "name": "tetra-launcher",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -21,6 +21,7 @@
     "lucide-react": "^0.368",
     "react": "^18",
     "react-dom": "^18",
+    "react-markdown": "^10.1.0",
     "tailwind-merge": "^2",
     "zustand": "^4"
   },

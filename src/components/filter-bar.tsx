@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Search, ChevronDown, RefreshCw, X } from "lucide-react";
+import { Search, ChevronDown, RefreshCw, RotateCcw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useServerStore } from "@/stores/server-store";
 
@@ -63,6 +63,7 @@ const SEARCH_DEBOUNCE_MS = 250;
 export function FilterBar({ onRefresh, refreshing }: FilterBarProps) {
   const filter = useServerStore((s) => s.filter);
   const setFilter = useServerStore((s) => s.setFilter);
+  const resetFilter = useServerStore((s) => s.resetFilter);
 
   return (
     <div className="flex items-center gap-2 border-b border-[#1e293b] bg-[#0b0f17] px-3 py-1.5">
@@ -122,6 +123,18 @@ export function FilterBar({ onRefresh, refreshing }: FilterBarProps) {
           onClick={() => setFilter({ hide_locked: !filter.hide_locked })}
         />
       </div>
+
+      {/* Reset filters.
+          Filters now persist between sessions, so a restart no longer clears
+          them — this is the explicit way back to defaults. */}
+      <button
+        onClick={resetFilter}
+        className="flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#64748b] transition-colors hover:text-[#f1f5f9]"
+        title="Reset all filters to defaults"
+      >
+        <RotateCcw className="size-3" />
+        Reset
+      </button>
 
       {/* Refresh button.
           Gated on `refreshing` alone, not `discovering`: discovery streams
