@@ -5,6 +5,7 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Listener, Manager};
 use tetra_net::ProbeConfig;
 use tetra_registry::Registry;
+#[cfg(target_os = "windows")]
 use window_vibrancy::apply_acrylic;
 
 mod commands;
