@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerStore } from "@/stores/server-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useLaunchStore, type ActiveOp } from "@/stores/launch-store";
-import { Play, ChevronRight, Star, Download, Trash2, Loader2, Check } from "lucide-react";
+import { Play, ChevronRight, ChevronDown, Star, Download, Trash2, Loader2, Check } from "lucide-react";
 import {
   launchGame,
   getServerMods,
@@ -259,6 +259,29 @@ export function ServerDetails() {
   const otherOp = op && (!selectedServer || op.addr !== selectedServer.addr) ? op : null;
   const [notice, setNotice] = useState<Notice | null>(null);
   const [confirmUnsub, setConfirmUnsub] = useState(false);
+  /** The "Load" dropdown beside the join button. */
+  const [loadOpen, setLoadOpen] = useState(false);
+  const loadMenuRef = useRef<HTMLDivElement>(null);
+  const loadToggleRef = useRef<HTMLButtonElement>(null);
+
+  // Close the Load dropdown when a pointer goes down outside it.
+  //
+  // The toggle button is deliberately treated as "inside": its `onClick`
+  // toggles the menu, so letting this close-then-toggling-open would make the
+  // chevron flicker shut-and-reopen (mousedown closes, click reopens) instead
+  // of just closing.
+  useEffect(() => {
+    if (!loadOpen) return;
+    function handleClick(e: MouseEvent) {
+      const t = e.target as Node;
+      if (loadMenuRef.current?.contains(t) || loadToggleRef.current?.contains(t)) {
+        return;
+      }
+      setLoadOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [loadOpen]);
 
   useEffect(() => {
     setModList(null);
@@ -369,14 +392,14 @@ export function ServerDetails() {
    * the server that was actually launched, not with whatever happens to be
    * selected by the time the promise resolves.
    */
-  async function launch(addr: string, gamePort: number) {
+  async function launch(addr: string, gamePort: number, toMenu = false) {
     // Its own phase, so the button can say LAUNCHING… instead of the generic
     // working state. It could not before: the whole operation was covered by
     // one spinner, so `launching` was set and cleared behind a box that never
     // rendered it — the launch step was indistinguishable from verifying.
     setPhase("launching");
     try {
-      const outcome = await launchGame(addr, gamePort, launchOptions());
+      const outcome = await launchGame(addr, gamePort, launchOptions(toMenu));
       setLaunchResult({ addr, message: outcome.message });
       // Handed to `starting`, which ends when DayZ shows up as a process.
       setPhase("starting");
@@ -388,11 +411,12 @@ export function ServerDetails() {
   }
 
   /** The launch-affecting settings, in the shape {@link launchGame} wants. */
-  function launchOptions() {
+  function launchOptions(toMenu: boolean) {
     return {
       profileName: profileName || undefined,
       dayzPath: dayzPath || undefined,
       launchParams: launchParams.length > 0 ? launchParams : undefined,
+      mainMenu: toMenu || undefined,
     };
   }
 
@@ -426,7 +450,7 @@ export function ServerDetails() {
    * updated by a separate effect, and reading it from inside this closure would
    * see the value captured when the loop started.
    */
-  async function handleVerifyAndJoin() {
+  async function handleVerifyAndJoin(toMenu = false) {
     if (!selectedServer) return;
     const addr = selectedServer.addr;
     const queryPort = selectedServer.query_port;
@@ -458,7 +482,7 @@ export function ServerDetails() {
 
       const ids = verified.mods.map((m) => m.workshop_id);
       if (ids.length === 0) {
-        await launch(addr, gamePort);
+        await launch(addr, gamePort, toMenu);
         return;
       }
 
@@ -571,7 +595,7 @@ export function ServerDetails() {
         return;
       }
 
-      await launch(addr, gamePort);
+      await launch(addr, gamePort, toMenu);
     } catch (e) {
       setNotice({ kind: "plain", text: String(e) });
     } finally {
@@ -930,31 +954,66 @@ export function ServerDetails() {
             <span>PLAYING</span>
           </button>
         ) : (
-          <button
-            onClick={handleVerifyAndJoin}
-            title={
-              joinBlocked
-                ? `Subscribe to what's missing, wait for Steam, then join — ${summary?.text ?? ""}`
-                : action.joins
-                  ? // The check still happens on every press — it is just not
-                    // the button's job to say so. This is where it gets said,
-                    // including the part people assume otherwise: what is
-                    // compared is the server's declared list and Steam's record
-                    // of each mod's version, not the bytes on disk.
-                    "Re-reads the server's mod list and updates any mod the Workshop has moved past, " +
-                    "then joins. Checked means Steam reports each mod installed and current — not a checksum."
-                  : "Auto-join after downloading is off, so this subscribes and downloads and then stops. " +
-                    "The button becomes JOIN once everything is ready."
-            }
-            className="flex w-full items-center justify-center gap-2 rounded bg-[#38bdf8] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#0b0f17] transition-colors hover:bg-[#7dd3fc] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {action.icon === "download" ? (
-              <Download className="size-3.5" />
-            ) : (
-              <Play className="size-3.5" />
+          <div className="relative flex w-full gap-1">
+            <button
+              onClick={() => handleVerifyAndJoin(false)}
+              title={
+                joinBlocked
+                  ? `Subscribe to what's missing, wait for Steam, then join — ${summary?.text ?? ""}`
+                  : action.joins
+                    ? // The check still happens on every press — it is just not
+                      // the button's job to say so. This is where it gets said,
+                      // including the part people assume otherwise: what is
+                      // compared is the server's declared list and Steam's record
+                      // of each mod's version, not the bytes on disk.
+                      "Re-reads the server's mod list and updates any mod the Workshop has moved past, " +
+                      "then joins. Checked means Steam reports each mod installed and current — not a checksum."
+                    : "Auto-join after downloading is off, so this subscribes and downloads and then stops. " +
+                      "The button becomes JOIN once everything is ready."
+              }
+              className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded bg-[#38bdf8] px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#0b0f17] transition-colors hover:bg-[#7dd3fc] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {action.icon === "download" ? (
+                <Download className="size-3.5" />
+              ) : (
+                <Play className="size-3.5" />
+              )}
+              <span>{action.label}</span>
+            </button>
+            {/* Separate down arrow, styled identically to the join button, that
+                owns the "Load" dropdown. Same surface, same colour — the only
+                difference is that it opens a menu instead of launching. */}
+            <button
+              ref={loadToggleRef}
+              onClick={() => setLoadOpen((o) => !o)}
+              aria-haspopup="menu"
+              aria-expanded={loadOpen}
+              title="Load this server's mods to the main menu"
+              className="flex shrink-0 items-center justify-center rounded bg-[#38bdf8] px-2 py-2 text-[#0b0f17] transition-colors hover:bg-[#7dd3fc]"
+            >
+              <ChevronDown className={cn("size-3.5 transition-transform", loadOpen && "rotate-180")} />
+            </button>
+
+            {loadOpen && (
+              <div
+                ref={loadMenuRef}
+                role="menu"
+                className="absolute right-0 top-full z-50 mt-1 w-56 rounded border border-[#1e293b] bg-[#111823] p-1 shadow-xl"
+              >
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setLoadOpen(false);
+                    handleVerifyAndJoin(true);
+                  }}
+                  title="Verify the mod list, then launch DayZ to the main menu with this server's mods loaded — it does not join the server."
+                  className="flex w-full items-center justify-between rounded px-3 py-2 text-left text-xs font-bold uppercase tracking-wider text-[#f1f5f9] transition-colors hover:bg-[#16202e]"
+                >
+                  <span>Load</span>
+                </button>
+              </div>
             )}
-            <span>{action.label}</span>
-          </button>
+          </div>
         )}
 
         {/* Whose work the box above is showing. Only when it is not this

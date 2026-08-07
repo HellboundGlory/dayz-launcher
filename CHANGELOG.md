@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.5.0 — 2026-08-07
+
+### Added
+
+- **Load button beside Join.** Starts DayZ at the main menu with a server's
+  mods, without joining it.
+
+- **Filters remembered between sessions**, with a Reset button to clear them.
+
+- **Clear update notifications.** A banner appears when a new version is out,
+  and the changelog is shown right in the launcher.
+
+### Fixed
+
+- **The launcher no longer pops back over the game** after you've hidden it to
+  the tray.
+
 ## v1.4.0 — 2026-08-06
 
 ### Added

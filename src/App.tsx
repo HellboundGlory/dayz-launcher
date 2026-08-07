@@ -5,6 +5,7 @@ import { ServerTable } from "./components/server-table";
 import { ServerDetails } from "./components/server-details";
 import { FooterBar } from "./components/footer-bar";
 import { SettingsModal } from "./components/settings-modal";
+import { UpdateModal } from "./components/update-modal";
 import { SteamRequiredModal } from "./components/steam-required-modal";
 import type { SplashScreenProps } from "./components/splash-screen";
 import { useServerStore } from "./stores/server-store";
@@ -116,6 +117,13 @@ export function App() {
   const [counts, setCounts] = useState({ total: 0, populated: 0 });
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [updateOpen, setUpdateOpen] = useState(false);
+  /**
+   * The startup "update available" banner. `true` once dismissed for the
+   * session — the badge stays as the persistent entry point, and the banner
+   * returns next launch while an update is still pending.
+   */
+  const [updateBannerDismissed, setUpdateBannerDismissed] = useState(false);
   /** Registry fell back to in-memory: nothing the user saves will survive. */
   const [storageDegraded, setStorageDegraded] = useState(false);
 
@@ -443,7 +451,18 @@ export function App() {
   // promise instead of throwing anywhere visible — a bare `void` turned "the
   // launcher is not allowed to reveal itself" into "the splash closes and
   // nothing happens", with nothing in the console to say why.
+  //
+  // **One-shot by design.** This exists to dismiss the startup splash and raise
+  // `main` exactly once. It must never run again mid-session: it calls
+  // `self.show()` + `setFocus()`, and a second invocation after the launcher
+  // has gone to the tray would rip it back over the game. That used to happen
+  // when a mid-session Steam-connection blip set `steamError`/flipped
+  // `startupReady`, re-arming the reveal effect below — so `revealDone` makes
+  // only the first call past the gate, and a later re-fire is a no-op.
+  const revealDone = useRef(false);
   const revealLauncherWhenReady = useCallback(() => {
+    if (revealDone.current) return;
+    revealDone.current = true;
     void import("@tauri-apps/api/window").then(
       async ({ getCurrentWindow, getAllWindows }) => {
         const self = getCurrentWindow();
@@ -555,8 +574,36 @@ export function App() {
         onTabChange={handleTabChange}
         steamConnected={steamConnected}
         onOpenSettings={() => setSettingsOpen(true)}
-        updateAvailable={updateAvailable !== null}
       />
+
+      {/* Prominent startup alert for a pending update: not a dot to hunt for,
+          a bar at the very top. Opens the same update dialog as the badge;
+          "Later" dismisses for this session only. */}
+      {updateAvailable && !updateBannerDismissed && (
+        <div className="flex items-center gap-3 border-b border-[#38bdf8]/30 bg-[#38bdf8]/10 px-3 py-1.5">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#38bdf8]">
+            Update available
+          </span>
+          <span className="min-w-0 flex-1 truncate text-[11px] text-[#f1f5f9]">
+            Tetra Launcher v{updateAvailable.version} is ready to install.
+          </span>
+          <button
+            onClick={() => {
+              setUpdateBannerDismissed(true);
+              setUpdateOpen(true);
+            }}
+            className="shrink-0 rounded bg-[#38bdf8] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#0b0f17] transition-colors hover:bg-[#7dd3fc]"
+          >
+            Update
+          </button>
+          <button
+            onClick={() => setUpdateBannerDismissed(true)}
+            className="shrink-0 rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#64748b] transition-colors hover:text-[#f1f5f9]"
+          >
+            Later
+          </button>
+        </div>
+      )}
 
       <FilterBar onRefresh={handleRefresh} refreshing={refreshing} />
 
@@ -618,6 +665,11 @@ export function App() {
       <SettingsModal
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+      />
+
+      <UpdateModal
+        open={updateOpen}
+        onClose={() => setUpdateOpen(false)}
       />
 
       {/* Blocking: nothing in the launcher works without Steam, and the mod
