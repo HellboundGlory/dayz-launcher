@@ -15,12 +15,41 @@ concurrency:
 
 jobs:
   rust:
-    # Windows, not ubuntu: the workspace pulls in winreg and window-vibrancy,
-    # and tetra-launch's registry discovery is Windows-only. A Linux runner
-    # cannot compile this.
+    # Windows still gets its own same job so the Windows-only code paths
+    # (winreg, window-vibrancy, registry discovery) keep compiling. The Linux
+    # equivalent runs in `rust-linux` below.
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace
+
+  # Linux half of the Rust check. The workspace now compiles on Linux too, so a
+  # future Windows-only change must not silently break the Linux/AppImage build.
+  rust-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y             libwebkit2gtk-4.1-dev             build-essential             libssl-dev             libayatana-appindicator3-dev             librsvg2-dev
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
