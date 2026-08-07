@@ -1,4 +1,6 @@
 use crate::error::ProtocolError;
+
+#[cfg(windows)]
 use winreg::enums::*;
 
 /// Parsed `dzsa://` URI.
@@ -46,6 +48,7 @@ pub fn parse_dzsa_uri(uri: &str) -> Result<DzsaUri, ProtocolError> {
 ///
 /// Writes to `HKCU\Software\Classes\dzsa\` so the operating system knows
 /// to open this launcher when a `dzsa://` link is clicked.
+#[cfg(windows)]
 pub fn register_dzsa_protocol(exe_path: &std::path::Path) -> Result<(), ProtocolError> {
     let hkcu = winreg::RegKey::predef(HKEY_CURRENT_USER);
     let (dzsa, _) = hkcu.create_subkey("Software\\Classes\\dzsa")?;
@@ -62,9 +65,58 @@ pub fn register_dzsa_protocol(exe_path: &std::path::Path) -> Result<(), Protocol
 }
 
 /// Unregister the `dzsa://` protocol handler.
+#[cfg(windows)]
 pub fn unregister_dzsa_protocol() -> Result<(), ProtocolError> {
     let hkcu = winreg::RegKey::predef(HKEY_CURRENT_USER);
     hkcu.delete_subkey_all("Software\\Classes\\dzsa")?;
+    Ok(())
+}
+
+/// Register the `dzsa://` protocol handler on Linux via an XDG desktop entry.
+///
+/// Writes `~/.local/share/applications/tetra-launcher-dzsa.desktop` marking the
+/// launcher as the handler for `x-scheme-handler/dzsa`, then tells the desktop
+/// environment to use it. The Windows twin writes to the registry instead.
+#[cfg(target_os = "linux")]
+pub fn register_dzsa_protocol(exe_path: &std::path::Path) -> Result<(), ProtocolError> {
+    let home = std::env::var_os("HOME")
+        .ok_or_else(|| ProtocolError::InvalidUri("no HOME in environment".into()))?;
+    let apps_dir = std::path::PathBuf::from(home)
+        .join(".local")
+        .join("share")
+        .join("applications");
+    std::fs::create_dir_all(&apps_dir)?;
+
+    let desktop_file = apps_dir.join("tetra-launcher-dzsa.desktop");
+    let content = format!(
+        "[Desktop Entry]\nType=Application\nName=Tetra Launcher\nComment=DayZ Standalone Launcher Protocol Handler\nExec=\"{}\" %u\nMimeType=x-scheme-handler/dzsa;\nNoDisplay=true\n",
+        exe_path.display()
+    );
+    std::fs::write(&desktop_file, content)?;
+
+    let _ = std::process::Command::new("xdg-mime")
+        .args([
+            "default",
+            "tetra-launcher-dzsa.desktop",
+            "x-scheme-handler/dzsa",
+        ])
+        .status();
+    Ok(())
+}
+
+/// Remove the Linux `dzsa://` desktop entry.
+#[cfg(target_os = "linux")]
+pub fn unregister_dzsa_protocol() -> Result<(), ProtocolError> {
+    if let Some(home) = std::env::var_os("HOME") {
+        let desktop_file = std::path::PathBuf::from(home)
+            .join(".local")
+            .join("share")
+            .join("applications")
+            .join("tetra-launcher-dzsa.desktop");
+        if desktop_file.exists() {
+            std::fs::remove_file(&desktop_file)?;
+        }
+    }
     Ok(())
 }
 

@@ -22,12 +22,128 @@ use std::process::Command;
 /// Arguments never pass through `cmd.exe` or any shell — `std::process::Command`
 /// calls `CreateProcess` directly on Windows. Dropping the `Child` does not
 /// terminate the process.
+#[cfg(windows)]
 pub fn spawn_dayz(exe_path: &std::path::Path, args: &[String]) -> Result<(), SpawnError> {
     Command::new(exe_path)
         .args(args)
         .spawn()
         .map(|_child| ())
         .map_err(SpawnError::Launch)
+}
+
+/// Start DayZ on Linux by running the Windows executable under Proton.
+///
+/// DayZ ships as a Windows binary, so on Linux it is launched through the same
+/// Proton setup Steam uses. The Steam root is resolved from disk, then a Proton
+/// build and its Steam Linux Runtime are located under
+/// `<steam>/steamapps/common/`, and the game is run like:
+///
+/// ```text
+/// <SteamLinuxRuntime_*>/run -- <Proton>/proton run <dayz_exe> <args...>
+/// ```
+///
+/// `STEAM_COMPAT_DATA_PATH` points at the appid 221100 prefix so the launch
+/// reuses the exact prefix Steam would have created for a normal DayZ run.
+#[cfg(target_os = "linux")]
+pub fn spawn_dayz(exe_path: &std::path::Path, args: &[String]) -> Result<(), SpawnError> {
+    let steam_root = crate::registry_discovery::find_steam_paths()
+        .map(|p| p.steam_install)
+        .unwrap_or_else(|| {
+            std::env::var_os("XDG_DATA_HOME")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|| {
+                    std::path::PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
+                        .join(".local")
+                        .join("share")
+                })
+                .join("Steam")
+        });
+
+    let common = steam_root.join("steamapps").join("common");
+
+    let proton = pick_proton(&common).ok_or_else(|| {
+        SpawnError::Launch(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "no installed Proton build found under Steam steamapps/common",
+        ))
+    })?;
+    let runtime = pick_runtime(&common).ok_or_else(|| {
+        SpawnError::Launch(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "no Steam Linux Runtime found under Steam steamapps/common",
+        ))
+    })?;
+
+    let compat_data = steam_root
+        .join("steamapps")
+        .join("compatdata")
+        .join("221100");
+
+    let mut cmd = Command::new(&runtime);
+    cmd.arg("--")
+        .arg(&proton)
+        .arg("run")
+        .arg(exe_path)
+        .args(args);
+
+    // The Steam client sets these when it launches a game normally; invoking
+    // Proton outside Steam means the `proton` script needs them to set up the
+    // WINEPREFIX and find the Steam install. Without them proton aborts with a
+    // "STEAM_COMPAT_CLIENT_INSTALL_PATH" KeyError.
+    cmd.env("STEAM_COMPAT_DATA_PATH", &compat_data);
+    cmd.env("STEAM_COMPAT_CLIENT_INSTALL_PATH", &steam_root);
+    cmd.env("SteamAppId", "221100");
+    cmd.env("SteamGameId", "221100");
+
+    // When the launcher itself runs from an AppImage, the runtime injects
+    // LD_LIBRARY_PATH (and APPIMAGE/APPDIR) pointing at the AppImage's bundled
+    // libraries, which breaks the Steam-runtime child. Strip them so the child
+    // uses the system libraries Steam expects.
+    cmd.env_remove("LD_LIBRARY_PATH");
+    cmd.env_remove("APPIMAGE");
+    cmd.env_remove("APPDIR");
+    // A leaked PYTHONHOME/PYTHONPATH breaks the runtime's system Python
+    // ("No module named 'encodings'").
+    cmd.env_remove("PYTHONHOME");
+    cmd.env_remove("PYTHONPATH");
+
+    cmd.spawn().map(|_child| ()).map_err(SpawnError::Launch)
+}
+
+/// Locate an installed Proton build under `<steam>/steamapps/common`.
+#[cfg(target_os = "linux")]
+fn pick_proton(common: &std::path::Path) -> Option<PathBuf> {
+    let mut candidates: Vec<PathBuf> = std::fs::read_dir(common)
+        .ok()?
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| {
+            let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            name.starts_with("Proton")
+        })
+        .map(|p| p.join("proton"))
+        .filter(|p| p.is_file())
+        .collect();
+    candidates.sort();
+    candidates.into_iter().next()
+}
+
+/// Locate a Steam Linux Runtime (soldier/sniper) under `<steam>/steamapps/common`.
+#[cfg(target_os = "linux")]
+fn pick_runtime(common: &std::path::Path) -> Option<PathBuf> {
+    let mut candidates: Vec<PathBuf> = std::fs::read_dir(common)
+        .ok()?
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| {
+            let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            name.starts_with("SteamLinuxRuntime")
+        })
+        .map(|p| p.join("run"))
+        .filter(|p| p.is_file())
+        .collect();
+    candidates.sort();
+    candidates.into_iter().next()
 }
 
 /// Start the Steam client and return immediately.
