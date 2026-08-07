@@ -20,13 +20,14 @@ summary: >
 | Workflow | Trigger | Does |
 |---|---|---|
 | `check.yml` | every push and PR | three independent jobs — see below |
-| `release.yml` | **pushing a `vX.Y.Z` tag only** | builds, signs, publishes installer + `.sig` + portable zip + `latest.json` |
+| `release.yml` | **pushing a `vX.Y.Z` tag only** | builds, signs, publishes Windows (NSIS installer + portable zip) and Linux (AppImage) artifacts + `latest.json` |
 
 `check.yml` jobs:
 
 | Job | Runner | Does |
 |---|---|---|
-| `rust` | `windows-latest` | `cargo fmt --check`, `clippy -D warnings`, `cargo test` |
+| `rust` | `windows-latest` | `cargo fmt --check`, `clippy -D warnings`, `cargo test` (Windows-only paths) |
+| `rust-linux` | `ubuntu-latest` | same on Linux, so the Linux/AppImage build cannot silently break |
 | `frontend` | `ubuntu-latest` | `npm ci`, `tsc --noEmit` |
 | `repoos` | `ubuntu-latest` | validates `.ai/`, and fails if `CLAUDE.md` has drifted from it |
 
@@ -50,8 +51,11 @@ so splitting them across two commits leaves `main` red in between.
 thing that publishes — which is why that push is gated (see
 [`release`](../workflows/release.md)).
 
-`check.yml` runs Rust on `windows-latest` because the workspace needs `winreg`
-and `window-vibrancy`. A Linux runner cannot compile it.
+Rust is checked on both `windows-latest` and `ubuntu-latest`. The workspace
+pulls in `winreg` and `window-vibrancy` which are Windows-only dependencies, so
+the two are gated to `cfg(windows)`; a Linux runner compiles the rest. This
+mirrors the release: `release.yml` produces a Windows NSIS install on
+`windows-latest` and an AppImage on `ubuntu-latest` from the same tag.
 
 ## Auto-update
 

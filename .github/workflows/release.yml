@@ -76,3 +76,82 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "${{ github.ref_name }}" "Tetra-Launcher-${{ github.ref_name }}-portable.zip" --clobber
+
+  # Linux (AppImage) half of the release. Full parity with Windows: builds,
+  # signs with the SAME cross-platform key (TAURI_SIGNING_PRIVATE_KEY*), and
+  # publishes the AppImage + updater artifacts onto the same release that the
+  # Windows job created. `needs: release` serialises it AFTER the Windows job so
+  # the GitHub release and its Windows latest.json already exist, letting
+  # tauri-action merge this platform's entry into latest.json instead of the two
+  # jobs racing to clobber each other's file.
+  release-linux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    needs: release
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl wget file \
+            libxdo-dev libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # Build the Rust binary first (release): this both produces the binary and
+      # emits libsteam_api.so (the Steamworks SDK) under
+      # target/release/build/steamworks-sys-*/out for the next step to stage.
+      # (the Steamworks SDK) under target/release/build/steamworks-sys-*/out,
+      # which the next step stages for linuxdeploy.
+      - name: Build Rust binary (release)
+        run: cargo build --release --package tetra-launcher
+
+      # linuxdeploy cannot discover libsteam_api.so by itself (it lives in a
+      # hashed build dir, not a library path). Stage a copy in a fixed directory
+      # and hand it to the bundler through LD_LIBRARY_PATH; without this the
+      # AppImage build fails with "Could not find dependency: libsteam_api.so".
+      - name: Stage Steamworks library for the bundler
+        run: |
+          mkdir -p target/steamlib
+          find target/release/build -name 'libsteam_api.so' -exec cp {} target/steamlib/ \;
+
+      # AppImage only (per project decision). NO_STRIP is required because
+      # linuxdeploy's bundled strip chokes on modern (GCC 14 / .relr.dyn)
+      # libraries. tauri-action merges this platform's entry into the same
+      # latest.json the Windows job created, so both updaters keep working.
+      - name: Build and publish Linux AppImage
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          NO_STRIP: "1"
+          LD_LIBRARY_PATH: ${{ github.workspace }}/target/steamlib
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Tetra Launcher ${{ github.ref_name }}"
+          releaseDraft: false
+          prerelease: false
+          args: --bundles appimage
