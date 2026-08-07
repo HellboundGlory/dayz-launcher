@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { TitleBar } from "./components/title-bar";
+import { WindowResizeHandles } from "./components/window-resize-handles";
 import { FilterBar } from "./components/filter-bar";
 import { ServerTable } from "./components/server-table";
 import { ServerDetails } from "./components/server-details";
@@ -569,6 +570,7 @@ export function App() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#0b0f17]">
+      <WindowResizeHandles />
       <TitleBar
         activeTab={activeTab}
         onTabChange={handleTabChange}
