@@ -8,6 +8,11 @@ license.workspace = true
 [dependencies]
 sysinfo = { version = "0.36.1", default-features = false, features = ["system"] }
 thiserror.workspace = true
+
+# Windows-only: reads/writes the Windows registry for Steam discovery and the
+# `dzsa://` protocol handler. Not present on Linux (which uses libraryfolders.vdf
+# and an XDG .desktop entry instead).
+[target.'cfg(windows)'.dependencies]
 winreg.workspace = true
 
 [lints.rust]
