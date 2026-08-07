@@ -12,14 +12,15 @@
 use std::ffi::OsStr;
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
 
-/// The process that *is* the game.
+/// The processes that *are* the game.
 ///
-/// Deliberately not `DayZ_BE.exe`. That is the BattlEye launcher stub, which
-/// hands off to this one and exits within seconds — the same behaviour that
-/// masked the blocking-spawn bug described in [`crate::spawn::spawn_dayz`].
-/// Watching the stub would report a session for a moment and then lose it while
-/// the player was still in game.
-const GAME_PROCESS: &str = "DayZ_x64.exe";
+/// On Windows the game runs as `DayZ_x64.exe`. Under Proton (Linux) the same
+/// binary renames its main process to `enfMain` (the Enfusion engine main
+/// process), so both names mean "a session is live". Deliberately NOT
+/// `DayZ_BE.exe` — that is the BattlEye launcher stub, which hands off and
+/// exits within seconds, so watching it would report a session for a moment and
+/// then lose it while the player was still in game.
+const GAME_PROCESSES: &[&str] = &["DayZ_x64.exe", "enfMain"];
 
 /// Whether a DayZ process exists on this machine.
 ///
@@ -29,13 +30,11 @@ const GAME_PROCESS: &str = "DayZ_x64.exe";
 pub fn dayz_is_running() -> bool {
     let mut system = System::new();
     system.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing());
-    // Bound rather than returned directly: the iterator borrows `system`, and
-    // as a tail expression it would outlive the local it borrows from.
-    let running = system
-        .processes_by_name(OsStr::new(GAME_PROCESS))
-        .next()
-        .is_some();
-    running
+    // Each `processes_by_name` iterator borrows `system`, so it must be
+    // consumed before the next one starts.
+    GAME_PROCESSES
+        .iter()
+        .any(|name| system.processes_by_name(OsStr::new(name)).next().is_some())
 }
 
 #[cfg(test)]
