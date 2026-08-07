@@ -7,6 +7,16 @@
 /// "the installer put this here" from "the user could have put this
 /// anywhere," which the two possible NSIS `installMode`s narrow to a
 /// handful of well-known roots.
+#[cfg(target_os = "linux")]
+#[tauri::command]
+pub fn is_installed_copy() -> bool {
+    // On Linux the shipped distribution is an AppImage, which the updater can
+    // replace in place. Treat it as an installed copy so auto-update flows just
+    // like the Windows NSIS build does.
+    true
+}
+
+#[cfg(windows)]
 #[tauri::command]
 pub fn is_installed_copy() -> bool {
     let Ok(exe) = std::env::current_exe() else {
