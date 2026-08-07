@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.6.0 — 2026-08-07
+
+### Added
+
+- **Linux support (AppImage).** The launcher now ships as a Linux AppImage
+  alongside the Windows installer, with the full Windows feature set: server
+  browser, favourites and history, Steam workshop subscription and mod
+  download, and one-click launch into modded servers via Proton.
+
+- **Windows release unchanged.** The Windows NSIS build is the same
+  application as before; Linux is an additional platform target, released
+  from the same tag.
+
+### Fixed (Linux)
+
+- The launcher window now renders on Wayland/X11 (WebKit renderer fallback).
+- DayZ launches under Proton with mods loaded correctly (Wine path
+  translation), including BattlEye-enabled installs.
+- The "PLAYING" state is detected for sessions running under Proton.
+
 ## v1.5.0 — 2026-08-07
 
 ### Added
