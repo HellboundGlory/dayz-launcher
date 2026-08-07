@@ -56,6 +56,7 @@ interface ServerState {
   setSelectedServer: (server: Server | null) => void;
   setFilter: (filter: Partial<ServerFilter>) => void;
   setSort: (key: SortKey, dir: SortDir) => void;
+  resetFilter: () => void;
   setLoading: (loading: boolean) => void;
   setTotalCount: (count: number) => void;
   toggleFavourite: (addr: string) => void;
@@ -83,6 +84,88 @@ function sameRow(a: Server, b: Server): boolean {
 
 const SORT_KEY_STORAGE = "tetra.sort.v1";
 
+/**
+ * The filter state every launch starts from, and what "Reset filters" restores.
+ *
+ * `search`, `favourites_only` and `recent_only` are deliberately *not* meant to
+ * survive a restart (see `persistFilter`) — search is transient by design and
+ * the two *_only fields are driven by the All/Favourites/Recent tabs, which
+ * always start on All.
+ */
+const DEFAULT_FILTER: ServerFilter = {
+  maps: [],
+  countries: [],
+  hide_empty: false,
+  hide_full: false,
+  hide_locked: false,
+  hide_offline: false,
+  max_ping: null,
+  search: null,
+  favourites_only: false,
+  recent_only: false,
+  official: null,
+  modded: null,
+  first_person: null,
+};
+
+/** Persisted filters use their own key — the opposite choice from settings. */
+const FILTER_STORAGE = "tetra.filter.v1";
+
+/**
+ * Read the saved filter from localStorage, validating each field.
+ *
+ * Mirrors `loadSort`: a corrupt or hand-edited value must fall back to
+ * defaults rather than crashing the table or producing a nonsense query.
+ *
+ * `search` / `favourites_only` / `recent_only` are never restored (defaults),
+ * so the search box starts empty and the app opens on the All tab.
+ */
+function loadFilter(): ServerFilter {
+  try {
+    const raw = localStorage.getItem(FILTER_STORAGE);
+    if (!raw) return DEFAULT_FILTER;
+    const saved = JSON.parse(raw) as Partial<ServerFilter>;
+    const bool = (v: unknown, d: boolean) => (typeof v === "boolean" ? v : d);
+    const tri = (v: unknown): boolean | null =>
+      v === true || v === false ? v : null;
+    const strings = (v: unknown): string[] =>
+      Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+    return {
+      maps: strings(saved.maps),
+      countries: strings(saved.countries),
+      hide_empty: bool(saved.hide_empty, DEFAULT_FILTER.hide_empty),
+      hide_full: bool(saved.hide_full, DEFAULT_FILTER.hide_full),
+      hide_locked: bool(saved.hide_locked, DEFAULT_FILTER.hide_locked),
+      hide_offline: bool(saved.hide_offline, DEFAULT_FILTER.hide_offline),
+      max_ping: typeof saved.max_ping === "number" ? saved.max_ping : null,
+      search: null,
+      favourites_only: false,
+      recent_only: false,
+      official: tri(saved.official),
+      modded: tri(saved.modded),
+      first_person: tri(saved.first_person),
+    };
+  } catch {
+    return DEFAULT_FILTER;
+  }
+}
+
+/**
+ * Write the filter to localStorage, stripping the transient fields.
+ *
+ * `search` is deliberately dropped (A6) and `favourites_only`/`recent_only`
+ * with it (A7 — tab selection must not survive a restart). Non-fatal: a full
+ * storage means the choice simply won't persist.
+ */
+function persistFilter(filter: ServerFilter) {
+  const { search, favourites_only, recent_only, ...kept } = filter;
+  try {
+    localStorage.setItem(FILTER_STORAGE, JSON.stringify(kept));
+  } catch {
+    // Non-fatal: the filter just won't survive a restart.
+  }
+}
+
 function loadSort(): { sortKey: SortKey; sortDir: SortDir } {
   const fallback = { sortKey: "players" as SortKey, sortDir: "desc" as SortDir };
   try {
@@ -104,21 +187,7 @@ function loadSort(): { sortKey: SortKey; sortDir: SortDir } {
 export const useServerStore = create<ServerState>((set) => ({
   servers: [],
   selectedServer: null,
-  filter: {
-    maps: [],
-    countries: [],
-    hide_empty: false,
-    hide_full: false,
-    hide_locked: false,
-    hide_offline: false,
-    max_ping: null,
-    search: null,
-    favourites_only: false,
-    recent_only: false,
-    official: null,
-    modded: null,
-    first_person: null,
-  },
+  filter: loadFilter(),
   ...loadSort(),
   isLoading: false,
   totalCount: 0,
@@ -165,7 +234,11 @@ export const useServerStore = create<ServerState>((set) => ({
     }),
   setSelectedServer: (server) => set({ selectedServer: server }),
   setFilter: (filter) =>
-    set((state) => ({ filter: { ...state.filter, ...filter } })),
+    set((state) => {
+      const next = { ...state.filter, ...filter };
+      persistFilter(next);
+      return { filter: next };
+    }),
   setSort: (sortKey, sortDir) => {
     try {
       localStorage.setItem(SORT_KEY_STORAGE, JSON.stringify({ sortKey, sortDir }));
@@ -175,6 +248,10 @@ export const useServerStore = create<ServerState>((set) => ({
     set({ sortKey, sortDir });
   },
   setLoading: (isLoading) => set({ isLoading }),
+  resetFilter: () => {
+    persistFilter(DEFAULT_FILTER);
+    set({ filter: DEFAULT_FILTER });
+  },
   setDownloadsActive: (downloadsActive) => set({ downloadsActive }),
   setTotalCount: (totalCount) => set({ totalCount }),
   setMaps: (maps) => set({ maps, mapsLoaded: true }),

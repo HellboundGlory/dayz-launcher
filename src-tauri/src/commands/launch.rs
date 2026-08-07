@@ -202,7 +202,9 @@ pub async fn launch_game(
     profile_name: Option<String>,
     dayz_path_override: Option<String>,
     launch_params: Option<Vec<String>>,
+    main_menu: Option<bool>,
 ) -> Result<LaunchOutcome, String> {
+    let main_menu = main_menu.unwrap_or(false);
     // The frontend sends addr as "IP:query_port" — extract just the IP
     let ip = addr
         .split(':')
@@ -279,6 +281,7 @@ pub async fn launch_game(
     //    a slot waiting for it never reached the command line.
     let extra_params = launch_params.unwrap_or_default();
     let args = build_launch_args(
+        main_menu,
         ip,
         game_port,
         password.as_deref(),
@@ -290,25 +293,31 @@ pub async fn launch_game(
     spawn_dayz(&dayz_exe, &args).map_err(|e| format!("Failed to launch DayZ: {e}"))?;
 
     // Record the visit only after the process actually started, so a failed
-    // gate never shows up in the RECENT list.
+    // gate never shows up in the RECENT list. A main-menu load is not a join,
+    // so it gets no RECENT entry.
     //
     // The writer is lifted out in its own scope: `state.registry` is a
     // `std::sync::Mutex`, whose guard is not `Send`, and holding one across the
     // `.await` below makes the whole command future non-`Send`.
-    let played_writer = {
-        let guard = state.registry.lock().map_err(|e| e.to_string())?;
-        guard.as_ref().map(|r| r.writer())
-    };
-    if let (Some(writer), SocketAddr::V4(v4)) = (played_writer, query_addr) {
-        let key = tetra_registry::rows::ServerKey {
-            ip: *v4.ip(),
-            query_port: v4.port(),
+    if !main_menu {
+        let played_writer = {
+            let guard = state.registry.lock().map_err(|e| e.to_string())?;
+            guard.as_ref().map(|r| r.writer())
         };
-        let _ = writer.mark_played(key).await;
+        if let (Some(writer), SocketAddr::V4(v4)) = (played_writer, query_addr) {
+            let key = tetra_registry::rows::ServerKey {
+                ip: *v4.ip(),
+                query_port: v4.port(),
+            };
+            let _ = writer.mark_played(key).await;
+        }
     }
 
-    // Get out of the way, if that is what the user asked for. Deliberately
-    // after `mark_played`: closing the launcher must not cost the RECENT entry.
+    // Get out of the way once DayZ is starting, for a real join *and* a
+    // main-menu load — either way the player is moving into the game and the
+    // launcher has done its job. Deliberately after `mark_played`: closing the
+    // launcher must not cost the RECENT entry. (Only the join applies that;
+    // the load just skips it above.)
     let on_join = state.on_join.lock().map(|g| *g).unwrap_or_default();
     apply_on_join(&app, on_join);
 
@@ -319,7 +328,11 @@ pub async fn launch_game(
         // Reaching here means nothing was blocked — an early return covers the
         // other case.
         mods_needing_action: 0,
-        message: format!("Launched DayZ with {mods_ready} mods"),
+        message: if main_menu {
+            format!("Launched DayZ to the main menu with {mods_ready} mods")
+        } else {
+            format!("Launched DayZ with {mods_ready} mods")
+        },
     })
 }
 

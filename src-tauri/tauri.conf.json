@@ -1,6 +1,6 @@
 {
   "productName": "Tetra Launcher",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "identifier": "com.tetra.launcher",
   "build": {
     "frontendDist": "../dist",
@@ -47,7 +47,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "resources": [
       "steam_api64.dll"
     ],

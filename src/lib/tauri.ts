@@ -361,6 +361,11 @@ export interface LaunchOptions {
   dayzPath?: string;
   /** Extra DayZ command-line flags, e.g. `-noSplash`. Placed before `-mod=`. */
   launchParams?: string[];
+  /**
+   * Launch to the main menu with the mods loaded instead of joining the server.
+   * Skips the auto-connect args; the mod gate still runs.
+   */
+  mainMenu?: boolean;
 }
 
 /**
@@ -386,6 +391,7 @@ export async function launchGame(
     profileName: options.profileName ?? null,
     dayzPathOverride: options.dayzPath ?? null,
     launchParams: options.launchParams ?? null,
+    mainMenu: options.mainMenu ?? null,
   });
 }
 

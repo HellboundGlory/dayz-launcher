@@ -1,37 +1,26 @@
 import { useEffect, useRef, useState } from "react";
-import { getVersion } from "@tauri-apps/api/app";
-import { open } from "@tauri-apps/plugin-shell";
 import {
   X,
   Folder,
-  RefreshCw,
-  Download,
-  ExternalLink,
-  CheckCircle2,
   Gamepad2,
   Filter,
   AppWindow,
 } from "lucide-react";
 import { useSettingsStore } from "@/stores/settings-store";
-import { useUpdateStore } from "@/stores/update-store";
 import { dataFolderPath, discoverSteamPaths, openDataFolder } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
-
-/** Where the "View Release" link sends a portable user for a manual download. */
-const RELEASES_URL = "https://github.com/HellboundGlory/dayz-launcher/releases/latest";
 
 interface SettingsModalProps {
   open: boolean;
   onClose: () => void;
 }
 
-type TabId = "game" | "launcher" | "browser" | "updates";
+type TabId = "game" | "launcher" | "browser";
 
 const TABS: { id: TabId; label: string; icon: typeof Gamepad2 }[] = [
   { id: "game", label: "Game", icon: Gamepad2 },
   { id: "launcher", label: "Launcher", icon: AppWindow },
   { id: "browser", label: "Server Browser", icon: Filter },
-  { id: "updates", label: "Updates", icon: Download },
 ];
 
 /** The auto-refresh choices, in seconds. `0` is off. */
@@ -136,28 +125,12 @@ export function SettingsModal({ open: isOpen, onClose }: SettingsModalProps) {
   const setSetting = useSettingsStore((s) => s.setSetting);
 
   const [detecting, setDetecting] = useState(false);
-  const [currentVersion, setCurrentVersion] = useState<string | null>(null);
   const [dataFolder, setDataFolder] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>("game");
   const tabRefs = useRef<Partial<Record<TabId, HTMLButtonElement | null>>>({});
 
-  const {
-    installed,
-    checking,
-    checked,
-    available,
-    error: updateError,
-    installing,
-    progress,
-    checkNow,
-    install,
-  } = useUpdateStore();
-
   useEffect(() => {
     if (!isOpen) return;
-    getVersion()
-      .then(setCurrentVersion)
-      .catch(() => {});
     // Fixed for the life of the process — the data root is resolved once at
     // startup — so this is only re-fetched per opening, not per tab change.
     dataFolderPath()
@@ -566,81 +539,6 @@ export function SettingsModal({ open: isOpen, onClose }: SettingsModalProps) {
                     </select>
                   </Field>
                 </div>
-              </>
-            )}
-
-            {tab === "updates" && (
-              <>
-                <Field label="Version">
-                  <div className="flex items-center justify-between gap-2 rounded-md bg-[#0d131d] px-2.5 py-2 ring-1 ring-[#1e293b]">
-                    <span className="text-xs text-[#94a3b8]">
-                      {currentVersion ? `Tetra Launcher v${currentVersion}` : "Tetra Launcher"}
-                    </span>
-                    <button
-                      onClick={() => void checkNow()}
-                      disabled={checking || installing}
-                      className="flex items-center gap-1.5 rounded-md bg-[#16202e] px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#94a3b8] ring-1 ring-[#1e293b] transition-colors duration-150 hover:text-[#f1f5f9] focus-visible:outline-none focus-visible:ring-[#38bdf8] disabled:opacity-50"
-                    >
-                      <RefreshCw className={cn("size-3", checking && "animate-spin")} />
-                      {checking ? "Checking…" : "Check now"}
-                    </button>
-                  </div>
-                </Field>
-
-                {updateError && <p className="text-[10px] text-[#ef4444]">{updateError}</p>}
-
-                {available ? (
-                  <div className="rounded-md bg-[#38bdf8]/5 px-3 py-2.5 ring-1 ring-[#38bdf8]/20">
-                    <p className="text-xs font-medium text-[#f1f5f9]">
-                      v{available.version} is available
-                    </p>
-                    {available.body && (
-                      <p className="mt-1 line-clamp-3 text-[10px] leading-relaxed text-[#94a3b8]">
-                        {available.body}
-                      </p>
-                    )}
-
-                    {installed === true ? (
-                      installing ? (
-                        <p className="mt-2 text-[10px]" style={{ color: MUTED }}>
-                          {progress?.total
-                            ? `Downloading… ${Math.round((progress.downloaded / progress.total) * 100)}%`
-                            : "Downloading…"}
-                        </p>
-                      ) : (
-                        <button
-                          onClick={() => void install()}
-                          className="mt-2 flex items-center gap-1.5 rounded-md bg-[#38bdf8] px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#0b0f17] transition-colors duration-150 hover:bg-[#7dd3fc] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#7dd3fc]"
-                        >
-                          <Download className="size-3" />
-                          Install &amp; Restart
-                        </button>
-                      )
-                    ) : (
-                      // Portable copy: never auto-modifies the running exe — the
-                      // installer would land in Program Files, not this folder.
-                      <button
-                        onClick={() => void open(RELEASES_URL)}
-                        className="mt-2 flex items-center gap-1.5 rounded-md bg-[#16202e] px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#94a3b8] ring-1 ring-[#1e293b] transition-colors duration-150 hover:text-[#f1f5f9] focus-visible:outline-none focus-visible:ring-[#38bdf8]"
-                      >
-                        <ExternalLink className="size-3" />
-                        View Release
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  checked &&
-                  !checking &&
-                  !updateError && (
-                    <p
-                      className="flex items-center gap-1.5 text-[10px]"
-                      style={{ color: MUTED }}
-                    >
-                      <CheckCircle2 className="size-3 text-[#22c55e]" />
-                      You're up to date
-                    </p>
-                  )
-                )}
               </>
             )}
           </div>
