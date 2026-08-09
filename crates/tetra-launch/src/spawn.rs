@@ -157,6 +157,21 @@ pub fn spawn_steam(exe_path: &std::path::Path) -> Result<(), SpawnError> {
         .map_err(SpawnError::Launch)
 }
 
+/// Start Steam handed a `steam://…` URL to open.
+///
+/// Steam's launcher accepts a URL as an argument; a second instance forwards it
+/// to the already-running client (focusing Steam) rather than starting twice.
+/// This is the Mods tab's "Open in Steam": the launcher resolves the Steam
+/// executable itself, which is more reliable than asking the OS's generic
+/// opener to dispatch a scheme handler that may not be registered.
+pub fn spawn_steam_with_url(exe_path: &std::path::Path, url: &str) -> Result<(), SpawnError> {
+    Command::new(exe_path)
+        .arg(url)
+        .spawn()
+        .map(|_child| ())
+        .map_err(SpawnError::Launch)
+}
+
 /// Locate the DayZ executable.
 ///
 /// Prefers `DayZ_BE.exe` (BattlEye-enabled) if it exists, falls back to

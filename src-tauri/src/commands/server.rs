@@ -44,7 +44,7 @@ fn prober(state: &AppState) -> Result<Prober, String> {
 /// held one across an `.await` would not compile. And a `Reader` owns its own
 /// SQLite connection, so handing it to a blocking task keeps no lock at all —
 /// the writer thread stays free to commit while the query runs.
-fn reader(state: &AppState) -> Result<tetra_registry::Reader, String> {
+pub(crate) fn reader(state: &AppState) -> Result<tetra_registry::Reader, String> {
     let guard = state.registry.lock().map_err(|e| e.to_string())?;
     guard
         .as_ref()
@@ -62,7 +62,7 @@ fn reader(state: &AppState) -> Result<tetra_registry::Reader, String> {
 /// `Server32` for each, and it re-runs on every filter edit, sort click and
 /// throttled reload during discovery. That was the window freezing while the
 /// table repopulated.
-async fn blocking_read<T, F>(state: &AppState, work: F) -> Result<T, String>
+pub(crate) async fn blocking_read<T, F>(state: &AppState, work: F) -> Result<T, String>
 where
     F: FnOnce(tetra_registry::Reader) -> Result<T, String> + Send + 'static,
     T: Send + 'static,
