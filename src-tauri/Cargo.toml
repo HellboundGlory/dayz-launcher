@@ -1,6 +1,6 @@
 [package]
 name = "tetra-launcher"
-version = "1.2.0"
+version = "1.7.1"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -44,6 +44,9 @@ tetra-net = { path = "../crates/tetra-net" }
 tetra-registry = { path = "../crates/tetra-registry" }
 tetra-steam = { path = "../crates/tetra-steam" }
 tetra-launch = { path = "../crates/tetra-launch" }
+# Only used for `_exit` on Linux: terminate without glibc's atexit/dlclose pass
+# (see `RunEvent::Exit` in lib.rs and the Linux exit-crash note in progress.md).
+libc = "0.2"
 
 # Windows/macOS-only acrylic compositing. Linux has no equivalent effect.
 [target.'cfg(windows)'.dependencies]

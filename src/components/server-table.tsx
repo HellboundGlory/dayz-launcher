@@ -5,6 +5,7 @@ import { useSettingsStore } from "@/stores/settings-store";
 import {
   getServerList,
   getMapList,
+  logClient,
   refreshVisibleServers,
   toggleFavourite,
   type FilterParams,
@@ -346,8 +347,19 @@ export function ServerTable() {
           // to render at this size now that the list below is virtualised.
           limit: 5000,
         };
+        // Splash-70% diagnostic (progress.md): timelog every load so a log from
+        // an affected machine shows whether reloads ran, whether they returned
+        // rows, and how slow the query was.
+        const t0 = performance.now();
+        void logClient("servers", `load: start (loadVersion=${loadVersion})`);
         const rows = await getServerList(filterParams, sortParams);
-        if (!cancelled) setServers(rows);
+        if (!cancelled) {
+          setServers(rows);
+          void logClient(
+            "servers",
+            `load: ${rows.length} rows in ${Math.round(performance.now() - t0)}ms (loadVersion=${loadVersion})`,
+          );
+        }
 
         // Maps are fetched alongside the rows so the drop-down updates in
         // lockstep with discovery: this effect re-runs on every `loadVersion`
@@ -362,7 +374,10 @@ export function ServerTable() {
           })
           .catch(() => {});
       } catch (e) {
-        if (!cancelled) console.error("Failed to load servers:", e);
+        if (!cancelled) {
+          void logClient("servers", `load: failed (loadVersion=${loadVersion}): ${String(e)}`);
+          console.error("Failed to load servers:", e);
+        }
       } finally {
         // Guarded too: a superseded run resolving late would otherwise clear the
         // spinner while the current request is still in flight. `hasLoadedOnce`
