@@ -155,3 +155,38 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: --bundles appimage
+
+      # The in-app changelog reads `notes` from latest.json, tape-action only
+      # fills that field from an explicit `releaseBody`, and we deliberately
+      # keep the changelog in CHANGELOG.md rather than duplicating it in this
+      # workflow. So after the manifest has been written (and the Linux job has
+      # merged its platform entry into it), inject the changelog section for
+      # this version into `notes` and re-upload. Without this the update dialog
+      # shows every release as having no changelog.
+      - name: Put the changelog into latest.json notes
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ github.ref_name }}"    # e.g. v1.7.0
+          rm -f latest.json
+          gh release download "$VERSION" -p latest.json -D . --clobber
+          python3 - latest.json "${{ github.ref_name }}" <<'PY'
+          import json, re, sys
+          path, version = sys.argv[1], sys.argv[2][1:]   # strip leading "v"
+          data = json.load(open(path))
+          changelog = open("CHANGELOG.md", encoding="utf-8").read()
+          # Split on every "## " heading and keep the one for this version.
+          sections = re.split(r"(?m)^## ", changelog)[1:]
+          notes = ""
+          for s in sections:
+              if s.startswith("v" + version):
+                  notes = "## " + s.strip()
+                  break
+          data["notes"] = notes
+          with open(path, "w", encoding="utf-8") as f:
+              json.dump(data, f, indent=2, ensure_ascii=False)
+              f.write("\n")
+          PY
+          gh release upload "$VERSION" latest.json --clobber

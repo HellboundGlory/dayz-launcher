@@ -9,6 +9,7 @@ use tetra_registry::Registry;
 use window_vibrancy::apply_acrylic;
 
 mod commands;
+mod log;
 mod paths;
 mod protocol;
 mod state;
@@ -197,6 +198,7 @@ pub fn run() {
             commands::launch::open_steam,
             commands::launch::dayz_running,
             commands::launch::open_workshop_in_steam,
+            commands::log::log_client,
             commands::mods::get_subscribed_mods,
             commands::mods::verify_subscribed_mods,
             commands::mods::get_mod_usage,
@@ -441,8 +443,47 @@ pub fn run() {
                 // restart can skip them. The geometry is written from the cache
                 // rather than read off the window here — by this point the
                 // window may be hidden or already gone.
+                //
+                // Exit diagnostics (the Linux exit-crash note in progress.md):
+                // always say what state we leave in, so a report can tell
+                // whether Steam was still streaming when the process ended.
+                if let Some(state) = app.try_state::<state::AppState>() {
+                    crate::log::log_line(
+                        app,
+                        "exit",
+                        &format!(
+                            "exit requested (discovery_running={}, steam_ready={})",
+                            state.discovery_running.load(Ordering::Relaxed),
+                            state.steam_ready.lock().map(|g| *g).unwrap_or(false),
+                        ),
+                    );
+                    // Tell `discover_servers` to stop pulling chunks BEFORE we
+                    // shut Steam down, so the actor join isn't left waiting on
+                    // an in-flight server-list request.
+                    state.shutting_down.store(true, Ordering::Relaxed);
+                }
+
                 commands::settings::persist_window_state(app);
                 shutdown_steam(app);
+
+                crate::log::log_line(
+                    app,
+                    "exit",
+                    "state persisted and Steam shut down; terminating",
+                );
+
+                // Linux exit-crash hardening (see progress.md / the coredump):
+                // glibc's `exit()` unloads the loaded libraries through its
+                // atexit pass, and on this system that pass tripped heap
+                // corruption in `free()` while `dlclose`'ing the NVIDIA/WebKit
+                // modules. All our real cleanup is done explicitly above, so
+                // terminate with `_exit` and skip that pass entirely. Windows
+                // never takes this path — its teardown is the proven, existing
+                // one.
+                #[cfg(target_os = "linux")]
+                unsafe {
+                    libc::_exit(0);
+                }
             }
         });
 }

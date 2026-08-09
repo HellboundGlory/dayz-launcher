@@ -569,3 +569,13 @@ export async function openWorkshopInSteam(workshopId: string): Promise<void> {
 export async function openModFolder(folder: string): Promise<void> {
   return invoke<void>("open_mod_folder", { folder: folder });
 }
+
+/** Append a line from the frontend to `tetra-launcher.log` (see `crate::log`).
+    Level is a free-form tag like "startup" / "reload" / "servers". */
+export async function logClient(level: string, message: string): Promise<void> {
+  try {
+    await invoke<void>("log_client", { level: level, message: message });
+  } catch {
+    // Logging must never break the launcher.
+  }
+}
