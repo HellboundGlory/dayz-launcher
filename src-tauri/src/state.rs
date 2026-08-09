@@ -15,6 +15,14 @@ pub struct AppState {
     pub steam: Mutex<Option<Arc<SteamHandle>>>,
     pub prober: Mutex<Option<Prober>>,
     pub steam_ready: Mutex<bool>,
+    /// Whether a `discover_servers` pass is mid-flight. Logged at exit so a
+    /// report can tell whether Steam was still streaming when the process
+    /// ended (one of the aggravators behind the Linux exit-time crash).
+    pub discovery_running: AtomicBool,
+    /// Set the moment `RunEvent::Exit` is handled. `discover_servers` checks it
+    /// between stream batches and stops pulling, so Steam teardown at exit
+    /// isn't left waiting for an in-flight server-list request.
+    pub shutting_down: AtomicBool,
     /// Set when the on-disk registry could not be opened and an in-memory one
     /// was substituted. Everything works, but nothing survives a restart, so
     /// the frontend warns rather than letting the user find out by losing
@@ -62,6 +70,8 @@ impl AppState {
             steam: Mutex::new(None),
             prober: Mutex::new(None),
             steam_ready: Mutex::new(false),
+            discovery_running: AtomicBool::new(false),
+            shutting_down: AtomicBool::new(false),
             registry_degraded: Mutex::new(false),
             // Both overwritten from the settings file in `setup` before the
             // window can be closed or minimised. `false` until then, so a close

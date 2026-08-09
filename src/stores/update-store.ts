@@ -1,6 +1,12 @@
 import { create } from "zustand";
 import type { Update } from "@tauri-apps/plugin-updater";
-import { checkForUpdate, installUpdate, isInstalledCopy, type UpdateInfo } from "@/lib/updater";
+import {
+  checkForUpdate,
+  installUpdate,
+  isInstalledCopy,
+  fetchReleaseNotes,
+  type UpdateInfo,
+} from "@/lib/updater";
 
 interface UpdateState {
   /** Null until `is_installed_copy` has resolved once. */
@@ -9,6 +15,12 @@ interface UpdateState {
   /** True once a check has completed at least once, success or failure. */
   checked: boolean;
   available: UpdateInfo | null;
+  /**
+   * Changelog to show in the dialog. Mirrors `available.body` when the
+   * manifest carries notes; otherwise filled from the GitHub release API so an
+   * old manifest with empty `notes` still renders a changelog.
+   */
+  changelog: string | null;
   /** The live `Update` handle backing `available` — needed to install it. */
   update: Update | null;
   error: string | null;
@@ -26,6 +38,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
   checking: false,
   checked: false,
   available: null,
+  changelog: null,
   update: null,
   error: null,
   installing: false,
@@ -47,7 +60,17 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
     set({ checking: true, error: null });
     try {
       const result = await checkForUpdate();
-      set({ available: result?.info ?? null, update: result?.update ?? null, checked: true });
+      const info = result?.info ?? null;
+      set({ available: info, update: result?.update ?? null, checked: true });
+      // Manifest `notes` empty (all releases before the workflow fix)? Pull the
+      // release-body changelog from GitHub so the dialog has something to show.
+      if (info && !info.body) {
+        fetchReleaseNotes(info.version)
+          .then((notes) => set({ changelog: notes }))
+          .catch(() => set({ changelog: null }));
+      } else {
+        set({ changelog: info?.body ?? null });
+      }
     } catch (e) {
       set({ error: String(e) });
     } finally {

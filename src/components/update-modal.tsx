@@ -21,6 +21,7 @@ interface UpdateModalProps {
  */
 export function UpdateModal({ open, onClose }: UpdateModalProps) {
   const available = useUpdateStore((s) => s.available);
+  const changelog = useUpdateStore((s) => s.changelog);
   const installed = useUpdateStore((s) => s.installed);
   const error = useUpdateStore((s) => s.error);
   const installing = useUpdateStore((s) => s.installing);
@@ -83,10 +84,14 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
                 )}
               </p>
 
-              {available.body && (
+              {available.body || changelog ? (
                 <div className="update-changelog mt-3">
-                  <ReactMarkdown>{available.body}</ReactMarkdown>
+                  <ReactMarkdown>{available.body || changelog}</ReactMarkdown>
                 </div>
+              ) : (
+                <p className="mt-3 text-[10px] text-[#64748b]">
+                  No changelog notes for this release. See the GitHub release for full notes.
+                </p>
               )}
 
               {progress && installing && (
