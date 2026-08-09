@@ -1,70 +1,70 @@
 {
-  "productName": "Tetra Launcher",
-  "version": "1.6.0",
-  "identifier": "com.tetra.launcher",
-  "build": {
-    "frontendDist": "../dist",
-    "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
-  },
-  "app": {
-    "windows": [
-      {
-        "title": "Tetra Launcher",
-        "width": 1400,
-        "minWidth": 975,
-        "height": 800,
-        "minHeight": 620,
-        "resizable": true,
-        "transparent": true,
-        "decorations": false,
-        "fullscreen": false,
-        "visible": false
-      },
-      {
-        "label": "splash",
-        "title": "Tetra Launcher",
-        "url": "splash.html",
-        "width": 860,
-        "height": 484,
-        "center": true,
-        "resizable": false,
-        "maximizable": false,
-        "minimizable": false,
-        "fullscreen": false,
-        "decorations": false,
-        "transparent": true,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
-        "visible": false,
-        "focus": false
-      }
-    ],
-    "security": {
-      "csp": null
-    }
-  },
-  "bundle": {
-    "active": true,
-    "targets": [
-      "nsis"
-    ],
-    "resources": [
-      "steam_api64.dll"
-    ],
-    "icon": [
-      "icons/icon.png",
-      "icons/icon.ico"
-    ],
-    "createUpdaterArtifacts": true
-  },
-  "plugins": {
-    "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlERjQ1QjlEODYxNUNBREMKUldUY3loV0duVnYwblJSMjBySTA5VFJ3bkphTWJ2NEpveHA4NEJBcW1wYUYwdnNMdnFZL0ZSdkcK",
-      "endpoints": [
-        "https://github.com/HellboundGlory/dayz-launcher/releases/latest/download/latest.json"
-      ]
-    }
+ "productName": "Tetra Launcher",
+ "version": "1.7.0",
+ "identifier": "com.tetra.launcher",
+ "build": {
+  "frontendDist": "../dist",
+  "devUrl": "http://localhost:5173",
+  "beforeDevCommand": "npm run dev",
+  "beforeBuildCommand": "npm run build"
+ },
+ "app": {
+  "windows": [
+   {
+    "title": "Tetra Launcher",
+    "width": 1400,
+    "minWidth": 975,
+    "height": 800,
+    "minHeight": 620,
+    "resizable": true,
+    "transparent": true,
+    "decorations": false,
+    "fullscreen": false,
+    "visible": false
+   },
+   {
+    "label": "splash",
+    "title": "Tetra Launcher",
+    "url": "splash.html",
+    "width": 860,
+    "height": 484,
+    "center": true,
+    "resizable": false,
+    "maximizable": false,
+    "minimizable": false,
+    "fullscreen": false,
+    "decorations": false,
+    "transparent": true,
+    "alwaysOnTop": true,
+    "skipTaskbar": true,
+    "visible": false,
+    "focus": false
+   }
+  ],
+  "security": {
+   "csp": null
   }
+ },
+ "bundle": {
+  "active": true,
+  "targets": [
+   "nsis"
+  ],
+  "resources": [
+   "steam_api64.dll"
+  ],
+  "icon": [
+   "icons/icon.png",
+   "icons/icon.ico"
+  ],
+  "createUpdaterArtifacts": true
+ },
+ "plugins": {
+  "updater": {
+   "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlERjQ1QjlEODYxNUNBREMKUldUY3loV0duVnYwblJSMjBySTA5VFJ3bkphTWJ2NEpveHA4NEJBcW1wYUYwdnNMdnFZL0ZSdkcK",
+   "endpoints": [
+    "https://github.com/HellboundGlory/dayz-launcher/releases/latest/download/latest.json"
+   ]
+  }
+ }
 }

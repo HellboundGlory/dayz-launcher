@@ -438,3 +438,134 @@ export async function openDataFolder(): Promise<void> {
 export async function dayzRunning(): Promise<boolean> {
   return invoke<boolean>("dayz_running");
 }
+
+// ── Mods Tab Commands ──
+
+/** One row of the Mods tab, as the backend enumerates it. */
+export interface SubscribedMod {
+  /** Stringified — Workshop ids exceed JS's safe integer range. */
+  workshop_id: string;
+  locally_disabled: boolean;
+  /** No longer answered by the Workshop; hidden from the list, offered as clean-up. */
+  removed: boolean;
+  /** Belongs to a DayZ appid (221100/245340). */
+  for_dayz: boolean;
+  state: ModState;
+  /** Bytes on disk for this item. */
+  size_on_disk: string;
+  /** When Steam reports it was installed (unix seconds). */
+  install_timestamp: number;
+  folder: string | null;
+  downloaded: string | null;
+  total: string | null;
+  title: string | null;
+  preview_url: string | null;
+  description: string | null;
+  tags: string[];
+  workshop_url: string | null;
+  consumer_app_id: number | null;
+  time_created: number;
+  time_updated: number;
+  /** When the user subscribed, when Steam records it (0 otherwise). */
+  time_added_to_user_list: number;
+  file_size: number;
+  num_subscriptions: string;
+  num_upvotes: number;
+  num_downvotes: number;
+  score: number;
+}
+
+export interface ModsListOutcome {
+  rows: SubscribedMod[];
+  /** True when nothing live was asked (Steam offline) and the last snapshot is shown. */
+  from_cache: boolean;
+}
+
+/** Load the subscribed-mod list for the Mods tab. */
+export async function getSubscribedMods(forceDetails = false): Promise<ModsListOutcome> {
+  return invoke<ModsListOutcome>("get_subscribed_mods", { forceDetails: forceDetails });
+}
+
+/** One mod's verdict from a VERIFY pass. */
+export interface VerifyOutcome {
+  workshop_id: string;
+  /** The Workshop answered at all (false = couldn't check). */
+  known: boolean;
+  /** Workshop copy newer than disk, or nothing on disk. */
+  outdated: boolean;
+  /** A download was queued for it. */
+  queued: boolean;
+}
+
+/** VERIFY the given subscribed mods against the Workshop. */
+export async function verifySubscribedMods(workshopIds: string[]): Promise<VerifyOutcome[]> {
+  return invoke<VerifyOutcome[]>("verify_subscribed_mods", { workshopIds: workshopIds });
+}
+
+/** "Needed by N servers" for the given mods. */
+export interface ModUsage {
+  workshop_id: string;
+  /** Every server in the registry that declares this mod. */
+  total_servers: number;
+  /** Favourited servers that declare it — what the details pane counts. */
+  favourite_servers: number;
+}
+
+export async function getModUsage(workshopIds: string[]): Promise<ModUsage[]> {
+  return invoke<ModUsage[]>("get_mod_usage", { workshopIds: workshopIds });
+}
+
+/** A server the user cares about (favourite or recently played). */
+export interface CaredServer {
+  /** Bare IP, no port. */
+  addr: string;
+  query_port: number;
+  name: string;
+}
+
+export async function getCaredServers(): Promise<CaredServer[]> {
+  return invoke<CaredServer[]>("get_cared_servers");
+}
+
+/** A mod as a server declares it. */
+export interface ServerModRef {
+  workshop_id: string;
+  name: string;
+}
+
+/** Mods the given server declares that no other cared server also declares. */
+export async function getUniqueModsFor(
+  addr: string,
+  queryPort: number,
+): Promise<ServerModRef[]> {
+  return invoke<ServerModRef[]>("get_unique_mods_for", { addr: addr, queryPort: queryPort });
+}
+
+/** One server that needs a given mod, for the details inspector. */
+export interface ServerNeeding {
+  addr: string;
+  query_port: number;
+  name: string;
+  last_played: number | null;
+}
+
+/** Which servers in the browser need this mod. */
+export async function getServersNeeding(workshopId: string): Promise<ServerNeeding[]> {
+  return invoke<ServerNeeding[]>("get_servers_needing", { workshopId: workshopId });
+}
+
+/** Force a fresh download of one mod (clears its folder first) — the honest
+    repair for a corrupt copy, since Steam exposes no checksum check. */
+export async function reinstallSubscribedMod(workshopId: string): Promise<void> {
+  return invoke<void>("reinstall_subscribed_mod", { workshopId: workshopId });
+}
+
+/** Open a mod's Workshop page in the Steam client itself (focuses Steam). */
+export async function openWorkshopInSteam(workshopId: string): Promise<void> {
+  return invoke<void>("open_workshop_in_steam", { workshopId: workshopId });
+}
+
+/** Reveal a mod's install folder in the system file manager. */
+export async function openModFolder(folder: string): Promise<void> {
+  return invoke<void>("open_mod_folder", { folder: folder });
+}
