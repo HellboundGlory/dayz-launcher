@@ -1,5 +1,41 @@
 # Changelog
 
+## v1.7.1 — 2026-08-09
+
+### Fixed
+
+- **The update dialog now shows the changelog.** Previously the "neat view of
+  what's new" was always empty — the in-app changelog comes from the updater
+  manifest, which was published without notes. Releases now ship the changelog
+  inside the manifest, and the launcher falls back to the GitHub release notes
+  when it's still missing, so updates always show something.
+
+- **(Linux) Crash when closing.** The launcher could crash at exit on some
+  NVIDIA/WebKit systems (heap-corruption detected while the system unloaded
+  libraries during shutdown). The exit path now terminates after its own
+  cleanup instead of running through that unload pass, and it stops in-flight
+  Steam discovery cleanly before shutting down.
+
+- **Details panel decluttered.** The per-server mod list is gone — your mod
+  library lives in the MODS tab — and the "Manage mods" link sits under the
+  Join button instead of floating mid-panel.
+
+- **Mods tab.** Wildly better data on Windows too (a field-naming bug meant
+  columns, dates and thumbnails stayed blank); the list now falls back to the
+  last known snapshot when Steam/Workshop is unreachable, with a clear banner.
+
+- **Crate versions now tracked properly.** Edited library crates are bumped per
+  release, and the app crate version matches the release instead of a stale
+  1.2.0.
+
+### Internal
+
+- Startup splash reliability: the server list refreshes the moment the launcher
+  window becomes visible, and a log file (`tetra-launcher.log` in the data
+  folder) captures discovery/reload timing for diagnosing startup hangs.
+
+# Changelog
+
 ## v1.7.0 — 2026-08-09
 
 ### Added

@@ -25,6 +25,7 @@ import {
   type SteamInitError,
   type SteamInitFailure,
   type ModsPendingEntry,
+  logClient,
 } from "./lib/tauri";
 import { listen } from "@tauri-apps/api/event";
 
@@ -147,10 +148,13 @@ export function App() {
    * keeps the list live without re-querying per server.
    */
   const reloadTimer = useRef<number | null>(null);
+  /** Last "found" count logged from `discovery-progress`, to keep the log thin. */
+  const discoveryLogFloor = useRef(0);
   const scheduleReload = useCallback(() => {
     if (reloadTimer.current !== null) return;
     reloadTimer.current = window.setTimeout(() => {
       reloadTimer.current = null;
+      void logClient("reload", "scheduleReload: dispatching reload");
       triggerReload();
       setRefreshedAt(new Date().toLocaleTimeString());
       getServerCounts().then(setCounts).catch(() => {});
@@ -219,16 +223,21 @@ export function App() {
    * moment the user hits REFRESH instead.
    */
   const runInitialLoad = useCallback(async () => {
+    // Splash-70% diagnostics (progress.md): timelog the whole startup chain so
+    // a log from an affected machine shows where it stalls.
+    void logClient("startup", "runInitialLoad: start");
     setDiscoveryStarted(true);
     setDiscovering(true);
     try {
       await discoverServers();
     } catch (e) {
+      void logClient("startup", "runInitialLoad: discovery threw: " + String(e));
       console.error("Discovery failed:", e);
     } finally {
       setDiscovering(false);
     }
 
+    void logClient("startup", "runInitialLoad: discovery settled, dispatching final reload");
     triggerReload();
     setRefreshedAt(new Date().toLocaleTimeString());
   }, [triggerReload]);
@@ -337,6 +346,15 @@ export function App() {
       (event) => {
         // The splash's live detail line ("Found N servers") reads this.
         setDiscovered(event.payload.found);
+        // Log a thin sample (first + every 1000) — the full event stream
+        // during discovery would otherwise be the whole log.
+        if (
+          discoveryLogFloor.current === 0 ||
+          event.payload.found - discoveryLogFloor.current >= 1000
+        ) {
+          discoveryLogFloor.current = event.payload.found;
+          void logClient("discovery", `discovery-progress: found ${event.payload.found}`);
+        }
         scheduleReload();
       },
     );
@@ -495,6 +513,30 @@ export function App() {
     return () => clearTimeout(t);
   }, [startupReady, steamError, revealLauncherWhenReady]);
 
+  /**
+   * Splash-70% safety net (fix direction B, see progress.md).
+   *
+   * The `main` window stays hidden through startup, and on some Windows
+   * machines WebView2 stalls the timer-driven reload chain while a window is
+   * not visible — so the list never fills and the splash waits at
+   * "Propagating server list…" forever. The first time this window actually
+   * becomes visible (e.g. a tray-icon reveal, exactly what the manual
+   * workaround did) we force the same reload the tab-click used to.
+   *
+   * Scoped to `revealDone`: once the normal reveal has happened the window
+   * turning visible again (alt-tab back from DayZ) must not reload.
+   */
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      if (revealDone.current) return;
+      void logClient("reload", "window became visible -> scheduleReload (safety net)");
+      scheduleReload();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [scheduleReload]);
+
   // Fail-safe: a pathological backend must never leave the launcher hidden
   // behind a static splash, so always reveal it eventually.
   useEffect(() => {
@@ -536,6 +578,12 @@ export function App() {
   const latestSplash = useRef(splash);
   useEffect(() => {
     latestSplash.current = splash;
+    // Splash-70% diagnostic: every milestone transition is timelogged with the
+    // server-store count, so a stuck { pct: 70 } is visible in the log.
+    void logClient(
+      "splash",
+      `milestone ${splash.pct}% "${splash.status}" servers=${serverCount}`,
+    );
     void import("@tauri-apps/api/event").then(({ emit }) => {
       void emit("splash-progress", {
         status: splash.status,
@@ -661,7 +709,7 @@ export function App() {
               className="w-[340px] flex-shrink-0 flex-col overflow-hidden bg-[#111823]"
               style={{ display: selectedServer ? "flex" : "none" }}
             >
-              <ServerDetails />
+              <ServerDetails onOpenMods={() => setActiveTab("mods")} />
             </div>
           </div>
         </>

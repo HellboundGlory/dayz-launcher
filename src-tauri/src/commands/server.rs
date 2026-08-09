@@ -1,5 +1,6 @@
 use crate::state::AppState;
 use std::net::{Ipv4Addr, SocketAddr};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tauri::{Emitter, State};
 use tetra_net::Prober;
@@ -189,9 +190,12 @@ fn to_server32(r: &tetra_registry::filter::ServerListRow) -> Server32 {
 /// Discover servers through Steam and store them in the registry.
 #[tauri::command]
 pub async fn discover_servers(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     window: tauri::Window,
 ) -> Result<(), String> {
+    crate::log::log_line(&app, "discovery", "discover_servers: start");
+    let discovered_at = std::time::Instant::now();
     let steam = {
         let guard = state.steam.lock().map_err(|e| e.to_string())?;
         Arc::clone(guard.as_ref().ok_or("Steam not initialized")?)
@@ -234,8 +238,26 @@ pub async fn discover_servers(
         Ok::<(), String>(())
     });
 
+    // Tracked so the exit handler can log whether Steam was mid-stream, and so
+    // `shutting_down` can coax this loop into stopping before Steam teardown.
+    state.discovery_running.store(true, Ordering::Relaxed);
+
     let mut found = 0usize;
+    let mut abandoned = false;
     while let Some(rows) = rx.recv().await {
+        // Shutting down (window closed / tray quit)? Stop pulling chunks so
+        // the actor abandons the server-list request and `shutdown_steam`'s
+        // join isn't left waiting on it.
+        if state.shutting_down.load(Ordering::Relaxed) {
+            abandoned = true;
+            crate::log::log_line(
+                &app,
+                "discovery",
+                "discover_servers: shutdown requested, abandoning stream",
+            );
+            break;
+        }
+
         // No dedup pass: the registry is keyed on (ip, query_port) and the
         // upsert is idempotent, so a repeated row is a no-op write.
         let server_rows: Vec<tetra_registry::rows::ServerRow> =
@@ -252,8 +274,34 @@ pub async fn discover_servers(
             serde_json::json!({ "tier": 1, "found": found }),
         );
     }
+    state.discovery_running.store(false, Ordering::Relaxed);
 
-    pump.await.map_err(|e| format!("Task join error: {e}"))??;
+    // All registry upserts are done before `pump.await`, so a `get_server_list`
+    // issued after this returns sees the full list — which is why a log showing
+    // an empty query *after* this line would pin the bug to the frontend.
+    crate::log::log_line(
+        &app,
+        "discovery",
+        &format!(
+            "discover_servers: done, found {found} in {:?}",
+            discovered_at.elapsed()
+        ),
+    );
+
+    // On a normal finish, wait for the pump/actor so the whole request unwinds
+    // before the caller moves on. On an abandoned stream, do NOT wait: the pump
+    // thread ends the moment its send fails, and waiting here is precisely
+    // what would block the exit path.
+    if abandoned {
+        crate::log::log_line(
+            &app,
+            "discovery",
+            "discover_servers: not waiting on the abandoned pump",
+        );
+    } else {
+        pump.await.map_err(|e| format!("Task join error: {e}"))??;
+        crate::log::log_line(&app, "discovery", "discover_servers: complete");
+    }
 
     Ok(())
 }
@@ -261,11 +309,18 @@ pub async fn discover_servers(
 /// Query the SQLite registry for the filtered/sorted server list.
 #[tauri::command]
 pub async fn get_server_list(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     filter_params: FilterParams,
     sort_params: SortParams,
 ) -> Result<Vec<Server32>, String> {
-    blocking_read(&state, move |reader| {
+    // Splash-70% diagnostic (see progress.md): the whole startup hangs on
+    // whether this query resolves promptly and returns rows. Every call is
+    // timelogged so a log from an affected machine shows whether reloads never
+    // ran (no lines), ran and returned 0, or hung (start with no finish).
+    let started = std::time::Instant::now();
+    crate::log::log_line(&app, "servers", "get_server_list: start");
+    let result: Result<Vec<Server32>, String> = blocking_read(&state, move |reader| {
         let filter = filter_from_params(filter_params);
         let (sort_key, sort_dir) = sort_from_params(&sort_params);
         let rows = reader
@@ -273,7 +328,24 @@ pub async fn get_server_list(
             .map_err(|e| e.to_string())?;
         Ok(rows.iter().map(to_server32).collect())
     })
-    .await
+    .await;
+    match &result {
+        Ok(rows) => crate::log::log_line(
+            &app,
+            "servers",
+            &format!(
+                "get_server_list: {} rows in {:?}",
+                rows.len(),
+                started.elapsed()
+            ),
+        ),
+        Err(e) => crate::log::log_line(
+            &app,
+            "servers",
+            &format!("get_server_list: error after {:?}: {e}", started.elapsed()),
+        ),
+    }
+    result
 }
 
 /// One server's A2S_INFO probe outcome, on the way into a registry write.
