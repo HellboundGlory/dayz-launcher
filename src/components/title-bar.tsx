@@ -1,4 +1,4 @@
-import { Minus, Square, X, Star, Globe, Clock, Settings } from "lucide-react";
+import { Minus, Square, X, Star, Globe, Clock, Settings, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 import tetraLogo from "@/assets/tetra-logo.png";
 
@@ -39,6 +39,7 @@ export function TitleBar({
     { id: "servers", label: "SERVERS", icon: Globe },
     { id: "favorites", label: "FAVOURITES", icon: Star },
     { id: "recent", label: "RECENT", icon: Clock },
+    { id: "mods", label: "MODS", icon: Package },
   ];
 
   return (

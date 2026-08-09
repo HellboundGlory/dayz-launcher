@@ -1,5 +1,45 @@
 # Changelog
 
+## v1.7.0 — 2026-08-09
+
+### Added
+
+- **A dedicated Mods tab.** A full-width MODS tab sits next to RECENT and
+  manages every Workshop mod you're subscribed to: sortable Name, Subscribed,
+  Updated and Size columns; preview thumbnails; live install status and
+  download progress; search and one-click status filters; and a detail
+  inspector with the description, tags, dates, sizes, rating, the install
+  folder, and which of your favourite servers need the mod.
+
+- **Verify mods.** Checks every — or only your selected — mod against the
+  Workshop and re-downloads anything it has moved past or that isn't on disk
+  yet, then reports exactly what happened.
+
+- **Multi-select and bulk actions.** Checkboxes anywhere in the list plus bulk
+  Verify, Unsubscribe selected/all, and **Clean up removed mods** for
+  subscriptions the Workshop no longer knows about.
+
+- **"Select unique to a server".** Picks the mods only one of your
+  favourite / recently-played servers uses, so you can prune a server's
+  exclusive mods without breaking another one.
+
+- **Open in Steam.** A mod's Workshop page now opens inside the Steam client
+  itself (focused and navigated), instead of a browser tab.
+
+- **Offline resilience.** The tab caches the last known list and still shows
+  it, clearly labelled, when Steam or the Workshop is unreachable.
+
+### Fixed
+
+- Unsubscribe and clean-up confirmations now use an in-app dialog instead of
+  the browser's `confirm()`, which the Linux webview does not reliably show —
+  the buttons previously worked on Windows and could silently do nothing on
+  Linux.
+- Mods data now round-trips end to end with the right field names, so every
+  column, thumbnail and date populates (a first-build field-naming mismatch).
+
+# Changelog
+
 ## v1.6.0 — 2026-08-07
 
 ### Added

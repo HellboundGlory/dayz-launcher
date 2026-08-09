@@ -4,6 +4,7 @@ import { WindowResizeHandles } from "./components/window-resize-handles";
 import { FilterBar } from "./components/filter-bar";
 import { ServerTable } from "./components/server-table";
 import { ServerDetails } from "./components/server-details";
+import { ModsTab } from "./components/mods-tab";
 import { FooterBar } from "./components/footer-bar";
 import { SettingsModal } from "./components/settings-modal";
 import { UpdateModal } from "./components/update-modal";
@@ -607,55 +608,64 @@ export function App() {
         </div>
       )}
 
-      <FilterBar onRefresh={handleRefresh} refreshing={refreshing} />
+      {activeTab === "mods" ? (
+        /* The Mods tab is a full-width view, not a server filter: it replaces
+           the whole server-browser stack (filter bar, status line, table and
+           details rail) while it is active. */
+        <ModsTab />
+      ) : (
+        <>
+          <FilterBar onRefresh={handleRefresh} refreshing={refreshing} />
 
-      {/* Not dismissible: it stays true for the whole session, and silently
-          losing favourites is exactly what this exists to prevent. */}
-      {storageDegraded && (
-        <div className="flex items-center gap-2 border-b border-[#f59e0b]/30 bg-[#f59e0b]/5 px-3 py-1.5">
-          <span className="text-[10px] font-semibold uppercase text-[#f59e0b]">STORAGE</span>
-          <span className="text-[11px] text-[#f1f5f9]">
-            The server database could not be opened, so this session is running from memory —
-            favourites and recently-played will not be saved.
-          </span>
-        </div>
+          {/* Not dismissible: it stays true for the whole session, and silently
+              losing favourites is exactly what this exists to prevent. */}
+          {storageDegraded && (
+            <div className="flex items-center gap-2 border-b border-[#f59e0b]/30 bg-[#f59e0b]/5 px-3 py-1.5">
+              <span className="text-[10px] font-semibold uppercase text-[#f59e0b]">STORAGE</span>
+              <span className="text-[11px] text-[#f1f5f9]">
+                The server database could not be opened, so this session is running from memory —
+                favourites and recently-played will not be saved.
+              </span>
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-center gap-2 border-b border-[#ef4444]/30 bg-[#ef4444]/5 px-3 py-1.5">
+              <span className="text-[10px] font-semibold uppercase text-[#ef4444]">ERROR</span>
+              <span className="text-[11px] text-[#f1f5f9] truncate">{error}</span>
+              <button
+                onClick={() => setError(null)}
+                className="ml-auto text-[10px] text-[#64748b] hover:text-[#f1f5f9] shrink-0"
+              >
+                DISMISS
+              </button>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 border-b border-[#1e293b] bg-[#0b0f17] px-3 py-1.5">
+            <div className={discovering ? "size-1.5 rounded-full bg-[#f59e0b] animate-pulse" : refreshing ? "size-1.5 rounded-full bg-[#38bdf8] animate-pulse" : "size-1.5 rounded-full bg-[#22c55e]"} />
+            <span className="text-[10px] text-[#64748b]">
+              {discovering
+                ? "Discovering servers from Steam..."
+                : refreshing
+                  ? "Probing server details..."
+                  : `Live · ${refreshedAt ?? "waiting"}`}
+            </span>
+          </div>
+
+          <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-1 flex-col overflow-hidden border-r border-[#1e293b]">
+              <ServerTable />
+            </div>
+            <div
+              className="w-[340px] flex-shrink-0 flex-col overflow-hidden bg-[#111823]"
+              style={{ display: selectedServer ? "flex" : "none" }}
+            >
+              <ServerDetails />
+            </div>
+          </div>
+        </>
       )}
-
-      {error && (
-        <div className="flex items-center gap-2 border-b border-[#ef4444]/30 bg-[#ef4444]/5 px-3 py-1.5">
-          <span className="text-[10px] font-semibold uppercase text-[#ef4444]">ERROR</span>
-          <span className="text-[11px] text-[#f1f5f9] truncate">{error}</span>
-          <button
-            onClick={() => setError(null)}
-            className="ml-auto text-[10px] text-[#64748b] hover:text-[#f1f5f9] shrink-0"
-          >
-            DISMISS
-          </button>
-        </div>
-      )}
-
-      <div className="flex items-center gap-2 border-b border-[#1e293b] bg-[#0b0f17] px-3 py-1.5">
-        <div className={discovering ? "size-1.5 rounded-full bg-[#f59e0b] animate-pulse" : refreshing ? "size-1.5 rounded-full bg-[#38bdf8] animate-pulse" : "size-1.5 rounded-full bg-[#22c55e]"} />
-        <span className="text-[10px] text-[#64748b]">
-          {discovering
-            ? "Discovering servers from Steam..."
-            : refreshing
-              ? "Probing server details..."
-              : `Live · ${refreshedAt ?? "waiting"}`}
-        </span>
-      </div>
-
-      <div className="flex flex-1 overflow-hidden">
-        <div className="flex flex-1 flex-col overflow-hidden border-r border-[#1e293b]">
-          <ServerTable />
-        </div>
-        <div
-          className="w-[340px] flex-shrink-0 flex-col overflow-hidden bg-[#111823]"
-          style={{ display: selectedServer ? "flex" : "none" }}
-        >
-          <ServerDetails />
-        </div>
-      </div>
 
       <FooterBar
         servers={counts.total}

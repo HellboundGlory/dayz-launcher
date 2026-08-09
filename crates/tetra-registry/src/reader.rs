@@ -138,4 +138,135 @@ impl Reader {
             .collect::<Result<Vec<_>, _>>()?;
         Ok(rows)
     }
+
+    /// For each of `ids`, how many servers in the registry declare it — and how
+    /// many of those are the user's favourites.
+    ///
+    /// The total is the honest blast radius of unsubscribing: Workshop items are
+    /// shared, so removing a mod breaks *every* server that lists it, not just
+    /// the favourites. The favourite count is what the Mods tab's details pane
+    /// shows ("needed by N servers"), scoped to favourites per James's round-3
+    /// direction.
+    pub fn mod_usage(&self, ids: &[u64]) -> Result<Vec<(u64, usize, usize)>, RegistryError> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let ids: Vec<i64> = ids.iter().map(|&id| id as i64).collect();
+        let placeholders = std::iter::repeat_n("?", ids.len())
+            .collect::<Vec<_>>()
+            .join(",");
+        let sql = format!(
+            "SELECT sm.workshop_id,
+                    COUNT(DISTINCT sm.ip || ':' || sm.query_port),
+                    COUNT(DISTINCT sm.ip || ':' || sm.query_port)
+                        FILTER (WHERE s.favourite = 1)
+             FROM server_mods sm
+             JOIN servers s ON s.ip = sm.ip AND s.query_port = sm.query_port
+             WHERE sm.workshop_id IN ({placeholders})
+             GROUP BY sm.workshop_id"
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt
+            .query_map(rusqlite::params_from_iter(ids), |r| {
+                Ok((
+                    r.get::<_, i64>(0)? as u64,
+                    r.get::<_, i64>(1)? as usize,
+                    r.get::<_, i64>(2)? as usize,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    /// Servers the user has signalled interest in: favourites plus recently
+    /// played, most recently played first then by name.
+    ///
+    /// This two-way "cared about" set is what the Mods tab's unique-per-server
+    /// tool compares against — the servers James actually joins, not the whole
+    /// registry. See [`mod_usage`](Self::mod_usage) for the count counterpart.
+    pub fn cared_servers(&self) -> Result<Vec<(ServerKey, String)>, RegistryError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT ip, query_port, name FROM servers
+             WHERE favourite = 1 OR last_played IS NOT NULL
+             ORDER BY last_played IS NULL, last_played DESC, name",
+        )?;
+        let rows = stmt
+            .query_map([], |r| {
+                let ip: String = r.get(0)?;
+                Ok((
+                    ServerKey {
+                        ip: Ipv4Addr::from_str(&ip).unwrap_or(Ipv4Addr::UNSPECIFIED),
+                        query_port: r.get(1)?,
+                    },
+                    r.get::<_, String>(2)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    /// The mods one server declares that no other *cared* server also declares.
+    ///
+    /// This is the "select mods unique to this server" tool: mods only this
+    /// server uses among the servers the user cares about, which is what makes
+    /// them safe to unsubscribe without breaking a favourite or a recent one.
+    /// A mod can be present on some anonymous browser server and still come
+    /// back as unique here — those aren't servers whose mod sets are being
+    /// reasoned about.
+    pub fn unique_mods_for(&self, key: ServerKey) -> Result<Vec<(u64, String)>, RegistryError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT sm.workshop_id, sm.name
+             FROM server_mods sm
+             WHERE sm.ip = ?1 AND sm.query_port = ?2
+               AND NOT EXISTS (
+                   SELECT 1
+                   FROM server_mods other
+                   JOIN servers os ON os.ip = other.ip AND os.query_port = other.query_port
+                   WHERE other.workshop_id = sm.workshop_id
+                     AND NOT (other.ip = ?1 AND other.query_port = ?2)
+                     AND (os.favourite = 1 OR os.last_played IS NOT NULL)
+               )
+             GROUP BY sm.workshop_id, sm.name
+             ORDER BY sm.name",
+        )?;
+        let rows = stmt
+            .query_map(params![key.ip.to_string(), key.query_port], |r| {
+                Ok((r.get::<_, i64>(0)? as u64, r.get::<_, String>(1)?))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    /// Which *favourite* servers declare a given Workshop item, most recently
+    /// played first.
+    ///
+    /// Feeds the Mods tab's details inspector: "Needed by N servers" is scoped
+    /// to favourites per James's round-3 direction. `None` last_played means
+    /// the favourite is known but never joined.
+    pub fn servers_needing(
+        &self,
+        workshop_id: u64,
+    ) -> Result<Vec<(ServerKey, String, Option<i64>)>, RegistryError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT s.ip, s.query_port, s.name, s.last_played
+             FROM server_mods sm
+             JOIN servers s ON s.ip = sm.ip AND s.query_port = sm.query_port
+             WHERE sm.workshop_id = ?1 AND s.favourite = 1
+             ORDER BY s.last_played IS NULL, s.last_played DESC",
+        )?;
+        let rows = stmt
+            .query_map(params![workshop_id as i64], |r| {
+                let ip: String = r.get(0)?;
+                Ok((
+                    ServerKey {
+                        ip: Ipv4Addr::from_str(&ip).unwrap_or(Ipv4Addr::UNSPECIFIED),
+                        query_port: r.get(1)?,
+                    },
+                    r.get::<_, String>(2)?,
+                    r.get::<_, Option<i64>>(3)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
 }
