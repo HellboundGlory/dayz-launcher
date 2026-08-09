@@ -473,6 +473,34 @@ pub fn open_steam() -> Result<(), String> {
     tetra_launch::spawn::spawn_steam(&exe).map_err(|e| format!("Could not start Steam: {e}"))
 }
 
+/// Open a Workshop item's page in the Steam client, not the browser.
+///
+/// The launcher resolves the Steam executable itself and hands it the
+/// `steam://url/CommunityFilePage/<id>` URL. A running Steam client is focused
+/// and navigated (its second-instance forwards the URL); a non-running one
+/// starts and opens the page. Only if Steam cannot be found at all does this
+/// fall back to the OS opener, whose scheme handler may or may not be
+/// registered.
+#[tauri::command]
+pub fn open_workshop_in_steam(workshop_id: String) -> Result<(), String> {
+    let url = format!("steam://url/CommunityFilePage/{workshop_id}");
+
+    if let Some(exe) = tetra_launch::registry_discovery::find_steam_exe() {
+        return tetra_launch::spawn::spawn_steam_with_url(&exe, &url)
+            .map_err(|e| format!("Could not open Steam: {e}"));
+    }
+
+    eprintln!("[steam] No Steam executable found; falling back to the OS opener");
+    #[cfg(target_os = "windows")]
+    let mut cmd = std::process::Command::new("explorer");
+    #[cfg(not(target_os = "windows"))]
+    let mut cmd = std::process::Command::new("xdg-open");
+    cmd.arg(&url)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("Could not open {url}: {e}"))
+}
+
 /// Discover Steam and DayZ paths from the Windows registry.
 #[tauri::command]
 pub fn discover_steam_paths() -> Result<Option<SteamPaths>, String> {

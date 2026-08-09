@@ -1,4 +1,6 @@
-use crate::actor::{self, Command, DownloadRow, MutationResult, StreamChunk};
+use crate::actor::{
+    self, Command, DownloadRow, MutationResult, StaleOutcome, StreamChunk, SubscribedModInfo,
+};
 use crate::error::{InitFailure, SteamError};
 use crate::rows::GameServerRow;
 use crate::source::{Filters, ServerListSource};
@@ -15,6 +17,20 @@ use std::thread::JoinHandle;
 /// fires when the command is stuck *behind* something — a discovery holding the
 /// Steam thread — rather than cutting short a query that is genuinely working.
 const REFRESH_STALE_BUDGET: std::time::Duration = std::time::Duration::from_secs(25);
+
+/// How long a verify pass may take before giving up on the Steam thread.
+///
+/// The actor answers verify on its own 20-second query deadline, so as with
+/// `REFRESH_STALE_BUDGET` this only trips when the command is queued behind a
+/// long-running discovery, not when the queries themselves are slow.
+const VERIFY_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// How long the Mods tab's full enumeration may take.
+///
+/// The actor's own enumeration deadline is 60s (first pulls have no Steam-side
+/// cache). This needs to be comfortably above that so a pull stuck *behind* a
+/// discovery still gets to run rather than being abandoned early.
+const ENUM_BUDGET: std::time::Duration = std::time::Duration::from_secs(90);
 
 /// Handle to the Steam thread.
 pub struct SteamHandle {
@@ -232,6 +248,48 @@ impl SteamHandle {
         self.dispatch_within(REFRESH_STALE_BUDGET, |ack| {
             Command::UGCRefreshStale(owned, ack)
         })
+    }
+
+    /// The Mods tab's VERIFY: every id answered with its own staleness verdict,
+    /// and a download queued for anything the Workshop has moved past — or that
+    /// is subscribed but not on disk yet.
+    ///
+    /// Prefer this over [`Self::refresh_stale`] for anything the user is going
+    /// to see the result of: the gate only needs the ids it re-queued, while a
+    /// verify has "13 checked, 2 outdated, 2 repaired" to state.
+    pub fn verify_mods(&self, ids: &[u64]) -> Result<Vec<StaleOutcome>, SteamError> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let owned = ids.to_vec();
+        self.dispatch_within(VERIFY_BUDGET, |ack| Command::UGCVerifyMods(owned, ack))
+    }
+
+    /// The Mods tab's enumeration: every subscribed Workshop item, filtered to
+    /// DayZ, with install facts and Workshop metadata.
+    ///
+    /// `cache_age_secs` is forwarded to Steam's `SetAllowCachedResponse`, so
+    /// re-opening the tab is cheap (Steam answers from its own metadata cache)
+    /// and a manual refresh can pass 0 to force a live Workshop answer.
+    pub fn subscribed_mods(
+        &self,
+        cache_age_secs: u32,
+    ) -> Result<Vec<SubscribedModInfo>, SteamError> {
+        self.dispatch_within(ENUM_BUDGET, |ack| Command::SubscribedMods {
+            cache_age_secs,
+            ack,
+        })
+    }
+
+    /// Queue a fresh download of each id, answering with the ones Steam
+    /// accepted. The Mods tab's "reinstall" calls this after clearing the item's
+    /// folder, so a corrupt copy is replaced rather than stitched.
+    pub fn force_download(&self, ids: &[u64]) -> Result<Vec<u64>, SteamError> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let owned = ids.to_vec();
+        self.dispatch(|ack| Command::UGCDownload(owned, ack))
     }
 
     /// Get the install folder for a workshop item.
