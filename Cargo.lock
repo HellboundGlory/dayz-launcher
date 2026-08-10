@@ -4219,7 +4219,7 @@ dependencies = [
 
 [[package]]
 name = "tetra-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "thiserror 2.0.19",
 ]
@@ -4244,7 +4244,7 @@ dependencies = [
 
 [[package]]
 name = "tetra-launcher"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "libc",
  "serde",
@@ -4277,7 +4277,7 @@ dependencies = [
 
 [[package]]
 name = "tetra-registry"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "rusqlite",
  "tetra-core",
@@ -4287,7 +4287,7 @@ dependencies = [
 
 [[package]]
 name = "tetra-steam"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "serde",
  "serde_json",

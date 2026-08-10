@@ -1,5 +1,32 @@
 # Changelog
 
+## v1.8.0 — 2026-08-10
+
+### Added
+
+- **Discord Rich Presence.** Shows what you're doing in Discord — browsing
+  servers, checking a server's mods before you join, or playing on one, with
+  the map, player count and even whether it's day or night in-game. A
+  "Join via Tetra Launcher" button lets a friend land on the same server
+  from your Discord profile in one click.
+- **Linux: `.deb` package.** Alongside the AppImage, releases now also
+  publish a `.deb` for Debian/Ubuntu-based systems.
+- **A [project website](https://tetralauncher.com/)**
+  with downloads for every platform and the page the new Discord join links
+  open.
+
+### Fixed
+
+- **"Open Data Folder" now works on Linux.** It only ever tried the Windows
+  file explorer, so the button silently did nothing on the AppImage build.
+- **Mods tab status filters** (Downloading, Outdated, etc.) now reflect what's
+  actually happening live instead of a stale snapshot from the last load.
+- **Dismissing the update banner** no longer leaves you with no way to
+  install the update for the rest of the session — a small icon stays in the
+  title bar as long as one is pending.
+- **Manual refresh and the auto-refresh timer** no longer overlap and leave
+  the refresh indicator out of sync with what's actually still running.
+
 ## v1.7.1 — 2026-08-09
 
 ### Fixed

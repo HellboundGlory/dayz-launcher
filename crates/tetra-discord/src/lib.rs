@@ -26,11 +26,11 @@ const RECONNECT_INTERVAL: Duration = Duration::from_secs(15);
 const RELEASES_URL: &str = "https://github.com/HellboundGlory/dayz-launcher/releases/latest";
 
 /// The ask-to-join landing page (`docs/join.html`, served over GitHub
-/// Pages) — hands off to the `dzsa://` protocol handler. The second button
-/// on a "playing" activity, so a friend can land on the same server in one
-/// click without Discord's native (and, for a non-detected app, unreliable)
-/// Ask to Join.
-const JOIN_BASE_URL: &str = "https://hellboundglory.github.io/dayz-launcher/join.html";
+/// Pages at the project's custom domain) — hands off to the `dzsa://`
+/// protocol handler. The second button on a "playing" activity, so a
+/// friend can land on the same server in one click without Discord's
+/// native (and, for a non-detected app, unreliable) Ask to Join.
+const JOIN_BASE_URL: &str = "https://tetralauncher.com/join.html";
 
 /// The large-image asset key, uploaded once under the Discord application's
 /// Rich Presence > Art Assets tab. If it was never uploaded (or uploaded
@@ -384,7 +384,7 @@ mod tests {
         let url = join_url(&info(1, 2));
         assert_eq!(
             url,
-            "https://hellboundglory.github.io/dayz-launcher/join.html\
+            "https://tetralauncher.com/join.html\
              ?ip=51.254.46.15&port=2303&name=GulagZ&map=Chernarus"
         );
     }
