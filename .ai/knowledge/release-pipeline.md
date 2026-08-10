@@ -20,7 +20,7 @@ summary: >
 | Workflow | Trigger | Does |
 |---|---|---|
 | `check.yml` | every push and PR | three independent jobs — see below |
-| `release.yml` | **pushing a `vX.Y.Z` tag only** | builds, signs, publishes Windows (NSIS installer + portable zip) and Linux (AppImage) artifacts + `latest.json` |
+| `release.yml` | **pushing a `vX.Y.Z` tag only** | builds, signs, publishes Windows (NSIS installer + portable zip) and Linux (AppImage, .deb, .rpm) artifacts + `latest.json` |
 
 `check.yml` jobs:
 
@@ -55,7 +55,8 @@ Rust is checked on both `windows-latest` and `ubuntu-latest`. The workspace
 pulls in `winreg` and `window-vibrancy` which are Windows-only dependencies, so
 the two are gated to `cfg(windows)`; a Linux runner compiles the rest. This
 mirrors the release: `release.yml` produces a Windows NSIS install on
-`windows-latest` and an AppImage on `ubuntu-latest` from the same tag.
+`windows-latest` and an AppImage + .deb + .rpm on `ubuntu-latest` from the
+same tag.
 
 ## Auto-update
 

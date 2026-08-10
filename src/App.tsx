@@ -345,6 +345,33 @@ export function App() {
     };
   }, [steamConnected]);
 
+  /**
+   * Splash-70% fix (progress.md): the backend now emits this once, the
+   * instant its registry finishes opening. Startup's own queries fire the
+   * moment this window loads and can race ahead of that — every one of the
+   * three fixed attempts in `runInitialLoad`/`connectSteam` can fail with
+   * "Registry not initialized" before the backend catches up, and until now
+   * nothing retried after those three were spent, so a slow-to-open registry
+   * left the splash stuck at 70% forever. This is the retry: one more reload,
+   * fired exactly once, whenever the backend says it's actually ready.
+   */
+  const registryReadyHandled = useRef(false);
+  useEffect(() => {
+    const unlistenRegistryReady = listen<{ degraded: boolean }>("registry-ready", (event) => {
+      if (registryReadyHandled.current) return;
+      registryReadyHandled.current = true;
+      void logClient(
+        "startup",
+        `registry-ready received (degraded=${event.payload.degraded}) -> scheduleReload`,
+      );
+      scheduleReload();
+    });
+    return () => {
+      unlistenRegistryReady.then((fn) => fn());
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     const unlistenProgress = listen<{ tier: number; requests: number; found: number }>(
       "discovery-progress",

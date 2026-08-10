@@ -1,8 +1,9 @@
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::time::Instant;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use tetra_net::ProbeConfig;
 use tetra_registry::Registry;
 #[cfg(target_os = "windows")]
@@ -217,6 +218,7 @@ pub fn run() {
             commands::update::is_installed_copy,
         ])
         .setup(|app| {
+            let setup_started = Instant::now();
             let state = app.state::<state::AppState>();
 
             // Resolve the registry to the data root, never to a bare relative
@@ -273,6 +275,27 @@ pub fn run() {
                 }
             };
             *state.registry.lock().unwrap() = Some(registry);
+
+            // Splash-70% fix (progress.md): the frontend fires its startup
+            // queries the moment the window loads, which can race ahead of this
+            // closure — every one of those calls fails instantly with "Registry
+            // not initialized" and, until now, nothing ever told the frontend
+            // when it was safe to try again. This is that signal. Logged (not
+            // just eprintln'd) so a report from an affected machine shows
+            // whether setup was actually slow or the frontend just didn't wait.
+            let degraded = *state.registry_degraded.lock().unwrap();
+            crate::log::log_line(
+                app.handle(),
+                "setup",
+                &format!(
+                    "registry ready in {}ms (degraded={degraded})",
+                    setup_started.elapsed().as_millis()
+                ),
+            );
+            let _ = app.handle().emit(
+                "registry-ready",
+                serde_json::json!({ "degraded": degraded }),
+            );
 
             // The single process-wide prober. Every probing path shares this so
             // the concurrency bound applies to the whole app, not one code path.
@@ -447,64 +470,125 @@ pub fn run() {
         // The single shutdown choke point. `RunEvent::Exit` fires however the
         // process is ending, so neither the tray's Quit nor an updater restart
         // can skip telling Steam the session is over.
-        .run(|app, event| {
-            if let tauri::RunEvent::Exit = event {
-                // Both of these need the one event that fires however the
-                // process is ending, so neither the tray's Quit nor an updater
-                // restart can skip them. The geometry is written from the cache
-                // rather than read off the window here — by this point the
-                // window may be hidden or already gone.
-                //
-                // Exit diagnostics (the Linux exit-crash note in progress.md):
-                // always say what state we leave in, so a report can tell
-                // whether Steam was still streaming when the process ended.
-                if let Some(state) = app.try_state::<state::AppState>() {
+        //
+        // `restart_requested` bridges the two events an updater restart fires:
+        // `ExitRequested` carries `RESTART_EXIT_CODE` (see `tauri::AppHandle::
+        // restart`) the moment it's asked for, but the actual work has to
+        // happen on `Exit` below, once teardown is done. Linux-only — see the
+        // hardening note further down for why only Linux needs to track this
+        // at all; tracking (and never reading) it on Windows would just be an
+        // unused-assignment warning waiting to happen.
+        .run({
+            #[cfg(target_os = "linux")]
+            let mut restart_requested = false;
+            move |app, event| {
+                #[cfg(target_os = "linux")]
+                if let tauri::RunEvent::ExitRequested { code, .. } = event {
+                    if code == Some(tauri::RESTART_EXIT_CODE) {
+                        restart_requested = true;
+                    }
+                }
+                if let tauri::RunEvent::Exit = event {
+                    // Both of these need the one event that fires however the
+                    // process is ending, so neither the tray's Quit nor an updater
+                    // restart can skip them. The geometry is written from the cache
+                    // rather than read off the window here — by this point the
+                    // window may be hidden or already gone.
+                    //
+                    // Exit diagnostics (the Linux exit-crash note in progress.md):
+                    // always say what state we leave in, so a report can tell
+                    // whether Steam was still streaming when the process ended.
+                    if let Some(state) = app.try_state::<state::AppState>() {
+                        crate::log::log_line(
+                            app,
+                            "exit",
+                            &format!(
+                                "exit requested (discovery_running={}, steam_ready={})",
+                                state.discovery_running.load(Ordering::Relaxed),
+                                state.steam_ready.lock().map(|g| *g).unwrap_or(false),
+                            ),
+                        );
+                        // Tell `discover_servers` to stop pulling chunks BEFORE we
+                        // shut Steam down, so the actor join isn't left waiting on
+                        // an in-flight server-list request.
+                        state.shutting_down.store(true, Ordering::Relaxed);
+                    }
+
+                    commands::settings::persist_window_state(app);
+                    shutdown_steam(app);
+                    // Best-effort and non-blocking (a channel send, nothing more) —
+                    // unlike `shutdown_steam` this never joins the thread. Discord
+                    // clears the activity on its own once the IPC pipe closes, so
+                    // skipping this on a failure changes nothing but timing.
+                    if let Some(state) = app.try_state::<state::AppState>() {
+                        if let Ok(guard) = state.discord.lock() {
+                            if let Some(handle) = guard.as_ref() {
+                                handle.clear();
+                            }
+                        }
+                    }
+
                     crate::log::log_line(
                         app,
                         "exit",
-                        &format!(
-                            "exit requested (discovery_running={}, steam_ready={})",
-                            state.discovery_running.load(Ordering::Relaxed),
-                            state.steam_ready.lock().map(|g| *g).unwrap_or(false),
-                        ),
+                        "state persisted and Steam shut down; terminating",
                     );
-                    // Tell `discover_servers` to stop pulling chunks BEFORE we
-                    // shut Steam down, so the actor join isn't left waiting on
-                    // an in-flight server-list request.
-                    state.shutting_down.store(true, Ordering::Relaxed);
-                }
 
-                commands::settings::persist_window_state(app);
-                shutdown_steam(app);
-                // Best-effort and non-blocking (a channel send, nothing more) —
-                // unlike `shutdown_steam` this never joins the thread. Discord
-                // clears the activity on its own once the IPC pipe closes, so
-                // skipping this on a failure changes nothing but timing.
-                if let Some(state) = app.try_state::<state::AppState>() {
-                    if let Ok(guard) = state.discord.lock() {
-                        if let Some(handle) = guard.as_ref() {
-                            handle.clear();
+                    // Linux exit-crash hardening (see progress.md / the coredump):
+                    // glibc's `exit()` unloads the loaded libraries through its
+                    // atexit pass, and on this system that pass tripped heap
+                    // corruption in `free()` while `dlclose`'ing the NVIDIA/WebKit
+                    // modules. All our real cleanup is done explicitly above, so
+                    // terminate with `_exit` and skip that pass entirely. Windows
+                    // never takes this path — its teardown is the proven, existing
+                    // one.
+                    #[cfg(target_os = "linux")]
+                    {
+                        // `_exit` below never returns, so Tauri's own post-callback
+                        // restart check never runs either — `App::run`'s event loop
+                        // (see `tauri::App::make_run_event_loop_callback`) only calls
+                        // `tauri::process::restart` *after* this closure returns,
+                        // which on Linux it now never does. That silently ate every
+                        // updater restart the moment this hardening shipped — the
+                        // update installed, the app just closed instead of coming
+                        // back. Replicate the useful half of `restart` ourselves —
+                        // resolve and spawn the next copy — before terminating,
+                        // since its other half is `std::process::exit(0)`: the exact
+                        // glibc teardown this hardening exists to avoid.
+                        if restart_requested {
+                            match tauri::process::current_binary(&app.env()) {
+                                Ok(path) => match std::process::Command::new(&path)
+                                    .args(app.env().args_os.iter().skip(1))
+                                    .spawn()
+                                {
+                                    Ok(_) => crate::log::log_line(
+                                        app,
+                                        "exit",
+                                        &format!("restart: relaunched {}", path.display()),
+                                    ),
+                                    Err(e) => crate::log::log_line(
+                                        app,
+                                        "exit",
+                                        &format!(
+                                            "restart: failed to relaunch {}: {e}",
+                                            path.display()
+                                        ),
+                                    ),
+                                },
+                                Err(e) => crate::log::log_line(
+                                    app,
+                                    "exit",
+                                    &format!(
+                                        "restart: could not resolve the binary to relaunch: {e}"
+                                    ),
+                                ),
+                            }
+                        }
+
+                        unsafe {
+                            libc::_exit(0);
                         }
                     }
-                }
-
-                crate::log::log_line(
-                    app,
-                    "exit",
-                    "state persisted and Steam shut down; terminating",
-                );
-
-                // Linux exit-crash hardening (see progress.md / the coredump):
-                // glibc's `exit()` unloads the loaded libraries through its
-                // atexit pass, and on this system that pass tripped heap
-                // corruption in `free()` while `dlclose`'ing the NVIDIA/WebKit
-                // modules. All our real cleanup is done explicitly above, so
-                // terminate with `_exit` and skip that pass entirely. Windows
-                // never takes this path — its teardown is the proven, existing
-                // one.
-                #[cfg(target_os = "linux")]
-                unsafe {
-                    libc::_exit(0);
                 }
             }
         });
