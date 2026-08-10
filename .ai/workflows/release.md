@@ -20,6 +20,7 @@ inputs:
 applies_to:
   - "package.json"
   - "src-tauri/tauri.conf.json"
+  - "Cargo.toml"
   - "CHANGELOG.md"
   - ".github/workflows/release.yml"
 related: [build-debug, release-pipeline, tag-push-is-the-point-of-no-return]
@@ -49,13 +50,24 @@ summary: >
 1. Choose the version. It must not reuse a tag that has ever been pushed —
    published tags are permanent because consumers may already have seen them.
 
-2. Bump the version in **both** files, kept in lockstep:
+2. Bump the version in these, kept in lockstep:
 
    - `package.json` → `version`
    - `src-tauri/tauri.conf.json` → `version`
+   - `Cargo.toml` (workspace root) → `[workspace.package].version`
 
-   They must match. A mismatch produces a release whose installer and updater
-   metadata disagree.
+   The Cargo bump is a single edit: every crate (`src-tauri` and all of
+   `crates/*`) declares `version.workspace = true` rather than its own
+   version, so they move in lockstep with the app version automatically —
+   this is deliberate (see [`release-pipeline`](../knowledge/release-pipeline.md)
+   for why) and there is no longer a way for an individual crate to drift.
+   Run `cargo check --workspace` afterwards so `Cargo.lock` picks up the
+   bump.
+
+   All three must agree. A mismatch between `package.json` and
+   `tauri.conf.json` produces a release whose installer and updater metadata
+   disagree; the crate versions have no external consumer, but drifting them
+   from the app version defeats the reason they're in lockstep at all.
 
 3. Write the `CHANGELOG.md` entry for this version. This is user-facing — keep
    it in the register a user reads, not engineering shorthand.
@@ -72,16 +84,14 @@ summary: >
    git push origin v<version>
    ```
 
-7. CI (`release.yml`) takes over: it builds, signs, and publishes the installer,
-   `.sig`, portable zip, and `latest.json`.
-
-8. Set the release notes manually. `tauri-action` has no `releaseBody`
-   configured, so the body is auto-generated and needs replacing with the
-   matching `CHANGELOG.md` section:
-
-   ```bash
-   gh release edit v<version> --notes-file <file>
-   ```
+7. CI (`release.yml`) takes over: it builds, signs, and publishes the
+   installer, `.sig`, portable zip, AppImage, `.deb`, `.rpm`, and
+   `latest.json`. The last Linux step also extracts this version's
+   `CHANGELOG.md` section and pushes it to both `latest.json`'s `notes` (the
+   in-app update dialog) and the GitHub release body itself — no manual
+   `gh release edit` needed anymore. That step **fails the build** if
+   `CHANGELOG.md` has no `## v<version>` section, so a forgotten changelog
+   entry (step 3) is caught here rather than shipping silently empty.
 
 ## The hard stop
 
@@ -97,10 +107,13 @@ This rule exists because of a specific incident — see
 
 ## Validation
 
-- The GitHub release exists with **all four assets**: NSIS installer, `.sig`,
-  portable zip, `latest.json`
-- The tag matches the version in both `package.json` and `tauri.conf.json`
-- Release notes are the real changelog section, not the auto-generated body
+- The GitHub release exists with the Windows (NSIS installer, `.sig`,
+  portable zip) and Linux (AppImage, `.deb`, `.rpm`, updater `.sig`) assets,
+  plus `latest.json`
+- The tag matches the version in `package.json`, `tauri.conf.json`, and
+  `Cargo.toml`'s `[workspace.package].version`
+- Release notes are the real changelog section (pushed automatically by
+  `release.yml`), not the auto-generated commit-list body
 - An installed copy detects the update (the full loop was proven end to end on
   2026-08-01: a running v0.1.0 detected and installed v0.2.0)
 
@@ -119,6 +132,9 @@ have updated.
 
 ## Expected Outputs
 
-- A published GitHub release at `v<version>` with four assets
-- Matching version in `package.json`, `tauri.conf.json`, and the tag
-- A `CHANGELOG.md` entry, mirrored into the release notes
+- A published GitHub release at `v<version>` with the Windows and Linux
+  assets listed under Validation above
+- Matching version in `package.json`, `tauri.conf.json`,
+  `[workspace.package].version`, and the tag
+- A `CHANGELOG.md` entry, mirrored into the release notes and `latest.json`
+  automatically by `release.yml`
