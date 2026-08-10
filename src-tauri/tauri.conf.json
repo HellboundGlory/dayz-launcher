@@ -1,6 +1,6 @@
 {
  "productName": "Tetra Launcher",
- "version": "1.7.1",
+ "version": "1.8.0",
  "identifier": "com.tetra.launcher",
  "build": {
   "frontendDist": "../dist",
@@ -58,7 +58,7 @@
    "icons/icon.ico"
   ],
   "createUpdaterArtifacts": true,
-  "homepage": "https://hellboundglory.github.io/dayz-launcher/",
+  "homepage": "https://tetralauncher.com/",
   "publisher": "HellboundGlory",
   "shortDescription": "A DayZ server browser and Workshop mod manager",
   "longDescription": "Browse DayZ servers, manage Workshop mods, and verify a server's mod list against the Workshop before you connect.",
