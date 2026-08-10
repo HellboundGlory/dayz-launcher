@@ -94,20 +94,40 @@ consequences:
 
 ## Release history
 
-v0.1.0 → v0.2.0 → v1.0.0 (engineering audit) → v1.1.0, all on or after
-2026-08-01. Every release has shipped all four assets. The update loop is proven
-end to end: a running installed v0.1.0 detected and installed v0.2.0,
-user-confirmed.
+v0.1.0 → v0.2.0 → v1.0.0 (engineering audit) → v1.1.0 → … → v1.9.0 (adds the
+`.rpm`), all on or after 2026-08-01. The asset list has grown over time (the
+`.deb` in v1.8.0, the `.rpm` in v1.9.0) — see the `check.yml`/`release.yml`
+table above for what a release ships today rather than assuming a fixed
+count. The update loop is proven end to end: a running installed v0.1.0
+detected and installed v0.2.0, user-confirmed.
 
-## Known rough edge
+## Changelog publishing is automatic
 
-`tauri-action` has **no `releaseBody` configured**, so the GitHub release body
-is auto-generated and does not match `CHANGELOG.md`. Every release needs the
-notes set afterwards:
+`tauri-action` has no `releaseBody` configured, so left alone the GitHub
+release body would be an auto-generated commit list rather than
+`CHANGELOG.md`. As of v1.9.0, the last step of `release-linux` in
+`release.yml` extracts this version's `## v<version>` section from
+`CHANGELOG.md` and pushes it to **both** `latest.json`'s `notes` (what the
+in-app update dialog reads) and the GitHub release body itself (`gh release
+edit`). There is no manual step anymore — previously this required running
+`gh release edit v<version> --notes-file <file>` by hand after every tag,
+which was easy to forget.
 
-```bash
-gh release edit v<version> --notes-file <file>
-```
+That step **fails the whole build** if `CHANGELOG.md` has no section for the
+tag being released, specifically so a forgotten changelog entry is caught
+here rather than shipping a release with empty notes in two places.
 
-This is a manual step every time. Automating it is an open improvement, not a
-bug to be surprised by.
+## Crate versions are inherited, not independent
+
+`crates/*` and `src-tauri` all declare `version.workspace = true` rather than
+their own `version`, resolving to `[workspace.package].version` in the root
+`Cargo.toml` — the same mechanism already used for `edition`/`rust-version`/
+`license`. None of these crates are published to crates.io (no `publish`
+field is set, and nothing in CI runs `cargo publish`); every internal
+dependency between them is a bare `path = "..."` with no `version =`
+requirement, so Cargo never checks their version numbers for anything. Before
+v1.9.0 each crate carried its own version, bumped ad hoc (or not at all) —
+`tetra-net`, for instance, sat at `0.1.0` across several app releases.
+Inheriting from the workspace root removes the drift entirely: bumping the
+one root field for a release moves every crate in lockstep, with no separate
+step to remember and nothing to forget.
