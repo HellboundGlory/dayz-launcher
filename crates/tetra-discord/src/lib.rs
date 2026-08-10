@@ -22,8 +22,9 @@ use std::time::Duration;
 const RECONNECT_INTERVAL: Duration = Duration::from_secs(15);
 
 /// Where to send people who don't have the launcher yet — a button on every
-/// activity.
-const RELEASES_URL: &str = "https://github.com/HellboundGlory/dayz-launcher/releases/latest";
+/// activity. The project's own download page (grouped by platform, always
+/// the current release), not a raw link into GitHub's releases list.
+const DOWNLOAD_URL: &str = "https://tetralauncher.com/download.html";
 
 /// The ask-to-join landing page (`docs/join.html`, served over GitHub
 /// Pages at the project's custom domain) — hands off to the `dzsa://`
@@ -197,7 +198,7 @@ fn base_activity<'a>(state: &'a str, details: String) -> Activity<'a> {
                 .large_image(LOGO_ASSET_KEY)
                 .large_text("Tetra Launcher"),
         )
-        .buttons(vec![Button::new("Get Tetra Launcher", RELEASES_URL)])
+        .buttons(vec![Button::new("Get Tetra Launcher", DOWNLOAD_URL)])
         // Controls the compact one-line summary Discord shows in space-
         // constrained spots (a server's member list, mainly) — never the
         // full profile card, which always shows everything regardless.
@@ -228,7 +229,7 @@ fn playing_activity(info: &PresenceInfo) -> Activity<'_> {
         // as the fallback for one who doesn't.
         .buttons(vec![
             Button::new("Join via Tetra Launcher", join_url(info)),
-            Button::new("Get Tetra Launcher", RELEASES_URL),
+            Button::new("Get Tetra Launcher", DOWNLOAD_URL),
         ]);
     if let Some([current, max]) = party_size(info) {
         activity = activity.party(Party::new().size([current, max]));
