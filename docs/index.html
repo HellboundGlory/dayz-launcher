@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tetra Launcher — a DayZ server browser &amp; mod manager</title>
+    <meta
+      name="description"
+      content="A fast DayZ server browser and Workshop mod manager for Windows and Linux, with a pre-launch mod gate that verifies your mods before you connect."
+    />
+    <link rel="icon" href="assets/tetra-logo.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="site-nav">
+      <div class="container">
+        <a class="brand" href="index.html">
+          <img src="assets/tetra-logo.png" alt="" />
+          <span><span class="tetra">TETRA</span> LAUNCHER</span>
+        </a>
+        <nav class="links">
+          <a href="index.html" class="active">Home</a>
+          <a href="download.html">Download</a>
+          <a href="https://github.com/HellboundGlory/dayz-launcher">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="container hero-content">
+        <div class="load-in">
+          <p class="eyebrow">Chernarus, abandoned</p>
+          <h1>Find the server.<br />Trust the mod list.</h1>
+          <p class="lede">
+            A DayZ server browser that re-checks your mods against the Workshop before you
+            connect — not Steam's cached guess. Plus a mod manager that actually knows
+            which of your servers need what. Free, for Windows and Linux.
+          </p>
+          <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap">
+            <a class="btn btn-signal" href="download.html">Download Tetra Launcher</a>
+            <span class="coord" style="display: inline-flex; align-items: center; gap: 10px; font-size: 13px">
+              <span class="pulse-dot"></span>
+              9,000+ servers tracked live
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="reveal">
+      <div class="container">
+        <div class="carousel" id="carousel">
+          <div class="carousel-track">
+            <figure
+              class="carousel-slide is-active"
+              data-caption="Server browser — filtered by tag and region, one selected for details"
+            >
+              <img
+                src="assets/screenshot-servers.png"
+                alt="Tetra Launcher's server browser, showing a filtered list of DayZ servers with a selected server's details panel open"
+              />
+            </figure>
+            <figure
+              class="carousel-slide"
+              data-caption="Mod manager — subscribed Workshop mods, install size and last-updated at a glance"
+            >
+              <img
+                src="assets/screenshot-mods.png"
+                alt="Tetra Launcher's Mods tab, listing subscribed Workshop mods with their install size and last-updated date"
+              />
+            </figure>
+            <button class="carousel-arrow carousel-arrow-prev" aria-label="Previous screenshot">&#8249;</button>
+            <button class="carousel-arrow carousel-arrow-next" aria-label="Next screenshot">&#8250;</button>
+          </div>
+          <div class="carousel-foot">
+            <p class="carousel-caption" id="carousel-caption">
+              Server browser — filtered by tag and region, one selected for details
+            </p>
+            <div class="carousel-dots">
+              <button class="carousel-dot is-active" data-index="0" aria-label="Show server browser screenshot"></button>
+              <button class="carousel-dot" data-index="1" aria-label="Show mod manager screenshot"></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="container">
+        <p class="eyebrow">Field manual</p>
+        <h2 class="reveal">What it does</h2>
+        <div class="entries">
+          <div class="entry reveal">
+            <span class="tag">[BROWSE]</span>
+            <h3>Server browser</h3>
+            <p>
+              Filter by map, tags, region and ping. Hide empty, full, locked or offline
+              servers. Favourites and Recently Played, kept on your machine — your server
+              list is nobody's business but yours.
+            </p>
+          </div>
+          <div class="entry reveal">
+            <span class="tag">[VERIFY]</span>
+            <h3>Verify &amp; Join</h3>
+            <p>
+              Re-reads a server's mod list live and checks the Workshop directly before
+              launching — not Steam's cached "needs update" bit, which can be stale by the
+              time you click Join.
+            </p>
+          </div>
+          <div class="entry reveal">
+            <span class="tag">[MANAGE]</span>
+            <h3>Mod manager</h3>
+            <p>
+              See every subscribed mod, which of your favourite servers need it, and
+              reinstall a corrupted copy in one click — without hunting through Steam's
+              Workshop pages.
+            </p>
+          </div>
+          <div class="entry reveal">
+            <span class="tag">[SIGNAL]</span>
+            <h3>Discord presence</h3>
+            <p>
+              Shows the server you're playing on in Discord, with a one-click way for
+              friends to join you straight from your profile.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="reveal" style="text-align: center; padding-top: 40px">
+      <div class="container">
+        <p class="eyebrow" style="justify-content: center">Grid reference secured</p>
+        <h2>Get started</h2>
+        <p class="lede" style="margin-left: auto; margin-right: auto">
+          Available for Windows and Linux. Auto-updates itself once installed.
+        </p>
+        <a class="btn btn-signal" href="download.html">Download Tetra Launcher</a>
+      </div>
+    </section>
+
+    <footer>
+      <div class="container">
+        <p>
+          TETRA LAUNCHER — free and open source.
+          <a href="https://github.com/HellboundGlory/dayz-launcher">Source on GitHub</a>.
+          Not affiliated with Bohemia Interactive.
+        </p>
+      </div>
+    </footer>
+
+    <script src="site.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Open server in Tetra Launcher</title>
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href="assets/tetra-logo.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="site-nav">
+      <div class="container">
+        <a class="brand" href="index.html">
+          <img src="assets/tetra-logo.png" alt="" />
+          <span><span class="tetra">TETRA</span> LAUNCHER</span>
+        </a>
+        <nav class="links">
+          <a href="index.html">Home</a>
+          <a href="download.html">Download</a>
+          <a href="https://github.com/HellboundGlory/dayz-launcher">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <section>
+      <div class="container" style="max-width: 560px">
+        <p class="eyebrow">Incoming transmission</p>
+        <h1 id="heading" style="font-size: clamp(26px, 4vw, 34px)">Open this server in Tetra Launcher</h1>
+
+        <div class="readout" id="readout" style="display: none">
+          <span class="pulse-dot"></span>
+          <span id="readout-text"></span>
+        </div>
+
+        <div class="panel">
+          <a class="btn btn-signal" id="open-link" style="width: 100%; margin-bottom: 14px; text-align: center">
+            Open in Tetra Launcher
+          </a>
+          <p style="color: var(--bone-dim); font-size: 13px; margin: 0; font-family: var(--font-mono)">
+            This selects the server for you — joining still takes one click inside the
+            launcher, same as clicking a server yourself.
+          </p>
+        </div>
+
+        <p style="margin-top: 28px; color: var(--bone-dim)">
+          Don't have Tetra Launcher yet?
+          <a href="download.html" style="color: var(--signal); text-decoration: underline">Download it</a>
+          — then come back to this page (or just click the link in Discord again) once
+          it's installed.
+        </p>
+      </div>
+    </section>
+
+    <footer>
+      <div class="container">
+        <p>
+          TETRA LAUNCHER — free and open source.
+          <a href="https://github.com/HellboundGlory/dayz-launcher">Source on GitHub</a>.
+          Not affiliated with Bohemia Interactive.
+        </p>
+      </div>
+    </footer>
+
+    <script>
+      const params = new URLSearchParams(location.search);
+      const ip = params.get("ip");
+      const port = params.get("port");
+      const name = params.get("name");
+      const map = params.get("map");
+      const fav = params.get("fav") === "1";
+
+      const openLink = document.getElementById("open-link");
+
+      if (!ip || !port) {
+        document.getElementById("heading").textContent = "This link is missing a server address";
+        openLink.remove();
+      } else {
+        const dzsaUrl = `dzsa://connect/${ip}:${port}${fav ? "?fav=1" : ""}`;
+        openLink.href = dzsaUrl;
+
+        const readout = document.getElementById("readout");
+        readout.style.display = "flex";
+        document.getElementById("readout-text").textContent = name
+          ? `${name}${map ? `  //  ${map}` : ""}  //  ${ip}:${port}`
+          : `${ip}:${port}`;
+
+        // A manual click is the reliable path across browsers — but try an
+        // automatic hand-off too, since it's a nicer experience when the
+        // browser allows it. If nothing intercepts the scheme within a
+        // couple of seconds the user still has the button.
+        window.location.href = dzsaUrl;
+      }
+    </script>
+  </body>
+</html>
