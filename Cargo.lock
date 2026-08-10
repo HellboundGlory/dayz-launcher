@@ -4219,14 +4219,14 @@ dependencies = [
 
 [[package]]
 name = "tetra-core"
-version = "0.1.1"
+version = "1.9.0"
 dependencies = [
  "thiserror 2.0.19",
 ]
 
 [[package]]
 name = "tetra-discord"
-version = "0.1.0"
+version = "1.9.0"
 dependencies = [
  "discord-rich-presence",
  "percent-encoding",
@@ -4235,7 +4235,7 @@ dependencies = [
 
 [[package]]
 name = "tetra-launch"
-version = "0.2.0"
+version = "1.9.0"
 dependencies = [
  "sysinfo",
  "thiserror 2.0.19",
@@ -4268,7 +4268,7 @@ dependencies = [
 
 [[package]]
 name = "tetra-net"
-version = "0.1.0"
+version = "1.9.0"
 dependencies = [
  "tetra-core",
  "thiserror 2.0.19",
@@ -4277,7 +4277,7 @@ dependencies = [
 
 [[package]]
 name = "tetra-registry"
-version = "0.3.0"
+version = "1.9.0"
 dependencies = [
  "rusqlite",
  "tetra-core",
@@ -4287,7 +4287,7 @@ dependencies = [
 
 [[package]]
 name = "tetra-steam"
-version = "0.2.1"
+version = "1.9.0"
 dependencies = [
  "serde",
  "serde_json",

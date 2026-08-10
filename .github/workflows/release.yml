@@ -173,14 +173,23 @@ jobs:
           prerelease: false
           args: --bundles appimage,deb,rpm
 
-      # The in-app changelog reads `notes` from latest.json, tape-action only
+      # The in-app changelog reads `notes` from latest.json, tauri-action only
       # fills that field from an explicit `releaseBody`, and we deliberately
       # keep the changelog in CHANGELOG.md rather than duplicating it in this
-      # workflow. So after the manifest has been written (and the Linux job has
-      # merged its platform entry into it), inject the changelog section for
-      # this version into `notes` and re-upload. Without this the update dialog
-      # shows every release as having no changelog.
-      - name: Put the changelog into latest.json notes
+      # workflow. Likewise, tauri-action has no `releaseBody` configured, so
+      # the GitHub release page itself gets an auto-generated body (commit
+      # list, not a changelog) unless something else sets it. So after the
+      # manifest has been written (and the Linux job has merged its platform
+      # entry into it), extract the CHANGELOG.md section for this version and
+      # push it to BOTH: `latest.json`'s `notes` (re-uploaded) and the GitHub
+      # release body itself (`gh release edit`). Without this, either the
+      # update dialog or the release page (previously both) shows no real
+      # changelog, and someone has to paste it in by hand after every tag.
+      #
+      # Fails the build if CHANGELOG.md has no `## v<version>` section for
+      # this tag — better than silently publishing an empty changelog in two
+      # places, which is exactly the failure mode this replaces.
+      - name: Publish the changelog to the release and the updater manifest
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -201,9 +210,17 @@ jobs:
               if s.startswith("v" + version):
                   notes = "## " + s.strip()
                   break
+          if not notes:
+              sys.exit(
+                  f"No '## v{version}' section found in CHANGELOG.md — "
+                  "add the changelog entry before tagging."
+              )
           data["notes"] = notes
           with open(path, "w", encoding="utf-8") as f:
               json.dump(data, f, indent=2, ensure_ascii=False)
               f.write("\n")
+          with open("release-notes.md", "w", encoding="utf-8") as f:
+              f.write(notes + "\n")
           PY
           gh release upload "$VERSION" latest.json --clobber
+          gh release edit "$VERSION" --notes-file release-notes.md
