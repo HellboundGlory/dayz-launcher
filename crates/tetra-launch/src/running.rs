@@ -37,6 +37,59 @@ pub fn dayz_is_running() -> bool {
         .any(|name| system.processes_by_name(OsStr::new(name)).next().is_some())
 }
 
+/// How much earlier than a session's own launch a matching process's
+/// reported start time may be and still plausibly be *that* session, not a
+/// leftover from before it. Absorbs the gap between a `started_at` timestamp
+/// (captured right after `spawn_dayz` returns) and the OS recording process
+/// creation a moment later — never the other direction, since nothing this
+/// launcher starts can predate the launch that started it.
+const STALE_GRACE_SECS: i64 = 10;
+
+/// Whether `start_time` (Unix seconds, `0` if the OS couldn't report one)
+/// could plausibly belong to a process started by the launch recorded at
+/// `launched_at` (Unix seconds), rather than a leftover from an earlier one.
+///
+/// Split out from [`dayz_running_since`] so the date-arithmetic edge cases
+/// (unknown start time, clock-granularity slop) are unit-testable without an
+/// OS process table.
+fn plausibly_this_session(start_time: u64, launched_at: i64) -> bool {
+    let start_time = start_time as i64;
+    // `0` means the OS couldn't tell us — see `dayz_running_since` for why
+    // that fails open rather than closed.
+    start_time == 0 || start_time + STALE_GRACE_SECS >= launched_at
+}
+
+/// Whether a DayZ process that could plausibly be *this* session — one whose
+/// reported start time isn't clearly older than `launched_at` (Unix seconds,
+/// matching `PresenceInfo::started_at`) — exists.
+///
+/// `dayz_is_running` alone answers "does a process with this name exist
+/// anywhere", which a crashed or improperly torn-down session can satisfy
+/// long after the player has actually stopped playing — unlike a POSIX
+/// zombie, a hung-but-not-fully-exited Windows process stays fully
+/// enumerable, under the same name, for as long as it lingers. Discord's
+/// presence poll (`src-tauri/src/discord.rs`) read that as "still in game"
+/// forever, with nothing to ever correct it — this is the fix: a process
+/// this launch could not possibly have produced doesn't count.
+///
+/// Windows can only report a process's start time by opening a handle to it
+/// (`OpenProcess`), and whether BattlEye's protection allows that for its
+/// *own* legitimately-running game is untested against a real affected
+/// machine. If the OS can't tell us the start time at all (`start_time() ==
+/// 0`), this deliberately **fails open** to the plain existence check rather
+/// than treating "unknown" as "stale" — a false "still running" (today's
+/// behaviour, unchanged) is preferable to a false "not running" that would
+/// revert a genuinely live session to idle mid-session.
+pub fn dayz_running_since(launched_at: i64) -> bool {
+    let mut system = System::new();
+    system.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing());
+    GAME_PROCESSES.iter().any(|name| {
+        system
+            .processes_by_name(OsStr::new(name))
+            .any(|p| plausibly_this_session(p.start_time(), launched_at))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -66,5 +119,27 @@ mod tests {
             .processes_by_name(OsStr::new("tetra-no-such-process-8f3a.exe"))
             .next()
             .is_none());
+    }
+
+    #[test]
+    fn a_process_that_started_after_the_launch_is_this_session() {
+        assert!(plausibly_this_session(1_000, 900));
+        assert!(plausibly_this_session(1_000, 1_000));
+    }
+
+    #[test]
+    fn a_process_from_well_before_the_launch_is_stale() {
+        assert!(!plausibly_this_session(500, 1_000));
+    }
+
+    #[test]
+    fn the_grace_window_absorbs_a_small_head_start() {
+        assert!(plausibly_this_session(995, 1_000));
+        assert!(!plausibly_this_session(989, 1_000));
+    }
+
+    #[test]
+    fn an_unreported_start_time_fails_open_rather_than_stale() {
+        assert!(plausibly_this_session(0, 1_000_000));
     }
 }

@@ -137,23 +137,28 @@ jobs:
           mkdir -p target/steamlib
           find target/release/build -name 'libsteam_api.so' -exec cp {} target/steamlib/ \;
 
-      # AppImage + .deb. NO_STRIP is required because linuxdeploy's bundled
-      # strip chokes on modern (GCC 14 / .relr.dyn) libraries — the .deb
-      # target doesn't use linuxdeploy at all, but the env var is harmless
-      # for it. tauri-action merges this platform's entry into the same
-      # latest.json the Windows job created, so both updaters keep working
-      # (the .deb itself is not an update source — the updater always
-      # fetches the AppImage — it is just a second install format on the
+      # AppImage + .deb + .rpm. NO_STRIP is required because linuxdeploy's
+      # bundled strip chokes on modern (GCC 14 / .relr.dyn) libraries — the
+      # .deb/.rpm targets don't use linuxdeploy at all, but the env var is
+      # harmless for them. The rpm bundler is the pure-Rust `rpm` crate
+      # (`tauri build --help` lists rpm alongside deb/appimage as a
+      # `--bundles` value) — no `rpmbuild` system package needed on the
+      # ubuntu-latest runner. tauri-action merges this platform's entry into
+      # the same latest.json the Windows job created, so both updaters keep
+      # working (.deb/.rpm are not update sources — the updater always
+      # fetches the AppImage — they're just extra install formats on the
       # same release).
       #
-      # The .deb needs libsteam_api.so to actually run once installed: the
-      # AppImage gets it bundled by linuxdeploy via LD_LIBRARY_PATH above,
-      # but a .deb install has no such wrapper. Instead,
-      # `bundle.linux.deb.files` in tauri.conf.json places the same staged
-      # copy at /usr/lib/tetra-launcher/, and `src-tauri/build.rs` bakes in
-      # a matching RPATH so the installed binary finds it unassisted —
-      # verified locally with `ldd` before this was wired in here.
-      - name: Build and publish Linux AppImage + .deb
+      # The .deb/.rpm both need libsteam_api.so to actually run once
+      # installed: the AppImage gets it bundled by linuxdeploy via
+      # LD_LIBRARY_PATH above, but neither package install has such a
+      # wrapper. Instead, `bundle.linux.deb.files` /
+      # `bundle.linux.rpm.files` in tauri.conf.json both place the same
+      # staged copy at /usr/lib/tetra-launcher/, and `src-tauri/build.rs`
+      # bakes in a matching RPATH so the installed binary finds it
+      # unassisted — verified locally with `ldd` before this was wired in
+      # here.
+      - name: Build and publish Linux AppImage + .deb + .rpm
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -166,7 +171,7 @@ jobs:
           releaseName: "Tetra Launcher ${{ github.ref_name }}"
           releaseDraft: false
           prerelease: false
-          args: --bundles appimage,deb
+          args: --bundles appimage,deb,rpm
 
       # The in-app changelog reads `notes` from latest.json, tape-action only
       # fills that field from an explicit `releaseBody`, and we deliberately
