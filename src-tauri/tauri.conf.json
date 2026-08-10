@@ -1,6 +1,6 @@
 {
  "productName": "Tetra Launcher",
- "version": "1.8.0",
+ "version": "1.8.1",
  "identifier": "com.tetra.launcher",
  "build": {
   "frontendDist": "../dist",
