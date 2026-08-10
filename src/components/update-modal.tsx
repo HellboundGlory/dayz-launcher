@@ -6,7 +6,7 @@ import { useUpdateStore } from "@/stores/update-store";
 
 /** Where the "View Release" link sends a portable user for a manual download —
     the project's own download page, not a raw link into GitHub's releases list. */
-const DOWNLOAD_URL = "https://tetralauncher.com/download.html";
+const DOWNLOAD_URL = "https://tetralauncher.com/download";
 
 interface UpdateModalProps {
   open: boolean;
