@@ -1,6 +1,16 @@
 use crate::rows::ServerKey;
 use rusqlite::types::Value;
 
+/// The column list (and order) both [`build`]'s query and [`crate::reader::Reader::get`]
+/// select — kept in one place so the two queries cannot drift apart from the
+/// row-mapping closure that reads them positionally.
+pub(crate) const SERVER_LIST_COLUMNS: &str =
+    "ip, query_port, game_port, name, map_raw, players, max_players,
+                mod_count, ping_ms, locked, in_game_time, country_code,
+                last_played, favourite,
+                official, first_person, modded, battleye, vac, version, online,
+                queue, day_multiplier, night_multiplier";
+
 #[derive(Debug, Clone, Default)]
 pub struct ServerFilter {
     pub maps: Vec<String>,
@@ -213,11 +223,7 @@ pub(crate) fn build(
     };
 
     let sql = format!(
-        "SELECT ip, query_port, game_port, name, map_raw, players, max_players,
-                mod_count, ping_ms, locked, in_game_time, country_code,
-                last_played, favourite,
-                official, first_person, modded, battleye, vac, version, online,
-                queue, day_multiplier, night_multiplier
+        "SELECT {SERVER_LIST_COLUMNS}
          FROM servers
          {where_sql}
          ORDER BY {} {} , name ASC

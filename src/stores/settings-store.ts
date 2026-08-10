@@ -61,6 +61,8 @@ export interface AppSettings {
    * on every launch.
    */
   englishNamesFilter: boolean | null;
+  /** Show "Playing on {server}" / "Browsing servers" in Discord. */
+  discordRichPresence: boolean;
 }
 
 interface SettingsState extends AppSettings {
@@ -93,6 +95,7 @@ const defaults: AppSettings = {
   autoJoinAfterDownload: true,
   hidePlaceholderServers: true,
   englishNamesFilter: true,
+  discordRichPresence: true,
 };
 
 const KEYS = Object.keys(defaults) as (keyof AppSettings)[];

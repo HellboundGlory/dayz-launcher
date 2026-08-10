@@ -94,13 +94,14 @@ export function ModsTab() {
     }
     if (store.statusFilter !== "all") {
       rows = rows.filter((r) => {
+        const state = store.states[r.workshop_id] ?? r.state;
         switch (store.statusFilter) {
           case "outdated":
-            return r.state === "needs_update";
+            return state === "needs_update";
           case "downloading":
-            return r.state === "downloading";
+            return state === "downloading";
           case "not_installed":
-            return r.state === "not_installed" || r.state === "not_subscribed";
+            return state === "not_installed" || state === "not_subscribed";
           case "disabled":
             return r.locally_disabled;
         }
@@ -108,7 +109,14 @@ export function ModsTab() {
     }
     const dir = store.sortDir === "asc" ? 1 : -1;
     return [...rows].sort((a, b) => sortRow(a, b, store.sortKey) * dir);
-  }, [store.rows, store.search, store.statusFilter, store.sortKey, store.sortDir]);
+  }, [
+    store.rows,
+    store.states,
+    store.search,
+    store.statusFilter,
+    store.sortKey,
+    store.sortDir,
+  ]);
 
   const selectedMod = store.rows.find((r) => r.workshop_id === store.selectedModId) ?? null;
   const removedCount = store.rows.filter((r) => r.removed).length;

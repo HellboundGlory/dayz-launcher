@@ -22,6 +22,8 @@ import {
   refreshVisibleServers,
   getServerCounts,
   registryDegraded,
+  getServer,
+  toggleFavourite,
   type SteamInitError,
   type SteamInitFailure,
   type ModsPendingEntry,
@@ -114,8 +116,11 @@ export function App() {
   const [refreshing, setRefreshing] = useState(false);
   const autoRefreshSecs = useSettingsStore((s) => s.autoRefreshIntervalSecs);
   const settingsLoaded = useSettingsStore((s) => s.loaded);
-  /** Guards the auto-refresh timer against overlapping runs. */
-  const autoRefreshInFlight = useRef(false);
+  /** Guards `handleRefresh` against overlapping runs — the manual button and
+      the auto-refresh timer both go through it, and `refreshing` state alone
+      isn't enough: the timer calls `handleRefresh` directly, bypassing the
+      button's `disabled` prop. */
+  const refreshInFlight = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [counts, setCounts] = useState({ total: 0, populated: 0 });
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
@@ -392,6 +397,37 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // A `dzsa://connect/...` link, from the OS protocol handler (see
+  // `src-tauri/src/protocol.rs`) — either this process's own cold-start argv,
+  // or a second launch's argv the single-instance plugin forwarded here.
+  // Selects (and optionally favourites) the named server; deliberately never
+  // auto-launches DayZ — joining still needs the user to press the button
+  // themselves, so a webpage can't spawn the game unattended.
+  useEffect(() => {
+    const unlistenConnect = listen<{ ip: string; queryPort: number; favourite: boolean }>(
+      "dzsa-connect",
+      (event) => {
+        const { ip, queryPort, favourite } = event.payload;
+        setActiveTab("servers");
+        void getServer(`${ip}:${queryPort}`, queryPort).then((server) => {
+          if (!server) return;
+          useServerStore.getState().setSelectedServer(server);
+          if (favourite && !server.favourite) {
+            useServerStore.getState().toggleFavourite(server.addr);
+            void toggleFavourite(server.addr, server.query_port, true).catch((e) => {
+              console.error("Failed to persist favourite from dzsa:// link:", e);
+              useServerStore.getState().toggleFavourite(server.addr);
+            });
+          }
+        });
+      },
+    );
+    return () => {
+      unlistenConnect.then((fn) => fn());
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /**
    * Re-probe every server in the current filtered list. The backend A2S probe
    * (`refresh_visible_servers`) takes explicit addresses and marks a miss as
@@ -400,6 +436,13 @@ export function App() {
    */
   const handleRefresh = useCallback(async () => {
     if (!steamConnected) return;
+    // A manual click and the auto-refresh timer can both reach this function;
+    // without this guard a slow refresh (a big list, or a bad network) could
+    // still be running when the other trigger fires, and whichever finished
+    // first would flip `refreshing` back off while the other pass kept going
+    // in the background — the button/indicator would then lie about whether a
+    // refresh was actually in flight.
+    if (refreshInFlight.current) return;
     // An A2S refresh opens thousands of UDP sockets; don't run it against a
     // download the user is waiting on.
     if (useServerStore.getState().downloadsActive) {
@@ -414,6 +457,7 @@ export function App() {
     // stale "?" mod counts, so a refetch "did nothing" for most rows.
     const targets = servers.map((s) => ({ addr: s.addr, query_port: s.query_port }));
 
+    refreshInFlight.current = true;
     setRefreshing(true);
     setError(null);
     try {
@@ -423,6 +467,7 @@ export function App() {
     } catch (e) {
       setError(String(e));
     } finally {
+      refreshInFlight.current = false;
       setRefreshing(false);
     }
   }, [steamConnected]);
@@ -439,16 +484,12 @@ export function App() {
   useEffect(() => {
     if (!settingsLoaded || autoRefreshSecs <= 0 || !steamConnected) return;
     const id = window.setInterval(() => {
-      // A slow refresh must not have another stacked on top of it — with a
-      // 30-second interval and a window full of dead servers, it can still be
-      // running when the next tick arrives.
-      if (autoRefreshInFlight.current) return;
       // Nothing worth re-querying while hidden in the tray.
       if (document.hidden) return;
-      autoRefreshInFlight.current = true;
-      void handleRefresh().finally(() => {
-        autoRefreshInFlight.current = false;
-      });
+      // `handleRefresh` itself guards against overlapping runs (manual click
+      // or a previous tick still in flight), so no separate check is needed
+      // here.
+      void handleRefresh();
     }, autoRefreshSecs * 1000);
     return () => clearInterval(id);
   }, [settingsLoaded, autoRefreshSecs, steamConnected, handleRefresh]);
@@ -625,6 +666,8 @@ export function App() {
         onTabChange={handleTabChange}
         steamConnected={steamConnected}
         onOpenSettings={() => setSettingsOpen(true)}
+        updateAvailable={updateAvailable?.version ?? null}
+        onOpenUpdate={() => setUpdateOpen(true)}
       />
 
       {/* Prominent startup alert for a pending update: not a dot to hunt for,

@@ -523,3 +523,26 @@ async fn favourites_and_recent_filters_select_the_right_rows() {
     assert_eq!(recent[0].name, "Second");
     assert!(recent[0].last_played.is_some());
 }
+
+/// `get` is `list`'s single-row cousin, used to attach a server's current
+/// name/map/players to Discord Rich Presence right after a launch, where the
+/// caller only has the address it just spawned DayZ against.
+#[tokio::test]
+async fn get_returns_the_same_row_list_would() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let writer = registry.writer();
+    writer.upsert_servers(vec![live_row()]).await.expect("live");
+
+    let reader = registry.reader().expect("reader");
+    let row = reader.get(key()).expect("get").expect("row present");
+    assert_eq!(row.name, "Survivor Haven");
+    assert_eq!(row.players, 42);
+    assert_eq!(row.max_players, 60);
+}
+
+#[tokio::test]
+async fn get_on_an_unknown_key_is_none_not_an_error() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let reader = registry.reader().expect("reader");
+    assert!(reader.get(key()).expect("get").is_none());
+}

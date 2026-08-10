@@ -1,4 +1,4 @@
-import { Minus, Square, X, Star, Globe, Clock, Settings, Package } from "lucide-react";
+import { Minus, Square, X, Star, Globe, Clock, Settings, Package, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import tetraLogo from "@/assets/tetra-logo.png";
 
@@ -8,6 +8,11 @@ interface TitleBarProps {
   steamConnected: boolean;
   className?: string;
   onOpenSettings: () => void;
+  /** Version string once an update is available, so "Later" on the startup
+      banner still leaves a way to reopen the dialog for the rest of the
+      session. */
+  updateAvailable?: string | null;
+  onOpenUpdate?: () => void;
 }
 
 export function TitleBar({
@@ -16,6 +21,8 @@ export function TitleBar({
   steamConnected,
   className,
   onOpenSettings,
+  updateAvailable,
+  onOpenUpdate,
 }: TitleBarProps) {
   function minimizeWindow() {
     import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
@@ -102,6 +109,15 @@ export function TitleBar({
         </div>
 
         <div className="flex">
+          {updateAvailable && (
+            <button
+              onClick={onOpenUpdate}
+              className="inline-flex h-10 w-[46px] items-center justify-center text-[#38bdf8] hover:bg-[#16202e] hover:text-[#7dd3fc]"
+              title={`Update to v${updateAvailable} is ready to install`}
+            >
+              <Download className="size-3.5" />
+            </button>
+          )}
           <button
             onClick={onOpenSettings}
             className="inline-flex h-10 w-[46px] items-center justify-center text-[#64748b] hover:bg-[#16202e] hover:text-[#f1f5f9]"

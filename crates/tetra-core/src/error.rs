@@ -11,8 +11,6 @@ pub enum ParseError {
     },
     #[error("unexpected response header 0x{0:02x}")]
     BadHeader(u8),
-    #[error("string at offset {0} is not valid UTF-8")]
-    BadUtf8(usize),
     #[error("unterminated string starting at offset {0}")]
     UnterminatedString(usize),
     #[error("split packet set is incomplete: have {have} of {total}")]

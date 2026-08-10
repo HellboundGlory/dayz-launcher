@@ -2,13 +2,14 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Listener, Manager};
+use tauri::{AppHandle, Manager};
 use tetra_net::ProbeConfig;
 use tetra_registry::Registry;
 #[cfg(target_os = "windows")]
 use window_vibrancy::apply_acrylic;
 
 mod commands;
+mod discord;
 mod log;
 mod paths;
 mod protocol;
@@ -177,6 +178,7 @@ pub fn run() {
         .manage(state::AppState::new())
         .invoke_handler(tauri::generate_handler![
             commands::server::get_server_list,
+            commands::server::get_server,
             commands::server::get_server_mods,
             commands::server::toggle_favourite,
             commands::server::get_map_list,
@@ -289,6 +291,7 @@ pub fn run() {
             if let Ok(mut guard) = state.on_join.lock() {
                 *guard = saved.on_join;
             }
+            discord::start(app.handle(), saved.discord_presence_enabled());
             let probe_config = ProbeConfig {
                 // `.max(1)` alone would let a hand-edited 0 through as 1 and a
                 // hand-edited 100000 through as itself.
@@ -383,6 +386,15 @@ pub fn run() {
             let argv: Vec<String> = std::env::args().collect();
             protocol::handle_argv(app.handle(), &argv);
 
+            // Claim the `dzsa://` scheme so the OS hands links to this exe —
+            // best-effort and logged-not-fatal, same as `apply_autostart`.
+            // Debug builds still register (unlike autostart, a stray registry
+            // key/`.desktop` entry pointing at `target/debug` is harmless and
+            // is exactly what you want while testing this feature locally).
+            if let Err(e) = commands::launch::register_protocol_handler() {
+                eprintln!("[setup] Could not register the dzsa:// protocol handler: {e}");
+            }
+
             // Show the splash window unless this is a silent autostart. A
             // start-minimised launch goes straight to the tray and wants no
             // splash; a hand launch gets the floating 860×484 splash while the
@@ -428,7 +440,6 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            app.listen("dzsa-protocol", protocol::handle_deep_link);
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -465,6 +476,17 @@ pub fn run() {
 
                 commands::settings::persist_window_state(app);
                 shutdown_steam(app);
+                // Best-effort and non-blocking (a channel send, nothing more) —
+                // unlike `shutdown_steam` this never joins the thread. Discord
+                // clears the activity on its own once the IPC pipe closes, so
+                // skipping this on a failure changes nothing but timing.
+                if let Some(state) = app.try_state::<state::AppState>() {
+                    if let Ok(guard) = state.discord.lock() {
+                        if let Some(handle) = guard.as_ref() {
+                            handle.clear();
+                        }
+                    }
+                }
 
                 crate::log::log_line(
                     app,
