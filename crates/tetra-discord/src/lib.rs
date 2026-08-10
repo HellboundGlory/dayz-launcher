@@ -24,14 +24,16 @@ const RECONNECT_INTERVAL: Duration = Duration::from_secs(15);
 /// Where to send people who don't have the launcher yet — a button on every
 /// activity. The project's own download page (grouped by platform, always
 /// the current release), not a raw link into GitHub's releases list.
-const DOWNLOAD_URL: &str = "https://tetralauncher.com/download.html";
+const DOWNLOAD_URL: &str = "https://tetralauncher.com/download";
 
 /// The ask-to-join landing page (`docs/join.html`, served over GitHub
-/// Pages at the project's custom domain) — hands off to the `dzsa://`
-/// protocol handler. The second button on a "playing" activity, so a
-/// friend can land on the same server in one click without Discord's
-/// native (and, for a non-detected app, unreliable) Ask to Join.
-const JOIN_BASE_URL: &str = "https://tetralauncher.com/join.html";
+/// Pages at the project's custom domain — extensionless, since GitHub
+/// Pages serves `docs/join.html` directly at `/join` with no redirect)
+/// — hands off to the `dzsa://` protocol handler. The second button on a
+/// "playing" activity, so a friend can land on the same server in one
+/// click without Discord's native (and, for a non-detected app,
+/// unreliable) Ask to Join.
+const JOIN_BASE_URL: &str = "https://tetralauncher.com/join";
 
 /// The large-image asset key, uploaded once under the Discord application's
 /// Rich Presence > Art Assets tab. If it was never uploaded (or uploaded
@@ -487,7 +489,7 @@ mod tests {
         let url = join_url(&info(1, 2));
         assert_eq!(
             url,
-            "https://tetralauncher.com/join.html\
+            "https://tetralauncher.com/join\
              ?ip=51.254.46.15&port=2303&name=GulagZ&map=Chernarus"
         );
     }
