@@ -41,6 +41,15 @@ export async function discoverServers(): Promise<void> {
   return invoke<void>("discover_servers");
 }
 
+/**
+ * Look up a single server by address, regardless of whatever filter/sort the
+ * table currently has loaded. Backs the `dzsa://` deep-link flow, where the
+ * named server may not be among the frontend's currently-loaded rows at all.
+ */
+export async function getServer(addr: string, queryPort: number): Promise<Server | null> {
+  return invoke<Server | null>("get_server", { addr, queryPort });
+}
+
 export async function toggleFavourite(
   addr: string,
   queryPort: number,
@@ -291,6 +300,8 @@ export interface AppSettingsDto {
   startMinimised: boolean;
   /** What the launcher does with itself once DayZ is starting. */
   onJoin: OnJoin;
+  /** Show "Playing on {server}" / "Browsing servers" in Discord. */
+  discordRichPresence: boolean;
 }
 
 /** Matches the Rust `OnJoin` enum, which serialises lowercase. */
@@ -487,7 +498,7 @@ export async function getSubscribedMods(forceDetails = false): Promise<ModsListO
 }
 
 /** One mod's verdict from a VERIFY pass. */
-export interface VerifyOutcome {
+export interface SubscribedModVerifyOutcome {
   workshop_id: string;
   /** The Workshop answered at all (false = couldn't check). */
   known: boolean;
@@ -498,8 +509,12 @@ export interface VerifyOutcome {
 }
 
 /** VERIFY the given subscribed mods against the Workshop. */
-export async function verifySubscribedMods(workshopIds: string[]): Promise<VerifyOutcome[]> {
-  return invoke<VerifyOutcome[]>("verify_subscribed_mods", { workshopIds: workshopIds });
+export async function verifySubscribedMods(
+  workshopIds: string[],
+): Promise<SubscribedModVerifyOutcome[]> {
+  return invoke<SubscribedModVerifyOutcome[]>("verify_subscribed_mods", {
+    workshopIds: workshopIds,
+  });
 }
 
 /** "Needed by N servers" for the given mods. */

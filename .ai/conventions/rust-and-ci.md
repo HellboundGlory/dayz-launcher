@@ -74,6 +74,12 @@ real build is in [`build-debug`](../workflows/build-debug.md).
 
 ## Platform
 
-The workspace needs `winreg` and `window-vibrancy`, so it is Windows-only to
-compile. CI uses `windows-latest` for that reason. This is not a CI
-misconfiguration and should not be "fixed" by moving to a Linux runner.
+The workspace compiles on both Windows and Linux. `winreg` and
+`window-vibrancy` are Windows-only concerns (Steam registry discovery, the
+`dzsa://` protocol handler, and acrylic compositing) and are gated behind
+`[target.'cfg(windows)'.dependencies]` / `cfg(windows)`, with Linux
+equivalents where one exists (`libraryfolders.vdf` and an XDG `.desktop`
+entry for Steam discovery). CI runs the Rust checks on **both**
+`windows-latest` (`rust` job) and `ubuntu-latest` (`rust-linux` job) for
+exactly this reason — the launcher ships a Windows installer and a Linux
+AppImage, and a Windows-only change must not silently break the Linux build.

@@ -1143,8 +1143,20 @@ fn request_list(
         tx.send(StreamChunk::Rows(batch)).is_ok()
     };
 
+    // Steam's `ServerListRequest` has no `Drop` impl — every return path that
+    // has one live must call `release()` itself or the native request (and
+    // the callback closures it holds) leaks for the rest of the process. The
+    // success path below already did this; the timeout and broken-stream
+    // paths did not.
+    let release = |request: &Arc<Mutex<steamworks::ServerListRequest>>| {
+        if let Ok(mut guard) = request.lock() {
+            let _ = guard.release();
+        }
+    };
+
     while done.borrow().is_none() {
         if Instant::now() > deadline {
+            release(&request);
             return Err(SteamError::Timeout);
         }
         client.run_callbacks();
@@ -1175,6 +1187,7 @@ fn request_list(
     // A broken stream leaves the loop before `done` is set; treat that as a
     // completed-but-empty request rather than panicking on the `expect`.
     let Some(response) = *done.borrow() else {
+        release(&request);
         return Ok(Vec::new());
     };
 
@@ -1187,9 +1200,7 @@ fn request_list(
         "steam server list complete"
     );
 
-    if let Ok(mut guard) = request.lock() {
-        let _ = guard.release();
-    }
+    release(&request);
 
     match response {
         ServerResponse::NoServersListedOnMasterServer => Ok(Vec::new()),

@@ -348,6 +348,29 @@ pub async fn get_server_list(
     result
 }
 
+/// Look up a single server by address, regardless of whatever filter/sort
+/// the table currently has loaded.
+///
+/// Exists for the `dzsa://` deep-link flow: a link only carries an address,
+/// and the server it names may not be in the frontend's currently-loaded
+/// rows at all (a different tab, an active filter, a table that hasn't
+/// loaded yet).
+#[tauri::command]
+pub async fn get_server(
+    state: State<'_, AppState>,
+    addr: String,
+    query_port: u16,
+) -> Result<Option<Server32>, String> {
+    let key = server_key(&addr, query_port)?;
+    blocking_read(&state, move |reader| {
+        Ok(reader
+            .get(key)
+            .map_err(|e| e.to_string())?
+            .map(|row| to_server32(&row)))
+    })
+    .await
+}
+
 /// One server's A2S_INFO probe outcome, on the way into a registry write.
 struct InfoBatchResult {
     refreshed: usize,

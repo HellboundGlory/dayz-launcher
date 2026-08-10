@@ -1,15 +1,51 @@
-use tauri::{AppHandle, Event};
+use tauri::{AppHandle, Emitter};
 
-/// The scheme `register_dzsa_protocol` claims in the Windows registry.
+/// The scheme `register_dzsa_protocol` claims in the OS.
 const SCHEME: &str = "dzsa://";
 
-/// Handle a `dzsa://` deep-link event from the operating system.
+/// The one path this scheme carries: `dzsa://connect/IP:PORT[?fav=1]`.
+const CONNECT_SEGMENT: &str = "connect/";
+
+/// What a `dzsa://connect/...` link asks the launcher to do, parsed out of
+/// the raw string. Emitted to the frontend as the `dzsa-connect` event.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectRequest {
+    pub ip: String,
+    pub query_port: u16,
+    /// Whether the link asked to favourite the server too, not just select
+    /// it — the landing page's "Join & Favourite" option.
+    pub favourite: bool,
+}
+
+/// Parse a `dzsa://connect/IP:PORT[?fav=1]` link.
 ///
-/// When the OS launches this app with a `dzsa://connect/...` URI,
-/// Tauri fires a `deep-link://` event that we listen for.
-pub fn handle_deep_link(event: Event) {
-    let payload = event.payload();
-    eprintln!("received dzsa:// deep link: {payload}");
+/// `None` for anything that doesn't match — a malformed or foreign link is
+/// silently ignored rather than guessed at, the same way a malformed server
+/// address is elsewhere in this codebase.
+pub fn parse_connect_link(link: &str) -> Option<ConnectRequest> {
+    let lower = link.to_ascii_lowercase();
+    if !lower.starts_with(SCHEME) {
+        return None;
+    }
+    if !lower[SCHEME.len()..].starts_with(CONNECT_SEGMENT) {
+        return None;
+    }
+    let after_connect = &link[SCHEME.len() + CONNECT_SEGMENT.len()..];
+    let (addr, query) = after_connect.split_once('?').unwrap_or((after_connect, ""));
+    let (ip, port) = addr.split_once(':')?;
+    if ip.is_empty() {
+        return None;
+    }
+    let query_port: u16 = port.parse().ok()?;
+    let favourite = query
+        .split('&')
+        .any(|kv| matches!(kv, "fav=1" | "fav=true"));
+    Some(ConnectRequest {
+        ip: ip.to_string(),
+        query_port,
+        favourite,
+    })
 }
 
 /// Pull a `dzsa://` link out of a process's command line, if it carries one.
@@ -23,20 +59,32 @@ pub fn link_in_argv(argv: &[String]) -> Option<&str> {
         .find(|arg| arg.to_ascii_lowercase().starts_with(SCHEME))
 }
 
-/// Handle the command line of a duplicate launch that single-instance killed.
+/// Handle a `dzsa://` link on this process's command line, however it got
+/// there: the launcher's own cold-start argv, or a second launch's argv
+/// forwarded here by the single-instance plugin (without this the link would
+/// otherwise be lost outright — the OS starts a second process to carry it,
+/// single-instance kills that process, and nothing in the surviving one ever
+/// sees the argument).
 ///
-/// Without this the link is lost outright: the OS starts a second process to
-/// carry it, the single-instance plugin exits that process, and nothing in the
-/// surviving one ever sees the argument.
-pub fn handle_argv(_app: &AppHandle, argv: &[String]) {
-    if let Some(link) = link_in_argv(argv) {
-        eprintln!("received dzsa:// deep link from a second launch: {link}");
-    }
+/// Parses the link and hands it to the frontend as a `dzsa-connect` event —
+/// see `App.tsx`'s listener. Never launches DayZ itself: a deep link selects
+/// (and optionally favourites) a server, but joining still needs the user to
+/// press the button themselves, deliberately. A webpage should not have the
+/// power to spawn the game unattended.
+pub fn handle_argv(app: &AppHandle, argv: &[String]) {
+    let Some(link) = link_in_argv(argv) else {
+        return;
+    };
+    let Some(request) = parse_connect_link(link) else {
+        eprintln!("[protocol] Could not parse dzsa:// link: {link}");
+        return;
+    };
+    let _ = app.emit("dzsa-connect", request);
 }
 
 #[cfg(test)]
 mod tests {
-    use super::link_in_argv;
+    use super::*;
 
     fn argv(args: &[&str]) -> Vec<String> {
         args.iter().map(|s| s.to_string()).collect()
@@ -68,5 +116,53 @@ mod tests {
             link_in_argv(&argv(&["tetra-launcher.exe", "--autostart"])),
             None
         );
+    }
+
+    #[test]
+    fn a_plain_connect_link_parses() {
+        assert_eq!(
+            parse_connect_link("dzsa://connect/51.254.46.15:2303"),
+            Some(ConnectRequest {
+                ip: "51.254.46.15".into(),
+                query_port: 2303,
+                favourite: false,
+            })
+        );
+    }
+
+    #[test]
+    fn a_favourite_query_param_is_read() {
+        let parsed = parse_connect_link("dzsa://connect/51.254.46.15:2303?fav=1").unwrap();
+        assert!(parsed.favourite);
+    }
+
+    #[test]
+    fn the_scheme_and_segment_are_matched_case_insensitively() {
+        assert!(parse_connect_link("DZSA://CONNECT/1.2.3.4:2302").is_some());
+    }
+
+    #[test]
+    fn a_missing_port_does_not_parse() {
+        assert_eq!(parse_connect_link("dzsa://connect/1.2.3.4"), None);
+    }
+
+    #[test]
+    fn a_non_numeric_port_does_not_parse() {
+        assert_eq!(parse_connect_link("dzsa://connect/1.2.3.4:notaport"), None);
+    }
+
+    #[test]
+    fn a_missing_ip_does_not_parse() {
+        assert_eq!(parse_connect_link("dzsa://connect/:2302"), None);
+    }
+
+    #[test]
+    fn a_foreign_scheme_does_not_parse() {
+        assert_eq!(parse_connect_link("https://connect/1.2.3.4:2302"), None);
+    }
+
+    #[test]
+    fn a_missing_connect_segment_does_not_parse() {
+        assert_eq!(parse_connect_link("dzsa://1.2.3.4:2302"), None);
     }
 }
