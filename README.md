@@ -7,14 +7,14 @@
 **Find the server. Trust the mod list.**
 
 A DayZ server browser and Workshop mod manager for Windows and Linux —
-free, open source, and built around one idea: check the mods *before*
-you connect, not after.
+free to use, source-available, and built around one idea: check the mods
+*before* you connect, not after.
 
 [**tetralauncher.com**](https://tetralauncher.com) · [Download](https://tetralauncher.com/download.html) · [Changelog](CHANGELOG.md)
 
 [![Check](https://github.com/HellboundGlory/dayz-launcher/actions/workflows/check.yml/badge.svg)](https://github.com/HellboundGlory/dayz-launcher/actions/workflows/check.yml)
 [![Latest release](https://img.shields.io/github/v/release/HellboundGlory/dayz-launcher?label=release)](https://github.com/HellboundGlory/dayz-launcher/releases/latest)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue.svg)](LICENSE)
 
 </div>
 
@@ -91,4 +91,9 @@ generated from it and CI fails on drift.
 
 ## License
 
-[MIT](LICENSE) · Not affiliated with Bohemia Interactive.
+[PolyForm Noncommercial 1.0.0](LICENSE) — you're free to use, modify, and
+contribute to this project for any noncommercial purpose. Selling it,
+hosting a paid service built on it, or other commercial use isn't permitted
+without the licensor's permission.
+
+Not affiliated with Bohemia Interactive.
