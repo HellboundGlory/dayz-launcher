@@ -18,7 +18,10 @@ summary: >
 
 ## Enforced by CI — not negotiable
 
-`check.yml` runs on every push and PR:
+`check.yml` runs on every push and PR, except one confined entirely to
+`docs/**` (the marketing site under [`where-things-live`](../knowledge/where-things-live.md)),
+which is scoped out for the same reason `pages.yml` is scoped in — it can't
+affect any of the checks below:
 
 | Check | Command | Note |
 |---|---|---|
