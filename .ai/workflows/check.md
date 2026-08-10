@@ -23,8 +23,9 @@ summary: >
 
 # Run the Checks
 
-These are the same four steps `check.yml` runs on every push and PR. Running
-them locally first means CI tells you nothing new.
+These are the same four steps `check.yml` runs on every push and PR, except
+one confined entirely to `docs/**` (the marketing site), which can't affect
+any of them. Running these locally first means CI tells you nothing new.
 
 **None of them write an executable**, so they cannot clobber the debug build
 from [`build-debug`](build-debug.md). Reach for these first.
