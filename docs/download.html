@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Download — Tetra Launcher</title>
+    <meta name="description" content="Download the latest Tetra Launcher for Windows or Linux." />
+    <link rel="icon" href="assets/tetra-logo.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="site-nav">
+      <div class="container">
+        <a class="brand" href="index.html">
+          <img src="assets/tetra-logo.png" alt="" />
+          <span><span class="tetra">TETRA</span> LAUNCHER</span>
+        </a>
+        <nav class="links">
+          <a href="index.html">Home</a>
+          <a href="download.html" class="active">Download</a>
+          <a href="https://github.com/HellboundGlory/dayz-launcher">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <section style="padding-bottom: 40px">
+      <div class="container">
+        <p class="eyebrow">Requisition</p>
+        <h1 style="font-size: clamp(32px, 5vw, 46px)">Get Tetra Launcher</h1>
+        <p class="lede" id="version-line" style="display: flex; align-items: center; gap: 10px">
+          <span class="pulse-dot"></span>
+          Fetching the latest release&hellip;
+        </p>
+
+        <div
+          id="platform-groups"
+          style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 20px"
+        >
+          <!-- Populated by script below -->
+        </div>
+
+        <p id="load-error" style="display: none; color: var(--bone-dim)">
+          Couldn't reach GitHub to find the latest release — you can browse them directly
+          on the
+          <a href="https://github.com/HellboundGlory/dayz-launcher/releases" style="color: var(--signal); text-decoration: underline">releases
+          page</a>.
+        </p>
+      </div>
+    </section>
+
+    <footer>
+      <div class="container">
+        <p>
+          TETRA LAUNCHER — free and open source.
+          <a href="https://github.com/HellboundGlory/dayz-launcher">Source on GitHub</a>.
+          Not affiliated with Bohemia Interactive.
+        </p>
+      </div>
+    </footer>
+
+    <script>
+      const REPO = "HellboundGlory/dayz-launcher";
+
+      // Grouped by OS, in display order; within a group, builds stack
+      // vertically in the order listed here. `test` matches a release
+      // asset's filename; the first asset to match wins. A build with no
+      // matching asset in the current release is simply omitted — never a
+      // dead row — and a group with no matching build at all doesn't
+      // render, so a `.deb` (or anything else) appears automatically the
+      // moment a release actually ships one.
+      const GROUPS = [
+        {
+          os: "Windows",
+          builds: [
+            { label: "Installer (.exe)", test: (name) => /setup.*\.exe$/i.test(name) },
+            { label: "Portable (.zip)", test: (name) => /portable.*\.zip$/i.test(name) },
+          ],
+        },
+        {
+          os: "Linux",
+          builds: [
+            { label: "AppImage", test: (name) => /\.appimage$/i.test(name) },
+            { label: ".deb package", test: (name) => /\.deb$/i.test(name) },
+          ],
+        },
+      ];
+
+      function buildRow(build, asset) {
+        const sizeMb = (asset.size / (1024 * 1024)).toFixed(1);
+        const row = document.createElement("div");
+        row.className = "build-row";
+        row.innerHTML = `
+          <span class="build-label">${build.label} <span class="build-size">&middot; ${sizeMb} MB</span></span>
+          <a class="btn btn-signal" href="${asset.browser_download_url}">Download</a>
+        `;
+        return row;
+      }
+
+      function groupPanel(group, rows) {
+        const panel = document.createElement("div");
+        panel.className = "panel build-group";
+        panel.innerHTML = `<h3>${group.os}</h3>`;
+        rows.forEach((row) => panel.appendChild(row));
+        return panel;
+      }
+
+      async function load() {
+        const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`);
+        if (!res.ok) throw new Error(`GitHub API returned ${res.status}`);
+        const release = await res.json();
+
+        document.getElementById("version-line").lastChild.textContent =
+          `Latest version: ${release.tag_name}, released ` +
+          new Date(release.published_at).toLocaleDateString(undefined, {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          });
+
+        const container = document.getElementById("platform-groups");
+        for (const group of GROUPS) {
+          const rows = [];
+          for (const build of group.builds) {
+            const asset = release.assets.find((a) => build.test(a.name));
+            if (asset) rows.push(buildRow(build, asset));
+          }
+          if (rows.length > 0) container.appendChild(groupPanel(group, rows));
+        }
+      }
+
+      load().catch((e) => {
+        console.error(e);
+        document.getElementById("version-line").style.display = "none";
+        document.getElementById("load-error").style.display = "block";
+      });
+    </script>
+  </body>
+</html>
