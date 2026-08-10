@@ -87,6 +87,7 @@
           builds: [
             { label: "AppImage", test: (name) => /\.appimage$/i.test(name) },
             { label: ".deb package", test: (name) => /\.deb$/i.test(name) },
+            { label: ".rpm package", test: (name) => /\.rpm$/i.test(name) },
           ],
         },
       ];
