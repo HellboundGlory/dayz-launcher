@@ -4,8 +4,9 @@ import ReactMarkdown from "react-markdown";
 import { open as openLink } from "@tauri-apps/plugin-shell";
 import { useUpdateStore } from "@/stores/update-store";
 
-/** Where the "View Release" link sends a portable user for a manual download. */
-const RELEASES_URL = "https://github.com/HellboundGlory/dayz-launcher/releases/latest";
+/** Where the "View Release" link sends a portable user for a manual download —
+    the project's own download page, not a raw link into GitHub's releases list. */
+const DOWNLOAD_URL = "https://tetralauncher.com/download.html";
 
 interface UpdateModalProps {
   open: boolean;
@@ -138,7 +139,7 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
             </button>
           ) : (
             <button
-              onClick={() => void openLink(RELEASES_URL)}
+              onClick={() => void openLink(DOWNLOAD_URL)}
               className="flex items-center gap-1.5 rounded-md bg-[#16202e] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#94a3b8] ring-1 ring-[#1e293b] transition-colors duration-150 hover:text-[#f1f5f9]"
             >
               <ExternalLink className="size-3" />
