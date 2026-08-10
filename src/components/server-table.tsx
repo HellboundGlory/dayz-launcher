@@ -372,7 +372,14 @@ export function ServerTable() {
           .then((maps) => {
             if (!cancelled) setMaps(maps);
           })
-          .catch(() => {});
+          .catch((e) => {
+            // Previously swallowed outright. Failing here (e.g. the same
+            // "Registry not initialized" race as `getServerList`) silently
+            // parks `mapsLoaded` at false forever, which is one of the ways
+            // the splash-70% bug (progress.md) got permanently stuck — worth
+            // seeing in the log rather than guessing at it blind.
+            if (!cancelled) void logClient("servers", `getMapList failed: ${String(e)}`);
+          });
       } catch (e) {
         if (!cancelled) {
           void logClient("servers", `load: failed (loadVersion=${loadVersion}): ${String(e)}`);

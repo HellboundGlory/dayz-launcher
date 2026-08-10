@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.9.0 — 2026-08-10
+
+### Added
+
+- **Fedora: `.rpm` package.** Alongside the AppImage and `.deb`, releases now
+  also publish a `.rpm` for Fedora/RHEL-based systems.
+
+### Fixed
+
+- **Discord Rich Presence could still get stuck** in two more cases beyond
+  the one fixed in v1.8.1: a hung connection to the Discord client (Discord
+  crashed or was suspended mid-handshake) could freeze presence updates for
+  the rest of the session, and a DayZ process left over from a crash or an
+  improper close could make presence report "still playing" indefinitely.
+  Both are now detected and recovered from automatically.
+- **The splash screen could get stuck at 70%** if the local server database
+  took a moment longer than usual to open — the very first checks could run
+  before it was ready and never got retried. The launcher now retries once
+  the database is actually ready instead of giving up.
+- **(Linux) Installing an update silently stopped relaunching the app.** A
+  recent crash fix changed how the launcher shuts down and, as a side effect,
+  broke the auto-updater's restart step on Linux — the update would install
+  but the launcher would just close instead of coming back. Fixed.
+
 ## v1.8.1 — 2026-08-10
 
 ### Fixed
