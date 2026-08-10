@@ -102,12 +102,21 @@ impl DiscordHandle {
     ///
     /// Never blocks on Discord being reachable: connecting (and retrying)
     /// happens entirely off this call, on the spawned thread.
-    pub fn start(client_id: &str) -> DiscordHandle {
+    ///
+    /// `log` reports connection state *changes* only (connected, lost,
+    /// gave-up-and-will-retry) — never per-retry-tick, since a player without
+    /// Discord running would otherwise fill the log with a line every
+    /// `RECONNECT_INTERVAL` for the length of the session. This is the only
+    /// visibility `src-tauri` has into whether the local IPC connection is
+    /// working at all, which the existing `tracing::` calls never provided
+    /// (no subscriber is wired up in a release build — see `crate::log` on
+    /// the `src-tauri` side).
+    pub fn start(client_id: &str, log: impl Fn(&str) + Send + 'static) -> DiscordHandle {
         let (tx, rx) = std::sync::mpsc::channel();
         let client_id = client_id.to_string();
         std::thread::Builder::new()
             .name("tetra-discord".into())
-            .spawn(move || run(&client_id, &rx))
+            .spawn(move || run(&client_id, &rx, &log))
             .expect("failed to spawn tetra-discord thread");
         DiscordHandle { tx }
     }
@@ -136,12 +145,61 @@ impl DiscordHandle {
     }
 }
 
+/// How long a single connect/write attempt against the IPC client may block
+/// before this thread gives up on it and starts fresh.
+///
+/// The vendored `discord-rich-presence` crate's transport
+/// (`ipc_windows.rs`/`ipc_unix.rs`) does blocking `read_exact`/`write_all`
+/// against the raw pipe/socket with no OS-level read or write timeout at
+/// all, on either platform, and exposes no way to set one after the fact —
+/// its `socket` field is private, so there is nothing to configure from
+/// outside the crate. If Discord's client ever accepts the connection but
+/// stops responding mid-handshake (crashed, hung, or suspended by the OS for
+/// being backgrounded), the blocking call inside `client.connect()` never
+/// returns — and this thread, which owns the only `DiscordIpcClient` and is
+/// the only place a `Command` is ever applied, freezes for the rest of the
+/// process. Every future `set_idle`/`set_playing` then sits in the channel
+/// forever, unapplied, and Discord keeps showing whatever it last received:
+/// exactly a "stuck" presence, and not one that shows up in this crate's
+/// existing error-based logging, because a hang isn't an error.
+const IPC_OP_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Runs `op` — which must take ownership of the client and hand it back — on
+/// a throwaway thread, and waits up to [`IPC_OP_TIMEOUT`] for it to finish.
+///
+/// `Some((client, result))` on completion within the deadline; `None` on
+/// timeout, in which case the client passed into `op` is gone for good: there
+/// is no way to cancel a blocked syscall from safe Rust, so a timed-out
+/// attempt's thread — and the `DiscordIpcClient` it took ownership of — is
+/// abandoned rather than joined. The caller must construct a fresh client.
+/// A leaked OS thread parked on a dead pipe costs one stack's worth of memory
+/// for the rest of the process; a launcher that silently stops updating
+/// Discord for the rest of the session costs more.
+fn call_with_timeout<T: Send + 'static>(op: impl FnOnce() -> T + Send + 'static) -> Option<T> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::Builder::new()
+        .name("tetra-discord-io".into())
+        .spawn(move || {
+            // The receiver may already be gone (the caller timed out and
+            // moved on) — sending into a dropped channel is a plain `Err`,
+            // not a panic.
+            let _ = tx.send(op());
+        })
+        .ok()?;
+    rx.recv_timeout(IPC_OP_TIMEOUT).ok()
+}
+
 /// The thread body. Holds the only `DiscordIpcClient` and the last command it
 /// was told to apply, so a delayed (re)connect still ends up showing the
 /// right thing instead of whatever the client happened to start as.
-fn run(client_id: &str, rx: &Receiver<Command>) {
+fn run(client_id: &str, rx: &Receiver<Command>, log: &impl Fn(&str)) {
     let mut client = DiscordIpcClient::new(client_id);
     let mut connected = false;
+    // Edge-triggered: only the *first* failed attempt after a working (or
+    // freshly started) connection is logged, not every retry — Discord
+    // simply not running is the ordinary case for most players, not
+    // something to narrate every `RECONNECT_INTERVAL`.
+    let mut logged_this_outage = false;
     let mut last = Command::Idle(None);
 
     loop {
@@ -153,22 +211,66 @@ fn run(client_id: &str, rx: &Receiver<Command>) {
         }
 
         if !connected {
-            match client.connect() {
-                Ok(()) => {
+            match call_with_timeout(move || {
+                let mut c = client;
+                let r = c.connect();
+                (c, r)
+            }) {
+                Some((c, Ok(()))) => {
+                    client = c;
                     connected = true;
+                    logged_this_outage = false;
+                    log("connected to the local client");
                     tracing::info!("discord: connected to the local client");
                 }
-                Err(e) => {
+                Some((c, Err(e))) => {
+                    client = c;
+                    if !logged_this_outage {
+                        logged_this_outage = true;
+                        log(&format!(
+                            "not connected ({e}); will keep retrying every {}s",
+                            RECONNECT_INTERVAL.as_secs()
+                        ));
+                    }
                     tracing::debug!("discord: not connected ({e}); will retry");
+                    continue;
+                }
+                None => {
+                    if !logged_this_outage {
+                        logged_this_outage = true;
+                        log(&format!(
+                            "connect attempt did not respond within {}s; abandoning it and starting fresh",
+                            IPC_OP_TIMEOUT.as_secs()
+                        ));
+                    }
+                    client = DiscordIpcClient::new(client_id);
                     continue;
                 }
             }
         }
 
-        if let Err(e) = apply(&mut client, &last) {
-            tracing::debug!("discord: lost connection ({e}); will reconnect");
-            let _ = client.close();
-            connected = false;
+        let to_apply = last.clone();
+        match call_with_timeout(move || {
+            let mut c = client;
+            let r = apply(&mut c, &to_apply);
+            (c, r)
+        }) {
+            Some((c, Ok(()))) => client = c,
+            Some((c, Err(e))) => {
+                client = c;
+                log(&format!("lost connection ({e}); will reconnect"));
+                tracing::debug!("discord: lost connection ({e}); will reconnect");
+                let _ = client.close();
+                connected = false;
+            }
+            None => {
+                log(&format!(
+                    "presence update did not respond within {}s; abandoning the connection and reconnecting",
+                    IPC_OP_TIMEOUT.as_secs()
+                ));
+                client = DiscordIpcClient::new(client_id);
+                connected = false;
+            }
         }
     }
 }
