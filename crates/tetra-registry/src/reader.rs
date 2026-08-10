@@ -1,5 +1,5 @@
 use crate::error::RegistryError;
-use crate::filter::{self, ServerFilter, ServerListRow, SortDir, SortKey};
+use crate::filter::{self, ServerFilter, ServerListRow, SortDir, SortKey, SERVER_LIST_COLUMNS};
 use crate::rows::ServerKey;
 use rusqlite::functions::FunctionFlags;
 use rusqlite::{params, Connection};
@@ -69,40 +69,61 @@ impl Reader {
         let (sql, binds) = filter::build(filter, sort, dir, limit);
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt
-            .query_map(rusqlite::params_from_iter(binds), |r| {
-                let ip: String = r.get(0)?;
-                let map_raw: String = r.get(4)?;
-                Ok(ServerListRow {
-                    key: ServerKey {
-                        ip: Ipv4Addr::from_str(&ip).unwrap_or(Ipv4Addr::UNSPECIFIED),
-                        query_port: r.get(1)?,
-                    },
-                    game_port: r.get(2)?,
-                    name: r.get(3)?,
-                    map_display: display_name(&map_raw),
-                    players: r.get(5)?,
-                    max_players: r.get(6)?,
-                    mod_count: r.get(7)?,
-                    ping_ms: r.get(8)?,
-                    locked: r.get::<_, i64>(9)? != 0,
-                    in_game_time: r.get(10)?,
-                    country_code: r.get(11)?,
-                    last_played: r.get(12)?,
-                    favourite: r.get::<_, i64>(13)? != 0,
-                    official: r.get::<_, i64>(14)? != 0,
-                    first_person: r.get::<_, i64>(15)? != 0,
-                    modded: r.get::<_, i64>(16)? != 0,
-                    battleye: r.get::<_, i64>(17)? != 0,
-                    vac: r.get::<_, i64>(18)? != 0,
-                    version: r.get(19)?,
-                    online: r.get::<_, i64>(20)? != 0,
-                    queue: r.get(21)?,
-                    day_multiplier: r.get(22)?,
-                    night_multiplier: r.get(23)?,
-                })
-            })?
+            .query_map(rusqlite::params_from_iter(binds), Self::map_row)?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(rows)
+    }
+
+    /// Look up a single server by its key — the same row `list()` would
+    /// return for it, without building a filter for one address.
+    ///
+    /// Used to attach a server's current name/map/player-count to Discord
+    /// Rich Presence right after a launch, where the caller only has the
+    /// address it just spawned DayZ against.
+    pub fn get(&self, key: ServerKey) -> Result<Option<ServerListRow>, RegistryError> {
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT {SERVER_LIST_COLUMNS} FROM servers WHERE ip = ?1 AND query_port = ?2"
+        ))?;
+        let row = stmt
+            .query_map(params![key.ip.to_string(), key.query_port], Self::map_row)?
+            .next()
+            .transpose()?;
+        Ok(row)
+    }
+
+    /// Shared row mapping for [`Reader::list`] and [`Reader::get`] — both read
+    /// the same [`SERVER_LIST_COLUMNS`] in the same order.
+    fn map_row(r: &rusqlite::Row) -> rusqlite::Result<ServerListRow> {
+        let ip: String = r.get(0)?;
+        let map_raw: String = r.get(4)?;
+        Ok(ServerListRow {
+            key: ServerKey {
+                ip: Ipv4Addr::from_str(&ip).unwrap_or(Ipv4Addr::UNSPECIFIED),
+                query_port: r.get(1)?,
+            },
+            game_port: r.get(2)?,
+            name: r.get(3)?,
+            map_display: display_name(&map_raw),
+            players: r.get(5)?,
+            max_players: r.get(6)?,
+            mod_count: r.get(7)?,
+            ping_ms: r.get(8)?,
+            locked: r.get::<_, i64>(9)? != 0,
+            in_game_time: r.get(10)?,
+            country_code: r.get(11)?,
+            last_played: r.get(12)?,
+            favourite: r.get::<_, i64>(13)? != 0,
+            official: r.get::<_, i64>(14)? != 0,
+            first_person: r.get::<_, i64>(15)? != 0,
+            modded: r.get::<_, i64>(16)? != 0,
+            battleye: r.get::<_, i64>(17)? != 0,
+            vac: r.get::<_, i64>(18)? != 0,
+            version: r.get(19)?,
+            online: r.get::<_, i64>(20)? != 0,
+            queue: r.get(21)?,
+            day_multiplier: r.get(22)?,
+            night_multiplier: r.get(23)?,
+        })
     }
 
     pub fn distinct_maps(&self) -> Result<Vec<(String, String)>, RegistryError> {

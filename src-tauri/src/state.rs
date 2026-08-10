@@ -1,5 +1,6 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
+use tetra_discord::{DiscordHandle, DiscordSession};
 use tetra_net::prober::Prober;
 use tetra_registry::Registry;
 use tetra_steam::SteamHandle;
@@ -61,6 +62,21 @@ pub struct AppState {
     /// exit because quitting from the tray quits while the window is hidden —
     /// see `crate::window_state`.
     pub window_state: Mutex<Option<crate::window_state::WindowState>>,
+    /// The Discord Rich Presence connection, started only if
+    /// `AppSettings::discord_rich_presence` allows it — `None` means either
+    /// "not started yet" or "the user has never enabled it this session".
+    /// See `crate::discord`.
+    pub discord: Mutex<Option<DiscordHandle>>,
+    /// Mirror of `AppSettings::discord_rich_presence`, read by the poll loop
+    /// for the same reason `close_to_tray` is mirrored: the loop runs outside
+    /// any command and has no way to ask the frontend store.
+    pub discord_enabled: AtomicBool,
+    /// What `launch_game` is telling Discord right now — the pre-launch mod
+    /// gate running, or a live session — if anything. Set by `launch_game`;
+    /// cleared either by `launch_game` itself (a failed gate must not strand
+    /// Discord on "Checking mods") or by the poll loop once
+    /// `tetra_launch::running::dayz_is_running` reports a live session ended.
+    pub discord_now_playing: Mutex<Option<DiscordSession>>,
 }
 
 impl AppState {
@@ -86,6 +102,12 @@ impl AppState {
             // Seeded from the settings file in `setup`, so a session that
             // never moves the window still writes back what it restored.
             window_state: Mutex::new(None),
+            discord: Mutex::new(None),
+            // Overwritten from the settings file in `setup`, same as
+            // `close_to_tray` above. Defaults on so the flag is never
+            // accidentally "disabled" if setup somehow doesn't run.
+            discord_enabled: AtomicBool::new(true),
+            discord_now_playing: Mutex::new(None),
         }
     }
 }

@@ -6,6 +6,7 @@ members = [
     "crates/tetra-registry",
     "crates/tetra-steam",
     "crates/tetra-launch",
+    "crates/tetra-discord",
     "src-tauri",
 ]
 
@@ -23,3 +24,5 @@ tracing = "0.1"
 rusqlite = { version = "0.32", features = ["bundled", "functions"] }
 steamworks = "0.13"
 winreg = "0.52"
+discord-rich-presence = "1.1"
+percent-encoding = "2"

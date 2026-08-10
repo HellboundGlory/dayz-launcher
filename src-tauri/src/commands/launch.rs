@@ -219,78 +219,130 @@ pub async fn launch_game(
         .parse()
         .map_err(|e| format!("Invalid query address: {e}"))?;
 
-    // Get the prober for live A2S_RULES re-query
-    let prober = {
-        let guard = state.prober.lock().map_err(|e| e.to_string())?;
-        guard.as_ref().ok_or("Prober not initialized")?.clone()
-    };
-
-    // Discover DayZ install path — use manual override if provided
-    let dayz_dir = if let Some(ref manual_path) = dayz_path_override {
-        let path = std::path::PathBuf::from(manual_path);
-        if !path.exists() {
-            return Err(format!("DayZ path does not exist: {manual_path}"));
+    // Discord Rich Presence: look the row up now, as early as possible, so
+    // "Checking mods" can appear the instant the button is pressed rather
+    // than after the (potentially slow) verification below — and stash it
+    // for reuse once the launch actually succeeds, avoiding a second lookup
+    // of the same row further down. Never for a main-menu load — same
+    // scoping as the RECENT-list write later in this function. Best-effort
+    // throughout: a lookup failure here must never affect the launch that's
+    // about to happen, it just means presence has nothing to show.
+    let mut discord_row: Option<tetra_registry::ServerListRow> = None;
+    if !main_menu {
+        if let SocketAddr::V4(v4) = query_addr {
+            let key = tetra_registry::rows::ServerKey {
+                ip: *v4.ip(),
+                query_port: v4.port(),
+            };
+            if let Ok(reader) = crate::commands::server::reader(&state) {
+                let row = tokio::task::spawn_blocking(move || reader.get(key))
+                    .await
+                    .ok()
+                    .and_then(|r| r.ok())
+                    .flatten();
+                if let Some(row) = row {
+                    if let Ok(mut slot) = state.discord_now_playing.lock() {
+                        *slot = Some(tetra_discord::DiscordSession::Verifying {
+                            server_name: row.name.clone(),
+                        });
+                    }
+                    discord_row = Some(row);
+                }
+            }
         }
-        path
-    } else {
-        let paths = tetra_launch::registry_discovery::find_steam_paths()
-            .ok_or_else(|| "Could not find Steam/DayZ installation. Check registry or set path manually in Settings.".to_string())?;
-        paths.dayz_install.clone()
-    };
-
-    let dayz_exe = find_dayz_exe(&dayz_dir).ok_or_else(|| {
-        format!(
-            "DayZ executable not found at {}. Try verifying game files in Steam.",
-            dayz_dir.display()
-        )
-    })?;
-
-    // Get the Steam handle for Workshop operations
-    let steam = {
-        let guard = state.steam.lock().map_err(|e| e.to_string())?;
-        Arc::clone(guard.as_ref().ok_or("Steam not initialized")?)
-    };
-
-    // 1. Fetch live A2S_RULES from the server. Unqueued: this is one query on a
-    //    click, and it must not wait behind a refresh's thousands.
-    let rules_payload = prober.rules_unqueued(query_addr).await.map_err(|_| {
-        format!(
-            "Could not query server rules at {addr}:{game_port}. \
-                              The server may be offline or behind a firewall."
-        )
-    })?;
-
-    // 2. Check each mod's install state, off the async runtime — every Steam
-    //    call in `verify_mods` blocks on the actor thread.
-    let mods = rules_payload.mods;
-    let verification = tokio::task::spawn_blocking(move || verify_mods(&steam, &mods))
-        .await
-        .map_err(|e| format!("Task join error: {e}"))??;
-
-    if !verification.blocked.is_empty() {
-        return Err(describe_blockers(&verification.blocked));
     }
-    let mods_ready = verification.ready_paths.len();
 
-    // 3. Build -mod= in server-declared order
-    let mod_arg = build_mod_string(&verification.ready_paths);
+    // Everything from here to a successful `spawn_dayz` can fail in several
+    // ways. Wrapped in one block so there is exactly one place — right
+    // below — that has to remember to clear the "Checking mods" presence on
+    // failure, rather than one at every early return.
+    let launch_prep: Result<(std::path::PathBuf, Vec<String>, usize, usize), String> = async {
+        // Get the prober for live A2S_RULES re-query
+        let prober = {
+            let guard = state.prober.lock().map_err(|e| e.to_string())?;
+            guard.as_ref().ok_or("Prober not initialized")?.clone()
+        };
 
-    // 4. Spawn DayZ. The user's own `launchParams` go in ahead of `-mod=`, which
-    //    `build_launch_args` keeps last. These were previously dropped: the call
-    //    site passed a hardcoded `&[]`, so a setting that persisted fine and had
-    //    a slot waiting for it never reached the command line.
-    let extra_params = launch_params.unwrap_or_default();
-    let args = build_launch_args(
-        main_menu,
-        ip,
-        game_port,
-        password.as_deref(),
-        &mod_arg,
-        &extra_params,
-        profile_name.as_deref(),
-    );
+        // Discover DayZ install path — use manual override if provided
+        let dayz_dir = if let Some(ref manual_path) = dayz_path_override {
+            let path = std::path::PathBuf::from(manual_path);
+            if !path.exists() {
+                return Err(format!("DayZ path does not exist: {manual_path}"));
+            }
+            path
+        } else {
+            let paths = tetra_launch::registry_discovery::find_steam_paths()
+                .ok_or_else(|| "Could not find Steam/DayZ installation. Check registry or set path manually in Settings.".to_string())?;
+            paths.dayz_install.clone()
+        };
 
-    spawn_dayz(&dayz_exe, &args).map_err(|e| format!("Failed to launch DayZ: {e}"))?;
+        let dayz_exe = find_dayz_exe(&dayz_dir).ok_or_else(|| {
+            format!(
+                "DayZ executable not found at {}. Try verifying game files in Steam.",
+                dayz_dir.display()
+            )
+        })?;
+
+        // Get the Steam handle for Workshop operations
+        let steam = {
+            let guard = state.steam.lock().map_err(|e| e.to_string())?;
+            Arc::clone(guard.as_ref().ok_or("Steam not initialized")?)
+        };
+
+        // 1. Fetch live A2S_RULES from the server. Unqueued: this is one query on a
+        //    click, and it must not wait behind a refresh's thousands.
+        let rules_payload = prober.rules_unqueued(query_addr).await.map_err(|_| {
+            format!(
+                "Could not query server rules at {addr}:{game_port}. \
+                                  The server may be offline or behind a firewall."
+            )
+        })?;
+
+        // 2. Check each mod's install state, off the async runtime — every Steam
+        //    call in `verify_mods` blocks on the actor thread.
+        let mods = rules_payload.mods;
+        let verification = tokio::task::spawn_blocking(move || verify_mods(&steam, &mods))
+            .await
+            .map_err(|e| format!("Task join error: {e}"))??;
+
+        if !verification.blocked.is_empty() {
+            return Err(describe_blockers(&verification.blocked));
+        }
+
+        // 3. Build -mod= in server-declared order
+        let mod_arg = build_mod_string(&verification.ready_paths);
+
+        // 4. The user's own `launchParams` go in ahead of `-mod=`, which
+        //    `build_launch_args` keeps last. These were previously dropped: the
+        //    call site passed a hardcoded `&[]`, so a setting that persisted fine
+        //    and had a slot waiting for it never reached the command line.
+        let extra_params = launch_params.unwrap_or_default();
+        let args = build_launch_args(
+            main_menu,
+            ip,
+            game_port,
+            password.as_deref(),
+            &mod_arg,
+            &extra_params,
+            profile_name.as_deref(),
+        );
+
+        Ok((dayz_exe, args, verification.ready_paths.len(), verification.checked))
+    }
+    .await;
+
+    let (dayz_exe, args, mods_ready, mods_checked) = match launch_prep {
+        Ok(v) => v,
+        Err(e) => {
+            crate::discord::clear_launch_presence(&app);
+            return Err(e);
+        }
+    };
+
+    if let Err(e) = spawn_dayz(&dayz_exe, &args) {
+        crate::discord::clear_launch_presence(&app);
+        return Err(format!("Failed to launch DayZ: {e}"));
+    }
 
     // Record the visit only after the process actually started, so a failed
     // gate never shows up in the RECENT list. A main-menu load is not a join,
@@ -311,6 +363,31 @@ pub async fn launch_game(
             };
             let _ = writer.mark_played(key).await;
         }
+
+        // Discord Rich Presence: promote the `Verifying` state set at the top
+        // of this function to `Live`, reusing the row already fetched there
+        // rather than reading it a second time. `discord_row` is `None` if
+        // that first lookup failed — best-effort throughout, so nothing here
+        // affects the launch that already succeeded either way.
+        if let Some(row) = discord_row {
+            let started_at = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs() as i64)
+                .unwrap_or(0);
+            let info = tetra_discord::PresenceInfo {
+                server_name: row.name,
+                map: Some(row.map_display),
+                players: row.players,
+                max_players: row.max_players,
+                started_at,
+                in_game_time: row.in_game_time,
+                ip: row.key.ip.to_string(),
+                query_port: row.key.query_port,
+            };
+            if let Ok(mut slot) = state.discord_now_playing.lock() {
+                *slot = Some(tetra_discord::DiscordSession::Live(info));
+            }
+        }
     }
 
     // Get out of the way once DayZ is starting, for a real join *and* a
@@ -323,7 +400,7 @@ pub async fn launch_game(
 
     Ok(LaunchOutcome {
         status: "launched".into(),
-        mods_checked: verification.checked,
+        mods_checked,
         mods_ready,
         // Reaching here means nothing was blocked — an early return covers the
         // other case.
