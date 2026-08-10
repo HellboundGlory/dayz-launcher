@@ -3,10 +3,20 @@ name: Check
 # The regression net for ordinary work. `release.yml` only ever runs on a
 # version tag, so before this workflow existed nothing verified a commit —
 # a build break could sit on `main` until the next release attempt found it.
+#
+# `paths-ignore: docs/**` mirrors pages.yml's own `paths: docs/**` scoping:
+# a change confined to the marketing site can't affect the Rust workspace or
+# the frontend, so it has no reason to spend ~2 minutes running fmt/clippy/
+# test/tsc across both. A commit that touches anything outside docs/ still
+# runs the full suite, mixed commits included.
 on:
   push:
     branches: ["**"]
+    paths-ignore:
+      - "docs/**"
   pull_request:
+    paths-ignore:
+      - "docs/**"
 
 # A new push to the same branch makes the in-flight run obsolete.
 concurrency:

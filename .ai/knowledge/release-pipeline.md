@@ -19,7 +19,7 @@ summary: >
 
 | Workflow | Trigger | Does |
 |---|---|---|
-| `check.yml` | every push and PR | three independent jobs — see below |
+| `check.yml` | every push and PR, except changes confined to `docs/**` | four independent jobs — see below |
 | `release.yml` | **pushing a `vX.Y.Z` tag only** | builds, signs, publishes Windows (NSIS installer + portable zip) and Linux (AppImage, .deb, .rpm) artifacts + `latest.json` |
 
 `check.yml` jobs:

@@ -28,7 +28,8 @@ correct; they refer to different things. Local database files are `tetra.db*`.
 | `crates/tetra-launch` | Launch / process control |
 | `src-tauri/` | Tauri shell, commands, `tauri.conf.json` |
 | `src/` | React + Vite frontend |
-| `.github/workflows/` | `check.yml`, `release.yml` |
+| `docs/` | The marketing site (tetralauncher.com) and the `dzsa://` join landing page — plain HTML/CSS/JS, no build step. Deployed by `pages.yml`, independent of `check.yml`/`release.yml` |
+| `.github/workflows/` | `check.yml`, `release.yml`, `pages.yml` |
 
 ## Not in the repository — read this before concluding something is missing
 
@@ -53,7 +54,11 @@ issue resurfaces, the previous investigation is still there.
 (gitignored, engineering detail). Both are kept current; they are not
 duplicates of each other.
 
-## Version numbers live in two files
+## Version numbers live in three places
 
-`package.json` and `src-tauri/tauri.conf.json`, kept in lockstep. Both must be
-bumped together — see the [`release`](../workflows/release.md) workflow.
+`package.json`, `src-tauri/tauri.conf.json`, and `[workspace.package].version`
+in the root `Cargo.toml`, kept in lockstep. The Cargo side is a single edit —
+every crate (`src-tauri` and all of `crates/*`) declares
+`version.workspace = true` rather than its own version, so bumping the root
+field moves all of them at once. See the [`release`](../workflows/release.md)
+workflow.
