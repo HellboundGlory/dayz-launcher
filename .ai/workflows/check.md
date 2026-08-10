@@ -70,6 +70,8 @@ from [`build-debug`](build-debug.md). Reach for these first.
 
 ---
 
-**Note on CI:** `check.yml` runs Rust on `windows-latest` because the workspace
-needs `winreg` and `window-vibrancy`. A Linux runner cannot compile it — this
-is not a CI misconfiguration to be "fixed".
+**Note on CI:** `check.yml` runs the Rust checks twice — once on
+`windows-latest` (`rust`) and once on `ubuntu-latest` (`rust-linux`), since the
+launcher ships both a Windows installer and a Linux AppImage. Windows-only
+code (`winreg`, `window-vibrancy`) is `cfg(windows)`-gated so the workspace
+compiles cleanly on both.

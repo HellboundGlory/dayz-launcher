@@ -161,7 +161,7 @@ ON CONFLICT(ip, query_port) DO UPDATE SET
     bots           = CASE WHEN excluded.last_responded IS NOT NULL
                           THEN excluded.bots
                           ELSE servers.bots END,
-    ping_ms        = CASE WHEN excluded.ping_ms > 0
+    ping_ms        = CASE WHEN excluded.last_responded IS NOT NULL
                           THEN excluded.ping_ms
                           ELSE servers.ping_ms END,
     locked         = CASE WHEN excluded.last_responded IS NOT NULL

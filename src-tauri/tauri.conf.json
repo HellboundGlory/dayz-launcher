@@ -57,7 +57,18 @@
    "icons/icon.png",
    "icons/icon.ico"
   ],
-  "createUpdaterArtifacts": true
+  "createUpdaterArtifacts": true,
+  "homepage": "https://hellboundglory.github.io/dayz-launcher/",
+  "publisher": "HellboundGlory",
+  "shortDescription": "A DayZ server browser and Workshop mod manager",
+  "longDescription": "Browse DayZ servers, manage Workshop mods, and verify a server's mod list against the Workshop before you connect.",
+  "linux": {
+   "deb": {
+    "files": {
+     "/usr/lib/tetra-launcher/libsteam_api.so": "../target/steamlib/libsteam_api.so"
+    }
+   }
+  }
  },
  "plugins": {
   "updater": {

@@ -138,6 +138,12 @@ pub struct AppSettings {
     /// the name only: script, bracketed language tags, accented letters and a
     /// word list.
     pub english_names_filter: Option<bool>,
+    /// Show "Playing on {server}" / "Browsing servers" in Discord.
+    ///
+    /// `Option` for the same reason as `close_to_tray`: `None` is what lets
+    /// `discord_presence_enabled` tell "never set" apart from "explicitly
+    /// turned off", and the default lives in the accessor rather than here.
+    pub discord_rich_presence: Option<bool>,
     /// The window's size, position and maximised state.
     ///
     /// Here rather than in the `.window-state.json` that
@@ -198,6 +204,9 @@ impl Default for AppSettings {
             hide_placeholder_servers: true,
             // On by default too. `Some(true)`, not `None` — see the field docs.
             english_names_filter: Some(true),
+            // `None`, not `Some(true)` — same reasoning as `close_to_tray`.
+            // The default (on) lives in `discord_presence_enabled`.
+            discord_rich_presence: None,
             // Nothing remembered. The window opens at the size in
             // tauri.conf.json and the OS places it.
             window: None,
@@ -223,6 +232,12 @@ impl AppSettings {
         })
     }
 
+    /// Whether Discord Rich Presence is on. The one place
+    /// `discord_rich_presence` is read — see the field docs.
+    pub fn discord_presence_enabled(&self) -> bool {
+        self.discord_rich_presence.unwrap_or(true)
+    }
+
     /// The zoom factor to actually apply, with a hand-edited value brought back
     /// into range. A `0` in the file would otherwise collapse the window.
     pub fn scale(&self) -> f64 {
@@ -239,6 +254,11 @@ impl AppSettings {
         self.close_to_tray = Some(self.closes_to_tray());
         self.on_close = None;
         self.ui_scale = self.scale();
+        // Plain on/off, unlike `english_names_filter`'s meaningful tri-state
+        // `None` — so it is normalised the same way as `close_to_tray`, and
+        // the frontend never has to treat a missing value as anything but
+        // "not written yet".
+        self.discord_rich_presence = Some(self.discord_presence_enabled());
     }
 }
 
@@ -498,22 +518,28 @@ pub fn persist_window_state(app: &AppHandle) {
     }
 }
 
-/// Show the data directory in Explorer.
+/// Show the data directory in the system file manager.
 ///
 /// Exists because the answer to "where does the launcher keep my stuff" now
 /// depends on whether this copy is portable, and because the previous single
 /// location — a hashed-looking `com.tetra.launcher` folder under AppData — was
 /// not something anyone found by looking.
+///
+/// Windows: Explorer. Linux: the desktop opener — same split as
+/// `commands::mods::open_mod_folder` and `commands::launch`'s folder reveal.
 #[tauri::command]
 pub fn open_data_folder(app: AppHandle) -> Result<(), String> {
     let dir = crate::paths::data_root(&app);
     std::fs::create_dir_all(&dir)
         .map_err(|e| format!("Could not create {}: {e}", dir.display()))?;
-    std::process::Command::new("explorer")
-        .arg(&dir)
+    #[cfg(target_os = "windows")]
+    let mut cmd = std::process::Command::new("explorer");
+    #[cfg(not(target_os = "windows"))]
+    let mut cmd = std::process::Command::new("xdg-open");
+    cmd.arg(&dir)
         .spawn()
-        // Explorer's exit status is not a reliable success signal, so this only
-        // reports a failure to *start* it.
+        // The opener's exit status is not a reliable success signal, so this
+        // only reports a failure to *start* it.
         .map(|_| ())
         .map_err(|e| format!("Could not open {}: {e}", dir.display()))
 }
@@ -569,6 +595,14 @@ pub async fn save_settings(app: AppHandle, mut settings: AppSettings) -> Result<
         if let Ok(mut guard) = state.on_join.lock() {
             *guard = settings.on_join;
         }
+    }
+    // Same always-mirror pattern as `close_to_tray`/`minimise_to_tray` above;
+    // both functions are cheap and idempotent, so no transition detection is
+    // needed — toggling the checkbox off and back on just re-runs `enable`.
+    if settings.discord_presence_enabled() {
+        crate::discord::enable(&app);
+    } else {
+        crate::discord::disable(&app);
     }
     apply_autostart(&app, settings.start_with_windows);
     // Idempotent when the slider already applied it live, and the one thing
@@ -630,6 +664,20 @@ mod tests {
     #[test]
     fn close_to_tray_wins_over_the_retired_dropdown() {
         assert!(load(r#"{ "closeToTray": true, "onClose": "quit" }"#).closes_to_tray());
+    }
+
+    #[test]
+    fn discord_presence_defaults_on() {
+        assert!(load(r#"{ "discordRichPresence": true }"#).discord_presence_enabled());
+        // And a file predating this setting entirely.
+        assert!(load("{}").discord_presence_enabled());
+    }
+
+    /// An explicit opt-out has to survive a save/load, the same as
+    /// `close_to_tray` — see `an_explicit_close_to_tray_opt_out_survives`.
+    #[test]
+    fn an_explicit_discord_presence_opt_out_survives() {
+        assert!(!load(r#"{ "discordRichPresence": false }"#).discord_presence_enabled());
     }
 
     /// The retired field is read, never written. One save and it is gone from
@@ -713,6 +761,10 @@ mod tests {
             parsed.english_names_filter,
             Some(true),
             "a missing Option field must come from Default, not fall to None"
+        );
+        assert!(
+            parsed.discord_presence_enabled(),
+            "an older file predating this setting must not read as opted out"
         );
     }
 

@@ -122,6 +122,7 @@ export function SettingsModal({ open: isOpen, onClose }: SettingsModalProps) {
   const startMinimised = useSettingsStore((s) => s.startMinimised);
   const onJoin = useSettingsStore((s) => s.onJoin);
   const autoRefreshIntervalSecs = useSettingsStore((s) => s.autoRefreshIntervalSecs);
+  const discordRichPresence = useSettingsStore((s) => s.discordRichPresence);
   const setSetting = useSettingsStore((s) => s.setSetting);
 
   const [detecting, setDetecting] = useState(false);
@@ -439,6 +440,16 @@ export function SettingsModal({ open: isOpen, onClose }: SettingsModalProps) {
                     Start with Windows does nothing in a debug build — the entry would
                     point at the build folder and replace your installed copy's.
                   </p>
+                </div>
+
+                <div className="border-t border-[#1e293b] pt-4">
+                  <h3 className="mb-2 text-xs font-medium text-[#f1f5f9]">Discord</h3>
+                  <CheckboxRow
+                    checked={discordRichPresence}
+                    onChange={(v) => setSetting("discordRichPresence", v)}
+                    label="Show Rich Presence in Discord"
+                    hint="Shows a server you're playing on (or 'Browsing servers') on your Discord profile. Off means the launcher never talks to Discord at all."
+                  />
                 </div>
 
                 {/* The launcher's own files. Worth showing because the answer
