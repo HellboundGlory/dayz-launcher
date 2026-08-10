@@ -23,6 +23,15 @@ const POLL_INTERVAL: Duration = Duration::from_secs(5);
 /// count appears promptly after startup rather than only after a minute.
 const IDLE_REFRESH_EVERY_N_TICKS: u32 = 12;
 
+/// How long a `Live` session is allowed to go without ever being confirmed
+/// as an actual running process before the poll loop gives up on it and
+/// reverts to idle. Generous on purpose — DayZ's own startup (BattlEye,
+/// shader compilation, Proton on Linux) can legitimately take a minute or
+/// more — this only exists so a launch that silently never produces a real
+/// process doesn't leave the presence stuck on "Playing" for the rest of
+/// the session with nothing left to correct it.
+const CONFIRM_RUNNING_TIMEOUT_SECS: i64 = 180;
+
 /// Seed `AppState` from the saved setting and start the poll loop.
 ///
 /// Called once, from `setup`. The connection itself is only opened if the
@@ -40,9 +49,19 @@ pub fn start(app: &AppHandle, enabled: bool) {
     tauri::async_runtime::spawn(async move {
         let mut interval = tokio::time::interval(POLL_INTERVAL);
         let mut tick: u32 = 0;
+        // Whether the *current* `Live` session has ever been observed
+        // actually running. DayZ routinely takes well over `POLL_INTERVAL`
+        // to appear as a process after `spawn_dayz` returns — see
+        // `poll_once` for why this has to gate the exit check.
+        let mut confirmed_running = false;
         loop {
             interval.tick().await;
-            poll_once(&app, tick % IDLE_REFRESH_EVERY_N_TICKS == 0).await;
+            poll_once(
+                &app,
+                tick % IDLE_REFRESH_EVERY_N_TICKS == 0,
+                &mut confirmed_running,
+            )
+            .await;
             tick = tick.wrapping_add(1);
         }
     });
@@ -115,7 +134,7 @@ pub fn clear_launch_presence(app: &AppHandle) {
 /// One tick of the poll loop: reconcile the presence with whether DayZ is
 /// actually running right now, and — every `IDLE_REFRESH_EVERY_N_TICKS`th
 /// tick — refresh the idle server count.
-async fn poll_once(app: &AppHandle, refresh_idle_count: bool) {
+async fn poll_once(app: &AppHandle, refresh_idle_count: bool, confirmed_running: &mut bool) {
     let state = app.state::<crate::state::AppState>();
     if !state.discord_enabled.load(Ordering::Relaxed) {
         return;
@@ -157,32 +176,46 @@ async fn poll_once(app: &AppHandle, refresh_idle_count: bool) {
             // gate is cleared, and pushed to idle immediately, by
             // `launch_game` itself — not here, since this loop has no way
             // to tell "still verifying" apart from "just failed and nobody
-            // has told Discord yet" on its own.
+            // has told Discord yet" on its own. Reset the latch below: this
+            // is the start of a session nothing has confirmed running yet.
             Some(tetra_discord::DiscordSession::Verifying { server_name }) => {
+                *confirmed_running = false;
                 handle.set_verifying(server_name);
                 false
             }
-            // Still running the session `launch_game` recorded — keep
-            // showing it. Re-sent every tick rather than once, which is
-            // what keeps the presence correct if a later launch overwrites
-            // the slot mid-poll.
-            Some(tetra_discord::DiscordSession::Live(info)) if running => {
-                handle.set_playing(info);
-                false
-            }
-            // The game just exited (or the slot is stale) — go back to
-            // idle, and tell Discord about it now rather than waiting for a
-            // refresh tick that might be up to a minute away.
-            Some(tetra_discord::DiscordSession::Live(_)) => {
-                *session = None;
-                send_idle_now = true;
-                true
+            // `launch_game` sets this the moment `spawn_dayz` returns —
+            // which is *not* the moment DayZ actually has a running process.
+            // BattlEye's launcher stub, shader compilation and Proton on
+            // Linux routinely take well past one `POLL_INTERVAL` before
+            // `dayz_is_running` sees anything, so a single "not running yet"
+            // reading right after launch must not be read as "already
+            // exited" — that previously reverted the presence to idle
+            // before the game had even finished starting, and it never
+            // recovered from there. Only a *running → not running*
+            // transition (the latch was set, and now isn't) is a real exit.
+            Some(tetra_discord::DiscordSession::Live(info)) => {
+                if running {
+                    *confirmed_running = true;
+                }
+                let gave_up_waiting = !*confirmed_running
+                    && unix_now().saturating_sub(info.started_at) > CONFIRM_RUNNING_TIMEOUT_SECS;
+                if (!running && *confirmed_running) || gave_up_waiting {
+                    *session = None;
+                    send_idle_now = true;
+                    true
+                } else {
+                    handle.set_playing(info);
+                    false
+                }
             }
             // Nothing recorded: either idle already, or DayZ is running a
             // session this launcher didn't start (launched from Steam
             // directly) — nothing to attribute a server to, so this is the
             // ordinary idle case, not an error.
-            None => true,
+            None => {
+                *confirmed_running = false;
+                true
+            }
         };
         (already_idle, send_idle_now)
     };
@@ -198,4 +231,15 @@ async fn poll_once(app: &AppHandle, refresh_idle_count: bool) {
         };
         handle.set_idle(count);
     }
+}
+
+/// Current Unix time in seconds, matching `PresenceInfo::started_at`'s unit.
+/// Falls back to `0` on a clock error, which just makes `gave_up_waiting`
+/// trip immediately rather than panicking — acceptable for a bound that only
+/// exists as a last-resort safety net.
+fn unix_now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
 }

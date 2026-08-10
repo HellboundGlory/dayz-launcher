@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.8.1 — 2026-08-10
+
+### Fixed
+
+- **Discord Rich Presence could get stuck on "Playing"** after a long DayZ
+  startup (BattlEye, shader compilation, Proton on Linux can all take over a
+  minute). A slow launch was misread as an already-finished session and the
+  presence never recovered for the rest of the session.
+
 ## v1.8.0 — 2026-08-10
 
 ### Added
