@@ -444,3 +444,20 @@ have updated.
   `[workspace.package].version`, and the tag
 - A `CHANGELOG.md` entry, mirrored into the release notes and `latest.json`
   automatically by `release.yml`
+
+---
+
+## Memory — OpenViking (PRIMARY)
+
+**OpenViking** (`viking://`) is the primary long-term context database. Run locally at
+`http://127.0.0.1:1933/mcp` and registered in `~/.omp/agent/mcp.json`. **ALWAYS use the
+OpenViking MCP for memory** — recall before answering, retain after learning.
+
+- Recall: `find` / `search` (semantic; `search mode=context` = injection-ready)
+- Retain: `write` / `remember`; read/browse: `read` / `list` / `tree` / `glob`; edit: `edit`
+- This project's docs: `viking://resources/dayz-launcher/` (AGENTS/CLAUDE/README, `.ai/`, `progress.md`, Claude memory)
+- Durable memories: `viking://user/default/memories/dayz-launcher/`
+- Use canonical `viking://user/default/...` (the `viking://~/` alias is rejected by `write`).
+
+omp `memory.backend` stays `mnemopi` for auto-injected session history (dual-run);
+OpenViking is the store you actively search and write to.
