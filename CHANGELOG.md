@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.0.1 — 2026-08-28
+
+### Fixed
+
+- The ⋯ actions menu on a server row could open behind the rows below it
+  instead of on top, making it unreadable and its buttons hard to click.
+
 ## v2.0.0 — 2026-08-28
 
 ### Added
