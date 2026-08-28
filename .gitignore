@@ -14,3 +14,7 @@ tetra.db-wal
 
 # Editor / tooling
 *.log
+
+# UI overhaul mockups & screenshots — not committed
+mockups/
+screenshots/
