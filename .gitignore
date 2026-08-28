@@ -18,3 +18,7 @@ implementation_plan.md
 # Editor / tooling
 .claude/
 *.log
+
+# UI overhaul mockups & screenshots — not committed
+mockups/
+screenshots/

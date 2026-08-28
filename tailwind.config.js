@@ -7,44 +7,32 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
-        primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
-        },
-        secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
-        },
-        destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
-        },
-        muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
-        },
-        accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
-        },
-        popover: {
-          DEFAULT: "hsl(var(--popover))",
-          foreground: "hsl(var(--popover-foreground))",
-        },
-        card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
-        },
-      },
-      borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        // V4 Glow semantic tokens. These resolve to CSS custom properties, so
+        // the theme engine re-themes the whole app by rewriting the vars on
+        // <html> — utilities stay bound to the live palette.
+        bg: "var(--bg)",
+        surface: "var(--surface)",
+        surface2: "var(--surface2)",
+        line: "var(--border)",
+        "line-weak": "var(--border-weak)",
+        ink: "var(--text)",
+        muted: "var(--muted)",
+        muted2: "var(--muted2)",
+        "muted-soft": "var(--muted-soft)",
+        accent: "var(--accent)",
+        accent2: "var(--accent2)",
+        "accent-soft": "var(--accent-soft)",
+        "accent-line": "var(--accent-line)",
+        "accent2-soft": "var(--accent2-soft)",
+        "accent2-line": "var(--accent2-line)",
+        success: "var(--success)",
+        warn: "var(--warn)",
+        danger: "var(--danger)",
+        "danger-soft": "var(--danger-soft)",
+        "danger-line": "var(--danger-line)",
+        "warn-soft": "var(--warn-soft)",
+        "row-hover": "var(--row-hover)",
+        "row-selected": "var(--row-selected)",
       },
     },
   },
