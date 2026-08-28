@@ -6,10 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview",
-    "devtools": "node scripts/devtools.mjs",
-    "devtools:generate": "node scripts/devtools.mjs generate",
-    "devtools:check": "node scripts/devtools.mjs validate && node scripts/devtools.mjs generate --check"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3",

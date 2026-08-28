@@ -85,8 +85,7 @@ registry discovery, the `dzsa://` protocol handler on that platform) is
 
 ## Contributing
 
-Issues and pull requests are welcome. If you're touching anything under
-generated from it and CI fails on drift.
+Issues and pull requests are welcome.
 
 ## License
 
