@@ -76,3 +76,25 @@ if (carousel) {
 
   start();
 }
+
+// Server-count tick — counts up once on load so the "live" figure feels
+// alive without lying about precision. Reduced-motion users get the final
+// number instantly.
+const serverCount = document.getElementById("server-count");
+if (serverCount) {
+  const TARGET = 9000;
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    serverCount.textContent = TARGET.toLocaleString();
+  } else {
+    const DURATION = 1100;
+    const start = performance.now();
+    function tick(now) {
+      const t = Math.min(1, (now - start) / DURATION);
+      // easeOutCubic — fast start, slow settle
+      const eased = 1 - Math.pow(1 - t, 3);
+      serverCount.textContent = Math.round(TARGET * eased).toLocaleString();
+      if (t < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+}
