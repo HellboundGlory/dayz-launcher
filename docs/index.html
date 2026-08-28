@@ -9,12 +9,6 @@
       content="A fast DayZ server browser and Workshop mod manager for Windows and Linux, with a pre-launch mod gate that verifies your mods before you connect."
     />
     <link rel="icon" href="assets/tetra-logo.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
-      rel="stylesheet"
-    />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
@@ -22,7 +16,7 @@
       <div class="container">
         <a class="brand" href="/">
           <img src="assets/tetra-logo.png" alt="" />
-          <span><span class="tetra">TETRA</span> LAUNCHER</span>
+          <span><span class="tetra">TETRA</span> <span class="launcher">LAUNCHER</span></span>
         </a>
         <nav class="links">
           <a href="/" class="active">Home</a>
@@ -36,17 +30,17 @@
       <div class="container hero-content">
         <div class="load-in">
           <p class="eyebrow">Chernarus, abandoned</p>
-          <h1>Find the server.<br />Trust the mod list.</h1>
+          <h1>Find the server.<br /><span class="em">Trust the mod list.</span></h1>
           <p class="lede">
             A DayZ server browser that re-checks your mods against the Workshop before you
             connect — not Steam's cached guess. Plus a mod manager that actually knows
             which of your servers need what. Free, for Windows and Linux.
           </p>
-          <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap">
-            <a class="btn btn-signal" href="/download">Download Tetra Launcher</a>
-            <span class="coord" style="display: inline-flex; align-items: center; gap: 10px; font-size: 13px">
+          <div class="hero-cta">
+            <a class="btn btn-primary" href="/download">Download Tetra Launcher</a>
+            <span class="live-coord">
               <span class="pulse-dot"></span>
-              9,000+ servers tracked live
+              <span><span class="font-data" id="server-count">9,000</span>+ servers tracked live</span>
             </span>
           </div>
         </div>
@@ -137,10 +131,29 @@
 
     <section class="reveal">
       <div class="container">
+        <div class="stat-strip">
+          <div class="stat-cell">
+            <div class="num">9,000+</div>
+            <div class="lbl">Servers tracked</div>
+          </div>
+          <div class="stat-cell">
+            <div class="num">WIN + LIN</div>
+            <div class="lbl">Platforms</div>
+          </div>
+          <div class="stat-cell">
+            <div class="num">0</div>
+            <div class="lbl">Hidden fees — free</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="reveal">
+      <div class="container">
         <div class="panel">
           <p class="eyebrow">For server owners</p>
-          <h3 style="margin-bottom: 12px">Running a community server?</h3>
-          <p style="color: var(--bone-dim); margin: 0; max-width: 880px">
+          <h3>Running a community server?</h3>
+          <p>
             Every server here is listed exactly as Steam reports it — no paid
             placement, no featured slots, no favouritism. If you want your
             rules, your Discord, or anything else about your community to
@@ -159,7 +172,7 @@
         <p class="lede" style="margin-left: auto; margin-right: auto">
           Available for Windows and Linux. Auto-updates itself once installed.
         </p>
-        <a class="btn btn-signal" href="/download">Download Tetra Launcher</a>
+        <a class="btn btn-primary" href="/download">Download Tetra Launcher</a>
       </div>
     </section>
 
