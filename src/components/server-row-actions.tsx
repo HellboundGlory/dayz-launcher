@@ -7,6 +7,13 @@ import { useServerActions, NOTICES } from "@/hooks/use-server-actions";
 interface RowActionsProps {
   server: Server;
   onMoreInfo: (server: Server) => void;
+  /**
+   * Reports menu open/close so the parent row can lift its z-index while the
+   * menu is open. Required because virtualized rows are `transform`ed — each
+   * row is its own stacking context, so the menu's z-index can never escape
+   * its row and later rows paint over it.
+   */
+  onOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -14,11 +21,23 @@ interface RowActionsProps {
  * highlights and this menu carries the actions: More info (M1 modal), Join,
  * Load to menu, Download mods.
  */
-export function ServerRowActions({ server, onMoreInfo }: RowActionsProps) {
+export function ServerRowActions({ server, onMoreInfo, onOpenChange }: RowActionsProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const actions = useServerActions();
+
+  // Ref-fed so an inline parent callback can't retrigger the effect.
+  const onOpenChangeRef = useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
+  useEffect(() => {
+    onOpenChangeRef.current?.(open);
+    // Unmounting while open (row virtualized away) must not leave the parent
+    // thinking a menu is still open.
+    return () => {
+      if (open) onOpenChangeRef.current?.(false);
+    };
+  }, [open]);
 
   // Outside-click close; the trigger is "inside" so its own click toggles
   // instead of closing-then-reopening.

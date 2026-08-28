@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useServerStore } from "@/stores/server-store";
 import { useSettingsStore } from "@/stores/settings-store";
@@ -44,6 +44,11 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
   const hidePlaceholder = useSettingsStore((s) => s.hidePlaceholderServers);
   const englishNames = useSettingsStore((s) => s.englishNamesFilter);
   const hasLoadedOnce = useServerStore((s) => s.hasLoadedOnce);
+
+  // Key of the row whose ⋯ menu is open. That row is lifted above its
+  // siblings: virtualized rows use `transform: translateY`, so each row is a
+  // stacking context and the menu's in-row z-index can never beat later rows.
+  const [menuOpenKey, setMenuOpenKey] = useState<string | null>(null);
 
   // Results are applied only if this effect run is still the current one.
   //
@@ -179,9 +184,10 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
           {virtualItems.map((virtualRow) => {
             const server = servers[virtualRow.index];
             const isSelected = selectedServer?.addr === server.addr;
+            const rowKey = `${server.addr}:${server.query_port}`;
             return (
               <div
-                key={`${server.addr}:${server.query_port}`}
+                key={rowKey}
                 data-index={virtualRow.index}
                 ref={rowVirtualizer.measureElement}
                 onClick={() => setSelectedServer(server)}
@@ -197,6 +203,7 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                   left: 0,
                   width: "100%",
                   transform: `translateY(${virtualRow.start}px)`,
+                  zIndex: menuOpenKey === rowKey ? 10 : undefined,
                 }}
               >
                 <button
@@ -317,7 +324,13 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                   </div>
                 </div>
 
-                <ServerRowActions server={server} onMoreInfo={onMoreInfo} />
+                <ServerRowActions
+                  server={server}
+                  onMoreInfo={onMoreInfo}
+                  onOpenChange={(o) =>
+                    setMenuOpenKey((cur) => (o ? rowKey : cur === rowKey ? null : cur))
+                  }
+                />
               </div>
             );
           })}
