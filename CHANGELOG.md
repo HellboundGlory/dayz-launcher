@@ -1,5 +1,44 @@
 # Changelog
 
+## v2.0.0 — 2026-08-28
+
+### Added
+
+- **A complete visual overhaul.** The launcher has been redesigned end to
+  end — a new sidebar replaces the old title bar, server rows are richer
+  cards instead of a spreadsheet-style table, and settings live in their
+  own full-page view with a new Theme customiser.
+- **The V4 Glow theme engine.** Six colour presets, each with a dark and a
+  light pair (chosen to stay readable at the same 4.5:1 contrast floor),
+  plus a live colour editor — change any accent, background or text colour
+  and see it apply instantly. A bloom slider tunes how much the interface
+  glows, and finished looks can be saved as skins and restored later.
+- **Rounded window corners** (8px radius) across the whole window.
+- **Fonts are bundled now** — Inter and JetBrains Mono ship inside the
+  app instead of loading from the internet, so the interface looks the
+  same even fully offline.
+- **Respects reduced-motion preferences** — with your OS set to minimise
+  animation, the launcher's transitions and glow effects quiet down too.
+
+### Changed
+
+- Server details no longer take over a side panel — selecting a row keeps
+  it highlighted, and a More-info window (opened with a button on the row)
+  shows the full picture, including mods and join options.
+- Sorting servers moved from clicking column headers to a SORT dropdown in
+  the filter bar.
+- The Mods tab has been restyled to match the new look.
+- The footer is a segmented control now, with a wider volume/scale track.
+
+### Fixed
+
+- **(Linux) The interface glow could fail to render on WebKitGTK** because
+  the glow radius was computed in CSS — it's now resolved in JavaScript to
+  fixed pixels, so the effect shows on every platform.
+- Some colours (like the danger tint) could silently disappear when used
+  with transparency — the theme now generates proper derived alpha tokens
+  for every preset.
+
 ## v1.9.0 — 2026-08-10
 
 ### Added
