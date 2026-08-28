@@ -5,13 +5,9 @@
 # Honest caveat: on a solo repository GitHub cannot require you to review your
 # own pull request, so today this is documentation. It starts having teeth the
 # moment someone else contributes — which is exactly the situation it exists
-# for. A fork PR adding a step to .ai/workflows/ reads as ordinary project
-# documentation and would be followed by an agent.
+# for.
 
 /AGENTS.md                  @HellboundGlory
-/.ai/repoos.yaml            @HellboundGlory
-/.ai/workflows/             @HellboundGlory
-/.ai/meta/agent-policy.md   @HellboundGlory
 
 # Existing CI, same reasoning — release.yml is what publishes.
 /.github/workflows/         @HellboundGlory
