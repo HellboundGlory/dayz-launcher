@@ -4,21 +4,16 @@ Tauri desktop launcher for browsing and joining DayZ servers. Rust workspace
 behind a React + Vite frontend.
 
 > The repo is `dayz-launcher`; the product and binary are Tetra Launcher /
-> `tetra-launcher.exe`. Both names are correct — see
-> [`where-things-live`](.ai/knowledge/where-things-live.md).
->
-> This repository uses **RepoOS**. Structured knowledge lives in [`.ai/`](.ai/).
-> Spec: `1.2.0`.
+> `tetra-launcher.exe`. Both names are correct.
 
 ## Start here
 
 | If you need… | Read |
 |---|---|
-| How to build, check, release | [`.ai/workflows/`](.ai/workflows/) |
-| Repo layout and what's *not* committed | [`where-things-live`](.ai/knowledge/where-things-live.md) |
-| CI, signing, auto-update | [`release-pipeline`](.ai/knowledge/release-pipeline.md) |
-| What agents may and may not do | [`agent-policy`](.ai/meta/agent-policy.md) |
-| **You edited `.ai/`** | run `npm run repoos:generate` before committing |
+| Build, check, release workflows | `viking://resources/dayz-launcher/.ai/workflows/` |
+| Repo layout and what's *not* committed | `viking://resources/dayz-launcher/.ai/knowledge/where-things-live.md` |
+| CI, signing, auto-update | `viking://resources/dayz-launcher/.ai/knowledge/release-pipeline.md` |
+| What agents may and may not do | `viking://resources/dayz-launcher/.ai/meta/agent-policy.md` |
 
 ## Working here
 
@@ -36,18 +31,14 @@ behind a React + Vite frontend.
 - Clippy warnings are CI errors (`-D warnings`).
 - `progress.md` is the feature backlog and is **gitignored** — it isn't in a
   fresh clone. Ask rather than assuming there's no backlog.
-- **Edit anything under `.ai/`? Run `npm run repoos:generate` in the same
-  change.** `CLAUDE.md` is generated from `.ai/` and is never hand-edited; CI
-  fails if the two have drifted. The command fetches the pinned CLI on first
-  use and is offline afterwards.
 
 ## Common tasks
 
 | Task | Workflow |
 |---|---|
-| Build a testable exe | [`build-debug.md`](.ai/workflows/build-debug.md) |
-| Verify without building | [`check.md`](.ai/workflows/check.md) |
-| Cut a release | [`release.md`](.ai/workflows/release.md) ⚠ |
+| Build a testable exe | `viking://resources/dayz-launcher/.ai/workflows/build-debug.md` |
+| Verify without building | `viking://resources/dayz-launcher/.ai/workflows/check.md` |
+| Cut a release | `viking://resources/dayz-launcher/.ai/workflows/release.md` ⚠ |
 
 ---
 
@@ -59,7 +50,7 @@ OpenViking MCP for memory** — recall before answering, retain after learning.
 
 - Recall: `find` / `search` (semantic; `search mode=context` = injection-ready)
 - Retain: `write` / `remember`; read/browse: `read` / `list` / `tree` / `glob`; edit: `edit`
-- This project's docs: `viking://resources/dayz-launcher/` (AGENTS/CLAUDE/README, `.ai/`, `progress.md`, Claude memory)
+- This project's docs: `viking://resources/dayz-launcher/` (AGENTS/README, `.ai/` incl. workflows/knowledge/memory, `progress.md`, Claude memory)
 - Durable memories: `viking://user/default/memories/dayz-launcher/`
 - Use canonical `viking://user/default/...` (the `viking://~/` alias is rejected by `write`).
 
