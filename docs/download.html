@@ -6,12 +6,6 @@
     <title>Download — Tetra Launcher</title>
     <meta name="description" content="Download the latest Tetra Launcher for Windows or Linux." />
     <link rel="icon" href="assets/tetra-logo.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
-      rel="stylesheet"
-    />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
@@ -19,7 +13,7 @@
       <div class="container">
         <a class="brand" href="/">
           <img src="assets/tetra-logo.png" alt="" />
-          <span><span class="tetra">TETRA</span> LAUNCHER</span>
+          <span><span class="tetra">TETRA</span> <span class="launcher">LAUNCHER</span></span>
         </a>
         <nav class="links">
           <a href="/">Home</a>
@@ -29,26 +23,23 @@
       </div>
     </header>
 
-    <section style="padding-bottom: 40px">
+    <section style="padding-bottom: 56px">
       <div class="container">
         <p class="eyebrow">Requisition</p>
-        <h1 style="font-size: clamp(32px, 5vw, 46px)">Get Tetra Launcher</h1>
-        <p class="lede" id="version-line" style="display: flex; align-items: center; gap: 10px">
+        <h1 style="font-size: clamp(34px, 5vw, 48px)">Get Tetra Launcher</h1>
+        <p class="lede" id="version-line" style="display: flex; align-items: center; gap: 12px">
           <span class="pulse-dot"></span>
-          Fetching the latest release&hellip;
+          <span class="font-data">Fetching the latest release&hellip;</span>
         </p>
 
-        <div
-          id="platform-groups"
-          style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 20px"
-        >
+        <div id="platform-groups" class="platform-grid">
           <!-- Populated by script below -->
         </div>
 
-        <p id="load-error" style="display: none; color: var(--bone-dim)">
+        <p id="load-error" style="display: none; color: var(--danger)">
           Couldn't reach GitHub to find the latest release — you can browse them directly
           on the
-          <a href="https://github.com/HellboundGlory/dayz-launcher/releases" style="color: var(--signal); text-decoration: underline">releases
+          <a href="https://github.com/HellboundGlory/dayz-launcher/releases" style="color: var(--accent); text-decoration: underline">releases
           page</a>.
         </p>
       </div>
@@ -77,6 +68,7 @@
       const GROUPS = [
         {
           os: "Windows",
+          sub: "Installer and portable builds",
           builds: [
             { label: "Installer (.exe)", test: (name) => /setup.*\.exe$/i.test(name) },
             { label: "Portable (.zip)", test: (name) => /portable.*\.zip$/i.test(name) },
@@ -84,6 +76,7 @@
         },
         {
           os: "Linux",
+          sub: "AppImage, .deb and .rpm",
           builds: [
             { label: "AppImage", test: (name) => /\.appimage$/i.test(name) },
             { label: ".deb package", test: (name) => /\.deb$/i.test(name) },
@@ -98,7 +91,7 @@
         row.className = "build-row";
         row.innerHTML = `
           <span class="build-label">${build.label} <span class="build-size">&middot; ${sizeMb} MB</span></span>
-          <a class="btn btn-signal" href="${asset.browser_download_url}">Download</a>
+          <a class="btn btn-primary" href="${asset.browser_download_url}">Download</a>
         `;
         return row;
       }
@@ -106,7 +99,7 @@
       function groupPanel(group, rows) {
         const panel = document.createElement("div");
         panel.className = "panel build-group";
-        panel.innerHTML = `<h3>${group.os}</h3>`;
+        panel.innerHTML = `<h3>${group.os}</h3><p class="build-group-sub">${group.sub}</p>`;
         rows.forEach((row) => panel.appendChild(row));
         return panel;
       }

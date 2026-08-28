@@ -232,3 +232,13 @@ Append-only. Each entry: date, what was decided, why, and what it overrides.
   WebKitGTK drops calc multiplication, which silently killed every glow and made
   bloom appear non-functional. Fix in `applyTheme`; static fallback in
   `main.css` uses literal px at bloom 0.9.
+- [2026-08-28]: **Marketing site (docs/) adopts the V4 language** — the static
+  site (index/download/join) now ships the same tokens as the app: the V4
+  Neutral dark palette, bundled Inter + JetBrains Mono woff2 (same files the
+  app ships, no CDN), the 5-layer glow on CTAs/active states/live dots, and the
+  L2-row vocabulary for the feature grid. Hero is the abandoned-ruin photo
+  under a V4-toned wash (darker on the text side) with a bottom fade into the
+  page bg. Overrides the pre-V4 Oswald/IBM Plex + moss/night/signal-blue site
+  palette. Motion is CSS-only, slow, and fully gated behind
+  `prefers-reduced-motion`; hit targets are ≥24px (nav full-height, 25px
+  carousel dots).
