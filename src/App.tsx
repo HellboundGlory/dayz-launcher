@@ -1,12 +1,13 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { TitleBar } from "./components/title-bar";
+import { useState, useEffect, useCallback, useRef, type CSSProperties } from "react";
 import { WindowResizeHandles } from "./components/window-resize-handles";
+import { Sidebar, type ViewId } from "./components/sidebar";
+import { WindowControls } from "./components/window-controls";
 import { FilterBar } from "./components/filter-bar";
-import { ServerTable } from "./components/server-table";
-import { ServerDetails } from "./components/server-details";
+import { ServerList } from "./components/server-list";
+import { ServerInfoModal } from "./components/server-info-modal";
 import { ModsTab } from "./components/mods-tab";
 import { FooterBar } from "./components/footer-bar";
-import { SettingsModal } from "./components/settings-modal";
+import { SettingsView } from "./components/settings-view";
 import { UpdateModal } from "./components/update-modal";
 import { SteamRequiredModal } from "./components/steam-required-modal";
 import type { SplashScreenProps } from "./components/splash-screen";
@@ -14,6 +15,7 @@ import { useServerStore } from "./stores/server-store";
 import { useSettingsStore } from "./stores/settings-store";
 import { useUpdateStore } from "./stores/update-store";
 import { watchDayz } from "./stores/launch-store";
+import type { Server } from "./types/server";
 import {
   steamInit,
   asSteamInitError,
@@ -79,8 +81,11 @@ const SPLASH_READY_MS = 400;
 const SPLASH_FAILSAFE_MS = 120_000;
 
 export function App() {
-  const [activeTab, setActiveTab] = useState("servers");
-  const selectedServer = useServerStore((s) => s.selectedServer);
+  const [activeView, setActiveView] = useState<ViewId>("servers");
+  /** The row whose ⋯ menu asked for "More info" — drives the M1 modal. */
+  const [infoServer, setInfoServer] = useState<Server | null>(null);
+  /** Mirrors the sidebar's collapse so `--side-w` tracks it on the shell. */
+  const [sideCollapsed, setSideCollapsed] = useState(false);
   const triggerReload = useServerStore((s) => s.triggerReload);
   const setFilter = useServerStore((s) => s.setFilter);
   const serverCount = useServerStore((s) => s.servers.length);
@@ -89,12 +94,12 @@ export function App() {
 
   // The tabs were previously display-only — switching them changed the
   // highlight but not the query. Each one is just a filter preset.
-  const handleTabChange = useCallback(
-    (tab: string) => {
-      setActiveTab(tab);
+  const handleViewChange = useCallback(
+    (view: ViewId) => {
+      setActiveView(view);
       setFilter({
-        favourites_only: tab === "favorites",
-        recent_only: tab === "recent",
+        favourites_only: view === "fav",
+        recent_only: view === "recent",
       });
     },
     [setFilter],
@@ -435,7 +440,7 @@ export function App() {
       "dzsa-connect",
       (event) => {
         const { ip, queryPort, favourite } = event.payload;
-        setActiveTab("servers");
+        setActiveView("servers");
         void getServer(`${ip}:${queryPort}`, queryPort).then((server) => {
           if (!server) return;
           useServerStore.getState().setSelectedServer(server);
@@ -686,104 +691,112 @@ export function App() {
   }, []);
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[#0b0f17]">
+            <div
+      className="relative flex h-screen flex-col overflow-hidden rounded-[8px] border border-line bg-bg"
+      style={{ "--side-w": sideCollapsed ? "52px" : "220px" } as CSSProperties}
+          >
       <WindowResizeHandles />
-      <TitleBar
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-        steamConnected={steamConnected}
-        onOpenSettings={() => setSettingsOpen(true)}
-        updateAvailable={updateAvailable?.version ?? null}
-        onOpenUpdate={() => setUpdateOpen(true)}
-      />
 
-      {/* Prominent startup alert for a pending update: not a dot to hunt for,
-          a bar at the very top. Opens the same update dialog as the badge;
-          "Later" dismisses for this session only. */}
+      <div className="flex min-h-0 flex-1">
+        <Sidebar
+          activeView={activeView}
+          onViewChange={handleViewChange}
+        steamConnected={steamConnected}
+          settingsOpen={settingsOpen}
+        onOpenSettings={() => setSettingsOpen(true)}
+          onCloseSettings={() => setSettingsOpen(false)}
+          onCollapsedChange={setSideCollapsed}
+        />
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <WindowControls />
+
+          {/* Prominent startup alert for a pending update: not a dot to hunt
+              for, a bar at the very top. Opens the same update dialog as the
+              badge; "Later" dismisses for this session only. */}
       {updateAvailable && !updateBannerDismissed && (
-        <div className="flex items-center gap-3 border-b border-[#38bdf8]/30 bg-[#38bdf8]/10 px-3 py-1.5">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#38bdf8]">
+            <div className="flex items-center gap-3 border-b border-accent-line bg-accent-soft px-3 py-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-accent">
             Update available
-          </span>
-          <span className="min-w-0 flex-1 truncate text-[11px] text-[#f1f5f9]">
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[11px] text-ink">
             Tetra Launcher v{updateAvailable.version} is ready to install.
-          </span>
-          <button
+              </span>
+              <button
             onClick={() => {
               setUpdateBannerDismissed(true);
               setUpdateOpen(true);
             }}
-            className="shrink-0 rounded bg-[#38bdf8] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#0b0f17] transition-colors hover:bg-[#7dd3fc]"
-          >
+                className="shrink-0 rounded bg-accent px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-bg transition-[filter] hover:brightness-110"
+              >
             Update
-          </button>
-          <button
+              </button>
+              <button
             onClick={() => setUpdateBannerDismissed(true)}
-            className="shrink-0 rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#64748b] transition-colors hover:text-[#f1f5f9]"
-          >
+                className="shrink-0 rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted transition-colors hover:text-ink"
+              >
             Later
-          </button>
-        </div>
-      )}
+              </button>
+            </div>
+          )}
 
-      {activeTab === "mods" ? (
-        /* The Mods tab is a full-width view, not a server filter: it replaces
-           the whole server-browser stack (filter bar, status line, table and
-           details rail) while it is active. */
+          {activeView === "mods" ? (
+            /* The Mods tab is a full-width view, not a server filter: it
+               replaces the whole server-browser stack (filter bar, status
+               line, list) while it is active. */
         <ModsTab />
       ) : (
         <>
           <FilterBar onRefresh={handleRefresh} refreshing={refreshing} />
 
-          {/* Not dismissible: it stays true for the whole session, and silently
-              losing favourites is exactly what this exists to prevent. */}
+              {/* Not dismissible: it stays true for the whole session, and
+                  silently losing favourites is exactly what this exists to
+                  prevent. */}
           {storageDegraded && (
-            <div className="flex items-center gap-2 border-b border-[#f59e0b]/30 bg-[#f59e0b]/5 px-3 py-1.5">
-              <span className="text-[10px] font-semibold uppercase text-[#f59e0b]">STORAGE</span>
-              <span className="text-[11px] text-[#f1f5f9]">
-                The server database could not be opened, so this session is running from memory —
-                favourites and recently-played will not be saved.
-              </span>
-            </div>
-          )}
+                <div className="flex items-center gap-2 border-b border-warn bg-warn-soft px-3 py-1.5">
+                  <span className="text-[10px] font-semibold uppercase text-warn">STORAGE</span>
+                  <span className="text-[11px] text-ink">
+                    The server database could not be opened, so this session is running from
+                    memory — favourites and recently-played will not be saved.
+          </span>
+        </div>
+      )}
 
           {error && (
-            <div className="flex items-center gap-2 border-b border-[#ef4444]/30 bg-[#ef4444]/5 px-3 py-1.5">
-              <span className="text-[10px] font-semibold uppercase text-[#ef4444]">ERROR</span>
-              <span className="text-[11px] text-[#f1f5f9] truncate">{error}</span>
-              <button
+                <div className="flex items-center gap-2 border-b border-danger bg-surface2 px-3 py-1.5">
+                  <span className="text-[10px] font-semibold uppercase text-danger">ERROR</span>
+                  <span className="truncate text-[11px] text-ink">{error}</span>
+          <button
                 onClick={() => setError(null)}
-                className="ml-auto text-[10px] text-[#64748b] hover:text-[#f1f5f9] shrink-0"
-              >
+                    className="ml-auto shrink-0 text-[10px] text-muted hover:text-ink"
+          >
                 DISMISS
-              </button>
+          </button>
             </div>
           )}
 
-          <div className="flex items-center gap-2 border-b border-[#1e293b] bg-[#0b0f17] px-3 py-1.5">
-            <div className={discovering ? "size-1.5 rounded-full bg-[#f59e0b] animate-pulse" : refreshing ? "size-1.5 rounded-full bg-[#38bdf8] animate-pulse" : "size-1.5 rounded-full bg-[#22c55e]"} />
-            <span className="text-[10px] text-[#64748b]">
+              <div className="flex items-center gap-2 border-b border-line bg-bg px-3 py-1.5">
+            <div
+                  className={
+                    discovering
+                      ? "size-1.5 animate-pulse rounded-full bg-warn"
+                : refreshing
+                        ? "size-1.5 animate-pulse rounded-full bg-accent"
+                        : "size-1.5 rounded-full bg-success"
+                  }
+      />
+                <span className="text-[10px] text-muted">
               {discovering
                 ? "Discovering servers from Steam..."
                 : refreshing
                   ? "Probing server details..."
                   : `Live · ${refreshedAt ?? "waiting"}`}
-            </span>
-          </div>
+          </span>
+            </div>
 
-          <div className="flex flex-1 overflow-hidden">
-            <div className="flex flex-1 flex-col overflow-hidden border-r border-[#1e293b]">
-              <ServerTable />
-            </div>
-            <div
-              className="w-[340px] flex-shrink-0 flex-col overflow-hidden bg-[#111823]"
-              style={{ display: selectedServer ? "flex" : "none" }}
-            >
-              <ServerDetails onOpenMods={() => setActiveTab("mods")} />
-            </div>
-          </div>
+              <ServerList view={activeView} onMoreInfo={setInfoServer} />
         </>
-      )}
+          )}
 
       <FooterBar
         servers={counts.total}
@@ -791,16 +804,14 @@ export function App() {
         refreshedAt={refreshedAt}
         steamConnected={steamConnected}
       />
+        </div>
+          </div>
 
-      <SettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-      />
+      {settingsOpen && <SettingsView onClose={() => setSettingsOpen(false)} />}
 
-      <UpdateModal
-        open={updateOpen}
-        onClose={() => setUpdateOpen(false)}
-      />
+      <UpdateModal open={updateOpen} onClose={() => setUpdateOpen(false)} />
+
+      {infoServer && <ServerInfoModal server={infoServer} onClose={() => setInfoServer(null)} />}
 
       {/* Blocking: nothing in the launcher works without Steam, and the mod
           panel reads a missing Steam connection as "no mods needed". */}

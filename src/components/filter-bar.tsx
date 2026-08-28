@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Search, ChevronDown, RefreshCw, RotateCcw, X } from "lucide-react";
+import { Search, ChevronDown, RefreshCw, RotateCcw, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useServerStore } from "@/stores/server-store";
+import type { SortKey } from "@/types/filters";
 
 interface FilterBarProps {
   onRefresh: () => void;
@@ -11,27 +12,37 @@ interface FilterBarProps {
 /**
  * The tri-state tag filters — all `ServerFilter` keys, all ordinary view state
  * that resets with the window.
- *
- * Language used to live here as an ENGLISH ONLY tag. It moved to
- * Settings → Server Browser, next to the other two name-based noise filters, so
- * that all three are in one place rather than one being three clicks away in a
- * different menu. It is also the only one of the four that persists, which made
- * it the odd one out here.
  */
 type TagField = "official" | "modded" | "first_person";
 
 const TAG_OPTIONS: { label: string; field: TagField; title?: string }[] = [
-  { label: "OFFICIAL", field: "official" },
-  { label: "MODDED", field: "modded" },
-  { label: "1PP ONLY", field: "first_person" },
+  { label: "Official", field: "official" },
+  { label: "Modded", field: "modded" },
+  { label: "First person", field: "first_person" },
+];
+
+const REGIONS: { code: string; label: string }[] = [
+  { code: "EU", label: "Europe" },
+  { code: "NA", label: "North America" },
+  { code: "AS", label: "Asia" },
+  { code: "OC", label: "Oceania" },
+  { code: "SA", label: "South America" },
+];
+
+const SORT_KEYS: { key: SortKey; label: string }[] = [
+  { key: "players", label: "Players" },
+  { key: "ping", label: "Ping" },
+  { key: "mod_count", label: "Mods" },
+  { key: "name", label: "Name" },
+  { key: "map", label: "Map" },
 ];
 
 /**
  * Close a popover when a pointer goes down anywhere outside it.
  *
- * The MAP, TAGS and REGION dropdowns each carried their own byte-identical copy
- * of this effect. Bound only while the popover is open, so a closed dropdown no
- * longer keeps a document-level listener alive.
+ * The dropdowns each carried their own byte-identical copy of this effect.
+ * Bound only while the popover is open, so a closed dropdown no longer keeps a
+ * document-level listener alive.
  */
 function useCloseOnOutsideClick(open: boolean, onClose: () => void) {
   const ref = useRef<HTMLDivElement>(null);
@@ -53,10 +64,8 @@ function useCloseOnOutsideClick(open: boolean, onClose: () => void) {
  *
  * Every change to `filter` re-runs `get_server_list` — a fresh SQL query with a
  * `LIKE '%…%'` over the whole table, up to 5000 rows marshalled across the IPC
- * bridge, and a re-render. Bound straight to `onChange`, that was one full round
- * trip per keystroke, so a ten-character search ran ten of them and the last one
- * to land won. Long enough to collapse a burst of typing, short enough that the
- * result still feels like it arrives as you type.
+ * bridge, and a re-render. Long enough to collapse a burst of typing, short
+ * enough that the result still feels like it arrives as you type.
  */
 const SEARCH_DEBOUNCE_MS = 250;
 
@@ -64,21 +73,16 @@ export function FilterBar({ onRefresh, refreshing }: FilterBarProps) {
   const filter = useServerStore((s) => s.filter);
   const setFilter = useServerStore((s) => s.setFilter);
   const resetFilter = useServerStore((s) => s.resetFilter);
+  const sortKey = useServerStore((s) => s.sortKey);
+  const sortDir = useServerStore((s) => s.sortDir);
+  const setSort = useServerStore((s) => s.setSort);
 
   return (
-    <div className="flex items-center gap-2 border-b border-[#1e293b] bg-[#0b0f17] px-3 py-1.5">
-      <SearchInput
-        value={filter.search}
-        onChange={(search) => setFilter({ search })}
-      />
+    <div className="filterbar flex shrink-0 items-center gap-1.5 border-b border-line bg-surface px-2.5 py-2">
+      <SearchInput value={filter.search} onChange={(search) => setFilter({ search })} />
 
-      {/* Map filter */}
-      <MapDropdown
-        selectedMaps={filter.maps ?? []}
-        onChange={(maps) => setFilter({ maps })}
-      />
+      <MapDropdown selectedMaps={filter.maps ?? []} onChange={(maps) => setFilter({ maps })} />
 
-      {/* Tags filter */}
       <TagsDropdown
         official={filter.official}
         modded={filter.modded}
@@ -86,50 +90,25 @@ export function FilterBar({ onRefresh, refreshing }: FilterBarProps) {
         onChange={(field, value) => setFilter({ [field]: value })}
       />
 
-      {/* Country filter */}
       <CountryDropdown
         selectedCountries={filter.countries ?? []}
         onChange={(countries) => setFilter({ countries })}
       />
 
-      {/* Ping slider */}
-      <PingSlider
-        maxPing={filter.max_ping ?? 500}
-        onChange={(max_ping) => setFilter({ max_ping })}
+      <SortDropdown
+        sortKey={sortKey}
+        sortDir={sortDir}
+        onSort={(key) => setSort(key, sortKey === key && sortDir === "desc" ? "asc" : "desc")}
       />
 
-      <div className="flex-1" />
-
-      {/* Toggle buttons */}
-      <div className="flex gap-1">
-        <ToggleButton
-          label="HIDE EMPTY"
-          active={filter.hide_empty}
-          onClick={() => setFilter({ hide_empty: !filter.hide_empty })}
-        />
-        <ToggleButton
-          label="HIDE OFFLINE"
-          active={filter.hide_offline}
-          onClick={() => setFilter({ hide_offline: !filter.hide_offline })}
-        />
-        <ToggleButton
-          label="HIDE FULL"
-          active={filter.hide_full}
-          onClick={() => setFilter({ hide_full: !filter.hide_full })}
-        />
-        <ToggleButton
-          label="HIDE LOCKED"
-          active={filter.hide_locked}
-          onClick={() => setFilter({ hide_locked: !filter.hide_locked })}
-        />
-      </div>
+      <PingSlider maxPing={filter.max_ping ?? 500} onChange={(max_ping) => setFilter({ max_ping })} />
 
       {/* Reset filters.
           Filters now persist between sessions, so a restart no longer clears
           them — this is the explicit way back to defaults. */}
       <button
         onClick={resetFilter}
-        className="flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#64748b] transition-colors hover:text-[#f1f5f9]"
+        className="fbtn flex shrink-0 items-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-ink"
         title="Reset all filters to defaults"
       >
         <RotateCcw className="size-3" />
@@ -138,25 +117,22 @@ export function FilterBar({ onRefresh, refreshing }: FilterBarProps) {
 
       {/* Refresh button.
           Gated on `refreshing` alone, not `discovering`: discovery streams
-          rows into the table as Steam reports them (see the
-          `discovery-progress` listener in App.tsx), so there can already be
+          rows into the table as Steam reports them, so there can already be
           servers on screen worth re-probing well before the Steam walk
-          finishes. Both commands go through the same registry writer thread,
-          so nothing about running them at once is unsafe — it would just
-          queue. */}
+          finishes. */}
       <button
         onClick={onRefresh}
         disabled={refreshing}
         className={cn(
-          "flex items-center gap-1 rounded px-2 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors",
+          "fbtn flex shrink-0 items-center justify-center gap-1 rounded-[6px] border px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider transition-colors",
           refreshing
-            ? "cursor-not-allowed text-[#475569]"
-            : "bg-[#38bdf8] text-[#0b0f17] hover:bg-[#7dd3fc]",
+            ? "cursor-not-allowed border-line bg-surface2 text-muted"
+            : "border-accent-line bg-accent-soft text-accent shadow-[var(--glow)] hover:brightness-110",
         )}
         title="Re-probe the servers currently on screen — ping, lock, mods, online status"
       >
         <RefreshCw className={cn("size-3", refreshing && "animate-spin")} />
-        {refreshing ? "REFRESHING..." : "REFRESH"}
+        {refreshing ? "Refreshing…" : "Refresh"}
       </button>
     </div>
   );
@@ -192,27 +168,110 @@ function SearchInput({
 
   useEffect(() => {
     const next = text.trim() || null;
-    // Nothing to publish while the box already agrees with the store — this is
-    // also what stops the re-sync effect above and this one from ping-ponging.
     if (next === (value ?? null)) return;
     const timer = window.setTimeout(() => onChangeRef.current(next), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-    // `value` is read for the comparison but must not re-arm the timer on its
-    // own — only a change to `text` should.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text]);
 
   return (
-    <div className="relative flex-1 max-w-[240px]">
-      <Search className="absolute left-2 top-1/2 size-3 -translate-y-1/2 text-[#64748b]" />
+    <div className="search flex min-w-0 flex-1 items-center gap-1.5 rounded-[6px] border border-line bg-surface2 px-2.5 py-[5px]">
+      <Search className="size-3 shrink-0 text-muted" />
       <input
         type="text"
-        placeholder="Search name or description"
+        placeholder="Search servers…"
         value={text}
         onChange={(e) => setText(e.target.value)}
-        className="w-full rounded bg-[#16202e] py-1 pl-7 pr-2 text-xs text-[#f1f5f9] placeholder-[#64748b] outline-none ring-1 ring-[#1e293b] focus:ring-[#38bdf8]"
+        aria-label="Search servers"
+        className="min-w-0 flex-1 bg-transparent text-[11px] text-ink outline-none placeholder:text-muted"
       />
     </div>
+  );
+}
+
+// ─── Dropdown vocabulary (`.fdrop`) ──────────────────────────────
+
+function FdropMenu({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="fdrop-menu absolute left-0 top-[calc(100%+5px)] z-30 min-w-[190px] rounded-[7px] border border-line bg-surface2 p-[5px] shadow-[0_10px_28px_rgba(0,0,0,0.5)]">
+      {children}
+    </div>
+  );
+}
+
+function FdropItem({
+  active,
+  onClick,
+  icon,
+  children,
+}: {
+  active?: boolean;
+  onClick: () => void;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      role="option"
+      aria-selected={active}
+      className={cn(
+        "flex w-full items-center gap-2 whitespace-nowrap rounded-[5px] px-2 py-1.5 text-[10px] font-semibold text-muted2 transition-colors hover:bg-surface hover:text-ink",
+        active && "bg-accent-soft text-accent",
+      )}
+    >
+      <span className="flex h-[14px] w-[14px] shrink-0 items-center justify-center text-muted">
+        {icon ?? <Check className={cn("size-3", !active && "opacity-0")} strokeWidth={2} />}
+      </span>
+      <span className="truncate">{children}</span>
+    </button>
+  );
+}
+
+function FdropClear({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex w-full items-center gap-[7px] rounded-[5px] px-2 py-[5px] text-[8px] font-bold uppercase tracking-[0.05em] text-muted transition-colors hover:bg-surface hover:text-ink"
+    >
+      Clear
+    </button>
+  );
+}
+
+function FdropSep() {
+  return <div className="mx-0.5 my-1 h-px bg-line" />;
+}
+
+function FdropTrigger({
+  label,
+  on,
+  open,
+  children,
+  onClick,
+}: {
+  label: string;
+  on?: boolean;
+  open?: boolean;
+  children: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-haspopup="listbox"
+      aria-expanded={open ?? false}
+      className={cn(
+        "fdrop-trigger flex items-center gap-1.5 whitespace-nowrap rounded-[6px] border border-line bg-surface2 px-2 py-[5px] text-[10px] font-bold text-muted transition-colors hover:border-accent-line hover:text-ink",
+        on && "border-accent-line bg-accent-soft text-accent shadow-[var(--glow)]",
+      )}
+    >
+      <span>{label}</span>
+      <span className={cn("truncate font-semibold text-muted2", on && "text-accent")}>
+        {children}
+      </span>
+      <ChevronDown className="size-[11px] text-muted" />
+    </button>
   );
 }
 
@@ -226,18 +285,15 @@ function MapDropdown({
   onChange: (maps: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
-  // Maps come from the store, not a once-on-mount fetch: the store refetches
-  // them on every reload (see `server-table.tsx`), so this drop-down fills
-  // live as discovery writes maps instead of freezing at whatever the empty
-  // first launch had.
   const maps = useServerStore((s) => s.maps);
   const ref = useCloseOnOutsideClick(open, useCallback(() => setOpen(false), []));
 
-  const label = selectedMaps.length === 0
-    ? "Any"
-    : selectedMaps.length === 1
-      ? maps.find(([normalised]) => normalised === selectedMaps[0])?.[1] ?? selectedMaps[0]
-      : `${selectedMaps.length} maps`;
+  const label =
+    selectedMaps.length === 0
+      ? "Any"
+      : selectedMaps.length === 1
+        ? maps.find(([normalised]) => normalised === selectedMaps[0])?.[1] ?? selectedMaps[0]
+        : `${selectedMaps.length} maps`;
 
   const toggle = (normalised: string) => {
     if (selectedMaps.includes(normalised)) {
@@ -248,37 +304,27 @@ function MapDropdown({
   };
 
   return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 rounded bg-[#16202e] px-2 py-1 text-[10px] font-semibold tracking-wider ring-1 ring-[#1e293b] hover:text-[#94a3b8]"
-      >
-        <span className="text-[#f1f5f9]">MAP</span>
-        <span className={cn("text-[#64748b]", selectedMaps.length > 0 && "text-[#38bdf8]")}>
-          {label}
-        </span>
-        <ChevronDown className="size-3 text-[#64748b]" />
-      </button>
+    <div ref={ref} className={cn("fdrop relative", open && "open")}>
+      <FdropTrigger label="MAP" on={selectedMaps.length > 0} open={open} onClick={() => setOpen(!open)}>
+        {label}
+      </FdropTrigger>
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 max-h-64 w-56 overflow-y-auto rounded border border-[#1e293b] bg-[#111823] shadow-xl">
+        <FdropMenu>
           {maps.length === 0 && (
-            <div className="px-2 py-1.5 text-[10px] text-[#64748b]">Loading maps...</div>
+            <div className="px-2 py-1.5 text-[10px] text-muted">Loading maps...</div>
           )}
           {maps.map(([normalised, display]) => (
-            <label
+            <FdropItem
               key={normalised}
-              className="flex cursor-pointer items-center gap-2 px-2 py-1.5 text-[11px] text-[#94a3b8] hover:bg-[#16202e]"
+              active={selectedMaps.includes(normalised)}
+              onClick={() => toggle(normalised)}
             >
-              <input
-                type="checkbox"
-                checked={selectedMaps.includes(normalised)}
-                onChange={() => toggle(normalised)}
-                className="size-3 accent-[#38bdf8]"
-              />
               {display}
-            </label>
+            </FdropItem>
           ))}
-        </div>
+          <FdropSep />
+          <FdropClear onClick={() => onChange([])} />
+        </FdropMenu>
       )}
     </div>
   );
@@ -295,9 +341,6 @@ function TagsDropdown({
   official: boolean | null;
   modded: boolean | null;
   firstPerson: boolean | null;
-  // `TagField`, not `string`: the caller spreads this key straight into
-  // `setFilter`, so an untyped key silently wrote a filter field that does not
-  // exist.
   onChange: (field: TagField, value: boolean | null) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -327,56 +370,46 @@ function TagsDropdown({
   };
 
   const indicatorColor = (val: boolean | null): string => {
-    if (val === true) return "text-[#22c55e]";
-    if (val === false) return "text-[#ef4444]";
-    return "text-[#334155]";
+    if (val === true) return "text-success";
+    if (val === false) return "text-danger";
+    return "text-muted";
   };
 
   return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 rounded bg-[#16202e] px-2 py-1 text-[10px] font-semibold tracking-wider ring-1 ring-[#1e293b] hover:text-[#94a3b8]"
-      >
-        <span className="text-[#f1f5f9]">TAGS</span>
-        <span className={cn("text-[#64748b]", activeCount > 0 && "text-[#38bdf8]")}>
-          {label}
-        </span>
-        <ChevronDown className="size-3 text-[#64748b]" />
-      </button>
+    <div ref={ref} className={cn("fdrop relative", open && "open")}>
+      <FdropTrigger label="TAGS" on={activeCount > 0} open={open} onClick={() => setOpen(!open)}>
+        {label}
+      </FdropTrigger>
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-52 rounded border border-[#1e293b] bg-[#111823] shadow-xl">
+        <FdropMenu>
           {TAG_OPTIONS.map((opt) => {
             const val = values[opt.field];
             return (
-              <button
-                key={opt.field}
-                onClick={() => cycle(opt.field)}
-                title={opt.title}
-                className="flex w-full items-center justify-between px-2 py-1.5 text-[11px] text-[#94a3b8] hover:bg-[#16202e]"
-              >
-                <span>{opt.label}</span>
-                <span className={cn("font-mono-data text-[10px]", indicatorColor(val))}>
-                  {indicator(val)}
+              <FdropItem key={opt.field} active={val === true} onClick={() => cycle(opt.field)}>
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className={cn("font-mono-data text-[10px]", indicatorColor(val))}>
+                    {indicator(val)}
+                  </span>
+                  <span className="truncate">{opt.label}</span>
                 </span>
-              </button>
+              </FdropItem>
             );
           })}
-        </div>
+          <FdropSep />
+          <FdropClear
+            onClick={() => {
+              onChange("official", null);
+              onChange("modded", null);
+              onChange("first_person", null);
+            }}
+          />
+        </FdropMenu>
       )}
     </div>
   );
 }
 
 // ─── Country Dropdown ────────────────────────────────────────────
-
-const REGIONS: { code: string; label: string }[] = [
-  { code: "EU", label: "Europe" },
-  { code: "NA", label: "North America" },
-  { code: "AS", label: "Asia" },
-  { code: "OC", label: "Oceania" },
-  { code: "SA", label: "South America" },
-];
 
 function CountryDropdown({
   selectedCountries,
@@ -388,11 +421,12 @@ function CountryDropdown({
   const [open, setOpen] = useState(false);
   const ref = useCloseOnOutsideClick(open, useCallback(() => setOpen(false), []));
 
-  const label = selectedCountries.length === 0
-    ? "Any"
-    : selectedCountries.length === 1
-      ? REGIONS.find((r) => r.code === selectedCountries[0])?.label ?? selectedCountries[0]
-      : `${selectedCountries.length} regions`;
+  const label =
+    selectedCountries.length === 0
+      ? "Any"
+      : selectedCountries.length === 1
+        ? REGIONS.find((r) => r.code === selectedCountries[0])?.label ?? selectedCountries[0]
+        : `${selectedCountries.length} regions`;
 
   const toggle = (code: string) => {
     if (selectedCountries.includes(code)) {
@@ -402,44 +436,69 @@ function CountryDropdown({
     }
   };
 
-  const clear = () => onChange([]);
+  return (
+    <div ref={ref} className={cn("fdrop relative", open && "open")}>
+      <FdropTrigger label="REGION" on={selectedCountries.length > 0} open={open} onClick={() => setOpen(!open)}>
+        {label}
+      </FdropTrigger>
+      {open && (
+        <FdropMenu>
+          {REGIONS.map((region) => (
+            <FdropItem
+              key={region.code}
+              active={selectedCountries.includes(region.code)}
+              onClick={() => toggle(region.code)}
+            >
+              {region.label}
+            </FdropItem>
+          ))}
+          <FdropSep />
+          <FdropClear onClick={() => onChange([])} />
+        </FdropMenu>
+      )}
+    </div>
+  );
+}
+
+// ─── Sort Dropdown ───────────────────────────────────────────────
+
+function SortDropdown({
+  sortKey,
+  sortDir,
+  onSort,
+}: {
+  sortKey: SortKey;
+  sortDir: "asc" | "desc";
+  onSort: (key: SortKey) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useCloseOnOutsideClick(open, useCallback(() => setOpen(false), []));
+
+  const current = SORT_KEYS.find((s) => s.key === sortKey);
+  const label = `${current?.label ?? "Players"} ${sortDir === "desc" ? "↓" : "↑"}`;
 
   return (
-    <div ref={ref} className="relative">
-      <button
+    <div ref={ref} className={cn("fdrop relative", open && "open")}>
+      <FdropTrigger
+        label="SORT"
+        on={!(sortKey === "players" && sortDir === "desc")}
+        open={open}
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 rounded bg-[#16202e] px-2 py-1 text-[10px] font-semibold tracking-wider ring-1 ring-[#1e293b] hover:text-[#94a3b8]"
       >
-        <span className="text-[#f1f5f9]">REGION</span>
-        <span className={cn("text-[#64748b]", selectedCountries.length > 0 && "text-[#38bdf8]")}>
-          {label}
-        </span>
-        <ChevronDown className="size-3 text-[#64748b]" />
-      </button>
+        {label}
+      </FdropTrigger>
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 max-h-64 w-44 overflow-y-auto rounded border border-[#1e293b] bg-[#111823] shadow-xl">
-          <button
-            onClick={clear}
-            className="flex w-full items-center gap-2 px-2 py-1.5 text-[10px] font-semibold text-[#64748b] hover:bg-[#16202e]"
-          >
-            <X className="size-3" />
-            CLEAR
-          </button>
-          {REGIONS.map((region) => (
-            <label
-              key={region.code}
-              className="flex cursor-pointer items-center gap-2 px-2 py-1.5 text-[11px] text-[#94a3b8] hover:bg-[#16202e]"
+        <FdropMenu>
+          {SORT_KEYS.map((s) => (
+            <FdropItem
+              key={s.key}
+              active={sortKey === s.key}
+              onClick={() => onSort(s.key)}
             >
-              <input
-                type="checkbox"
-                checked={selectedCountries.includes(region.code)}
-                onChange={() => toggle(region.code)}
-                className="size-3 accent-[#38bdf8]"
-              />
-              {region.label}
-            </label>
+              {s.label}
+            </FdropItem>
           ))}
-        </div>
+        </FdropMenu>
       )}
     </div>
   );
@@ -457,15 +516,12 @@ function PingSlider({
   const SLIDER_MAX = 500;
   const sliderValue = maxPing >= SLIDER_MAX ? SLIDER_MAX : Math.max(50, maxPing);
   // At the top of the range the filter is cleared entirely (`onChange(null)`)
-  // rather than capped at 500ms. The `|| maxPing === 500` this used to carry was
-  // already covered by the `>=`.
+  // rather than capped at 500ms.
   const isUnlimited = maxPing >= SLIDER_MAX;
 
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="text-[10px] font-semibold uppercase tracking-wider text-[#64748b]">
-        PING
-      </span>
+    <div className="ping-row flex shrink-0 items-center gap-1.5 px-0.5 text-[10px] text-muted">
+      <span className="font-bold uppercase tracking-[0.05em] text-muted2">PING</span>
       <input
         type="range"
         min={50}
@@ -476,37 +532,12 @@ function PingSlider({
           const v = Number(e.target.value);
           onChange(v >= SLIDER_MAX ? null : v);
         }}
-        className="h-1 w-16 cursor-pointer appearance-none rounded-full bg-[#1e293b] accent-[#38bdf8] [&::-webkit-slider-thumb]:size-2.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#38bdf8]"
+        aria-label="Maximum ping"
+        className="h-[3px] w-14 cursor-pointer appearance-none rounded-full bg-line accent-accent"
       />
-      <span className="font-mono-data text-[10px] text-[#f1f5f9]">
+      <span className="w-9 font-mono-data text-muted2">
         {isUnlimited ? "Any" : `${sliderValue}ms`}
       </span>
     </div>
-  );
-}
-
-// ─── Toggle Button ───────────────────────────────────────────────
-
-function ToggleButton({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "rounded px-2 py-0.5 text-[10px] font-semibold tracking-wider transition-colors",
-        active
-          ? "bg-[#38bdf8] text-[#0b0f17]"
-          : "bg-[#16202e] text-[#64748b] ring-1 ring-[#1e293b] hover:text-[#94a3b8]",
-      )}
-    >
-      {label}
-    </button>
   );
 }

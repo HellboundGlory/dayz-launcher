@@ -18,12 +18,10 @@ import {
 export type ModSortKey = "name" | "subscribed" | "updated" | "size";
 export type ModSortDir = "asc" | "desc";
 
-export type ModStatusFilter =
-  | "all"
-  | "outdated"
-  | "downloading"
-  | "not_installed"
-  | "disabled";
+// Trimmed to the three states that appear in the final mockup (handoff §3.1.3).
+// The per-row `ModState` union still covers not_installed/not_subscribed/
+// not_on_workshop for status labels — only the *filter* narrows.
+export type ModStatusFilter = "all" | "outdated" | "downloading";
 
 /** A batch operation the action bar is running (one at a time). */
 export interface ModOp {
