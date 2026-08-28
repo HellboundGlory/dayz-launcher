@@ -26,8 +26,9 @@ behind a React + Vite frontend.
 - **Stop before pushing a version tag.** Naming a version is not permission to
   publish it. That push triggers CI and is irreversible.
 - Closing a running launcher before a build is expected — no need to ask.
-- Version numbers live in **two** files and move together: `package.json` and
-  `src-tauri/tauri.conf.json`.
+- Version numbers live in **three** files and move together: `package.json`,
+  `src-tauri/tauri.conf.json`, and `[workspace.package].version` in the root
+  `Cargo.toml` (every crate inherits via `version.workspace = true`).
 - Clippy warnings are CI errors (`-D warnings`).
 - `progress.md` is the feature backlog and is **gitignored** — it isn't in a
   fresh clone. Ask rather than assuming there's no backlog.
