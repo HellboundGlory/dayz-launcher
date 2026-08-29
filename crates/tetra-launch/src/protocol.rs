@@ -99,6 +99,14 @@ pub fn register_dzsa_protocol(exe_path: &std::path::Path) -> Result<(), Protocol
 
 #[cfg(test)]
 mod tests {
+    // Scoped to Linux, not a plain `use super::*;` at module level: on
+    // Windows this module's only test is the one below, which is itself
+    // `#[cfg(target_os = "linux")]`'d out — an unconditional import here
+    // would compile to nothing using it on Windows and fail `clippy -D
+    // warnings`'s `unused_imports` (caught by the new release-workflow gate
+    // itself, M15, before anything was published — no Windows machine was
+    // available this session to catch it any earlier).
+    #[cfg(target_os = "linux")]
     use super::*;
 
     /// `dzsa_registered_to`'s Linux comparison, pinned without touching the
