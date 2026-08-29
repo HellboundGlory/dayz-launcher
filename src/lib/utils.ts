@@ -37,10 +37,20 @@ export function formatLastPlayed(unixSeconds: number | null): string {
   return `${n} ${chosen[1]}${n === 1 ? "" : "s"} ago`;
 }
 
-/** In-game hours are "day" from this hour inclusive… */
+/**
+ * In-game hours are "day" from this hour inclusive…
+ *
+ * A fixed approximation, not a simulation of any particular server's actual
+ * day/night multipliers — there is no sunrise/sunset data to work from, only
+ * the clock reading. Kept in sync by hand with Rust's `day_or_night` in
+ * `crates/tetra-discord/src/lib.rs` (L3, 2026-08-29 audit: the two used to
+ * disagree — 06:00–17:59 here, 06:00–19:59 there — so the same server showed
+ * a moon in the table and a sun badge on the Discord profile between 18:00
+ * and 20:00). Change one, change both.
+ */
 const DAY_START = 6;
 /** …until this hour exclusive. Outside it is night. */
-const DAY_END = 18;
+const DAY_END = 20;
 
 /**
  * "Nx" for a time-acceleration multiplier, trimming a whole value's fraction so

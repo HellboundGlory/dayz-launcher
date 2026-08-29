@@ -44,9 +44,17 @@ pub fn parse_keywords(raw: &str) -> Keywords {
                 if let Some(rest) = token.strip_prefix("shard") {
                     k.shard = Some(rest.to_string());
                 } else if let Some(rest) = token.strip_prefix("entm") {
-                    k.night_multiplier = rest.parse().ok();
+                    // L2 (2026-08-29 audit): only a parseable value is taken,
+                    // matching `lqs` below — the old unconditional assignment
+                    // let a malformed `entm` null out a good value an earlier
+                    // token had already set.
+                    if let Ok(night_multiplier) = rest.parse() {
+                        k.night_multiplier = Some(night_multiplier);
+                    }
                 } else if let Some(rest) = token.strip_prefix("etm") {
-                    k.day_multiplier = rest.parse().ok();
+                    if let Ok(day_multiplier) = rest.parse() {
+                        k.day_multiplier = Some(day_multiplier);
+                    }
                 } else if let Some(rest) = token.strip_prefix("lqs") {
                     // Only a parseable count is taken; a malformed `lqs` must
                     // not null out a value an earlier token already set.
@@ -128,6 +136,19 @@ mod tests {
         let k = parse_keywords("battleye,lqs7,lqsabc,lqs-3");
         assert_eq!(k.queue, Some(7));
         assert_eq!(parse_keywords("battleye,lqsabc").queue, None);
+    }
+
+    #[test]
+    fn an_invalid_etm_or_entm_does_not_clobber_a_good_one() {
+        // L2 (2026-08-29 audit): before the fix, these two assigned
+        // unconditionally — a second, malformed `etm`/`entm` token nulled
+        // out a good value the first one had already set, unlike `lqs`
+        // right above, which already guarded against exactly this.
+        let k = parse_keywords("battleye,etm4.0,etmXYZ,entm6.0,entmXYZ");
+        assert_eq!(k.day_multiplier, Some(4.0));
+        assert_eq!(k.night_multiplier, Some(6.0));
+        assert_eq!(parse_keywords("battleye,etmXYZ").day_multiplier, None);
+        assert_eq!(parse_keywords("battleye,entmXYZ").night_multiplier, None);
     }
 
     #[test]

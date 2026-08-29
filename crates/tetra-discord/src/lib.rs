@@ -47,7 +47,13 @@ const NIGHTTIME_ASSET_KEY: &str = "nighttime";
 
 /// What a "playing" presence needs to render. Everything the caller has to
 /// hand right after a launch — nothing here is re-queried live.
-#[derive(Debug, Clone)]
+///
+/// `PartialEq` backs the dedup in `run` (M12, 2026-08-29 audit): the poll
+/// loop on the `src-tauri` side calls `set_playing` with a freshly built
+/// `PresenceInfo` every 5s regardless of whether anything actually changed,
+/// and this is what lets `run` tell "genuinely different" from "the same
+/// thing again" without re-deriving that logic at every caller.
+#[derive(Debug, Clone, PartialEq)]
 pub struct PresenceInfo {
     pub server_name: String,
     pub map: Option<String>,
@@ -79,7 +85,7 @@ pub enum DiscordSession {
     Live(PresenceInfo),
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 enum Command {
     Idle(Option<usize>),
     Verifying(String),
@@ -203,6 +209,14 @@ fn run(client_id: &str, rx: &Receiver<Command>, log: &impl Fn(&str)) {
     // something to narrate every `RECONNECT_INTERVAL`.
     let mut logged_this_outage = false;
     let mut last = Command::Idle(None);
+    // The command last actually applied to the live client — `None` means
+    // "nothing yet" or "just (re)connected, so re-apply regardless of
+    // whether `last` looks unchanged" (M12, 2026-08-29 audit). Deduping here,
+    // in the one place that ever calls `apply`, catches every source of
+    // repetition at once: the presence poll re-sending an unchanged
+    // `Playing` every 5s, and this loop's own `RECONNECT_INTERVAL` idle-retry
+    // re-applying whatever `last` already is.
+    let mut last_applied: Option<Command> = None;
 
     loop {
         match rx.recv_timeout(RECONNECT_INTERVAL) {
@@ -222,6 +236,11 @@ fn run(client_id: &str, rx: &Receiver<Command>, log: &impl Fn(&str)) {
                     client = c;
                     connected = true;
                     logged_this_outage = false;
+                    // A fresh connection starts with no activity set, so the
+                    // next block below must not skip applying `last` just
+                    // because it matches whatever the previous (now-dead)
+                    // client last had.
+                    last_applied = None;
                     log("connected to the local client");
                     tracing::info!("discord: connected to the local client");
                 }
@@ -251,13 +270,23 @@ fn run(client_id: &str, rx: &Receiver<Command>, log: &impl Fn(&str)) {
             }
         }
 
+        // The dedup itself (M12): skip the round trip — and the throwaway
+        // thread `call_with_timeout` spends on every call — when `last` is
+        // exactly what's already showing.
+        if !needs_apply(&last_applied, &last) {
+            continue;
+        }
+
         let to_apply = last.clone();
         match call_with_timeout(move || {
             let mut c = client;
             let r = apply(&mut c, &to_apply);
             (c, r)
         }) {
-            Some((c, Ok(()))) => client = c,
+            Some((c, Ok(()))) => {
+                client = c;
+                last_applied = Some(last.clone());
+            }
             Some((c, Err(e))) => {
                 client = c;
                 log(&format!("lost connection ({e}); will reconnect"));
@@ -275,6 +304,13 @@ fn run(client_id: &str, rx: &Receiver<Command>, log: &impl Fn(&str)) {
             }
         }
     }
+}
+
+/// Whether `candidate` needs to be (re-)applied to the client, given what was
+/// last actually applied. Split out from `run`'s loop so the dedup driving
+/// M12's fix is testable without a real Discord IPC socket.
+fn needs_apply(last_applied: &Option<Command>, candidate: &Command) -> bool {
+    last_applied.as_ref() != Some(candidate)
 }
 
 fn apply(
@@ -401,6 +437,9 @@ fn party_size(info: &PresenceInfo) -> Option<[i32; 2]> {
 /// The boundary (06:00–19:59 inclusive = day) is a fixed approximation, not
 /// a simulation of any particular server's actual day/night multipliers —
 /// there is no sunrise/sunset data to work from, only the clock reading.
+/// Kept in sync by hand with `DAY_START`/`DAY_END` in
+/// `src/lib/utils.ts::formatGameTime` (L3, 2026-08-29 audit — the two used
+/// to disagree). Change one, change both.
 fn day_or_night(hhmm: &str) -> Option<bool> {
     let (h, m) = hhmm.split_once(':')?;
     let hour: u32 = h.parse().ok()?;
@@ -504,6 +543,34 @@ mod tests {
         // in a URL.
         assert!(!url.contains(' ') && !url.contains('|') && !url.contains('['));
         assert!(url.contains("name=RU%20FAN%7CMOD%20%5BPVP%5D%20"));
+    }
+
+    #[test]
+    fn an_unchanged_command_does_not_need_reapplying() {
+        let cmd = Command::Playing(info(12, 60));
+        assert!(!needs_apply(&Some(cmd.clone()), &cmd));
+    }
+
+    #[test]
+    fn a_changed_field_does_need_reapplying() {
+        // Same shape, one field different — a player joining or leaving is
+        // exactly what a real 5s poll tick sends.
+        let before = Command::Playing(info(12, 60));
+        let after = Command::Playing(info(13, 60));
+        assert!(needs_apply(&Some(before), &after));
+    }
+
+    #[test]
+    fn nothing_applied_yet_always_needs_applying() {
+        assert!(needs_apply(&None, &Command::Idle(None)));
+    }
+
+    #[test]
+    fn a_different_command_kind_needs_reapplying() {
+        assert!(needs_apply(
+            &Some(Command::Idle(Some(5))),
+            &Command::Verifying("GulagZ".into())
+        ));
     }
 
     #[test]

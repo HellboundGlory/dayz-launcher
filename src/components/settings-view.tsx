@@ -191,17 +191,30 @@ export function SettingsView({ onClose }: { onClose: () => void }) {
 
           <Field
             label="Custom Launch Parameters"
-            hint="Passed to DayZ ahead of the mod list. Example: -noPause -cpuCount=4"
+            hint="Passed to DayZ ahead of the mod list. One per line — e.g. -noPause and -profiles=C:\My Documents\DayZ each on their own line."
           >
-            <input
-              type="text"
-              value={launchParams.join(" ")}
+            {/*
+              One parameter per line, not space-joined (M6, 2026-08-29
+              audit). The old single-line input rendered `launchParams.join("
+              ")` and wrote back `value.split(/\s+/)` on every keystroke —
+              any parameter containing a space (a Windows `-profiles=` path
+              is the common one) was silently shredded into fragments the
+              moment the box was touched, with no way to enter one in the
+              first place. A line is unambiguous without a shell-quoting
+              parser.
+            */}
+            <textarea
+              value={launchParams.join("\n")}
               onChange={(e) =>
-                setSetting("launchParams", e.target.value.split(/\s+/).filter(Boolean))
+                setSetting(
+                  "launchParams",
+                  e.target.value.split("\n").map((p) => p.trim()).filter(Boolean),
+                )
               }
-              placeholder="-noPause -cpuCount=4"
+              placeholder={"-noPause\n-cpuCount=4"}
               spellCheck={false}
-              className={INPUT_CLASS}
+              rows={3}
+              className={cn(INPUT_CLASS, "resize-y font-mono text-[11px]")}
             />
           </Field>
 

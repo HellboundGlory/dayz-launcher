@@ -1,4 +1,5 @@
 import { Minus, Square, X } from "lucide-react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 /**
  * The frameless window's min/max/close cluster.
@@ -11,19 +12,23 @@ import { Minus, Square, X } from "lucide-react";
  * board, recorded in DESIGN.md §19.
  */
 export function WindowControls() {
+  // Static, not `import("@tauri-apps/api/window")` per call (L9, 2026-08-29
+  // audit): `window-resize-handles.tsx` already imports this module
+  // statically, so Vite puts it in the main chunk regardless — the dynamic
+  // form here bought nothing but an extra promise on every click.
   function minimizeWindow() {
-    import("@tauri-apps/api/window")
-      .then(({ getCurrentWindow }) => getCurrentWindow().minimize())
+    getCurrentWindow()
+      .minimize()
       .catch(() => {});
   }
   function maximizeWindow() {
-    import("@tauri-apps/api/window")
-      .then(({ getCurrentWindow }) => getCurrentWindow().toggleMaximize())
+    getCurrentWindow()
+      .toggleMaximize()
       .catch(() => {});
   }
   function closeWindow() {
-    import("@tauri-apps/api/window")
-      .then(({ getCurrentWindow }) => getCurrentWindow().close())
+    getCurrentWindow()
+      .close()
       .catch(() => {});
   }
 

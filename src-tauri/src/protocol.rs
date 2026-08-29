@@ -1,3 +1,4 @@
+use std::net::Ipv4Addr;
 use tauri::{AppHandle, Emitter};
 
 /// The scheme `register_dzsa_protocol` claims in the OS.
@@ -23,6 +24,14 @@ pub struct ConnectRequest {
 /// `None` for anything that doesn't match — a malformed or foreign link is
 /// silently ignored rather than guessed at, the same way a malformed server
 /// address is elsewhere in this codebase.
+///
+/// The IP is parsed as an `Ipv4Addr`, not merely checked for non-emptiness.
+/// This is the widest untrusted-input surface in the app — the scheme is
+/// registered OS-wide and reachable from any web page — and the emitted
+/// `ConnectRequest` used to carry whatever string sat before the first `:`
+/// unexamined. `Ipv4Addr::from_str` also rejects octal-looking octets
+/// (leading zeros), which is a deliberate hardening in std against exactly
+/// the ambiguous-parse class of bug this validation exists to close off.
 pub fn parse_connect_link(link: &str) -> Option<ConnectRequest> {
     let lower = link.to_ascii_lowercase();
     if !lower.starts_with(SCHEME) {
@@ -34,9 +43,7 @@ pub fn parse_connect_link(link: &str) -> Option<ConnectRequest> {
     let after_connect = &link[SCHEME.len() + CONNECT_SEGMENT.len()..];
     let (addr, query) = after_connect.split_once('?').unwrap_or((after_connect, ""));
     let (ip, port) = addr.split_once(':')?;
-    if ip.is_empty() {
-        return None;
-    }
+    let ip: Ipv4Addr = ip.parse().ok()?;
     let query_port: u16 = port.parse().ok()?;
     let favourite = query
         .split('&')
@@ -154,6 +161,31 @@ mod tests {
     #[test]
     fn a_missing_ip_does_not_parse() {
         assert_eq!(parse_connect_link("dzsa://connect/:2302"), None);
+    }
+
+    /// The regression this validation exists to close: before the IP was
+    /// parsed as an `Ipv4Addr`, anything non-empty before the first `:`
+    /// passed — a link crafted by a hostile web page could carry an
+    /// arbitrary string all the way to the `dzsa-connect` event the frontend
+    /// trusts.
+    #[test]
+    fn a_non_ipv4_host_does_not_parse() {
+        assert_eq!(parse_connect_link("dzsa://connect/example.com:2302"), None);
+        assert_eq!(
+            parse_connect_link("dzsa://connect/not-an-ip-at-all:2302"),
+            None
+        );
+    }
+
+    /// Leading zeros are ambiguous between decimal and octal in some parsers
+    /// (`010` meaning 8, not 10). Rust's `Ipv4Addr::from_str` rejects them
+    /// outright rather than guessing, and this pins that we rely on it.
+    #[test]
+    fn an_octet_with_a_leading_zero_does_not_parse() {
+        assert_eq!(
+            parse_connect_link("dzsa://connect/192.168.001.001:2302"),
+            None
+        );
     }
 
     #[test]

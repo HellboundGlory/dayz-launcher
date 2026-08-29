@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { useShallow } from "zustand/react/shallow";
 import {
   ChevronDown,
   ChevronRight,
@@ -56,24 +58,73 @@ function modSubscribed(mod: { time_added_to_user_list: number; install_timestamp
   return mod.time_added_to_user_list || mod.install_timestamp || 0;
 }
 
+/**
+ * The fields/actions `ModsTab` itself reads, selected with a shallow compare
+ * (H8, 2026-08-29 audit) so a change to something only a child cares about —
+ * `progress`, `selectedIds`, `caredServers` — doesn't re-run this component
+ * (and, via the plain `mods.map(...)`, every row) on top of that row's own
+ * subscription already reacting to it.
+ */
+function useModsTabSlice() {
+  return useModsStore(
+    useShallow((s) => ({
+      rows: s.rows,
+      search: s.search,
+      statusFilter: s.statusFilter,
+      sortKey: s.sortKey,
+      sortDir: s.sortDir,
+      states: s.states,
+      loading: s.loading,
+      error: s.error,
+      fromCache: s.fromCache,
+      selectedModId: s.selectedModId,
+      op: s.op,
+      load: s.load,
+      loadCaredServers: s.loadCaredServers,
+      setLive: s.setLive,
+      setProgress: s.setProgress,
+      setSearch: s.setSearch,
+      setStatusFilter: s.setStatusFilter,
+    })),
+  );
+}
+
 export function ModsTab() {
-  const store = useModsStore();
+  const {
+    rows,
+    search,
+    statusFilter,
+    sortKey,
+    sortDir,
+    states,
+    loading,
+    error,
+    fromCache,
+    selectedModId,
+    op,
+    load,
+    loadCaredServers,
+    setLive,
+    setProgress,
+    setSearch,
+    setStatusFilter,
+  } = useModsTabSlice();
 
   const mods = useMemo(() => {
-    let rows = visibleRows(store.rows);
-    const q = store.search.trim().toLowerCase();
+    let visible = visibleRows(rows);
+    const q = search.trim().toLowerCase();
     if (q) {
-      rows = rows.filter(
+      visible = visible.filter(
         (r) =>
           (r.title ?? "").toLowerCase().includes(q) ||
           (r.tags ?? []).some((t) => t.toLowerCase().includes(q)) ||
           (r.workshop_id ?? "").includes(q),
       );
     }
-    if (store.statusFilter !== "all") {
-      rows = rows.filter((r) => {
-        const state = store.states[r.workshop_id] ?? r.state;
-        switch (store.statusFilter) {
+    if (statusFilter !== "all") {
+      visible = visible.filter((r) => {
+        const state = states[r.workshop_id] ?? r.state;
+        switch (statusFilter) {
           case "outdated":
             return state === "needs_update";
           case "downloading":
@@ -81,9 +132,9 @@ export function ModsTab() {
         }
       });
     }
-    const dir = store.sortDir === "asc" ? 1 : -1;
-    return [...rows].sort((a, b) => {
-      switch (store.sortKey) {
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...visible].sort((a, b) => {
+      switch (sortKey) {
         case "name":
           return (a.title ?? "").localeCompare(b.title ?? "") * dir;
         case "subscribed":
@@ -94,25 +145,19 @@ export function ModsTab() {
           return (Number(a.size_on_disk || 0) - Number(b.size_on_disk || 0)) * dir;
       }
     });
-  }, [
-    store.rows,
-    store.states,
-    store.search,
-    store.statusFilter,
-    store.sortKey,
-    store.sortDir,
-  ]);
+  }, [rows, states, search, statusFilter, sortKey, sortDir]);
 
-  const removedCount = store.rows.filter((r) => r.removed).length;
+  const removedCount = rows.filter((r) => r.removed).length;
 
   // Load the tab on first mount, then poll live state + progress.
   useEffect(() => {
-    void store.load();
-    void store.loadCaredServers();
+    void load();
+    void loadCaredServers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    const ids = visibleRows(store.rows).map((r) => r.workshop_id);
+    const ids = visibleRows(rows).map((r) => r.workshop_id);
     if (ids.length === 0) return;
     let cancelled = false;
     async function poll() {
@@ -122,8 +167,8 @@ export function ModsTab() {
           steamDownloadProgress(ids),
         ]);
         if (cancelled) return;
-        store.setLive(Object.fromEntries(entries.map((e) => [e.workshop_id, e.state])));
-        store.setProgress(
+        setLive(Object.fromEntries(entries.map((e) => [e.workshop_id, e.state])));
+        setProgress(
           Object.fromEntries(
             progress.map((p) => [
               p.workshop_id,
@@ -141,10 +186,22 @@ export function ModsTab() {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [store.rows, store.setLive, store.setProgress]);
+  }, [rows, setLive, setProgress]);
 
-  const selectedMod =
-    store.rows.find((r) => r.workshop_id === store.selectedModId) ?? null;
+  const selectedMod = rows.find((r) => r.workshop_id === selectedModId) ?? null;
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: mods.length,
+    getScrollElement: () => scrollRef.current,
+    // Row height (30px thumb + py-2 padding) + the parent's `space-y`-free
+    // gap; measured rather than assumed for the same reason `server-list.tsx`
+    // measures its rows.
+    estimateSize: () => 54,
+    gap: 6,
+    overscan: 8,
+  });
+  const virtualItems = rowVirtualizer.getVirtualItems();
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -153,8 +210,8 @@ export function ModsTab() {
         <div className="search flex min-w-0 flex-1 items-center gap-1.5 rounded-[6px] border border-line bg-surface2 px-2.5 py-[5px]">
           <Search className="size-3 shrink-0 text-muted" />
           <input
-            value={store.search}
-            onChange={(e) => store.setSearch(e.target.value)}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="Search mods by name, tag or id…"
             aria-label="Search mods"
             className="min-w-0 flex-1 bg-transparent py-0.5 text-[11px] text-ink outline-none placeholder:text-muted"
@@ -165,10 +222,10 @@ export function ModsTab() {
           {STATUS_FILTERS.map((f) => (
             <button
               key={f.key}
-              onClick={() => store.setStatusFilter(f.key)}
+              onClick={() => setStatusFilter(f.key)}
               className={cn(
                 "fbtn flex items-center justify-center rounded-[6px] border border-line bg-surface2 px-2.5 py-[5px] text-[10px] font-bold uppercase tracking-wider transition-colors",
-                store.statusFilter === f.key
+                statusFilter === f.key
                   ? "border-accent-line bg-accent-soft text-accent shadow-[var(--glow)]"
                   : "text-muted hover:text-ink",
               )}
@@ -179,22 +236,22 @@ export function ModsTab() {
         </div>
 
         <button
-          onClick={() => void store.load(true)}
-          disabled={store.loading || !!store.op}
+          onClick={() => void load(true)}
+          disabled={loading || !!op}
           title="Re-read the list and refresh details from the Workshop"
           className="fbtn flex shrink-0 items-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <RefreshCw className={cn("size-3", store.loading && "animate-spin")} />
+          <RefreshCw className={cn("size-3", loading && "animate-spin")} />
           Refresh
         </button>
       </div>
 
-      {store.error && (
+      {error && (
         <div className="border-b border-danger-line bg-danger-soft px-3 py-1.5 text-[11px] text-danger">
-          {store.error}
+          {error}
         </div>
       )}
-      {store.fromCache && (
+      {fromCache && (
         <div className="border-b border-warn bg-warn-soft px-3 py-1.5 text-[10px] uppercase tracking-wider text-warn">
           Steam unreachable — showing last known mod list
         </div>
@@ -203,25 +260,39 @@ export function ModsTab() {
       {/* ── Body: list + slide-in inspector ── */}
       <div className="mods-content relative min-h-0 flex-1 overflow-hidden">
         <div className="mx-wrap relative h-full overflow-hidden">
-          <div className="mx-list h-full overflow-y-auto p-2">
-            {store.loading && mods.length === 0 ? (
+          <div ref={scrollRef} className="mx-list h-full overflow-y-auto p-2">
+            {loading && mods.length === 0 ? (
               <div className="flex h-full items-center justify-center gap-2 text-[11px] text-muted">
                 <Loader2 className="size-3.5 animate-spin" /> Loading subscribed mods…
               </div>
             ) : mods.length === 0 ? (
               <div className="flex h-full items-center justify-center px-4 text-center text-[11px] text-muted">
-                {store.search || store.statusFilter !== "all"
+                {search || statusFilter !== "all"
                   ? "No mods match the current filter."
                   : "You have no subscribed DayZ Workshop mods."}
               </div>
             ) : (
-              mods.map((mod) => (
-                <ModRow
-                  key={mod.workshop_id}
-                  mod={mod}
-                  selected={store.selectedModId === mod.workshop_id}
-                />
-              ))
+              <div style={{ position: "relative", height: rowVirtualizer.getTotalSize() }}>
+                {virtualItems.map((virtualRow) => {
+                  const mod = mods[virtualRow.index];
+                  return (
+                    <div
+                      key={mod.workshop_id}
+                      data-index={virtualRow.index}
+                      ref={rowVirtualizer.measureElement}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%",
+                        transform: `translateY(${virtualRow.start}px)`,
+                      }}
+                    >
+                      <ModRow mod={mod} selected={selectedModId === mod.workshop_id} />
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
 
@@ -235,16 +306,32 @@ export function ModsTab() {
   );
 }
 
-function ModRow({ mod, selected }: { mod: SubscribedMod; selected: boolean }) {
-  const store = useModsStore();
-  const checked = store.selectedIds.has(mod.workshop_id);
-  const state = store.states[mod.workshop_id] ?? mod.state;
+/**
+ * Selects only this row's own slice of the store (H8, 2026-08-29 audit).
+ *
+ * Previously `useModsStore()` grabbed the whole store, so every row —
+ * potentially several hundred, unvirtualised until the change above — re-ran
+ * on any store change, including another row's progress ticking or the
+ * search box changing. Each row now only re-renders when *its own* selected
+ * flag, state or progress entry actually changes.
+ */
+const ModRow = memo(function ModRow({
+  mod,
+  selected,
+}: {
+  mod: SubscribedMod;
+  selected: boolean;
+}) {
+  const checked = useModsStore((s) => s.selectedIds.has(mod.workshop_id));
+  const state = useModsStore((s) => s.states[mod.workshop_id] ?? mod.state);
+  const progress = useModsStore((s) => s.progress[mod.workshop_id]);
+  const toggleSelected = useModsStore((s) => s.toggleSelected);
+  const openMod = useModsStore((s) => s.openMod);
   const ui = STATUS_UI[state];
-  const progress = store.progress[mod.workshop_id];
 
   return (
     <div
-      onClick={() => store.openMod(store.selectedModId === mod.workshop_id ? null : mod.workshop_id)}
+      onClick={() => openMod(selected ? null : mod.workshop_id)}
       className={cn(
         "mx-row flex cursor-pointer items-center gap-2.5 rounded-[8px] border border-line bg-surface px-2.5 py-2 transition-[border-color,background,box-shadow] duration-150 hover:border-accent-line",
         selected && "border-accent-line bg-accent-soft shadow-[var(--glow)]",
@@ -254,7 +341,7 @@ function ModRow({ mod, selected }: { mod: SubscribedMod; selected: boolean }) {
       <div
         onClick={(e) => {
           e.stopPropagation();
-          store.toggleSelected(mod.workshop_id);
+          toggleSelected(mod.workshop_id);
         }}
         className="mx-check flex items-center justify-center"
         role="checkbox"
@@ -264,7 +351,7 @@ function ModRow({ mod, selected }: { mod: SubscribedMod; selected: boolean }) {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
             e.stopPropagation();
-            store.toggleSelected(mod.workshop_id);
+            toggleSelected(mod.workshop_id);
           }
         }}
       >
@@ -333,12 +420,13 @@ function ModRow({ mod, selected }: { mod: SubscribedMod; selected: boolean }) {
       </span>
     </div>
   );
-}
+});
 
 function ModInspector({ mod }: { mod: SubscribedMod }) {
-  const store = useModsStore();
+  const state = useModsStore((s) => s.states[mod.workshop_id] ?? mod.state);
+  const openMod = useModsStore((s) => s.openMod);
+  const load = useModsStore((s) => s.load);
   const [reinstalling, setReinstalling] = useState(false);
-  const state = store.states[mod.workshop_id] ?? mod.state;
   const ui = STATUS_UI[state];
 
   function openInSteam() {
@@ -356,13 +444,13 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
       console.error(e);
     }
     setReinstalling(false);
-    void store.load(true);
+    void load(true);
   }
 
   return (
     <div className="mx-inspector absolute bottom-0 right-0 top-0 z-[8] flex w-[340px] flex-col overflow-hidden border-l border-line bg-surface shadow-[-10px_0_26px_rgba(0,0,0,0.4)]">
       <button
-        onClick={() => store.openMod(null)}
+        onClick={() => openMod(null)}
         aria-label="Close details"
         className="mxi-close absolute right-2 top-2 z-[3] flex h-[22px] w-[22px] items-center justify-center rounded-[6px] border border-line bg-[rgba(10,12,16,0.7)] text-muted2 transition-colors hover:border-accent-line hover:text-ink"
       >
@@ -478,7 +566,28 @@ function InspectorRow({ label, value }: { label: string; value: string }) {
 /** The bottom action bar: Verify + Unsubscribe, each with a revealed dropdown,
     plus the unique-per-server selection and the removed-mod clean-up. */
 function ModsActionBar({ removedCount }: { removedCount: number }) {
-  const store = useModsStore();
+  // Narrowed (H8, 2026-08-29 audit): this bar doesn't read `states`,
+  // `progress` or `search`, so it has no reason to re-render on the 1.5s
+  // poll tick or every keystroke in the search box.
+  const store = useModsStore(
+    useShallow((s) => ({
+      selectedIds: s.selectedIds,
+      rows: s.rows,
+      op: s.op,
+      verifyResult: s.verifyResult,
+      mutationFailures: s.mutationFailures,
+      uniqueResult: s.uniqueResult,
+      clearVerifyResult: s.clearVerifyResult,
+      clearMutationFailures: s.clearMutationFailures,
+      clearUniqueResult: s.clearUniqueResult,
+      clearSelection: s.clearSelection,
+      cleanupRemoved: s.cleanupRemoved,
+      unsubscribeSelected: s.unsubscribeSelected,
+      unsubscribeAll: s.unsubscribeAll,
+      verifyAll: s.verifyAll,
+      verifySelected: s.verifySelected,
+    })),
+  );
   const [menu, setMenu] = useState<"verify" | "unsub" | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const selectedCount = store.selectedIds.size;
@@ -796,7 +905,14 @@ function MenuButton({
 
 /** "Select mods unique to a server…" — pops the cared-server list. */
 function ServerPicker() {
-  const store = useModsStore();
+  // Narrowed (H8, 2026-08-29 audit) — same reasoning as `ModsActionBar`.
+  const store = useModsStore(
+    useShallow((s) => ({
+      caredServers: s.caredServers,
+      uniqueSource: s.uniqueSource,
+      selectUniqueTo: s.selectUniqueTo,
+    })),
+  );
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 

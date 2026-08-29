@@ -37,6 +37,19 @@ pub enum InitFailure {
     /// only way back is a fresh `SteamAPI_Init()`, which this process cannot
     /// do without restarting (see `steam_init`'s ready-flag short-circuit).
     Disconnected,
+    /// Another `steam_init` call is already in flight on this process (M17,
+    /// 2026-08-29 audit).
+    ///
+    /// Before this, two overlapping calls (the auto-retry timer firing at
+    /// the same moment as a manual Retry click, say) both saw the ready flag
+    /// as unset and both ran a real `SteamAPI_Init()` — survivable in that
+    /// the loser gets shut down rather than dropped, but Steamworks does not
+    /// refcount `Init`/`Shutdown` pairs within one process, so shutting down
+    /// the loser's session was never guaranteed not to take the winner's
+    /// down with it. Resolves by waiting: the in-flight attempt finishes in
+    /// a moment either way, at which point a retry sees the ready flag set
+    /// (success) or gets a real failure to show instead.
+    AlreadyInitialising,
 }
 
 impl InitFailure {
@@ -44,7 +57,9 @@ impl InitFailure {
     pub fn resolves_by_waiting(self) -> bool {
         matches!(
             self,
-            InitFailure::SteamNotRunning | InitFailure::SteamNotReady
+            InitFailure::SteamNotRunning
+                | InitFailure::SteamNotReady
+                | InitFailure::AlreadyInitialising
         )
     }
 
@@ -62,6 +77,9 @@ impl InitFailure {
             // enough that a missing DayZ licence stops polling and gets told
             // what is actually wrong.
             InitFailure::SteamNotReady => Some(15),
+            // Short: this only ever waits out another `steam_init` call
+            // already in progress, which resolves in a moment either way.
+            InitFailure::AlreadyInitialising => Some(5),
             InitFailure::SteamOutOfDate | InitFailure::Internal | InitFailure::Disconnected => {
                 Some(0)
             }
@@ -77,6 +95,7 @@ impl fmt::Display for InitFailure {
             InitFailure::SteamNotReady => "Steam is not ready to start DayZ",
             InitFailure::Internal => "the launcher's Steam thread failed to start",
             InitFailure::Disconnected => "the connection to Steam was lost",
+            InitFailure::AlreadyInitialising => "a Steam connection attempt is already in progress",
         };
         f.write_str(s)
     }
@@ -115,6 +134,17 @@ mod tests {
         // straight to an error the user then had to dismiss by hand.
         assert!(InitFailure::SteamNotRunning.resolves_by_waiting());
         assert!(InitFailure::SteamNotReady.resolves_by_waiting());
+    }
+
+    #[test]
+    fn an_in_flight_init_attempt_is_worth_waiting_for_too() {
+        // Unlike the failures below, there's a real attempt already running
+        // that will finish on its own — treating this as final would surface
+        // a confusing error for something that resolves in under a second.
+        assert!(InitFailure::AlreadyInitialising.resolves_by_waiting());
+        assert!(InitFailure::AlreadyInitialising
+            .auto_retry_limit()
+            .is_some());
     }
 
     #[test]

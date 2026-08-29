@@ -31,10 +31,34 @@ import {
   type ModsPendingEntry,
   logClient,
 } from "./lib/tauri";
-import { listen } from "@tauri-apps/api/event";
+import { listen, emit } from "@tauri-apps/api/event";
+// Static, not dynamic `import(...)` per call site (L9, 2026-08-29 audit):
+// `window-resize-handles.tsx` already imports `@tauri-apps/api/window`
+// statically, so Vite puts it in the main chunk regardless — a dynamic
+// import here bought nothing but an extra promise on every call.
+import { getCurrentWindow, getAllWindows } from "@tauri-apps/api/window";
 
-/** Trailing window for coalescing backend progress events into one reload. */
+/**
+ * Trailing window for coalescing backend progress events into one reload,
+ * outside of a discovery pass (a `server-refreshed`/`registry-ready` reload,
+ * or the visibility safety net).
+ */
 const RELOAD_THROTTLE_MS = 250;
+
+/**
+ * Trailing window used instead of {@link RELOAD_THROTTLE_MS} while discovery
+ * is streaming (H3, 2026-08-29 audit).
+ *
+ * `discovery-progress` fires on every backend stream flush (~200ms), so the
+ * 250ms throttle above still meant a `get_server_list` (up to 5,000 rows) and
+ * a `get_map_list` full-table scan roughly four times a second for the tens
+ * of seconds discovery runs — the most plausible mechanism behind "the app
+ * feels locked up while discovering". 1.5s cuts that by ~85% while discovery
+ * is the thing driving reloads; a user-triggered reload (filter/sort change,
+ * a manual REFRESH) still applies immediately, since those don't go through
+ * `scheduleReload` at all.
+ */
+const DISCOVERY_RELOAD_THROTTLE_MS = 1500;
 
 /**
  * How long to wait before re-checking whether Steam has appeared.
@@ -112,6 +136,16 @@ export function App() {
   const steamAttempts = useRef<{ kind: SteamInitFailure; count: number } | null>(null);
   const [autoRetryExhausted, setAutoRetryExhausted] = useState(false);
   const [discovering, setDiscovering] = useState(false);
+  /**
+   * Mirrors `discovering` for `scheduleReload` to read without becoming a
+   * dependency of it — the callback's identity has to stay stable across a
+   * discovery starting/stopping, since it's what `discovery-progress`'s
+   * listener effect (mounted once) closes over.
+   */
+  const discoveringRef = useRef(false);
+  useEffect(() => {
+    discoveringRef.current = discovering;
+  }, [discovering]);
   /** Set the moment discovery starts; stays true for the session. The splash
       uses it to tell "connected but not yet fetching" from "really done". */
   const [discoveryStarted, setDiscoveryStarted] = useState(false);
@@ -162,13 +196,14 @@ export function App() {
   const discoveryLogFloor = useRef(0);
   const scheduleReload = useCallback(() => {
     if (reloadTimer.current !== null) return;
+    const delay = discoveringRef.current ? DISCOVERY_RELOAD_THROTTLE_MS : RELOAD_THROTTLE_MS;
     reloadTimer.current = window.setTimeout(() => {
       reloadTimer.current = null;
-      void logClient("reload", "scheduleReload: dispatching reload");
+      void logClient("reload", "scheduleReload: dispatching reload", true);
       triggerReload();
       setRefreshedAt(new Date().toLocaleTimeString());
       getServerCounts().then(setCounts).catch(() => {});
-    }, RELOAD_THROTTLE_MS);
+    }, delay);
   }, [triggerReload]);
 
   useEffect(
@@ -441,23 +476,35 @@ export function App() {
       (event) => {
         const { ip, queryPort, favourite } = event.payload;
         setActiveView("servers");
-        void getServer(`${ip}:${queryPort}`, queryPort).then((server) => {
-          if (!server) return;
-          useServerStore.getState().setSelectedServer(server);
-          if (favourite && !server.favourite) {
-            useServerStore.getState().toggleFavourite(server.addr);
-            void toggleFavourite(server.addr, server.query_port, true).catch((e) => {
-              console.error("Failed to persist favourite from dzsa:// link:", e);
+        void getServer(`${ip}:${queryPort}`, queryPort)
+          .then((server) => {
+            if (!server) {
+              // Not an error — the registry just hasn't discovered this
+              // server yet — but silently doing nothing here used to be
+              // indistinguishable from the link not working at all.
+              setError(
+                `${ip}:${queryPort} isn't in your server list yet — press DISCOVER, then try the link again.`,
+              );
+              return;
+            }
+            useServerStore.getState().setSelectedServer(server);
+            if (favourite && !server.favourite) {
               useServerStore.getState().toggleFavourite(server.addr);
-            });
-          }
-        });
+              void toggleFavourite(server.addr, server.query_port, true).catch((e) => {
+                console.error("Failed to persist favourite from dzsa:// link:", e);
+                useServerStore.getState().toggleFavourite(server.addr);
+              });
+            }
+          })
+          .catch((e) => {
+            console.error("Failed to resolve dzsa:// link target:", e);
+            setError(`Could not look up ${ip}:${queryPort}: ${String(e)}`);
+          });
       },
     );
     return () => {
       unlistenConnect.then((fn) => fn());
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /**
@@ -502,7 +549,7 @@ export function App() {
       refreshInFlight.current = false;
       setRefreshing(false);
     }
-  }, [steamConnected]);
+  }, [steamConnected, triggerReload]);
 
   // Auto-refresh on a timer.
   //
@@ -556,25 +603,23 @@ export function App() {
   const revealLauncherWhenReady = useCallback(() => {
     if (revealDone.current) return;
     revealDone.current = true;
-    void import("@tauri-apps/api/window").then(
-      async ({ getCurrentWindow, getAllWindows }) => {
-        const self = getCurrentWindow();
-        try {
-          await self.show();
-          await self.setFocus();
-        } catch (e) {
-          console.error("Could not reveal the launcher window:", e);
-        }
-        // Only after `main` is up. Closing the splash first would leave the
-        // desktop bare for a frame if showing turns out to be slow.
-        try {
-          const windows = await getAllWindows();
-          await windows.find((w) => w.label === "splash")?.close();
-        } catch (e) {
-          console.error("Could not close the splash window:", e);
-        }
-      },
-    );
+    void (async () => {
+      const self = getCurrentWindow();
+      try {
+        await self.show();
+        await self.setFocus();
+      } catch (e) {
+        console.error("Could not reveal the launcher window:", e);
+      }
+      // Only after `main` is up. Closing the splash first would leave the
+      // desktop bare for a frame if showing turns out to be slow.
+      try {
+        const windows = await getAllWindows();
+        await windows.find((w) => w.label === "splash")?.close();
+      } catch (e) {
+        console.error("Could not close the splash window:", e);
+      }
+    })();
   }, []);
 
   // Give the "Ready — 100%" beat its moment, then reveal the launcher and
@@ -657,12 +702,10 @@ export function App() {
       "splash",
       `milestone ${splash.pct}% "${splash.status}" servers=${serverCount}`,
     );
-    void import("@tauri-apps/api/event").then(({ emit }) => {
-      void emit("splash-progress", {
-        status: splash.status,
-        detail: splash.detail,
-        pct: splash.pct,
-      });
+    void emit("splash-progress", {
+      status: splash.status,
+      detail: splash.detail,
+      pct: splash.pct,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [splash.status, splash.detail, splash.pct]);
@@ -677,12 +720,10 @@ export function App() {
   // "Starting… 0%" for the entire load.
   useEffect(() => {
     const pending = listen("splash-ready", () => {
-      void import("@tauri-apps/api/event").then(({ emit }) => {
-        void emit("splash-progress", {
-          status: latestSplash.current.status,
-          detail: latestSplash.current.detail,
-          pct: latestSplash.current.pct,
-        });
+      void emit("splash-progress", {
+        status: latestSplash.current.status,
+        detail: latestSplash.current.detail,
+        pct: latestSplash.current.pct,
       });
     });
     return () => {

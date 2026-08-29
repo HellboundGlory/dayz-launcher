@@ -29,14 +29,21 @@ mod imp {
         let steam_install: String = steam_key.get_value("InstallPath").ok()?;
         let steam_install = PathBuf::from(steam_install);
 
-        let workshop_dir = steam_install
+        // The library that actually holds DayZ — not necessarily
+        // `steam_install` itself, since DayZ can live on a second drive.
+        // Workshop content for an app lives in the *same* library as the app
+        // (M10, 2026-08-29 audit): `workshop_dir` used to be computed
+        // unconditionally under `steam_install`, so an install on a
+        // secondary library reported a workshop path that doesn't exist —
+        // the Linux implementation already searches every library for this
+        // reason; only Windows had the gap.
+        let dayz_library = find_dayz_library(&steam_install)?;
+        let dayz_install = dayz_library.join("steamapps").join("common").join("DayZ");
+        let workshop_dir = dayz_library
             .join("steamapps")
             .join("workshop")
             .join("content")
             .join("221100");
-
-        // DayZ install path: check common locations
-        let dayz_install = find_dayz_install(&steam_install)?;
 
         Some(SteamPaths {
             steam_install,
@@ -64,12 +71,18 @@ mod imp {
         })
     }
 
-    fn find_dayz_install(steam_dir: &std::path::Path) -> Option<PathBuf> {
+    /// The Steam library *root* that contains DayZ — either the main Steam
+    /// install or one declared in `libraryfolders.vdf`.
+    ///
+    /// Returns the root itself, not `<root>/steamapps/common/DayZ` — that's
+    /// what lets `find_steam_paths` derive `workshop_dir` from the same
+    /// library `dayz_install` came from, instead of assuming it's always
+    /// under `steam_dir`.
+    fn find_dayz_library(steam_dir: &std::path::Path) -> Option<PathBuf> {
         // Default Steam library location
-        let default = steam_dir.join("steamapps").join("common").join("DayZ");
-
-        if default.exists() {
-            return Some(default);
+        let default_dayz = steam_dir.join("steamapps").join("common").join("DayZ");
+        if default_dayz.exists() {
+            return Some(steam_dir.to_path_buf());
         }
 
         // Check LibraryFolders for alternate install locations
@@ -80,12 +93,10 @@ mod imp {
                 // Parse lines like: "1"		"E:\\SteamLibrary"
                 if let Some(path_str) = line.split('"').nth(3) {
                     if path_str.contains(':') {
-                        let path = PathBuf::from(path_str)
-                            .join("steamapps")
-                            .join("common")
-                            .join("DayZ");
-                        if path.exists() {
-                            return Some(path);
+                        let root = PathBuf::from(path_str);
+                        let candidate = root.join("steamapps").join("common").join("DayZ");
+                        if candidate.exists() {
+                            return Some(root);
                         }
                     }
                 }

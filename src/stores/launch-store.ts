@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { dayzRunning } from "@/lib/tauri";
+import { listen } from "@tauri-apps/api/event";
 
 /**
  * The one launch-or-prepare operation the launcher is running, app-wide.
@@ -112,39 +113,36 @@ export const useLaunchStore = create<LaunchState>((set, get) => ({
   },
 }));
 
-/** How often the OS is asked whether DayZ is running. */
-export const DAYZ_POLL_MS = 4_000;
-
 /**
  * Keep {@link LaunchState.dayzRunning} current. Started once, from `App`.
  *
  * Returns its own teardown so the caller can hand it straight to `useEffect`.
- * Polling continuously rather than only after a launch is what makes the state
- * honest about a session this launcher did not start.
+ *
+ * Previously polled `dayz_running` on its own 4s timer — a full process-table
+ * enumeration invoked from the frontend, running alongside a second,
+ * independent one in the Discord presence loop (`src-tauri/src/discord.rs`)
+ * whenever a launch was live. Both are now one backend-owned watcher
+ * (`commands::launch::start_dayz_watcher`) that pushes `dayz-running` when the
+ * answer changes; this only asks once, immediately, for an answer to show
+ * before the first push can arrive, then listens.
  */
 export function watchDayz(): () => void {
-  let stopped = false;
-
-  async function poll() {
-    try {
-      const running = await dayzRunning();
-      if (stopped) return;
-      const store = useLaunchStore.getState();
-      store.setDayzRunning(running);
-      // The game appearing is the end of the launch, and a better signal than
-      // the timer this replaces: the old code held a "DayZ is starting"
-      // confirmation for a fixed 15 seconds whether or not anything started.
-      if (running && store.op?.phase === "starting") store.end();
-    } catch {
-      // A failed process query says nothing about whether DayZ is running, so
-      // the last known answer stands rather than being reset to false.
-    }
+  function apply(running: boolean) {
+    const store = useLaunchStore.getState();
+    store.setDayzRunning(running);
+    // The game appearing is the end of the launch, and a better signal than
+    // the timer this replaces: the old code held a "DayZ is starting"
+    // confirmation for a fixed 15 seconds whether or not anything started.
+    if (running && store.op?.phase === "starting") store.end();
   }
 
-  void poll();
-  const timer = window.setInterval(() => void poll(), DAYZ_POLL_MS);
+  dayzRunning().then(apply).catch(() => {
+    // A failed process query says nothing about whether DayZ is running, so
+    // the last known answer stands rather than being reset to false.
+  });
+
+  const pending = listen<boolean>("dayz-running", (event) => apply(event.payload));
   return () => {
-    stopped = true;
-    clearInterval(timer);
+    void pending.then((unlisten) => unlisten());
   };
 }

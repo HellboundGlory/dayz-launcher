@@ -3,9 +3,8 @@
 //! Steamworks access, confined to one thread.
 //!
 //! The Steamworks client is `!Send` and its callbacks hold `Rc`, so it lives
-//! on a thread of its own and is reached only through a channel. Everything
-//! outside this crate sees the `ServerListSource` trait, which is what lets
-//! discovery be tested with Steam not running.
+//! on a thread of its own and is reached only through [`SteamHandle`], which
+//! dispatches to it over a channel.
 
 mod actor;
 pub mod error;
@@ -20,5 +19,5 @@ pub use actor::{
 pub use error::{InitFailure, SteamError};
 pub use handle::SteamHandle;
 pub use rows::{to_server_row, GameServerRow};
-pub use source::{Filters, ServerListSource};
+pub use source::Filters;
 pub use workshop::ModState;

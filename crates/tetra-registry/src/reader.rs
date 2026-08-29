@@ -32,6 +32,35 @@ fn register_name_functions(conn: &Connection) -> Result<(), RegistryError> {
     Ok(())
 }
 
+/// Collects the results of a `query_map` whose mapping closure returns
+/// `Option<T>` (`None` marking a row to drop), logging once if anything was
+/// dropped (L4, 2026-08-29 audit).
+///
+/// Shared by every reader method that parses a row's `ip` column: a corrupt
+/// value there used to fall back to `Ipv4Addr::UNSPECIFIED`
+/// (`0.0.0.0`), rendering a bad row as a real server pointing nowhere instead
+/// of being left out of the result.
+fn collect_skipping_bad_rows<T>(
+    rows: impl Iterator<Item = rusqlite::Result<Option<T>>>,
+    context: &str,
+) -> rusqlite::Result<Vec<T>> {
+    let mut skipped = 0usize;
+    let out = rows
+        .filter_map(|r| match r {
+            Ok(Some(v)) => Some(Ok(v)),
+            Ok(None) => {
+                skipped += 1;
+                None
+            }
+            Err(e) => Some(Err(e)),
+        })
+        .collect::<rusqlite::Result<Vec<T>>>()?;
+    if skipped > 0 {
+        eprintln!("[registry] {context}: skipped {skipped} row(s) with an unparseable ip");
+    }
+    Ok(out)
+}
+
 pub struct Reader {
     conn: Connection,
 }
@@ -67,10 +96,18 @@ impl Reader {
         limit: usize,
     ) -> Result<Vec<ServerListRow>, RegistryError> {
         let (sql, binds) = filter::build(filter, sort, dir, limit);
-        let mut stmt = self.conn.prepare(&sql)?;
-        let rows = stmt
-            .query_map(rusqlite::params_from_iter(binds), Self::map_row)?
-            .collect::<Result<Vec<_>, _>>()?;
+        // `prepare_cached` rather than `prepare`: the same filter is reused
+        // call after call on the hottest read path in the app (a reload fires
+        // on every discovery tick), so the common case is a cache hit that
+        // skips re-parsing this SQL entirely (M1, 2026-08-29 audit). The
+        // filter shapes are finite even though `maps`/`countries` vary the
+        // placeholder count, so this stays a small, bounded set of statements
+        // rather than growing unbounded.
+        let mut stmt = self.conn.prepare_cached(&sql)?;
+        let rows = collect_skipping_bad_rows(
+            stmt.query_map(rusqlite::params_from_iter(binds), Self::map_row)?,
+            "list",
+        )?;
         Ok(rows)
     }
 
@@ -84,21 +121,31 @@ impl Reader {
         let mut stmt = self.conn.prepare(&format!(
             "SELECT {SERVER_LIST_COLUMNS} FROM servers WHERE ip = ?1 AND query_port = ?2"
         ))?;
+        // A corrupt `ip` here (L4) just means "not found" — one row, no
+        // batch to report a skip count for.
         let row = stmt
             .query_map(params![key.ip.to_string(), key.query_port], Self::map_row)?
             .next()
-            .transpose()?;
+            .transpose()?
+            .flatten();
         Ok(row)
     }
 
     /// Shared row mapping for [`Reader::list`] and [`Reader::get`] — both read
     /// the same [`SERVER_LIST_COLUMNS`] in the same order.
-    fn map_row(r: &rusqlite::Row) -> rusqlite::Result<ServerListRow> {
+    ///
+    /// Returns `Ok(None)` for a row whose `ip` column doesn't parse as an
+    /// [`Ipv4Addr`] (L4, 2026-08-29 audit) — such a row used to render as a
+    /// real server pointing at `0.0.0.0` instead of being dropped.
+    fn map_row(r: &rusqlite::Row) -> rusqlite::Result<Option<ServerListRow>> {
         let ip: String = r.get(0)?;
+        let Ok(ip) = Ipv4Addr::from_str(&ip) else {
+            return Ok(None);
+        };
         let map_raw: String = r.get(4)?;
-        Ok(ServerListRow {
+        Ok(Some(ServerListRow {
             key: ServerKey {
-                ip: Ipv4Addr::from_str(&ip).unwrap_or(Ipv4Addr::UNSPECIFIED),
+                ip,
                 query_port: r.get(1)?,
             },
             game_port: r.get(2)?,
@@ -123,7 +170,7 @@ impl Reader {
             queue: r.get(21)?,
             day_multiplier: r.get(22)?,
             night_multiplier: r.get(23)?,
-        })
+        }))
     }
 
     pub fn distinct_maps(&self) -> Result<Vec<(String, String)>, RegistryError> {
@@ -211,18 +258,24 @@ impl Reader {
              WHERE favourite = 1 OR last_played IS NOT NULL
              ORDER BY last_played IS NULL, last_played DESC, name",
         )?;
-        let rows = stmt
-            .query_map([], |r| {
+        // L4 (2026-08-29 audit): a corrupt `ip` is dropped, not substituted
+        // with `0.0.0.0` — see `collect_skipping_bad_rows`.
+        let rows = collect_skipping_bad_rows(
+            stmt.query_map([], |r| {
                 let ip: String = r.get(0)?;
-                Ok((
+                let Ok(ip) = Ipv4Addr::from_str(&ip) else {
+                    return Ok(None);
+                };
+                Ok(Some((
                     ServerKey {
-                        ip: Ipv4Addr::from_str(&ip).unwrap_or(Ipv4Addr::UNSPECIFIED),
+                        ip,
                         query_port: r.get(1)?,
                     },
                     r.get::<_, String>(2)?,
-                ))
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
+                )))
+            })?,
+            "cared_servers",
+        )?;
         Ok(rows)
     }
 
@@ -275,19 +328,25 @@ impl Reader {
              WHERE sm.workshop_id = ?1 AND s.favourite = 1
              ORDER BY s.last_played IS NULL, s.last_played DESC",
         )?;
-        let rows = stmt
-            .query_map(params![workshop_id as i64], |r| {
+        // L4 (2026-08-29 audit): a corrupt `ip` is dropped, not substituted
+        // with `0.0.0.0` — see `collect_skipping_bad_rows`.
+        let rows = collect_skipping_bad_rows(
+            stmt.query_map(params![workshop_id as i64], |r| {
                 let ip: String = r.get(0)?;
-                Ok((
+                let Ok(ip) = Ipv4Addr::from_str(&ip) else {
+                    return Ok(None);
+                };
+                Ok(Some((
                     ServerKey {
-                        ip: Ipv4Addr::from_str(&ip).unwrap_or(Ipv4Addr::UNSPECIFIED),
+                        ip,
                         query_port: r.get(1)?,
                     },
                     r.get::<_, String>(2)?,
                     r.get::<_, Option<i64>>(3)?,
-                ))
-            })?
-            .collect::<Result<Vec<_>, _>>()?;
+                )))
+            })?,
+            "servers_needing",
+        )?;
         Ok(rows)
     }
 }

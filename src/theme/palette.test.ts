@@ -7,9 +7,12 @@
  * the floor), and the dark palettes themselves are authored — the loop is the
  * thing under test.
  *
- * Runnable with plain Node (no test runner in this repo):
- *   node src/theme/palette.test.ts
+ * Runs under Vitest (`npm test`) — previously runnable only by hand with
+ * plain Node (T1, 2026-08-29 audit): `node src/theme/palette.test.ts`. The
+ * two loops below are unchanged; only the pass/fail plumbing moved onto
+ * `expect`.
  */
+import { describe, expect, it } from "vitest";
 import {
   contrast,
   deriveLight,
@@ -20,12 +23,10 @@ import {
 } from "./palette.ts";
 
 const TARGET = 4.5;
-let failures = 0;
 
-function check(label: string, actual: number, fg: string, bg: string) {
+function check(failures: string[], label: string, actual: number, fg: string, bg: string) {
   if (actual < TARGET) {
-    failures += 1;
-    console.error(`FAIL ${label}: ${actual.toFixed(2)} < ${TARGET} (${fg} on ${bg})`);
+    failures.push(`${label}: ${actual.toFixed(2)} < ${TARGET} (${fg} on ${bg})`);
   }
 }
 
@@ -49,38 +50,39 @@ function syntheticDark(hue: number, sat = 0.75): Palette {
   };
 }
 
-// Hue sweep, 1° steps. Each iteration runs a full deriveLight (~48 contrast
-// probes per semantic token), which is still trivially fast in Node.
-for (let hue = 0; hue < 360; hue += 1) {
-  const light = deriveLight(syntheticDark(hue));
-  const bg = light.bg;
-  const tokens = ["accent", "accent2", "success", "warn", "danger"] as const;
-  for (const t of tokens) {
-    check(`hue ${hue} light.${t}`, contrast(light[t], bg), light[t], bg);
-  }
-  // The derive keeps hue stable — the entire point of "hue preserved".
-  const derivedHue = hexToHsl(light.accent)[0];
-  if (Math.abs(derivedHue - hue) > 1) {
-    failures += 1;
-    console.error(`FAIL hue ${hue}: derived light.accent hue ${derivedHue.toFixed(1)} drifted`);
-  }
-}
+describe("light-mode auto-derive contrast", () => {
+  it("clears the WCAG floor across a full hue sweep and keeps hue stable", () => {
+    const failures: string[] = [];
+    // Hue sweep, 1° steps. Each iteration runs a full deriveLight (~48
+    // contrast probes per semantic token), which is still trivially fast.
+    for (let hue = 0; hue < 360; hue += 1) {
+      const light = deriveLight(syntheticDark(hue));
+      const bg = light.bg;
+      const tokens = ["accent", "accent2", "success", "warn", "danger"] as const;
+      for (const t of tokens) {
+        check(failures, `hue ${hue} light.${t}`, contrast(light[t], bg), light[t], bg);
+      }
+      // The derive keeps hue stable — the entire point of "hue preserved".
+      const derivedHue = hexToHsl(light.accent)[0];
+      if (Math.abs(derivedHue - hue) > 1) {
+        failures.push(`hue ${hue}: derived light.accent hue ${derivedHue.toFixed(1)} drifted`);
+      }
+    }
+    expect(failures).toEqual([]);
+  });
 
-// The five derived preset light pairs must pass outright. Neutral's light is
-// authored (NEUTRAL_LIGHT), so it is not an output of the loop under test.
-for (const p of PRESETS) {
-  if (p.id === "neutral") continue;
-  const light = p.light;
-  const bg = light.bg;
-  for (const t of ["accent", "accent2", "success", "warn", "danger"] as const) {
-    check(`${p.name} light.${t}`, contrast(light[t], bg), light[t], bg);
-  }
-}
-
-if (failures > 0) {
-  console.error(`\n${failures} contrast failure(s)`);
-  throw new Error(`${failures} contrast failure(s)`);
-}
-console.log(
-  `OK: hue sweep 0–359 + all derived preset lights clear ${TARGET}:1 on their light.bg`,
-);
+  it("clears the WCAG floor for every derived preset light pair", () => {
+    const failures: string[] = [];
+    // Neutral's light is authored (NEUTRAL_LIGHT), so it is not an output of
+    // the loop under test.
+    for (const p of PRESETS) {
+      if (p.id === "neutral") continue;
+      const light = p.light;
+      const bg = light.bg;
+      for (const t of ["accent", "accent2", "success", "warn", "danger"] as const) {
+        check(failures, `${p.name} light.${t}`, contrast(light[t], bg), light[t], bg);
+      }
+    }
+    expect(failures).toEqual([]);
+  });
+});
