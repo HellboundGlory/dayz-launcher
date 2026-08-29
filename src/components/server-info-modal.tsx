@@ -217,7 +217,7 @@ export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
               <div className="relative flex w-full gap-1">
                 <button
                   ref={joinRef}
-                  onClick={() => void actions.verifyAndJoin(false)}
+                  onClick={() => void actions.verifyAndJoin(server, false)}
                   className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-[6px] bg-accent px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-[#10131a] shadow-[var(--glow)] transition-colors hover:brightness-110"
                 >
                   {server.modded ? <Download className="size-3.5" /> : <Play className="size-3.5" />}
@@ -238,13 +238,20 @@ export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
                   <div
                     ref={loadMenuRef}
                     role="menu"
-                    className="absolute right-0 top-[calc(100%+4px)] z-[6] w-56 rounded-[7px] border border-line bg-surface2 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
+                    // Opens upward (`bottom-full`), not down from the button
+                    // (`top-...`): this row is the last thing in the modal,
+                    // and the modal's own `overflow-hidden` (for its rounded
+                    // corners) clipped a downward-opening menu right at the
+                    // bottom edge. Same fix `mods-tab.tsx`'s action-bar
+                    // dropdowns already use for the identical bottom-row
+                    // shape.
+                    className="absolute bottom-full right-0 z-[6] mb-1 w-56 rounded-[7px] border border-line bg-surface2 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
                   >
                     <button
                       role="menuitem"
                       onClick={() => {
                         setLoadOpen(false);
-                        void actions.verifyAndJoin(true);
+                        void actions.verifyAndJoin(server, true);
                       }}
                       title="Verify the mod list, then launch DayZ to the main menu with this server's mods loaded — it does not join the server."
                       className="flex w-full items-center gap-2 rounded-[5px] px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-ink transition-colors hover:bg-accent-soft hover:text-accent"

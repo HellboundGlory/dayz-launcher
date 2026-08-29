@@ -586,10 +586,17 @@ export async function openModFolder(folder: string): Promise<void> {
 }
 
 /** Append a line from the frontend to `tetra-launcher.log` (see `crate::log`).
-    Level is a free-form tag like "startup" / "reload" / "servers". */
-export async function logClient(level: string, message: string): Promise<void> {
+    Level is a free-form tag like "startup" / "reload" / "servers".
+    `verbose` marks a hot-path line (every reload, every list load) that
+    should only actually write in a debug build — see
+    `crate::log::log_line_verbose`. Defaults to `false`. */
+export async function logClient(
+  level: string,
+  message: string,
+  verbose = false,
+): Promise<void> {
   try {
-    await invoke<void>("log_client", { level: level, message: message });
+    await invoke<void>("log_client", { level: level, message: message, verbose: verbose });
   } catch {
     // Logging must never break the launcher.
   }

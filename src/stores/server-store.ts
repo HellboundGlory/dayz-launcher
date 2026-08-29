@@ -34,9 +34,11 @@ interface ServerState {
   /**
    * Distinct maps seen by the registry, as `[normalised, display]` pairs.
    *
-   * Refetched on every reload (see `server-table.tsx`), so the filter
-   * dropdown grows live as discovery writes new maps — it previously fetched
-   * once on mount and stayed frozen even as the registry filled.
+   * Refetched on its own slow interval, decoupled from the row-reload effect
+   * (see `server-list.tsx`'s `MAP_LIST_REFRESH_MS` — H3, 2026-08-29 audit),
+   * so the filter dropdown still grows live as discovery writes new maps
+   * without riding every discovery-driven reload. It previously fetched once
+   * on mount and stayed frozen even as the registry filled.
    */
   maps: [string, string][];
   /** True once `maps` has been fetched at least once (even if empty). */
@@ -66,8 +68,12 @@ interface ServerState {
 /**
  * Sort choice lives in localStorage rather than settings.json: it is view
  * state, it changes on a single click, and a round trip to disk through the
- * Tauri bridge for every header click would be wasteful. Column widths persist
- * the same way, in `server-table.tsx`.
+ * Tauri bridge for every header click would be wasteful.
+ *
+ * L12 (2026-08-29 audit): this used to also claim column widths persisted
+ * the same way, in a `server-table.tsx` — both stale. The columned,
+ * resizable table was replaced by `server-list.tsx`'s card rows, which have
+ * no per-column width to persist at all.
  */
 /**
  * Whether two rows for the same server carry identical values.
@@ -207,10 +213,10 @@ export const useServerStore = create<ServerState>((set) => ({
    * player count and mod count from whenever the row was first clicked. The only
    * way to see current values was to click away and back.
    *
-   * Matched on `addr` *and* `query_port`: one machine commonly runs several
-   * servers, so the address alone is not unique — GulagZ answers on 2303 and
-   * 2403 from one IP, and matching on address would have pointed the panel at
-   * whichever came first.
+   * Matched on `addr` and `query_port` together, even though `addr` already
+   * embeds the query port (`"ip:query_port"`, see `Server32` on the Rust
+   * side) and is unique on its own — the second check is redundant, not
+   * load-bearing.
    *
    * A selection with no row in the new list keeps its old object rather than
    * being cleared. It is usually still on screen and simply excluded by the

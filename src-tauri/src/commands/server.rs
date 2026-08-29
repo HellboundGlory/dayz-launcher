@@ -20,8 +20,43 @@ const PROBE_WINDOW: usize = 5000;
 /// Servers per registry write batch during a refresh.
 const WRITE_BATCH: usize = 200;
 
-/// Ceiling on one server's whole A2S_RULES retry chain.
+/// Ceiling on one server's whole A2S_RULES retry chain, measured from when
+/// `Prober::rules_with_deadline` actually acquires a permit — never from
+/// when the probe task was spawned. See that method's own docs for why the
+/// distinction is load-bearing: against a fair FIFO semaphore carrying
+/// thousands of queued candidates, a deadline that counted queue time used
+/// to expire almost every one of them before it ever opened a socket.
 const RULES_DEADLINE: std::time::Duration = std::time::Duration::from_secs(8);
+
+/// Below this batch size, a failed A2S_INFO probe is written as `online =
+/// false` unconditionally — there are too few data points to tell "this
+/// server is down" apart from "my network hiccuped" by failure ratio alone,
+/// and a batch this small is exactly what a single targeted row refresh
+/// would send.
+const MIN_BATCH_FOR_OFFLINE_CORROBORATION: usize = 8;
+
+/// Share of a targeted batch that must fail before a miss is treated as "my
+/// network", not "the server is down" — see `probe_info`'s corroboration
+/// check.
+const OFFLINE_CORROBORATION_THRESHOLD: f64 = 0.4;
+
+/// How many rules-probe tasks may be in flight at once during phase 2 of a
+/// refresh, independent of how many candidates phase 1 handed over.
+///
+/// `Prober`'s own semaphore already caps how many queries are actually on
+/// the wire (`max_in_flight`); this caps how many Tokio tasks exist waiting
+/// for one. `PROBE_WINDOW` can hand phase 2 up to 5000 candidates at once —
+/// spawning a task per candidate meant most of them did nothing but sit
+/// queued on a permit that would not free up for tens of seconds. Sized off
+/// the actual configured concurrency (with headroom, so a permit freeing up
+/// always has a task ready to take it) rather than a fixed guess.
+fn rules_fanout(prober: &Prober) -> usize {
+    prober
+        .config()
+        .max_in_flight
+        .saturating_mul(2)
+        .clamp(64, 1000)
+}
 
 /// Borrow the process-wide `Prober` from application state.
 ///
@@ -54,7 +89,29 @@ pub(crate) fn reader(state: &AppState) -> Result<tetra_registry::Reader, String>
         .map_err(|e| e.to_string())
 }
 
-/// Run a blocking registry read off the main thread.
+/// The shared reader `blocking_read` uses, cloning the `Arc` so it can be
+/// moved into `spawn_blocking` without borrowing `AppState` across it.
+///
+/// Lazily seeded on first call rather than at setup — M1 (2026-08-29 audit).
+/// Before this, every `blocking_read` call opened a brand-new `Connection`
+/// (four `PRAGMA`s including a `journal_mode` round trip, plus registering
+/// two scalar UDFs) on top of `SortParams::limit` rows of query work, on the
+/// hottest path in the app. One connection reused for the life of the
+/// session removes almost all of that — reads were already serialised by the
+/// reload throttle, so pooling costs nothing further in contention.
+fn reader_pool(state: &AppState) -> Result<Arc<std::sync::Mutex<tetra_registry::Reader>>, String> {
+    let mut pool = state.server_reader.lock().map_err(|e| e.to_string())?;
+    if let Some(r) = pool.as_ref() {
+        return Ok(Arc::clone(r));
+    }
+    let fresh = reader(state)?;
+    let shared = Arc::new(std::sync::Mutex::new(fresh));
+    *pool = Some(Arc::clone(&shared));
+    Ok(shared)
+}
+
+/// Run a blocking registry read off the main thread, against the pooled
+/// reader connection.
 ///
 /// **Every query command must go through this.** A non-`async` Tauri command
 /// runs on the main thread and the IPC response is dispatched synchronously, so
@@ -65,13 +122,16 @@ pub(crate) fn reader(state: &AppState) -> Result<tetra_registry::Reader, String>
 /// table repopulated.
 pub(crate) async fn blocking_read<T, F>(state: &AppState, work: F) -> Result<T, String>
 where
-    F: FnOnce(tetra_registry::Reader) -> Result<T, String> + Send + 'static,
+    F: FnOnce(&tetra_registry::Reader) -> Result<T, String> + Send + 'static,
     T: Send + 'static,
 {
-    let reader = reader(state)?;
-    tokio::task::spawn_blocking(move || work(reader))
-        .await
-        .map_err(|e| format!("Task join error: {e}"))?
+    let pool = reader_pool(state)?;
+    tokio::task::spawn_blocking(move || {
+        let reader = pool.lock().map_err(|e| e.to_string())?;
+        work(&reader)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
 }
 
 /// Serializable server type for the Tauri bridge (32-bit safe).
@@ -187,6 +247,26 @@ fn to_server32(r: &tetra_registry::filter::ServerListRow) -> Server32 {
     }
 }
 
+/// Clears `AppState.discovery_running` on drop, regardless of how
+/// `discover_servers` leaves scope.
+///
+/// The flag used to be set at the top of the function and cleared by a plain
+/// store at the bottom — reasonable until `writer.upsert_servers(…).await?`
+/// mid-loop started returning early on a registry-write failure, which
+/// skipped the clear and left the flag stuck `true` for the rest of the
+/// session (M13, 2026-08-29 audit). The flag only feeds the exit-time
+/// diagnostic log, but that log exists precisely to be trusted while
+/// investigating an exit-time crash — see the Linux heap-corruption entry in
+/// `progress.md` — and a guard makes "was discovery actually still running"
+/// true regardless of which path out of this function was taken.
+struct DiscoveryGuard<'a>(&'a AppState);
+
+impl Drop for DiscoveryGuard<'_> {
+    fn drop(&mut self) {
+        self.0.discovery_running.store(false, Ordering::Relaxed);
+    }
+}
+
 /// Discover servers through Steam and store them in the registry.
 #[tauri::command]
 pub async fn discover_servers(
@@ -240,7 +320,10 @@ pub async fn discover_servers(
 
     // Tracked so the exit handler can log whether Steam was mid-stream, and so
     // `shutting_down` can coax this loop into stopping before Steam teardown.
+    // Cleared by `DiscoveryGuard`'s `Drop`, not a manual store at the bottom —
+    // see its doc comment for why.
     state.discovery_running.store(true, Ordering::Relaxed);
+    let _discovery_guard = DiscoveryGuard(state.inner());
 
     let mut found = 0usize;
     let mut abandoned = false;
@@ -274,7 +357,6 @@ pub async fn discover_servers(
             serde_json::json!({ "tier": 1, "found": found }),
         );
     }
-    state.discovery_running.store(false, Ordering::Relaxed);
 
     // All registry upserts are done before `pump.await`, so a `get_server_list`
     // issued after this returns sees the full list — which is why a log showing
@@ -319,7 +401,7 @@ pub async fn get_server_list(
     // timelogged so a log from an affected machine shows whether reloads never
     // ran (no lines), ran and returned 0, or hung (start with no finish).
     let started = std::time::Instant::now();
-    crate::log::log_line(&app, "servers", "get_server_list: start");
+    crate::log::log_line_verbose(&app, "servers", "get_server_list: start");
     let result: Result<Vec<Server32>, String> = blocking_read(&state, move |reader| {
         let filter = filter_from_params(filter_params);
         let (sort_key, sort_dir) = sort_from_params(&sort_params);
@@ -330,7 +412,9 @@ pub async fn get_server_list(
     })
     .await;
     match &result {
-        Ok(rows) => crate::log::log_line(
+        // Success is the hot-path case — every reload — so it's verbose-only.
+        // A failure is rare and worth keeping at full volume regardless.
+        Ok(rows) => crate::log::log_line_verbose(
             &app,
             "servers",
             &format!(
@@ -383,6 +467,12 @@ struct InfoBatchResult {
     /// while JOIN (which always queries rules) worked. Every responding
     /// server is now a candidate.
     rules_candidates: Vec<(ServerKey, SocketAddr)>,
+    /// `true` when `failed` was large enough, relative to the batch size,
+    /// that every miss in this batch was treated as a local/network problem
+    /// rather than confirmation that that many servers are actually down —
+    /// see `OFFLINE_CORROBORATION_THRESHOLD`. `online` was left untouched
+    /// for each of those misses instead of being flipped to `false`.
+    offline_marks_suppressed: bool,
 }
 
 /// Phase 1 of a refresh: A2S_INFO every address, writing results in batches.
@@ -484,7 +574,28 @@ async fn probe_info(
     if !online_keys.is_empty() {
         let _ = writer.set_online(online_keys, true).await;
     }
-    if !offline_keys.is_empty() {
+
+    // A miss is only corroborated evidence that a server is down when
+    // enough of the batch answered for the failure share to be meaningful.
+    // `refresh_visible_servers` can probe up to `PROBE_WINDOW` (5000)
+    // servers over up to `MAX_IN_FLIGHT` concurrent UDP flows at once; a
+    // dropped Wi-Fi moment or a consumer router's NAT table evicting
+    // entries under that load drops replies indiscriminately across the
+    // whole batch, not just from servers that are actually offline. Without
+    // this check, one bad moment on the user's own network used to write
+    // `online = false` for thousands of rows, and with `hide_offline` on the
+    // browser would go empty.
+    let total = refreshed + failed;
+    let failure_rate = if total > 0 {
+        failed as f64 / total as f64
+    } else {
+        0.0
+    };
+    let offline_marks_suppressed = mark_offline
+        && total >= MIN_BATCH_FOR_OFFLINE_CORROBORATION
+        && failure_rate > OFFLINE_CORROBORATION_THRESHOLD;
+
+    if !offline_marks_suppressed && !offline_keys.is_empty() {
         let _ = writer.set_online(offline_keys, false).await;
     }
     let _ = window.emit("server-refreshed", serde_json::json!({ "phase": "info" }));
@@ -493,13 +604,52 @@ async fn probe_info(
         refreshed,
         failed,
         rules_candidates,
+        offline_marks_suppressed,
     }
 }
 
-/// Phase 2 of a refresh: A2S_RULES for every server phase 1 answered,
-/// concurrently. Returns how many writes succeeded and, for each, the mod
-/// list that came back — the caller needs that list to ask Steam about
-/// pending updates without a second registry round trip.
+/// Issue one rules probe as a task on `tasks`, applying `RULES_DEADLINE` from
+/// the moment a permit is actually acquired (`Prober::rules_with_deadline`,
+/// not the fixed-from-spawn-time wrapping this replaced — see `RULES_DEADLINE`'s
+/// own docs).
+fn spawn_rules_task(
+    tasks: &mut tokio::task::JoinSet<(
+        ServerKey,
+        bool,
+        Option<Vec<tetra_core::a2s::dayz::ServerMod>>,
+    )>,
+    prober: &Prober,
+    writer: &tetra_registry::Writer,
+    key: ServerKey,
+    addr: SocketAddr,
+) {
+    let prober = prober.clone();
+    let writer = writer.clone();
+    tasks.spawn(async move {
+        match prober.rules_with_deadline(addr, RULES_DEADLINE).await {
+            // Writing an empty mod list is deliberate: it records "asked,
+            // declared nothing" as mod_count = 0, which the UI shows
+            // differently from never-probed (NULL).
+            Ok(rules) => {
+                let ok = writer
+                    .upsert_server_mods(key, rules.mods.clone())
+                    .await
+                    .is_ok();
+                (key, ok, Some(rules.mods))
+            }
+            Err(_) => (key, false, None),
+        }
+    });
+}
+
+/// Phase 2 of a refresh: A2S_RULES for every server phase 1 answered.
+/// Returns how many writes succeeded, the mod list for each server that
+/// answered (the caller needs that list to ask Steam about pending updates
+/// without a second registry round trip), and how many candidates never
+/// answered within `RULES_DEADLINE`.
+///
+/// Bounded to `rules_fanout` tasks alive at once rather than one per
+/// candidate — see that function's docs.
 async fn probe_rules(
     prober: &Prober,
     candidates: Vec<(ServerKey, SocketAddr)>,
@@ -507,47 +657,36 @@ async fn probe_rules(
 ) -> (
     usize,
     Vec<(ServerKey, Vec<tetra_core::a2s::dayz::ServerMod>)>,
+    usize,
 ) {
-    let mut rules_tasks = Vec::with_capacity(candidates.len());
-
-    for (key, addr) in candidates {
-        let prober = prober.clone();
-        let writer = writer.clone();
-        rules_tasks.push(tokio::spawn(async move {
-            // A whole refresh must not be held hostage by a handful of servers
-            // that accept the query and then trickle fragments. `Prober::rules`
-            // already bounds each attempt, but not the retry chain as a whole.
-            let probe = tokio::time::timeout(RULES_DEADLINE, prober.rules(addr));
-            match probe.await {
-                // Writing an empty mod list is deliberate: it records
-                // "asked, declared nothing" as mod_count = 0, which the UI
-                // shows differently from never-probed (NULL).
-                Ok(Ok(rules)) => {
-                    let ok = writer
-                        .upsert_server_mods(key, rules.mods.clone())
-                        .await
-                        .is_ok();
-                    (ok, Some((key, rules.mods)))
-                }
-                _ => (false, None),
-            }
-        }));
-    }
-
     let mut mods_updated = 0usize;
     let mut mod_lists = Vec::new();
-    for task in rules_tasks {
-        if let Ok((ok, entry)) = task.await {
+    let mut cancelled = 0usize;
+
+    let mut pending = candidates.into_iter();
+    let mut tasks = tokio::task::JoinSet::new();
+
+    let fanout = rules_fanout(prober);
+    for (key, addr) in pending.by_ref().take(fanout) {
+        spawn_rules_task(&mut tasks, prober, writer, key, addr);
+    }
+
+    while let Some(joined) = tasks.join_next().await {
+        if let Ok((key, ok, mods)) = joined {
             if ok {
                 mods_updated += 1;
             }
-            if let Some(pair) = entry {
-                mod_lists.push(pair);
+            match mods {
+                Some(m) => mod_lists.push((key, m)),
+                None => cancelled += 1,
             }
+        }
+        if let Some((key, addr)) = pending.next() {
+            spawn_rules_task(&mut tasks, prober, writer, key, addr);
         }
     }
 
-    (mods_updated, mod_lists)
+    (mods_updated, mod_lists, cancelled)
 }
 
 /// A2S-refresh servers using the active frontend filter.
@@ -559,6 +698,7 @@ async fn probe_rules(
 /// REFRESH button instead calls `refresh_visible_servers`.
 #[tauri::command]
 pub async fn refresh_servers(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     window: tauri::Window,
     filter_params: Option<FilterParams>,
@@ -592,11 +732,24 @@ pub async fn refresh_servers(
 
     let prober = prober(&state)?;
     let info = probe_info(&prober, addrs, &writer, &window, false).await;
-    let (mods_updated, _mod_lists) = probe_rules(&prober, info.rules_candidates, &writer).await;
+    let (mods_updated, _mod_lists, mods_cancelled) =
+        probe_rules(&prober, info.rules_candidates, &writer).await;
+    if mods_cancelled > 0 {
+        crate::log::log_line(
+            &app,
+            "refresh",
+            &format!("refresh_servers: {mods_cancelled} rules probes did not answer in time"),
+        );
+    }
 
     let _ = window.emit(
         "refresh-complete",
-        serde_json::json!({ "ok": info.refreshed, "failed": info.failed, "mods_updated": mods_updated }),
+        serde_json::json!({
+            "ok": info.refreshed,
+            "failed": info.failed,
+            "mods_updated": mods_updated,
+            "mods_cancelled": mods_cancelled,
+        }),
     );
     Ok(())
 }
@@ -617,20 +770,28 @@ pub struct ModsPendingEntry {
     pub pending: bool,
 }
 
-/// A2S-refresh exactly the servers the frontend passes in — what's actually
-/// on screen, per `rowVirtualizer.getVirtualItems()` — rather than
-/// re-querying the registry for a broad, possibly out-of-sync window. This is
-/// what the REFRESH button calls.
+/// A2S-refresh exactly the servers the frontend passes in — the whole
+/// currently filtered/loaded list, not merely what the virtualizer has
+/// mounted (`App.tsx`'s `handleRefresh` sends every row it has on purpose;
+/// see its own comment for why probing only the visible range made the
+/// button look broken) — rather than re-querying the registry for a broad,
+/// possibly out-of-sync window. This is what the REFRESH button calls.
 ///
-/// Unlike `refresh_servers`, a probe that gets no answer here does mean
-/// something: every address came from a row the user can currently see, so a
-/// miss is written as `online = false` and the row can render OFFLINE.
+/// Unlike `refresh_servers`, a probe that gets no answer here can mean
+/// something: every address came from a row the user has loaded, so a miss
+/// is a candidate for `online = false` so the row can render OFFLINE. It is
+/// only ever written, though, when enough of the *batch* answered for the
+/// failure share to be meaningful — see `probe_info`'s corroboration check
+/// and `OFFLINE_CORROBORATION_THRESHOLD`. A batch that mostly failed at once
+/// is far more likely to be this machine's network than that many servers
+/// going down simultaneously.
 ///
 /// Also re-asks Steam whether any declared mod has an update pending, for
 /// whatever came back modded — the A2S_RULES pass alone only tells you the
 /// server's mod *list*, not whether Steam's copy is stale.
 #[tauri::command]
 pub async fn refresh_visible_servers(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     window: tauri::Window,
     addrs: Vec<AddrPort>,
@@ -660,7 +821,30 @@ pub async fn refresh_visible_servers(
 
     let prober = prober(&state)?;
     let info = probe_info(&prober, socket_addrs, &writer, &window, true).await;
-    let (mods_updated, mod_lists) = probe_rules(&prober, info.rules_candidates, &writer).await;
+    let (mods_updated, mod_lists, mods_cancelled) =
+        probe_rules(&prober, info.rules_candidates, &writer).await;
+
+    if info.offline_marks_suppressed {
+        crate::log::log_line(
+            &app,
+            "refresh",
+            &format!(
+                "refresh_visible_servers: {} of {} probes failed at once — \
+                 treated as a local network problem, none written as offline",
+                info.failed,
+                info.refreshed + info.failed
+            ),
+        );
+    }
+    if mods_cancelled > 0 {
+        crate::log::log_line(
+            &app,
+            "refresh",
+            &format!(
+                "refresh_visible_servers: {mods_cancelled} rules probes did not answer in time"
+            ),
+        );
+    }
 
     // Phase 3: ask Steam whether any of the mods just re-declared need an
     // update. Best-effort — Steam not being connected, or the lookup
@@ -713,6 +897,8 @@ pub async fn refresh_visible_servers(
             "ok": info.refreshed,
             "failed": info.failed,
             "mods_updated": mods_updated,
+            "mods_cancelled": mods_cancelled,
+            "offline_marks_suppressed": info.offline_marks_suppressed,
             "scope": scope,
         }),
     );
@@ -748,6 +934,14 @@ pub async fn get_server_mods(
 }
 
 /// Set a server's favourite flag, persisted in the registry.
+///
+/// Errors when `addr` names no row the registry knows about, rather than
+/// reporting success on an `UPDATE` that touched nothing. Without this a
+/// favourite requested for a server the registry hasn't discovered yet — the
+/// `dzsa://` deep-link flow is the reachable case — lit the star in the UI
+/// with nothing behind it: gone the moment the app restarted, with no error
+/// anywhere to explain why. The frontend's optimistic toggle already reverts
+/// on an `Err` from this command.
 #[tauri::command]
 pub async fn toggle_favourite(
     state: State<'_, AppState>,
@@ -760,10 +954,14 @@ pub async fn toggle_favourite(
         let guard = state.registry.lock().map_err(|e| e.to_string())?;
         guard.as_ref().ok_or("Registry not initialized")?.writer()
     };
-    writer
+    let affected = writer
         .set_favourite(key, favourite)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    if affected == 0 {
+        return Err(format!("{addr} is not in the registry yet"));
+    }
+    Ok(())
 }
 
 /// Registry counts for the footer.
@@ -829,7 +1027,6 @@ fn filter_from_params(p: FilterParams) -> ServerFilter {
         hide_full: p.hide_full,
         hide_locked: p.hide_locked,
         hide_offline: p.hide_offline,
-        unresponsive_after_secs: None,
         max_ping_ms: p.max_ping,
         search: p.search,
         favourites_only: p.favourites_only,

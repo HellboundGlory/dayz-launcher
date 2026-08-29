@@ -106,6 +106,24 @@ export function visibleRows(rows: SubscribedMod[]): SubscribedMod[] {
   return rows.filter((r) => !r.removed);
 }
 
+/**
+ * Whether two `{ id: T }` maps carry the same entries.
+ *
+ * `setLive`/`setProgress` are called every 1.5s poll tick with a freshly
+ * built object regardless of whether anything actually changed (H8,
+ * 2026-08-29 audit) — without this, that gave `states`/`progress` a new
+ * identity on every tick even when Steam reported exactly the same thing,
+ * which invalidated the Mods tab's `mods` `useMemo` and re-rendered every
+ * row, twice a second, on a tab that could otherwise sit idle.
+ */
+function sameEntries<T>(a: Record<string, T>, eq: (x: T, y: T) => boolean) {
+  return (b: Record<string, T>): boolean => {
+    const keys = Object.keys(a);
+    if (keys.length !== Object.keys(b).length) return false;
+    return keys.every((k) => Object.prototype.hasOwnProperty.call(b, k) && eq(a[k], b[k]));
+  };
+}
+
 export const useModsStore = create<ModsState>((set, get) => ({
   rows: [],
   fromCache: false,
@@ -145,6 +163,15 @@ export const useModsStore = create<ModsState>((set, get) => ({
           get().selectedModId && rows.some((r) => r.workshop_id === get().selectedModId)
             ? get().selectedModId
             : null,
+        // A forced (Refresh-button) load re-derives every row's `state`
+        // from a live Workshop query, upgrading a false "Ready" to
+        // "NeedsUpdate" where the two now disagree (see the Rust-side
+        // `is_stale` check `start_mod_enumeration` runs). Without clearing
+        // `states` here, a row's rendering (`states[id] ?? row.state`) would
+        // keep showing whatever the last 1.5s poll tick cached — the same
+        // stale Steam-client bit this refresh exists to correct — until
+        // that poll happened to catch up on its own.
+        ...(force ? { states: {} } : {}),
       });
     } catch (e) {
       set({ loading: false, error: String(e) });
@@ -160,8 +187,18 @@ export const useModsStore = create<ModsState>((set, get) => ({
     });
   },
 
-  setLive: (states) => set({ states }),
-  setProgress: (progress) => set({ progress }),
+  setLive: (states) => {
+    if (sameEntries<ModState>(get().states, (x, y) => x === y)(states)) return;
+    set({ states });
+  },
+  setProgress: (progress) => {
+    const same = sameEntries<{ downloaded: string; total: string }>(
+      get().progress,
+      (x, y) => x.downloaded === y.downloaded && x.total === y.total,
+    );
+    if (same(progress)) return;
+    set({ progress });
+  },
 
   toggleSelected: (id) => {
     const selected = new Set(get().selectedIds);

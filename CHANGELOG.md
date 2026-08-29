@@ -1,5 +1,54 @@
 # Changelog
 
+## v2.1.0 — 2026-08-29
+
+A reliability and security pass covering a full codebase audit — nothing new
+to learn, a lot fixed underneath.
+
+### Changed
+
+- The interface stays noticeably more responsive while discovering
+  servers — the list no longer re-queries itself several times a second.
+- The Mods tab handles a large subscribed library much more smoothly.
+- Custom Launch Parameters (Settings) is now one parameter per line instead
+  of a single space-separated field, so a parameter containing a space (a
+  Windows install path, for example) can actually be entered.
+
+### Fixed
+
+- The JOIN button could, in rare cases, act on the wrong server rather than
+  the one just clicked.
+- A cancelled or superseded launch could interfere with a different one
+  already in progress.
+- A `dzsa://` deep link with a malformed address is now rejected instead of
+  silently doing nothing; one for a server not yet in your list now tells
+  you instead of failing silently.
+- Favouriting or marking a server played before it's been discovered no
+  longer silently loses the change.
+- (Linux) The window can now be resized by dragging its edges.
+- The Mods tab's Refresh button now actually rechecks whether a mod has
+  fallen out of date, not just its listing details.
+- The More Info modal's LOAD dropdown could render clipped at the bottom of
+  the modal.
+- REFRESH could mark far more servers offline than were actually
+  unreachable after a brief local network hiccup.
+- Discord Rich Presence is more reliable around Steam or network hiccups on
+  startup and shutdown.
+- Settings could, on a rare read failure, silently start reverting toward
+  defaults on the next save.
+- Changelog links in the update dialog no longer navigate the whole
+  launcher window away from the app.
+- The REGION filter is now labelled as approximate, matching what it
+  actually is (IP-block based, not a confirmed location).
+
+### Security
+
+- The launcher's webview now runs under a real Content Security Policy,
+  with unused permissions dropped and a missing one (window resizing on
+  Linux) added.
+- Added input validation around deep links, the mod-folder opener, and
+  Steam Workshop links.
+
 ## v2.0.1 — 2026-08-28
 
 ### Fixed

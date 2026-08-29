@@ -46,12 +46,3 @@ pub struct ServerRow {
     /// leave this `None`.
     pub country_code: Option<String>,
 }
-
-#[derive(Debug, Clone, Default)]
-pub struct ModRow {
-    pub workshop_id: u64,
-    pub name: String,
-    pub install_state: Option<i64>,
-    pub size_on_disk: Option<i64>,
-    pub install_path: Option<String>,
-}

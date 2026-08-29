@@ -1,9 +1,19 @@
 name: Release
 
-# Release ritual: bump the version in package.json + src-tauri/tauri.conf.json
-# (kept in lockstep — the updater compares against tauri.conf.json's version),
-# commit, tag as vX.Y.Z, then push the tag. That push is this workflow's only
-# trigger — nothing here runs on an ordinary commit.
+# Release ritual: bump the version in package.json, src-tauri/tauri.conf.json
+# AND the root Cargo.toml (all three kept in lockstep — L13, 2026-08-29
+# audit: this comment used to name only the first two, which is wrong where
+# someone will read it under pressure; the updater compares against
+# tauri.conf.json's version specifically, but AGENTS.md is the authority on
+# all three needing to move together), commit, tag as vX.Y.Z, then push the
+# tag. That push is this workflow's only trigger — nothing here runs on an
+# ordinary commit.
+# M15 (2026-08-29 audit): so two tags pushed together (or a tag re-pushed
+# after being deleted) can't race each other through the same release/
+# publish steps.
+concurrency:
+  group: release-${{ github.ref }}
+
 on:
   push:
     tags:
@@ -19,11 +29,17 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
+      # M15 (2026-08-29 audit): the workspace `Cargo.toml` lives at the repo
+      # root, and so does its `target/` — not under `src-tauri/`. The old
+      # `workspaces: "./src-tauri -> target"` pointed the cache at a path
+      # that was never the actual build output, so this job cached nothing.
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: "./src-tauri -> target"
+          workspaces: ". -> target"
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -33,6 +49,25 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+
+      # M15 (2026-08-29 audit): a tag push matches neither `check.yml`'s
+      # `push.branches` nor its `pull_request` trigger, so before this the
+      # one build that reaches users was also the only one with no fmt/
+      # clippy/test/build gate at all. Inlined here (rather than a
+      # cross-workflow `needs:`, which GitHub Actions can't express between
+      # separate workflow files) so a broken tag still fails closed before
+      # anything is signed or published.
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace
+
+      - name: Build frontend
+        run: npm run build
 
       # Builds, signs the updater artifacts (TAURI_SIGNING_PRIVATE_KEY*), and
       # creates+publishes the GitHub release with the NSIS installer,
@@ -105,11 +140,15 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
+      # M15 (2026-08-29 audit): see the Windows job's identical comment — the
+      # workspace root (and its `target/`) is the repo root, not `src-tauri/`.
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: "./src-tauri -> target"
+          workspaces: ". -> target"
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -119,6 +158,20 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+
+      # M15 (2026-08-29 audit): see the Windows job's identical comment — the
+      # release workflow had no fmt/clippy/test/build gate at all.
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace
+
+      - name: Build frontend
+        run: npm run build
 
       # Build the Rust binary first (release): this both produces the binary and
       # emits libsteam_api.so (the Steamworks SDK) under

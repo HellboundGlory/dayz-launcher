@@ -1,8 +1,16 @@
+/// <reference types="vitest/config" />
 import path from "path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
+// T1 (2026-08-29 audit): Vitest reads this same config (the triple-slash
+// reference above is what lets the `test` block below type-check), so
+// `palette.test.ts` — previously runnable only by hand with plain Node — now
+// runs the same way the rest of the frontend build does.
 export default defineConfig({
+  test: {
+    environment: "node",
+  },
   clearScreen: false,
   server: {
     strictPort: true,

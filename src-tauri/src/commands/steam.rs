@@ -1,4 +1,5 @@
 use crate::state::AppState;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::State;
 
@@ -50,6 +51,17 @@ impl From<tetra_steam::SteamError> for SteamInitError {
     }
 }
 
+/// Resets `AppState.steam_initialising` on drop — every exit from
+/// `steam_init` (success, a real failure, or an early `?`) has to release the
+/// guard, not just the path that reaches the bottom of the function.
+struct InitGuard<'a>(&'a AtomicBool);
+
+impl Drop for InitGuard<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Release);
+    }
+}
+
 /// Initialize Steamworks client for DayZ (appid 221100).
 /// Steam shows "playing DayZ" while the handle lives.
 ///
@@ -73,6 +85,25 @@ pub async fn steam_init(state: State<'_, AppState>) -> Result<(), SteamInitError
             return Ok(());
         }
     }
+
+    // M17 (2026-08-29 audit): `steam_ready` alone only guards the window
+    // *before* `SteamHandle::start()` — two calls arriving close together
+    // (the auto-retry timer and a manual Retry click, say) could both pass
+    // that check and both run a real `SteamAPI_Init()` before either
+    // finished. This closes that window: the loser fails fast, with a
+    // failure kind the frontend already knows how to wait out.
+    if state
+        .steam_initialising
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return Err(tetra_steam::SteamError::Init(
+            tetra_steam::InitFailure::AlreadyInitialising,
+            "another connection attempt is already in progress".into(),
+        )
+        .into());
+    }
+    let _init_guard = InitGuard(&state.steam_initialising);
 
     let handle = tokio::task::spawn_blocking(tetra_steam::SteamHandle::start)
         .await

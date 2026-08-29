@@ -138,8 +138,17 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const saved = await getSettings();
       set({ ...saved, loaded: true });
     } catch (e) {
-      console.error("Failed to load settings, using defaults:", e);
-      set({ loaded: true });
+      // M7 (2026-08-29 audit): this used to set `loaded: true` here too, so
+      // the *next* `setSetting` call — any checkbox toggle — would write the
+      // hardcoded `defaults` above back to `settings.json` verbatim,
+      // silently reintroducing stale values a real load would have
+      // overwritten (this store's `maxConcurrentQueries: 1024` predates the
+      // Rust default's drop to 256, exactly the kind of drift this bug would
+      // resurrect on the very first read failure). Leaving `loaded` false
+      // means nothing here ever gets written back this session — worse than
+      // ideal on a transient failure, but far better than corrupting the
+      // user's saved settings with values they never actually chose.
+      console.error("Failed to load settings, not saving until a load succeeds:", e);
     }
   },
 

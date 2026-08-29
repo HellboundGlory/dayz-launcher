@@ -92,7 +92,21 @@ jobs:
       - name: Install
         run: npm ci
 
-      # Matches the typecheck half of `npm run build`. The Vite build itself is
-      # covered by the release workflow's `tauri build`.
-      - name: Typecheck
-        run: npx tsc --noEmit
+      # T2 (2026-08-29 audit): this used to run only `tsc --noEmit`, on the
+      # theory that the release workflow's `tauri build` covers the Vite
+      # build itself — true, but that means a broken Vite input (the
+      # two-entry index.html/splash.html setup, a bad asset import, a
+      # PostCSS failure) was caught for the first time during a release, not
+      # in ordinary CI. `npm run build` runs both steps and is well under two
+      # seconds.
+      - name: Build
+        run: npm run build
+
+      # T1 (2026-08-29 audit): there was no frontend test runner or linter at
+      # all — `palette.test.ts` locks a WCAG contrast invariant across a hue
+      # sweep and ran only when someone remembered to by hand.
+      - name: Test
+        run: npm test
+
+      - name: Lint
+        run: npm run lint

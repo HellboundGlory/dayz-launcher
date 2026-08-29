@@ -1,5 +1,5 @@
 /** @type {import('tailwindcss').Config} */
-module.exports = {
+export default {
   darkMode: ["class"],
   // Only `src` exists — the pages/components/app globs were scaffolding from
   // the shadcn starter this was generated from and matched nothing.

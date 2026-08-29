@@ -375,13 +375,21 @@ const MIN_WINDOW: (f64, f64) = (975.0, 620.0);
 ///
 /// Both failures are logged and swallowed. A webview that will not zoom is a
 /// launcher that looks wrong, not one that should refuse to open.
+///
+/// **Records `applied` only after the window is resolved and both calls have
+/// returned** (M16, 2026-08-29 audit) — it used to record `scale` as applied
+/// *before* checking whether `get_webview_window("main")` even returned a
+/// window. A save landing before the window exists (a plausible startup
+/// ordering) meant nothing was actually applied, but the memo now claimed
+/// otherwise — so every later call with the same scale short-circuited on
+/// the guard above, and the zoom was silently never applied for the rest of
+/// the session.
 pub fn apply_ui_scale(app: &AppHandle, scale: f64) {
     if let Some(state) = app.try_state::<crate::state::AppState>() {
-        if let Ok(mut applied) = state.applied_ui_scale.lock() {
+        if let Ok(applied) = state.applied_ui_scale.lock() {
             if (*applied - scale).abs() < f64::EPSILON {
                 return;
             }
-            *applied = scale;
         }
     }
 
@@ -395,6 +403,12 @@ pub fn apply_ui_scale(app: &AppHandle, scale: f64) {
         eprintln!("[settings] Could not raise the minimum window size: {e}");
     }
     eprintln!("[settings] Interface scale {scale}");
+
+    if let Some(state) = app.try_state::<crate::state::AppState>() {
+        if let Ok(mut applied) = state.applied_ui_scale.lock() {
+            *applied = scale;
+        }
+    }
 }
 
 /// The smallest permitted window at a given scale.
@@ -510,11 +524,8 @@ pub fn persist_window_state(app: &AppHandle) {
     let Ok(json) = serde_json::to_string_pretty(&settings) else {
         return;
     };
-    let tmp = path.with_extension("json.tmp");
-    if std::fs::write(&tmp, json).is_ok() {
-        if let Err(e) = std::fs::rename(&tmp, &path) {
-            eprintln!("[settings] Could not save the window geometry: {e}");
-        }
+    if let Err(e) = crate::atomic_write::write_atomically(&path, json.as_bytes()) {
+        eprintln!("[settings] Could not save the window geometry: {e}");
     }
 }
 
@@ -610,12 +621,8 @@ pub async fn save_settings(app: AppHandle, mut settings: AppSettings) -> Result<
     apply_ui_scale(&app, settings.scale());
 
     tokio::task::spawn_blocking(move || {
-        let tmp = path.with_extension("json.tmp");
-        std::fs::write(&tmp, json)
-            .map_err(|e| format!("Could not write {}: {e}", tmp.display()))?;
-        std::fs::rename(&tmp, &path)
-            .map_err(|e| format!("Could not replace {}: {e}", path.display()))?;
-        Ok(())
+        crate::atomic_write::write_atomically(&path, json.as_bytes())
+            .map_err(|e| format!("Could not save {}: {e}", path.display()))
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?

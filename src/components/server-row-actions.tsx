@@ -116,19 +116,19 @@ export function ServerRowActions({ server, onMoreInfo, onOpenChange }: RowAction
             icon={<Play className="size-3.5" />}
             label="Join"
             disabled={!!actions.op || actions.dayzUp}
-            onClick={() => run(() => void actions.verifyAndJoin(false))}
+            onClick={() => run(() => void actions.verifyAndJoin(server, false))}
           />
           <MenuItem
             icon={<ListTree className="size-3.5" />}
             label="Load to menu"
             disabled={!!actions.op || actions.dayzUp}
-            onClick={() => run(() => void actions.verifyAndJoin(true))}
+            onClick={() => run(() => void actions.verifyAndJoin(server, true))}
           />
           <MenuItem
             icon={<Download className="size-3.5" />}
             label="Download mods"
             disabled={!!actions.op}
-            onClick={() => run(() => void actions.subscribeOnly())}
+            onClick={() => run(() => void actions.subscribeOnly(server))}
           />
           {actions.notice && (
             <div className="mt-1 border-t border-line-weak px-2.5 pb-1 pt-1.5">
