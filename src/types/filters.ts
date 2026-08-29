@@ -15,7 +15,7 @@ export interface ServerFilter {
   // ENGLISH ONLY is deliberately absent: it defaults to on, so it is persisted
   // in `AppSettings.englishNamesFilter` rather than held here where every launch
   // would reset it. The filter bar reads and writes it through the settings
-  // store, and `server-table` merges it into the wire `FilterParams`.
+  // store, and `server-list` merges it into the wire `FilterParams`.
 }
 
 export type SortKey = 'players' | 'ping' | 'mod_count' | 'name' | 'map' | 'last_played';

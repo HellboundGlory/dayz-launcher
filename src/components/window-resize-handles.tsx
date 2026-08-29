@@ -1,4 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { logClient } from "@/lib/tauri";
 
 // Same values `ResizeDirection` resolves to, but the API package does not
 // re-export the type from its module root.
@@ -33,7 +34,17 @@ export function WindowResizeHandles() {
           className={`pointer-events-auto fixed z-50 ${h.className}`}
           onMouseDown={(e) => {
             e.preventDefault();
-            getCurrentWindow().startResizeDragging(h.dir).catch(() => {});
+            // H5 (2026-08-29 audit): this used to fail silently on every
+            // platform — the required ACL permission
+            // (`core:window:allow-start-resize-dragging`) was missing from
+            // `capabilities/default.json`, so every call was rejected and
+            // swallowed here, and Linux (the one platform with no native
+            // edge-resize to fall back on) simply couldn't be resized by
+            // dragging in any release. Logged now so a future ACL gap like
+            // this one doesn't survive to a release unnoticed again.
+            getCurrentWindow()
+              .startResizeDragging(h.dir)
+              .catch((e) => void logClient("window", `startResizeDragging(${h.dir}) failed: ${String(e)}`));
           }}
         />
       ))}

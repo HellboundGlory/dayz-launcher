@@ -249,16 +249,19 @@ function FdropTrigger({
   open,
   children,
   onClick,
+  title,
 }: {
   label: string;
   on?: boolean;
   open?: boolean;
   children: React.ReactNode;
   onClick: () => void;
+  title?: string;
 }) {
   return (
     <button
       onClick={onClick}
+      title={title}
       aria-haspopup="listbox"
       aria-expanded={open ?? false}
       className={cn(
@@ -438,7 +441,13 @@ function CountryDropdown({
 
   return (
     <div ref={ref} className={cn("fdrop relative", open && "open")}>
-      <FdropTrigger label="REGION" on={selectedCountries.length > 0} open={open} onClick={() => setOpen(!open)}>
+      <FdropTrigger
+        label="REGION"
+        on={selectedCountries.length > 0}
+        open={open}
+        onClick={() => setOpen(!open)}
+        title="Approximate — based on the server's IP block, not its actual location"
+      >
         {label}
       </FdropTrigger>
       {open && (
@@ -453,6 +462,13 @@ function CountryDropdown({
             </FdropItem>
           ))}
           <FdropSep />
+          {/* L1 (2026-08-29 audit): the classifier is a first-octet table —
+              a whole /8 per region, and nine octets are contested between
+              two regions with "last block wins". Real, but coarse enough
+              that presenting it as fact would mislead; this says so. */}
+          <p className="px-2 pb-1 pt-0.5 text-[8px] leading-snug text-muted">
+            Approximate — based on IP block, not confirmed location
+          </p>
           <FdropClear onClick={() => onChange([])} />
         </FdropMenu>
       )}

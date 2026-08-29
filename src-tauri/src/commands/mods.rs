@@ -57,15 +57,13 @@ fn read_cache(path: &std::path::Path) -> ModsCache {
     serde_json::from_str(&text).unwrap_or_default()
 }
 
-/// Persist the snapshot atomically (temp + rename), matching `settings.json`.
+/// Persist the snapshot atomically and durably (temp + fsync + rename), matching
+/// `settings.json` — see `crate::atomic_write`.
 fn write_cache(path: &std::path::Path, cache: &ModsCache) {
     let Ok(json) = serde_json::to_string_pretty(cache) else {
         return;
     };
-    let tmp = path.with_extension("json.tmp");
-    if std::fs::write(&tmp, json).is_ok() {
-        let _ = std::fs::rename(&tmp, path);
-    }
+    let _ = crate::atomic_write::write_atomically(path, json.as_bytes());
 }
 
 fn now() -> i64 {
@@ -359,19 +357,41 @@ pub async fn reinstall_subscribed_mod(
 ///
 /// Windows: Explorer. Linux: the desktop opener. The folder may not exist if
 /// Steam never downloaded the item — opening the parent covers that case.
+///
+/// **Constrained to the Steam Workshop root** (H4, 2026-08-29 audit).
+/// `folder` reaches this command from the frontend, which today always
+/// passes back a path this same backend reported for a subscribed mod — but
+/// the command itself previously handed *any* string straight to
+/// Explorer/`xdg-open` with no check at all. Defence in depth: a folder is
+/// only ever revealed if it resolves inside the Workshop content directory
+/// Steam itself reports, so nothing reachable from the webview can be used
+/// to browse an arbitrary path on disk.
 #[tauri::command]
 pub fn open_mod_folder(folder: String) -> Result<(), String> {
-    let path = std::path::PathBuf::from(&folder);
-    let target = if path.exists() {
-        path.as_path()
+    let workshop_root = tetra_launch::registry_discovery::find_steam_paths()
+        .ok_or("Could not locate the Steam Workshop folder")?
+        .workshop_dir
+        .canonicalize()
+        .map_err(|e| format!("Could not resolve the Steam Workshop folder: {e}"))?;
+
+    let path = PathBuf::from(&folder);
+    let candidate = if path.exists() {
+        &path
     } else {
-        path.parent().unwrap_or(path.as_path())
+        path.parent().unwrap_or(&path)
     };
+    let target = candidate
+        .canonicalize()
+        .map_err(|e| format!("Could not open {}: {e}", candidate.display()))?;
+    if !target.starts_with(&workshop_root) {
+        return Err("Refusing to open a path outside the Steam Workshop folder".into());
+    }
+
     #[cfg(target_os = "windows")]
     let mut cmd = std::process::Command::new("explorer");
     #[cfg(not(target_os = "windows"))]
     let mut cmd = std::process::Command::new("xdg-open");
-    cmd.arg(target)
+    cmd.arg(&target)
         .spawn()
         .map(|_| ())
         .map_err(|e| format!("Could not open {}: {e}", target.display()))

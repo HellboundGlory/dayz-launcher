@@ -15,7 +15,7 @@ pub mod writer;
 pub use error::RegistryError;
 pub use filter::{ServerFilter, ServerListRow, SortDir, SortKey};
 pub use reader::Reader;
-pub use rows::{ModRow, ServerKey, ServerRow};
+pub use rows::{ServerKey, ServerRow};
 pub use writer::Writer;
 
 use rusqlite::Connection;
@@ -46,6 +46,9 @@ impl Registry {
     fn start(uri: String) -> Result<Registry, RegistryError> {
         let conn = Self::connect(&uri)?;
         schema::migrate(&conn)?;
+        // Best-effort: a prune failure must not stop the registry from
+        // opening. See `schema::prune_stale` (M14, 2026-08-29 audit).
+        let _ = schema::prune_stale(&conn);
 
         let (tx, rx) = mpsc::channel(64);
         std::thread::Builder::new()

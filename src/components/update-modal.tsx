@@ -87,7 +87,28 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
 
               {available.body || changelog ? (
                 <div className="update-changelog mt-3">
-                  <ReactMarkdown>{available.body || changelog}</ReactMarkdown>
+                  {/* M5 (2026-08-29 audit): a plain <a> here would navigate
+                      this single webview away from the running app on click,
+                      with no way back — release notes routinely contain
+                      links, and this is a modal the user is being asked to
+                      read. Every other external link in the app already goes
+                      through the shell opener; this is the one place that
+                      didn't. */}
+                  <ReactMarkdown
+                    components={{
+                      a: ({ href, children }) => (
+                        <button
+                          type="button"
+                          onClick={() => href && void openLink(href)}
+                          className="text-[#38bdf8] underline decoration-dotted underline-offset-2 hover:text-[#7dd3fc]"
+                        >
+                          {children}
+                        </button>
+                      ),
+                    }}
+                  >
+                    {available.body || changelog}
+                  </ReactMarkdown>
                 </div>
               ) : (
                 <p className="mt-3 text-[10px] text-[#64748b]">

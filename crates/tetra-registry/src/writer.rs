@@ -1,5 +1,5 @@
 use crate::error::RegistryError;
-use crate::rows::{ModRow, ServerKey, ServerRow};
+use crate::rows::{ServerKey, ServerRow};
 use rusqlite::{params, Connection};
 use tetra_core::a2s::dayz::ServerMod;
 use tetra_core::classify::geoip::country_code as geo_country_code;
@@ -12,9 +12,8 @@ type Ack<T> = oneshot::Sender<Result<T, RegistryError>>;
 pub(crate) enum Job {
     Servers(Vec<ServerRow>, Ack<usize>),
     ServerMods(ServerKey, Vec<ServerMod>, Ack<()>),
-    Mods(Vec<ModRow>, Ack<usize>),
-    Favourite(ServerKey, bool, Ack<()>),
-    LastPlayed(ServerKey, Ack<()>),
+    Favourite(ServerKey, bool, Ack<usize>),
+    LastPlayed(ServerKey, Ack<usize>),
     SetOnline(Vec<ServerKey>, bool, Ack<()>),
 }
 
@@ -50,24 +49,30 @@ impl Writer {
         self.send(|ack| Job::ServerMods(key, mods, ack)).await
     }
 
-    pub async fn upsert_mods(&self, rows: Vec<ModRow>) -> Result<usize, RegistryError> {
-        self.send(|ack| Job::Mods(rows, ack)).await
-    }
-
     /// Set or clear a server's favourite flag.
     ///
     /// A targeted `UPDATE`, not an upsert: favouriting must not touch the live
     /// columns, and the caller only holds a key, never a full row.
+    ///
+    /// Returns the number of rows the `UPDATE` touched — `0` means `key` is
+    /// not in the registry at all, which is silent otherwise: an `UPDATE`
+    /// matching nothing is not an error as far as SQLite is concerned. The
+    /// caller (`commands::server::toggle_favourite`) turns a `0` into an
+    /// `Err`, which is what lets the frontend's optimistic star revert
+    /// instead of asserting a favourite that was never persisted.
     pub async fn set_favourite(
         &self,
         key: ServerKey,
         favourite: bool,
-    ) -> Result<(), RegistryError> {
+    ) -> Result<usize, RegistryError> {
         self.send(|ack| Job::Favourite(key, favourite, ack)).await
     }
 
     /// Stamp a server as played just now.
-    pub async fn mark_played(&self, key: ServerKey) -> Result<(), RegistryError> {
+    ///
+    /// Returns the affected row count — see [`Self::set_favourite`] for why
+    /// that matters for a targeted `UPDATE`.
+    pub async fn mark_played(&self, key: ServerKey) -> Result<usize, RegistryError> {
         self.send(|ack| Job::LastPlayed(key, ack)).await
     }
 
@@ -97,9 +102,6 @@ pub(crate) fn run(conn: Connection, mut rx: mpsc::Receiver<Job>) {
             }
             Job::ServerMods(key, mods, ack) => {
                 let _ = ack.send(upsert_server_mods(&conn, key, &mods));
-            }
-            Job::Mods(rows, ack) => {
-                let _ = ack.send(upsert_mods(&conn, &rows));
             }
             Job::Favourite(key, favourite, ack) => {
                 let _ = ack.send(set_favourite(&conn, key, favourite));
@@ -299,20 +301,24 @@ fn upsert_server_mods(
     Ok(())
 }
 
-fn set_favourite(conn: &Connection, key: ServerKey, favourite: bool) -> Result<(), RegistryError> {
-    conn.execute(
+fn set_favourite(
+    conn: &Connection,
+    key: ServerKey,
+    favourite: bool,
+) -> Result<usize, RegistryError> {
+    let n = conn.execute(
         "UPDATE servers SET favourite = ?3 WHERE ip = ?1 AND query_port = ?2",
         params![key.ip.to_string(), key.query_port, favourite],
     )?;
-    Ok(())
+    Ok(n)
 }
 
-fn mark_played(conn: &Connection, key: ServerKey) -> Result<(), RegistryError> {
-    conn.execute(
+fn mark_played(conn: &Connection, key: ServerKey) -> Result<usize, RegistryError> {
+    let n = conn.execute(
         "UPDATE servers SET last_played = unixepoch() WHERE ip = ?1 AND query_port = ?2",
         params![key.ip.to_string(), key.query_port],
     )?;
-    Ok(())
+    Ok(n)
 }
 
 fn set_online(conn: &Connection, keys: &[ServerKey], online: bool) -> Result<(), RegistryError> {
@@ -326,34 +332,6 @@ fn set_online(conn: &Connection, keys: &[ServerKey], online: bool) -> Result<(),
     }
     tx.commit()?;
     Ok(())
-}
-
-fn upsert_mods(conn: &Connection, rows: &[ModRow]) -> Result<usize, RegistryError> {
-    let tx = conn.unchecked_transaction()?;
-    let mut n = 0;
-    {
-        let mut stmt = tx.prepare_cached(
-            "INSERT INTO mods (workshop_id, name, install_state, size_on_disk, install_path, last_checked)
-             VALUES (?1, ?2, ?3, ?4, ?5, unixepoch())
-             ON CONFLICT(workshop_id) DO UPDATE SET
-                 name          = excluded.name,
-                 install_state = excluded.install_state,
-                 size_on_disk  = excluded.size_on_disk,
-                 install_path  = excluded.install_path,
-                 last_checked  = excluded.last_checked",
-        )?;
-        for m in rows {
-            n += stmt.execute(params![
-                m.workshop_id as i64,
-                m.name,
-                m.install_state,
-                m.size_on_disk,
-                m.install_path
-            ])?;
-        }
-    }
-    tx.commit()?;
-    Ok(n)
 }
 
 fn now() -> i64 {

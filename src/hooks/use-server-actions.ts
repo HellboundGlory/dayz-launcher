@@ -18,6 +18,7 @@ import {
   type ModState,
 } from "@/lib/tauri";
 import { formatBytes } from "@/lib/utils";
+import type { Server } from "@/types/server";
 
 /**
  * Short codes for anything that went sideways, in place of a paragraph.
@@ -132,7 +133,6 @@ function isActionable(state: ModState) {
 }
 
 export function useServerActions() {
-  const selectedServer = useServerStore((s) => s.selectedServer);
   const setDownloadsActive = useServerStore((s) => s.setDownloadsActive);
   const profileName = useSettingsStore((s) => s.profileName);
   const dayzPath = useSettingsStore((s) => s.dayzPath);
@@ -198,14 +198,20 @@ export function useServerActions() {
    *
    * The wait polls Steam directly instead of reading any cached state: that
    * state would be the value captured when the loop started.
+   *
+   * `server` is the caller's explicit target, never read from
+   * `selectedServer`. The row ⋯ menu's trigger calls `stopPropagation()` so
+   * opening it does not select that row, and the M1 modal shows whatever
+   * server it was opened for regardless of the table's selection — either one
+   * reading the global selection could run this whole gate, and a real join,
+   * against a different server than the button the user pressed.
    */
-  async function verifyAndJoin(toMenu = false) {
-    if (!selectedServer) return;
-    const addr = selectedServer.addr;
-    const queryPort = selectedServer.query_port;
-    const gamePort = selectedServer.game_port;
+  async function verifyAndJoin(server: Server, toMenu = false) {
+    const addr = server.addr;
+    const queryPort = server.query_port;
+    const gamePort = server.game_port;
 
-    const cancel = beginOp(addr, selectedServer.name || addr);
+    const cancel = beginOp(addr, server.name || addr);
     // Stop the launcher probing servers while it waits on its own downloads.
     setDownloadsActive(true);
     setNotice(null);
@@ -328,11 +334,20 @@ export function useServerActions() {
     } catch (e) {
       setNotice({ kind: "plain", text: String(e) });
     } finally {
-      // A launch that got as far as spawning hands the operation to `starting`,
-      // which ends when DayZ appears. Ending it here would erase that in the
-      // same tick.
-      if (useLaunchStore.getState().op?.phase !== "starting") endOp();
-      setDownloadsActive(false);
+      // Only touch shared state if this is still the operation the store is
+      // tracking. `cancel` is the identity token `beginOp` minted for this
+      // call; a mismatch means `cancelWait` already cleared it, or — worse —
+      // a later press started a new operation while this one was still
+      // resolving. Without this check, a cancelled or superseded press could
+      // wipe a newer operation's progress box and re-enable A2S probing
+      // mid-download the moment its own abandoned promise finally settled.
+      if (useLaunchStore.getState().op?.cancel === cancel) {
+        // A launch that got as far as spawning hands the operation to `starting`,
+        // which ends when DayZ appears. Ending it here would erase that in the
+        // same tick.
+        if (useLaunchStore.getState().op?.phase !== "starting") endOp();
+        setDownloadsActive(false);
+      }
     }
   }
 
@@ -342,13 +357,15 @@ export function useServerActions() {
    * The D2 dropdown's "Download mods" action. Re-uses the verification so the
    * list being subscribed is the server's live declaration, then subscribes
    * anything not already subscribed and reports what happened.
+   *
+   * `server` is the caller's explicit target — see `verifyAndJoin`'s doc for
+   * why this must never fall back to the table's selection.
    */
-  async function subscribeOnly() {
-    if (!selectedServer) return;
-    const addr = selectedServer.addr;
-    const queryPort = selectedServer.query_port;
+  async function subscribeOnly(server: Server) {
+    const addr = server.addr;
+    const queryPort = server.query_port;
 
-    const cancel = beginOp(addr, selectedServer.name || addr);
+    const cancel = beginOp(addr, server.name || addr);
     setDownloadsActive(true);
     setNotice(null);
 
@@ -401,8 +418,12 @@ export function useServerActions() {
     } catch (e) {
       setNotice({ kind: "plain", text: String(e) });
     } finally {
-      endOp();
-      setDownloadsActive(false);
+      // See the matching guard in `verifyAndJoin` — a cancelled or superseded
+      // press must not tear down whatever operation replaced it.
+      if (useLaunchStore.getState().op?.cancel === cancel) {
+        endOp();
+        setDownloadsActive(false);
+      }
     }
   }
 

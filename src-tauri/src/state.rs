@@ -16,6 +16,13 @@ pub struct AppState {
     pub steam: Mutex<Option<Arc<SteamHandle>>>,
     pub prober: Mutex<Option<Prober>>,
     pub steam_ready: Mutex<bool>,
+    /// Guards against two overlapping `steam_init` calls both running a real
+    /// `SteamAPI_Init()` (M17, 2026-08-29 audit) — see `commands::steam::steam_init`.
+    /// `steam_ready` alone wasn't enough: it's only checked *before* the slow
+    /// `SteamHandle::start()` call, so two calls arriving close together (the
+    /// auto-retry timer and a manual Retry click, say) could both pass that
+    /// check and both start a Steam session before either finished.
+    pub steam_initialising: AtomicBool,
     /// Whether a `discover_servers` pass is mid-flight. Logged at exit so a
     /// report can tell whether Steam was still streaming when the process
     /// ended (one of the aggravators behind the Linux exit-time crash).
@@ -77,6 +84,20 @@ pub struct AppState {
     /// Discord on "Checking mods") or by the poll loop once
     /// `tetra_launch::running::dayz_is_running` reports a live session ended.
     pub discord_now_playing: Mutex<Option<DiscordSession>>,
+    /// The diagnostic log's open file handle, kept across calls instead of
+    /// opened-appended-closed per line — see `crate::log`. `None` means "not
+    /// opened yet" or "the last write left it in a bad state and it needs
+    /// reopening".
+    pub log_file: Mutex<Option<std::fs::File>>,
+    /// A pooled, shared read connection for `commands::server::blocking_read`
+    /// (M1, 2026-08-29 audit) — every call used to open, `PRAGMA`-configure
+    /// and register two scalar UDFs on a brand-new `Connection`, on the
+    /// hottest path in the app (`get_server_list`, up to four times a second
+    /// during discovery). Lazily seeded by
+    /// `commands::server::reader_pool` on first use rather than at setup, so
+    /// nothing has to assume setup has run yet. `Arc` so a clone of it — not a
+    /// borrow of `AppState` — is what gets moved into `spawn_blocking`.
+    pub server_reader: Mutex<Option<Arc<Mutex<tetra_registry::Reader>>>>,
 }
 
 impl AppState {
@@ -86,6 +107,7 @@ impl AppState {
             steam: Mutex::new(None),
             prober: Mutex::new(None),
             steam_ready: Mutex::new(false),
+            steam_initialising: AtomicBool::new(false),
             discovery_running: AtomicBool::new(false),
             shutting_down: AtomicBool::new(false),
             registry_degraded: Mutex::new(false),
@@ -108,6 +130,8 @@ impl AppState {
             // accidentally "disabled" if setup somehow doesn't run.
             discord_enabled: AtomicBool::new(true),
             discord_now_playing: Mutex::new(None),
+            log_file: Mutex::new(None),
+            server_reader: Mutex::new(None),
         }
     }
 }

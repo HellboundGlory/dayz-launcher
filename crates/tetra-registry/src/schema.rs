@@ -101,6 +101,11 @@ CREATE TABLE server_mods (
     PRIMARY KEY (ip, query_port, ordinal)
 ) STRICT;
 
+-- D2 (2026-08-29 audit): unused. Workshop metadata is cached in
+-- `mods-cache.json` instead (see `commands::mods`), and this table's writer
+-- path (`Writer::upsert_mods`) has been removed — nothing reads or writes
+-- these rows. Kept rather than dropped: removing a table needs a migration
+-- for no gain, since nothing here has ever held real data.
 CREATE TABLE mods (
     workshop_id   INTEGER PRIMARY KEY,
     name          TEXT    NOT NULL DEFAULT '',
@@ -139,3 +144,187 @@ ALTER TABLE servers ADD COLUMN queue INTEGER;
 ALTER TABLE servers ADD COLUMN day_multiplier REAL;
 ALTER TABLE servers ADD COLUMN night_multiplier REAL;
 "#;
+
+/// How long a server may go unresponsive, in days, before it's pruned —
+/// unless the user has favourited or played it. See [`prune_stale`].
+const PRUNE_AFTER_DAYS: i64 = 60;
+
+/// Delete servers that have gone unresponsive for longer than
+/// [`PRUNE_AFTER_DAYS`] and that the user has never favourited or played,
+/// along with their declared mod rows.
+///
+/// M14 (2026-08-29 audit): the registry had no retention policy at all —
+/// discovery upserts every server Steam lists, on every start, and nothing
+/// ever deleted a row. A real install reached 20MB, and every full-table
+/// query (`get_map_list`, `counts`, the filtered list) scaled with rows that
+/// hadn't answered a probe in months. `server_mods` has no `FOREIGN KEY`
+/// declared on `(ip, query_port)`, so `PRAGMA foreign_keys` has nothing to
+/// cascade here — its rows for a pruned server are deleted explicitly, in
+/// the same transaction.
+///
+/// Called once, synchronously, right after [`migrate`] — before the
+/// connection is handed to the writer thread — so this never competes with
+/// a live write. Returns the number of servers deleted; the caller `VACUUM`s
+/// only when that's nonzero, which is what makes "prune on start" also mean
+/// "`VACUUM` occasionally" instead of paying for a full rewrite of an
+/// unchanged file on every launch.
+pub fn prune_stale(conn: &Connection) -> Result<usize, RegistryError> {
+    const CUTOFF_PREDICATE: &str = "last_responded IS NOT NULL \
+         AND last_responded < unixepoch() - ?1 \
+         AND favourite = 0 \
+         AND last_played IS NULL";
+    let cutoff_secs = PRUNE_AFTER_DAYS * 86_400;
+
+    let tx = conn.unchecked_transaction()?;
+    tx.execute(
+        &format!(
+            "DELETE FROM server_mods WHERE (ip, query_port) IN \
+             (SELECT ip, query_port FROM servers WHERE {CUTOFF_PREDICATE})"
+        ),
+        [cutoff_secs],
+    )?;
+    let deleted = tx.execute(
+        &format!("DELETE FROM servers WHERE {CUTOFF_PREDICATE}"),
+        [cutoff_secs],
+    )?;
+    tx.commit()?;
+
+    if deleted > 0 {
+        conn.execute("VACUUM", [])?;
+    }
+
+    Ok(deleted)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fresh_conn() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        apply_pragmas(&conn).unwrap();
+        migrate(&conn).unwrap();
+        conn
+    }
+
+    fn now() -> i64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64
+    }
+
+    fn insert_server(
+        conn: &Connection,
+        ip: &str,
+        port: i64,
+        last_responded: Option<i64>,
+        favourite: bool,
+        last_played: Option<i64>,
+    ) {
+        conn.execute(
+            "INSERT INTO servers (ip, query_port, first_seen, last_seen, last_responded, favourite, last_played)
+             VALUES (?1, ?2, ?3, ?3, ?4, ?5, ?6)",
+            rusqlite::params![ip, port, now(), last_responded, favourite as i64, last_played],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn a_long_unresponsive_unfavourited_unplayed_server_is_pruned() {
+        let conn = fresh_conn();
+        insert_server(
+            &conn,
+            "1.2.3.4",
+            2302,
+            Some(now() - 61 * 86_400),
+            false,
+            None,
+        );
+        assert_eq!(prune_stale(&conn).unwrap(), 1);
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM servers", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn a_recently_responsive_server_survives() {
+        let conn = fresh_conn();
+        insert_server(
+            &conn,
+            "1.2.3.4",
+            2302,
+            Some(now() - 10 * 86_400),
+            false,
+            None,
+        );
+        assert_eq!(prune_stale(&conn).unwrap(), 0);
+    }
+
+    #[test]
+    fn a_favourite_survives_no_matter_how_stale() {
+        let conn = fresh_conn();
+        insert_server(
+            &conn,
+            "1.2.3.4",
+            2302,
+            Some(now() - 400 * 86_400),
+            true,
+            None,
+        );
+        assert_eq!(prune_stale(&conn).unwrap(), 0);
+    }
+
+    #[test]
+    fn a_played_server_survives_no_matter_how_stale() {
+        let conn = fresh_conn();
+        insert_server(
+            &conn,
+            "1.2.3.4",
+            2302,
+            Some(now() - 400 * 86_400),
+            false,
+            Some(now() - 400 * 86_400),
+        );
+        assert_eq!(prune_stale(&conn).unwrap(), 0);
+    }
+
+    #[test]
+    fn a_never_responded_server_is_left_alone() {
+        // `last_responded IS NULL` means "discovered but never A2S-probed",
+        // not "confirmed dead" — pruning on a guess like that is
+        // deliberately out of this policy's scope.
+        let conn = fresh_conn();
+        insert_server(&conn, "1.2.3.4", 2302, None, false, None);
+        assert_eq!(prune_stale(&conn).unwrap(), 0);
+    }
+
+    #[test]
+    fn pruning_a_server_also_deletes_its_declared_mods() {
+        // `server_mods` has no `FOREIGN KEY` on (ip, query_port) — nothing
+        // cascades this for free.
+        let conn = fresh_conn();
+        insert_server(
+            &conn,
+            "1.2.3.4",
+            2302,
+            Some(now() - 61 * 86_400),
+            false,
+            None,
+        );
+        conn.execute(
+            "INSERT INTO server_mods (ip, query_port, ordinal, workshop_id, name) \
+             VALUES ('1.2.3.4', 2302, 0, 12345, 'Test Mod')",
+            [],
+        )
+        .unwrap();
+
+        prune_stale(&conn).unwrap();
+
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM server_mods", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+}

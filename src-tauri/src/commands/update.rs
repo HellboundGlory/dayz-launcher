@@ -38,3 +38,16 @@ pub fn is_installed_copy() -> bool {
     }
     false
 }
+
+/// L7 (2026-08-29 audit): this command is registered unconditionally in
+/// `lib.rs`'s `generate_handler!`, but only the Linux and Windows arms above
+/// existed — so a macOS build failed to compile with the symbol missing
+/// entirely. No macOS distribution model is defined yet, so `false`
+/// (portable) is the conservative default: the update flow points at the
+/// GitHub release rather than assuming an in-place self-replace this
+/// packaging has never been built to support.
+#[cfg(not(any(target_os = "linux", windows)))]
+#[tauri::command]
+pub fn is_installed_copy() -> bool {
+    false
+}
