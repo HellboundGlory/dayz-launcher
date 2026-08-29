@@ -2,8 +2,7 @@ use crate::actor::{
     self, Command, DownloadRow, MutationResult, StaleOutcome, StreamChunk, SubscribedModInfo,
 };
 use crate::error::{InitFailure, SteamError};
-use crate::rows::GameServerRow;
-use crate::source::{Filters, ServerListSource};
+use crate::source::Filters;
 use crate::workshop::ModState;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -31,6 +30,24 @@ const VERIFY_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
 /// cache). This needs to be comfortably above that so a pull stuck *behind* a
 /// discovery still gets to run rather than being abandoned early.
 const ENUM_BUDGET: std::time::Duration = std::time::Duration::from_secs(90);
+
+/// How long a subscribe/unsubscribe mutation may take.
+///
+/// H6 (2026-08-29 audit): `subscribe_all`/`unsubscribe_all` used plain
+/// `dispatch` — unlike every other user-facing call on this handle — so a
+/// click on either during the first half-minute after startup (discovery is
+/// still running, and the launcher is reachable well before it finishes)
+/// could sit behind a `REQUEST_DEADLINE`-bound server-list request for up to
+/// five minutes with no way out. Scaled like `VERIFY_BUDGET`: both are a
+/// single-click Mods-tab action a user is actively waiting behind.
+const MUTATION_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// How long [`SteamHandle::shutdown`] waits for the actor to acknowledge a
+/// shutdown request before giving up and letting exit continue anyway (H6,
+/// 2026-08-29 audit). Previously unbounded: the actor services commands
+/// strictly in order, so a `Shutdown` queued behind a `REQUEST_DEADLINE`-bound
+/// server-list request could hang a quit for the same five minutes.
+const SHUTDOWN_ACK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// Handle to the Steam thread.
 pub struct SteamHandle {
@@ -85,7 +102,14 @@ impl SteamHandle {
             .map_err(|_| SteamError::Closed)?
             .send(Command::Shutdown(ack))
             .map_err(|_| SteamError::Closed)?;
-        let _ = done.recv();
+        if done.recv_timeout(SHUTDOWN_ACK_TIMEOUT).is_err() {
+            // Gave up waiting — the actor is still busy with whatever was
+            // ahead of Shutdown in its queue. Not joining the thread here
+            // leaves it running for the rest of process exit, which is fine:
+            // the point of the budget is that the *caller* — process exit —
+            // is not made to wait on it too.
+            return Ok(());
+        }
         if let Some(t) = self.thread.lock().map_err(|_| SteamError::Closed)?.take() {
             let _ = t.join();
         }
@@ -133,24 +157,6 @@ impl SteamHandle {
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Err(SteamError::Timeout),
             Err(_) => Err(SteamError::Closed),
         }
-    }
-
-    /// Whether DayZ can be launched against this mod as-is.
-    ///
-    /// Delegates to [`ModState`] rather than testing bits inline, so the launch
-    /// gate and the details panel answer this question with the same rule. The
-    /// previous `(state & 5) == 5` differed twice over: it accepted an item
-    /// carrying `NEEDS_UPDATE` (launching against stale content — spec §5.2's
-    /// "case that breaks other launchers") and rejected content that is present
-    /// on disk but not subscribed.
-    pub fn is_installed(&self, workshop_id: u64) -> Result<bool, SteamError> {
-        Ok(self.mod_state(workshop_id)?.is_ready())
-    }
-
-    /// Classified state for one workshop item.
-    pub fn mod_state(&self, workshop_id: u64) -> Result<ModState, SteamError> {
-        let bits = self.dispatch(|ack| Command::UGCItemState(workshop_id, ack))?;
-        Ok(ModState::from_bits(bits))
     }
 
     /// Classified state for many workshop items, in one round trip.
@@ -207,25 +213,28 @@ impl SteamHandle {
 
     /// Subscribe to each item and queue its download.
     ///
-    /// Results are per-id: a batch can partially succeed.
+    /// Results are per-id: a batch can partially succeed. Budgeted like
+    /// [`Self::verify_mods`] (H6, 2026-08-29 audit) rather than an unbounded
+    /// [`Self::dispatch`] — this is a button click, not best-effort work.
     pub fn subscribe_all(&self, ids: &[u64]) -> Result<Vec<MutationResult>, SteamError> {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
         let owned = ids.to_vec();
-        self.dispatch(|ack| Command::UGCSubscribe(owned, ack))
+        self.dispatch_within(MUTATION_BUDGET, |ack| Command::UGCSubscribe(owned, ack))
     }
 
     /// Unsubscribe from each item.
     ///
     /// Steam deletes the content from disk as a result, and Workshop items are
     /// shared between servers — callers must confirm with the user first.
+    /// Budgeted like [`Self::subscribe_all`] (H6, 2026-08-29 audit).
     pub fn unsubscribe_all(&self, ids: &[u64]) -> Result<Vec<MutationResult>, SteamError> {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
         let owned = ids.to_vec();
-        self.dispatch(|ack| Command::UGCUnsubscribe(owned, ack))
+        self.dispatch_within(MUTATION_BUDGET, |ack| Command::UGCUnsubscribe(owned, ack))
     }
 
     /// Ask the Workshop which of these items is out of date on disk, and start
@@ -306,9 +315,10 @@ impl SteamHandle {
     /// exactly one `StreamChunk::Done`. Dropping it asks the actor to abandon
     /// the request at its next flush.
     ///
-    /// Prefer this over [`ServerListSource::internet_list`] for anything the
-    /// user is waiting on: the blocking variant returns nothing at all until
-    /// Steam has finished querying every server on the list.
+    /// The only way discovery is done — the old blocking, whole-list variant
+    /// (`ServerListSource::internet_list`) returned nothing at all until Steam
+    /// had finished querying every server on the list, and was removed as
+    /// dead code once this replaced it (D3, 2026-08-29 audit).
     pub fn internet_list_stream(
         &self,
         filters: &Filters,
@@ -321,16 +331,5 @@ impl SteamHandle {
             .send(Command::InternetListStream(filters, tx))
             .map_err(|_| SteamError::Closed)?;
         Ok(rx)
-    }
-}
-
-impl ServerListSource for SteamHandle {
-    fn internet_list(&self, filters: &Filters) -> Result<Vec<GameServerRow>, SteamError> {
-        let filters = filters.clone();
-        self.dispatch(|ack| Command::InternetList(filters, ack))
-    }
-
-    fn history_list(&self) -> Result<Vec<GameServerRow>, SteamError> {
-        self.dispatch(Command::HistoryList)
     }
 }

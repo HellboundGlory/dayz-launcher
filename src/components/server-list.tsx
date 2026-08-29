@@ -22,6 +22,17 @@ interface ServerListProps {
 }
 
 /**
+ * How often the distinct-maps dropdown is refetched.
+ *
+ * Previously refetched on every `loadVersion` bump — the same `GROUP BY
+ * map_normalised` full-table scan riding along on every discovery-driven
+ * reload, up to four times a second (H3, 2026-08-29 audit). The map set is
+ * near-static after the first few seconds of a session, so a slow, decoupled
+ * poll loses nothing a user would notice.
+ */
+const MAP_LIST_REFRESH_MS = 10_000;
+
+/**
  * L2 rich-row server list (was `server-table.tsx` — a resizable, columned,
  * virtualized table-grid; now card rows in a vertical list). Keeps the data
  * loading, sort/filter wiring and favourite handling; the sortable column
@@ -98,28 +109,16 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
         // an affected machine shows whether reloads ran, whether they returned
         // rows, and how slow the query was.
         const t0 = performance.now();
-        void logClient("servers", `load: start (loadVersion=${loadVersion})`);
+        void logClient("servers", `load: start (loadVersion=${loadVersion})`, true);
         const rows = await getServerList(filterParams, sortParams);
         if (!cancelled) {
           setServers(rows);
           void logClient(
             "servers",
             `load: ${rows.length} rows in ${Math.round(performance.now() - t0)}ms (loadVersion=${loadVersion})`,
+            true,
           );
         }
-
-        // Maps are fetched alongside the rows so the drop-down updates in
-        // lockstep with discovery: this effect re-runs on every `loadVersion`
-        // bump, so `getMapList()` re-runs with it. Kept out of the
-        // `Promise.all` with the rows so a map-query failure can never drop the
-        // servers with it.
-        getMapList()
-          .then((maps) => {
-            if (!cancelled) setMaps(maps);
-          })
-          .catch((e) => {
-            if (!cancelled) void logClient("servers", `getMapList failed: ${String(e)}`);
-          });
       } catch (e) {
         if (!cancelled) {
           void logClient("servers", `load: failed (loadVersion=${loadVersion}): ${String(e)}`);
@@ -141,6 +140,31 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, sortKey, sortDir, loadVersion, hidePlaceholder, englishNames]);
+
+  // Distinct maps for the filter dropdown, on its own slow cadence —
+  // decoupled from `loadVersion` (H3, 2026-08-29 audit; see
+  // `MAP_LIST_REFRESH_MS`) so a discovery-storm of reloads doesn't also mean
+  // a `GROUP BY` over the whole table several times a second. Fetched once
+  // immediately so the dropdown isn't empty for the first `MAP_LIST_REFRESH_MS`.
+  useEffect(() => {
+    let cancelled = false;
+    const fetchMaps = () => {
+      getMapList()
+        .then((maps) => {
+          if (!cancelled) setMaps(maps);
+        })
+        .catch((e) => {
+          if (!cancelled) void logClient("servers", `getMapList failed: ${String(e)}`);
+        });
+    };
+    fetchMaps();
+    const id = window.setInterval(fetchMaps, MAP_LIST_REFRESH_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Optimistic: flip it locally so the star responds instantly, then persist.
   // On failure, flip back rather than leaving the UI asserting something the

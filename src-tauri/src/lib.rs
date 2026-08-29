@@ -9,6 +9,7 @@ use tetra_registry::Registry;
 #[cfg(target_os = "windows")]
 use window_vibrancy::apply_acrylic;
 
+mod atomic_write;
 mod commands;
 mod discord;
 mod log;
@@ -315,6 +316,7 @@ pub fn run() {
                 *guard = saved.on_join;
             }
             discord::start(app.handle(), saved.discord_presence_enabled());
+            commands::launch::start_dayz_watcher(app.handle());
             let probe_config = ProbeConfig {
                 // `.max(1)` alone would let a hand-edited 0 through as 1 and a
                 // hand-edited 100000 through as itself.
@@ -411,9 +413,9 @@ pub fn run() {
 
             // Claim the `dzsa://` scheme so the OS hands links to this exe —
             // best-effort and logged-not-fatal, same as `apply_autostart`.
-            // Debug builds still register (unlike autostart, a stray registry
-            // key/`.desktop` entry pointing at `target/debug` is harmless and
-            // is exactly what you want while testing this feature locally).
+            // `register_protocol_handler` itself now no-ops on a debug build
+            // (M11, 2026-08-29 audit) and skips the write when the OS
+            // registration already names this exe.
             if let Err(e) = commands::launch::register_protocol_handler() {
                 eprintln!("[setup] Could not register the dzsa:// protocol handler: {e}");
             }

@@ -1,6 +1,6 @@
 {
  "productName": "Tetra Launcher",
- "version": "2.0.1",
+ "version": "2.1.0",
  "identifier": "com.tetra.launcher",
  "build": {
   "frontendDist": "../dist",
@@ -42,7 +42,7 @@
    }
   ],
   "security": {
-   "csp": null
+   "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost https://api.github.com; img-src 'self' data: https://images.steamusercontent.com; object-src 'none'"
   }
  },
  "bundle": {

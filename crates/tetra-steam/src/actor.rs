@@ -139,11 +139,7 @@ pub struct SubscribedModInfo {
 }
 
 pub(crate) enum Command {
-    InternetList(Filters, Sender<Result<Vec<GameServerRow>, SteamError>>),
     InternetListStream(Filters, Sender<StreamChunk>),
-    HistoryList(Sender<Result<Vec<GameServerRow>, SteamError>>),
-    /// Returns item state bitmask (u32).
-    UGCItemState(u64, Sender<Result<u32, SteamError>>),
     /// Batched `item_state`, returned as `(id, bits)` pairs.
     ///
     /// One command rather than one per mod: the actor runs a callback pump
@@ -256,13 +252,6 @@ fn service_instant(
                 .filter(|id| ugc.download_item(steamworks::PublishedFileId(*id), true))
                 .collect();
             let _ = ack.send(Ok(accepted));
-            None
-        }
-        Command::UGCItemState(id, ack) => {
-            let _ = ack.send(Ok(client
-                .ugc()
-                .item_state(steamworks::PublishedFileId(id))
-                .bits()));
             None
         }
         Command::UGCItemStates(ids, ack) => {
@@ -383,22 +372,10 @@ pub(crate) fn run(
         };
 
         match next {
-            Ok(Command::InternetList(filters, ack)) => {
-                let _ = ack.send(request_list(
-                    &client,
-                    &filters,
-                    ListKind::Internet,
-                    None,
-                    &rx,
-                    &mut deferred,
-                    &mut pending,
-                ));
-            }
             Ok(Command::InternetListStream(filters, tx)) => {
                 let result = request_list(
                     &client,
                     &filters,
-                    ListKind::Internet,
                     Some(&tx),
                     &rx,
                     &mut deferred,
@@ -406,20 +383,8 @@ pub(crate) fn run(
                 );
                 let _ = tx.send(StreamChunk::Done(result.map(|_| ())));
             }
-            Ok(Command::HistoryList(ack)) => {
-                let _ = ack.send(request_list(
-                    &client,
-                    &Filters::new(),
-                    ListKind::History,
-                    None,
-                    &rx,
-                    &mut deferred,
-                    &mut pending,
-                ));
-            }
             Ok(
-                cmd @ (Command::UGCItemState(..)
-                | Command::UGCItemStates(..)
+                cmd @ (Command::UGCItemStates(..)
                 | Command::UGCInstallInfo(..)
                 | Command::UGCDownloadInfo(..)
                 | Command::UGCRefreshStale(..)
@@ -1029,6 +994,25 @@ fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>) {
                     info.num_upvotes = d.num_upvotes;
                     info.num_downvotes = d.num_downvotes;
                     info.score = d.score;
+                    // `info.state` so far is only Steam's client-side cached
+                    // `item_state()` bit, read *before* this details query
+                    // even started — the same "needs an update is a fact
+                    // about what the client last noticed, not the Workshop"
+                    // gap `is_stale` exists to close for the launch gate.
+                    // Without this, the Mods tab's Refresh button could
+                    // re-fetch a mod's title/tags/dates live from the
+                    // Workshop and still go on reporting it "Ready" forever,
+                    // because nothing ever rechecked the state bit against
+                    // what Refresh just learned. Only ever *upgrades* a
+                    // false `Ready` to `NeedsUpdate` — every other state
+                    // (`Downloading`, `NotSubscribed`, `NotInstalled`) is a
+                    // more specific, already-correct answer this must not
+                    // overwrite.
+                    if info.state == crate::workshop::ModState::Ready
+                        && crate::workshop::is_stale(info.install_timestamp, info.time_updated)
+                    {
+                        info.state = crate::workshop::ModState::NeedsUpdate;
+                    }
                     out.push(info);
                 }
                 let _ = ack.send(Ok(out));
@@ -1038,21 +1022,20 @@ fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>) {
     });
 }
 
-#[derive(Clone, Copy)]
-enum ListKind {
-    Internet,
-    History,
-}
-
 /// Run one server-list request to completion.
 ///
 /// When `stream` is `Some`, rows are flushed to it every `STREAM_FLUSH` and the
 /// returned `Vec` is empty — the consumer has already been given everything.
 /// When it is `None` the whole list is returned at the end, as before.
+///
+/// Always an internet-server-list request — the history-list variant this
+/// once also served (`ListKind`) was removed as dead code alongside
+/// `Command::HistoryList` (D3, 2026-08-29 audit): nothing ever called it, and
+/// the RECENT tab has always sourced its list from the registry's own
+/// `last_played` instead.
 fn request_list(
     client: &Client,
     filters: &Filters,
-    kind: ListKind,
     stream: Option<&Sender<StreamChunk>>,
     rx: &Receiver<Command>,
     deferred: &mut VecDeque<Command>,
@@ -1110,14 +1093,9 @@ fn request_list(
         .map(|(k, v)| (k.as_str(), v.as_str()))
         .collect();
 
-    let request = match kind {
-        ListKind::Internet => mms
-            .internet_server_list(DAYZ_APP_ID, &borrowed, callbacks)
-            .map_err(|_| SteamError::Request("filter key or value exceeds 255 bytes".into()))?,
-        ListKind::History => mms
-            .history_server_list(DAYZ_APP_ID, &borrowed, callbacks)
-            .map_err(|_| SteamError::Request("filter key or value exceeds 255 bytes".into()))?,
-    };
+    let request = mms
+        .internet_server_list(DAYZ_APP_ID, &borrowed, callbacks)
+        .map_err(|_| SteamError::Request("filter key or value exceeds 255 bytes".into()))?;
 
     let started = Instant::now();
     let deadline = started + REQUEST_DEADLINE;

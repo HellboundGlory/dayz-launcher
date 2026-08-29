@@ -111,9 +111,12 @@ pub fn spawn_dayz(exe_path: &std::path::Path, args: &[String]) -> Result<(), Spa
 }
 
 /// Locate an installed Proton build under `<steam>/steamapps/common`.
+///
+/// Picks the *best* candidate, not the lexicographically first (M9,
+/// 2026-08-29 audit) — see [`best_proton`].
 #[cfg(target_os = "linux")]
 fn pick_proton(common: &std::path::Path) -> Option<PathBuf> {
-    let mut candidates: Vec<PathBuf> = std::fs::read_dir(common)
+    let candidates: Vec<PathBuf> = std::fs::read_dir(common)
         .ok()?
         .filter_map(|e| e.ok())
         .map(|e| e.path())
@@ -124,14 +127,61 @@ fn pick_proton(common: &std::path::Path) -> Option<PathBuf> {
         .map(|p| p.join("proton"))
         .filter(|p| p.is_file())
         .collect();
-    candidates.sort();
-    candidates.into_iter().next()
+    best_proton(candidates)
 }
 
-/// Locate a Steam Linux Runtime (soldier/sniper) under `<steam>/steamapps/common`.
+/// Ranks candidate `.../<Proton dir>/proton` paths and returns the best one.
+///
+/// Previously a plain lexicographic sort picked the *first* name — so with
+/// several Protons installed (the ordinary case after a few years of Steam),
+/// `"Proton 5.13"` beat `"Proton 9.0"` and `"Proton - Experimental"`
+/// alphabetically, handing a user the oldest build installed: exactly the
+/// configuration least likely to run current DayZ. Experimental now always
+/// wins; otherwise the highest numeric version does. Split from
+/// [`pick_proton`] so the ranking itself — the actual bug — is testable
+/// against a synthetic candidate list, with no real Steam install needed.
+#[cfg(target_os = "linux")]
+fn best_proton(candidates: Vec<PathBuf>) -> Option<PathBuf> {
+    candidates.into_iter().max_by_key(|p| proton_rank(p))
+}
+
+/// `(is_experimental, version)`. Tuple `Ord` is lexicographic, so Experimental
+/// (`true`) always outranks a numbered build regardless of version, and among
+/// numbered builds the higher `(major, minor)` wins.
+#[cfg(target_os = "linux")]
+fn proton_rank(proton_binary: &std::path::Path) -> (bool, (u32, u32)) {
+    let dir_name = proton_binary
+        .parent()
+        .and_then(|p| p.file_name())
+        .and_then(|n| n.to_str())
+        .unwrap_or("");
+    let experimental = dir_name.to_ascii_lowercase().contains("experimental");
+    (experimental, parse_proton_version(dir_name))
+}
+
+/// Pulls `(major, minor)` out of a directory name like `"Proton 9.0 (Beta)"`
+/// or `"Proton 5.13"`. A non-numeric edition (Experimental, Hotfix, the
+/// EasyAntiCheat Runtime helper) parses as `(0, 0)` — Experimental is ranked
+/// separately in [`proton_rank`]; anything else with no version only wins
+/// when nothing better is installed.
+#[cfg(target_os = "linux")]
+fn parse_proton_version(dir_name: &str) -> (u32, u32) {
+    let after_prefix = dir_name.strip_prefix("Proton").unwrap_or(dir_name).trim();
+    let version_token = after_prefix.split_whitespace().next().unwrap_or("");
+    let mut parts = version_token.split('.');
+    let major = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+    let minor = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+    (major, minor)
+}
+
+/// Locate a Steam Linux Runtime (scout/soldier/sniper) under
+/// `<steam>/steamapps/common`.
+///
+/// Picks the *best* candidate, not the lexicographically first (M9,
+/// 2026-08-29 audit) — see [`best_runtime`].
 #[cfg(target_os = "linux")]
 fn pick_runtime(common: &std::path::Path) -> Option<PathBuf> {
-    let mut candidates: Vec<PathBuf> = std::fs::read_dir(common)
+    let candidates: Vec<PathBuf> = std::fs::read_dir(common)
         .ok()?
         .filter_map(|e| e.ok())
         .map(|e| e.path())
@@ -142,8 +192,36 @@ fn pick_runtime(common: &std::path::Path) -> Option<PathBuf> {
         .map(|p| p.join("run"))
         .filter(|p| p.is_file())
         .collect();
-    candidates.sort();
-    candidates.into_iter().next()
+    best_runtime(candidates)
+}
+
+/// Ranks candidate `.../<SteamLinuxRuntime*>/run` paths and returns the best.
+///
+/// Previously a plain lexicographic sort: the bare `SteamLinuxRuntime`
+/// (scout) is a string *prefix* of `SteamLinuxRuntime_sniper`, so scout
+/// always sorted first — and modern Proton builds require sniper, so
+/// launching under scout fails or misbehaves. `_sniper` > `_soldier` >
+/// bare (scout). Split from [`pick_runtime`] for the same testability reason
+/// as [`best_proton`].
+#[cfg(target_os = "linux")]
+fn best_runtime(candidates: Vec<PathBuf>) -> Option<PathBuf> {
+    candidates.into_iter().max_by_key(|p| runtime_rank(p))
+}
+
+#[cfg(target_os = "linux")]
+fn runtime_rank(run_binary: &std::path::Path) -> u8 {
+    let dir_name = run_binary
+        .parent()
+        .and_then(|p| p.file_name())
+        .and_then(|n| n.to_str())
+        .unwrap_or("");
+    if dir_name.ends_with("_sniper") {
+        2
+    } else if dir_name.ends_with("_soldier") {
+        1
+    } else {
+        0
+    }
 }
 
 /// Start the Steam client and return immediately.
@@ -370,5 +448,84 @@ mod tests {
             args.iter().any(|a| a == "-noSplash"),
             "user launch parameters must still reach main-menu mode"
         );
+    }
+
+    #[cfg(target_os = "linux")]
+    mod proton_and_runtime_ranking {
+        use super::*;
+
+        fn proton(dir: &str) -> PathBuf {
+            PathBuf::from(format!("/steam/steamapps/common/{dir}/proton"))
+        }
+
+        fn runtime(dir: &str) -> PathBuf {
+            PathBuf::from(format!("/steam/steamapps/common/{dir}/run"))
+        }
+
+        #[test]
+        fn a_higher_numeric_version_beats_a_lower_one_despite_sorting_first() {
+            // "Proton 5.13" < "Proton 9.0" lexicographically — the exact
+            // inversion that made the old `.sort().next()` pick the oldest
+            // build installed.
+            let candidates = vec![proton("Proton 9.0 (Beta)"), proton("Proton 5.13")];
+            assert_eq!(best_proton(candidates), Some(proton("Proton 9.0 (Beta)")));
+        }
+
+        #[test]
+        fn experimental_beats_every_numbered_build() {
+            let candidates = vec![
+                proton("Proton 9.0"),
+                proton("Proton - Experimental"),
+                proton("Proton 5.13"),
+            ];
+            assert_eq!(
+                best_proton(candidates),
+                Some(proton("Proton - Experimental"))
+            );
+        }
+
+        #[test]
+        fn a_non_numeric_edition_only_wins_when_nothing_else_is_installed() {
+            let candidates = vec![proton("Proton Hotfix")];
+            assert_eq!(best_proton(candidates), Some(proton("Proton Hotfix")));
+
+            let candidates = vec![proton("Proton Hotfix"), proton("Proton 5.0")];
+            assert_eq!(best_proton(candidates), Some(proton("Proton 5.0")));
+        }
+
+        #[test]
+        fn sniper_beats_soldier_beats_scout() {
+            let candidates = vec![
+                runtime("SteamLinuxRuntime"),
+                runtime("SteamLinuxRuntime_soldier"),
+                runtime("SteamLinuxRuntime_sniper"),
+            ];
+            assert_eq!(
+                best_runtime(candidates),
+                Some(runtime("SteamLinuxRuntime_sniper"))
+            );
+        }
+
+        #[test]
+        fn bare_scout_is_not_mistaken_for_sniper_by_string_prefix() {
+            // The bug this pins: `SteamLinuxRuntime` is a string *prefix* of
+            // `SteamLinuxRuntime_sniper`, so a naive lexicographic sort put
+            // scout first every time both were installed.
+            let candidates = vec![
+                runtime("SteamLinuxRuntime_sniper"),
+                runtime("SteamLinuxRuntime"),
+            ];
+            assert_eq!(
+                best_runtime(candidates),
+                Some(runtime("SteamLinuxRuntime_sniper"))
+            );
+        }
+
+        #[test]
+        fn version_parsing_handles_bare_and_suffixed_names() {
+            assert_eq!(parse_proton_version("Proton 9.0 (Beta)"), (9, 0));
+            assert_eq!(parse_proton_version("Proton 5.13"), (5, 13));
+            assert_eq!(parse_proton_version("Proton Hotfix"), (0, 0));
+        }
     }
 }

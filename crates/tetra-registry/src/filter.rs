@@ -20,7 +20,6 @@ pub struct ServerFilter {
     pub hide_locked: bool,
     /// Drop servers the last targeted refresh could not reach (`online = 0`).
     pub hide_offline: bool,
-    pub unresponsive_after_secs: Option<i64>,
     pub max_ping_ms: Option<i32>,
     pub search: Option<String>,
     pub favourites_only: bool,
@@ -170,10 +169,6 @@ pub(crate) fn build(
     }
     if filter.recent_only {
         clauses.push("last_played IS NOT NULL".into());
-    }
-    if let Some(secs) = filter.unresponsive_after_secs {
-        clauses.push("last_responded IS NOT NULL AND last_responded >= unixepoch() - ?".into());
-        binds.push(Value::Integer(secs));
     }
     if let Some(ping) = filter.max_ping_ms {
         clauses.push("ping_ms <= ?".into());

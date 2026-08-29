@@ -546,3 +546,37 @@ async fn get_on_an_unknown_key_is_none_not_an_error() {
     let reader = registry.reader().expect("reader");
     assert!(reader.get(key()).expect("get").is_none());
 }
+
+/// `set_favourite`/`mark_played` are targeted `UPDATE`s — SQLite reports
+/// success on an `UPDATE` that matched no row, which is indistinguishable
+/// from a real write unless the affected count is checked. Both must answer
+/// `0` for a key the registry has never seen, so the Tauri command layer
+/// (`commands::server::toggle_favourite`) can turn that into an error instead
+/// of letting the frontend believe a favourite was persisted when nothing was
+/// written at all.
+#[tokio::test]
+async fn favouriting_or_marking_played_an_unknown_key_reports_zero_affected_rows() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let writer = registry.writer();
+
+    assert_eq!(
+        writer.set_favourite(key(), true).await.expect("favourite"),
+        0,
+        "no row exists to favourite yet"
+    );
+    assert_eq!(
+        writer.mark_played(key()).await.expect("mark played"),
+        0,
+        "no row exists to mark as played yet"
+    );
+
+    // The affected count becomes 1 once the row actually exists — pinning
+    // that the check above is about the row being absent, not some other
+    // reason the count could read zero.
+    writer.upsert_servers(vec![live_row()]).await.expect("live");
+    assert_eq!(
+        writer.set_favourite(key(), true).await.expect("favourite"),
+        1
+    );
+    assert_eq!(writer.mark_played(key()).await.expect("mark played"), 1);
+}
