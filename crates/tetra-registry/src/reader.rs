@@ -9,18 +9,7 @@ use tetra_core::a2s::dayz::ServerMod;
 use tetra_core::classify::maps::display_name;
 use tetra_core::classify::names::{is_english_name, is_placeholder_name};
 
-/// Expose the name classifiers to SQL as `tetra_is_placeholder(name)` and
-/// `tetra_is_english(name)`.
-///
-/// Registered per read connection rather than baked into a column, which is the
-/// pattern the tag flags (`official`, `modded`) use. Those are derived at write
-/// time because they come from `keywords`, which only a probe supplies. These
-/// come from `name`, which every row already has — so a stored column would
-/// need a migration *and* a backfill, and would read as stale until every
-/// server had been re-probed. As functions the filters apply correctly to the
-/// whole existing registry the moment the build lands.
-///
-/// `DETERMINISTIC` lets SQLite hoist and cache calls; the classifiers are pure.
+/// Expose the name classifiers to SQL as `tetra_is_placeholder(name)` and `tetra_is_english(name)`.
 fn register_name_functions(conn: &Connection) -> Result<(), RegistryError> {
     let flags = FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC;
     conn.create_scalar_function("tetra_is_placeholder", 1, flags, |ctx| {
@@ -32,14 +21,7 @@ fn register_name_functions(conn: &Connection) -> Result<(), RegistryError> {
     Ok(())
 }
 
-/// Collects the results of a `query_map` whose mapping closure returns
-/// `Option<T>` (`None` marking a row to drop), logging once if anything was
-/// dropped (L4, 2026-08-29 audit).
-///
-/// Shared by every reader method that parses a row's `ip` column: a corrupt
-/// value there used to fall back to `Ipv4Addr::UNSPECIFIED`
-/// (`0.0.0.0`), rendering a bad row as a real server pointing nowhere instead
-/// of being left out of the result.
+/// Collects `query_map` results where `None` marks a row to drop, logging once if any were skipped.
 fn collect_skipping_bad_rows<T>(
     rows: impl Iterator<Item = rusqlite::Result<Option<T>>>,
     context: &str,
@@ -71,14 +53,8 @@ impl Reader {
         Ok(Self { conn })
     }
 
-    /// `(total, populated)` — every known server, and how many have a player on
-    /// them right now.
-    ///
-    /// One statement rather than two. This replaces a `count()` plus a
-    /// `raw().query_row("SELECT COUNT(*) ... WHERE players > 0")` issued from
-    /// the Tauri command layer: two full scans where one does, and a query
-    /// written outside the one crate that is supposed to own all SQL. `raw()`
-    /// existed only to permit that and is gone with it.
+    /// `(total, populated)` — every known server, and how many have a player
+    /// on them right now. One statement rather than two full scans.
     pub fn counts(&self) -> Result<(usize, usize), RegistryError> {
         let (total, populated): (i64, i64) = self.conn.query_row(
             "SELECT COUNT(*), COUNT(*) FILTER (WHERE players > 0) FROM servers",
@@ -96,13 +72,8 @@ impl Reader {
         limit: usize,
     ) -> Result<Vec<ServerListRow>, RegistryError> {
         let (sql, binds) = filter::build(filter, sort, dir, limit);
-        // `prepare_cached` rather than `prepare`: the same filter is reused
-        // call after call on the hottest read path in the app (a reload fires
-        // on every discovery tick), so the common case is a cache hit that
-        // skips re-parsing this SQL entirely (M1, 2026-08-29 audit). The
-        // filter shapes are finite even though `maps`/`countries` vary the
-        // placeholder count, so this stays a small, bounded set of statements
-        // rather than growing unbounded.
+        // prepare_cached: this is the hottest read path (fires on every
+        // discovery tick), and filter shapes are a small, bounded set.
         let mut stmt = self.conn.prepare_cached(&sql)?;
         let rows = collect_skipping_bad_rows(
             stmt.query_map(rusqlite::params_from_iter(binds), Self::map_row)?,
@@ -111,18 +82,12 @@ impl Reader {
         Ok(rows)
     }
 
-    /// Look up a single server by its key — the same row `list()` would
-    /// return for it, without building a filter for one address.
-    ///
-    /// Used to attach a server's current name/map/player-count to Discord
-    /// Rich Presence right after a launch, where the caller only has the
-    /// address it just spawned DayZ against.
+    /// Look up a single server by key — the same row `list()` would return, without a filter.
     pub fn get(&self, key: ServerKey) -> Result<Option<ServerListRow>, RegistryError> {
         let mut stmt = self.conn.prepare(&format!(
             "SELECT {SERVER_LIST_COLUMNS} FROM servers WHERE ip = ?1 AND query_port = ?2"
         ))?;
-        // A corrupt `ip` here (L4) just means "not found" — one row, no
-        // batch to report a skip count for.
+        // A corrupt `ip` here just means "not found" — one row, no skip count to report.
         let row = stmt
             .query_map(params![key.ip.to_string(), key.query_port], Self::map_row)?
             .next()
@@ -131,12 +96,8 @@ impl Reader {
         Ok(row)
     }
 
-    /// Shared row mapping for [`Reader::list`] and [`Reader::get`] — both read
-    /// the same [`SERVER_LIST_COLUMNS`] in the same order.
-    ///
-    /// Returns `Ok(None)` for a row whose `ip` column doesn't parse as an
-    /// [`Ipv4Addr`] (L4, 2026-08-29 audit) — such a row used to render as a
-    /// real server pointing at `0.0.0.0` instead of being dropped.
+    /// Shared row mapping for [`Reader::list`] and [`Reader::get`]. Returns `Ok(None)` to drop a
+    /// row whose `ip` doesn't parse, instead of rendering `0.0.0.0`.
     fn map_row(r: &rusqlite::Row) -> rusqlite::Result<Option<ServerListRow>> {
         let ip: String = r.get(0)?;
         let Ok(ip) = Ipv4Addr::from_str(&ip) else {
@@ -207,14 +168,8 @@ impl Reader {
         Ok(rows)
     }
 
-    /// For each of `ids`, how many servers in the registry declare it — and how
-    /// many of those are the user's favourites.
-    ///
-    /// The total is the honest blast radius of unsubscribing: Workshop items are
-    /// shared, so removing a mod breaks *every* server that lists it, not just
-    /// the favourites. The favourite count is what the Mods tab's details pane
-    /// shows ("needed by N servers"), scoped to favourites per James's round-3
-    /// direction.
+    /// For each id: how many servers declare it, and how many of those are favourites — the
+    /// total is the real blast radius of unsubscribing, since mods are shared across servers.
     pub fn mod_usage(&self, ids: &[u64]) -> Result<Vec<(u64, usize, usize)>, RegistryError> {
         if ids.is_empty() {
             return Ok(Vec::new());
@@ -247,18 +202,15 @@ impl Reader {
     }
 
     /// Servers the user has signalled interest in: favourites plus recently
-    /// played, most recently played first then by name.
-    ///
-    /// This two-way "cared about" set is what the Mods tab's unique-per-server
-    /// tool compares against — the servers James actually joins, not the whole
-    /// registry. See [`mod_usage`](Self::mod_usage) for the count counterpart.
+    /// played, most recently played first then by name. This "cared about"
+    /// set is what the Mods tab's unique-per-server tool compares against.
     pub fn cared_servers(&self) -> Result<Vec<(ServerKey, String)>, RegistryError> {
         let mut stmt = self.conn.prepare(
             "SELECT ip, query_port, name FROM servers
              WHERE favourite = 1 OR last_played IS NOT NULL
              ORDER BY last_played IS NULL, last_played DESC, name",
         )?;
-        // L4 (2026-08-29 audit): a corrupt `ip` is dropped, not substituted
+        // A corrupt `ip` is dropped, not substituted
         // with `0.0.0.0` — see `collect_skipping_bad_rows`.
         let rows = collect_skipping_bad_rows(
             stmt.query_map([], |r| {
@@ -279,14 +231,8 @@ impl Reader {
         Ok(rows)
     }
 
-    /// The mods one server declares that no other *cared* server also declares.
-    ///
-    /// This is the "select mods unique to this server" tool: mods only this
-    /// server uses among the servers the user cares about, which is what makes
-    /// them safe to unsubscribe without breaking a favourite or a recent one.
-    /// A mod can be present on some anonymous browser server and still come
-    /// back as unique here — those aren't servers whose mod sets are being
-    /// reasoned about.
+    /// Mods unique to this server among the servers the user cares about (favourites/recent) —
+    /// safe to unsubscribe without breaking another cared-about server.
     pub fn unique_mods_for(&self, key: ServerKey) -> Result<Vec<(u64, String)>, RegistryError> {
         let mut stmt = self.conn.prepare(
             "SELECT sm.workshop_id, sm.name
@@ -312,11 +258,8 @@ impl Reader {
     }
 
     /// Which *favourite* servers declare a given Workshop item, most recently
-    /// played first.
-    ///
-    /// Feeds the Mods tab's details inspector: "Needed by N servers" is scoped
-    /// to favourites per James's round-3 direction. `None` last_played means
-    /// the favourite is known but never joined.
+    /// played first. `None` last_played means the favourite is known but
+    /// never joined.
     pub fn servers_needing(
         &self,
         workshop_id: u64,
@@ -328,7 +271,7 @@ impl Reader {
              WHERE sm.workshop_id = ?1 AND s.favourite = 1
              ORDER BY s.last_played IS NULL, s.last_played DESC",
         )?;
-        // L4 (2026-08-29 audit): a corrupt `ip` is dropped, not substituted
+        // A corrupt `ip` is dropped, not substituted
         // with `0.0.0.0` — see `collect_skipping_bad_rows`.
         let rows = collect_skipping_bad_rows(
             stmt.query_map(params![workshop_id as i64], |r| {

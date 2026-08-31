@@ -2,22 +2,10 @@ import { create } from "zustand";
 import { dayzRunning } from "@/lib/tauri";
 import { listen } from "@tauri-apps/api/event";
 
-/**
- * The one launch-or-prepare operation the launcher is running, app-wide.
- *
- * ## Why this is not component state
- *
- * All of it used to live in `server-details.tsx`, and an effect keyed on the
- * selected server reset it — *including cancelling the in-flight work*. So
- * clicking another server part-way through a 4 GB download silently abandoned
- * the wait, and clicking back showed a button that had forgotten there was
- * anything happening. Steam kept downloading either way, which made it worse:
- * the work continued and the only indication of it disappeared.
- *
- * There is deliberately room for exactly one operation. Steam has one download
- * queue and the machine runs one DayZ, so a second concurrent launch is not a
- * thing to represent — it is a thing to prevent.
- */
+// The one launch-or-prepare operation the launcher is running, app-wide.
+// Global rather than component state so switching the selected server can't
+// cancel an in-flight download. Room for exactly one: Steam has one download
+// queue and the machine runs one DayZ.
 
 /** How far along the one operation is. */
 export type OpPhase =
@@ -51,14 +39,7 @@ export interface LaunchResult {
 interface LaunchState {
   op: ActiveOp | null;
   result: LaunchResult | null;
-  /**
-   * A DayZ process exists right now.
-   *
-   * Polled from the OS rather than inferred from having launched one, so it is
-   * also true for a session started from Steam directly, and stays true across
-   * the launcher being closed and reopened. This is what lets the button read
-   * PLAYING instead of counting down from a spawn.
-   */
+  /** A DayZ process exists right now — polled from the OS, so true even for a session started outside the launcher. */
   dayzRunning: boolean;
   begin: (addr: string, serverName: string) => { cancelled: boolean };
   setPhase: (phase: OpPhase, note?: string | null) => void;
@@ -113,26 +94,12 @@ export const useLaunchStore = create<LaunchState>((set, get) => ({
   },
 }));
 
-/**
- * Keep {@link LaunchState.dayzRunning} current. Started once, from `App`.
- *
- * Returns its own teardown so the caller can hand it straight to `useEffect`.
- *
- * Previously polled `dayz_running` on its own 4s timer — a full process-table
- * enumeration invoked from the frontend, running alongside a second,
- * independent one in the Discord presence loop (`src-tauri/src/discord.rs`)
- * whenever a launch was live. Both are now one backend-owned watcher
- * (`commands::launch::start_dayz_watcher`) that pushes `dayz-running` when the
- * answer changes; this only asks once, immediately, for an answer to show
- * before the first push can arrive, then listens.
- */
+/** Keeps {@link LaunchState.dayzRunning} current; returns its teardown for useEffect. */
 export function watchDayz(): () => void {
   function apply(running: boolean) {
     const store = useLaunchStore.getState();
     store.setDayzRunning(running);
-    // The game appearing is the end of the launch, and a better signal than
-    // the timer this replaces: the old code held a "DayZ is starting"
-    // confirmation for a fixed 15 seconds whether or not anything started.
+    // The game appearing is what ends the "starting" phase.
     if (running && store.op?.phase === "starting") store.end();
   }
 

@@ -1,13 +1,8 @@
 #![windows_subsystem = "windows"]
 
 fn main() {
-    // Linux: WebKitGTK frequently fails to allocate GBM/DMA-BUF buffers on
-    // modern GPU stacks (NVIDIA/AMD under XWayland) and renders a blank window,
-    // and the raw Wayland backend throws protocol errors with WebKit. These
-    // force WebKit to a software renderer and route GTK through X11/XWayland,
-    // which is far more stable. Each is set only when absent so a user can still
-    // override. Without these the launcher starts (tray + taskbar appear) but no
-    // window renders.
+    // Linux: force WebKit software rendering + X11 to avoid a blank window on
+    // WebKitGTK/Wayland (see .ai-notes/src-tauri/src/main.rs.md).
     #[cfg(target_os = "linux")]
     {
         for (key, value) in [

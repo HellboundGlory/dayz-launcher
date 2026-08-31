@@ -5,13 +5,8 @@
 //! cargo run -p tetra-net --bin tetra-probe -- 127.0.0.1:2302 rules
 //! ```
 //!
-//! Runs the same transport the launcher itself uses. It previously drove a
-//! second, synchronous copy of the A2S request logic that lived in
-//! `tetra_core::net`, and that copy had drifted: it never checked that split
-//! fragments belonged to the request it had issued, and its reassembly loop
-//! could block forever on a server that announced more fragments than it sent.
-//! Debugging a server with a tool that parses differently from the app is worse
-//! than having no tool, so the duplicate is gone and this drives `tetra_net`.
+//! Drives the same `tetra_net` transport the launcher uses, so results match
+//! what the app sees.
 
 use std::net::SocketAddr;
 use std::process::ExitCode;
@@ -36,9 +31,6 @@ async fn main() -> ExitCode {
         }
     };
 
-    // Reported rather than panicked on. An unreachable server is the ordinary
-    // outcome of pointing this at something, not a bug in the tool, and the old
-    // `.expect("query_info_raw failed")` buried the actual cause in a backtrace.
     let outcome = match command.as_str() {
         "info" => query_info(addr, TIMEOUT).await.map(|v| println!("{v:#?}")),
         "rules" => query_rules(addr, TIMEOUT).await.map(|v| println!("{v:#?}")),

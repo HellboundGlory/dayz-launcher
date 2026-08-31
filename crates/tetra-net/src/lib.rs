@@ -2,9 +2,8 @@
 
 //! Async UDP transport for A2S queries.
 //!
-//! Every query owns its own socket for the whole exchange. That is deliberate:
-//! a shared socket would put all queries on one source port, and two in-flight
-//! split-packet sets from the same server would then be indistinguishable.
+//! Each query gets its own socket, so overlapping split-packet responses from
+//! the same server never land on the same source port.
 
 pub mod config;
 pub mod error;

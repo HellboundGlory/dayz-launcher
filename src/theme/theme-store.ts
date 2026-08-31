@@ -1,14 +1,7 @@
-/**
- * The theme store — the one additive store of the overhaul.
- *
- * State mirrors the board's `state` object exactly: an active theme (preset id
- * or `custom:<name>`), a dark/light mode switch, per-token editor overrides,
- * a bloom factor, and saved skins persisted under `tetra.customThemes`.
- *
- * Every theme — preset or saved skin — is a `{dark, light}` palette pair. The
- * light palette is auto-derived from the dark one (`deriveLight`, hue preserved,
- * 4.5:1 floor) until the user hand-edits light, which latches `lightRefined`.
- */
+// Theme store: active theme (preset id or custom:<name>), dark/light mode,
+// per-token editor overrides, bloom factor, and saved skins. Every theme is
+// a {dark, light} palette pair; light is auto-derived from dark until the
+// user hand-edits it, which latches `lightRefined`.
 import { create } from "zustand";
 import {
   deriveLight,
@@ -60,10 +53,7 @@ function saveThemes(themes: SavedTheme[]): void {
   localStorage.setItem(STORE_KEY, JSON.stringify(themes));
 }
 
-/** The active selection (which theme, mode, bloom) — a separate key from the
-    saved skins so the two shapes stay independent. `custom:<name>` ids keep
-    working as long as the skin exists; a deleted skin falls back to neutral
-    in `resolvedPair`. */
+// Active selection (theme, mode, bloom) — separate key from saved skins.
 const ACTIVE_KEY = "tetra.themeActive";
 
 interface ActiveState {

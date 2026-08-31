@@ -32,6 +32,12 @@ behind a React + Vite frontend.
 - Clippy warnings are CI errors (`-D warnings`).
 - `progress.md` is the feature backlog and is **gitignored** — it isn't in a
   fresh clone. Ask rather than assuming there's no backlog.
+- **Never add trailing commit-message markers** (`Co-Authored-By`,
+  `Claude-Session`, or similar). Commits are attributed to the human author only.
+- **Keep code comments minimal.** Only short, human-style notes where the
+  "why" isn't obvious from the code itself — no essay-length rationale, audit
+  narration, or bug history inline. If that context is worth keeping, it
+  belongs in `.ai-notes/` (gitignored, mirrors the source tree), not the file.
 
 ## Common tasks
 

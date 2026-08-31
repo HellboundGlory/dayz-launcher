@@ -15,35 +15,15 @@ export interface AppSettings {
   launchParams: string[];
   /** The close button hides the launcher to the tray instead of quitting. */
   closeToTray: boolean;
-  /**
-   * The minimise button hides the launcher to the tray instead of putting it on
-   * the taskbar. Independent of `closeToTray` — two buttons, two questions.
-   */
+  /** Independent of `closeToTray` — two buttons, two questions. */
   minimiseToTray: boolean;
-  /**
-   * Interface scale, applied as a webview zoom factor rather than a CSS one.
-   *
-   * CSS `zoom` would put `getBoundingClientRect` (which the server table's
-   * virtualiser measures rows with) and `scrollTop` into different coordinate
-   * spaces. Zooming the webview keeps one space and lets the layout reflow.
-   */
+  /** Interface scale, applied as a webview zoom factor (keeps layout/scroll coordinates in one space). */
   uiScale: number;
   /** Seconds between automatic refreshes of the visible rows. `0` is off. */
   autoRefreshIntervalSecs: number;
-  /**
-   * Register the launcher to start with Windows.
-   *
-   * The toggle saves in a debug build but deliberately does not touch the OS —
-   * a debug entry would point at `target/debug` and clobber the installed
-   * build's. Test it against a release build.
-   */
+  /** Register the launcher to start with Windows. No-op in debug builds — test against a release build. */
   startWithWindows: boolean;
-  /**
-   * Start hidden, leaving only the tray icon.
-   *
-   * Only applies when Windows did the starting — a double-click always shows
-   * the window, or enabling this would leave no way to open the launcher.
-   */
+  /** Start hidden in the tray. Only applies when Windows did the starting. */
   startMinimised: boolean;
   /** What the launcher does with itself once DayZ is starting. */
   onJoin: OnJoin;
@@ -51,15 +31,7 @@ export interface AppSettings {
   autoJoinAfterDownload: boolean;
   /** Hide hosting-company defaults like "nitrado.net gameserver". */
   hidePlaceholderServers: boolean;
-  /**
-   * The ENGLISH ONLY tag, remembered across restarts. `true` keeps English
-   * names, `false` keeps only the non-English ones, `null` does not filter on
-   * language.
-   *
-   * It lives in settings rather than the filter store because it defaults to
-   * on, and a default-on filter held in transient state would turn itself back
-   * on every launch.
-   */
+  /** ENGLISH ONLY tag. `true` keeps English names, `false` non-English, `null` unfiltered. Lives here, not the filter store, since it defaults on. */
   englishNamesFilter: boolean | null;
   /** Show "Playing on {server}" / "Browsing servers" in Discord. */
   discordRichPresence: boolean;
@@ -138,16 +110,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const saved = await getSettings();
       set({ ...saved, loaded: true });
     } catch (e) {
-      // M7 (2026-08-29 audit): this used to set `loaded: true` here too, so
-      // the *next* `setSetting` call — any checkbox toggle — would write the
-      // hardcoded `defaults` above back to `settings.json` verbatim,
-      // silently reintroducing stale values a real load would have
-      // overwritten (this store's `maxConcurrentQueries: 1024` predates the
-      // Rust default's drop to 256, exactly the kind of drift this bug would
-      // resurrect on the very first read failure). Leaving `loaded` false
-      // means nothing here ever gets written back this session — worse than
-      // ideal on a transient failure, but far better than corrupting the
-      // user's saved settings with values they never actually chose.
+      // Leave `loaded` false so nothing writes hardcoded defaults back over
+      // the user's real settings.json on a transient read failure.
       console.error("Failed to load settings, not saving until a load succeeds:", e);
     }
   },

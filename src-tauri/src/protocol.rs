@@ -19,19 +19,9 @@ pub struct ConnectRequest {
     pub favourite: bool,
 }
 
-/// Parse a `dzsa://connect/IP:PORT[?fav=1]` link.
-///
-/// `None` for anything that doesn't match — a malformed or foreign link is
-/// silently ignored rather than guessed at, the same way a malformed server
-/// address is elsewhere in this codebase.
-///
-/// The IP is parsed as an `Ipv4Addr`, not merely checked for non-emptiness.
-/// This is the widest untrusted-input surface in the app — the scheme is
-/// registered OS-wide and reachable from any web page — and the emitted
-/// `ConnectRequest` used to carry whatever string sat before the first `:`
-/// unexamined. `Ipv4Addr::from_str` also rejects octal-looking octets
-/// (leading zeros), which is a deliberate hardening in std against exactly
-/// the ambiguous-parse class of bug this validation exists to close off.
+/// Parse a `dzsa://connect/IP:PORT[?fav=1]` link, `None` if malformed.
+/// IP is parsed as `Ipv4Addr` (not just checked non-empty) since this is the
+/// widest untrusted-input surface in the app — reachable from any web page.
 pub fn parse_connect_link(link: &str) -> Option<ConnectRequest> {
     let lower = link.to_ascii_lowercase();
     if !lower.starts_with(SCHEME) {
@@ -55,29 +45,16 @@ pub fn parse_connect_link(link: &str) -> Option<ConnectRequest> {
     })
 }
 
-/// Pull a `dzsa://` link out of a process's command line, if it carries one.
-///
-/// Windows hands a registered protocol handler its URL as a plain argument, so
-/// this is the only place a deep link appears. Everything else on the line —
-/// the executable path, `--autostart` — is ignored.
+/// Pull a `dzsa://` link out of a process's command line — the only place
+/// Windows hands a registered protocol handler its URL.
 pub fn link_in_argv(argv: &[String]) -> Option<&str> {
     argv.iter()
         .map(String::as_str)
         .find(|arg| arg.to_ascii_lowercase().starts_with(SCHEME))
 }
 
-/// Handle a `dzsa://` link on this process's command line, however it got
-/// there: the launcher's own cold-start argv, or a second launch's argv
-/// forwarded here by the single-instance plugin (without this the link would
-/// otherwise be lost outright — the OS starts a second process to carry it,
-/// single-instance kills that process, and nothing in the surviving one ever
-/// sees the argument).
-///
-/// Parses the link and hands it to the frontend as a `dzsa-connect` event —
-/// see `App.tsx`'s listener. Never launches DayZ itself: a deep link selects
-/// (and optionally favourites) a server, but joining still needs the user to
-/// press the button themselves, deliberately. A webpage should not have the
-/// power to spawn the game unattended.
+/// Handle a `dzsa://` link on the command line (cold start, or forwarded by
+/// the single-instance plugin). Emits `dzsa-connect`; never launches DayZ.
 pub fn handle_argv(app: &AppHandle, argv: &[String]) {
     let Some(link) = link_in_argv(argv) else {
         return;
@@ -163,11 +140,7 @@ mod tests {
         assert_eq!(parse_connect_link("dzsa://connect/:2302"), None);
     }
 
-    /// The regression this validation exists to close: before the IP was
-    /// parsed as an `Ipv4Addr`, anything non-empty before the first `:`
-    /// passed — a link crafted by a hostile web page could carry an
-    /// arbitrary string all the way to the `dzsa-connect` event the frontend
-    /// trusts.
+    /// Regression: previously anything non-empty before the first `:` passed.
     #[test]
     fn a_non_ipv4_host_does_not_parse() {
         assert_eq!(parse_connect_link("dzsa://connect/example.com:2302"), None);
@@ -177,9 +150,7 @@ mod tests {
         );
     }
 
-    /// Leading zeros are ambiguous between decimal and octal in some parsers
-    /// (`010` meaning 8, not 10). Rust's `Ipv4Addr::from_str` rejects them
-    /// outright rather than guessing, and this pins that we rely on it.
+    /// Leading zeros are ambiguous decimal/octal; `Ipv4Addr::from_str` rejects them.
     #[test]
     fn an_octet_with_a_leading_zero_does_not_parse() {
         assert_eq!(

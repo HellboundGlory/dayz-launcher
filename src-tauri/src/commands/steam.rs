@@ -4,10 +4,6 @@ use std::sync::Arc;
 use tauri::State;
 
 /// Why Steam could not be connected, in the shape the startup modal reads.
-///
-/// A structured payload rather than a formatted string: the modal needs to pick
-/// its wording from `kind`, and needs `auto_retry` to decide whether to keep
-/// checking on a timer or wait for the user.
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SteamInitError {
@@ -36,9 +32,7 @@ impl SteamInitError {
 
 impl From<tetra_steam::SteamError> for SteamInitError {
     fn from(e: tetra_steam::SteamError) -> Self {
-        // Steam's raw text only. `SteamError`'s own Display prefixes it with the
-        // human phrasing of the kind, which the modal already renders as its
-        // title — using it here would print the same sentence twice.
+        // Steam's raw text only — the modal already renders `kind`'s human phrasing as its title.
         match e {
             tetra_steam::SteamError::Init(kind, raw) => SteamInitError {
                 kind,
@@ -51,9 +45,7 @@ impl From<tetra_steam::SteamError> for SteamInitError {
     }
 }
 
-/// Resets `AppState.steam_initialising` on drop — every exit from
-/// `steam_init` (success, a real failure, or an early `?`) has to release the
-/// guard, not just the path that reaches the bottom of the function.
+/// Resets `AppState.steam_initialising` on drop, so any exit path from `steam_init` releases it.
 struct InitGuard<'a>(&'a AtomicBool);
 
 impl Drop for InitGuard<'_> {
@@ -62,18 +54,9 @@ impl Drop for InitGuard<'_> {
     }
 }
 
-/// Initialize Steamworks client for DayZ (appid 221100).
-/// Steam shows "playing DayZ" while the handle lives.
-///
-/// Safe to call repeatedly: a successful connection short-circuits, and a failed
-/// attempt leaves no state behind, so the startup modal can retry this on a
-/// timer until the user has Steam open.
-///
-/// `async` + `spawn_blocking` specifically because of that retry loop.
-/// `SteamHandle::start` blocks until the Steam thread answers, which takes a
-/// noticeable moment when there is no client to answer — and a synchronous
-/// Tauri command runs on the main thread, so polling one would stall the
-/// webview (and the modal's own Retry button) on every attempt.
+/// Initialize Steamworks client for DayZ (appid 221100). Steam shows
+/// "playing DayZ" while the handle lives. Safe to call repeatedly — the
+/// startup modal retries this on a timer until Steam is open.
 #[tauri::command]
 pub async fn steam_init(state: State<'_, AppState>) -> Result<(), SteamInitError> {
     {
@@ -86,12 +69,8 @@ pub async fn steam_init(state: State<'_, AppState>) -> Result<(), SteamInitError
         }
     }
 
-    // M17 (2026-08-29 audit): `steam_ready` alone only guards the window
-    // *before* `SteamHandle::start()` — two calls arriving close together
-    // (the auto-retry timer and a manual Retry click, say) could both pass
-    // that check and both run a real `SteamAPI_Init()` before either
-    // finished. This closes that window: the loser fails fast, with a
-    // failure kind the frontend already knows how to wait out.
+    // `steam_ready` alone only guards the window *before* `start()` — this closes
+    // the race where two calls arriving close together both run a real init.
     if state
         .steam_initialising
         .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
@@ -109,10 +88,7 @@ pub async fn steam_init(state: State<'_, AppState>) -> Result<(), SteamInitError
         .await
         .map_err(|e| SteamInitError::internal(format!("Task join error: {e}")))??;
 
-    // Two attempts overlapping would otherwise leave a second Steam thread
-    // running for the life of the process. The loser of the race is shut down
-    // rather than dropped — dropping the handle detaches its thread instead of
-    // stopping it.
+    // The loser of the race is shut down, not dropped — dropping detaches the thread instead of stopping it.
     let mut redundant = None;
     {
         let mut ready = state
@@ -137,18 +113,9 @@ pub async fn steam_init(state: State<'_, AppState>) -> Result<(), SteamInitError
     Ok(())
 }
 
-/// Whether the live Steam backend connection is still up.
-///
-/// Distinct from `steam_init` succeeding once at startup: that only proves
-/// the connection existed at that moment. This reads a flag the actor keeps
-/// current via `SteamServersDisconnected`/`SteamServersConnected`, so a
-/// connection lost later (the launcher stayed open, Steam's backend session
-/// dropped) is visible too — see the `Disconnected` init-failure kind.
-///
-/// A cheap atomic read, not a round trip through the Steam actor thread, so
-/// the frontend can poll this on a short interval without adding load.
-/// Returns `false` rather than erroring when there is no handle yet — that
-/// is a normal state before `steam_init` succeeds, not a fault.
+/// Whether the live Steam backend connection is still up (not just whether
+/// `steam_init` once succeeded). Cheap atomic read, safe to poll often.
+/// Returns `false` rather than erroring when there's no handle yet.
 #[tauri::command]
 pub fn steam_connection_state(state: State<AppState>) -> Result<bool, String> {
     let guard = state.steam.lock().map_err(|e| e.to_string())?;
@@ -164,10 +131,7 @@ pub struct DownloadProgress {
     pub total: String,
 }
 
-/// Download progress for whichever of the given items Steam is transferring.
-///
-/// Items with no active transfer are omitted, so an empty list means nothing is
-/// downloading rather than an error.
+/// Download progress for whichever of the given items Steam is transferring; omits items with no active transfer.
 #[tauri::command]
 pub async fn steam_download_progress(
     state: State<'_, AppState>,
@@ -276,11 +240,7 @@ pub async fn steam_subscribe_mods(
     run_mutation(state, workshop_ids, true).await
 }
 
-/// Unsubscribe from the given workshop items.
-///
-/// Destructive: Steam deletes the content from disk, and Workshop items are
-/// shared between servers, so this can affect servers other than the one the
-/// user is looking at. The frontend confirms before calling this.
+/// Unsubscribe from the given workshop items — deletes content from disk, may affect other servers sharing the mod. Frontend confirms first.
 #[tauri::command]
 pub async fn steam_unsubscribe_mods(
     state: State<'_, AppState>,
@@ -297,14 +257,7 @@ pub struct ModStateEntry {
     pub state: tetra_steam::workshop::ModState,
 }
 
-/// Look up the Steam install state of the given workshop items.
-///
-/// One batched round trip through the Steam actor regardless of how many ids
-/// are asked about — a 93-mod server is a single dispatch.
-///
-/// Returns an empty list rather than an error when Steam is not connected: the
-/// panel renders fine without state, and a red error banner for "Steam isn't
-/// running yet" during startup would be noise.
+/// Look up the Steam install state of the given workshop items in one batched round trip. Returns an empty list (not an error) when Steam isn't connected yet.
 #[tauri::command]
 pub async fn steam_mod_states(
     state: State<'_, AppState>,

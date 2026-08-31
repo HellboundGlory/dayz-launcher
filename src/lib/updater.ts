@@ -57,17 +57,8 @@ export async function installUpdate(
   await relaunch();
 }
 
-/**
- * Fallback for the update dialog's changelog.
- *
- * The changelog is normally the `notes` field of `latest.json`; older/current
- * manifests were published with that field empty (the workflow didn't set a
- * release body), so the dialog would show nothing. The GitHub Releases API
- * returns the release body we set by hand after each release, so when the
- * manifest has no notes we fetch that instead. This is a single anonymous
- * request on an update-available (checks are hours apart), well under the
- * unauthenticated rate limit.
- */
+// Fallback for the update dialog's changelog when latest.json has no notes —
+// pulls the release body from the GitHub API instead.
 export async function fetchReleaseNotes(version: string): Promise<string | null> {
   try {
     const res = await fetch(

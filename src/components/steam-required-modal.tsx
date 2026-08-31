@@ -18,13 +18,7 @@ interface Copy {
   patient?: boolean;
 }
 
-/**
- * Copy per failure kind.
- *
- * Split out because the cases need genuinely different instructions — telling
- * someone whose account has no DayZ licence to "start Steam" sends them to do
- * something they have already done.
- */
+// Split per failure kind because the cases need genuinely different instructions.
 const COPY: Record<SteamInitFailure, Copy> = {
   steam_not_running: {
     title: "Steam isn't running",
@@ -54,27 +48,17 @@ const COPY: Record<SteamInitFailure, Copy> = {
   },
 };
 
-/**
- * Once the automatic re-checks run out, a still-not-ready Steam has stopped
- * looking like a slow startup and started looking like a licence problem —
- * which is the same generic failure from Steam's side, but needs the opposite
- * advice. Only reachable after the patient message has had its full window.
- */
+// Once auto-retries run out, "still not ready" reads more like a licence
+// problem than a slow startup, so the advice flips.
 const NOT_READY_EXHAUSTED: Copy = {
   title: "Steam won't start a DayZ session",
   body:
     "Steam has been running for a while and still won't hand DayZ over. Check that the account signed in to Steam actually owns DayZ, then retry.",
 };
 
-/**
- * Blocking prompt shown when Steam cannot be reached at startup.
- *
- * Deliberately has no dismiss: without Steam the launcher can neither discover
- * servers nor tell whether a mod is installed, and the mod panel reads an empty
- * Steam response as "no mods to worry about" — so a dismissed prompt would leave
- * the app quietly claiming every server is ready to join. The window's own close
- * button remains the way out.
- */
+// Blocking prompt when Steam can't be reached at startup. Deliberately no
+// dismiss — a dismissed prompt would leave the mod panel silently treating
+// an empty Steam response as "no mods to worry about".
 export function SteamRequiredModal({
   error,
   checking,
@@ -89,16 +73,9 @@ export function SteamRequiredModal({
       ? NOT_READY_EXHAUSTED
       : (COPY[error.kind] ?? COPY.internal);
 
-  // Steam reports "still booting" and "will not start a session" identically,
-  // so an attempt made seconds after we launched it fails in a way that reads
-  // as a hard error. Offering Start Steam again there is worse than useless —
-  // the answer is to wait, which the poll loop is already doing.
   const offerStart = error.kind === "steam_not_running" && !starting;
   const polling = error.autoRetry && !exhausted;
-  // `steam_init` short-circuits once the backend reports `ready`, which is
-  // still true here — the process never actually tore down the dead
-  // session. A Retry button would silently "succeed" against the same stale
-  // handle, which is worse than no button at all.
+  // A Retry button here would silently "succeed" against the same stale handle.
   const retryDisconnected = error.kind === "disconnected";
 
   async function handleStartSteam() {
@@ -110,9 +87,8 @@ export function SteamRequiredModal({
       setStartError(String(e));
       setStarting(false);
     }
-    // On success `starting` deliberately stays set: Steam takes a while to sign
-    // in, and re-offering the button during that window invites the user to
-    // launch it repeatedly. The prompt closes itself when the poll connects.
+    // On success `starting` deliberately stays set until the poll connects,
+    // so the button doesn't invite launching Steam repeatedly.
   }
 
   return (

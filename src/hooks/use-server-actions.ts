@@ -1,10 +1,4 @@
-/**
- * The one server-launch action path, shared by the D2 row dropdown and the M1
- * modal. Ported out of the deleted `server-details.tsx` unchanged in behaviour
- * — this is the proven verify/fix/join orchestration, and the two new surfaces
- * both drive it so a launch can never behave differently depending on where it
- * was started.
- */
+// Shared launch action path used by the row dropdown and the info modal.
 import { useEffect, useState } from "react";
 import { useServerStore } from "@/stores/server-store";
 import { useSettingsStore } from "@/stores/settings-store";
@@ -20,12 +14,7 @@ import {
 import { formatBytes } from "@/lib/utils";
 import type { Server } from "@/types/server";
 
-/**
- * Short codes for anything that went sideways, in place of a paragraph.
- *
- * `W` is a warning: the join went ahead, but something was not done.
- * `E` stopped it.
- */
+/** Short codes for anything that went sideways. `W` = join went ahead anyway, `E` = stopped it. */
 export const NOTICES = {
   W01: {
     text: "Mod versions not checked",
@@ -58,44 +47,20 @@ export const NOTICES = {
 
 export type NoticeCode = keyof typeof NOTICES;
 
-/**
- * How often the wait loop re-reads Steam install state.
- *
- * Fast enough that a subscribe or a finished download shows up promptly,
- * slow enough to be free — the underlying call is a local Steam lookup with
- * no network round trip.
- */
+/** How often the wait loop re-reads Steam install state (a cheap local lookup). */
 const MOD_STATE_POLL_MS = 1500;
 
-/**
- * Ceiling on one subscribe-and-join. Big mod sets legitimately take a long
- * time, but the wait must end in a message rather than an indefinite spinner.
- */
+/** Ceiling on one subscribe-and-join — must end in a message, not an infinite spinner. */
 const FIX_DEADLINE_MS = 45 * 60 * 1000;
 
-/**
- * How long everything can stay completely unchanged — no state transition and
- * no bytes moved — before the wait is called stalled. Steam surfaces no event
- * for "download will never start", so the only detectable signal is that
- * nothing is happening.
- */
+/** No progress for this long (state + bytes both unchanged) counts as stalled. */
 const FIX_STALL_MS = 3 * 60 * 1000;
 
-/**
- * How long the JOIN button holds its "DayZ is starting" confirmation.
- */
+/** How long the JOIN button holds its "DayZ is starting" confirmation. */
 const LAUNCHED_NOTICE_MS = 15_000;
 
-/**
- * How long to keep waiting after forcing an update, before an all-ready reading
- * is believed.
- *
- * `download_item` returns as soon as Steam accepts the request; the item's
- * state bits change a moment later. Poll inside that gap and every mod still
- * reports installed and current — including the one just condemned as stale —
- * so the join would proceed against exactly the content the verification set
- * out to replace.
- */
+// Grace period after forcing an update before trusting an "all ready" reading —
+// Steam's state bits lag a moment behind accepting the download request.
 const REFRESH_SETTLE_MS = 5_000;
 
 /** A line under the buttons: either a coded problem or a plain result. */
@@ -120,14 +85,8 @@ export function phaseLabel(op: ActiveOp): string {
   }
 }
 
-/**
- * Mods the user can actually do something about.
- *
- * `not_on_workshop` entries carry no Workshop id, so they cannot be subscribed,
- * downloaded or verified. Counting them as blockers made servers that declare
- * one permanently unjoinable and left "Subscribe and join" waiting for a state
- * that could never arrive.
- */
+// Excludes not_on_workshop mods — they have no Workshop id and can never
+// become "ready", so counting them as blockers made those servers unjoinable.
 function isActionable(state: ModState) {
   return state !== "not_on_workshop";
 }
@@ -150,24 +109,16 @@ export function useServerActions() {
 
   const [notice, setNotice] = useState<Notice | null>(null);
 
-  /**
-   * Spawn DayZ against a server, and record the outcome against *that* server.
-   *
-   * `addr` is passed in rather than read from `selectedServer` because the
-   * caller captured it before a long await: the result has to be tagged with
-   * the server that was actually launched, not with whatever happens to be
-   * selected by the time the promise resolves.
-   */
+  // `addr` is passed in rather than read from `selectedServer`, so the result
+  // is tagged with the server actually launched, not whatever's selected once
+  // the promise resolves.
   async function launch(addr: string, gamePort: number, toMenu = false) {
     setPhase("launching");
     try {
       const outcome = await launchGame(addr, gamePort, launchOptions(toMenu));
       useLaunchStore.getState().setResult({ addr, message: outcome.message });
-      // Handed to `starting`, which ends when DayZ shows up as a process.
       setPhase("starting");
     } catch (e) {
-      // `launch_game` runs its own gate off a live re-query, so this also
-      // catches a server that changed its mod list while the download ran.
       useLaunchStore.getState().setResult({ addr, error: String(e) });
     }
   }
@@ -182,30 +133,9 @@ export function useServerActions() {
     };
   }
 
-  /**
-   * Verify, fix, then join. The one path behind JOIN / Load to menu.
-   *
-   * There is deliberately no second "just launch" handler any more. Both
-   * halves of the original bug could be stale — the mod list the panel is
-   * showing, and Steam's idea of each mod's version — and neither is something
-   * the user can be expected to notice, so both are checked every time rather
-   * than only when something already looks wrong.
-   *
-   * Orchestrated here rather than as a long-running Rust command because every
-   * step already exists as a proven command, and driving it from the frontend
-   * makes cancellation free — the user closing the panel or hitting Cancel just
-   * stops the loop.
-   *
-   * The wait polls Steam directly instead of reading any cached state: that
-   * state would be the value captured when the loop started.
-   *
-   * `server` is the caller's explicit target, never read from
-   * `selectedServer`. The row ⋯ menu's trigger calls `stopPropagation()` so
-   * opening it does not select that row, and the M1 modal shows whatever
-   * server it was opened for regardless of the table's selection — either one
-   * reading the global selection could run this whole gate, and a real join,
-   * against a different server than the button the user pressed.
-   */
+  // Verify, fix, then join — the one path behind JOIN / Load to menu.
+  // `server` is always the caller's explicit target, never the table's
+  // global selection (which can differ from the row/modal that was clicked).
   async function verifyAndJoin(server: Server, toMenu = false) {
     const addr = server.addr;
     const queryPort = server.query_port;
@@ -221,9 +151,7 @@ export function useServerActions() {
       const verified = await verifyServerMods(addr, queryPort);
       if (cancel.cancelled) return;
 
-      // Say so when the check did not happen. The button promises verification;
-      // proceeding quietly on Steam's cached opinion would be the same silence
-      // that produced the bug this whole path exists to fix.
+      // Flag it rather than silently proceeding on Steam's cached opinion.
       if (!verified.checked_workshop) {
         setNotice({ kind: "code", code: "W01" });
       }
@@ -256,17 +184,13 @@ export function useServerActions() {
         }
       }
 
-      // Steam sets the downloading bits a moment after accepting a forced
-      // update, so a mod that is *about* to be replaced still reads "ready" on
-      // the first poll. Without this window the loop would see nothing to wait
-      // for and launch against the very content the verification just
-      // condemned.
+      // A mod about to be replaced still reads "ready" for a moment — give
+      // Steam time to flip the downloading bits before trusting a clean read.
       const settleUntil =
         verified.refreshed.length > 0 ? Date.now() + REFRESH_SETTLE_MS : 0;
 
-      // Wait for Steam. Progress is judged by a fingerprint of every mod's
-      // state plus total bytes moved; if that fingerprint stops changing for
-      // FIX_STALL_MS, nothing is happening and waiting longer won't help.
+      // Progress is a fingerprint of state + bytes moved; no change for
+      // FIX_STALL_MS means nothing is happening.
       const started = Date.now();
       let lastFingerprint = "";
       let lastChange = Date.now();
@@ -280,8 +204,6 @@ export function useServerActions() {
         ]);
         if (cancel.cancelled) return;
 
-        // Excludes server-side mods: they never become "ready", so counting
-        // them here would spin until the stall detector fired.
         const notReady = states.filter((s) => isActionable(s.state) && s.state !== "ready");
         const moved = progress.reduce((n, p) => n + Number(p.downloaded), 0);
         const totalBytes = progress.reduce((n, p) => n + Number(p.total), 0);
@@ -317,14 +239,9 @@ export function useServerActions() {
 
       setNote(null);
 
-      // Whether this press turned out to involve a download the button could
-      // not have predicted — either mods that had to be subscribed, or a stale
-      // one the Workshop check caught that Steam had not noticed.
       const downloaded = missing.length > 0 || verified.refreshed.length > 0;
 
-      // The one case where a press does not end in DayZ starting.
-      // `autoJoinAfterDownload` governs exactly this: being dropped into the
-      // game on the far side of a wait.
+      // The one case where a press doesn't end in DayZ starting.
       if (downloaded && !autoJoinAfterDownload) {
         setNotice({ kind: "plain", text: "Mods updated — press JOIN to go in." });
         return;
@@ -334,33 +251,17 @@ export function useServerActions() {
     } catch (e) {
       setNotice({ kind: "plain", text: String(e) });
     } finally {
-      // Only touch shared state if this is still the operation the store is
-      // tracking. `cancel` is the identity token `beginOp` minted for this
-      // call; a mismatch means `cancelWait` already cleared it, or — worse —
-      // a later press started a new operation while this one was still
-      // resolving. Without this check, a cancelled or superseded press could
-      // wipe a newer operation's progress box and re-enable A2S probing
-      // mid-download the moment its own abandoned promise finally settled.
+      // `cancel` is this call's identity token — a mismatch means a newer
+      // operation replaced this one, so leave its state alone.
       if (useLaunchStore.getState().op?.cancel === cancel) {
-        // A launch that got as far as spawning hands the operation to `starting`,
-        // which ends when DayZ appears. Ending it here would erase that in the
-        // same tick.
+        // A launch that reached spawning hands off to `starting`; don't erase that.
         if (useLaunchStore.getState().op?.phase !== "starting") endOp();
         setDownloadsActive(false);
       }
     }
   }
 
-  /**
-   * Subscribe the server's missing mods and let Steam download them — no join.
-   *
-   * The D2 dropdown's "Download mods" action. Re-uses the verification so the
-   * list being subscribed is the server's live declaration, then subscribes
-   * anything not already subscribed and reports what happened.
-   *
-   * `server` is the caller's explicit target — see `verifyAndJoin`'s doc for
-   * why this must never fall back to the table's selection.
-   */
+  // Subscribes the server's missing mods and lets Steam download them — no join.
   async function subscribeOnly(server: Server) {
     const addr = server.addr;
     const queryPort = server.query_port;
@@ -418,8 +319,7 @@ export function useServerActions() {
     } catch (e) {
       setNotice({ kind: "plain", text: String(e) });
     } finally {
-      // See the matching guard in `verifyAndJoin` — a cancelled or superseded
-      // press must not tear down whatever operation replaced it.
+      // See the matching guard in verifyAndJoin.
       if (useLaunchStore.getState().op?.cancel === cancel) {
         endOp();
         setDownloadsActive(false);
@@ -434,9 +334,7 @@ export function useServerActions() {
     setNotice({ kind: "code", code: "W04" });
   }
 
-  // Give up on "starting" if DayZ never appears (usually BattlEye refusing to
-  // hand off). Without it the button would sit on STARTING DAYZ… forever and
-  // block every other server. Lives here so both surfaces inherit it.
+  // Give up on "starting" if DayZ never appears (usually BattlEye refusing to hand off).
   useEffect(() => {
     if (op?.phase !== "starting") return;
     const timer = window.setTimeout(() => {

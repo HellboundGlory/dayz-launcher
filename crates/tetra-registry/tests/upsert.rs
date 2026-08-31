@@ -1,12 +1,8 @@
 //! Upsert semantics: which writes are allowed to overwrite live data.
 //!
-//! These exist because a partial write silently destroyed real rows in
-//! production. A refresh wrote a full `ServerRow` for each server, then a
-//! second pass wrote another `ServerRow` carrying *only* a `mod_count` — every
-//! other field left at `Default`. The `ON CONFLICT` clause assigned those
-//! defaults unconditionally, so a successful mod probe blanked the name and
-//! zeroed the player counts of the very server it had just measured. 1426 of
-//! 4735 rows in the shipped database were corrupted this way.
+//! These exist because a partial write (a `ServerRow` carrying only a
+//! `mod_count`, everything else at `Default`) used to silently blank real
+//! rows via the unconditional `ON CONFLICT` clause — see .ai-notes.
 
 use std::net::Ipv4Addr;
 use tetra_core::a2s::dayz::ServerMod;
@@ -151,10 +147,8 @@ async fn mod_probe_sets_mod_count_without_touching_live_fields() {
     assert_eq!(row.players, 42);
 }
 
-/// A server that answers the rules query with no mods is *known* vanilla.
-/// That has to be distinguishable from never-probed, which is what the mods
-/// column in the UI keys off — showing "—" for both is what made modded
-/// servers look mod-free.
+/// Known-vanilla (empty mod list) must stay distinguishable from never-probed, or both render
+/// as "—" in the UI.
 #[tokio::test]
 async fn an_empty_mod_list_records_zero_rather_than_leaving_null() {
     let registry = Registry::open_in_memory().expect("registry");
@@ -238,13 +232,8 @@ async fn classification_flags_reach_the_list_row() {
     assert_eq!(row.version.as_deref(), Some("1.28"));
 }
 
-/// Never-probed servers must be first in line for the next refresh.
-///
-/// Ordering refresh targets by `players DESC` starves them: a server that has
-/// never answered has `players = 0`, so it sorts to the very bottom, and once
-/// the registry outgrows the probe window it would never be probed again — nor
-/// healed from the Steam side, since rows that fail Steam's own query arrive
-/// with `responded = false` and the upsert guard ignores them.
+/// Never-probed servers must be first in line for the next refresh —
+/// sorting by `players DESC` alone would starve them permanently.
 #[tokio::test]
 async fn refresh_priority_puts_never_probed_servers_first() {
     let registry = Registry::open_in_memory().expect("registry");
@@ -309,10 +298,6 @@ async fn refresh_priority_puts_never_probed_servers_first() {
     assert_eq!(by_priority[1].key, busy);
 }
 
-/// `counts()` folds what used to be two separate scans — a `count()` plus an
-/// ad-hoc `SELECT COUNT(*) ... WHERE players > 0` written at the command layer
-/// through a `raw()` connection escape hatch — into one statement inside the
-/// crate that owns the SQL.
 #[tokio::test]
 async fn counts_reports_total_and_populated_separately() {
     let registry = Registry::open_in_memory().expect("registry");
@@ -358,11 +343,9 @@ async fn counts_are_zero_on_an_untouched_registry() {
     assert_eq!(reader.counts().expect("counts"), (0, 0));
 }
 
-/// The browser's noise filters, end to end through the SQL.
-///
-/// These run against `tetra_is_placeholder` / `tetra_is_english`, registered as
-/// SQLite functions on every read connection — so this also proves the
-/// registration actually happens, which a unit test of the classifier cannot.
+/// The browser's noise filters, end to end through the SQL — also proves
+/// the `tetra_is_placeholder`/`tetra_is_english` SQLite functions actually
+/// get registered, which a unit test of the classifier alone cannot.
 #[tokio::test]
 async fn name_filters_hide_noise_and_keep_real_servers() {
     let registry = Registry::open_in_memory().expect("registry");
@@ -525,8 +508,7 @@ async fn favourites_and_recent_filters_select_the_right_rows() {
 }
 
 /// `get` is `list`'s single-row cousin, used to attach a server's current
-/// name/map/players to Discord Rich Presence right after a launch, where the
-/// caller only has the address it just spawned DayZ against.
+/// name/map/players to Discord Rich Presence right after a launch.
 #[tokio::test]
 async fn get_returns_the_same_row_list_would() {
     let registry = Registry::open_in_memory().expect("registry");
@@ -548,12 +530,8 @@ async fn get_on_an_unknown_key_is_none_not_an_error() {
 }
 
 /// `set_favourite`/`mark_played` are targeted `UPDATE`s — SQLite reports
-/// success on an `UPDATE` that matched no row, which is indistinguishable
-/// from a real write unless the affected count is checked. Both must answer
-/// `0` for a key the registry has never seen, so the Tauri command layer
-/// (`commands::server::toggle_favourite`) can turn that into an error instead
-/// of letting the frontend believe a favourite was persisted when nothing was
-/// written at all.
+/// success on an `UPDATE` that matched no row, so both must answer `0` for
+/// an unknown key rather than silently no-op.
 #[tokio::test]
 async fn favouriting_or_marking_played_an_unknown_key_reports_zero_affected_rows() {
     let registry = Registry::open_in_memory().expect("registry");

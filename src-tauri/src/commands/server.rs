@@ -8,48 +8,29 @@ use tetra_registry::filter::{ServerFilter, SortDir, SortKey};
 use tetra_registry::rows::ServerKey;
 use tetra_steam::to_server_row;
 
-/// How many servers one refresh probes.
-///
-/// Independent of the table's display limit: this is backend-only work bounded
-/// by `ProbeConfig::max_in_flight`, and it is what decides how many servers ever
-/// get a `mod_count`. At the old value of 500 a server outside the top 500 by
-/// player count was never rules-probed, so its mod column stayed blank forever
-/// no matter how many times the user hit refresh.
+/// How many servers one refresh probes. Independent of the table's display
+/// limit — see .ai-notes/src-tauri/src/commands/server.rs.md.
 const PROBE_WINDOW: usize = 5000;
 
 /// Servers per registry write batch during a refresh.
 const WRITE_BATCH: usize = 200;
 
-/// Ceiling on one server's whole A2S_RULES retry chain, measured from when
-/// `Prober::rules_with_deadline` actually acquires a permit — never from
-/// when the probe task was spawned. See that method's own docs for why the
-/// distinction is load-bearing: against a fair FIFO semaphore carrying
-/// thousands of queued candidates, a deadline that counted queue time used
-/// to expire almost every one of them before it ever opened a socket.
+/// Ceiling on one server's whole A2S_RULES retry chain, measured from when a
+/// permit is actually acquired — never from when the probe task was spawned.
 const RULES_DEADLINE: std::time::Duration = std::time::Duration::from_secs(8);
 
 /// Below this batch size, a failed A2S_INFO probe is written as `online =
-/// false` unconditionally — there are too few data points to tell "this
-/// server is down" apart from "my network hiccuped" by failure ratio alone,
-/// and a batch this small is exactly what a single targeted row refresh
-/// would send.
+/// false` unconditionally — too few data points to distinguish "down" from
+/// "network hiccup" by failure ratio.
 const MIN_BATCH_FOR_OFFLINE_CORROBORATION: usize = 8;
 
 /// Share of a targeted batch that must fail before a miss is treated as "my
-/// network", not "the server is down" — see `probe_info`'s corroboration
-/// check.
+/// network", not "the server is down".
 const OFFLINE_CORROBORATION_THRESHOLD: f64 = 0.4;
 
-/// How many rules-probe tasks may be in flight at once during phase 2 of a
-/// refresh, independent of how many candidates phase 1 handed over.
-///
-/// `Prober`'s own semaphore already caps how many queries are actually on
-/// the wire (`max_in_flight`); this caps how many Tokio tasks exist waiting
-/// for one. `PROBE_WINDOW` can hand phase 2 up to 5000 candidates at once —
-/// spawning a task per candidate meant most of them did nothing but sit
-/// queued on a permit that would not free up for tens of seconds. Sized off
-/// the actual configured concurrency (with headroom, so a permit freeing up
-/// always has a task ready to take it) rather than a fixed guess.
+/// How many rules-probe tasks may be in flight at once during phase 2,
+/// independent of how many candidates phase 1 handed over. Sized off the
+/// prober's actual concurrency (with headroom) rather than a fixed guess.
 fn rules_fanout(prober: &Prober) -> usize {
     prober
         .config()
@@ -58,28 +39,19 @@ fn rules_fanout(prober: &Prober) -> usize {
         .clamp(64, 1000)
 }
 
-/// Borrow the process-wide `Prober` from application state.
-///
-/// Every probing path must go through this. `probe_info` and `probe_rules` each
-/// used to build their own `Prober::new(ProbeConfig::default())`, and a `Prober`
-/// owns its concurrency semaphore — so each fresh one came with a *full*
-/// `MAX_IN_FLIGHT` budget of its own. Two overlapping refreshes therefore opened
-/// up to 2048 sockets between them, and a refresh overlapping a launch's rules
-/// query added more still, despite `MAX_IN_FLIGHT` documenting itself as "the
-/// one tuning constant for transport concurrency". Sharing the single instance
-/// created in `setup` is what makes that true.
+/// Borrow the process-wide `Prober` from application state. Every probing
+/// path must go through this — a fresh `Prober` owns its own concurrency
+/// semaphore, so two overlapping refreshes each building their own used to
+/// open far more sockets than `MAX_IN_FLIGHT` was meant to cap.
 fn prober(state: &AppState) -> Result<Prober, String> {
     let guard = state.prober.lock().map_err(|e| e.to_string())?;
     Ok(guard.as_ref().ok_or("Prober not initialized")?.clone())
 }
 
-/// Open a read connection, releasing the state lock before returning.
-///
-/// The tight scope is load-bearing twice over. `state.registry` is a
-/// `std::sync::Mutex`, whose guard is not `Send`, so an `async` command that
-/// held one across an `.await` would not compile. And a `Reader` owns its own
-/// SQLite connection, so handing it to a blocking task keeps no lock at all —
-/// the writer thread stays free to commit while the query runs.
+/// Open a read connection, releasing the state lock before returning. The
+/// tight scope matters twice over: the `!Send` guard can't cross an
+/// `.await`, and a `Reader` owning its own connection means handing it to a
+/// blocking task keeps no lock at all.
 pub(crate) fn reader(state: &AppState) -> Result<tetra_registry::Reader, String> {
     let guard = state.registry.lock().map_err(|e| e.to_string())?;
     guard
@@ -91,14 +63,8 @@ pub(crate) fn reader(state: &AppState) -> Result<tetra_registry::Reader, String>
 
 /// The shared reader `blocking_read` uses, cloning the `Arc` so it can be
 /// moved into `spawn_blocking` without borrowing `AppState` across it.
-///
-/// Lazily seeded on first call rather than at setup — M1 (2026-08-29 audit).
-/// Before this, every `blocking_read` call opened a brand-new `Connection`
-/// (four `PRAGMA`s including a `journal_mode` round trip, plus registering
-/// two scalar UDFs) on top of `SortParams::limit` rows of query work, on the
-/// hottest path in the app. One connection reused for the life of the
-/// session removes almost all of that — reads were already serialised by the
-/// reload throttle, so pooling costs nothing further in contention.
+/// Lazily seeded on first call — every call used to open a brand-new
+/// connection on the hottest path in the app.
 fn reader_pool(state: &AppState) -> Result<Arc<std::sync::Mutex<tetra_registry::Reader>>, String> {
     let mut pool = state.server_reader.lock().map_err(|e| e.to_string())?;
     if let Some(r) = pool.as_ref() {
@@ -111,15 +77,9 @@ fn reader_pool(state: &AppState) -> Result<Arc<std::sync::Mutex<tetra_registry::
 }
 
 /// Run a blocking registry read off the main thread, against the pooled
-/// reader connection.
-///
-/// **Every query command must go through this.** A non-`async` Tauri command
-/// runs on the main thread and the IPC response is dispatched synchronously, so
-/// the SQLite work happened between paint frames: `get_server_list` alone builds
-/// a filtered query, walks up to `SortParams::limit` (5000) rows and allocates a
-/// `Server32` for each, and it re-runs on every filter edit, sort click and
-/// throttled reload during discovery. That was the window freezing while the
-/// table repopulated.
+/// reader connection. Every query command must go through this — a
+/// non-`async` command's SQLite work would otherwise run inline between
+/// paint frames, freezing the window while the table repopulates.
 pub(crate) async fn blocking_read<T, F>(state: &AppState, work: F) -> Result<T, String>
 where
     F: FnOnce(&tetra_registry::Reader) -> Result<T, String> + Send + 'static,
@@ -141,9 +101,7 @@ pub struct Server32 {
     pub game_port: u32,
     pub query_port: u32,
     pub name: String,
-    // No raw `map`: `ServerListRow` only carries the display name, and having a
-    // `map` field that silently held the display string invited exactly the
-    // mix-up that made `display_name` run twice.
+    // No raw `map`: only the display name is carried, to avoid a silent name/display mix-up.
     pub map_display: String,
     pub players: i32,
     pub max_players: i32,
@@ -151,10 +109,7 @@ pub struct Server32 {
     pub locked: bool,
     pub vac: bool,
     pub version: String,
-    // No `keywords`: it was serialised as a permanent `null` (the row's raw
-    // keyword string is never read back out), and the frontend type declared it
-    // as `string | null`, which invited a reader that could only ever get null.
-    // Everything derived from keywords is already on the row as a flag.
+    // No `keywords`: everything derived from it is already on the row as a flag.
     pub in_game_time: Option<String>,
     pub mod_count: Option<i32>,
     pub country_code: Option<String>,
@@ -164,14 +119,11 @@ pub struct Server32 {
     pub modded: bool,
     pub first_person: bool,
     pub battleye: bool,
-    /// Whether the last targeted refresh that reached for this server got an
-    /// answer. See the `online` column comment in `tetra_registry::schema`.
+    /// Whether the last targeted refresh that reached for this server got an answer.
     pub online: bool,
-    /// Players waiting in the join queue (`lqs` keyword). `0` = no queue,
-    /// `null` = server didn't report one.
+    /// Players waiting in the join queue. `0` = no queue, `null` = server didn't report one.
     pub queue: Option<i32>,
-    /// Day (`etm`) and night (`entm`) time-acceleration multipliers, for the
-    /// `Nx` shown next to the in-game time.
+    /// Day/night time-acceleration multipliers, for the `Nx` shown next to the in-game time.
     pub day_multiplier: Option<f32>,
     pub night_multiplier: Option<f32>,
 }
@@ -183,8 +135,7 @@ pub struct FilterParams {
     pub hide_empty: bool,
     pub hide_full: bool,
     pub hide_locked: bool,
-    // Defaulted so a frontend that predates this toggle still deserialises and
-    // shows offline servers rather than hiding them.
+    // Defaulted so an older frontend still deserialises, showing offline servers rather than hiding them.
     #[serde(default)]
     pub hide_offline: bool,
     pub max_ping: Option<i32>,
@@ -195,8 +146,7 @@ pub struct FilterParams {
     pub official: Option<bool>,
     pub modded: Option<bool>,
     pub first_person: Option<bool>,
-    // Defaulted so a frontend that predates these still deserialises — and so
-    // the omission means "show everything", never "hide silently".
+    // Defaulted so omission means "show everything", never "hide silently".
     #[serde(default)]
     pub hide_placeholder: bool,
     #[serde(default)]
@@ -210,14 +160,9 @@ pub struct SortParams {
     pub limit: usize,
 }
 
-/// Map a registry row onto the bridge type.
-///
-/// Takes the row itself rather than seventeen positional arguments: the old
-/// signature had `map_raw` and `map_display` as adjacent `&str` parameters and
-/// the call site passed `map_display` into both, so `display_name` ran twice.
-/// The classification flags come straight off the row — they were derived from
-/// `keywords` once at write time and the filter SQL matches on those same
-/// columns, so re-deriving them here could only ever disagree.
+/// Map a registry row onto the bridge type. Classification flags come
+/// straight off the row rather than being re-derived here, since they were
+/// computed once at write time and the filter SQL matches those same columns.
 fn to_server32(r: &tetra_registry::filter::ServerListRow) -> Server32 {
     Server32 {
         addr: format!("{}:{}", r.key.ip, r.key.query_port),
@@ -248,17 +193,8 @@ fn to_server32(r: &tetra_registry::filter::ServerListRow) -> Server32 {
 }
 
 /// Clears `AppState.discovery_running` on drop, regardless of how
-/// `discover_servers` leaves scope.
-///
-/// The flag used to be set at the top of the function and cleared by a plain
-/// store at the bottom — reasonable until `writer.upsert_servers(…).await?`
-/// mid-loop started returning early on a registry-write failure, which
-/// skipped the clear and left the flag stuck `true` for the rest of the
-/// session (M13, 2026-08-29 audit). The flag only feeds the exit-time
-/// diagnostic log, but that log exists precisely to be trusted while
-/// investigating an exit-time crash — see the Linux heap-corruption entry in
-/// `progress.md` — and a guard makes "was discovery actually still running"
-/// true regardless of which path out of this function was taken.
+/// `discover_servers` leaves scope (a plain store at the bottom missed the
+/// early-return case on a registry-write failure).
 struct DiscoveryGuard<'a>(&'a AppState);
 
 impl Drop for DiscoveryGuard<'_> {
@@ -286,13 +222,9 @@ pub async fn discover_servers(
         guard.as_ref().ok_or("Registry not initialized")?.writer()
     };
 
-    // Steam takes tens of seconds to walk the full internet list, delivering
-    // one server at a time. Consuming it as a stream means rows land in the
-    // registry — and therefore on screen — from the first flush onward, instead
-    // of the table sitting empty until the whole request completes.
-    //
-    // The channel is `std::sync::mpsc` fed from the (blocking) Steam thread, so
-    // the receive loop runs on a blocking task and hands batches back here.
+    // Consumed as a stream so rows land in the registry — and on screen —
+    // from the first flush onward, instead of the table sitting empty until
+    // the whole request completes.
     let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<tetra_steam::GameServerRow>>(16);
 
     let pump = tokio::task::spawn_blocking(move || {
@@ -318,19 +250,14 @@ pub async fn discover_servers(
         Ok::<(), String>(())
     });
 
-    // Tracked so the exit handler can log whether Steam was mid-stream, and so
-    // `shutting_down` can coax this loop into stopping before Steam teardown.
-    // Cleared by `DiscoveryGuard`'s `Drop`, not a manual store at the bottom —
-    // see its doc comment for why.
+    // Cleared by DiscoveryGuard's Drop, not a manual store at the bottom.
     state.discovery_running.store(true, Ordering::Relaxed);
     let _discovery_guard = DiscoveryGuard(state.inner());
 
     let mut found = 0usize;
     let mut abandoned = false;
     while let Some(rows) = rx.recv().await {
-        // Shutting down (window closed / tray quit)? Stop pulling chunks so
-        // the actor abandons the server-list request and `shutdown_steam`'s
-        // join isn't left waiting on it.
+        // Stop pulling chunks on shutdown so shutdown_steam's join isn't left waiting.
         if state.shutting_down.load(Ordering::Relaxed) {
             abandoned = true;
             crate::log::log_line(
@@ -341,8 +268,7 @@ pub async fn discover_servers(
             break;
         }
 
-        // No dedup pass: the registry is keyed on (ip, query_port) and the
-        // upsert is idempotent, so a repeated row is a no-op write.
+        // No dedup pass needed: upsert is idempotent on (ip, query_port).
         let server_rows: Vec<tetra_registry::rows::ServerRow> =
             rows.iter().map(to_server_row).collect();
         found += server_rows.len();
@@ -359,8 +285,7 @@ pub async fn discover_servers(
     }
 
     // All registry upserts are done before `pump.await`, so a `get_server_list`
-    // issued after this returns sees the full list — which is why a log showing
-    // an empty query *after* this line would pin the bug to the frontend.
+    // issued after this returns sees the full list.
     crate::log::log_line(
         &app,
         "discovery",
@@ -370,10 +295,7 @@ pub async fn discover_servers(
         ),
     );
 
-    // On a normal finish, wait for the pump/actor so the whole request unwinds
-    // before the caller moves on. On an abandoned stream, do NOT wait: the pump
-    // thread ends the moment its send fails, and waiting here is precisely
-    // what would block the exit path.
+    // Don't wait on an abandoned stream — that's precisely what would block the exit path.
     if abandoned {
         crate::log::log_line(
             &app,
@@ -396,10 +318,7 @@ pub async fn get_server_list(
     filter_params: FilterParams,
     sort_params: SortParams,
 ) -> Result<Vec<Server32>, String> {
-    // Splash-70% diagnostic (see progress.md): the whole startup hangs on
-    // whether this query resolves promptly and returns rows. Every call is
-    // timelogged so a log from an affected machine shows whether reloads never
-    // ran (no lines), ran and returned 0, or hung (start with no finish).
+    // Startup hangs on whether this query resolves promptly, so every call is timelogged.
     let started = std::time::Instant::now();
     crate::log::log_line_verbose(&app, "servers", "get_server_list: start");
     let result: Result<Vec<Server32>, String> = blocking_read(&state, move |reader| {
@@ -412,8 +331,7 @@ pub async fn get_server_list(
     })
     .await;
     match &result {
-        // Success is the hot-path case — every reload — so it's verbose-only.
-        // A failure is rare and worth keeping at full volume regardless.
+        // Success is the hot path, so verbose-only; a failure stays at full volume.
         Ok(rows) => crate::log::log_line_verbose(
             &app,
             "servers",
@@ -433,12 +351,8 @@ pub async fn get_server_list(
 }
 
 /// Look up a single server by address, regardless of whatever filter/sort
-/// the table currently has loaded.
-///
-/// Exists for the `dzsa://` deep-link flow: a link only carries an address,
-/// and the server it names may not be in the frontend's currently-loaded
-/// rows at all (a different tab, an active filter, a table that hasn't
-/// loaded yet).
+/// the table currently has loaded. Exists for the `dzsa://` deep-link flow,
+/// where the named server may not be in the frontend's currently-loaded rows.
 #[tauri::command]
 pub async fn get_server(
     state: State<'_, AppState>,
@@ -459,31 +373,16 @@ pub async fn get_server(
 struct InfoBatchResult {
     refreshed: usize,
     failed: usize,
-    /// Servers that answered and should be A2S_RULES-probed for their mod
-    /// list. This used to be gated on the A2S keyword string containing
-    /// "mod", but DayZ servers do not reliably populate that field — many
-    /// ship junk bytes there — so the gate silently skipped genuinely
-    /// modded servers, leaving their mod count at NULL ("?" in the table)
-    /// while JOIN (which always queries rules) worked. Every responding
-    /// server is now a candidate.
+    /// Servers that answered — candidates for an A2S_RULES mod-list probe.
     rules_candidates: Vec<(ServerKey, SocketAddr)>,
-    /// `true` when `failed` was large enough, relative to the batch size,
-    /// that every miss in this batch was treated as a local/network problem
-    /// rather than confirmation that that many servers are actually down —
-    /// see `OFFLINE_CORROBORATION_THRESHOLD`. `online` was left untouched
-    /// for each of those misses instead of being flipped to `false`.
+    /// Whether offline marks were suppressed as likely a local network blip
+    /// — see `OFFLINE_CORROBORATION_THRESHOLD`.
     offline_marks_suppressed: bool,
 }
 
 /// Phase 1 of a refresh: A2S_INFO every address, writing results in batches.
-///
-/// `mark_offline` controls whether a probe that never answered flips that
-/// server's `online` flag. A bulk refresh (`refresh_servers`) leaves it
-/// `false` — its probe window doesn't necessarily cover the whole registry,
-/// so a miss there says nothing about whether the server is actually down.
-/// The targeted refresh (`refresh_visible_servers`) passes `true`: every
-/// address it's given is one the user is looking at right now, so a miss is
-/// exactly the "did this go offline" signal the UI wants.
+/// `mark_offline` flips `online` on a non-answer for the targeted refresh,
+/// but not the bulk refresh (whose window doesn't cover the whole registry).
 async fn probe_info(
     prober: &Prober,
     addrs: Vec<SocketAddr>,
@@ -499,9 +398,7 @@ async fn probe_info(
     let mut online_keys: Vec<ServerKey> = Vec::new();
     let mut offline_keys: Vec<ServerKey> = Vec::new();
 
-    // One `upsert_servers(vec![single])` per server means one channel
-    // round-trip and one SQLite transaction each; batching cuts both by
-    // ~`WRITE_BATCH`x over a refresh of this size.
+    // Batching cuts channel round-trips and SQLite transactions by ~WRITE_BATCH x.
     let mut batch: Vec<tetra_registry::rows::ServerRow> = Vec::with_capacity(WRITE_BATCH);
 
     while let Some(outcome) = rx.recv().await {
@@ -527,12 +424,8 @@ async fn probe_info(
         refreshed += 1;
         online_keys.push(key);
 
-        // Every server that answered is probed for its mod list. The A2S
-        // keyword field cannot be trusted to say who is modded — DayZ servers
-        // often return junk bytes instead of a "mod" token — so gating the
-        // RULES query on it silently left real modded servers with a stuck
-        // "?" in the table. The INFO query already proves reachability; the
-        // RULES answer fills in the count.
+        // Every responder is a rules-probe candidate — the A2S keyword field
+        // can't be trusted to flag modded servers.
         rules_candidates.push((key, outcome.addr));
 
         batch.push(tetra_registry::rows::ServerRow {
@@ -575,16 +468,8 @@ async fn probe_info(
         let _ = writer.set_online(online_keys, true).await;
     }
 
-    // A miss is only corroborated evidence that a server is down when
-    // enough of the batch answered for the failure share to be meaningful.
-    // `refresh_visible_servers` can probe up to `PROBE_WINDOW` (5000)
-    // servers over up to `MAX_IN_FLIGHT` concurrent UDP flows at once; a
-    // dropped Wi-Fi moment or a consumer router's NAT table evicting
-    // entries under that load drops replies indiscriminately across the
-    // whole batch, not just from servers that are actually offline. Without
-    // this check, one bad moment on the user's own network used to write
-    // `online = false` for thousands of rows, and with `hide_offline` on the
-    // browser would go empty.
+    // A miss only counts as corroborated downtime once enough of the batch
+    // answered to make the failure share meaningful.
     let total = refreshed + failed;
     let failure_rate = if total > 0 {
         failed as f64 / total as f64
@@ -608,10 +493,7 @@ async fn probe_info(
     }
 }
 
-/// Issue one rules probe as a task on `tasks`, applying `RULES_DEADLINE` from
-/// the moment a permit is actually acquired (`Prober::rules_with_deadline`,
-/// not the fixed-from-spawn-time wrapping this replaced — see `RULES_DEADLINE`'s
-/// own docs).
+/// Issue one rules probe as a task on `tasks`.
 fn spawn_rules_task(
     tasks: &mut tokio::task::JoinSet<(
         ServerKey,
@@ -643,13 +525,7 @@ fn spawn_rules_task(
 }
 
 /// Phase 2 of a refresh: A2S_RULES for every server phase 1 answered.
-/// Returns how many writes succeeded, the mod list for each server that
-/// answered (the caller needs that list to ask Steam about pending updates
-/// without a second registry round trip), and how many candidates never
-/// answered within `RULES_DEADLINE`.
-///
-/// Bounded to `rules_fanout` tasks alive at once rather than one per
-/// candidate — see that function's docs.
+/// Returns writes succeeded, mods per server, and candidates that timed out.
 async fn probe_rules(
     prober: &Prober,
     candidates: Vec<(ServerKey, SocketAddr)>,
@@ -691,11 +567,9 @@ async fn probe_rules(
 
 /// A2S-refresh servers using the active frontend filter.
 ///
-/// This is the *bulk* refresh — it walks up to `PROBE_WINDOW` servers picked
-/// by refresh priority, independent of what's currently on screen. It backs
-/// the initial post-discovery load and the DISCOVER button, both of which run
-/// before the frontend has any server list to be "visible" against. The
-/// REFRESH button instead calls `refresh_visible_servers`.
+/// This is the *bulk* refresh, backing the initial post-discovery load and
+/// the DISCOVER button. The REFRESH button calls `refresh_visible_servers`
+/// instead.
 #[tauri::command]
 pub async fn refresh_servers(
     app: tauri::AppHandle,
@@ -771,39 +645,23 @@ pub struct ModsPendingEntry {
 }
 
 /// A2S-refresh exactly the servers the frontend passes in — the whole
-/// currently filtered/loaded list, not merely what the virtualizer has
-/// mounted (`App.tsx`'s `handleRefresh` sends every row it has on purpose;
-/// see its own comment for why probing only the visible range made the
-/// button look broken) — rather than re-querying the registry for a broad,
-/// possibly out-of-sync window. This is what the REFRESH button calls.
+/// currently filtered/loaded list, not just what the virtualizer has
+/// mounted. This is what the REFRESH button calls.
 ///
-/// Unlike `refresh_servers`, a probe that gets no answer here can mean
-/// something: every address came from a row the user has loaded, so a miss
-/// is a candidate for `online = false` so the row can render OFFLINE. It is
-/// only ever written, though, when enough of the *batch* answered for the
-/// failure share to be meaningful — see `probe_info`'s corroboration check
-/// and `OFFLINE_CORROBORATION_THRESHOLD`. A batch that mostly failed at once
-/// is far more likely to be this machine's network than that many servers
-/// going down simultaneously.
-///
-/// Also re-asks Steam whether any declared mod has an update pending, for
-/// whatever came back modded — the A2S_RULES pass alone only tells you the
-/// server's mod *list*, not whether Steam's copy is stale.
+/// Unlike `refresh_servers`, a non-answer here can mean the server is really
+/// offline (every address is one the user has loaded), subject to the same
+/// corroboration check as `probe_info`. Also re-asks Steam whether any
+/// declared mod has an update pending.
 #[tauri::command]
 pub async fn refresh_visible_servers(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     window: tauri::Window,
     addrs: Vec<AddrPort>,
-    // `scope` is echoed back on `refresh-complete` so the frontend can tell
-    // whose refresh finished. Without it, a single-row refresh cleared the
-    // spinner of a full refresh still running — both emit the same event.
+    // Echoed back on `refresh-complete` so the frontend knows whose refresh finished.
     scope: Option<String>,
 ) -> Result<(), String> {
-    // Unparseable entries are skipped, not fatal. Collecting into a `Result`
-    // meant one malformed address failed the whole click — the user pressed
-    // REFRESH and nothing on screen updated, with an error naming an address
-    // they never typed.
+    // Unparseable entries are skipped, not fatal — one bad address shouldn't fail the whole click.
     let socket_addrs: Vec<SocketAddr> = addrs
         .iter()
         .filter_map(|a| server_key(&a.addr, a.query_port).ok())
@@ -846,10 +704,7 @@ pub async fn refresh_visible_servers(
         );
     }
 
-    // Phase 3: ask Steam whether any of the mods just re-declared need an
-    // update. Best-effort — Steam not being connected, or the lookup
-    // failing, just means the launcher stays silent on this rather than
-    // failing the whole refresh.
+    // Phase 3: ask Steam about pending updates for the mods just re-declared. Best-effort.
     let steam = state
         .steam
         .lock()
@@ -933,15 +788,9 @@ pub async fn get_server_mods(
     .await
 }
 
-/// Set a server's favourite flag, persisted in the registry.
-///
-/// Errors when `addr` names no row the registry knows about, rather than
-/// reporting success on an `UPDATE` that touched nothing. Without this a
-/// favourite requested for a server the registry hasn't discovered yet — the
-/// `dzsa://` deep-link flow is the reachable case — lit the star in the UI
-/// with nothing behind it: gone the moment the app restarted, with no error
-/// anywhere to explain why. The frontend's optimistic toggle already reverts
-/// on an `Err` from this command.
+/// Set a server's favourite flag, persisted in the registry. Errors if
+/// `addr` isn't a known row, rather than silently succeeding on a no-op
+/// `UPDATE` — the frontend's optimistic toggle reverts on `Err`.
 #[tauri::command]
 pub async fn toggle_favourite(
     state: State<'_, AppState>,
@@ -980,11 +829,8 @@ pub async fn get_server_counts(state: State<'_, AppState>) -> Result<ServerCount
     .await
 }
 
-/// Whether the registry fell back to in-memory storage at startup.
-///
-/// `true` means the app works but forgets everything on exit — see the fallback
-/// in `lib.rs`'s setup. Read once at startup so the UI can warn; previously this
-/// only ever reached an `eprintln!` nobody sees in a windowed build.
+/// Whether the registry fell back to in-memory storage at startup (app
+/// works, but forgets everything on exit) — see the fallback in `lib.rs`.
 #[tauri::command]
 pub fn registry_degraded(state: State<AppState>) -> Result<bool, String> {
     state
@@ -1005,10 +851,8 @@ pub async fn get_map_list(state: State<'_, AppState>) -> Result<Vec<(String, Str
 
 // ── helpers ─────────────────────────────────────────────────────
 
-/// Build a `ServerKey` from the bridge's `"IP:query_port"` string plus the
-/// port the frontend sends alongside it. The port in the string is the same
-/// value; `query_port` is taken as authoritative and the string is only read
-/// for its IP.
+/// Build a `ServerKey` from the bridge's `"IP:query_port"` string. Only the
+/// IP is read from it — `query_port` is taken as authoritative.
 pub(crate) fn server_key(addr: &str, query_port: u16) -> Result<ServerKey, String> {
     let ip: Ipv4Addr = addr
         .split(':')
@@ -1034,10 +878,7 @@ fn filter_from_params(p: FilterParams) -> ServerFilter {
         official: p.official,
         modded: p.modded,
         first_person: p.first_person,
-        // Not a setting, and deliberately not one. A row Steam lists but that
-        // has never answered a probe has no name, no player count and no map —
-        // there is nothing a player could choose it by, so showing it was only
-        // ever noise. Roughly 3,000 rows of a 10,500-row registry.
+        // Not a setting — a never-probed row has no name/players/map, so showing it is only noise.
         hide_unnamed: true,
         hide_placeholder: p.hide_placeholder,
         english_names: p.english_names,
@@ -1065,12 +906,8 @@ fn sort_from_params(p: &SortParams) -> (SortKey, SortDir) {
 mod tests {
     use super::server_key;
 
-    /// The wire convention, pinned because getting it wrong is silent until a
-    /// click fails. The frontend sends `addr` as `"IP:query_port"` *and* sends
-    /// `query_port` separately, so a caller that appends the port again builds
-    /// `"1.2.3.4:2303:2303"` — which is what broke VERIFY & JOIN with "invalid
-    /// socket address syntax". Everything that needs a socket address for a
-    /// server goes through here rather than formatting one itself.
+    /// Pins the wire convention: `addr` already carries `"IP:query_port"`, so
+    /// appending the port again would build an invalid double-port string.
     #[test]
     fn an_address_already_carrying_a_port_is_not_given_a_second_one() {
         let key = server_key("172.111.51.137:27022", 27022).expect("should parse");
@@ -1081,9 +918,7 @@ mod tests {
         assert_eq!(socket.to_string(), "172.111.51.137:27022");
     }
 
-    /// `query_port` is authoritative; the port inside the string is ignored
-    /// rather than trusted, so the two disagreeing cannot produce a key that
-    /// points at a port nothing is listening on.
+    /// `query_port` is authoritative over the port embedded in the string.
     #[test]
     fn the_separate_query_port_wins_over_the_one_in_the_string() {
         let key = server_key("1.2.3.4:9999", 2303).expect("should parse");
