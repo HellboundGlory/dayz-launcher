@@ -13,13 +13,8 @@ interface UpdateModalProps {
   onClose: () => void;
 }
 
-/**
- * The one home for updates, opened from the title-bar badge or the startup
- * banner — no longer buried inside Settings.
- *
- * Installed copies update in place (download → restart); portable copies never
- * auto-modify the running exe, so they get a link to the GitHub release instead.
- */
+// Installed copies update in place; portable copies get a link to the
+// GitHub release instead, since they never auto-modify the running exe.
 export function UpdateModal({ open, onClose }: UpdateModalProps) {
   const available = useUpdateStore((s) => s.available);
   const changelog = useUpdateStore((s) => s.changelog);
@@ -87,13 +82,7 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
 
               {available.body || changelog ? (
                 <div className="update-changelog mt-3">
-                  {/* M5 (2026-08-29 audit): a plain <a> here would navigate
-                      this single webview away from the running app on click,
-                      with no way back — release notes routinely contain
-                      links, and this is a modal the user is being asked to
-                      read. Every other external link in the app already goes
-                      through the shell opener; this is the one place that
-                      didn't. */}
+                  {/* A plain <a> would navigate this webview away with no way back. */}
                   <ReactMarkdown
                     components={{
                       a: ({ href, children }) => (

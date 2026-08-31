@@ -7,20 +7,11 @@ import { useServerActions, NOTICES } from "@/hooks/use-server-actions";
 interface RowActionsProps {
   server: Server;
   onMoreInfo: (server: Server) => void;
-  /**
-   * Reports menu open/close so the parent row can lift its z-index while the
-   * menu is open. Required because virtualized rows are `transform`ed — each
-   * row is its own stacking context, so the menu's z-index can never escape
-   * its row and later rows paint over it.
-   */
+  /** Reports menu open/close so the parent row can lift its z-index (virtualized rows are each their own stacking context). */
   onOpenChange?: (open: boolean) => void;
 }
 
-/**
- * D2 — the per-row ⋯ menu. Selection no longer opens a details rail; the row
- * highlights and this menu carries the actions: More info (M1 modal), Join,
- * Load to menu, Download mods.
- */
+// The per-row ⋯ menu: More info, Join, Load to menu, Download mods.
 export function ServerRowActions({ server, onMoreInfo, onOpenChange }: RowActionsProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);

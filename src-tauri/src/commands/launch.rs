@@ -10,22 +10,13 @@ use tetra_launch::spawn::{build_launch_args, find_dayz_exe, spawn_dayz};
 use tetra_steam::workshop::ModState;
 
 /// Whether an A2S_RULES failure means the server started answering and then
-/// stopped, rather than never responding at all — see
-/// `tetra_net::NetError::ExchangeTimedOut`. Both `launch_game` and
-/// `verify_server_mods` issue exactly one of these on a click
-/// (`Prober::rules_unqueued`) and both owe the player a truer explanation
-/// than "may be offline or behind a firewall" when the server was plainly
-/// reachable and simply never finished.
+/// stopped, rather than never responding at all.
 fn stalled_mid_response(e: &tetra_net::NetError) -> bool {
     matches!(e, tetra_net::NetError::ExchangeTimedOut { .. })
 }
 
-/// Turn the blocked mods into one message that says what to actually do.
-///
-/// Grouped by cause: "not installed" and "needs updating" call for different
-/// actions, and the old message called every failure "not installed" and told
-/// the user to subscribe — useless advice for a mod they were already
-/// subscribed to that merely had a pending update.
+/// Turn the blocked mods into one message that says what to actually do,
+/// grouped by cause ("not installed" vs "needs updating" want different actions).
 fn describe_blockers(blocked: &[(String, ModState)]) -> String {
     fn names(blocked: &[(String, ModState)], want: ModState) -> Vec<&str> {
         blocked
@@ -98,18 +89,9 @@ struct ModVerification {
     checked: usize,
 }
 
-/// Verify every declared mod against Steam.
-///
-/// **Blocking.** Each `SteamHandle` call dispatches to the Steam actor thread
-/// and waits on a channel, so this must run on a blocking task — it used to be
-/// called inline from the `async` command, parking a Tokio worker for as long as
-/// Steam took to answer for a 93-mod server.
-///
-/// Non-Workshop entries (id 0 — server-side or locally-installed mods) are
-/// skipped: there is nothing to verify, nothing to download, and no install
-/// folder to put on the `-mod=` line. Blocking the launch on them would make
-/// every server that declares one permanently unjoinable over something the user
-/// cannot act on.
+/// Verify every declared mod against Steam. Blocking — must run on a
+/// blocking task, not inline from the async command. Non-Workshop entries
+/// (id 0, server-side mods) are skipped rather than blocking the launch.
 fn verify_mods(
     steam: &tetra_steam::SteamHandle,
     mods: &[tetra_core::a2s::dayz::ServerMod],
@@ -146,8 +128,7 @@ fn verify_mods(
             continue;
         }
 
-        // Installed per Steam, but the folder still has to exist — spec §5.4 is
-        // explicit that "installed" is Steam's claim, not a verified fact.
+        // "Installed" is Steam's claim, not a verified fact — the folder still has to exist.
         match steam.mod_folder(m.workshop_id) {
             Ok(Some(folder)) => out.ready_paths.push(folder.to_string_lossy().into_owned()),
             _ => out.blocked.push((m.name.clone(), ModState::NotInstalled)),
@@ -157,27 +138,12 @@ fn verify_mods(
     Ok(out)
 }
 
-/// Run the pre-launch mod gate and spawn DayZ.
-///
-/// Flow (spec §5):
-/// 1. Fetches live A2S_RULES from the server (ignores cache)
-/// 2. Checks each workshop mod's install state via Steam UGC
-/// 3. Constructs -mod= line in server-declared order
-/// 4. Spawns DayZ via CreateProcess (never through shell)
-///
-/// Fails closed: if the server's rules are unreadable, DayZ does not launch.
-/// How long the launcher stays put after a join before hiding or quitting.
-///
-/// DayZ takes several seconds to put a window up. Vanishing the instant the
-/// process spawns leaves the user staring at their desktop wondering whether
-/// the click registered, so the confirmation gets to be read first.
+/// How long the launcher stays put after a join before hiding or quitting —
+/// DayZ takes several seconds to put a window up, so the confirmation gets read first.
 const ON_JOIN_GRACE: std::time::Duration = std::time::Duration::from_secs(4);
 
-/// Hide or quit the launcher after a join, per `AppSettings::on_join`.
-///
-/// Spawned rather than awaited so `launch_game` returns immediately and the
-/// frontend still receives its `LaunchOutcome` — a command that exited the
-/// process before replying would look like a failed launch.
+/// Hide or quit the launcher after a join. Spawned rather than awaited so
+/// `launch_game` returns immediately with its `LaunchOutcome`.
 fn apply_on_join(app: &AppHandle, on_join: OnJoin) {
     if on_join == OnJoin::Stay {
         return;
@@ -199,9 +165,8 @@ fn apply_on_join(app: &AppHandle, on_join: OnJoin) {
     });
 }
 
-// Two of the eight are Tauri injections (`app`, `state`) rather than a caller's
-// choice, and the remaining six are the launch's actual inputs. Grouping them
-// into a struct would change the shape the frontend invokes with for no gain.
+// `app`/`state` are Tauri injections; the rest are the actual launch inputs — not worth a struct.
+/// Run the pre-launch mod gate and spawn DayZ. Fails closed: if the server's rules are unreadable, DayZ does not launch.
 #[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn launch_game(
@@ -230,14 +195,8 @@ pub async fn launch_game(
         .parse()
         .map_err(|e| format!("Invalid query address: {e}"))?;
 
-    // Discord Rich Presence: look the row up now, as early as possible, so
-    // "Checking mods" can appear the instant the button is pressed rather
-    // than after the (potentially slow) verification below — and stash it
-    // for reuse once the launch actually succeeds, avoiding a second lookup
-    // of the same row further down. Never for a main-menu load — same
-    // scoping as the RECENT-list write later in this function. Best-effort
-    // throughout: a lookup failure here must never affect the launch that's
-    // about to happen, it just means presence has nothing to show.
+    // Look the row up now so "Checking mods" can appear immediately, and
+    // stash it for reuse once the launch succeeds. Best-effort throughout.
     let mut discord_row: Option<tetra_registry::ServerListRow> = None;
     if !main_menu {
         if let SocketAddr::V4(v4) = query_addr {
@@ -263,10 +222,8 @@ pub async fn launch_game(
         }
     }
 
-    // Everything from here to a successful `spawn_dayz` can fail in several
-    // ways. Wrapped in one block so there is exactly one place — right
-    // below — that has to remember to clear the "Checking mods" presence on
-    // failure, rather than one at every early return.
+    // Wrapped in one block so there's exactly one place that clears the
+    // "Checking mods" presence on failure, not one at every early return.
     let launch_prep: Result<(std::path::PathBuf, Vec<String>, usize, usize), String> = async {
         // Get the prober for live A2S_RULES re-query
         let prober = {
@@ -300,8 +257,7 @@ pub async fn launch_game(
             Arc::clone(guard.as_ref().ok_or("Steam not initialized")?)
         };
 
-        // 1. Fetch live A2S_RULES from the server. Unqueued: this is one query on a
-        //    click, and it must not wait behind a refresh's thousands.
+        // Unqueued: one query on a click, must not wait behind a refresh's thousands.
         let rules_payload = prober.rules_unqueued(query_addr).await.map_err(|e| {
             if stalled_mid_response(&e) {
                 format!(
@@ -316,8 +272,6 @@ pub async fn launch_game(
             }
         })?;
 
-        // 2. Check each mod's install state, off the async runtime — every Steam
-        //    call in `verify_mods` blocks on the actor thread.
         let mods = rules_payload.mods;
         let verification = tokio::task::spawn_blocking(move || verify_mods(&steam, &mods))
             .await
@@ -327,13 +281,9 @@ pub async fn launch_game(
             return Err(describe_blockers(&verification.blocked));
         }
 
-        // 3. Build -mod= in server-declared order
         let mod_arg = build_mod_string(&verification.ready_paths);
 
-        // 4. The user's own `launchParams` go in ahead of `-mod=`, which
-        //    `build_launch_args` keeps last. These were previously dropped: the
-        //    call site passed a hardcoded `&[]`, so a setting that persisted fine
-        //    and had a slot waiting for it never reached the command line.
+        // The user's own launchParams go ahead of -mod=, which build_launch_args keeps last.
         let extra_params = launch_params.unwrap_or_default();
         let args = build_launch_args(
             main_menu,
@@ -362,13 +312,9 @@ pub async fn launch_game(
         return Err(format!("Failed to launch DayZ: {e}"));
     }
 
-    // Record the visit only after the process actually started, so a failed
-    // gate never shows up in the RECENT list. A main-menu load is not a join,
-    // so it gets no RECENT entry.
-    //
-    // The writer is lifted out in its own scope: `state.registry` is a
-    // `std::sync::Mutex`, whose guard is not `Send`, and holding one across the
-    // `.await` below makes the whole command future non-`Send`.
+    // Only after the process actually started, so a failed gate never shows
+    // up in RECENT. Writer scoped in its own block: the guard is `!Send`
+    // and can't be held across the `.await` below.
     if !main_menu {
         let played_writer = {
             let guard = state.registry.lock().map_err(|e| e.to_string())?;
@@ -379,14 +325,8 @@ pub async fn launch_game(
                 ip: *v4.ip(),
                 query_port: v4.port(),
             };
-            // Best-effort, same as every other path here — a RECENT entry
-            // that failed to write must not fail a launch that already
-            // succeeded. But unlike the old bare `let _ =`, a miss is now
-            // distinguishable from success and worth a log line: an affected
-            // count of 0 means DayZ was just launched against a server this
-            // registry has no row for at all, which should not be able to
-            // happen (the row is what the JOIN button was clicked from) and
-            // is worth knowing about if it ever does.
+            // Best-effort — a failed RECENT write must not fail an already-succeeded
+            // launch — but a 0-row result is logged since it shouldn't be possible.
             match writer.mark_played(key).await {
                 Ok(0) => crate::log::log_line(
                     &app,
@@ -398,11 +338,7 @@ pub async fn launch_game(
             }
         }
 
-        // Discord Rich Presence: promote the `Verifying` state set at the top
-        // of this function to `Live`, reusing the row already fetched there
-        // rather than reading it a second time. `discord_row` is `None` if
-        // that first lookup failed — best-effort throughout, so nothing here
-        // affects the launch that already succeeded either way.
+        // Promote the Verifying presence set above to Live, reusing the row already fetched.
         if let Some(row) = discord_row {
             let started_at = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -424,11 +360,7 @@ pub async fn launch_game(
         }
     }
 
-    // Get out of the way once DayZ is starting, for a real join *and* a
-    // main-menu load — either way the player is moving into the game and the
-    // launcher has done its job. Deliberately after `mark_played`: closing the
-    // launcher must not cost the RECENT entry. (Only the join applies that;
-    // the load just skips it above.)
+    // Deliberately after mark_played: closing the launcher must not cost the RECENT entry.
     let on_join = state.on_join.lock().map(|g| *g).unwrap_or_default();
     apply_on_join(&app, on_join);
 
@@ -461,37 +393,17 @@ pub struct VerifyOutcome {
     pub checked_workshop: bool,
 }
 
-/// Re-read a server's mod list and bring the local copies up to date, without
-/// launching anything.
-///
-/// This is the "Verify" half of VERIFY & JOIN, and it exists because two
-/// separate things could be out of date at the point someone clicks join:
-///
-/// 1. **The mod list.** The details panel renders whatever the registry last
-///    recorded. A server that added a mod since the last refresh would be
-///    launched against the old list.
-/// 2. **The mods themselves.** `item_state` reports what the Steam *client*
-///    last noticed about the Workshop, and it lags. A mod that has been updated
-///    but that Steam has not looked at yet reports as installed and current;
-///    the gate passes it, DayZ starts, and the server rejects the connection
-///    over an outdated mod list. See `SteamHandle::refresh_stale`.
-///
-/// Deliberately *not* folded into `launch_game`. Verifying is slow — a live
-/// A2S_RULES round trip plus a Workshop query — and the frontend needs to show
-/// progress and stay cancellable across it. `launch_game` keeps its own gate
-/// and remains the authority on whether DayZ actually starts; this only means
-/// the gate is far less likely to have to say no.
+/// Re-read a server's mod list and bring the local copies up to date,
+/// without launching anything — the "Verify" half of VERIFY & JOIN. Not
+/// folded into `launch_game`: verifying is slow, and the frontend needs to
+/// show progress and stay cancellable across it. `launch_game` keeps its
+/// own gate regardless. See .ai-notes/src-tauri/src/commands/launch.rs.md.
 #[tauri::command]
 pub async fn verify_server_mods(
     state: State<'_, AppState>,
     addr: String,
     query_port: u16,
 ) -> Result<VerifyOutcome, String> {
-    // `addr` already carries a port — the frontend sends "IP:query_port" — so
-    // appending `query_port` produced "1.2.3.4:2303:2303" and every click on
-    // VERIFY & JOIN failed with "invalid socket address syntax". `server_key`
-    // is the one place that convention is decoded; going through it means this
-    // cannot drift again, and it yields the registry key for free.
     let key = crate::commands::server::server_key(&addr, query_port)?;
     let query_addr = SocketAddr::from((key.ip, key.query_port));
 
@@ -500,8 +412,7 @@ pub async fn verify_server_mods(
         guard.as_ref().ok_or("Prober not initialized")?.clone()
     };
 
-    // Unqueued for the same reason `launch_game` is: this is one query on a
-    // click and must not wait behind a refresh's thousands.
+    // Unqueued, same reason as launch_game: one query on a click.
     let rules = prober.rules_unqueued(query_addr).await.map_err(|e| {
         if stalled_mid_response(&e) {
             format!(
@@ -517,8 +428,6 @@ pub async fn verify_server_mods(
     })?;
     let declared = rules.mods;
 
-    // Write the fresh list back, so the MODS column and a later `get_server_mods`
-    // agree with what the panel is about to show.
     let writer = {
         let guard = state.registry.lock().map_err(|e| e.to_string())?;
         guard.as_ref().map(|r| r.writer())
@@ -538,9 +447,7 @@ pub async fn verify_server_mods(
         guard.as_ref().map(Arc::clone)
     };
 
-    // Steam being absent is not a failure of verification — the mod list was
-    // still refreshed, which is half the job. The gate will refuse the launch
-    // later if that matters.
+    // Steam being absent is not a failure — the mod list was still refreshed.
     let (refreshed, checked_workshop) = match steam {
         None => (Vec::new(), false),
         Some(steam) => {
@@ -570,23 +477,7 @@ pub async fn verify_server_mods(
     })
 }
 
-/// Register the `dzsa://` protocol handler in the OS.
-///
-/// Skips the write when the OS's current registration already names this
-/// executable — see `tetra_launch::protocol::dzsa_registered_to`. Previously
-/// this ran unconditionally on every launch, rewriting the same registry
-/// values (Windows) or desktop file (Linux) whether or not anything had
-/// actually changed (M11, 2026-08-29 audit).
-///
-/// **Debug builds never touch the OS**, same reasoning as
-/// `commands::settings::apply_autostart`: the registration is a single
-/// global mapping recording an absolute path to *this* executable, and a
-/// debug build's path (`target/debug/…`) is not stable across rebuilds —
-/// worse, on a machine that also has an installed release copy, a debug run
-/// would silently repoint every `dzsa://` link on the machine at a build
-/// that may not even exist by the time someone clicks one. Set
-/// `TETRA_FORCE_PROTOCOL_REGISTER=1` to exercise this path from a debug
-/// build deliberately.
+/// Register the `dzsa://` protocol handler in the OS. Skips debug builds unless `TETRA_FORCE_PROTOCOL_REGISTER=1` is set.
 #[tauri::command]
 pub fn register_protocol_handler() -> Result<(), String> {
     if cfg!(debug_assertions) && std::env::var_os("TETRA_FORCE_PROTOCOL_REGISTER").is_none() {
@@ -600,12 +491,8 @@ pub fn register_protocol_handler() -> Result<(), String> {
     register_dzsa_protocol(&exe).map_err(|e| e.to_string())
 }
 
-/// Start the Steam client.
-///
-/// Backs the "Start Steam" button on the startup prompt, so that a user who
-/// opened the launcher first does not have to go and find Steam themselves.
-/// Returns immediately — Steam takes a while to sign in, and the prompt keeps
-/// retrying the connection in the background until it does.
+/// Start the Steam client, for the "Start Steam" button on the startup
+/// prompt. Returns immediately; the prompt retries the connection itself.
 #[tauri::command]
 pub fn open_steam() -> Result<(), String> {
     let exe = tetra_launch::registry_discovery::find_steam_exe().ok_or_else(|| {
@@ -614,20 +501,7 @@ pub fn open_steam() -> Result<(), String> {
     tetra_launch::spawn::spawn_steam(&exe).map_err(|e| format!("Could not start Steam: {e}"))
 }
 
-/// Open a Workshop item's page in the Steam client, not the browser.
-///
-/// The launcher resolves the Steam executable itself and hands it the
-/// `steam://url/CommunityFilePage/<id>` URL. A running Steam client is focused
-/// and navigated (its second-instance forwards the URL); a non-running one
-/// starts and opens the page. Only if Steam cannot be found at all does this
-/// fall back to the OS opener, whose scheme handler may or may not be
-/// registered.
-///
-/// `workshop_id` is parsed as `u64` before it ever reaches the URL (H4,
-/// 2026-08-29 audit) — it arrives as a JS string over IPC, and previously
-/// went straight into the `steam://` URL and then into an argv handed to
-/// `explorer`/`xdg-open` unvalidated, so anything other than digits could
-/// change what those processes were actually asked to do.
+/// Open a Workshop item's page in the Steam client, falling back to the OS opener if Steam can't be found.
 #[tauri::command]
 pub fn open_workshop_in_steam(workshop_id: String) -> Result<(), String> {
     let workshop_id: u64 = workshop_id
@@ -662,18 +536,10 @@ pub fn discover_steam_paths() -> Result<Option<SteamPaths>, String> {
     }))
 }
 
-/// Whether a DayZ session is running right now.
-///
-/// Called once, on mount, by `watchDayz` for an immediate answer; day-to-day
-/// updates instead arrive by listening for `dayz-running` (see
-/// [`start_dayz_watcher`]) rather than polling this repeatedly. The launcher
-/// does not wait on the process it spawns — see
-/// `tetra_launch::spawn::spawn_dayz` — so this is the only way to know, and
-/// it is also right for a session the launcher never started.
-///
-/// `async` + `spawn_blocking`: this enumerates every process on the machine
-/// (`sysinfo`'s `CreateToolhelp32Snapshot` on Windows), which is too heavy to
-/// run inline on Tauri's main thread the way a plain `fn` command would.
+/// Whether a DayZ session is running right now. Called once on mount for an
+/// immediate answer; day-to-day updates arrive via the `dayz-running` event
+/// (see [`start_dayz_watcher`]) instead of polling this. Enumerates every
+/// process on the machine, so it runs on a blocking task.
 #[tauri::command]
 pub async fn dayz_running() -> Result<bool, String> {
     tokio::task::spawn_blocking(tetra_launch::running::dayz_is_running)
@@ -684,18 +550,9 @@ pub async fn dayz_running() -> Result<bool, String> {
 /// How often [`start_dayz_watcher`] checks whether a DayZ process exists.
 const DAYZ_WATCH_INTERVAL: std::time::Duration = std::time::Duration::from_secs(4);
 
-/// Push `dayz-running` state changes to the frontend instead of leaving it to
-/// poll `dayz_running` on its own timer.
-///
-/// Before this, the frontend polled `dayz_running` every 4s and — whenever a
-/// launch was live — the Discord presence loop separately polled
-/// `dayz_running_since` every 5s: two independent full process-table
-/// enumerations running on their own clocks for the life of the session. One
-/// shared, persistent `System` here (reused every tick via
-/// `dayz_is_running_with` rather than rebuilt) replaces both: the frontend
-/// listens for this event instead of invoking the command repeatedly.
-/// Emitted only on change, mirroring `LaunchState.setDayzRunning`'s own
-/// equality check on the frontend.
+/// Push `dayz-running` state changes to the frontend instead of leaving it
+/// to poll. Reuses one persistent `ProcessWatch` across ticks rather than
+/// rebuilding it. Emitted only on change.
 pub fn start_dayz_watcher(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -714,10 +571,7 @@ pub fn start_dayz_watcher(app: &AppHandle) {
                     watch = w;
                     running
                 }
-                // The task panicked — the `ProcessWatch` moved into it is
-                // gone. Build a fresh one so the next iteration's `move`
-                // closure still has something to capture, and skip this
-                // tick's report rather than emit a possibly-wrong answer.
+                // Task panicked, ProcessWatch is gone with it — rebuild and skip this tick.
                 Err(_) => {
                     watch = tetra_launch::running::ProcessWatch::new();
                     continue;

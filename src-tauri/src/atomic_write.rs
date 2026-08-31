@@ -1,27 +1,14 @@
 //! Durable atomic file writes: temp file + fsync + rename + best-effort
-//! directory fsync (L14, 2026-08-29 audit).
-//!
-//! Every persisted-settings write in this app already did temp-file +
-//! rename, which is atomic — the rename either lands or it doesn't, so a
-//! reader never sees a half-written file. What none of them did is
-//! *durable*: without an `fsync` on the temp file before the rename, the OS
-//! is free to reorder the rename ahead of the data actually reaching disk,
-//! so an unclean shutdown (a crash, a power loss) can leave the rename
-//! landed with old or garbage bytes behind it. Small in isolation, but this
-//! is the file holding every user preference.
+//! directory fsync, so an unclean shutdown can't leave a settings file
+//! half-written or reverted to stale bytes.
 
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::Path;
 
-/// Write `contents` to `path` durably: a temp file beside it, fsynced,
-/// renamed over `path`, then the containing directory fsynced so the rename
-/// itself survives an unclean shutdown.
-///
-/// The temp file is named `path.with_extension("json.tmp")` — every caller
-/// here writes `.json` — rather than something random, so a leftover temp
-/// file from a previous crash is simply overwritten next time instead of
-/// accumulating forever.
+/// Write `contents` to `path` durably: temp file, fsync, rename, then fsync
+/// the directory. The temp name is fixed (`.json.tmp`) so a leftover from a
+/// previous crash gets overwritten rather than accumulating.
 pub fn write_atomically(path: &Path, contents: &[u8]) -> io::Result<()> {
     let tmp = path.with_extension("json.tmp");
     {
@@ -30,10 +17,7 @@ pub fn write_atomically(path: &Path, contents: &[u8]) -> io::Result<()> {
         file.sync_all()?;
     }
     fs::rename(&tmp, path)?;
-    // Best-effort: not every platform lets a directory be opened as a
-    // `File` (notably Windows), and the rename above is already atomic
-    // without this — it only closes the narrower "the rename landed but the
-    // directory entry pointing at it didn't survive a crash" gap.
+    // Best-effort: not every platform (notably Windows) allows opening a directory as a File.
     if let Some(dir) = path.parent() {
         if let Ok(dir_file) = File::open(dir) {
             let _ = dir_file.sync_all();

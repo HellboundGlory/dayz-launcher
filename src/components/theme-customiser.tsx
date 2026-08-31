@@ -10,16 +10,8 @@ import {
 } from "@/theme/theme-store";
 import { GROUP_DEF, PRESETS } from "@/theme/palette";
 
-/**
- * The Theme accordion body (board `.sec` for theme). Owns nothing but local
- * dropdown/save-input state; every colour decision writes straight to the
- * theme store, which repaints `<html>` via `applyTheme()` and re-renders this
- * component through its subscriptions.
- *
- * Sections, in board order: dark-mode switch, theme dropdown (Built-in +
- * Your themes with per-item delete), bloom slider, colour swatch groups with
- * the live mode hint, save row, reset row.
- */
+// Theme accordion body. Owns only local dropdown/save-input state — every
+// colour decision writes straight to the theme store.
 export function ThemeCustomiser() {
   const scheme = useThemeStore((s) => s.scheme);
   const activeId = useThemeStore((s) => s.activeId);

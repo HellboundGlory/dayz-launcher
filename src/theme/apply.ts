@@ -1,13 +1,6 @@
-/**
- * Writes the active palette onto `document.documentElement.style` as CSS custom
- * properties. Pure CSS-driven re-theming: components only ever read
- * `var(--token)`, so switching a theme costs one style write and zero
- * re-renders (the Theme customiser is the only component that writes back).
- *
- * The derived alpha tokens (`--accent-soft`, `--row-selected`, …) are computed
- * here so components never reach for Tailwind opacity modifiers, which do not
- * work on `var()` colours.
- */
+// Writes the active palette onto document.documentElement.style as CSS
+// custom properties — components only ever read var(--token), so switching
+// a theme costs one style write and zero re-renders.
 import { rgba, type Palette } from "./palette";
 
 export function applyTheme(palette: Palette, scheme: "dark" | "light", bloom: number): void {
@@ -42,11 +35,8 @@ export function applyTheme(palette: Palette, scheme: "dark" | "light", bloom: nu
   p.setProperty("--bloom", String(bloom));
   const isLight = scheme === "light";
   const A = (a: number) => (isLight ? a * 0.6 : a);
-  // Blur radii are resolved in JS (not `calc(var(--bloom) * Npx)`) — the
-  // multiplication operator is not supported by every engine the app ships on
-  // (WebKitGTK drops the value, which silently killed every `--glow` shadow
-  // and made the bloom slider appear dead). Rounding keeps the value clean;
-  // the radii are sub-pixel-precise either way.
+  // Resolved in JS, not calc() — WebKitGTK drops that multiplication and
+  // silently kills every glow shadow.
   const r = (px: number) => `${Math.round(px * bloom * 100) / 100}px`;
   p.setProperty(
     "--glow",

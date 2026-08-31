@@ -5,13 +5,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/**
- * Relative age for the LAST PLAYED column, per design spec §6.1
- * ("3 days ago", "never").
- *
- * `last_played` is a Unix timestamp in **seconds** (SQLite `unixepoch()`),
- * not milliseconds.
- */
+/** Relative age for the LAST PLAYED column ("3 days ago", "never"). `unixSeconds`, not milliseconds. */
 export function formatLastPlayed(unixSeconds: number | null): string {
   if (!unixSeconds) return "never";
 
@@ -37,41 +31,18 @@ export function formatLastPlayed(unixSeconds: number | null): string {
   return `${n} ${chosen[1]}${n === 1 ? "" : "s"} ago`;
 }
 
-/**
- * In-game hours are "day" from this hour inclusive…
- *
- * A fixed approximation, not a simulation of any particular server's actual
- * day/night multipliers — there is no sunrise/sunset data to work from, only
- * the clock reading. Kept in sync by hand with Rust's `day_or_night` in
- * `crates/tetra-discord/src/lib.rs` (L3, 2026-08-29 audit: the two used to
- * disagree — 06:00–17:59 here, 06:00–19:59 there — so the same server showed
- * a moon in the table and a sun badge on the Discord profile between 18:00
- * and 20:00). Change one, change both.
- */
+// In-game "day" hours (inclusive start, exclusive end). Keep in sync by hand
+// with Rust's day_or_night in crates/tetra-discord/src/lib.rs.
 const DAY_START = 6;
-/** …until this hour exclusive. Outside it is night. */
 const DAY_END = 20;
 
-/**
- * "Nx" for a time-acceleration multiplier, trimming a whole value's fraction so
- * `4.0` renders `4x` and `4.5` renders `4.5x`.
- */
+/** "Nx" for a time-acceleration multiplier — `4.0` renders `4x`, `4.5` renders `4.5x`. */
 export function formatMultiplier(n: number): string {
   const trimmed = Number.isInteger(n) ? String(n) : String(parseFloat(n.toFixed(2)));
   return `${trimmed}x`;
 }
 
-/**
- * Format a server's in-game clock for the TIME column.
- *
- * `in_game_time` is the "HH:MM" (24h) string from the A2S_INFO keywords. We
- * render it as a 12-hour clock with AM/PM, prefix a sun/moon glyph for the
- * current day/night phase, and suffix the time-acceleration felt right now —
- * the day multiplier while it is day, the night multiplier while it is night
- * (falling back to whichever the server reported). e.g. `☀ 3:15 PM · 4x`.
- *
- * Returns `"--:--"` when there is no clock to read.
- */
+/** Formats a server's in-game clock for the TIME column, e.g. `☀ 3:15 PM · 4x`. `"--:--"` when there's no clock to read. */
 export function formatGameTime(
   inGameTime: string | null,
   dayMultiplier: number | null,
@@ -109,20 +80,10 @@ export function regionName(code: string | null): string {
   );
 }
 
-/**
- * Byte count as a human-readable size.
- *
- * 1024-based, labelled KB/MB/GB — matching what Steam and Windows show, since
- * these numbers sit next to Steam's own download UI. The unit table previously
- * read `["Bytes", "KiB", "MB", "GB", "TB"]`, mixing the binary label for
- * kilobytes with decimal labels for everything above it, so the same scale was
- * named two different ways depending on the size.
- */
+/** Byte count as a human-readable size, 1024-based (KB/MB/GB) to match Steam/Windows. */
 export function formatBytes(bytes: number, decimals = 2): string {
   const UNITS = ["bytes", "KB", "MB", "GB", "TB", "PB"];
 
-  // NaN, negatives and 0 all have no meaningful size to render. Left unguarded,
-  // a negative fed `Math.log` a NaN index and produced "NaN undefined".
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 bytes";
 
   const k = 1024;

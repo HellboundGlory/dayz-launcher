@@ -1,19 +1,7 @@
-//! The Mods tab's backend: enumerating subscribed Workshop items, verifying and
-//! unsubscribing them, persisting a local metadata snapshot, and answering which
-//! servers in the browser need which mods.
-//!
-//! Two data sources meet here:
-//!
-//! - **Steam** (`tetra_steam::SteamHandle`) owns the ground truth: what is
-//!   subscribed, installed, downloading, or missing.
-//! - **The registry** (`tetra_registry`) owns every server's declared mod list,
-//!   which is what lets the tab answer "needed by N servers" and "mods unique
-//!   to this server" — questions no launcher that only talks to Steam can ask.
-//!
-//! The snapshot cache exists so the tab renders instantly and survives Steam
-//! being offline: Workshop details (title, thumbnail, dates) are network
-//! answers, and re-asking for them on every open would make the tab wait on
-//! the network for data that changed maybe once a day.
+//! The Mods tab's backend: enumerating subscribed Workshop items, verifying
+//! and unsubscribing them, persisting a local metadata snapshot, and
+//! answering which servers in the browser need which mods. Steam owns what's
+//! subscribed/installed; the registry owns servers' declared mod lists.
 
 use crate::state::AppState;
 use std::path::PathBuf;
@@ -22,24 +10,16 @@ use tauri::{AppHandle, State};
 use tetra_steam::{StaleOutcome, SubscribedModInfo};
 
 /// How old a cached Workshop answer may be before the tab re-asks Steam.
-///
-/// Steam's own `SetAllowCachedResponse` already makes re-opens cheap; this age
-/// is the fallback shutter. A day is right: mod metadata doesn't move faster
-/// than that, and a day-old thumbnail is indistinguishable from a current one.
 const CACHE_STALE_AFTER_SECS: i64 = 24 * 60 * 60;
 
 /// Name of the snapshot in the data root, beside the registry and settings.
 const CACHE_FILENAME: &str = "mods-cache.json";
 
 /// A persisted snapshot of the last successful enumeration.
-///
-/// The rows are the same DTO the frontend receives, so an offline open serves
-/// the exact previous tab contents rather than a degraded half.
 #[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ModsCache {
-    /// Unix seconds when this snapshot was written. Debug output, mostly —
-    /// freshness is decided by the frontend choosing `force_details`.
+    /// Unix seconds when this snapshot was written.
     fetched_at: i64,
     rows: Vec<SubscribedModInfo>,
 }
@@ -48,8 +28,7 @@ fn cache_path(app: &AppHandle) -> PathBuf {
     crate::paths::data_root(app).join(CACHE_FILENAME)
 }
 
-/// Load the snapshot, tolerating a missing or malformed file — a cache is
-/// disposable; a command that failed to read it must not become an error.
+/// Load the snapshot, tolerating a missing or malformed file.
 fn read_cache(path: &std::path::Path) -> ModsCache {
     let Ok(text) = std::fs::read_to_string(path) else {
         return ModsCache::default();
@@ -57,8 +36,7 @@ fn read_cache(path: &std::path::Path) -> ModsCache {
     serde_json::from_str(&text).unwrap_or_default()
 }
 
-/// Persist the snapshot atomically and durably (temp + fsync + rename), matching
-/// `settings.json` — see `crate::atomic_write`.
+/// Persist the snapshot atomically and durably — see `crate::atomic_write`.
 fn write_cache(path: &std::path::Path, cache: &ModsCache) {
     let Ok(json) = serde_json::to_string_pretty(cache) else {
         return;
@@ -89,15 +67,9 @@ pub struct ModsListOutcome {
     pub from_cache: bool,
 }
 
-/// Load the subscribed-mod list for the Mods tab.
-///
-/// `force_details` makes the underlying query bypass Steam's metadata cache,
-/// which is what a manual REFRESH click wants. Otherwise a fresh-enough cache
-/// (see `CACHE_STALE_AFTER_SECS`) is served without waiting on the network.
-///
-/// When Steam is not connected the last snapshot is served instead of an empty
-/// tab — browseable, clearly labelled stale, and with the live state columns
-/// blank rather than wrong.
+/// Load the subscribed-mod list for the Mods tab. `force_details` bypasses
+/// Steam's metadata cache (manual REFRESH). When Steam isn't connected, the
+/// last snapshot is served instead of an empty tab.
 #[tauri::command]
 pub async fn get_subscribed_mods(
     app: AppHandle,
@@ -114,10 +86,7 @@ pub async fn get_subscribed_mods(
         });
     };
 
-    // Serve straight from the snapshot when it is fresh enough to be believed,
-    // without so much as a Steam round trip — the tab's first paint should be
-    // instant, and it is the frontend that decides when "fresh enough" runs
-    // out and calls again with `force_details`.
+    // Serve straight from the snapshot when fresh enough — no Steam round trip.
     if !force_details && now() - cached.fetched_at < CACHE_STALE_AFTER_SECS {
         return Ok(ModsListOutcome {
             rows: cached.rows,
@@ -127,7 +96,6 @@ pub async fn get_subscribed_mods(
 
     let cache_age = if force_details { 0 } else { 3600 };
     let rows = match tokio::task::spawn_blocking(move || steam.subscribed_mods(cache_age)).await {
-        // The happy path. Everything below is the tab refusing to blank.
         Ok(Ok(rows)) => rows,
         Ok(Err(e)) => {
             eprintln!("[mods] Enumeration failed ({e}); serving the last snapshot");
@@ -159,11 +127,8 @@ pub async fn get_subscribed_mods(
     })
 }
 
-/// VERIFY the given subscribed mods against the Workshop: re-download anything
-/// the Workshop has moved past or that isn't on disk, and report per id.
-///
-/// This is the Mods tab's standalone version of the join gate's freshness
-/// check — same query, per-item verdicts so the UI can state the result.
+/// VERIFY the given subscribed mods against the Workshop: re-download
+/// anything the Workshop has moved past or that isn't on disk, per id.
 #[tauri::command]
 pub async fn verify_subscribed_mods(
     state: State<'_, AppState>,
@@ -312,11 +277,8 @@ pub async fn get_servers_needing(
     .await
 }
 
-/// Force a fresh download of one mod, replacing a corrupt or missing copy.
-///
-/// Steam exposes no checksum/validate call for Workshop items (see the Mods tab
-/// design notes), so "reinstall" is the honest repair for a corrupt mod: clear
-/// the folder Steam reports as installed, then ask Steam to download it again.
+/// Force a fresh download of one mod, replacing a corrupt or missing copy:
+/// clear the folder Steam reports as installed, then ask it to redownload.
 #[tauri::command]
 pub async fn reinstall_subscribed_mod(
     state: State<'_, AppState>,
@@ -333,10 +295,7 @@ pub async fn reinstall_subscribed_mod(
     tokio::task::spawn_blocking(move || {
         let folder = steam.mod_folder(id).map_err(|e| e.to_string())?;
         if let Some(folder) = folder {
-            // Best-effort: a folder Steam is still writing to may not be fully
-            // deletable, in which case download will just overwrite what is
-            // there. The failure mode to avoid is a *partial* wipe, so if the
-            // delete fails the item is left alone rather than half-repaired.
+            // Best-effort: if delete fails, leave the item alone rather than half-repair it.
             if folder.exists() && std::fs::remove_dir_all(&folder).is_err() {
                 return Err(format!(
                     "Could not clear {} — close any tool using it and try again.",
@@ -353,19 +312,9 @@ pub async fn reinstall_subscribed_mod(
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
-/// Reveal a mod's install folder in the system file manager.
-///
-/// Windows: Explorer. Linux: the desktop opener. The folder may not exist if
-/// Steam never downloaded the item — opening the parent covers that case.
-///
-/// **Constrained to the Steam Workshop root** (H4, 2026-08-29 audit).
-/// `folder` reaches this command from the frontend, which today always
-/// passes back a path this same backend reported for a subscribed mod — but
-/// the command itself previously handed *any* string straight to
-/// Explorer/`xdg-open` with no check at all. Defence in depth: a folder is
-/// only ever revealed if it resolves inside the Workshop content directory
-/// Steam itself reports, so nothing reachable from the webview can be used
-/// to browse an arbitrary path on disk.
+/// Reveal a mod's install folder in the system file manager. Constrained to
+/// resolve inside the Steam Workshop content directory — defence in depth
+/// against the webview passing an arbitrary path.
 #[tauri::command]
 pub fn open_mod_folder(folder: String) -> Result<(), String> {
     let workshop_root = tetra_launch::registry_discovery::find_steam_paths()

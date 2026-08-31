@@ -24,12 +24,8 @@ const NAV: { id: ViewId; label: string; icon: typeof Globe }[] = [
   { id: "mods", label: "Mods", icon: Package },
 ];
 
-/**
- * N2 sidebar — 220px icon+label rail ⇄ 52px icon-only, collapsed by the edge
- * tab pinned near the rail's bottom (just above the Steam/settings separator).
- * The width is driven by `--side-w` on the shell so every other surface (the
- * settings overlay's left edge) tracks the collapse without subscribing.
- */
+// 220px icon+label rail that collapses to 52px icon-only. Width is driven
+// by --side-w on the shell so other surfaces track it without subscribing.
 export function Sidebar({
   activeView,
   onViewChange,

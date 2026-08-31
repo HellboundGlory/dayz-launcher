@@ -1,10 +1,5 @@
 //! The Mods tab's registry aggregation: which servers declare which mods,
 //! computed against the "cared about" set of favourites + recently played.
-//!
-//! These power the two headline features of the Mods tab: the "needed by N
-//! servers" number (the honest blast radius of an unsubscribe) and the
-//! unique-per-server selection that lets James prune a server's exclusive mods
-//! without breaking another favourite or recent one.
 
 use std::net::Ipv4Addr;
 use tetra_core::a2s::dayz::ServerMod;

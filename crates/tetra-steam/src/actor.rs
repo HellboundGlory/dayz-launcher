@@ -20,9 +20,6 @@ const REQUEST_DEADLINE: Duration = Duration::from_secs(300);
 const PUMP_INTERVAL: Duration = Duration::from_millis(50);
 /// Pump cadence *during* a request. Server-list callbacks are only delivered
 /// inside `run_callbacks`, so this bounds how promptly results are drained.
-/// Was 10ms; the tracing line at the end of `request_list` reports the actual
-/// first-row and total timings, so the effect of changing it is measurable
-/// rather than guessed at.
 const PUMP_SLEEP: Duration = Duration::from_millis(1);
 
 // ── Simple sync UGC types ──────────────────────────────────────
@@ -37,13 +34,8 @@ pub struct UgcInstallInfo {
     pub size_on_disk: u64,
 }
 
-/// One instalment of a streaming server list.
-///
-/// Steam delivers a server list one `responded` callback at a time over tens of
-/// seconds. Buffering all of them and returning at the end means the user
-/// stares at an empty table for the whole request even though rows were
-/// available a second in. `Rows` carries whatever has accumulated since the
-/// last flush; exactly one `Done` always terminates the stream.
+/// One instalment of a streaming server list; `Rows` carries what's
+/// accumulated since the last flush, and exactly one `Done` ends the stream.
 #[derive(Debug)]
 pub enum StreamChunk {
     Rows(Vec<GameServerRow>),
@@ -56,13 +48,8 @@ const STREAM_FLUSH: Duration = Duration::from_millis(200);
 /// One item's transfer progress: `(workshop_id, bytes_downloaded, bytes_total)`.
 pub type DownloadRow = (u64, u64, u64);
 
-/// Per-item verdict from a VERIFY, in the shape the Mods tab reports it.
-///
-/// Deliberately richer than the join gate's freshness check, which only asks
-/// "which ids did I re-queue?". Verify is a user-facing action with a result to
-/// state ("13 checked, 2 outdated, 2 repaired"), so each id comes back with the
-/// whole story: whether the Workshop answered, whether it holds a newer copy,
-/// and whether a download was started.
+/// Per-item VERIFY verdict for the Mods tab — richer than the join gate's
+/// freshness check since Verify has to report a full outcome per id.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct StaleOutcome {
     /// Stringified: Workshop ids exceed JS's safe integer range.
@@ -78,14 +65,9 @@ pub struct StaleOutcome {
     pub queued: bool,
 }
 
-/// One subscribed Workshop item, in the shape the Mods tab renders.
-///
-/// The whole tab's data model in one row: local install facts read straight from
-/// Steam (size, folder, state, progress) plus metadata answered by a Workshop
-/// details query (title, preview image, dates, votes, URL). Only DayZ items
-/// (appid 221100 / 245340) and items the Workshop no longer answers for are
-/// ever carried out of the actor — every other game's subscriptions are dropped
-/// here, not at the UI.
+/// One subscribed Workshop item, in the shape the Mods tab renders: local
+/// install facts plus Workshop metadata. Non-DayZ subscriptions are filtered
+/// out here, not at the UI.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SubscribedModInfo {
     /// Stringified: Workshop ids exceed JS's safe integer range.
@@ -98,10 +80,8 @@ pub struct SubscribedModInfo {
     /// subscribed. Hidden from the list by the frontend and offered as
     /// clean-up, rather than shown as a broken row.
     pub removed: bool,
-    /// Whether the item belongs to a DayZ appid. Every other item is filtered
-    /// out before this struct is built; `false` only survives for `removed`
-    /// items, whose appid is unknowable and which are surfaced purely so the
-    /// user can clean them up.
+    /// Whether the item belongs to a DayZ appid; only `false` for `removed`
+    /// items, whose appid is unknowable.
     pub for_dayz: bool,
     /// Classified install state — the same dots the details panel renders.
     pub state: crate::workshop::ModState,
@@ -140,88 +120,60 @@ pub struct SubscribedModInfo {
 
 pub(crate) enum Command {
     InternetListStream(Filters, Sender<StreamChunk>),
-    /// Batched `item_state`, returned as `(id, bits)` pairs.
-    ///
-    /// One command rather than one per mod: the actor runs a callback pump
-    /// between every command it services, so asking about a 93-mod server
-    /// individually would interleave 93 pumps with the queries. Pairs rather
-    /// than a positional `Vec` so a caller can never mis-associate a state with
-    /// the wrong mod.
+    /// Batched `item_state`, returned as `(id, bits)` pairs — one command per
+    /// batch (not per mod) avoids interleaving a callback pump per query.
     UGCItemStates(Vec<u64>, Sender<Result<Vec<(u64, u32)>, SteamError>>),
     /// Returns install folder + size, or None.
     UGCInstallInfo(u64, Sender<Result<Option<UgcInstallInfo>, SteamError>>),
-    /// Batched download progress.
-    ///
-    /// Only ids Steam reports a transfer for are included — the call returns
-    /// `None` for anything not downloading.
+    /// Batched download progress; only ids Steam currently reports a transfer
+    /// for are included.
     UGCDownloadInfo(Vec<u64>, Sender<Result<Vec<DownloadRow>, SteamError>>),
     /// Subscribe to each id, then queue its download.
     UGCSubscribe(Vec<u64>, Sender<Result<Vec<MutationResult>, SteamError>>),
     /// Unsubscribe from each id. Steam removes the content from disk.
     UGCUnsubscribe(Vec<u64>, Sender<Result<Vec<MutationResult>, SteamError>>),
-    /// Ask the Workshop itself which of these items have been updated since the
-    /// installed copy was written, and queue a download for the ones that have.
-    ///
-    /// Answers with the ids it queued. Issued instantly and completed later by
-    /// `poll_checks`, so it is serviceable from inside a discovery's pump
-    /// rather than queued behind the discovery — see `PendingCheck`.
+    /// Ask the Workshop which ids are stale and queue downloads for them;
+    /// answers with the queued ids. Completed later by `poll_checks` (see
+    /// `PendingCheck`) so it doesn't queue behind a running discovery.
     UGCRefreshStale(Vec<u64>, Sender<Result<Vec<u64>, SteamError>>),
-    /// The Mods tab's VERIFY: the same freshness question as the gate, answered
-    /// per id instead of as a list of ids to re-queue, and treating
-    /// "subscribed but not on disk yet" as out of date too.
+    /// The Mods tab's VERIFY — same freshness check as the gate, but answered
+    /// per id, treating "subscribed but not on disk yet" as out of date too.
     UGCVerifyMods(Vec<u64>, Sender<Result<Vec<StaleOutcome>, SteamError>>),
-    /// The Mods tab's enumeration: every subscribed Workshop item, filtered to
-    /// DayZ, with install facts and Workshop metadata.
-    ///
-    /// `cache_age_secs` is passed to `SetAllowCachedResponse`, so re-opening the
-    /// tab is cheap (Steam answers from its own metadata cache) while a manual
-    /// refresh can pass 0 and force a live Workshop answer.
+    /// The Mods tab's enumeration: every subscribed DayZ item, with install
+    /// facts and Workshop metadata. `cache_age_secs` of 0 forces a live
+    /// Workshop answer instead of Steam's cached one.
     SubscribedMods {
         cache_age_secs: u32,
         ack: Sender<Result<Vec<SubscribedModInfo>, SteamError>>,
     },
     /// Queue a fresh download of each id, answering with the ones Steam
-    /// accepted. Synchronous — used for the Mods tab's per-mod "reinstall" and
-    /// for re-pinning something after its folder was cleared.
+    /// accepted. Used for per-mod "reinstall" and re-pinning a cleared item.
     UGCDownload(Vec<u64>, Sender<Result<Vec<u64>, SteamError>>),
     Shutdown(Sender<()>),
 }
 
-/// Outcome of one subscribe/unsubscribe. `error` is `None` on success.
-///
-/// Per-id rather than a single pass/fail for the batch: subscribing 93 mods can
-/// partially succeed, and "subscribed 91 of 93" is a real outcome the UI has to
-/// be able to state.
+/// Outcome of one subscribe/unsubscribe, per id rather than pass/fail since a
+/// batch of 93 can partially succeed. `error` is `None` on success.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct MutationResult {
     pub workshop_id: u64,
     pub error: Option<String>,
 }
 
-/// Ceiling on a batch of subscribe/unsubscribe callbacks.
-///
-/// Every failure surface gets a message rather than an indefinite spinner
-/// (spec §5.6), so a callback that never fires has to become a timeout.
+/// Ceiling on a batch of subscribe/unsubscribe callbacks, so a callback that
+/// never fires still surfaces as an error rather than an indefinite spinner.
 const MUTATION_DEADLINE: Duration = Duration::from_secs(60);
 
-/// Answer a command that resolves instantly from local Steam state, needing no
-/// callback pump of its own.
-///
-/// Returns `Some(cmd)` for anything it did not handle, so the caller can queue
-/// it for the main loop. These are the "fast" half of the command taxonomy:
-/// they are safe to service *inside* a long-running server-list request, which
-/// is what stops a mod-state lookup from waiting on a discovery that may run
-/// for a minute.
+/// Answer a command that resolves instantly from local Steam state, with no
+/// callback pump of its own. Returns `Some(cmd)` for anything unhandled.
 fn service_instant(
     client: &Client,
     cmd: Command,
     pending: &mut Vec<PendingCheck>,
 ) -> Option<Command> {
     match cmd {
-        // Instant in the sense that matters here: issuing the queries needs no
-        // pump of its own, so this is safe to service from inside one. The
-        // replies are collected by `poll_checks` on a later turn of whatever
-        // loop is running — which is what keeps a join clicked during a
+        // Issuing needs no pump of its own; replies are collected by
+        // `poll_checks` on a later loop turn — keeps a join clicked during a
         // discovery from waiting for the discovery to end.
         Command::UGCRefreshStale(ids, ack) => {
             if let Some(started) = start_refresh(client, ids, ack) {
@@ -293,14 +245,9 @@ fn service_instant(
     }
 }
 
-/// Classify a Steamworks init failure so the launcher knows whether waiting can
-/// help. Steam distinguishes these three cases itself; collapsing them into one
-/// string would leave the startup prompt unable to tell "start Steam" (fixable
-/// by waiting) from "this Steam client is out of date" (not).
-///
-/// `FailedGeneric` is what a *starting* Steam client returns, not only a broken
-/// one — it appears for the several seconds between the process launching and
-/// it being ready to hand out sessions.
+/// Classify a Steamworks init failure so the launcher knows whether waiting
+/// can help. `FailedGeneric` is what a *starting* Steam client returns too,
+/// not only a broken one.
 fn classify(e: &SteamAPIInitError) -> InitFailure {
     match e {
         SteamAPIInitError::NoSteamClient(_) => InitFailure::SteamNotRunning,
@@ -309,11 +256,8 @@ fn classify(e: &SteamAPIInitError) -> InitFailure {
     }
 }
 
-/// Steam's own message text.
-///
-/// Pulled out of the variant rather than taken from `Display`, which discards
-/// it: `SteamAPIInitError::FailedGeneric` renders as the literally useless
-/// "Some other failure" while carrying Steam's actual explanation inside.
+/// Steam's own message text — pulled from the variant rather than `Display`,
+/// which discards it (`FailedGeneric` renders as the useless "Some other failure").
 fn detail(e: &SteamAPIInitError) -> String {
     let message = match e {
         SteamAPIInitError::FailedGeneric(m)
@@ -418,26 +362,11 @@ enum Mutation {
 }
 
 /// Issue a subscribe/unsubscribe for every id, then pump until each has
-/// answered or the deadline passes.
-///
-/// The shared result slot is `Arc<Mutex<_>>`, not the `Rc<RefCell<_>>` used by
-/// `request_list`: `register_call_result` requires the callback to be `Send`,
-/// so an `Rc` will not compile here. The server-list callbacks get away with
-/// `Rc` because they are registered through a different path.
-///
-/// All ids are issued before any pumping, so the calls overlap rather than
-/// running one round trip at a time.
+/// answered or the deadline passes. All ids are issued before any pumping,
+/// so the calls overlap rather than running one round trip at a time.
 fn mutate(client: &Client, ids: &[u64], kind: Mutation) -> Vec<MutationResult> {
-    // Deduplicate, and drop anything that is not a Workshop id.
-    //
-    // Both matter for correctness, not just tidiness:
-    //
-    // - A server can list the same mod twice. The completion check below counts
-    //   distinct answers, so a duplicated id meant the count could never reach
-    //   `ids.len()` and every batch ran to the 60s deadline.
-    // - Id `0` is how DayZ servers denote a server-side or locally-installed
-    //   mod. Steam does not reject it; `download_item(0)` queues a phantom
-    //   transfer that persists in the Steam client until it is restarted.
+    // Dedup (a duplicate id would make the completion count below unreachable)
+    // and drop non-Workshop ids (id 0 denotes server-side content).
     let ids: Vec<u64> = {
         let mut seen = std::collections::HashSet::new();
         ids.iter()
@@ -487,10 +416,8 @@ fn mutate(client: &Client, ids: &[u64], kind: Mutation) -> Vec<MutationResult> {
             None => Some("Steam did not respond in time".to_string()),
         };
 
-        // Subscribing alone does not reliably start a transfer, so the download
-        // is queued explicitly (spec §5.2: subscribe -> download). It is a
-        // synchronous call returning whether Steam accepted the request; if
-        // Steam already queued one this is a harmless no-op.
+        // Subscribing alone doesn't reliably start a transfer, so queue it
+        // explicitly — a harmless no-op if Steam already queued one.
         let error = if kind == Mutation::Subscribe && error.is_none() {
             if ugc.download_item(steamworks::PublishedFileId(id), false) {
                 None
@@ -513,32 +440,22 @@ fn mutate(client: &Client, ids: &[u64], kind: Mutation) -> Vec<MutationResult> {
 /// A 104-mod server — which the DayZ browser is full of — is three requests.
 const UGC_QUERY_PAGE: usize = 50;
 
-/// Ceiling on the whole batch of details queries.
-///
-/// Shorter than `MUTATION_DEADLINE` because this is on the path of a button
-/// click: a join that cannot check freshness should get on with launching
-/// against what Steam already believes, not sit for a minute first.
+/// Ceiling on the whole batch of details queries — shorter than
+/// `MUTATION_DEADLINE` since this is on the path of a button click.
 const QUERY_DEADLINE: Duration = Duration::from_secs(20);
 
-/// How long the Mods tab will wait for a full enumeration before answering with
-/// what it has. Bigger than `QUERY_DEADLINE` because the *first* pull has no
-/// Steam-side cache to answer from, and a user subscribed to items from several
-/// games can take a couple of round trips; an empty list is a worse outcome
-/// than a slow tab.
+/// How long the Mods tab will wait for a full enumeration before answering
+/// with what it has. Bigger than `QUERY_DEADLINE`: the *first* pull has no
+/// Steam-side cache, and can take a couple of round trips.
 const ENUM_DEADLINE: Duration = Duration::from_secs(60);
 
 /// Appids whose Workshop items the Mods tab understands: DayZ and DayZ
-/// Experimental. A `GetSubscribedItems` read returns *everything* the user is
-/// subscribed to across Steam, so this filter is what keeps the tab from
-/// listing mods for other games.
+/// Experimental. `GetSubscribedItems` returns everything the user is
+/// subscribed to across Steam, so this filters out other games.
 const DAYZ_APP_IDS: &[u32] = &[DAYZ_APP_ID, 245340];
 
-/// Metadata one Workshop details query returns for one item.
-///
-/// Almost everything here is straight out of `SteamUGCDetails_t`; the preview
-/// image and the subscriber count come from separate accessors on the same
-/// query result, which is why they are collected next to the rest rather than
-/// in a second pass.
+/// Metadata one Workshop details query returns for one item, mostly straight
+/// out of `SteamUGCDetails_t`.
 #[derive(Debug, Clone)]
 struct WorkshopDetails {
     title: String,
@@ -558,14 +475,8 @@ struct WorkshopDetails {
 }
 
 /// The pooled state of one issued details query: questions asked, answers
-/// arriving, and what was on disk when it started.
-///
-/// Issuing and awaiting are deliberately split. The queries are answered by
-/// Steam callbacks, which only run inside `run_callbacks` — so a query issued
-/// with its own pump is a query that cannot run *while any other pump is busy*
-/// (see the history in this file about the join gate starving behind a
-/// discovery). `.finished`/`.issued` are what let the answer be completed by
-/// whichever loop happens to be pumping callbacks.
+/// arriving, and what was on disk when it started. `.finished`/`.issued` let
+/// any loop pumping callbacks complete the answer, not just the issuer.
 struct IssuedDetails {
     /// The ids asked about, deduped and Workshop-only.
     ids: Vec<u64>,
@@ -585,11 +496,7 @@ struct IssuedDetails {
 
 /// A details query that has been issued and is waiting on replies, together
 /// with what to do with them once they are all in (or the deadline passes).
-///
-/// One enum instead of three parallel vecs so every consumer of the pending
-/// list — `run`'s loop, `service_instant`, `request_list` — threads a single
-/// collection around, and a new check that follows the same issue-now/
-/// complete-later shape slots into the same plumbing.
+/// One enum instead of three parallel vecs.
 enum PendingCheck {
     /// The join gate's freshness check. Queues a download for anything stale
     /// and answers with the ids it re-queued, as before.
@@ -612,16 +519,9 @@ enum PendingCheck {
 }
 
 /// Issue a details query for `ids`, split into Steam's page-cap chunks, and
-/// return the pooled answer state for some later pump to complete.
-///
-/// `cache_age_secs` is what makes re-reading the Mods tab cheap: within that
-/// age Steam answers from its own metadata cache instead of hitting the
-/// Workshop. The join gate's freshness check passes `0` on purpose — cached
-/// metadata is exactly the lag that produced the wrong `NEEDS_UPDATE` bit in
-/// the first place, so a staleness check that accepted a cached answer would
-/// only confirm its own mistake.
-///
-/// Returns `None` when Steam refused every request — nothing is coming.
+/// return the pooled answer state for some later pump to complete. Returns
+/// `None` when Steam refused every request. `cache_age_secs` of `0` forces a
+/// live answer instead of Steam's cache.
 fn issue_details_query(
     client: &Client,
     ids: Vec<u64>,
@@ -719,9 +619,7 @@ fn issue_details_query(
 }
 
 /// Ask the Workshop which of `ids` has been updated since the copy on disk.
-///
-/// Returns the in-flight state, or `None` when the answer needed no query at
-/// all — in which case the caller has already been acknowledged.
+/// Returns `None` when no query was needed — the caller is already acked.
 fn start_refresh(
     client: &Client,
     ids: Vec<u64>,
@@ -777,10 +675,8 @@ fn start_mod_enumeration(
         .map(|id| id.0)
         .collect();
 
-    // The enabled-only read is how "locally disabled" is detected at all: the
-    // item state has no disabled bit, but `GetSubscribedItems` answers
-    // differently when asked to include disabled items, and the difference
-    // between the two reads is exactly the disabled set.
+    // Item state has no disabled bit, so "locally disabled" is inferred from
+    // the difference between the enabled-only and all-items reads.
     let enabled: HashSet<u64> = ugc
         .subscribed_items(false)
         .into_iter()
@@ -842,9 +738,8 @@ fn start_mod_enumeration(
     let Some(issued) =
         issue_details_query(client, all, cache_age_secs, Instant::now() + ENUM_DEADLINE)
     else {
-        // Steam refused every details request. Answer with the local-only
-        // snapshot rather than failing the whole tab — the rows lack titles and
-        // thumbnails until the next pull, but the list itself is there.
+        // Steam refused every details request — answer with the local-only
+        // snapshot rather than failing the whole tab.
         let rows: Vec<SubscribedModInfo> = rows.into_values().collect();
         let _ = ack.send(Ok(rows));
         return None;
@@ -853,12 +748,8 @@ fn start_mod_enumeration(
     Some(PendingCheck::Enumerate { issued, rows, ack })
 }
 
-/// Deduplicate ids and drop anything that is not a Workshop id.
-///
-/// `mutate` does the same for subscribe/unsubscribe, and for the same reason:
-/// a duplicate id would make the completion count unreachable (see `mutate`),
-/// and id 0 is how DayZ servers denote server-side content that Steam must
-/// never be asked about.
+/// Deduplicate ids and drop anything that is not a Workshop id (id 0 marks
+/// server-side content Steam must never be asked about).
 fn workshop_only_ids(ids: Vec<u64>) -> Vec<u64> {
     let mut seen = HashSet::new();
     ids.into_iter()
@@ -867,11 +758,8 @@ fn workshop_only_ids(ids: Vec<u64>) -> Vec<u64> {
         .collect()
 }
 
-/// Complete any pending check whose replies have all landed, or whose deadline
-/// has passed.
-///
-/// Called from every loop that pumps callbacks, so work issued during a
-/// discovery completes during that discovery rather than after it.
+/// Complete any pending check whose replies have all landed, or whose
+/// deadline has passed. Called from every loop that pumps callbacks.
 fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>) {
     if pending.is_empty() {
         return;
@@ -885,10 +773,8 @@ fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>) {
                 if !answered && !expired {
                     return true;
                 }
-                // A timed-out check still uses whatever did answer. Ids the
-                // Workshop said nothing about read as `updated_at == 0`, which
-                // `is_stale` treats as "leave it alone" — partial data can only
-                // ever mean fewer forced downloads, never spurious ones.
+                // A timed-out id reads as `updated_at == 0`, which `is_stale`
+                // treats as "leave it alone".
                 let updated = issued
                     .updated
                     .lock()
@@ -926,11 +812,9 @@ fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>) {
                     let installed_at = issued.installed.get(&id).copied().unwrap_or(0);
                     let known = updated.contains_key(&id);
                     let updated_at = updated.get(&id).copied().unwrap_or(0);
-                    // "Updated" is deliberately wider than the join gate's
-                    // `is_stale`: an already-subscribed mod that is not on disk
-                    // yet is exactly what a manual VERIFY should bring down,
-                    // while the gate treats it as blocked by its own state and
-                    // subscribes first.
+                    // Deliberately wider than the gate's `is_stale`: a
+                    // subscribed-but-not-on-disk mod is exactly what VERIFY
+                    // should bring down.
                     let outdated =
                         updated_at != 0 && (installed_at == 0 || updated_at > installed_at);
                     let queued =
@@ -959,12 +843,8 @@ fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>) {
                 let mut out = Vec::with_capacity(rows.len());
                 for (id, mut info) in rows.drain() {
                     let Some(d) = details.get(&id) else {
-                        // No answer at all for this id. If every chunk answered,
-                        // the Workshop knows nothing about it — a removed/banned
-                        // item, surfaced for clean-up rather than shown. If the
-                        // query timed out instead, the id is dropped from this
-                        // pass (the next pull picks it up) rather than guessed
-                        // at.
+                        // No answer: removed/banned if every chunk answered,
+                        // otherwise drop it from this pass rather than guess.
                         if answered {
                             info.removed = true;
                             out.push(info);
@@ -975,8 +855,6 @@ fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>) {
                         .consumer_app_id
                         .map(|app| DAYZ_APP_IDS.contains(&app))
                         .unwrap_or(false);
-                    // Non-DayZ items never reach the user; removed items of an
-                    // unknown app only do so as clean-up candidates.
                     if !info.for_dayz && !info.removed {
                         continue;
                     }
@@ -994,20 +872,8 @@ fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>) {
                     info.num_upvotes = d.num_upvotes;
                     info.num_downvotes = d.num_downvotes;
                     info.score = d.score;
-                    // `info.state` so far is only Steam's client-side cached
-                    // `item_state()` bit, read *before* this details query
-                    // even started — the same "needs an update is a fact
-                    // about what the client last noticed, not the Workshop"
-                    // gap `is_stale` exists to close for the launch gate.
-                    // Without this, the Mods tab's Refresh button could
-                    // re-fetch a mod's title/tags/dates live from the
-                    // Workshop and still go on reporting it "Ready" forever,
-                    // because nothing ever rechecked the state bit against
-                    // what Refresh just learned. Only ever *upgrades* a
-                    // false `Ready` to `NeedsUpdate` — every other state
-                    // (`Downloading`, `NotSubscribed`, `NotInstalled`) is a
-                    // more specific, already-correct answer this must not
-                    // overwrite.
+                    // Upgrade a stale cached `Ready` to `NeedsUpdate`, but never
+                    // overwrite a more specific state.
                     if info.state == crate::workshop::ModState::Ready
                         && crate::workshop::is_stale(info.install_timestamp, info.time_updated)
                     {
@@ -1022,17 +888,8 @@ fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>) {
     });
 }
 
-/// Run one server-list request to completion.
-///
-/// When `stream` is `Some`, rows are flushed to it every `STREAM_FLUSH` and the
-/// returned `Vec` is empty — the consumer has already been given everything.
-/// When it is `None` the whole list is returned at the end, as before.
-///
-/// Always an internet-server-list request — the history-list variant this
-/// once also served (`ListKind`) was removed as dead code alongside
-/// `Command::HistoryList` (D3, 2026-08-29 audit): nothing ever called it, and
-/// the RECENT tab has always sourced its list from the registry's own
-/// `last_played` instead.
+/// Run one server-list request to completion. When `stream` is `Some`, rows
+/// are flushed to it every `STREAM_FLUSH` and the returned `Vec` is empty.
 fn request_list(
     client: &Client,
     filters: &Filters,
@@ -1045,9 +902,7 @@ fn request_list(
 
     let rows: Rc<RefCell<Vec<GameServerRow>>> = Rc::new(RefCell::new(Vec::new()));
     let done: Rc<RefCell<Option<ServerResponse>>> = Rc::new(RefCell::new(None));
-    // When the first row lands vs. when the request completes. If the gap is
-    // large, Steam is trickling results and buffering them until the end is
-    // what makes discovery feel slow — not the total wall clock.
+    // When the first row lands, for diagnosing trickle-vs-buffering slowness.
     let first_row: Rc<RefCell<Option<Instant>>> = Rc::new(RefCell::new(None));
 
     let responded_rows = Rc::clone(&rows);
@@ -1102,9 +957,8 @@ fn request_list(
     let mut streamed = 0usize;
     let mut last_flush = Instant::now();
 
-    // Draining `rows` here is safe without any lock: server-list callbacks only
-    // ever run inside `run_callbacks`, on this same thread, so no callback can
-    // be appending while this borrow is live.
+    // Safe without a lock: callbacks only run inside `run_callbacks`, on this
+    // same thread.
     let mut flush = |force: bool, streamed: &mut usize| -> bool {
         let Some(tx) = stream else { return true };
         if !force && last_flush.elapsed() < STREAM_FLUSH {
@@ -1121,11 +975,8 @@ fn request_list(
         tx.send(StreamChunk::Rows(batch)).is_ok()
     };
 
-    // Steam's `ServerListRequest` has no `Drop` impl — every return path that
-    // has one live must call `release()` itself or the native request (and
-    // the callback closures it holds) leaks for the rest of the process. The
-    // success path below already did this; the timeout and broken-stream
-    // paths did not.
+    // `ServerListRequest` has no `Drop` impl — every return path must call
+    // `release()` itself or the native request leaks.
     let release = |request: &Arc<Mutex<steamworks::ServerListRequest>>| {
         if let Ok(mut guard) = request.lock() {
             let _ = guard.release();
@@ -1139,20 +990,15 @@ fn request_list(
         }
         client.run_callbacks();
 
-        // Answer instant queries while this request runs. Without this the
-        // actor is single-file: a mod-state lookup issued while a discovery is
-        // in flight waits for the whole discovery, which made clicking a server
-        // during a refresh appear to hang for tens of seconds.
+        // Answer instant queries while this request runs, so a mod-state
+        // lookup doesn't wait behind a whole discovery.
         while let Ok(cmd) = rx.try_recv() {
             if let Some(unhandled) = service_instant(client, cmd, pending) {
                 deferred.push_back(unhandled);
             }
         }
 
-        // Complete any pending check issued above. Without this a join
-        // clicked during a discovery would have its queries answered by this
-        // very loop and still sit unacknowledged until the discovery ended, and
-        // the same would hold for a Mods-tab enumeration or verify.
+        // Complete any pending check issued above, same reasoning.
         poll_checks(client, pending);
 
         if !flush(false, &mut streamed) {

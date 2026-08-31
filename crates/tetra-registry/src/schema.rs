@@ -23,10 +23,8 @@ const MIGRATIONS: &[Migration] = &[
     },
 ];
 
-/// Connection-level settings. Applied to every connection, reader or writer.
-///
-/// WAL lets readers run while the writer thread is mid-transaction, which is
-/// the whole point of having one writer rather than a lock around all access.
+/// Connection-level settings applied to every connection — WAL lets readers run while the
+/// writer thread is mid-transaction.
 pub fn apply_pragmas(conn: &Connection) -> Result<(), RegistryError> {
     let _mode: String = conn.query_row("PRAGMA journal_mode = WAL", [], |r| r.get(0))?;
     conn.pragma_update(None, "synchronous", "NORMAL")?;
@@ -101,11 +99,9 @@ CREATE TABLE server_mods (
     PRIMARY KEY (ip, query_port, ordinal)
 ) STRICT;
 
--- D2 (2026-08-29 audit): unused. Workshop metadata is cached in
--- `mods-cache.json` instead (see `commands::mods`), and this table's writer
--- path (`Writer::upsert_mods`) has been removed — nothing reads or writes
--- these rows. Kept rather than dropped: removing a table needs a migration
--- for no gain, since nothing here has ever held real data.
+-- Unused: workshop metadata is cached in mods-cache.json instead (see
+-- commands::mods). Kept rather than dropped — no migration needed for a
+-- table that's never held real data.
 CREATE TABLE mods (
     workshop_id   INTEGER PRIMARY KEY,
     name          TEXT    NOT NULL DEFAULT '',
@@ -124,21 +120,14 @@ CREATE INDEX idx_servers_last_played ON servers(last_played);
 CREATE INDEX idx_server_mods_workshop ON server_mods(workshop_id);
 "#;
 
-/// `online` is written only by a targeted A2S refresh (see
-/// `commands::server::refresh_visible_servers` / `Writer::set_online`), never
-/// by the upsert guard in `writer.rs` — that guard already ignores rows that
-/// didn't respond, so it has no signal to flip this from. Defaults to `1`:
-/// a server the launcher has only ever discovered through Steam, and never
-/// itself failed to reach, has not been shown to be down.
+/// `online` is written only by a targeted A2S refresh, never the upsert guard. Defaults to `1` —
+/// a server only ever discovered through Steam hasn't been shown to be down.
 const V2: &str = r#"
 ALTER TABLE servers ADD COLUMN online INTEGER NOT NULL DEFAULT 1;
 "#;
 
-/// Server browser extras derived from the A2S_INFO `keywords` string: the
-/// backlog of players waiting in queue (`lqs`) and the day/night time
-/// acceleration multipliers (`etm`/`entm`). All three are keyword-derived like
-/// `in_game_time`, so they are nullable and only ever written by a probe that
-/// carried the keyword (see the COALESCE guards in `writer.rs`).
+/// Server browser extras from the A2S_INFO `keywords` string: queue backlog and day/night
+/// multipliers — nullable, only written by a probe that carried the keyword.
 const V3: &str = r#"
 ALTER TABLE servers ADD COLUMN queue INTEGER;
 ALTER TABLE servers ADD COLUMN day_multiplier REAL;
@@ -149,25 +138,8 @@ ALTER TABLE servers ADD COLUMN night_multiplier REAL;
 /// unless the user has favourited or played it. See [`prune_stale`].
 const PRUNE_AFTER_DAYS: i64 = 60;
 
-/// Delete servers that have gone unresponsive for longer than
-/// [`PRUNE_AFTER_DAYS`] and that the user has never favourited or played,
-/// along with their declared mod rows.
-///
-/// M14 (2026-08-29 audit): the registry had no retention policy at all —
-/// discovery upserts every server Steam lists, on every start, and nothing
-/// ever deleted a row. A real install reached 20MB, and every full-table
-/// query (`get_map_list`, `counts`, the filtered list) scaled with rows that
-/// hadn't answered a probe in months. `server_mods` has no `FOREIGN KEY`
-/// declared on `(ip, query_port)`, so `PRAGMA foreign_keys` has nothing to
-/// cascade here — its rows for a pruned server are deleted explicitly, in
-/// the same transaction.
-///
-/// Called once, synchronously, right after [`migrate`] — before the
-/// connection is handed to the writer thread — so this never competes with
-/// a live write. Returns the number of servers deleted; the caller `VACUUM`s
-/// only when that's nonzero, which is what makes "prune on start" also mean
-/// "`VACUUM` occasionally" instead of paying for a full rewrite of an
-/// unchanged file on every launch.
+/// Delete servers unresponsive past [`PRUNE_AFTER_DAYS`] with no favourite/play history, plus
+/// their mod rows. Only `VACUUM`s if something was actually deleted.
 pub fn prune_stale(conn: &Connection) -> Result<usize, RegistryError> {
     const CUTOFF_PREDICATE: &str = "last_responded IS NOT NULL \
          AND last_responded < unixepoch() - ?1 \

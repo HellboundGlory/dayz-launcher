@@ -1,54 +1,26 @@
 use std::fmt;
 use thiserror::Error;
 
-/// Why the Steam client could not be reached at startup.
-///
-/// Carried separately from the message text because the launcher *acts* on
-/// these differently. Only [`InitFailure::SteamNotRunning`] resolves by
-/// waiting — a missing DayZ licence or an out-of-date client will still be
-/// missing or out of date in four seconds, so retrying those on a timer is a
-/// loop that never terminates.
+/// Why the Steam client could not be reached at startup. Only
+/// [`InitFailure::SteamNotRunning`] and a couple of others resolve by
+/// waiting — see [`Self::resolves_by_waiting`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum InitFailure {
-    /// Nothing answered on the Steam pipe. Overwhelmingly the common case:
-    /// the user has not started Steam.
+    /// Nothing answered on the Steam pipe — user hasn't started Steam.
     SteamNotRunning,
     /// Steam answered but is older than the SDK this build links against.
     SteamOutOfDate,
-    /// Steam answered and would not start a DayZ session.
-    ///
-    /// Steam reports this as an undifferentiated generic failure, and it covers
-    /// two situations that need opposite handling: a client that is still
-    /// signing in (clears within seconds) and an account with no DayZ licence
-    /// (never clears). They are indistinguishable from the API, which is why
-    /// this kind is polled for a bounded window rather than forever or not at
-    /// all.
+    /// Steam answered and would not start a DayZ session — covers both "still
+    /// signing in" (clears itself) and "no DayZ licence" (never clears), which
+    /// Steam doesn't distinguish, hence the bounded poll window.
     SteamNotReady,
-    /// Our own Steam thread failed to start or died. Not Steam's fault, and
-    /// nothing the user can act on.
+    /// Our own Steam thread failed to start or died. Not Steam's fault.
     Internal,
-    /// The connection to Steam's backend was lost after a successful init.
-    ///
-    /// Distinct from `SteamNotRunning`: the local Steam client and our
-    /// process are both still alive, so there is no dead pipe to reconnect
-    /// to — `SteamHandle` is answering local UGC/mod-state queries from a
-    /// client whose backend session is gone. Never resolves by waiting: the
-    /// only way back is a fresh `SteamAPI_Init()`, which this process cannot
-    /// do without restarting (see `steam_init`'s ready-flag short-circuit).
+    /// Connection to Steam's backend was lost after a successful init. Only
+    /// fixable by a fresh `SteamAPI_Init()`, i.e. a restart.
     Disconnected,
-    /// Another `steam_init` call is already in flight on this process (M17,
-    /// 2026-08-29 audit).
-    ///
-    /// Before this, two overlapping calls (the auto-retry timer firing at
-    /// the same moment as a manual Retry click, say) both saw the ready flag
-    /// as unset and both ran a real `SteamAPI_Init()` — survivable in that
-    /// the loser gets shut down rather than dropped, but Steamworks does not
-    /// refcount `Init`/`Shutdown` pairs within one process, so shutting down
-    /// the loser's session was never guaranteed not to take the winner's
-    /// down with it. Resolves by waiting: the in-flight attempt finishes in
-    /// a moment either way, at which point a retry sees the ready flag set
-    /// (success) or gets a real failure to show instead.
+    /// Another `steam_init` call is already in flight on this process.
     AlreadyInitialising,
 }
 
@@ -69,16 +41,11 @@ impl InitFailure {
     /// Only meaningful when [`Self::resolves_by_waiting`] holds.
     pub fn auto_retry_limit(self) -> Option<u32> {
         match self {
-            // The user is off starting Steam, signing in, or clearing Steam
-            // Guard. That can take minutes and there is nothing to gain by
-            // giving up on them.
+            // Could take minutes (signing in, Steam Guard) — worth waiting out.
             InitFailure::SteamNotRunning => None,
-            // Long enough to cover a Steam client finishing its startup, short
-            // enough that a missing DayZ licence stops polling and gets told
-            // what is actually wrong.
+            // Long enough for Steam startup, short enough a missing licence
+            // stops polling and reports the real problem.
             InitFailure::SteamNotReady => Some(15),
-            // Short: this only ever waits out another `steam_init` call
-            // already in progress, which resolves in a moment either way.
             InitFailure::AlreadyInitialising => Some(5),
             InitFailure::SteamOutOfDate | InitFailure::Internal | InitFailure::Disconnected => {
                 Some(0)
@@ -129,18 +96,12 @@ mod tests {
 
     #[test]
     fn a_booting_steam_client_is_worth_waiting_for() {
-        // Steam reports "still starting up" as a generic failure, so this kind
-        // has to keep polling — treating it as final made "Start Steam" flip
-        // straight to an error the user then had to dismiss by hand.
         assert!(InitFailure::SteamNotRunning.resolves_by_waiting());
         assert!(InitFailure::SteamNotReady.resolves_by_waiting());
     }
 
     #[test]
     fn an_in_flight_init_attempt_is_worth_waiting_for_too() {
-        // Unlike the failures below, there's a real attempt already running
-        // that will finish on its own — treating this as final would surface
-        // a confusing error for something that resolves in under a second.
         assert!(InitFailure::AlreadyInitialising.resolves_by_waiting());
         assert!(InitFailure::AlreadyInitialising
             .auto_retry_limit()
@@ -163,8 +124,6 @@ mod tests {
 
     #[test]
     fn only_an_absent_client_is_waited_on_indefinitely() {
-        // Every other pollable kind must be bounded: `SteamNotReady` is also
-        // what a missing DayZ licence looks like, and that never resolves.
         assert_eq!(InitFailure::SteamNotRunning.auto_retry_limit(), None);
         for kind in [
             InitFailure::SteamNotReady,
@@ -181,10 +140,6 @@ mod tests {
 
     #[test]
     fn disconnected_never_auto_retries() {
-        // Unlike the startup failures, there is no working handle to fall
-        // back to on its own — `steam_init` short-circuits once `ready` is
-        // set, so polling it again after a live disconnect would just report
-        // success from the same dead handle. The only real fix is a restart.
         assert!(!InitFailure::Disconnected.resolves_by_waiting());
         assert_eq!(InitFailure::Disconnected.auto_retry_limit(), Some(0));
     }

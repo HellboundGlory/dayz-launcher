@@ -13,19 +13,9 @@ const A2S_INFO: u8 = 0x54;
 const A2S_RULES: u8 = 0x56;
 const INFO_PAYLOAD: &[u8] = b"Source Engine Query\0";
 
-/// Ceiling on one whole exchange (challenge round trip and split reassembly
-/// included), as a multiple of the per-datagram `timeout`.
-///
-/// `recv_once`'s timeout is per read, and it resets on every individual
-/// datagram — so without an outer bound, a server that answers a
-/// split-response header (up to 255 fragments, an up-to-`total * 2 + 8` read
-/// budget) and then trickles one datagram just under each `timeout` can hold
-/// the exchange open for as long as it likes, along with whatever
-/// concurrency permit acquired it. Eight timeouts is generous slack for a
-/// real multi-fragment reply while still bounding the worst case to minutes
-/// rather than the roughly `total * 2 + 8` reads (up to 518) the retry loop
-/// alone would otherwise allow. `retry::with_retries` layers a matching
-/// per-address ceiling on top, scaled to the configured attempt count.
+/// Ceiling on one whole exchange (challenge round trip + split reassembly),
+/// as a multiple of the per-datagram `timeout` — bounds a peer that keeps
+/// resetting `recv_once`'s per-read timeout without ever completing.
 pub(crate) const EXCHANGE_TIMEOUT_MULTIPLIER: u32 = 8;
 
 /// One request/response exchange on a socket of its own, bounded by
@@ -43,10 +33,8 @@ async fn request(
     }
 }
 
-/// The socket is bound here and dropped at the end of the function. That is the
-/// load-bearing detail: the challenge is bound to the source port, and a
-/// dedicated port per query means fragments from two concurrent queries to the
-/// same server can never arrive on the same socket.
+/// Socket is bound here and dropped at the end — a dedicated port per query
+/// means fragments from two concurrent queries can never collide.
 async fn request_inner(
     addr: SocketAddr,
     kind: u8,
@@ -62,13 +50,9 @@ async fn request_inner(
     packet.extend_from_slice(payload);
     sock.send(&packet).await?;
 
-    // Sized for the largest possible single A2S datagram (65507 bytes), not
-    // the common case. A `recv` into a buffer smaller than the datagram
-    // silently truncates it — a 4 KiB buffer loses the tail of any RULES
-    // response larger than that (a big mod list arrives as one ~4 KB+
-    // datagram), which then fails to parse and reads as "could not read the
-    // mod list". Split responses are unaffected (each fragment is small); this
-    // covers the single-datagram path.
+    // Sized for the largest possible single A2S datagram (65507 bytes) — a
+    // smaller buffer would silently truncate a big single-datagram reply
+    // (e.g. a large mod list) rather than error.
     let mut buf = vec![0u8; 65536];
     let mut first = recv_once(&sock, &mut buf, timeout).await?;
 
@@ -170,22 +154,13 @@ mod tests {
         v
     }
 
-    /// A single-packet response — used here purely as "junk" the reassembly
-    /// loop's `_ => continue` arm silently discards, the same shape a
-    /// keepalive-spamming peer would send to reset `recv_once`'s per-read
-    /// timeout without ever completing the exchange.
+    /// Junk the reassembly loop's `_ => continue` arm silently discards —
+    /// what a keepalive-spamming peer would send to reset `recv_once`'s
+    /// per-read timeout without completing the exchange.
     fn junk_single_packet() -> Vec<u8> {
         vec![0xff, 0xff, 0xff, 0xff, 0x49, 0x00]
     }
 
-    /// The bug `EXCHANGE_TIMEOUT_MULTIPLIER` exists to close: before it,
-    /// `recv_once`'s per-datagram timeout reset on every successful read, so
-    /// a peer that announces a split response and then keeps the exchange
-    /// alive by sending one throwaway datagram just under each `timeout` —
-    /// never actually completing reassembly — could hold it (and whatever
-    /// concurrency permit acquired it) open for as long as it kept doing
-    /// that. The fix bounds the *whole* exchange regardless of how many
-    /// individual reads keep succeeding.
     #[tokio::test]
     async fn a_peer_that_keeps_resetting_the_read_timeout_cannot_hold_the_exchange_open() {
         let server = UdpSocket::bind("127.0.0.1:0")
@@ -195,17 +170,14 @@ mod tests {
 
         let responder = tokio::spawn(async move {
             let mut buf = [0u8; 64];
-            // The client's initial A2S_RULES request.
             let (_, client) = server.recv_from(&mut buf).await.expect("recv request");
 
-            // Announce a 3-fragment split response...
+            // Announce a 3-fragment split response, then never send fragments
+            // 1/2 — just junk well inside each timeout window, well past the
+            // exchange deadline, so a regression here hangs instead of passing.
             let header = split_header(1234, 3, 0, b"AAA");
             let _ = server.send_to(&header, client).await;
 
-            // ...then never send fragments 1 or 2. Instead, keep sending junk
-            // well inside each `timeout` window, for far longer than the
-            // exchange deadline should allow, so a regression here would
-            // make this test visibly hang rather than pass by accident.
             for _ in 0..150 {
                 tokio::time::sleep(Duration::from_millis(10)).await;
                 let _ = server.send_to(&junk_single_packet(), client).await;

@@ -3,21 +3,9 @@ use crate::error::NetError;
 use crate::query::EXCHANGE_TIMEOUT_MULTIPLIER;
 use std::net::SocketAddr;
 
-/// Run `op` until it succeeds or the attempt budget is spent.
-///
-/// Only transport failures are retried. A parse failure means the server
-/// answered with something we cannot read, and it will answer with the same
-/// thing next time — retrying would spend the budget and delay the error
-/// without ever changing it.
-///
-/// The whole chain — every attempt and every backoff sleep between them — is
-/// bounded by a hard deadline, independent of `op` itself. `query::request`
-/// already bounds each individual attempt (`timeout * EXCHANGE_TIMEOUT_MULTIPLIER`),
-/// so under today's defaults this ceiling is redundant; it exists as the
-/// backstop that keeps one address's probe bounded even if a future change
-/// raises `attempts` without anyone re-deriving what that does to the worst
-/// case, and it is computed from `attempts` rather than a second hand-picked
-/// constant so the two can never quietly disagree.
+/// Run `op` until it succeeds or the attempt budget is spent. Only transport
+/// failures are retried — a parse failure means the server answered with
+/// something unreadable, and it'll answer the same way again.
 pub async fn with_retries<F, Fut, T>(
     addr: SocketAddr,
     config: &ProbeConfig,
@@ -78,13 +66,7 @@ mod tests {
         "127.0.0.1:1".parse().unwrap()
     }
 
-    /// The backstop this ceiling exists to be: even an `op` that hangs
-    /// indefinitely (a peer holding a connection open in a way
-    /// `query::request`'s own deadline somehow didn't catch, or simply a
-    /// future that never resolves) must not make one address's probe run
-    /// forever. Without this wrapper, a single pathological attempt would
-    /// block every remaining attempt behind it and the caller's `.await`
-    /// with it.
+    /// An `op` that hangs forever must not make the whole chain hang forever.
     #[tokio::test]
     async fn the_whole_chain_is_bounded_even_if_one_attempt_never_returns() {
         let started = std::time::Instant::now();
@@ -102,10 +84,8 @@ mod tests {
         );
     }
 
-    /// The deadline scales with `attempts` rather than being a fixed number,
-    /// so raising the attempt count (a config change, not a code change)
-    /// cannot silently start truncating legitimate retries before they get
-    /// to run.
+    /// Deadline scales with `attempts`, so raising the attempt count can't
+    /// silently truncate legitimate retries.
     #[tokio::test]
     async fn more_attempts_are_given_more_time_before_the_ceiling_trips() {
         use std::sync::atomic::{AtomicUsize, Ordering};
