@@ -1,21 +1,9 @@
 import { Minus, Square, X } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
-/**
- * The frameless window's min/max/close cluster.
- *
- * The locked board omits window controls (its window is a decoration-free
- * mock), but the real window is `decorations: false` — without these buttons
- * the launcher would be uncloseable. Kept as a slim strip at the top-right of
- * the main area; the strip doubles as the drag region, and the sidebar's brand
- * strip carries `data-tauri-drag-region` too. Deliberate exception to the
- * board, recorded in DESIGN.md §19.
- */
+// The frameless window's min/max/close cluster — needed since decorations:
+// false leaves no OS-provided way to close the window. Also doubles as the drag region.
 export function WindowControls() {
-  // Static, not `import("@tauri-apps/api/window")` per call (L9, 2026-08-29
-  // audit): `window-resize-handles.tsx` already imports this module
-  // statically, so Vite puts it in the main chunk regardless — the dynamic
-  // form here bought nothing but an extra promise on every click.
   function minimizeWindow() {
     getCurrentWindow()
       .minimize()

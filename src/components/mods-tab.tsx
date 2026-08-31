@@ -30,11 +30,7 @@ import {
 } from "@/lib/tauri";
 import { cn, formatBytes, formatLastPlayed } from "@/lib/utils";
 
-/**
- * Mods tab — M2×M3 merged: rounded rich rows with a slide-in inspector from
- * the right edge, status filter (All / Outdated / Downloading) and the action
- * bar. All store actions unchanged; this is the visual layer only.
- */
+// Mods tab: rich rows with a slide-in inspector, status filter, and action bar.
 
 const STATUS_UI: Record<
   ModState,
@@ -58,13 +54,8 @@ function modSubscribed(mod: { time_added_to_user_list: number; install_timestamp
   return mod.time_added_to_user_list || mod.install_timestamp || 0;
 }
 
-/**
- * The fields/actions `ModsTab` itself reads, selected with a shallow compare
- * (H8, 2026-08-29 audit) so a change to something only a child cares about —
- * `progress`, `selectedIds`, `caredServers` — doesn't re-run this component
- * (and, via the plain `mods.map(...)`, every row) on top of that row's own
- * subscription already reacting to it.
- */
+// Shallow-compared slice so a change to something only a child cares about
+// (progress, selectedIds) doesn't re-run this component and every row.
 function useModsTabSlice() {
   return useModsStore(
     useShallow((s) => ({
@@ -194,10 +185,7 @@ export function ModsTab() {
   const rowVirtualizer = useVirtualizer({
     count: mods.length,
     getScrollElement: () => scrollRef.current,
-    // Row height (30px thumb + py-2 padding) + the parent's `space-y`-free
-    // gap; measured rather than assumed for the same reason `server-list.tsx`
-    // measures its rows.
-    estimateSize: () => 54,
+    estimateSize: () => 54, // measured row height
     gap: 6,
     overscan: 8,
   });
@@ -306,15 +294,8 @@ export function ModsTab() {
   );
 }
 
-/**
- * Selects only this row's own slice of the store (H8, 2026-08-29 audit).
- *
- * Previously `useModsStore()` grabbed the whole store, so every row —
- * potentially several hundred, unvirtualised until the change above — re-ran
- * on any store change, including another row's progress ticking or the
- * search box changing. Each row now only re-renders when *its own* selected
- * flag, state or progress entry actually changes.
- */
+// Selects only this row's own slice of the store, so it re-renders only
+// when its own selected flag, state or progress entry actually changes.
 const ModRow = memo(function ModRow({
   mod,
   selected,
@@ -430,9 +411,6 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
   const ui = STATUS_UI[state];
 
   function openInSteam() {
-    // Resolved in Rust: the launcher locates the Steam executable and hands it
-    // the steam:// URL, so a running client is focused and navigated instead of
-    // relying on the OS opener's scheme handler.
     void openWorkshopInSteam(mod.workshop_id).catch((e) => console.error(e));
   }
 
@@ -566,9 +544,8 @@ function InspectorRow({ label, value }: { label: string; value: string }) {
 /** The bottom action bar: Verify + Unsubscribe, each with a revealed dropdown,
     plus the unique-per-server selection and the removed-mod clean-up. */
 function ModsActionBar({ removedCount }: { removedCount: number }) {
-  // Narrowed (H8, 2026-08-29 audit): this bar doesn't read `states`,
-  // `progress` or `search`, so it has no reason to re-render on the 1.5s
-  // poll tick or every keystroke in the search box.
+  // Narrow slice: this bar doesn't read states/progress/search, so it
+  // shouldn't re-render on the poll tick or every keystroke.
   const store = useModsStore(
     useShallow((s) => ({
       selectedIds: s.selectedIds,
@@ -604,13 +581,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
 
   const busy = !!store.op;
 
-  /**
-   * The destructive-action confirm lives in-app, not in `window.confirm`:
-   * WebKitGTK (the Linux webview) does not reliably show a script dialog, so a
-   * native `confirm()` could silently return without confirming there and make
-   * the unsubscribe buttons dead. A React modal behaves identically on both
-   * platforms and matches the app's own theme.
-   */
+  // In-app confirm, not window.confirm — WebKitGTK doesn't reliably show script dialogs.
   const [confirm, setConfirm] = useState<{
     title: string;
     message: string;
@@ -905,7 +876,7 @@ function MenuButton({
 
 /** "Select mods unique to a server…" — pops the cared-server list. */
 function ServerPicker() {
-  // Narrowed (H8, 2026-08-29 audit) — same reasoning as `ModsActionBar`.
+  // Narrow slice — same reasoning as ModsActionBar.
   const store = useModsStore(
     useShallow((s) => ({
       caredServers: s.caredServers,

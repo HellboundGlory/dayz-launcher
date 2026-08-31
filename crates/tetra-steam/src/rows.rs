@@ -1,11 +1,7 @@
 use std::net::Ipv4Addr;
 use tetra_registry::rows::{ServerKey, ServerRow};
 
-/// A Steam server-list row, owned and `Send`.
-///
-/// `steamworks::GameServerItem` is produced inside a callback on the Steam
-/// thread and cannot cross a thread boundary, so it is copied into this before
-/// leaving the actor.
+/// A Steam server-list row, owned and `Send` (the raw `GameServerItem` can't cross threads).
 #[derive(Debug, Clone)]
 pub struct GameServerRow {
     pub ip: Ipv4Addr,

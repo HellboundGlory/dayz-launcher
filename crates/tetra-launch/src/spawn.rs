@@ -2,26 +2,8 @@ use crate::error::SpawnError;
 use std::path::PathBuf;
 use std::process::Command;
 
-/// Start DayZ with the given launch arguments and return as soon as the process
-/// exists.
-///
-/// # Why this does not wait
-///
-/// It used to end in `.wait()`, which blocks until DayZ exits. Nothing wanted
-/// that: the only caller discarded the `ExitStatus`, and waiting cost three
-/// things. The Tauri command that calls this is `async`, so the wait pinned a
-/// Tokio worker thread for the entire play session; the frontend's `launching`
-/// flag is cleared when the command resolves, so the JOIN button read
-/// "LAUNCHING..." until the player quit the game; and `mark_played` runs after
-/// this returns, so a server only entered the RECENT list once the session was
-/// over. `DayZ_BE.exe` masked it — the BattlEye stub exits quickly after
-/// handing off — but an install with only `DayZ_x64.exe` hit all three.
-///
-/// # Safety
-///
-/// Arguments never pass through `cmd.exe` or any shell — `std::process::Command`
-/// calls `CreateProcess` directly on Windows. Dropping the `Child` does not
-/// terminate the process.
+/// Starts DayZ and returns immediately — doesn't `.wait()`, or JOIN/RECENT
+/// would stay stuck until the player quit the game.
 #[cfg(windows)]
 pub fn spawn_dayz(exe_path: &std::path::Path, args: &[String]) -> Result<(), SpawnError> {
     Command::new(exe_path)
@@ -31,19 +13,8 @@ pub fn spawn_dayz(exe_path: &std::path::Path, args: &[String]) -> Result<(), Spa
         .map_err(SpawnError::Launch)
 }
 
-/// Start DayZ on Linux by running the Windows executable under Proton.
-///
-/// DayZ ships as a Windows binary, so on Linux it is launched through the same
-/// Proton setup Steam uses. The Steam root is resolved from disk, then a Proton
-/// build and its Steam Linux Runtime are located under
-/// `<steam>/steamapps/common/`, and the game is run like:
-///
-/// ```text
-/// <SteamLinuxRuntime_*>/run -- <Proton>/proton run <dayz_exe> <args...>
-/// ```
-///
-/// `STEAM_COMPAT_DATA_PATH` points at the appid 221100 prefix so the launch
-/// reuses the exact prefix Steam would have created for a normal DayZ run.
+/// Start DayZ on Linux by running the Windows executable under Proton:
+/// `<SteamLinuxRuntime_*>/run -- <Proton>/proton run <dayz_exe> <args...>`
 #[cfg(target_os = "linux")]
 pub fn spawn_dayz(exe_path: &std::path::Path, args: &[String]) -> Result<(), SpawnError> {
     let steam_root = crate::registry_discovery::find_steam_paths()
@@ -86,24 +57,16 @@ pub fn spawn_dayz(exe_path: &std::path::Path, args: &[String]) -> Result<(), Spa
         .arg(exe_path)
         .args(args);
 
-    // The Steam client sets these when it launches a game normally; invoking
-    // Proton outside Steam means the `proton` script needs them to set up the
-    // WINEPREFIX and find the Steam install. Without them proton aborts with a
-    // "STEAM_COMPAT_CLIENT_INSTALL_PATH" KeyError.
+    // Proton needs these or it aborts with a KeyError.
     cmd.env("STEAM_COMPAT_DATA_PATH", &compat_data);
     cmd.env("STEAM_COMPAT_CLIENT_INSTALL_PATH", &steam_root);
     cmd.env("SteamAppId", "221100");
     cmd.env("SteamGameId", "221100");
 
-    // When the launcher itself runs from an AppImage, the runtime injects
-    // LD_LIBRARY_PATH (and APPIMAGE/APPDIR) pointing at the AppImage's bundled
-    // libraries, which breaks the Steam-runtime child. Strip them so the child
-    // uses the system libraries Steam expects.
+    // Strip AppImage/leaked Python env vars that break the Steam-runtime child.
     cmd.env_remove("LD_LIBRARY_PATH");
     cmd.env_remove("APPIMAGE");
     cmd.env_remove("APPDIR");
-    // A leaked PYTHONHOME/PYTHONPATH breaks the runtime's system Python
-    // ("No module named 'encodings'").
     cmd.env_remove("PYTHONHOME");
     cmd.env_remove("PYTHONPATH");
 
@@ -111,9 +74,7 @@ pub fn spawn_dayz(exe_path: &std::path::Path, args: &[String]) -> Result<(), Spa
 }
 
 /// Locate an installed Proton build under `<steam>/steamapps/common`.
-///
-/// Picks the *best* candidate, not the lexicographically first (M9,
-/// 2026-08-29 audit) — see [`best_proton`].
+/// Picks the *best* candidate, not the lexicographically first — see [`best_proton`].
 #[cfg(target_os = "linux")]
 fn pick_proton(common: &std::path::Path) -> Option<PathBuf> {
     let candidates: Vec<PathBuf> = std::fs::read_dir(common)
@@ -131,15 +92,9 @@ fn pick_proton(common: &std::path::Path) -> Option<PathBuf> {
 }
 
 /// Ranks candidate `.../<Proton dir>/proton` paths and returns the best one.
-///
-/// Previously a plain lexicographic sort picked the *first* name — so with
-/// several Protons installed (the ordinary case after a few years of Steam),
-/// `"Proton 5.13"` beat `"Proton 9.0"` and `"Proton - Experimental"`
-/// alphabetically, handing a user the oldest build installed: exactly the
-/// configuration least likely to run current DayZ. Experimental now always
-/// wins; otherwise the highest numeric version does. Split from
-/// [`pick_proton`] so the ranking itself — the actual bug — is testable
-/// against a synthetic candidate list, with no real Steam install needed.
+/// Experimental always wins; otherwise the highest numeric version does.
+/// Split from [`pick_proton`] so the ranking is testable without a real
+/// Steam install.
 #[cfg(target_os = "linux")]
 fn best_proton(candidates: Vec<PathBuf>) -> Option<PathBuf> {
     candidates.into_iter().max_by_key(|p| proton_rank(p))
@@ -159,11 +114,8 @@ fn proton_rank(proton_binary: &std::path::Path) -> (bool, (u32, u32)) {
     (experimental, parse_proton_version(dir_name))
 }
 
-/// Pulls `(major, minor)` out of a directory name like `"Proton 9.0 (Beta)"`
-/// or `"Proton 5.13"`. A non-numeric edition (Experimental, Hotfix, the
-/// EasyAntiCheat Runtime helper) parses as `(0, 0)` — Experimental is ranked
-/// separately in [`proton_rank`]; anything else with no version only wins
-/// when nothing better is installed.
+/// Pulls `(major, minor)` from a directory name like `"Proton 9.0 (Beta)"`.
+/// A non-numeric edition (Experimental, Hotfix, ...) parses as `(0, 0)`.
 #[cfg(target_os = "linux")]
 fn parse_proton_version(dir_name: &str) -> (u32, u32) {
     let after_prefix = dir_name.strip_prefix("Proton").unwrap_or(dir_name).trim();
@@ -175,10 +127,7 @@ fn parse_proton_version(dir_name: &str) -> (u32, u32) {
 }
 
 /// Locate a Steam Linux Runtime (scout/soldier/sniper) under
-/// `<steam>/steamapps/common`.
-///
-/// Picks the *best* candidate, not the lexicographically first (M9,
-/// 2026-08-29 audit) — see [`best_runtime`].
+/// `<steam>/steamapps/common`. Picks the best candidate — see [`best_runtime`].
 #[cfg(target_os = "linux")]
 fn pick_runtime(common: &std::path::Path) -> Option<PathBuf> {
     let candidates: Vec<PathBuf> = std::fs::read_dir(common)
@@ -195,14 +144,9 @@ fn pick_runtime(common: &std::path::Path) -> Option<PathBuf> {
     best_runtime(candidates)
 }
 
-/// Ranks candidate `.../<SteamLinuxRuntime*>/run` paths and returns the best.
-///
-/// Previously a plain lexicographic sort: the bare `SteamLinuxRuntime`
-/// (scout) is a string *prefix* of `SteamLinuxRuntime_sniper`, so scout
-/// always sorted first — and modern Proton builds require sniper, so
-/// launching under scout fails or misbehaves. `_sniper` > `_soldier` >
-/// bare (scout). Split from [`pick_runtime`] for the same testability reason
-/// as [`best_proton`].
+/// Ranks candidate `.../<SteamLinuxRuntime*>/run` paths and returns the
+/// best: `_sniper` > `_soldier` > bare (scout), since modern Proton builds
+/// require sniper.
 #[cfg(target_os = "linux")]
 fn best_runtime(candidates: Vec<PathBuf>) -> Option<PathBuf> {
     candidates.into_iter().max_by_key(|p| runtime_rank(p))
@@ -224,10 +168,7 @@ fn runtime_rank(run_binary: &std::path::Path) -> u8 {
     }
 }
 
-/// Start the Steam client and return immediately.
-///
-/// Steam's first process stays alive for the whole session, so waiting on it
-/// would block the caller until the user quit Steam.
+/// Start the Steam client — doesn't wait, since its process stays alive for the whole session.
 pub fn spawn_steam(exe_path: &std::path::Path) -> Result<(), SpawnError> {
     Command::new(exe_path)
         .spawn()
@@ -235,13 +176,8 @@ pub fn spawn_steam(exe_path: &std::path::Path) -> Result<(), SpawnError> {
         .map_err(SpawnError::Launch)
 }
 
-/// Start Steam handed a `steam://…` URL to open.
-///
-/// Steam's launcher accepts a URL as an argument; a second instance forwards it
-/// to the already-running client (focusing Steam) rather than starting twice.
-/// This is the Mods tab's "Open in Steam": the launcher resolves the Steam
-/// executable itself, which is more reliable than asking the OS's generic
-/// opener to dispatch a scheme handler that may not be registered.
+/// Start Steam handed a `steam://…` URL to open — a second instance forwards
+/// it to the already-running client rather than starting twice.
 pub fn spawn_steam_with_url(exe_path: &std::path::Path, url: &str) -> Result<(), SpawnError> {
     Command::new(exe_path)
         .arg(url)
@@ -250,10 +186,7 @@ pub fn spawn_steam_with_url(exe_path: &std::path::Path, url: &str) -> Result<(),
         .map_err(SpawnError::Launch)
 }
 
-/// Locate the DayZ executable.
-///
-/// Prefers `DayZ_BE.exe` (BattlEye-enabled) if it exists, falls back to
-/// `DayZ_x64.exe`.
+/// Locate the DayZ executable — prefers `DayZ_BE.exe`, falls back to `DayZ_x64.exe`.
 pub fn find_dayz_exe(dayz_dir: &std::path::Path) -> Option<PathBuf> {
     let be = dayz_dir.join("DayZ_BE.exe");
     if be.exists() {
@@ -366,11 +299,7 @@ mod tests {
         assert!(!args.iter().any(|a| a.starts_with("-name=")));
     }
 
-    /// The user's own parameters must never land after `-mod=`.
-    ///
-    /// DayZ takes the mod line as one argument, and a flag placed after it is
-    /// read by some builds as part of the final mod path. Keeping `-mod=` last
-    /// is why `build_launch_args` appends it rather than interleaving.
+    /// `-mod=` must stay last — some builds read a trailing flag as part of the mod path.
     #[test]
     fn user_parameters_precede_the_mod_line() {
         let args = build_launch_args(
@@ -402,10 +331,6 @@ mod tests {
         }
     }
 
-    /// Regression guard for the wiring bug this audit fixed: `commands::launch`
-    /// passed a hardcoded `&[]` here, so a populated `launchParams` setting
-    /// serialised to disk, round-tripped through the store, and was then
-    /// silently dropped on the way to the command line.
     #[test]
     fn every_supplied_parameter_reaches_the_command_line() {
         let extra: Vec<String> = vec!["-noSplash".into(), "-window".into()];
@@ -464,9 +389,6 @@ mod tests {
 
         #[test]
         fn a_higher_numeric_version_beats_a_lower_one_despite_sorting_first() {
-            // "Proton 5.13" < "Proton 9.0" lexicographically — the exact
-            // inversion that made the old `.sort().next()` pick the oldest
-            // build installed.
             let candidates = vec![proton("Proton 9.0 (Beta)"), proton("Proton 5.13")];
             assert_eq!(best_proton(candidates), Some(proton("Proton 9.0 (Beta)")));
         }
@@ -508,9 +430,6 @@ mod tests {
 
         #[test]
         fn bare_scout_is_not_mistaken_for_sniper_by_string_prefix() {
-            // The bug this pins: `SteamLinuxRuntime` is a string *prefix* of
-            // `SteamLinuxRuntime_sniper`, so a naive lexicographic sort put
-            // scout first every time both were installed.
             let candidates = vec![
                 runtime("SteamLinuxRuntime_sniper"),
                 runtime("SteamLinuxRuntime"),

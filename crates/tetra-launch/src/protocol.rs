@@ -4,11 +4,7 @@ use crate::error::ProtocolError;
 use winreg::enums::*;
 
 /// Whether the OS's current `dzsa://` registration already names
-/// `exe_path`, so a caller can skip re-registering when there's nothing to
-/// change (M11, 2026-08-29 audit) — `register_dzsa_protocol` used to run
-/// unconditionally on every launch, writing the same registry values
-/// (Windows) or rewriting the same desktop file (Linux) whether or not
-/// anything had actually changed.
+/// `exe_path`, so a caller can skip re-registering when nothing changed.
 #[cfg(windows)]
 pub fn dzsa_registered_to(exe_path: &std::path::Path) -> bool {
     let hkcu = winreg::RegKey::predef(HKEY_CURRENT_USER);
@@ -45,10 +41,7 @@ fn desktop_entry_matches(content: &str, exe_path: &std::path::Path) -> bool {
     content.contains(&format!("Exec=\"{}\" %u", exe_path.display()))
 }
 
-/// Register `dzsa://` protocol handler in Windows registry.
-///
-/// Writes to `HKCU\Software\Classes\dzsa\` so the operating system knows
-/// to open this launcher when a `dzsa://` link is clicked.
+/// Register the `dzsa://` handler under `HKCU\Software\Classes\dzsa\`.
 #[cfg(windows)]
 pub fn register_dzsa_protocol(exe_path: &std::path::Path) -> Result<(), ProtocolError> {
     let hkcu = winreg::RegKey::predef(HKEY_CURRENT_USER);
@@ -65,11 +58,8 @@ pub fn register_dzsa_protocol(exe_path: &std::path::Path) -> Result<(), Protocol
     Ok(())
 }
 
-/// Register the `dzsa://` protocol handler on Linux via an XDG desktop entry.
-///
-/// Writes `~/.local/share/applications/tetra-launcher-dzsa.desktop` marking the
-/// launcher as the handler for `x-scheme-handler/dzsa`, then tells the desktop
-/// environment to use it. The Windows twin writes to the registry instead.
+/// Register the `dzsa://` handler on Linux via an XDG desktop entry
+/// (`~/.local/share/applications/tetra-launcher-dzsa.desktop`).
 #[cfg(target_os = "linux")]
 pub fn register_dzsa_protocol(exe_path: &std::path::Path) -> Result<(), ProtocolError> {
     let home = std::env::var_os("HOME")
@@ -99,20 +89,13 @@ pub fn register_dzsa_protocol(exe_path: &std::path::Path) -> Result<(), Protocol
 
 #[cfg(test)]
 mod tests {
-    // Scoped to Linux, not a plain `use super::*;` at module level: on
-    // Windows this module's only test is the one below, which is itself
-    // `#[cfg(target_os = "linux")]`'d out — an unconditional import here
-    // would compile to nothing using it on Windows and fail `clippy -D
-    // warnings`'s `unused_imports` (caught by the new release-workflow gate
-    // itself, M15, before anything was published — no Windows machine was
-    // available this session to catch it any earlier).
+    // Scoped to Linux: the only test below is Linux-only, so an unconditional
+    // import here is unused on Windows and fails `clippy -D warnings`.
     #[cfg(target_os = "linux")]
     use super::*;
 
-    /// `dzsa_registered_to`'s Linux comparison, pinned without touching the
-    /// real desktop-entry file under `$HOME`. Content shaped exactly like
-    /// what `register_dzsa_protocol` actually writes (see its `format!`
-    /// above) so this fails if the two ever drift apart.
+    /// Pinned against the exact format `register_dzsa_protocol` writes, so
+    /// this fails if the two drift apart.
     #[cfg(target_os = "linux")]
     #[test]
     fn desktop_entry_match_is_exe_path_specific() {

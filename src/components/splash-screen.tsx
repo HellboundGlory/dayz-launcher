@@ -10,16 +10,8 @@ export interface SplashScreenProps {
   pct: number;
 }
 
-/**
- * The branded splash, rendered inside the 860×484 splash window.
- *
- * The window is exactly the artwork's size and is transparent, so this fills it
- * (`fixed inset-0`) with the image and lets the PNG's rounded corners show
- * through to the desktop — hence no opaque backdrop and no full-bleed scrim
- * (either would square off the corners). The legibility scrim is a radial
- * gradient that fades out before the corners. The launcher's `main` window
- * publishes progress via `splash-progress` events and closes us when done.
- */
+// Branded splash inside the transparent 860×484 splash window — no opaque
+// backdrop, so the PNG's rounded corners show through to the desktop.
 export function SplashScreen({ status, detail, pct }: SplashScreenProps) {
   if (pct < 0 || pct > 100) return null;
 

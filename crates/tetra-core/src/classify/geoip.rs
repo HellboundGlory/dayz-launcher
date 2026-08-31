@@ -1,25 +1,9 @@
 //! Minimal offline IP-to-region lookup.
 //!
-//! Maps IPv4 addresses to broad region codes (EU, NA, AS, OC, SA)
-//! matching the launcher's region filter dropdown.
-//!
-//! Uses a baked-in table of `/8` prefixes covering DayZ server-hosting
-//! networks. No external database, no async I/O, no extra crate dependencies.
-//!
-//! # Why an array
-//!
-//! This was a `LazyLock<HashMap<(u8, u8), &str>>` populated by ~200 nested
-//! `for b2 in 0..=255` loops — roughly 50,000 entries, every one of which
-//! mapped a whole `/8` and so ignored the second octet entirely. The map was
-//! several hundred kilobytes of heap built on first use, hashed a tuple on
-//! every lookup, and encoded no information an array indexed by the first
-//! octet does not. `REGIONS` is 256 entries resolved at compile time.
-//!
-//! Prefix order is still load-bearing: the original inserted some octets twice
-//! and relied on the later write winning (`194` is listed under Oceania and
-//! again under Germany, and resolves to EU; `200` under Oceania and again under
-//! South America, and resolves to SA). `build_table` applies the blocks in the
-//! same order for the same reason, and the tests below pin the overlaps.
+//! Maps IPv4 addresses to broad region codes (EU, NA, AS, OC, SA) matching the
+//! launcher's region filter dropdown, via a baked-in table of `/8` prefixes
+//! resolved at compile time. Block order matters — later blocks win on
+//! overlap, see the tests below.
 
 use std::net::Ipv4Addr;
 
@@ -80,13 +64,9 @@ const fn assign(
     table
 }
 
-/// True for addresses that are not globally routable, so cannot belong to any
-/// geographic region.
-///
-/// This has to be checked *before* the table lookup, not after. Every table
-/// entry is a whole `/8` — both `172` and `192` map wholesale to North America —
-/// which quietly swallows `172.16.0.0/12` and `192.168.0.0/16`. A LAN server
-/// would otherwise be labelled NA and get caught by the region filter.
+/// True for non-globally-routable addresses. Must run before the table
+/// lookup — `172`/`192` map wholesale to NA, which would otherwise mislabel
+/// a LAN server (`172.16.0.0/12`, `192.168.0.0/16`) as North American.
 fn is_non_routable(ip: Ipv4Addr) -> bool {
     let [a, b, ..] = ip.octets();
     ip.is_private()
@@ -211,11 +191,9 @@ mod tests {
         );
     }
 
-    /// Nine `/8`s are claimed by two region blocks. The table is built by
-    /// applying the blocks in order and letting the later one win, which
-    /// reproduces what the old insert-ordered `HashMap` resolved to. Reordering
-    /// the blocks in `build_table` silently moves these servers between regions,
-    /// so they are pinned rather than left to the reader to infer.
+    /// Pins the overlap-resolution order for the nine `/8`s claimed by two
+    /// region blocks — reordering `build_table`'s blocks would silently move
+    /// these.
     #[test]
     fn overlapping_prefixes_resolve_to_the_last_block() {
         // Oceania, then Germany.
@@ -246,10 +224,8 @@ mod tests {
         }
     }
 
-    /// The lookup ignores every octet but the first, so a `/8` must answer the
-    /// same for its whole range. This is what makes the array equivalent to the
-    /// `(first, second)`-keyed map it replaced, whose entries were all blanket
-    /// `/8`s written out 256 times each.
+    /// Lookup ignores every octet but the first — a `/8` answers the same
+    /// across its whole range.
     #[test]
     fn the_second_octet_never_changes_the_answer() {
         for second in [0u8, 1, 64, 128, 200, 255] {

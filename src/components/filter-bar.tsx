@@ -9,10 +9,6 @@ interface FilterBarProps {
   refreshing: boolean;
 }
 
-/**
- * The tri-state tag filters — all `ServerFilter` keys, all ordinary view state
- * that resets with the window.
- */
 type TagField = "official" | "modded" | "first_person";
 
 const TAG_OPTIONS: { label: string; field: TagField; title?: string }[] = [
@@ -37,13 +33,7 @@ const SORT_KEYS: { key: SortKey; label: string }[] = [
   { key: "map", label: "Map" },
 ];
 
-/**
- * Close a popover when a pointer goes down anywhere outside it.
- *
- * The dropdowns each carried their own byte-identical copy of this effect.
- * Bound only while the popover is open, so a closed dropdown no longer keeps a
- * document-level listener alive.
- */
+// Closes a popover on outside pointerdown; bound only while open.
 function useCloseOnOutsideClick(open: boolean, onClose: () => void) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -59,14 +49,7 @@ function useCloseOnOutsideClick(open: boolean, onClose: () => void) {
   return ref;
 }
 
-/**
- * How long typing has to pause before the list is re-queried.
- *
- * Every change to `filter` re-runs `get_server_list` — a fresh SQL query with a
- * `LIKE '%…%'` over the whole table, up to 5000 rows marshalled across the IPC
- * bridge, and a re-render. Long enough to collapse a burst of typing, short
- * enough that the result still feels like it arrives as you type.
- */
+/** How long typing pauses before the list re-queries. */
 const SEARCH_DEBOUNCE_MS = 250;
 
 export function FilterBar({ onRefresh, refreshing }: FilterBarProps) {
@@ -103,9 +86,7 @@ export function FilterBar({ onRefresh, refreshing }: FilterBarProps) {
 
       <PingSlider maxPing={filter.max_ping ?? 500} onChange={(max_ping) => setFilter({ max_ping })} />
 
-      {/* Reset filters.
-          Filters now persist between sessions, so a restart no longer clears
-          them — this is the explicit way back to defaults. */}
+      {/* Filters persist between sessions, so this is the explicit way back to defaults. */}
       <button
         onClick={resetFilter}
         className="fbtn flex shrink-0 items-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-ink"
@@ -115,11 +96,8 @@ export function FilterBar({ onRefresh, refreshing }: FilterBarProps) {
         Reset
       </button>
 
-      {/* Refresh button.
-          Gated on `refreshing` alone, not `discovering`: discovery streams
-          rows into the table as Steam reports them, so there can already be
-          servers on screen worth re-probing well before the Steam walk
-          finishes. */}
+      {/* Gated on `refreshing` alone, not `discovering` — rows can already
+          be on screen worth re-probing before discovery finishes. */}
       <button
         onClick={onRefresh}
         disabled={refreshing}
@@ -140,14 +118,8 @@ export function FilterBar({ onRefresh, refreshing }: FilterBarProps) {
 
 // ─── Search ──────────────────────────────────────────────────────
 
-/**
- * Search box that keeps its own text and reports it on a trailing debounce.
- *
- * The input is uncontrolled with respect to the store deliberately: driving it
- * from `filter.search` would make every keystroke wait for the debounced round
- * trip before the character appeared, which is the one thing a search box must
- * never do.
- */
+// Keeps its own text (uncontrolled by the store) and reports it on a
+// trailing debounce, so typing never waits on a round trip to appear.
 function SearchInput({
   value,
   onChange,
@@ -159,9 +131,7 @@ function SearchInput({
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
-  // Re-sync when the store's value changes from somewhere other than this box
-  // (a filter reset, say). Comparing first keeps this from clobbering in-flight
-  // typing with the value it just published.
+  // Re-sync when the store's value changes from elsewhere (a filter reset).
   useEffect(() => {
     setText((current) => (current === (value ?? "") ? current : value ?? ""));
   }, [value]);
@@ -462,10 +432,7 @@ function CountryDropdown({
             </FdropItem>
           ))}
           <FdropSep />
-          {/* L1 (2026-08-29 audit): the classifier is a first-octet table —
-              a whole /8 per region, and nine octets are contested between
-              two regions with "last block wins". Real, but coarse enough
-              that presenting it as fact would mislead; this says so. */}
+          {/* The classifier is a coarse first-octet table, not a real geo lookup. */}
           <p className="px-2 pb-1 pt-0.5 text-[8px] leading-snug text-muted">
             Approximate — based on IP block, not confirmed location
           </p>

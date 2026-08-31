@@ -9,29 +9,18 @@ interface FooterBarProps {
   steamConnected: boolean;
 }
 
-/**
- * V2 segmented footer: Steam state chip, mono stats, and the interface-scale
- * track/knob (the one control you adjust while looking at what it changes).
- */
+// Segmented footer: Steam state chip, mono stats, and the interface-scale track/knob.
 export function FooterBar({ servers, populated, refreshedAt, steamConnected }: FooterBarProps) {
   const uiScale = useSettingsStore((s) => s.uiScale);
   const setSetting = useSettingsStore((s) => s.setSetting);
 
-  /**
-   * Apply immediately, persist on the store's own debounce.
-   *
-   * Two separate calls on purpose: the zoom has to track the thumb to be worth
-   * dragging, but `setSetting` behind it would mean a settings write and a file
-   * rewrite for every pixel of travel. `set_ui_scale` is the cheap half.
-   */
+  // Applies immediately (cheap); setSetting persists on its own debounce.
   function changeScale(next: number) {
     void setUiScale(next).catch((e) => console.error("Failed to set UI scale:", e));
     setSetting("uiScale", next);
   }
 
-  // Knob travels the usable track length. The track is deliberately wide
-  // (120px): 1.0→1.5 in 10 steps needs ~11px per step to stay grabbable; the
-  // original 46px made each step ~4px and the slider felt hair-trigger.
+  // Wide track (120px) so each of the 10 scale steps stays grabbable.
   const TRACK_PX = 120;
   const KNOB_PX = 7;
   const knobLeft =
