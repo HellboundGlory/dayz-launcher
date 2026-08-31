@@ -28,12 +28,8 @@ pub struct ServerFilter {
     pub official: Option<bool>,
     pub modded: Option<bool>,
     pub first_person: Option<bool>,
-    /// Drop servers with no name at all.
-    ///
-    /// These are rows Steam listed but that have never answered a probe, so
-    /// `name` was never written. They always read 0 players and are a quarter
-    /// of a typical registry — the single largest source of clutter in the
-    /// browser.
+    /// Drop servers with no name at all — rows Steam listed but that have
+    /// never answered a probe, so `name` was never written.
     pub hide_unnamed: bool,
     /// Drop hosting-company defaults and template names — see
     /// `tetra_core::classify::names::is_placeholder_name`.
@@ -54,16 +50,8 @@ pub enum SortKey {
     Map,
     LastPlayed,
     /// Not a user-facing sort — the order the *refresh* should work through
-    /// servers in.
-    ///
-    /// Sorting refresh targets by player count alone is a starvation bug: a
-    /// server that has never been probed has `players = 0`, so it sorts last,
-    /// and once the registry grows past the probe window it can never be
-    /// reached. It also can't be healed from the Steam side, because rows that
-    /// fail Steam's own query arrive with `responded = false` and are ignored
-    /// by the upsert guard. It would stay blank forever. Probing the
-    /// never-responded rows first makes the window a rotation rather than a
-    /// permanent cut-off.
+    /// servers in. Never-responded rows go first so they rotate through the
+    /// probe window instead of being permanently starved by player-count sort.
     RefreshPriority,
 }
 

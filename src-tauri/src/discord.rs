@@ -7,37 +7,23 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
 
-/// Tetra Launcher's Discord Application ID
-/// (discord.com/developers/applications). Not a secret — every Rich Presence
-/// client sends this in its handshake, the same way `DAYZ_APP_ID` identifies
-/// the game to Steam.
+/// Tetra Launcher's Discord Application ID. Not a secret — sent in every
+/// Rich Presence client's handshake.
 const CLIENT_ID: &str = "1536147518319239239";
 
-/// How often the poll loop checks whether a launched session is still
-/// running, and reconciles the presence with it.
+/// How often the poll loop reconciles presence with whether DayZ is still running.
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
 
-/// How many `POLL_INTERVAL` ticks between idle-count refreshes (~60s). The
-/// registry size changes slowly enough that re-reading it every 5s would
-/// just be wasted queries — this fires on the very first tick too, so the
-/// count appears promptly after startup rather than only after a minute.
+/// Ticks between idle-count refreshes (~60s); fires on tick 0 too.
 const IDLE_REFRESH_EVERY_N_TICKS: u32 = 12;
 
-/// How long a `Live` session is allowed to go without ever being confirmed
-/// as an actual running process before the poll loop gives up on it and
-/// reverts to idle. Generous on purpose — DayZ's own startup (BattlEye,
-/// shader compilation, Proton on Linux) can legitimately take a minute or
-/// more — this only exists so a launch that silently never produces a real
-/// process doesn't leave the presence stuck on "Playing" for the rest of
-/// the session with nothing left to correct it.
+/// How long a `Live` session may go unconfirmed as a real process before
+/// giving up and reverting to idle. Generous since DayZ startup (BattlEye,
+/// shaders, Proton) can take a minute or more.
 const CONFIRM_RUNNING_TIMEOUT_SECS: i64 = 180;
 
-/// Seed `AppState` from the saved setting and start the poll loop.
-///
-/// Called once, from `setup`. The connection itself is only opened if the
-/// setting allows it — a player who has the feature off should see the
-/// launcher make no attempt to reach Discord at all, not a connection that
-/// is silently never told anything.
+/// Seed `AppState` from the saved setting and start the poll loop. Called
+/// once, from `setup`.
 pub fn start(app: &AppHandle, enabled: bool) {
     let state = app.state::<crate::state::AppState>();
     state.discord_enabled.store(enabled, Ordering::Relaxed);
@@ -49,15 +35,9 @@ pub fn start(app: &AppHandle, enabled: bool) {
     tauri::async_runtime::spawn(async move {
         let mut interval = tokio::time::interval(POLL_INTERVAL);
         let mut tick: u32 = 0;
-        // Whether the *current* `Live` session has ever been observed
-        // actually running. DayZ routinely takes well over `POLL_INTERVAL`
-        // to appear as a process after `spawn_dayz` returns — see
-        // `poll_once` for why this has to gate the exit check.
+        // Whether the current `Live` session has ever been observed actually running.
         let mut confirmed_running = false;
-        // Edge-triggered alongside `confirmed_running`: which of the three
-        // presence states was last reported to the log, so a Windows report
-        // of this bug recurring shows exactly which transition did or didn't
-        // happen, instead of a tick-by-tick trace of "still playing".
+        // Last presence state reported to the log, so we log transitions not every tick.
         let mut reported = ReportedState::Idle;
         loop {
             interval.tick().await;
@@ -73,10 +53,8 @@ pub fn start(app: &AppHandle, enabled: bool) {
     });
 }
 
-/// Create the presence handle if one is not already running.
-///
-/// Idempotent, so both `start` (setting already on) and `enable` (user just
-/// turned it on this session) can call it without checking first.
+/// Create the presence handle if one isn't already running. Idempotent, so
+/// both `start` and `enable` can call it without checking first.
 fn ensure_handle(app: &AppHandle) {
     let state = app.state::<crate::state::AppState>();
     let Ok(mut guard) = state.discord.lock() else {
@@ -98,12 +76,8 @@ pub fn enable(app: &AppHandle) {
     ensure_handle(app);
 }
 
-/// Turn the feature off — called from `save_settings` when the toggle flips
-/// from on to off.
-///
-/// Clears whatever Discord is currently showing but leaves the connection
-/// thread itself running: it costs nothing idle, and re-enabling later
-/// should not pay for a fresh handshake.
+/// Turn the feature off. Clears the presence but leaves the connection
+/// thread running (cheap idle, avoids a fresh handshake on re-enable).
 pub fn disable(app: &AppHandle) {
     let state = app.state::<crate::state::AppState>();
     state.discord_enabled.store(false, Ordering::Relaxed);
@@ -118,15 +92,9 @@ pub fn disable(app: &AppHandle) {
     *playing = None;
 }
 
-/// Clear a "Checking mods" presence that a failed launch must not leave
-/// stranded — called by `commands::launch::launch_game` on every failure
-/// path after it has set `DiscordSession::Verifying`.
-///
-/// Distinct from `disable`: this doesn't touch `discord_enabled` or need the
-/// caller to hold a `DiscordHandle`, and it pushes idle immediately rather
-/// than waiting for the poll loop's next tick — a failed launch is exactly
-/// the kind of transition `discord.rs`'s module doc promises isn't left
-/// stranded.
+/// Clear a "Checking mods" presence after a failed launch, called by
+/// `commands::launch::launch_game` on every failure path. Pushes idle
+/// immediately rather than waiting for the poll loop's next tick.
 pub fn clear_launch_presence(app: &AppHandle) {
     let state = app.state::<crate::state::AppState>();
     if let Ok(mut session) = state.discord_now_playing.lock() {
@@ -170,12 +138,8 @@ async fn poll_once(
     };
     let Some(handle) = handle else { return };
 
-    // A cheap peek before the real lock-and-act block below: whether a Live
-    // session's `started_at` needs checking against the process table at
-    // all, and if so, what to check it against. Needed up front because the
-    // check itself is blocking OS work that has to run through
-    // `spawn_blocking` — an `.await` — and the block below's mutex guard is
-    // `!Send`, so it cannot still be held across one.
+    // Peek before the lock-and-act block below: the guard is `!Send` and
+    // can't be held across the `.await` that the process check needs.
     let live_started_at = {
         let Ok(session) = state.discord_now_playing.lock() else {
             return;
@@ -185,12 +149,8 @@ async fn poll_once(
             _ => None,
         }
     };
-    // `dayz_running_since`, not the plain `dayz_is_running`: a crashed or
-    // improperly torn-down DayZ can leave a same-named process enumerable
-    // long after the player stopped playing, which plain existence reads as
-    // "still in game" forever — see `tetra_launch::running` for the full
-    // reasoning (including why an unreadable start time fails open, not
-    // closed).
+    // `dayz_running_since`, not plain `dayz_is_running`: a crashed process
+    // can linger enumerable after the player stopped — see `tetra_launch::running`.
     let running = match live_started_at {
         Some(started_at) => tokio::task::spawn_blocking(move || {
             tetra_launch::running::dayz_running_since(started_at)
@@ -200,30 +160,18 @@ async fn poll_once(
         None => false,
     };
 
-    // Scoped to a block, not just an explicit `drop`: a `std::sync::
-    // MutexGuard` is `!Send`, and this function is later `.await`ed from
-    // elsewhere, so the guard's lifetime has to *lexically* end here — a
-    // `drop()` call left the compiler unable to prove it wasn't still live
-    // across the `.await`s below.
+    // Block-scoped (not `drop()`) so the `!Send` guard lexically ends before
+    // the `.await`s below.
     let (already_idle, send_idle_now) = {
         let Ok(mut session) = state.discord_now_playing.lock() else {
             return;
         };
-        // `send_idle_now` is distinct from `already_idle`: a session that
-        // just *became* idle this tick (the game exited) must be told
-        // immediately, not on whatever cadence the periodic count refresh
-        // happens to be on — otherwise a session ending could leave Discord
-        // showing "Playing" for up to a minute after the fact.
+        // Distinct from `already_idle`: a session that just became idle
+        // this tick must be told immediately, not on the periodic refresh cadence.
         let mut send_idle_now = false;
         let already_idle = match session.clone() {
-            // The mod gate is running — keep showing it regardless of
-            // `running` (DayZ has not started yet, so `running` is false
-            // throughout a verification that hasn't failed). A *failed*
-            // gate is cleared, and pushed to idle immediately, by
-            // `launch_game` itself — not here, since this loop has no way
-            // to tell "still verifying" apart from "just failed and nobody
-            // has told Discord yet" on its own. Reset the latch below: this
-            // is the start of a session nothing has confirmed running yet.
+            // Mod gate running — keep showing it regardless of `running`. A
+            // failed gate is cleared by `launch_game` itself, not here.
             Some(tetra_discord::DiscordSession::Verifying { server_name }) => {
                 if *reported != ReportedState::Verifying {
                     crate::log::log_line(app, "discord", &format!("verifying: {server_name}"));
@@ -233,16 +181,9 @@ async fn poll_once(
                 handle.set_verifying(server_name);
                 false
             }
-            // `launch_game` sets this the moment `spawn_dayz` returns —
-            // which is *not* the moment DayZ actually has a running process.
-            // BattlEye's launcher stub, shader compilation and Proton on
-            // Linux routinely take well past one `POLL_INTERVAL` before
-            // `dayz_running_since` sees anything, so a single "not running
-            // yet" reading right after launch must not be read as "already
-            // exited" — that previously reverted the presence to idle
-            // before the game had even finished starting, and it never
-            // recovered from there. Only a *running → not running*
-            // transition (the latch was set, and now isn't) is a real exit.
+            // Only a running -> not-running transition counts as a real
+            // exit; DayZ can take well past one POLL_INTERVAL to appear as
+            // a process after launch, so "not running yet" isn't "exited".
             Some(tetra_discord::DiscordSession::Live(info)) => {
                 if *reported != ReportedState::Live {
                     crate::log::log_line(
@@ -285,10 +226,7 @@ async fn poll_once(
                     false
                 }
             }
-            // Nothing recorded: either idle already, or DayZ is running a
-            // session this launcher didn't start (launched from Steam
-            // directly) — nothing to attribute a server to, so this is the
-            // ordinary idle case, not an error.
+            // Idle already, or a session this launcher didn't start — ordinary case.
             None => {
                 *reported = ReportedState::Idle;
                 *confirmed_running = false;
@@ -311,10 +249,7 @@ async fn poll_once(
     }
 }
 
-/// Current Unix time in seconds, matching `PresenceInfo::started_at`'s unit.
-/// Falls back to `0` on a clock error, which just makes `gave_up_waiting`
-/// trip immediately rather than panicking — acceptable for a bound that only
-/// exists as a last-resort safety net.
+/// Current Unix time in seconds. Falls back to `0` on a clock error.
 fn unix_now() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

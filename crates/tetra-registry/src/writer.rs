@@ -49,17 +49,8 @@ impl Writer {
         self.send(|ack| Job::ServerMods(key, mods, ack)).await
     }
 
-    /// Set or clear a server's favourite flag.
-    ///
-    /// A targeted `UPDATE`, not an upsert: favouriting must not touch the live
-    /// columns, and the caller only holds a key, never a full row.
-    ///
-    /// Returns the number of rows the `UPDATE` touched — `0` means `key` is
-    /// not in the registry at all, which is silent otherwise: an `UPDATE`
-    /// matching nothing is not an error as far as SQLite is concerned. The
-    /// caller (`commands::server::toggle_favourite`) turns a `0` into an
-    /// `Err`, which is what lets the frontend's optimistic star revert
-    /// instead of asserting a favourite that was never persisted.
+    /// Set or clear a server's favourite flag — a targeted `UPDATE`, not an upsert, so it can't
+    /// touch the live columns. Returns the affected row count; `0` means `key` wasn't found.
     pub async fn set_favourite(
         &self,
         key: ServerKey,
@@ -68,23 +59,13 @@ impl Writer {
         self.send(|ack| Job::Favourite(key, favourite, ack)).await
     }
 
-    /// Stamp a server as played just now.
-    ///
-    /// Returns the affected row count — see [`Self::set_favourite`] for why
-    /// that matters for a targeted `UPDATE`.
+    /// Stamp a server as played just now. Returns the affected row count.
     pub async fn mark_played(&self, key: ServerKey) -> Result<usize, RegistryError> {
         self.send(|ack| Job::LastPlayed(key, ack)).await
     }
 
-    /// Flip `online` for a batch of servers.
-    ///
-    /// A targeted `UPDATE`, like `set_favourite` — not folded into
-    /// `upsert_servers`, because that upsert's CASE guards only ever look at
-    /// whether *this* row responded and cannot express "this key didn't
-    /// answer at all" (there is no row to carry that). Only the targeted A2S
-    /// refresh calls this; a bulk refresh leaves `online` alone so a probe
-    /// window that doesn't cover the whole registry can't mass-mark
-    /// unreached servers as down.
+    /// Flip `online` for a batch of servers — kept separate from `upsert_servers` since only a
+    /// targeted A2S refresh calls this; a bulk refresh leaves `online` alone.
     pub async fn set_online(
         &self,
         keys: Vec<ServerKey>,
@@ -136,15 +117,11 @@ ON CONFLICT(ip, query_port) DO UPDATE SET
     game_port      = CASE WHEN excluded.game_port > 0
                           THEN excluded.game_port
                           ELSE servers.game_port END,
-    -- Live fields are only overwritten by a row that actually carries a live
-    -- response (`last_responded IS NOT NULL`, i.e. `ServerRow::responded`).
-    -- A row that did not respond carries structural zeroes, not measurements:
-    -- Steam's `failed` server-list callback yields blank names and 0 players,
-    -- and partial writes that only mean to touch one column leave the rest at
-    -- Default. Without this guard those zeroes overwrite good data, which is
-    -- how 1426 of 4735 rows ended up with name = '' and players = 0.
-    -- `players = 0` IS legitimate for an empty server, so the discriminator has
-    -- to be "did this row respond", never "is this value zero".
+    -- Live fields only overwrite on a row that actually got a response
+    -- (last_responded IS NOT NULL) — a non-responding row carries structural
+    -- zeroes, not measurements, and without this guard those zeroes clobber
+    -- good data. `players = 0` is legitimate for an empty server, so the
+    -- discriminator must be "did this row respond", not "is the value zero".
     name           = CASE WHEN excluded.last_responded IS NOT NULL
                           THEN excluded.name
                           ELSE servers.name END,
@@ -256,16 +233,8 @@ fn upsert_servers(conn: &Connection, rows: &[ServerRow]) -> Result<usize, Regist
     Ok(n)
 }
 
-/// Replace a server's mod list and set its `mod_count`.
-///
-/// This is the **only** writer of `mod_count`. Callers must not follow it with
-/// an `upsert_servers` carrying a hand-set `mod_count` — that was the old shape
-/// and it dragged a whole `ServerRow` of Default zeroes along with it.
-///
-/// An empty `mods` slice is meaningful, not a no-op: it records "this server was
-/// asked and declared no mods", writing `mod_count = 0`. That is what separates
-/// a vanilla server from one that has never been probed (`mod_count IS NULL`),
-/// which the UI renders differently.
+/// Replace a server's mod list and set `mod_count` — an empty slice writes `mod_count = 0`,
+/// distinct from `NULL` (never probed).
 fn upsert_server_mods(
     conn: &Connection,
     key: ServerKey,

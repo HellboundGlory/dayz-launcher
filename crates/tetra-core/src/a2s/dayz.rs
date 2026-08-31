@@ -1,18 +1,7 @@
 use crate::error::PackedError;
 
-/// Reverse Bohemia's escaping. Only `0x01` introduces an escape:
-/// `0x01 0x01` -> `0x01`, `0x01 0x02` -> `0x00`, `0x01 0x03` -> `0xFF`.
-///
-/// `0x00` is escaped because A2S_RULES values are NUL-terminated C strings:
-/// it is the one byte that cannot appear literally. Confirmed against 48
-/// real-server fixtures: 37/48 end their concatenated payload in `01 02`,
-/// and decoding that pair as `0x00` (an empty description) makes every one
-/// of them consume the buffer exactly. `0x01 0x03 -> 0xFF` is confirmed the
-/// same way: three independently-captured, independently-named mods
-/// (DayZ-Expansion-Licensed, DayZ-Expansion-Bundle, SFP) each carry a
-/// `01 03` pair inside their workshop ID, and decoding it as `0xFF`
-/// reproduces each mod's real, verified Steam Workshop ID exactly; decoding
-/// it as `0x03` does not match any of them.
+/// Reverse Bohemia's escaping: `0x01 0x01` -> `0x01`, `0x01 0x02` -> `0x00`,
+/// `0x01 0x03` -> `0xFF`. See .ai-notes for how these were verified.
 fn unescape(src: &[u8]) -> Result<Vec<u8>, PackedError> {
     let mut out = Vec::with_capacity(src.len());
     let mut i = 0;
@@ -46,18 +35,9 @@ fn unescape(src: &[u8]) -> Result<Vec<u8>, PackedError> {
     Ok(out)
 }
 
-/// Collect the two-byte-keyed chunks from a rules set, order them and
-/// concatenate their raw values, THEN unescape the whole buffer once.
-///
-/// Key byte 0 is the 1-based chunk index; key byte 1 is the total count.
-///
-/// Bohemia escapes the payload before chunking it: the escaped byte stream is
-/// split into fixed-size pieces without regard to escape-pair boundaries. That
-/// means a `0x01` escape marker can legitimately be the last byte of one chunk
-/// while the byte it escapes is the first byte of the next. Unescaping each
-/// chunk in isolation cannot see across that boundary and would misread a
-/// mid-payload escape pair as a dangling trailing marker, rejecting a
-/// perfectly healthy payload. Concatenate first, unescape once.
+/// Order and concatenate the two-byte-keyed rule chunks, THEN unescape the
+/// whole buffer once — an escape pair can straddle a chunk boundary, so
+/// unescaping chunks individually would misread it as a dangling marker.
 pub fn reassemble_chunks(rules: &[(Vec<u8>, Vec<u8>)]) -> Result<Vec<u8>, PackedError> {
     let mut chunks: Vec<(u8, u8, &Vec<u8>)> = rules
         .iter()
@@ -188,11 +168,9 @@ impl<'a> P<'a> {
     }
 }
 
-/// Decode the reassembled packed payload.
-///
-/// Validation is strict and every failure is fatal. A speculative parse of an
-/// unknown layout produces workshop IDs that look real, and the subscription
-/// logic downstream cannot tell them apart from genuine ones.
+/// Decode the reassembled packed payload. Validation is strict and every
+/// failure is fatal — a speculative parse of an unknown layout would produce
+/// workshop IDs that look real but aren't.
 pub fn parse_packed(payload: &[u8]) -> Result<PackedPayload, PackedError> {
     let mut p = P { b: payload, i: 0 };
 
@@ -206,12 +184,8 @@ pub fn parse_packed(payload: &[u8]) -> Result<PackedPayload, PackedError> {
     let flags = p.take(3)?;
     let flag_bits = flags[0];
     let dlc_mask = u16::from_le_bytes([flags[1], flags[2]]);
-    // A non-zero DLC mask means every set bit has a 4-byte entry preceding the
-    // mod list. Verified against a live Frostline server (DLC_FROSTLINE = 2)
-    // where the owning-species capture that the earlier hard-reject was written
-    // around is in fact reachable: skipping one u32 per set bit lands exactly
-    // on the mod count. Rejecting it instead turned every DLC-flagged server
-    // into an unreadable mod list.
+    // A non-zero DLC mask means every set bit has a 4-byte entry preceding
+    // the mod list — verified against a live Frostline server.
     for bit in 0..16 {
         if dlc_mask & (1u16 << bit) != 0 {
             p.take(4)?;
@@ -224,10 +198,8 @@ pub fn parse_packed(payload: &[u8]) -> Result<PackedPayload, PackedError> {
     let mut mods = Vec::with_capacity(mod_count);
     for n in 0..mod_count {
         let _hash = p.take(4)?;
-        // Only the low nibble of the length byte carries the workshop-id width;
-        // the top bits hold unrelated flags. Captured servers use 0x04 (low
-        // nibble 4); masking matches the reference decoder so a high-bit set
-        // cannot be misread as an absurd length.
+        // Only the low nibble carries the workshop-id width; top bits are
+        // unrelated flags.
         let id_len = p.u8()? & 0x0F;
         let workshop_id = match id_len {
             1 => p.u8()? as u64,
@@ -555,10 +527,7 @@ mod tests {
 
     #[test]
     fn parses_the_real_frostline_server_fixture() {
-        // Real A2S_RULES response captured from 216.219.92.5:3103, a 48-mod
-        // "TheFactory" server that advertises the Frostline DLC. Before
-        // DLC-block parsing, this fixture hit the old `dlc mask non-zero`
-        // rejection and every query read as "could not read the mod list".
+        // Real A2S_RULES response from a 48-mod server advertising Frostline DLC.
         let response = include_bytes!("../../tests/fixtures/frostline-rules.bin");
         let payload = parse_dayz_rules(response).expect("live Frostline rules should parse");
         assert_eq!(payload.protocol, 2);

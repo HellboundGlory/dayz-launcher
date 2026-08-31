@@ -3,21 +3,11 @@
 
 use tauri::AppHandle;
 
-/// Hard cap on a single field's length after sanitising (L5, 2026-08-29
-/// audit) — long enough for any real diagnostic line this codebase actually
-/// writes, short enough that nothing reachable from the webview can flood
-/// the log file with one call.
+/// Cap on a field's length after sanitising, so the webview can't flood the log file.
 const MAX_FIELD_LEN: usize = 2000;
 
-/// Strip control characters (including the newlines a forged log line needs)
-/// and cap the length.
-///
-/// `log_client` passed `level`/`message` straight through with no sanitising
-/// at all — a message containing `"\n[exit] state persisted…"` would forge a
-/// second, fake backend log line, since nothing distinguishes a line the
-/// frontend asked for from one this process wrote itself. The frontend has
-/// no legitimate reason to write a multi-line entry, so newlines (and every
-/// other control character) are dropped rather than escaped.
+/// Strip control characters (so a message can't forge a fake second log line
+/// via an embedded newline) and cap the length.
 fn sanitise(s: &str) -> String {
     let cleaned: String = s.chars().filter(|c| !c.is_control()).collect();
     match cleaned.char_indices().nth(MAX_FIELD_LEN) {
@@ -26,13 +16,8 @@ fn sanitise(s: &str) -> String {
     }
 }
 
-/// Append `message` from the frontend to `tetra-launcher.log`, tagged
-/// `[frontend]`. See `crate::log` for why the file exists.
-///
-/// `verbose` (default `false`) routes hot-path lines — fired on every reload
-/// or every list load rather than on a discrete event — through
-/// `log_line_verbose`, which only actually writes in a debug build. See
-/// `crate::log::log_line_verbose`.
+/// Append `message` from the frontend to `tetra-launcher.log`, tagged `[frontend]`.
+/// `verbose` routes hot-path lines through `log_line_verbose`, debug-build only.
 #[tauri::command]
 pub fn log_client(app: AppHandle, level: String, message: String, verbose: Option<bool>) {
     let level = sanitise(&level);

@@ -1,24 +1,7 @@
-/// Build the `-mod=` parameter string from a list of absolute workshop paths.
-///
-/// # Order
-///
-/// The server declares mods in a specific order, and DayZ loads them in
-/// that order. Reordering produces a different checksum and surfaces to
-/// the player as an unexplained kick. This function preserves the exact
-/// order it is given; it never sorts.
-///
-/// # Separator
-///
-/// Mod paths are separated by semicolons (`;`), the Windows convention.
-/// The result is a single string intended to be passed as one argument to
-/// `CreateProcess` — never through a shell.
-///
-/// # Absolute paths only
-///
-/// Every path must be absolute. A relative path would resolve against the
-/// game's working directory, and since DayZ changes its working directory
-/// at startup the result is unpredictable. The caller is responsible for
-/// verifying this invariant.
+/// Build the `-mod=` parameter string from a list of absolute workshop paths,
+/// semicolon-separated, in the exact order given (never sorted — the server's
+/// declared order determines the checksum, so reordering gets the client
+/// kicked). Caller must ensure every path is absolute.
 pub fn build_mod_string(mod_paths: &[String]) -> String {
     if mod_paths.is_empty() {
         return String::new();
@@ -34,12 +17,8 @@ pub fn build_mod_string(mod_paths: &[String]) -> String {
 }
 
 /// Translate a mod path to the form the running DayZ process can read.
-///
-/// On Windows the paths are already native (`C:\...`), untouched. On Linux DayZ
-/// is launched under Proton/Wine, so a Linux absolute path like
-/// `/home/james/.../content/221100/123` must become the Wine-visible
-/// `Z:\home\james\...` form or the game cannot find the PBOs and kicks with
-/// "missing pbos".
+/// On Linux, DayZ runs under Proton/Wine, so paths need the Wine-visible
+/// `Z:\...` form or the game can't find the PBOs.
 fn path_for_platform(path: &str) -> String {
     #[cfg(target_os = "linux")]
     {

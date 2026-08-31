@@ -10,54 +10,27 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
-/// How long a freshness check may take, queue time included.
-///
-/// Comfortably above the actor's own 20-second query deadline, so this only
-/// fires when the command is stuck *behind* something — a discovery holding the
-/// Steam thread — rather than cutting short a query that is genuinely working.
+/// Freshness-check timeout, queue time included — above the actor's 20s query deadline.
 const REFRESH_STALE_BUDGET: std::time::Duration = std::time::Duration::from_secs(25);
 
-/// How long a verify pass may take before giving up on the Steam thread.
-///
-/// The actor answers verify on its own 20-second query deadline, so as with
-/// `REFRESH_STALE_BUDGET` this only trips when the command is queued behind a
-/// long-running discovery, not when the queries themselves are slow.
+/// Verify-pass timeout — same reasoning as `REFRESH_STALE_BUDGET`.
 const VERIFY_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
 
-/// How long the Mods tab's full enumeration may take.
-///
-/// The actor's own enumeration deadline is 60s (first pulls have no Steam-side
-/// cache). This needs to be comfortably above that so a pull stuck *behind* a
-/// discovery still gets to run rather than being abandoned early.
+/// Mods-tab enumeration timeout — above the actor's 60s first-pull deadline.
 const ENUM_BUDGET: std::time::Duration = std::time::Duration::from_secs(90);
 
-/// How long a subscribe/unsubscribe mutation may take.
-///
-/// H6 (2026-08-29 audit): `subscribe_all`/`unsubscribe_all` used plain
-/// `dispatch` — unlike every other user-facing call on this handle — so a
-/// click on either during the first half-minute after startup (discovery is
-/// still running, and the launcher is reachable well before it finishes)
-/// could sit behind a `REQUEST_DEADLINE`-bound server-list request for up to
-/// five minutes with no way out. Scaled like `VERIFY_BUDGET`: both are a
-/// single-click Mods-tab action a user is actively waiting behind.
+/// Subscribe/unsubscribe timeout — a single click the user is waiting on.
 const MUTATION_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// How long [`SteamHandle::shutdown`] waits for the actor to acknowledge a
-/// shutdown request before giving up and letting exit continue anyway (H6,
-/// 2026-08-29 audit). Previously unbounded: the actor services commands
-/// strictly in order, so a `Shutdown` queued behind a `REQUEST_DEADLINE`-bound
-/// server-list request could hang a quit for the same five minutes.
+/// shutdown request before giving up and letting exit continue anyway.
 const SHUTDOWN_ACK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// Handle to the Steam thread.
 pub struct SteamHandle {
     tx: Mutex<Sender<Command>>,
     thread: Mutex<Option<JoinHandle<()>>>,
-    /// Live, not one-shot: flipped by `SteamServersDisconnected`/
-    /// `SteamServersConnected` callbacks registered in the actor, so callers
-    /// can tell a lost backend connection apart from "never checked since
-    /// startup". Local UGC/mod-state calls keep answering from the client's
-    /// cache even while this is false — see `InitFailure::Disconnected`.
+    /// Live connection flag, updated by the actor's Steam connect/disconnect callbacks.
     connected: Arc<AtomicBool>,
 }
 
@@ -87,10 +60,7 @@ impl SteamHandle {
         }
     }
 
-    /// Whether the Steam backend connection is live right now.
-    ///
-    /// A cheap atomic load — no round trip through the actor thread, so this
-    /// is safe to poll frequently.
+    /// Whether the Steam backend connection is live right now — a cheap atomic read, safe to poll frequently.
     pub fn is_connected(&self) -> bool {
         self.connected.load(Ordering::Relaxed)
     }
@@ -103,11 +73,7 @@ impl SteamHandle {
             .send(Command::Shutdown(ack))
             .map_err(|_| SteamError::Closed)?;
         if done.recv_timeout(SHUTDOWN_ACK_TIMEOUT).is_err() {
-            // Gave up waiting — the actor is still busy with whatever was
-            // ahead of Shutdown in its queue. Not joining the thread here
-            // leaves it running for the rest of process exit, which is fine:
-            // the point of the budget is that the *caller* — process exit —
-            // is not made to wait on it too.
+            // Gave up waiting; let the actor keep running rather than block process exit on it.
             return Ok(());
         }
         if let Some(t) = self.thread.lock().map_err(|_| SteamError::Closed)?.take() {
@@ -129,18 +95,9 @@ impl SteamHandle {
         rx.recv().map_err(|_| SteamError::Closed)?
     }
 
-    /// Like [`Self::dispatch`], but gives up waiting.
-    ///
-    /// The actor services one command at a time and a server-list request can
-    /// hold it for `REQUEST_DEADLINE` — five minutes — with everything else
-    /// queued behind it. That is tolerable for work nobody is watching, and not
-    /// for work behind a button: a discovery is still running for the first
-    /// half-minute after the launcher opens, which is exactly when someone
-    /// clicks a favourite and joins.
-    ///
-    /// Abandoning the wait does not cancel the command. It runs when the actor
-    /// reaches it and answers a receiver that has been dropped, which `ack.send`
-    /// already tolerates.
+    /// Like [`Self::dispatch`], but gives up waiting rather than sitting queued
+    /// behind a slow command indefinitely. Abandoning the wait doesn't cancel it —
+    /// see `.ai-notes/crates/tetra-steam/src/handle.rs.md`.
     fn dispatch_within<T>(
         &self,
         timeout: std::time::Duration,
@@ -159,18 +116,14 @@ impl SteamHandle {
         }
     }
 
-    /// Classified state for many workshop items, in one round trip.
-    ///
-    /// Returned in the caller's order, with any id Steam did not answer for
-    /// defaulting to `NotSubscribed` — matching is by id, never by index.
+    /// Classified state for many workshop items in one round trip, in the caller's order;
+    /// an id Steam didn't answer for defaults to `NotSubscribed`.
     pub fn mod_states(&self, ids: &[u64]) -> Result<Vec<(u64, ModState)>, SteamError> {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
-        // Non-Workshop ids are answered locally. Asking Steam about id 0 does
-        // not error — it reports an empty state, which would render as "not
-        // subscribed" and invite the user to subscribe to something that does
-        // not exist.
+        // Non-Workshop ids are answered locally — Steam reports id 0 as an empty
+        // (non-erroring) state, which would otherwise look like "not subscribed".
         let queryable: Vec<u64> = ids
             .iter()
             .copied()
@@ -199,10 +152,8 @@ impl SteamHandle {
             .collect())
     }
 
-    /// Byte progress for whichever of `ids` Steam is currently transferring.
-    ///
-    /// Ids with no active transfer are omitted, so an empty result means
-    /// nothing is downloading — not that the call failed.
+    /// Byte progress for whichever of `ids` Steam is currently transferring; ids with no
+    /// active transfer are omitted (an empty result means nothing is downloading).
     pub fn download_progress(&self, ids: &[u64]) -> Result<Vec<DownloadRow>, SteamError> {
         if ids.is_empty() {
             return Ok(Vec::new());
@@ -211,11 +162,8 @@ impl SteamHandle {
         self.dispatch(|ack| Command::UGCDownloadInfo(owned, ack))
     }
 
-    /// Subscribe to each item and queue its download.
-    ///
-    /// Results are per-id: a batch can partially succeed. Budgeted like
-    /// [`Self::verify_mods`] (H6, 2026-08-29 audit) rather than an unbounded
-    /// [`Self::dispatch`] — this is a button click, not best-effort work.
+    /// Subscribe to each item and queue its download. Results are per-id: a
+    /// batch can partially succeed.
     pub fn subscribe_all(&self, ids: &[u64]) -> Result<Vec<MutationResult>, SteamError> {
         if ids.is_empty() {
             return Ok(Vec::new());
@@ -224,11 +172,9 @@ impl SteamHandle {
         self.dispatch_within(MUTATION_BUDGET, |ack| Command::UGCSubscribe(owned, ack))
     }
 
-    /// Unsubscribe from each item.
-    ///
-    /// Steam deletes the content from disk as a result, and Workshop items are
-    /// shared between servers — callers must confirm with the user first.
-    /// Budgeted like [`Self::subscribe_all`] (H6, 2026-08-29 audit).
+    /// Unsubscribe from each item. Steam deletes the content from disk as a
+    /// result, and Workshop items are shared between servers — callers must
+    /// confirm with the user first.
     pub fn unsubscribe_all(&self, ids: &[u64]) -> Result<Vec<MutationResult>, SteamError> {
         if ids.is_empty() {
             return Ok(Vec::new());
@@ -237,18 +183,9 @@ impl SteamHandle {
         self.dispatch_within(MUTATION_BUDGET, |ack| Command::UGCUnsubscribe(owned, ack))
     }
 
-    /// Ask the Workshop which of these items is out of date on disk, and start
-    /// a download for each one that is.
-    ///
-    /// Returns the ids it queued. Distinct from reading `mod_states`: that
-    /// reports what the Steam *client* last noticed, which lags the Workshop
-    /// and is exactly how a server comes to refuse a connection for an outdated
-    /// mod list that the launcher had just called ready.
-    ///
-    /// Best-effort — an id the Workshop cannot answer for is left alone, and a
-    /// check that cannot start promptly is abandoned rather than made to wait
-    /// (see [`Self::dispatch_within`]). The caller reports an unchecked join as
-    /// unchecked; it does not refuse to join.
+    /// Ask the Workshop which of `ids` is out of date on disk and start a download for
+    /// each one, returning the ids it queued. Best-effort — see
+    /// `.ai-notes/crates/tetra-steam/src/handle.rs.md` for why this differs from `mod_states`.
     pub fn refresh_stale(&self, ids: &[u64]) -> Result<Vec<u64>, SteamError> {
         if ids.is_empty() {
             return Ok(Vec::new());
@@ -259,13 +196,9 @@ impl SteamHandle {
         })
     }
 
-    /// The Mods tab's VERIFY: every id answered with its own staleness verdict,
-    /// and a download queued for anything the Workshop has moved past — or that
-    /// is subscribed but not on disk yet.
-    ///
-    /// Prefer this over [`Self::refresh_stale`] for anything the user is going
-    /// to see the result of: the gate only needs the ids it re-queued, while a
-    /// verify has "13 checked, 2 outdated, 2 repaired" to state.
+    /// The Mods tab's VERIFY: every id answered with its own staleness verdict, queuing a
+    /// download for anything stale or missing. Prefer over [`Self::refresh_stale`] whenever
+    /// the user sees the result — this reports per-id, not just what got re-queued.
     pub fn verify_mods(&self, ids: &[u64]) -> Result<Vec<StaleOutcome>, SteamError> {
         if ids.is_empty() {
             return Ok(Vec::new());
@@ -274,12 +207,9 @@ impl SteamHandle {
         self.dispatch_within(VERIFY_BUDGET, |ack| Command::UGCVerifyMods(owned, ack))
     }
 
-    /// The Mods tab's enumeration: every subscribed Workshop item, filtered to
-    /// DayZ, with install facts and Workshop metadata.
-    ///
-    /// `cache_age_secs` is forwarded to Steam's `SetAllowCachedResponse`, so
-    /// re-opening the tab is cheap (Steam answers from its own metadata cache)
-    /// and a manual refresh can pass 0 to force a live Workshop answer.
+    /// The Mods tab's enumeration: every subscribed Workshop item filtered to DayZ, with
+    /// install facts and Workshop metadata. `cache_age_secs` controls whether Steam answers
+    /// from its cache (cheap re-open) or 0 to force a live refresh.
     pub fn subscribed_mods(
         &self,
         cache_age_secs: u32,
@@ -309,16 +239,8 @@ impl SteamHandle {
 }
 
 impl SteamHandle {
-    /// Request an internet server list, receiving rows as Steam delivers them.
-    ///
-    /// The returned receiver yields `StreamChunk::Rows` batches followed by
-    /// exactly one `StreamChunk::Done`. Dropping it asks the actor to abandon
-    /// the request at its next flush.
-    ///
-    /// The only way discovery is done — the old blocking, whole-list variant
-    /// (`ServerListSource::internet_list`) returned nothing at all until Steam
-    /// had finished querying every server on the list, and was removed as
-    /// dead code once this replaced it (D3, 2026-08-29 audit).
+    /// Request an internet server list; the receiver yields `Rows` batches then one `Done`.
+    /// Dropping it asks the actor to abandon the request at its next flush.
     pub fn internet_list_stream(
         &self,
         filters: &Filters,

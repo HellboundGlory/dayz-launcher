@@ -44,10 +44,7 @@ pub fn parse_keywords(raw: &str) -> Keywords {
                 if let Some(rest) = token.strip_prefix("shard") {
                     k.shard = Some(rest.to_string());
                 } else if let Some(rest) = token.strip_prefix("entm") {
-                    // L2 (2026-08-29 audit): only a parseable value is taken,
-                    // matching `lqs` below — the old unconditional assignment
-                    // let a malformed `entm` null out a good value an earlier
-                    // token had already set.
+                    // A malformed value must not null out one an earlier token set.
                     if let Ok(night_multiplier) = rest.parse() {
                         k.night_multiplier = Some(night_multiplier);
                     }
@@ -140,10 +137,6 @@ mod tests {
 
     #[test]
     fn an_invalid_etm_or_entm_does_not_clobber_a_good_one() {
-        // L2 (2026-08-29 audit): before the fix, these two assigned
-        // unconditionally — a second, malformed `etm`/`entm` token nulled
-        // out a good value the first one had already set, unlike `lqs`
-        // right above, which already guarded against exactly this.
         let k = parse_keywords("battleye,etm4.0,etmXYZ,entm6.0,entmXYZ");
         assert_eq!(k.day_multiplier, Some(4.0));
         assert_eq!(k.night_multiplier, Some(6.0));

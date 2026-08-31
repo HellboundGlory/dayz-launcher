@@ -1,17 +1,5 @@
-/**
- * Contrast regression for the light-mode auto-derive (handoff §5, PLAN §3.4).
- *
- * The invariant the design locks: **any** dark palette's derived light pair has
- * accent/success/warn/danger clearing the 4.5:1 WCAG floor against the derived
- * `light.bg`. Muted text is deliberately dimmer (authored values, not part of
- * the floor), and the dark palettes themselves are authored — the loop is the
- * thing under test.
- *
- * Runs under Vitest (`npm test`) — previously runnable only by hand with
- * plain Node (T1, 2026-08-29 audit): `node src/theme/palette.test.ts`. The
- * two loops below are unchanged; only the pass/fail plumbing moved onto
- * `expect`.
- */
+/** Contrast regression for the light-mode auto-derive: every dark palette's
+ * derived light pair must clear the 4.5:1 WCAG floor for accent/success/warn/danger. */
 import { describe, expect, it } from "vitest";
 import {
   contrast,
@@ -30,8 +18,8 @@ function check(failures: string[], label: string, actual: number, fg: string, bg
   }
 }
 
-// A plausible dark palette built around a given hue: every accent-ish token
-// sits on that hue so the derive loop has to find a light instance for each.
+// A dark palette built around a given hue, so the derive loop has to find a
+// light instance for every accent-ish token.
 function syntheticDark(hue: number, sat = 0.75): Palette {
   const N = (l: number, s: number) => hsl(hue, s, l);
   return {

@@ -41,11 +41,7 @@ export async function discoverServers(): Promise<void> {
   return invoke<void>("discover_servers");
 }
 
-/**
- * Look up a single server by address, regardless of whatever filter/sort the
- * table currently has loaded. Backs the `dzsa://` deep-link flow, where the
- * named server may not be among the frontend's currently-loaded rows at all.
- */
+/** Look up a single server by address, independent of the loaded filter/sort — backs the dzsa:// deep-link flow. */
 export async function getServer(addr: string, queryPort: number): Promise<Server | null> {
   return invoke<Server | null>("get_server", { addr, queryPort });
 }
@@ -58,17 +54,7 @@ export async function toggleFavourite(
   return invoke<void>("toggle_favourite", { addr, queryPort, favourite });
 }
 
-/**
- * Bulk A2S refresh over the backend's own refresh-priority window, independent
- * of what is on screen.
- *
- * Currently has no caller. The only one was a manual re-discover path in
- * `App.tsx` that was never reachable — its button was never rendered — and the
- * REFRESH button uses {@link refreshVisibleServers} instead. Kept because the
- * backend command is live and this is the shape the planned periodic
- * auto-refresh needs; a miss here deliberately does *not* mark a server
- * offline, which is what makes it safe to run unattended.
- */
+/** Bulk A2S refresh over the backend's own priority window; unlike {@link refreshVisibleServers}, a miss never marks a server offline. */
 export async function refreshServers(filter?: FilterParams): Promise<void> {
   return invoke<void>("refresh_servers", {
     filterParams: filter ?? null,
@@ -83,15 +69,7 @@ export interface AddrPort {
 /** Who asked for a refresh, echoed back on `refresh-complete`. */
 export type RefreshScope = "visible" | "row";
 
-/**
- * A2S-refresh exactly the given servers, rather than a broad backend-picked
- * window — pass whatever is actually on screen. A miss here is written back
- * as `online: false`, unlike {@link refreshServers}.
- *
- * `scope` matters because a single-row refresh and a full one raise the same
- * completion event: without it, refreshing one row mid-refresh cleared the
- * main spinner and stamped a "refreshed at" the full pass had not reached.
- */
+/** A2S-refreshes exactly the given servers; a miss is written back as `online: false`, unlike {@link refreshServers}. `scope` tells the completion event apart from a full pass so it doesn't stomp the spinner/timestamp. */
 export async function refreshVisibleServers(
   addrs: AddrPort[],
   scope: RefreshScope = "visible",
@@ -118,13 +96,7 @@ export async function getServerCounts(): Promise<ServerCounts> {
   return invoke<ServerCounts>("get_server_counts");
 }
 
-/**
- * Whether the registry fell back to in-memory storage at startup.
- *
- * `true` means browsing and launching work, but favourites and recently-played
- * are lost on exit. Worth telling the user up front rather than letting them
- * discover it when their favourites vanish.
- */
+/** Whether the registry fell back to in-memory storage — favourites/recent won't survive exit. */
 export async function registryDegraded(): Promise<boolean> {
   return invoke<boolean>("registry_degraded");
 }
@@ -144,13 +116,7 @@ export type SteamInitFailure =
   | "steam_not_ready"
   /** Our own Steam thread failed. Nothing the user can act on. */
   | "internal"
-  /**
-   * The backend connection was lost after a successful init — the local
-   * Steam client and this process are both still alive, so there is no dead
-   * handle to reconnect to. Never auto-retries: `steamInit` short-circuits
-   * once already connected, so polling it again would just report success
-   * from the same stale session.
-   */
+  /** Connection lost after a successful init; never auto-retries since polling would just re-report the stale session. */
   | "disconnected";
 
 export interface SteamInitError {
@@ -163,23 +129,12 @@ export interface SteamInitError {
   autoRetryLimit: number | null;
 }
 
-/**
- * Connect to Steam. Rejects with a {@link SteamInitError}.
- *
- * Safe to call repeatedly — a live connection short-circuits in the backend, so
- * the startup prompt can poll this until Steam appears.
- */
+/** Connect to Steam; rejects with a {@link SteamInitError}. Safe to call repeatedly — a live connection short-circuits in the backend. */
 export async function steamInit(): Promise<void> {
   return invoke<void>("steam_init");
 }
 
-/**
- * Narrow an unknown rejection from {@link steamInit} into the typed payload.
- *
- * A rejection that isn't our struct (a panic, a serialisation failure) still has
- * to render something, and it must not claim to be retryable — an unrecognised
- * failure that the poll loop keeps hammering is the worst of both.
- */
+/** Narrows an unknown rejection from {@link steamInit} into the typed payload; an unrecognised shape must not claim to be retryable. */
 export function asSteamInitError(e: unknown): SteamInitError {
   if (typeof e === "object" && e !== null && "kind" in e) {
     const err = e as Partial<SteamInitError>;
@@ -198,23 +153,12 @@ export async function openSteam(): Promise<void> {
   return invoke<void>("open_steam");
 }
 
-/**
- * Whether the live Steam backend connection is still up.
- *
- * Cheap enough to poll on a short interval: a local atomic read, not a round
- * trip through the Steam actor thread. `false` before `steamInit` has ever
- * succeeded is normal, not an error.
- */
+/** Whether the live Steam backend connection is still up — cheap local read, safe to poll. */
 export async function steamConnectionState(): Promise<boolean> {
   return invoke<boolean>("steam_connection_state");
 }
 
-/**
- * Mirrors the Rust `ModState`. `not_subscribed` deliberately does not claim the
- * item is invalid — Steam returns the same empty state for "a real mod you
- * never subscribed to" and "this id is not a workshop item", and the two cannot
- * be distinguished from `item_state`.
- */
+/** Mirrors the Rust `ModState`. `not_subscribed` doesn't imply invalid — Steam can't tell the two cases apart. */
 export type ModState =
   | "ready"
   | "needs_update"
@@ -316,13 +260,7 @@ export async function getSettings(): Promise<AppSettingsDto> {
   return invoke<AppSettingsDto>("get_settings");
 }
 
-/**
- * Apply the interface scale without persisting it.
- *
- * Dragging a slider fires a change per pixel of travel; each one is a webview
- * zoom (cheap) but would also be a settings write and a file rewrite (not).
- * The store's own debounced save handles persistence.
- */
+/** Applies the interface scale without persisting — the slider fires per pixel of drag, and the store's debounced save handles the actual write. */
 export async function setUiScale(scale: number): Promise<void> {
   return invoke<void>("set_ui_scale", { scale });
 }
@@ -339,18 +277,11 @@ export interface VerifyOutcome {
   mods: { workshop_id: string; name: string }[];
   /** Workshop ids a fresh copy was queued for. */
   refreshed: string[];
-  /**
-   * Whether Steam was reachable enough to check freshness. `false` means
-   * `refreshed` is empty because nothing was asked, not because everything was
-   * already current.
-   */
+  /** Whether Steam was reachable to check freshness — `false` means unchecked, not "already current". */
   checked_workshop: boolean;
 }
 
-/**
- * Re-read a server's mod list and update any local copy the Workshop has moved
- * past. Does not launch anything.
- */
+/** Re-reads a server's mod list and refreshes any stale local copy. Does not launch anything. */
 export async function verifyServerMods(
   addr: string,
   queryPort: number,
@@ -379,17 +310,7 @@ export interface LaunchOptions {
   mainMenu?: boolean;
 }
 
-/**
- * Run the pre-launch mod gate and start DayZ.
- *
- * Resolves as soon as the process has been spawned — it does not wait for the
- * play session to end.
- *
- * Takes an options object rather than five positional optionals: the previous
- * signature was `(addr, gamePort, password, profileName, dayzPath)`, and every
- * call site passed `undefined` for `password` just to reach the two it cared
- * about.
- */
+/** Runs the pre-launch mod gate and starts DayZ. Resolves once spawned — doesn't wait for the session to end. */
 export async function launchGame(
   addr: string,
   gamePort: number,
@@ -424,13 +345,7 @@ export async function discoverSteamPaths(): Promise<{
   return invoke("discover_steam_paths");
 }
 
-/**
- * Where this copy keeps `tetra.db` and `settings.json`.
- *
- * Depends on how the launcher was distributed — beside the exe for a portable
- * copy carrying `portable.txt`, in local app data for an installed one — so it
- * is asked for rather than constructed in the frontend.
- */
+/** Where this copy keeps `tetra.db`/`settings.json` — depends on portable vs installed, so it's asked for rather than guessed here. */
 export async function dataFolderPath(): Promise<string> {
   return invoke<string>("data_folder_path");
 }
@@ -440,12 +355,7 @@ export async function openDataFolder(): Promise<void> {
   return invoke("open_data_folder");
 }
 
-/**
- * Whether a DayZ process exists right now.
- *
- * Asked of the OS rather than inferred from having launched one, so it is also
- * true for a session started outside the launcher.
- */
+/** Whether a DayZ process exists right now — asked of the OS, so also true for a session started outside the launcher. */
 export async function dayzRunning(): Promise<boolean> {
   return invoke<boolean>("dayz_running");
 }

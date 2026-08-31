@@ -1,22 +1,8 @@
-//! Classification of a server's display name, for the browser's noise filters.
-//!
-//! Two questions, both answered from the name alone:
-//!
-//! - Is this a *placeholder* — a hosting company's default name that the admin
-//!   never changed, or a literal template string?
-//! - Is the name written in a script the player can read?
-//!
-//! Neither is a judgement about server quality. A default-named server can be
-//! busy (52 of the 75 `nitrado.net gameserver` rows in a real 8,649-server
-//! registry had players on them), and a Chinese-named server is only "noise" to
-//! someone who cannot read Chinese. Both filters are therefore opt-out /
-//! opt-in preferences in the UI, never unconditional.
+//! Classification of a server's display name: is it a hoster's default, and
+//! is it written in a script the player can read? Neither is a judgement of
+//! quality — both are opt-in/opt-out UI filters. See .ai-notes for rationale.
 
-/// Substrings that identify a hosting company.
-///
-/// Matched case-insensitively anywhere in the name. This list is the entire
-/// reach of condition 1 in `is_placeholder_name` — a hoster absent from here is
-/// invisible to the filter, so adding a company is how the filter grows.
+/// Hosting-company substrings, matched case-insensitively anywhere in the name.
 const HOST_MARKERS: &[&str] = &[
     "nitrado",
     "gtxgaming",
@@ -36,10 +22,6 @@ const HOST_MARKERS: &[&str] = &[
 ];
 
 /// Words that carry no identity — filler around a default name.
-///
-/// A name built only from these (plus a hoster marker and any digits) tells the
-/// player nothing that distinguishes one server from the next, which is the
-/// whole complaint.
 const FILLER_WORDS: &[&str] = &[
     "dayz",
     "day",
@@ -74,17 +56,11 @@ const FILLER_WORDS: &[&str] = &[
     "official",
 ];
 
-/// Separators that can introduce a trailing "who hosts this" credit.
-///
-/// Only these — a bare space does not count. `GRAGOLL nitrado.net` has to stay
-/// hidden, and the difference between it and `Papaws Livonia by HostHavoc.com`
-/// is precisely that the latter marks the credit off as its own clause.
+/// Separators that can introduce a trailing "who hosts this" credit — a bare
+/// space does not count.
 const ATTRIBUTION_SEPARATORS: &[&str] = &[" - ", " – ", " — ", " | ", " · ", " by "];
 
 /// Words that carry identity, once digits are dropped.
-///
-/// `server15831672` reduces to `server`, which is filler, so a serial number
-/// appended to a default name still counts as nothing.
 fn distinctive_words(text: &str) -> usize {
     text.split(|c: char| !c.is_alphanumeric())
         .filter(|token| {
@@ -108,11 +84,9 @@ fn is_only_a_hosting_credit(tail: &str) -> bool {
     had_marker && distinctive_words(&stripped) == 0
 }
 
-/// Drop a trailing hosting credit, if the name ends in one.
-///
-/// Takes the *rightmost* qualifying separator, so
-/// `ISA | Bitterroot 365 | No Bases - By Pingperfect.com` loses only the
-/// Pingperfect clause and keeps both pipes in the admin's own name.
+/// Drop a trailing hosting credit, if the name ends in one — takes the
+/// rightmost qualifying separator, so multiple pipes in the admin's own name
+/// are left alone.
 fn strip_trailing_attribution(lower: &str) -> &str {
     let mut cut: Option<usize> = None;
     for sep in ATTRIBUTION_SEPARATORS {
@@ -131,35 +105,11 @@ fn strip_trailing_attribution(lower: &str) -> &str {
     }
 }
 
-/// Whether this name carries a hosting company's branding, or was never set.
-///
-/// Two independent conditions, either of which is enough:
-///
-/// 1. **A hoster's name appears anywhere in it.** A plain substring test, by
-///    deliberate choice. This hides `4Netplayers Purgatorio [ESP]` and
-///    `GRAGOLL nitrado.net` — servers whose admins kept the hoster's name as
-///    part of their own. An earlier version went to some length to keep those
-///    visible ("nothing distinctive survives"), but the ask is to be rid of
-///    hoster branding in the list, not merely of unnamed servers.
-/// 2. **Nothing distinctive was ever typed** — every word is filler or digits,
-///    so `DayZ Standalone Server`, `TEST` and `EXAMPLE NAME` qualify without
-///    any hoster involved.
-///
-/// The one exemption is a *trailing hosting credit*: `Stoned and Afraid PVE -
-/// By Pingperfect.com` is a name its admin chose in full, with the company's
-/// name appended after a separator. Those are dropped before either condition
-/// runs, so the server is judged on the part its admin wrote. Whether the
-/// hoster or the admin appended it cannot be known from the string, but a name
-/// that still reads perfectly with the credit removed is not branding — and
-/// `DayZ Server by HostHavoc.com` is caught anyway, by condition 2, because
-/// what remains is filler.
-///
-/// All of it is behind a setting the player can turn off
-/// (`hide_placeholder_servers`), on by default.
-///
-/// An empty name is deliberately *not* a placeholder: that is a server this
-/// launcher has never had a reply from, so the name is missing rather than
-/// default. It has its own filter — see `ServerFilter::hide_unnamed`.
+/// Whether this name carries a hosting company's branding, or was never set —
+/// a hoster's name anywhere in it, or nothing distinctive typed at all, minus
+/// a trailing hosting credit (which doesn't count against the admin's own
+/// name). Behind `hide_placeholder_servers`. See .ai-notes for the full case
+/// breakdown.
 pub fn is_placeholder_name(name: &str) -> bool {
     let lower = name.trim().to_lowercase();
     if lower.is_empty() {
@@ -181,11 +131,8 @@ pub fn is_placeholder_name(name: &str) -> bool {
     distinctive_words(body) == 0 && body.chars().any(|c| c.is_alphabetic())
 }
 
-/// Non-Latin letter, by script block.
-///
-/// Deliberately covers only scripts seen on real DayZ servers plus the obvious
-/// neighbours. Anything unrecognised counts as neither Latin nor non-Latin and
-/// simply does not affect the ratio.
+/// Non-Latin letter, by script block. Covers only scripts seen on real DayZ
+/// servers; anything unrecognised counts as neither Latin nor non-Latin.
 fn non_latin_letter(ch: char) -> bool {
     matches!(ch,
         // CJK ideographs — Chinese, and Japanese written in kanji.
@@ -207,20 +154,9 @@ fn latin_letter(ch: char) -> bool {
     ch.is_ascii_alphabetic() || matches!(ch, '\u{00C0}'..='\u{024F}')
 }
 
-/// Scripts that are never decoration in an English name — one character settles
-/// it, with no ratio involved.
-///
-/// The ratio test alone is not enough for these. `[TN]#鹿岛/PVE Deerisle
-/// QQ群703109220` is three Han characters against fifteen Latin letters (17%)
-/// and `BX公益服|PVP仿官|Vanilla+` is 29% — both sail under a 30% cut while being
-/// plainly Chinese servers. Padding a name with ASCII mod tags and a QQ group
-/// number is exactly what drags the share down, so the share is the wrong
-/// question for these scripts.
-///
-/// Cyrillic and Greek are deliberately *not* here: `Ч` and `Я` do get used
-/// decoratively in English names (`Чernarus Survival — English Community`), so
-/// one character cannot settle it. They are caught a word at a time instead —
-/// see `is_cyrillic_or_greek_word`.
+/// Scripts that are never decoration in an English name — one character
+/// settles it, no ratio involved. Cyrillic/Greek excluded on purpose since
+/// those do get used decoratively; see `is_cyrillic_or_greek_word` instead.
 fn decisive_non_latin(ch: char) -> bool {
     matches!(ch,
         // CJK ideographs, kana, Hangul.
@@ -233,24 +169,13 @@ fn decisive_non_latin(ch: char) -> bool {
 }
 
 /// Share of a name's letters that must be non-Latin before it stops counting
-/// as readable-in-English.
-///
-/// Not 50%: a great many non-English servers front their name with a Latin
-/// region tag — `[RU] Русский сервер`, `[CN] 生存服务器` — which would drag a
-/// wholly Russian or Chinese name back under a half-share and leave it visible.
-/// At a third, those are caught while a Latin name carrying one decorative
-/// character is not.
+/// as readable-in-English. Not 50% — a Latin region tag (`[RU]`, `[CN]`) would
+/// drag a wholly non-Latin name back under a half-share otherwise.
 const NON_LATIN_SHARE: f32 = 0.30;
 
-/// Whether the name is written in Latin script.
-///
-/// Script, not language — `[GER] Zockerfreunde` is Latin and so is
-/// `Sérvidor Español`. For "would an English speaker want this in their list",
-/// see `is_english_name`, which uses this as its first test.
-///
-/// Names with no letters at all (`"[24/7]"`, `"★★★"`, pure punctuation) count
-/// as Latin: there is nothing to be unreadable, and hiding them under a
-/// language filter would surprise.
+/// Whether the name is written in Latin script — script, not language. See
+/// `is_english_name` for the language question. Names with no letters at all
+/// count as Latin.
 pub fn is_latin_name(name: &str) -> bool {
     let mut latin = 0usize;
     let mut other = 0usize;
@@ -269,57 +194,20 @@ pub fn is_latin_name(name: &str) -> bool {
 }
 
 // ─── Language, as distinct from script ───────────────────────────────────────
-//
-// `is_latin_name` answers "can I read the characters". It says yes to
-// `[GER][PvE] Zockerfreunde | Trader | Helis`, which is the complaint that
-// prompted all of this: the tag says ENGLISH ONLY and a German server is not
-// English.
-//
-// Detection is entirely offline and entirely lexical. Two roads were not taken:
-//
-// - **A translation or language-detection API.** The classifier runs over every
-//   row on every filter change — thousands of calls per keystroke — so it would
-//   mean latency, cost, rate limits, and posting the player's server list to a
-//   third party from a desktop app.
-// - **Trigram language identification** (`whatlang`, `lingua`). Those are
-//   trained on sentences. A DayZ name is a handful of tokens made mostly of
-//   bracket tags, mod names and English loanwords — `PvE`, `Trader`, `Helis`
-//   sit inside German names — and the models are unreliable in both directions
-//   on input that short, with a confidence score that cannot be debugged.
-//
-// So: three explicit signals, cheapest first, each one inspectable and each one
-// tunable by editing a list.
+// Offline and lexical, not an API/model — see .ai-notes for why. Three
+// explicit signals, cheapest first, each tunable by editing a list.
 
 /// Bracketed tags that mark an audience without implying a language, or that
-/// imply English. A name carrying one of these is not judged by its tags.
-///
-/// Since `bracket_tags` splits, these match a *part* of a bracket — which is
-/// the whole point: `[GER/EN]`, `[RU/EN]` and `[PL/EN]` are bilingual servers
-/// advertising an English presence, and roughly 30 of them stay visible only
-/// because `en` is reachable here.
-///
-/// `en` is also a Romance function word, so `[FR] Serveur (En construction)`
-/// waives its own French tag. That is tolerated deliberately: measured over a
-/// real registry it happens once against ~30 correct waivers, and the one case
-/// is caught by its accents anyway.
+/// imply English — a name carrying one is not judged by its other tags.
 const ENGLISH_REGION_TAGS: &[&str] = &[
     "eu", "us", "usa", "uk", "gb", "na", "au", "aus", "ca", "nz", "en", "eng", "english", "int",
     "intl", "world", "global", "asia", "sea", "oce",
 ];
 
 /// Bracketed tags that mark a server as addressing a non-English audience.
-///
-/// Two-letter codes are included only where they are unambiguous as a bracket
-/// tag. `[IT]`, `[IS]`, `[ID]`, `[CO]` and `[AT]` are left out because each
-/// reads as an ordinary word or abbreviation and none appears in real data
-/// often enough to be worth the false positives.
-///
-/// `at`, `by` and `sa` were removed once `bracket_tags` began splitting
-/// compound tags. Before the split each could only match a whole bracket, which
-/// is rare; after it, `(Enter At Own Risk)`, `(Hostet by ACEVontex)` and DayZ's
-/// own `[SA]` for *Standalone* all yield those tokens. Measured over a real
-/// 6,785-name registry the three matched four names between them, of which two
-/// were plainly English — so they cost more than they earn and are gone.
+/// Two-letter codes included only where unambiguous as a bracket tag —
+/// `[IT]`, `[IS]`, `[ID]`, `[CO]`, `[AT]` read as ordinary words and are left
+/// out. `at`/`by`/`sa` also removed; see .ai-notes.
 const FOREIGN_REGION_TAGS: &[&str] = &[
     "ger", "de", "deu", "ru", "rus", "ua", "ukr", "kz", "br", "bra", "pt", "por", "fr", "fra",
     "es", "esp", "mx", "ar", "cl", "pe", "ve", "pl", "pol", "cz", "cze", "sk", "svk", "nl", "ned",
@@ -328,11 +216,9 @@ const FOREIGN_REGION_TAGS: &[&str] = &[
     "tw", "hk", "il", "ir",
 ];
 
-/// Letters that effectively do not occur in English words.
-///
-/// `Gebirgsjäger` is caught here without any word list. Kept separate from
-/// `latin_letter`, which deliberately counts these as Latin — `Sérvidor` is
-/// readable, it is just not English, and those are different questions.
+/// Letters that effectively do not occur in English words — kept separate
+/// from `latin_letter`, which counts these as Latin (readable, just not
+/// English).
 fn foreign_letter(ch: char) -> bool {
     matches!(
         ch,
@@ -347,9 +233,6 @@ fn foreign_letter(ch: char) -> bool {
             | 'æ'
             | 'ç'
             | 'è'
-            // `é` was missing while `è`, `ê` and `ë` were all present — the
-            // commonest accented letter in French, Spanish and Portuguese, and
-            // the gap let `Québec Vanilla` and `Serv Privé` through.
             | 'é'
             | 'ê'
             | 'ë'
@@ -392,19 +275,12 @@ fn foreign_letter(ch: char) -> bool {
     )
 }
 
-/// Whole words that mark a name as non-English.
-///
-/// Every entry is matched as a **complete token**, never a substring: `der`
-/// inside `Wanderer` must not make an English name German. Words that are also
-/// English (`die`, `den`, `war`, `gut`, `hat`, `arm`, `band`, `not`, `sie`)
-/// are deliberately absent, whatever they mean in the other language — a false
-/// positive hides a server the player wanted, which is the expensive direction.
+/// Whole words that mark a name as non-English. Matched as a complete token,
+/// never a substring (`der` inside `Wanderer` shouldn't count). Words that
+/// are also English (`die`, `den`, `war`, `gut`, `hat`, `arm`, `band`, `not`,
+/// `sie`) are deliberately absent.
 const FOREIGN_WORDS: &[&str] = &[
     // German
-    //
-    // `die`, `den`, `war`, `gut`, `hat`, `arm`, `band` and `not` are absent on
-    // purpose: each is also an English word, and a false positive hides a
-    // server the player wanted.
     "der",
     "des",
     "aber",
@@ -484,13 +360,8 @@ const FOREIGN_WORDS: &[&str] = &[
     "bande",
     "republik",
     "bananenrepublik",
-    // Spanish, Portuguese and Latin American
-    //
-    // `terra` is deliberately absent — `Terra Incognita` and `Terra Nova` are
-    // English server names. So are `solo`, `duo` and `trio`: those are DayZ
-    // group-size jargon that English servers use constantly, and adding them
-    // would have hidden several dozen. `diversion` and `autos` are ordinary
-    // English words too.
+    // Spanish, Portuguese and Latin American — `terra`/`solo`/`duo`/`trio`
+    // deliberately absent, see .ai-notes.
     "latam",
     "arg",
     "uruguay",
@@ -598,10 +469,7 @@ const FOREIGN_WORDS: &[&str] = &[
     "nosso",
     "nossa",
     "melhor",
-    // French
-    //
-    // `il` is left out — it is Illinois in American server names. So is `noc`,
-    // which is a network operations centre.
+    // French — `il` and `noc` left out (Illinois, network ops centre)
     "les",
     "votre",
     "serveur",
@@ -655,22 +523,12 @@ const FOREIGN_WORDS: &[&str] = &[
     "hayatta",
 ];
 
-/// Characters that separate several tags sharing one bracket.
-///
-/// `[CZ/SK]`, `[EU|FR]`, `[FR-QC]`, `[GER HKD]` and `(GER/PVE)` are all one
-/// bracket carrying two or more tags.
+/// Characters that separate several tags sharing one bracket, e.g. `[CZ/SK]`.
 const TAG_SEPARATORS: &[char] = &['|', '/', ',', '-', '+', ' ', '\\', '&', ';', ':'];
 
-/// The bracketed tags in a name, lowercased and split into their parts.
-///
-/// `[GER][PvE]` yields `ger`, `pve`; `[CZ/SK]` yields `cz`, `sk`.
-///
-/// The split matters more than it looks. Without it a compound bracket is one
-/// opaque string — `"cz/sk"` matches nothing in either tag list — and a
-/// measurement over a real 6,785-name registry found **65 non-English servers
-/// visible under ENGLISH ONLY for this reason alone**, mostly Czech, German,
-/// Russian and Brazilian. It was the single largest cause of misses, and no
-/// amount of adding words to `FOREIGN_WORDS` would have touched it.
+/// The bracketed tags in a name, lowercased and split into their parts —
+/// `[GER][PvE]` yields `ger`, `pve`; `[CZ/SK]` yields `cz`, `sk`. Splitting
+/// compound brackets matters a lot in practice; see .ai-notes.
 fn bracket_tags(lower: &str) -> Vec<String> {
     let mut tags = Vec::new();
     let mut current: Option<String> = None;
@@ -697,19 +555,9 @@ fn bracket_tags(lower: &str) -> Vec<String> {
     tags
 }
 
-/// Whether a token is *mostly* Cyrillic or Greek — that is, a Russian or Greek
-/// word rather than a Latin word wearing one exotic character.
-///
-/// This exists because the `NON_LATIN_SHARE` ratio is measured over the whole
-/// name, and a name can pad itself under the threshold while still being
-/// plainly Russian: `!*ВДАЛИ от ЖЁН Chernarus*! 1 [PVE] [vk.com/vdzh_pve]` is
-/// ten Cyrillic letters against twenty-four Latin — 29% against a 30% cut —
-/// because the map name, the mode tag and a VK URL are all Latin.
-///
-/// Counting *words* instead settles it without touching the decorative case
-/// that kept Cyrillic and Greek on the ratio in the first place:
-/// `Чernarus Survival — English Community` has no majority-Cyrillic token, and
-/// the name above has three.
+/// Whether a token is *mostly* Cyrillic or Greek — a Russian/Greek word
+/// rather than a Latin word wearing one exotic character. Catches names that
+/// pad themselves under the `NON_LATIN_SHARE` ratio; see .ai-notes.
 fn is_cyrillic_or_greek_word(token: &str) -> bool {
     let mut exotic = 0usize;
     let mut total = 0usize;
@@ -724,32 +572,11 @@ fn is_cyrillic_or_greek_word(token: &str) -> bool {
     total > 0 && exotic * 2 > total
 }
 
-/// Whether the name reads as English.
-///
-/// Five tests, any one of which disqualifies:
-///
-/// 1. Not Latin script at all — `生存服务器`, `Русский сервер`.
-/// 2. A whole Cyrillic or Greek word, however much Latin padding surrounds it.
-/// 3. A bracketed language or country tag — `[GER]`, `[RU]`, `[BR]`, and since
-///    tags are split, `[CZ/SK]` and `[EU|FR]` too. Waived if the name also
-///    carries an audience tag like `[EU]` or `[US]`, per the rule asked for:
-///    hide tagged servers *that do not say EU or US*.
-/// 4. A letter English does not use — `Gebirgsjäger`, `Québec`, `Español`.
-/// 5. A whole word from `FOREIGN_WORDS` — the only signal that reaches
-///    `Zwiebelmett mit Guerkchen` once its umlaut has been spelled out.
-///
-/// **What this cannot do**, and it is worth stating because it bounds the whole
-/// approach: a third of visible names carry no lexical signal in either
-/// direction. `Nexora`, `GigaChad`, `Tranquility`, `DoHar2026` are proper nouns
-/// and invented compounds that belong to no language, and neither a denylist
-/// nor an allowlist can sort them. Measured over a real registry that middle is
-/// 1,776 of 5,450 names. They are treated as English, because the filter is
-/// opt-out and under-hiding is the cheaper error — hiding a server the player
-/// wanted is silent and unrecoverable, while a foreign name they can see is
-/// merely untidy.
-///
-/// `Zockersuchtis` — a single invented German compound with no umlaut and no
-/// listed stem — lives in that middle and is a known, accepted miss.
+/// Whether the name reads as English. Five disqualifying tests: non-Latin
+/// script, a whole Cyrillic/Greek word, a bracketed foreign tag (waived by an
+/// English audience tag), a non-English letter, or a whole `FOREIGN_WORDS`
+/// word. Ambiguous names (no lexical signal either way) default to English —
+/// see .ai-notes for the false-negative rate and reasoning.
 pub fn is_english_name(name: &str) -> bool {
     // One Han character, kana, Hangul, Hebrew, Arabic or Thai glyph is enough,
     // however much ASCII surrounds it.
@@ -798,8 +625,6 @@ pub fn is_english_name(name: &str) -> bool {
 mod tests {
     use super::*;
 
-    /// Names observed verbatim in a real 8,649-server registry. Every one of
-    /// these is the hosting company's default with nothing added.
     #[test]
     fn catches_the_hoster_defaults_seen_in_the_wild() {
         for name in [
@@ -840,12 +665,7 @@ mod tests {
         }
     }
 
-    /// A hoster's name woven into the name itself is enough, even when the
-    /// admin went on to name the server properly.
-    ///
-    /// These are real, populated servers, and hiding them is the point rather
-    /// than an accident: the filter is "no hoster branding in my list", not "no
-    /// unnamed servers". `hide_placeholder_servers` turns it off.
+    /// Real, populated servers — hiding them is the point, not an accident.
     #[test]
     fn a_hoster_name_in_the_body_is_enough() {
         for name in [
@@ -863,9 +683,6 @@ mod tests {
         }
     }
 
-    /// A name its admin chose in full, with the hosting company credited after
-    /// a separator. All of these are real and populated; the credit is the only
-    /// hoster text in them, so the server is judged on the rest.
     #[test]
     fn a_trailing_hosting_credit_is_not_branding() {
         for name in [
@@ -885,9 +702,7 @@ mod tests {
         }
     }
 
-    /// The exemption must not rescue a name that was filler to begin with:
-    /// strip the credit from `DayZ Server by HostHavoc.com` and "dayz server"
-    /// is what is left, which is still nothing.
+    /// The exemption must not rescue a name that was filler to begin with.
     #[test]
     fn stripping_a_credit_does_not_rescue_a_filler_name() {
         for name in [
@@ -902,26 +717,21 @@ mod tests {
         }
     }
 
-    /// Only a marked-off clause is a credit. A hoster's name trailing after a
-    /// plain space is part of the name, and stays hidden — the whole reason the
-    /// separator list exists.
+    /// Only a marked-off clause is a credit — a bare trailing space stays hidden.
     #[test]
     fn a_bare_trailing_hoster_is_not_a_credit() {
         assert!(is_placeholder_name("GRAGOLL nitrado.net"));
         assert!(is_placeholder_name("SuperLunatics Nitrado Server"));
     }
 
-    /// Digits carry no identity — a serial number appended to a default name
-    /// is still a default name.
     #[test]
     fn trailing_digits_do_not_make_a_name() {
         assert!(is_placeholder_name("4Netplayers DayZ Server15831672"));
         assert!(is_placeholder_name("nitrado.net gameserver 2"));
     }
 
-    /// The limit of condition 1: only *known* hosters are branding. An unknown
-    /// company's name reads as a distinctive word and keeps the server visible,
-    /// so extending the filter means extending `HOST_MARKERS`.
+    /// Only *known* hosters are branding — extending the filter means
+    /// extending `HOST_MARKERS`.
     #[test]
     fn an_unlisted_hoster_is_just_another_word() {
         assert!(!is_placeholder_name("Hosted by SomeNewHost.io"));
@@ -954,16 +764,13 @@ mod tests {
         }
     }
 
-    /// The case the 30% threshold exists for: a Latin region tag on the front
-    /// of an otherwise entirely non-Latin name.
+    /// The case the 30% threshold exists for.
     #[test]
     fn a_latin_region_tag_does_not_rescue_a_non_latin_name() {
         assert!(!is_latin_name("[RU] Русский сервер PVE"));
         assert!(!is_latin_name("[CN] 生存服务器 官方"));
     }
 
-    /// ...and the converse: an English name wearing one decorative character
-    /// must stay visible.
     #[test]
     fn a_decorative_character_does_not_condemn_an_english_name() {
         assert!(is_latin_name("Чernarus Survival — English Community"));
@@ -979,11 +786,8 @@ mod tests {
 
     // ─── Language ────────────────────────────────────────────────────────────
 
-    /// The report that prompted the language rule: German servers were showing
-    /// under ENGLISH ONLY because German is written in Latin script.
-    ///
-    /// All five are verbatim from a real registry, and each is caught by a
-    /// different signal — bracket tag, umlaut, and word list respectively.
+    /// The report that prompted the language rule: German servers showing
+    /// under ENGLISH ONLY because German is Latin script.
     #[test]
     fn latin_script_is_not_the_same_as_english() {
         for name in [
@@ -998,9 +802,8 @@ mod tests {
         }
     }
 
-    /// A bracketed language or country tag is enough on its own, even when
-    /// every other word is English. `[BR] THE KINGZ | FULL PVE` is a
-    /// Portuguese-speaking community advertising in English.
+    /// A bracketed language/country tag is enough on its own, even when every
+    /// other word is English.
     #[test]
     fn a_language_tag_settles_it() {
         for name in [
@@ -1017,8 +820,6 @@ mod tests {
         }
     }
 
-    /// ...but an audience tag waives the tag test, which is the rule as asked
-    /// for: hide language-tagged servers *that do not say EU or US*.
     #[test]
     fn an_audience_tag_waives_the_language_tag() {
         assert!(is_english_name("[EU] Survivor Haven | PVE | Loot+"));
@@ -1028,9 +829,8 @@ mod tests {
         assert!(!is_english_name("[EU] Gebirgsjäger |Cherno|PVP"));
     }
 
-    /// Ordinary English names must survive every signal. These are the ones a
-    /// careless word list would eat: `Wanderer` contains "der", `Denmark`
-    /// contains "den", `Bandit` contains "band".
+    /// The ones a careless word list would eat: `Wanderer` contains "der",
+    /// `Bandit` contains "band".
     #[test]
     fn english_names_survive() {
         for name in [
@@ -1046,9 +846,7 @@ mod tests {
         }
     }
 
-    /// Whole tokens only. This is the specific failure a substring match would
-    /// produce, and it is worth its own test because it is silent — the server
-    /// simply stops appearing.
+    /// Substring matches fail silently — the server just stops appearing.
     #[test]
     fn a_foreign_word_inside_an_english_word_does_not_count() {
         // "und" inside "Thunder", "mit" inside "Summit", "vida" inside "Vidal".
@@ -1060,8 +858,6 @@ mod tests {
         }
     }
 
-    /// Non-Latin script is still the first test, so nothing regressed for the
-    /// scripts the filter already handled.
     #[test]
     fn non_latin_names_are_still_not_english() {
         for name in ["生存服务器", "Русский сервер", "[RU] Русский сервер PVE"]
@@ -1071,11 +867,6 @@ mod tests {
     }
 
     /// One Han character settles it, whatever the ratio.
-    ///
-    /// Both of these were reported slipping through: padded with ASCII mod
-    /// tags, a QQ group number and a domain, they come to 17% and 29% non-Latin
-    /// against a 30% cut. `is_latin_name` still calls them Latin — that is the
-    /// script question and it is answered correctly — but they are not English.
     #[test]
     fn a_single_han_character_is_decisive() {
         for name in [
@@ -1092,8 +883,7 @@ mod tests {
         );
     }
 
-    /// Spanish and Portuguese, from real reports. None of these carries a
-    /// bracketed language tag the tag rule could have seen.
+    /// None of these carry a bracketed language tag the tag rule could see.
     #[test]
     fn spanish_and_portuguese_are_not_english() {
         for name in [
@@ -1108,12 +898,8 @@ mod tests {
         }
     }
 
-    /// Several tags sharing one bracket. Every one of these was visible under
-    /// ENGLISH ONLY because `[CZ/SK]` was matched as the single opaque string
-    /// `"cz/sk"`, which is in neither tag list.
-    ///
-    /// Verbatim from a real registry, where this one parser gap accounted for
-    /// 65 visible non-English servers — more than any word-list gap.
+    /// Every one of these was visible under ENGLISH ONLY before `bracket_tags`
+    /// split compound tags like `[CZ/SK]`.
     #[test]
     fn several_tags_can_share_one_bracket() {
         for name in [
@@ -1138,14 +924,8 @@ mod tests {
         }
     }
 
-    /// A server advertising an English audience alongside its own language
-    /// stays visible. The waiver has to see `en` as a *split part* of
-    /// `[GER/EN]`, not merely as a whole bracket.
-    ///
-    /// This is load-bearing and worth roughly 30 servers on a real registry.
-    /// It is also exactly what the plausible-looking "only split the foreign
-    /// side" "fix" would break — `ger` would fire on `[GER/EN]` and hide the
-    /// bilingual servers an English speaker most wants to see. Hence the test.
+    /// The waiver has to see `en` as a split part of `[GER/EN]`, not merely a
+    /// whole bracket — worth ~30 servers on a real registry.
     #[test]
     fn a_bilingual_tag_still_waives() {
         for name in [
@@ -1163,11 +943,7 @@ mod tests {
         }
     }
 
-    /// Splitting tags made three country codes reachable that never fired
-    /// before, and each read as an ordinary English word. All three are out of
-    /// `FOREIGN_REGION_TAGS`; these are the names that proved they had to be.
-    ///
-    /// `[SA]` is the sharpest of them: in DayZ it means *Standalone*.
+    /// `[SA]` is the sharpest case: in DayZ it means Standalone, not South Africa.
     #[test]
     fn splitting_tags_does_not_resurrect_ambiguous_country_codes() {
         for name in [
@@ -1183,9 +959,8 @@ mod tests {
         }
     }
 
-    /// The ratio test measures the whole name, so a Russian name padded with a
-    /// Latin map name, a mode tag and a URL can sail under 30% while being
-    /// plainly Russian. This one is 10 Cyrillic to 24 Latin — 29%.
+    /// A Russian name padded with Latin map/mode tags can sail under the 30%
+    /// ratio cut while being plainly Russian.
     #[test]
     fn a_cyrillic_word_beats_the_ratio() {
         for name in [
@@ -1205,9 +980,7 @@ mod tests {
         assert!(is_english_name("ЯED Zone PVP | High Loot"));
     }
 
-    /// `é` was absent from `foreign_letter` while `è`, `ê` and `ë` were all
-    /// present — the commonest accented letter in French, Spanish and
-    /// Portuguese, and every one of these was visible because of it.
+    /// `é` used to be missing from `foreign_letter` while `è`/`ê`/`ë` were present.
     #[test]
     fn e_acute_is_a_foreign_letter() {
         for name in [
@@ -1221,15 +994,8 @@ mod tests {
         }
     }
 
-    /// The words a careless list would have added, and the servers they would
-    /// have cost.
-    ///
-    /// `solo`, `duo` and `trio` are DayZ group-size jargon that English servers
-    /// use constantly — adding them as Spanish/Italian words would have hidden
-    /// several dozen English servers. `terra` reads as Latin American but
-    /// `Terra Incognita` and `Terra Nova` are English names, `il` is Illinois,
-    /// `noc` is a network operations centre, and `diversion` is just English.
-    /// Each was found by probing the real registry, not by guessing.
+    /// Words a careless list would have added: `solo`/`duo`/`trio` are DayZ
+    /// jargon, `terra`/`il`/`noc`/`diversion` are ordinary English words too.
     #[test]
     fn dayz_jargon_and_english_lookalikes_are_not_foreign_words() {
         for name in [

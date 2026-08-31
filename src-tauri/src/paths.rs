@@ -1,32 +1,15 @@
 //! Where the launcher keeps its data, and how it got there.
 //!
-//! Everything the launcher persists — the registry (`tetra.db` and its two
-//! SQLite sidecars) and `settings.json`, which now carries the window geometry
-//! too — lives in one directory, resolved here and nowhere else. Both call
-//! sites ([`crate::commands::settings::settings_path`] and the registry open in
-//! `setup`) go through [`data_root`], so there is exactly one answer to "where
-//! is my data" per run.
-//!
-//! ## The two modes
+//! Everything the launcher persists (the registry and `settings.json`) lives
+//! in one directory, resolved only through [`data_root`].
 //!
 //! | Mode | Root |
 //! |---|---|
 //! | Portable | the directory holding the exe |
 //! | Installed | `app_local_data_dir()` — `%LOCALAPPDATA%\com.tetra.launcher` |
 //!
-//! **Portable mode is opted into by a marker file, never inferred from where
-//! the exe sits.** That distinction is the whole design. A location heuristic
-//! — "not under the install root, therefore portable" — would make every
-//! `cargo`/`tauri dev` build write its database next to the binary again, which
-//! is precisely the bug the comment in `lib.rs` describes: two databases, one
-//! under `target/debug` and one in the repo root, with favourites appearing to
-//! vanish depending on how the launcher was started. `is_installed_copy` in
-//! `commands::update` answers false for dev builds for exactly that reason, so
-//! it is deliberately *not* reused here.
-//!
-//! Installed copies stay out of the install tree. The NSIS uninstaller removes
-//! that tree and the updater re-runs the installer, so a database living beside
-//! the exe is a database an update can take with it.
+//! Portable mode is opted into by a marker file, never inferred from exe
+//! location — see .ai-notes/src-tauri/src/paths.rs.md for why.
 
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -36,27 +19,20 @@ use tauri::{AppHandle, Manager};
 /// portable. Contents are ignored — only its presence matters.
 pub const PORTABLE_MARKER: &str = "portable.txt";
 
-/// The registry and its SQLite sidecars, which only make sense as a set.
-///
-/// A `tetra.db` separated from its `-wal` loses every transaction that had not
-/// been checkpointed, which is why [`migrate`] moves all three or none.
+/// The registry and its SQLite sidecars, which only make sense as a set —
+/// see [`migrate`] for why all three move together.
 const REGISTRY_FILES: &[&str] = &["tetra.db", "tetra.db-wal", "tetra.db-shm"];
 
-/// Written by the retired `tauri-plugin-window-state`. Carried across by
-/// [`migrate`] so `settings::load_at_startup` can fold the geometry in and
-/// delete it — see that function.
+/// Written by the retired `tauri-plugin-window-state`; carried across by
+/// [`migrate`] so `settings::load_at_startup` can fold it in and delete it.
 pub const LEGACY_WINDOW_STATE: &str = ".window-state.json";
 
-/// The chosen directory and how it was chosen. The mode is kept because
-/// migration depends on it — see [`migrate_from_legacy`].
 struct Root {
     dir: PathBuf,
     portable: bool,
 }
 
-/// Resolved once per process. The portable check touches the disk (a marker
-/// lookup and a write probe) and `settings_path` is on the settings-read path,
-/// so the answer is computed once rather than per call.
+/// Resolved once per process — the portable check touches disk.
 static DATA_ROOT: OnceLock<Root> = OnceLock::new();
 
 fn root(app: &AppHandle) -> &'static Root {
@@ -90,14 +66,8 @@ fn resolve(app: &AppHandle) -> Root {
     }
 }
 
-/// The exe's directory, if this copy is marked portable *and* that directory
-/// can actually be written to.
-///
-/// The write probe is not defensive padding: a portable zip is routinely
-/// unpacked somewhere read-only — a USB stick with the switch flipped, a
-/// network share, `C:\Program Files` because someone dragged it there. Falling
-/// back to app data keeps such a copy working with the settings it had, rather
-/// than failing to open the registry and silently running in-memory.
+/// The exe's directory, if marked portable *and* actually writable (falls
+/// back to app data otherwise — a portable zip can end up somewhere read-only).
 fn portable_root() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let dir = exe.parent()?;
@@ -115,12 +85,8 @@ fn portable_root() -> Option<PathBuf> {
     Some(dir.to_path_buf())
 }
 
-/// `%LOCALAPPDATA%\com.tetra.launcher`.
-///
-/// Local rather than Roaming, which is where this used to live: the registry
-/// is a rebuildable cache of servers that reached 20 MB in ordinary use, and a
-/// roaming profile copies its whole contents at every logon. Roaming is kept
-/// only as a fallback for a platform where `app_local_data_dir` fails.
+/// `%LOCALAPPDATA%\com.tetra.launcher`. Local rather than Roaming, since the
+/// registry cache reaches 20 MB in ordinary use; Roaming is only a fallback.
 fn installed_root(app: &AppHandle) -> PathBuf {
     app.path()
         .app_local_data_dir()
@@ -128,11 +94,8 @@ fn installed_root(app: &AppHandle) -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from("."))
 }
 
-/// Whether a directory accepts a file, answered by writing one.
-///
-/// Windows permissions do not reduce to a readable bit — an ACL, a read-only
-/// volume and a locked removable device all present differently — so the
-/// question is settled empirically instead of inferred.
+/// Whether a directory accepts a file, answered by writing one rather than
+/// inferring from permissions.
 fn is_writable(dir: &Path) -> bool {
     if std::fs::create_dir_all(dir).is_err() {
         return false;
@@ -152,9 +115,7 @@ fn is_writable(dir: &Path) -> bool {
 pub struct Migration {
     /// Files moved out of the old location.
     pub moved: Vec<String>,
-    /// Files left behind because the destination already had its own copy.
-    /// The destination always wins — a half-merge of two databases is worse
-    /// than either one of them.
+    /// Files left behind because the destination already had its own copy — destination always wins.
     pub skipped: Vec<String>,
 }
 
@@ -164,17 +125,9 @@ impl Migration {
     }
 }
 
-/// Move an older layout's files into `dest`, from the pre-1.3 location.
-///
-/// Resolves the legacy directory (`%APPDATA%\com.tetra.launcher`, the Roaming
-/// one `app_data_dir` returns) and defers to [`migrate`].
-///
-/// **A portable copy never migrates.** The legacy directory is per-user and
-/// shared with whatever is installed on that machine, so a portable copy that
-/// adopted it would move the *installed* launcher's database into the folder
-/// the zip was unpacked into — emptying a working install because someone tried
-/// the portable build once. A portable copy starts empty, which is the whole
-/// promise of one.
+/// Move an older layout's files into `dest`, from the pre-1.3
+/// `%APPDATA%\com.tetra.launcher` location. A portable copy never migrates —
+/// it would move the installed launcher's database into the unpacked zip's folder.
 pub fn migrate_from_legacy(app: &AppHandle, dest: &Path) -> Migration {
     if is_portable(app) {
         return Migration::default();
@@ -185,18 +138,9 @@ pub fn migrate_from_legacy(app: &AppHandle, dest: &Path) -> Migration {
     migrate(&legacy, dest)
 }
 
-/// Move `legacy`'s data files into `dest`.
-///
-/// Idempotent, and safe to call on every start: it returns immediately when the
-/// two directories are the same, when the source does not exist, or when the
-/// files have already been moved.
-///
-/// **Copy first, delete only after every copy succeeded.** A `rename` would be
-/// cheaper, but the registry is three files that have to travel together, and a
-/// rename that succeeds for `tetra.db` and then fails for `tetra.db-wal` — a
-/// different volume, a permissions difference, a full disk — leaves a database
-/// missing its uncheckpointed transactions with no way back. Copying leaves the
-/// original untouched until the whole set has landed.
+/// Move `legacy`'s data files into `dest`. Idempotent. Copies first and
+/// deletes only after every copy succeeded — the registry's 3 files must
+/// travel together, or a partial move can leave an uncheckpointed database.
 pub fn migrate(legacy: &Path, dest: &Path) -> Migration {
     let mut report = Migration::default();
     if legacy == dest || !legacy.is_dir() {
@@ -225,9 +169,7 @@ pub fn migrate(legacy: &Path, dest: &Path) -> Migration {
         }
     }
 
-    // Independent single files. `settings.json` is not part of the registry
-    // set, and the window-state file is carried over only so the geometry can
-    // be folded into settings and the file dropped.
+    // Independent single files, not part of the registry set.
     for name in [crate::commands::settings::FILENAME, LEGACY_WINDOW_STATE] {
         let from = legacy.join(name);
         if !from.is_file() {
@@ -247,11 +189,8 @@ pub fn migrate(legacy: &Path, dest: &Path) -> Migration {
     report
 }
 
-/// Copy every named file, or leave the destination as it was found.
-///
-/// A partial copy is cleaned up rather than left for the next start to trip
-/// over: a lone `tetra.db-wal` in the destination would make the *next*
-/// migration think the set had already arrived.
+/// Copy every named file, or leave the destination as it was found — a
+/// partial copy is cleaned up so the next migration doesn't think the set arrived.
 fn copy_group(from: &Path, to: &Path, names: &[&str]) -> bool {
     let mut written: Vec<PathBuf> = Vec::new();
     for name in names {
@@ -274,9 +213,7 @@ fn copy_group(from: &Path, to: &Path, names: &[&str]) -> bool {
 mod tests {
     use super::*;
 
-    /// A scratch directory unique to one test. No `tempfile` dependency in this
-    /// crate, and a migration test needs real directories — the code under test
-    /// is entirely file movement.
+    /// A scratch directory unique to one test (no `tempfile` dependency).
     fn scratch(tag: &str) -> PathBuf {
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

@@ -10,11 +10,8 @@ interface ServerInfoModalProps {
   onClose: () => void;
 }
 
-/**
- * M1 — the "More info" modal. Opened from the D2 row ⋯ menu. 430px dialog with
- * identity + badges, a 3-stat band, mod-readiness line, props and the
- * JOIN / Load actions. Focus is trapped; Escape, ✕ and backdrop click close.
- */
+// "More info" modal, opened from the row ⋯ menu. Focus trapped; Escape, ✕
+// and backdrop click close.
 export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
   const actions = useServerActions();
   const modPending = useServerStore((s) => s.modPending);
@@ -238,13 +235,8 @@ export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
                   <div
                     ref={loadMenuRef}
                     role="menu"
-                    // Opens upward (`bottom-full`), not down from the button
-                    // (`top-...`): this row is the last thing in the modal,
-                    // and the modal's own `overflow-hidden` (for its rounded
-                    // corners) clipped a downward-opening menu right at the
-                    // bottom edge. Same fix `mods-tab.tsx`'s action-bar
-                    // dropdowns already use for the identical bottom-row
-                    // shape.
+                    // Opens upward — the modal's overflow-hidden clips a
+                    // downward menu on this last-row position.
                     className="absolute bottom-full right-0 z-[6] mb-1 w-56 rounded-[7px] border border-line bg-surface2 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
                   >
                     <button

@@ -21,23 +21,10 @@ interface ServerListProps {
   onMoreInfo: (server: Server) => void;
 }
 
-/**
- * How often the distinct-maps dropdown is refetched.
- *
- * Previously refetched on every `loadVersion` bump — the same `GROUP BY
- * map_normalised` full-table scan riding along on every discovery-driven
- * reload, up to four times a second (H3, 2026-08-29 audit). The map set is
- * near-static after the first few seconds of a session, so a slow, decoupled
- * poll loses nothing a user would notice.
- */
+/** How often the distinct-maps dropdown is refetched — decoupled from the row-reload cadence. */
 const MAP_LIST_REFRESH_MS = 10_000;
 
-/**
- * L2 rich-row server list (was `server-table.tsx` — a resizable, columned,
- * virtualized table-grid; now card rows in a vertical list). Keeps the data
- * loading, sort/filter wiring and favourite handling; the sortable column
- * headers are gone (sorting lives in the filter bar's SORT dropdown).
- */
+// Rich-row server list: data loading, sort/filter wiring, favourite handling.
 export function ServerList({ view, onMoreInfo }: ServerListProps) {
   const servers = useServerStore((s) => s.servers);
   const setServers = useServerStore((s) => s.setServers);
@@ -56,21 +43,13 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
   const englishNames = useSettingsStore((s) => s.englishNamesFilter);
   const hasLoadedOnce = useServerStore((s) => s.hasLoadedOnce);
 
-  // Key of the row whose ⋯ menu is open. That row is lifted above its
-  // siblings: virtualized rows use `transform: translateY`, so each row is a
-  // stacking context and the menu's in-row z-index can never beat later rows.
+  // Row whose ⋯ menu is open — lifted above siblings since virtualized rows
+  // are each their own stacking context.
   const [menuOpenKey, setMenuOpenKey] = useState<string | null>(null);
 
-  // Results are applied only if this effect run is still the current one.
-  //
-  // Load-bearing since `get_server_list` became an async command. A synchronous
-  // Tauri command runs inline on the main thread and responds before the next
-  // one is dispatched, so replies could not overtake each other and the last
-  // request was always the last reply. Async commands are spawned onto the
-  // runtime and the query itself runs on a blocking pool, so a cheap request
-  // issued second can now finish first. Every dependency here is high-traffic:
-  // filter edits, sort clicks, and a `loadVersion` bump every 250ms while
-  // discovery streams.
+  // Results are applied only if this effect run is still the current one —
+  // async command replies can overtake each other under this much traffic
+  // (filter edits, sort clicks, loadVersion bumping every 250ms).
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -90,24 +69,17 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
           official: filter.official,
           modded: filter.modded,
           first_person: filter.first_person,
-          // Preferences rather than view state, so they come from Settings
-          // instead of the filter bar. ENGLISH ONLY joins them for the same
-          // reason even though its control lives in Settings: it is on by
-          // default, so its opt-out has to survive a restart.
+          // Preferences, not view state, so they come from Settings.
           hide_placeholder: hidePlaceholder,
           english_names: englishNames,
         };
         const sortParams: SortParams = {
           sort_key: sortKey,
           sort_dir: sortDir,
-          // Matches the backend's PROBE_WINDOW (src-tauri/src/commands/server.rs)
-          // so every server that could have a mod_count is actually shown. Safe
-          // to render at this size now that the list below is virtualised.
+          // Matches the backend's PROBE_WINDOW so every server with a
+          // mod_count is shown; safe now that the list is virtualised.
           limit: 5000,
         };
-        // Splash-70% diagnostic (progress.md): timelog every load so a log from
-        // an affected machine shows whether reloads ran, whether they returned
-        // rows, and how slow the query was.
         const t0 = performance.now();
         void logClient("servers", `load: start (loadVersion=${loadVersion})`, true);
         const rows = await getServerList(filterParams, sortParams);
@@ -125,9 +97,8 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
           console.error("Failed to load servers:", e);
         }
       } finally {
-        // Guarded too: a superseded run resolving late would otherwise clear the
-        // spinner while the current request is still in flight. `hasLoadedOnce`
-        // is guarded the same way.
+        // Guarded too: a superseded run resolving late shouldn't clear the
+        // spinner while the current request is still in flight.
         if (!cancelled) {
           setLoading(false);
           setHasLoadedOnce();
@@ -141,11 +112,8 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, sortKey, sortDir, loadVersion, hidePlaceholder, englishNames]);
 
-  // Distinct maps for the filter dropdown, on its own slow cadence —
-  // decoupled from `loadVersion` (H3, 2026-08-29 audit; see
-  // `MAP_LIST_REFRESH_MS`) so a discovery-storm of reloads doesn't also mean
-  // a `GROUP BY` over the whole table several times a second. Fetched once
-  // immediately so the dropdown isn't empty for the first `MAP_LIST_REFRESH_MS`.
+  // Distinct maps for the filter dropdown, decoupled from loadVersion so a
+  // discovery storm doesn't mean a GROUP BY several times a second.
   useEffect(() => {
     let cancelled = false;
     const fetchMaps = () => {
@@ -184,10 +152,7 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
   const rowVirtualizer = useVirtualizer({
     count: servers.length,
     getScrollElement: () => scrollRef.current,
-    // Row padding 8/12 + title line + meta line + the 6px flex gap between
-    // rows. Measured rather than hardcoded so a density/font change can't
-    // silently desync real row height from an assumed constant.
-    estimateSize: () => 48,
+    estimateSize: () => 48, // measured row height, not a guess
     gap: 6,
     overscan: 8,
   });
@@ -364,15 +329,8 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
   );
 }
 
-/**
- * Three distinct states, previously all collapsed into "—":
- *
- *  - a number      the server was asked and answered
- *  - "?"           it declares mods but hasn't been rules-probed yet
- *  - "—"           its keywords say vanilla
- *
- * Showing "—" for the middle case is what made modded servers look mod-free.
- */
+/** Mod count: a number once probed, "?" if declared but not yet rules-probed,
+    "—" only for actually vanilla — collapsing "?" into "—" hid modded servers. */
 function ModCount({ server }: { server: Server }) {
   if (server.mod_count !== null) {
     return (

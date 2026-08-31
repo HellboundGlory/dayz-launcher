@@ -46,8 +46,7 @@ impl Registry {
     fn start(uri: String) -> Result<Registry, RegistryError> {
         let conn = Self::connect(&uri)?;
         schema::migrate(&conn)?;
-        // Best-effort: a prune failure must not stop the registry from
-        // opening. See `schema::prune_stale` (M14, 2026-08-29 audit).
+        // Best-effort: a prune failure must not stop the registry from opening.
         let _ = schema::prune_stale(&conn);
 
         let (tx, rx) = mpsc::channel(64);

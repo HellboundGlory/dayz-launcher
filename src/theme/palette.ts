@@ -1,11 +1,6 @@
-/**
- * Theme palette math — ported verbatim from `mockups/final-integrated-board.html`
- * (the locked spec). Pure functions only: no React, no DOM, no store. This
- * module is the reference for the light-mode auto-derive (hue preserved from
- * `dark.accent`, accent lightness tuned to a 4.5:1 WCAG floor against the
- * derived light background) and must stay byte-for-byte faithful to the board's
- * behaviour — the hue-sweep contrast test in `palette.test.ts` locks it.
- */
+// Theme palette math: pure functions only, no React/DOM/store. Light-mode
+// colors are auto-derived from dark (hue preserved, 4.5:1 WCAG floor) —
+// locked by the hue-sweep contrast test in palette.test.ts.
 
 export type Token =
   | "bg"

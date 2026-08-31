@@ -1,38 +1,14 @@
-//! Remembering the window's size, position and maximised state.
-//!
-//! This replaces `tauri-plugin-window-state`, which was dropped for one
-//! reason: it writes `.window-state.json` to `app_config_dir()` and only the
-//! *filename* is configurable, not the directory. That single stray file was
-//! the one thing standing between the launcher and keeping all of its data in
-//! the directory [`crate::paths`] chooses. The geometry now lives in
-//! `settings.json` as the `window` key.
-//!
-//! ## Where this runs
-//!
-//! The plugin restored geometry *before* `setup`, which is why the window is
-//! configured `"visible": false` in `tauri.conf.json`. That contract is
-//! unchanged: [`restore`] is called from `setup` before the window is shown,
-//! so the saved size is applied to a window nobody has seen yet and there is
-//! still no flash at the default size. `fit_window_to_minimum` continues to
-//! run immediately afterwards, correcting a remembered window that is smaller
-//! than the current interface scale allows.
-//!
-//! ## Why geometry is cached in memory and written once
-//!
-//! [`capture`] runs on every `Moved` and `Resized` event and only touches a
-//! mutex — never the disk. The write happens once, at `RunEvent::Exit`.
-//! Querying the window at exit instead would not work: quitting from the tray
-//! quits while the window is hidden, and a hidden window's geometry is not
-//! something to save.
+//! Remembering the window's size, position and maximised state, replacing
+//! `tauri-plugin-window-state` so geometry lives in `settings.json` instead
+//! of a stray file. [`restore`] runs from `setup` before the window is
+//! shown; [`capture`] just updates an in-memory cache, written once at exit.
+//! See .ai-notes/src-tauri/src/window_state.rs.md for the full ordering rationale.
 
 use std::path::Path;
 use tauri::{Manager, PhysicalPosition, PhysicalSize, Window};
 
 /// The remembered geometry, stored under `window` in `settings.json`.
-///
-/// Physical pixels, matching what tao reports and what the retired plugin
-/// wrote — so a `.window-state.json` from an older install deserialises into
-/// this struct directly, extra keys and all.
+/// Physical pixels, matching what tao reports and the retired plugin wrote.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct WindowState {
@@ -44,17 +20,8 @@ pub struct WindowState {
 }
 
 /// Fold the current window geometry into `prev`, returning the value to cache.
-///
-/// The two guards are the ones that matter, and both are inherited from the
-/// plugin's behaviour rather than invented:
-///
-/// - **Minimised windows are ignored entirely.** tao reports a minimise as a
-///   resize to 0×0, and there is no `Minimized` event to filter on, so a naive
-///   capture would remember a zero-sized window and restore it next launch as
-///   a window that cannot be seen.
-/// - **A maximised window updates only the flag.** Its size and position are
-///   the screen's, not the user's; keeping the previous values is what makes
-///   un-maximising restore the window someone actually chose.
+/// Minimised windows are ignored (tao reports minimise as a 0x0 resize), and
+/// a maximised window only updates the flag, not size/position.
 pub fn capture(window: &Window, prev: Option<WindowState>) -> Option<WindowState> {
     let maximized = window.is_maximized().ok()?;
     if window.is_minimized().ok()? {
@@ -64,9 +31,8 @@ pub fn capture(window: &Window, prev: Option<WindowState>) -> Option<WindowState
     let mut next = prev.unwrap_or_default();
     next.maximized = maximized;
 
-    // Nothing worth reading off a maximised window — but a first run that
-    // starts maximised has no previous geometry either, and a stored 0×0 would
-    // restore as an invisible window. Seed it from the window in that one case.
+    // Seed from the window on first run even if maximised, so a stored 0x0
+    // doesn't restore as invisible.
     if !maximized || prev.is_none() {
         if let Ok(size) = window.inner_size() {
             if size.width > 0 && size.height > 0 {
@@ -83,19 +49,9 @@ pub fn capture(window: &Window, prev: Option<WindowState>) -> Option<WindowState
     Some(next)
 }
 
-/// Apply remembered geometry to a window that has not been shown yet.
-///
-/// Failures are logged and swallowed throughout. A window that opens at its
-/// default size is a cosmetic disappointment; refusing to start is not.
-///
-/// **Size and position only — maximising is [`restore_maximized`], called
-/// later.** The two cannot happen together. `apply_ui_scale` runs between them
-/// and calls `set_min_size`, which tao implements as a `SetWindowPos`; on a
-/// maximised window that silently drops it out of the maximised state, as that
-/// function's own documentation warns. Maximising here meant the window came
-/// back the right *size* with `maximized` false, so the next exit recorded the
-/// screen dimensions as if the user had chosen them, and un-maximising restored
-/// a full-screen-sized window. The split is what keeps the flag honest.
+/// Apply remembered size/position to a window not yet shown. Maximising is
+/// separate — [`restore_maximized`], called after `apply_ui_scale`'s
+/// `set_min_size` (which would otherwise un-maximise here).
 pub fn restore(window: &Window, state: WindowState) {
     if state.width > 0 && state.height > 0 {
         let size = PhysicalSize::new(state.width, state.height);
@@ -103,11 +59,8 @@ pub fn restore(window: &Window, state: WindowState) {
             eprintln!("[window] Could not restore the window size: {e}");
         }
 
-        // **Only if the window would land on a monitor that still exists.**
-        // Saved coordinates outlive the display they were saved on: undock a
-        // laptop, unplug the second screen, or change the arrangement, and a
-        // faithful restore puts the window somewhere nothing can reach it.
-        // Letting the OS place it is the better failure.
+        // Only restore position if it still lands on a connected monitor —
+        // saved coordinates can outlive the display they were saved on.
         let position = PhysicalPosition::new(state.x, state.y);
         if on_a_connected_monitor(window, position, size) {
             if let Err(e) = window.set_position(position) {
@@ -124,11 +77,7 @@ pub fn restore(window: &Window, state: WindowState) {
 }
 
 /// Maximise a window whose size and position have already been restored.
-///
-/// Separate from [`restore`], and called after `apply_ui_scale` and
-/// `fit_window_to_minimum` — see that function for why the order is
-/// load-bearing. `fit_window_to_minimum` also returns early on a maximised
-/// window, so it has to see the restored size before this runs, not after.
+/// Called after `apply_ui_scale` and `fit_window_to_minimum` — order matters, see [`restore`].
 pub fn restore_maximized(window: &Window) {
     if let Err(e) = window.maximize() {
         eprintln!("[window] Could not restore the maximised state: {e}");
@@ -143,8 +92,6 @@ fn on_a_connected_monitor(
     size: PhysicalSize<u32>,
 ) -> bool {
     let Ok(monitors) = window.available_monitors() else {
-        // No monitor list is not evidence the position is bad. Honour it and
-        // let the OS clamp, which is what happens without this check at all.
         return true;
     };
     let corners = [
@@ -168,19 +115,13 @@ fn on_a_connected_monitor(
     })
 }
 
-/// Read geometry out of a `.window-state.json` left by the retired plugin, and
-/// delete it.
-///
-/// Called once, from `settings::load_at_startup`, and only when `settings.json`
-/// has no `window` key of its own — so an upgrade keeps the window where the
-/// user left it instead of resetting to the configured default. Deleting the
-/// file is what stops this running again and what finally leaves one directory
-/// with nothing stray in it.
+/// Read geometry out of a `.window-state.json` left by the retired plugin,
+/// and delete it. Called once from `settings::load_at_startup`, only when
+/// `settings.json` has no `window` key yet.
 pub fn adopt_legacy(dir: &Path) -> Option<WindowState> {
     let path = dir.join(crate::paths::LEGACY_WINDOW_STATE);
     let raw = std::fs::read_to_string(&path).ok()?;
-    // `{ "main": { ... } }` — keyed by window label. Anything else is ignored
-    // and the file still goes, since nothing will ever read it again.
+    // Keyed by window label; only "main" is used.
     let parsed = serde_json::from_str::<std::collections::HashMap<String, WindowState>>(&raw);
     let adopted = parsed.ok().and_then(|windows| windows.get("main").copied());
 

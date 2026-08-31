@@ -1,20 +1,12 @@
 use std::path::PathBuf;
 
-/// Paths discovered from Steam.
-///
-/// On Windows these come from the registry (`HKLM\...\Valve\Steam`); on Linux
-/// they come from Steam's own files under `~/.local/share/Steam`, mainly the
-/// `steamapps/libraryfolders.vdf` manifest. The two backends live in `imp`.
+/// Paths discovered from Steam — Windows registry, Linux `libraryfolders.vdf`.
 pub struct SteamPaths {
     pub steam_install: PathBuf,
     pub dayz_install: PathBuf,
     pub workshop_dir: PathBuf,
 }
 
-/// Query the Windows registry for Steam installation paths.
-///
-/// Looks in `HKLM\SOFTWARE\WOW6432Node\Valve\Steam` for the Steam
-/// install directory, then derives the DayZ and workshop paths from it.
 #[cfg(windows)]
 mod imp {
     use super::*;
@@ -29,14 +21,8 @@ mod imp {
         let steam_install: String = steam_key.get_value("InstallPath").ok()?;
         let steam_install = PathBuf::from(steam_install);
 
-        // The library that actually holds DayZ — not necessarily
-        // `steam_install` itself, since DayZ can live on a second drive.
-        // Workshop content for an app lives in the *same* library as the app
-        // (M10, 2026-08-29 audit): `workshop_dir` used to be computed
-        // unconditionally under `steam_install`, so an install on a
-        // secondary library reported a workshop path that doesn't exist —
-        // the Linux implementation already searches every library for this
-        // reason; only Windows had the gap.
+        // The library that actually holds DayZ, not necessarily `steam_install`
+        // itself — workshop content lives in the same library as the app.
         let dayz_library = find_dayz_library(&steam_install)?;
         let dayz_install = dayz_library.join("steamapps").join("common").join("DayZ");
         let workshop_dir = dayz_library
@@ -71,13 +57,8 @@ mod imp {
         })
     }
 
-    /// The Steam library *root* that contains DayZ — either the main Steam
-    /// install or one declared in `libraryfolders.vdf`.
-    ///
-    /// Returns the root itself, not `<root>/steamapps/common/DayZ` — that's
-    /// what lets `find_steam_paths` derive `workshop_dir` from the same
-    /// library `dayz_install` came from, instead of assuming it's always
-    /// under `steam_dir`.
+    /// The Steam library *root* containing DayZ (not the DayZ path itself),
+    /// so `find_steam_paths` can derive `workshop_dir` from the same library.
     fn find_dayz_library(steam_dir: &std::path::Path) -> Option<PathBuf> {
         // Default Steam library location
         let default_dayz = steam_dir.join("steamapps").join("common").join("DayZ");
@@ -107,12 +88,8 @@ mod imp {
     }
 }
 
-/// Discover Steam/DaYZ/Workshop paths on Linux (native Steam).
-///
-/// Native Steam keeps its files under `$XDG_DATA_HOME/Steam` (default
-/// `~/.local/share/Steam`). DayZ and workshop content can live in the root
-/// library or any library listed in `steamapps/libraryfolders.vdf`; all of them
-/// are candidates.
+/// Discover Steam/DayZ/Workshop paths on Linux (native Steam, under
+/// `$XDG_DATA_HOME/Steam`).
 #[cfg(target_os = "linux")]
 mod imp {
     use super::*;

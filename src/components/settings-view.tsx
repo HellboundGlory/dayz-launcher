@@ -42,12 +42,7 @@ const INPUT_CLASS =
 const BUTTON_CLASS =
   "flex shrink-0 items-center gap-1.5 rounded-[6px] border border-line bg-surface2 px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted2 transition-colors duration-150 hover:text-ink disabled:opacity-50";
 
-/**
- * Settings — full-page overlay (A1). The rail stays interactive: the overlay
- * starts at `var(--side-w)` (the sidebar's live width, set by App) and covers
- * the rest. Four accordions, one open at a time; every field the old modal
- * had survives here.
- */
+// Full-page overlay; the sidebar stays interactive. Four accordions, one open at a time.
 export function SettingsView({ onClose }: { onClose: () => void }) {
   const profileName = useSettingsStore((s) => s.profileName);
   const dayzPath = useSettingsStore((s) => s.dayzPath);
@@ -193,16 +188,8 @@ export function SettingsView({ onClose }: { onClose: () => void }) {
             label="Custom Launch Parameters"
             hint="Passed to DayZ ahead of the mod list. One per line — e.g. -noPause and -profiles=C:\My Documents\DayZ each on their own line."
           >
-            {/*
-              One parameter per line, not space-joined (M6, 2026-08-29
-              audit). The old single-line input rendered `launchParams.join("
-              ")` and wrote back `value.split(/\s+/)` on every keystroke —
-              any parameter containing a space (a Windows `-profiles=` path
-              is the common one) was silently shredded into fragments the
-              moment the box was touched, with no way to enter one in the
-              first place. A line is unambiguous without a shell-quoting
-              parser.
-            */}
+            {/* One parameter per line, not space-joined — unambiguous
+                without a shell-quoting parser (a path can contain spaces). */}
             <textarea
               value={launchParams.join("\n")}
               onChange={(e) =>

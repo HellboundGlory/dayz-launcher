@@ -32,76 +32,29 @@ import {
   logClient,
 } from "./lib/tauri";
 import { listen, emit } from "@tauri-apps/api/event";
-// Static, not dynamic `import(...)` per call site (L9, 2026-08-29 audit):
-// `window-resize-handles.tsx` already imports `@tauri-apps/api/window`
-// statically, so Vite puts it in the main chunk regardless — a dynamic
-// import here bought nothing but an extra promise on every call.
+// Static import: window-resize-handles already pulls this in statically anyway.
 import { getCurrentWindow, getAllWindows } from "@tauri-apps/api/window";
 
-/**
- * Trailing window for coalescing backend progress events into one reload,
- * outside of a discovery pass (a `server-refreshed`/`registry-ready` reload,
- * or the visibility safety net).
- */
+/** Debounce window for coalescing backend refresh events into one reload. */
 const RELOAD_THROTTLE_MS = 250;
 
-/**
- * Trailing window used instead of {@link RELOAD_THROTTLE_MS} while discovery
- * is streaming (H3, 2026-08-29 audit).
- *
- * `discovery-progress` fires on every backend stream flush (~200ms), so the
- * 250ms throttle above still meant a `get_server_list` (up to 5,000 rows) and
- * a `get_map_list` full-table scan roughly four times a second for the tens
- * of seconds discovery runs — the most plausible mechanism behind "the app
- * feels locked up while discovering". 1.5s cuts that by ~85% while discovery
- * is the thing driving reloads; a user-triggered reload (filter/sort change,
- * a manual REFRESH) still applies immediately, since those don't go through
- * `scheduleReload` at all.
- */
+// Longer throttle while discovery is streaming — discovery-progress fires
+// several times a second and each reload re-queries the whole table.
 const DISCOVERY_RELOAD_THROTTLE_MS = 1500;
 
-/**
- * How long to wait before re-checking whether Steam has appeared.
- *
- * Only runs for failures that can resolve on their own (`autoRetry`), so this
- * is the interval between "is Steam up yet?" checks while the user goes and
- * starts it — not a retry loop against a permanent failure.
- */
+/** Interval between Steam-availability rechecks while it's down. */
 const STEAM_RETRY_MS = 4000;
 
-/**
- * How often to check the live Steam connection once it's up.
- *
- * `steamConnected` was previously one-shot — set at startup and never
- * rechecked, so a backend connection lost later (Steam still running, our
- * process still running, but the session between them gone) left the title
- * bar claiming "Steam connected" indefinitely. The check itself is a local
- * atomic read on the backend, not a round trip to Steam, so polling this
- * often costs nothing.
- */
+/** Poll interval for detecting a lost Steam connection (cheap local check). */
 const CONNECTION_POLL_MS = 3000;
 
-/**
- * How often to recheck for a new release once the app is running.
- *
- * Unlike the Steam connection, there's no urgency here — a few hours' delay
- * before noticing a new release costs nothing, so this is picked to be
- * unobtrusive rather than fast.
- */
+/** No urgency on release checks, so this stays infrequent. */
 const UPDATE_RECHECK_MS = 6 * 60 * 60 * 1000;
 
-/**
- * How long the splash lingers on "Ready — 100%" before the launcher is
- * revealed and the splash window is closed, so the completion reads as a step
- * rather than a snap.
- */
+/** Let "Ready — 100%" show briefly before revealing the launcher. */
 const SPLASH_READY_MS = 400;
 
-/**
- * Fail-safe ceiling for the splash. A pathological backend must never be able
- * to leave the launcher hidden behind a static splash, so it always reveals
- * and closes eventually, even if `startupReady` never becomes true on its own.
- */
+/** Hard ceiling so a stuck backend can never leave the splash up forever. */
 const SPLASH_FAILSAFE_MS = 120_000;
 
 export function App() {
@@ -116,8 +69,7 @@ export function App() {
   const mapsLoaded = useServerStore((s) => s.mapsLoaded);
   const hasLoadedOnce = useServerStore((s) => s.hasLoadedOnce);
 
-  // The tabs were previously display-only — switching them changed the
-  // highlight but not the query. Each one is just a filter preset.
+  // Each tab is a filter preset, not just a highlight toggle.
   const handleViewChange = useCallback(
     (view: ViewId) => {
       setActiveView(view);
@@ -136,12 +88,7 @@ export function App() {
   const steamAttempts = useRef<{ kind: SteamInitFailure; count: number } | null>(null);
   const [autoRetryExhausted, setAutoRetryExhausted] = useState(false);
   const [discovering, setDiscovering] = useState(false);
-  /**
-   * Mirrors `discovering` for `scheduleReload` to read without becoming a
-   * dependency of it — the callback's identity has to stay stable across a
-   * discovery starting/stopping, since it's what `discovery-progress`'s
-   * listener effect (mounted once) closes over.
-   */
+  // Lets scheduleReload read `discovering` without depending on it.
   const discoveringRef = useRef(false);
   useEffect(() => {
     discoveringRef.current = discovering;
@@ -155,42 +102,26 @@ export function App() {
   const [refreshing, setRefreshing] = useState(false);
   const autoRefreshSecs = useSettingsStore((s) => s.autoRefreshIntervalSecs);
   const settingsLoaded = useSettingsStore((s) => s.loaded);
-  /** Guards `handleRefresh` against overlapping runs — the manual button and
-      the auto-refresh timer both go through it, and `refreshing` state alone
-      isn't enough: the timer calls `handleRefresh` directly, bypassing the
-      button's `disabled` prop. */
+  // Guards handleRefresh against overlapping manual/auto-refresh runs.
   const refreshInFlight = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [counts, setCounts] = useState({ total: 0, populated: 0 });
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [updateOpen, setUpdateOpen] = useState(false);
-  /**
-   * The startup "update available" banner. `true` once dismissed for the
-   * session — the badge stays as the persistent entry point, and the banner
-   * returns next launch while an update is still pending.
-   */
+  // Dismissed for this session only; returns next launch if still pending.
   const [updateBannerDismissed, setUpdateBannerDismissed] = useState(false);
   /** Registry fell back to in-memory: nothing the user saves will survive. */
   const [storageDegraded, setStorageDegraded] = useState(false);
 
-  // Checked once. The flag is decided during backend setup and never changes.
   useEffect(() => {
     registryDegraded()
       .then(setStorageDegraded)
       .catch(() => {});
   }, []);
 
-  /**
-   * Coalesce reload requests.
-   *
-   * The backend emits `server-refreshed` as it works, and every one of those
-   * used to trigger `triggerReload()` -> a fresh `get_server_list` invoke plus
-   * a full re-render of every row. Over a refresh that is hundreds of round
-   * trips against an unvirtualised table, which is a large part of why the app
-   * feels locked up while discovering. Collapsing them onto a trailing timer
-   * keeps the list live without re-querying per server.
-   */
+  // Coalesces backend refresh events into one throttled reload instead of
+  // re-querying on every single one.
   const reloadTimer = useRef<number | null>(null);
   /** Last "found" count logged from `discovery-progress`, to keep the log thin. */
   const discoveryLogFloor = useRef(0);
@@ -213,14 +144,11 @@ export function App() {
     [],
   );
 
-  // Read persisted settings before anything reads them. The store refuses to
-  // save until this has landed, so the defaults it starts with can't overwrite
-  // the user's file.
+  // Load persisted settings before anything can overwrite them.
   const loadSettings = useSettingsStore((s) => s.load);
   const flushSettings = useSettingsStore((s) => s.flush);
 
-  // Independent of Steam entirely — a release check is just a request to
-  // GitHub, so it runs regardless of whether Steam ever connects.
+  // Independent of Steam — just a GitHub request.
   const resolveInstalled = useUpdateStore((s) => s.resolveInstalled);
   const checkForUpdates = useUpdateStore((s) => s.checkNow);
   const updateAvailable = useUpdateStore((s) => s.available);
@@ -237,9 +165,7 @@ export function App() {
     void loadSettings();
   }, [loadSettings]);
 
-  // App-level, not in the details panel: the panel unmounts when nothing is
-  // selected, and "is DayZ running" has to stay true across that. See
-  // `watchDayz`.
+  // App-level so "is DayZ running" survives the details panel unmounting.
   useEffect(() => watchDayz(), []);
 
   // A pending debounced write would otherwise be lost when the window closes.
@@ -255,21 +181,10 @@ export function App() {
     };
   }, [flushSettings]);
 
-  /**
-   * First full population of the list. Only runs once Steam is connected.
-   *
-   * Deliberately does *not* follow discovery with a bulk A2S refresh. Steam's
-   * server-list response already carries name/map/players/ping/locked/tags —
-   * enough to paint the table immediately — and running an up-to-5000-server
-   * probe pass here used to tie up the network and the registry's single
-   * writer thread right when the table first appears, which made the REFRESH
-   * button (now a small, targeted probe of whatever's on screen) feel stuck
-   * for however long that pass took. Mod counts and live pings arrive the
-   * moment the user hits REFRESH instead.
-   */
+  // First population after Steam connects. Skips the bulk A2S probe so the
+  // table paints immediately from Steam's own data; mod counts and live
+  // pings arrive once the user hits REFRESH.
   const runInitialLoad = useCallback(async () => {
-    // Splash-70% diagnostics (progress.md): timelog the whole startup chain so
-    // a log from an affected machine shows where it stalls.
     void logClient("startup", "runInitialLoad: start");
     setDiscoveryStarted(true);
     setDiscovering(true);
@@ -287,25 +202,14 @@ export function App() {
     setRefreshedAt(new Date().toLocaleTimeString());
   }, [triggerReload]);
 
-  /**
-   * Attempt the Steam connection, and start loading if it works.
-   *
-   * Extracted from the mount effect so the startup prompt's Retry button and
-   * the automatic re-check run exactly the same path as the first attempt —
-   * a retry that succeeds has to kick off discovery too, which the old
-   * mount-only version had no way to do.
-   */
+  // Extracted from the mount effect so Retry and the automatic recheck run
+  // the same path as the first attempt.
   const connectSteam = useCallback(
     async (manual = false) => {
-      // Clicking Retry the instant the automatic re-check fires would otherwise
-      // run two `SteamHandle::start` calls against each other. The backend
-      // survives that (the loser is shut down), but there is no reason to make
-      // it happen. A ref rather than the `connecting` state: this has to be
-      // accurate at call time, not at the last render.
+      // Ref rather than state: needs to be accurate at call time, not last render.
       if (connectInFlight.current) return;
       connectInFlight.current = true;
-      // An explicit Retry is the user asking for a fresh go, so it restores the
-      // full automatic budget rather than spending the last of it.
+      // Manual retry resets the auto-retry budget.
       if (manual) {
         steamAttempts.current = null;
         setAutoRetryExhausted(false);
@@ -320,8 +224,8 @@ export function App() {
         triggerReload();
         void runInitialLoad();
       } catch (e) {
-        // A fresh object per attempt, so the retry effect below re-arms its
-        // timer even when the failure is identical.
+        // Fresh object per attempt, so the retry effect re-arms even on an
+        // identical failure.
         const failure = asSteamInitError(e);
         const prior = steamAttempts.current;
         const count = prior?.kind === failure.kind ? prior.count + 1 : 1;
@@ -347,10 +251,7 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Re-check on a timer while Steam is absent or still starting, so the prompt
-  // clears itself once the user has Steam up. Kinds that cannot resolve by
-  // waiting (out-of-date client, internal failure) never arm this, and the ones
-  // that can are still bounded — see `InitFailure::auto_retry_limit`.
+  // Re-check on a timer while Steam is down, bounded by autoRetryLimit.
   useEffect(() => {
     if (steamConnected || !steamError?.autoRetry || autoRetryExhausted) return;
     const timer = window.setTimeout(() => {
@@ -359,11 +260,7 @@ export function App() {
     return () => clearTimeout(timer);
   }, [steamConnected, steamError, autoRetryExhausted, connectSteam]);
 
-  // Live-monitor the connection once it's up. Stops itself the moment it
-  // detects a drop — there is nothing to recover from in place, since
-  // `steam_init` short-circuits once `ready` is set (see `SteamInitFailure`'s
-  // `disconnected` kind), so re-polling a dead session would just report
-  // success from it.
+  // Live-monitor the connection once it's up; stops on the first drop.
   useEffect(() => {
     if (!steamConnected) return;
     let cancelled = false;
@@ -385,16 +282,8 @@ export function App() {
     };
   }, [steamConnected]);
 
-  /**
-   * Splash-70% fix (progress.md): the backend now emits this once, the
-   * instant its registry finishes opening. Startup's own queries fire the
-   * moment this window loads and can race ahead of that — every one of the
-   * three fixed attempts in `runInitialLoad`/`connectSteam` can fail with
-   * "Registry not initialized" before the backend catches up, and until now
-   * nothing retried after those three were spent, so a slow-to-open registry
-   * left the splash stuck at 70% forever. This is the retry: one more reload,
-   * fired exactly once, whenever the backend says it's actually ready.
-   */
+  // One-shot retry once the backend confirms its registry is actually open —
+  // startup's own queries can otherwise race ahead of it.
   const registryReadyHandled = useRef(false);
   useEffect(() => {
     const unlistenRegistryReady = listen<{ degraded: boolean }>("registry-ready", (event) => {
@@ -464,12 +353,8 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // A `dzsa://connect/...` link, from the OS protocol handler (see
-  // `src-tauri/src/protocol.rs`) — either this process's own cold-start argv,
-  // or a second launch's argv the single-instance plugin forwarded here.
-  // Selects (and optionally favourites) the named server; deliberately never
-  // auto-launches DayZ — joining still needs the user to press the button
-  // themselves, so a webpage can't spawn the game unattended.
+  // dzsa://connect/... link from the OS protocol handler (src-tauri/src/protocol.rs).
+  // Selects the server but never auto-launches — joining still needs the button.
   useEffect(() => {
     const unlistenConnect = listen<{ ip: string; queryPort: number; favourite: boolean }>(
       "dzsa-connect",
@@ -479,9 +364,7 @@ export function App() {
         void getServer(`${ip}:${queryPort}`, queryPort)
           .then((server) => {
             if (!server) {
-              // Not an error — the registry just hasn't discovered this
-              // server yet — but silently doing nothing here used to be
-              // indistinguishable from the link not working at all.
+              // Not an error — registry just hasn't discovered this server yet.
               setError(
                 `${ip}:${queryPort} isn't in your server list yet — press DISCOVER, then try the link again.`,
               );
@@ -507,20 +390,11 @@ export function App() {
     };
   }, []);
 
-  /**
-   * Re-probe every server in the current filtered list. The backend A2S probe
-   * (`refresh_visible_servers`) takes explicit addresses and marks a miss as
-   * OFFLINE, so passing the whole loaded list is the "refresh everything I can
-   * see" action — distinct from DISCOVER, which pulls new servers in.
-   */
+  // Re-probes every server in the current filtered list (distinct from
+  // DISCOVER, which pulls new servers in).
   const handleRefresh = useCallback(async () => {
     if (!steamConnected) return;
-    // A manual click and the auto-refresh timer can both reach this function;
-    // without this guard a slow refresh (a big list, or a bad network) could
-    // still be running when the other trigger fires, and whichever finished
-    // first would flip `refreshing` back off while the other pass kept going
-    // in the background — the button/indicator would then lie about whether a
-    // refresh was actually in flight.
+    // Guards against overlapping manual/auto-refresh runs.
     if (refreshInFlight.current) return;
     // An A2S refresh opens thousands of UDP sockets; don't run it against a
     // download the user is waiting on.
@@ -531,9 +405,6 @@ export function App() {
     const { servers } = useServerStore.getState();
     if (servers.length === 0) return;
     // The whole list, not just the rows currently mounted by the virtualizer.
-    // Probing only the on-screen range made the button look broken — it
-    // re-probed whatever was rendered (up to a page) and left the rest with
-    // stale "?" mod counts, so a refetch "did nothing" for most rows.
     const targets = servers.map((s) => ({ addr: s.addr, query_port: s.query_port }));
 
     refreshInFlight.current = true;
@@ -551,54 +422,28 @@ export function App() {
     }
   }, [steamConnected, triggerReload]);
 
-  // Auto-refresh on a timer.
-  //
-  // `autoRefreshIntervalSecs` has been persisted since the first release with
-  // nothing whatsoever reading it — the setting existed, defaulted to 60, and
-  // never refreshed anything. This is the loop behind it.
-  //
-  // It reuses `handleRefresh` rather than calling the backend directly, so the
-  // automatic path inherits every guard the button has: Steam connected, no
-  // download in flight, and only the rows actually on screen.
+  // Auto-refresh on a timer; reuses handleRefresh so it inherits the same guards.
   useEffect(() => {
     if (!settingsLoaded || autoRefreshSecs <= 0 || !steamConnected) return;
     const id = window.setInterval(() => {
       // Nothing worth re-querying while hidden in the tray.
       if (document.hidden) return;
-      // `handleRefresh` itself guards against overlapping runs (manual click
-      // or a previous tick still in flight), so no separate check is needed
-      // here.
       void handleRefresh();
     }, autoRefreshSecs * 1000);
     return () => clearInterval(id);
   }, [settingsLoaded, autoRefreshSecs, steamConnected, handleRefresh]);
 
   // ── Startup splash (separate window) ────────────────────────────
-  // `main` stays hidden while the 860×484 splash window carries the load. We
-  // publish real progress to it, and once startup is ready (or Steam fails and
-  // the required-modal must take over) we reveal the launcher and close the
-  // splash. `startupReady`'s last clause lets a genuine empty result still
-  // dismiss once discovery has finished, rather than waiting on rows that will
-  // never come.
+  // `main` stays hidden until startup is ready or Steam fails; the last
+  // clause lets a genuinely empty result dismiss once discovery finishes.
   const startupReady =
     steamConnected &&
     mapsLoaded &&
     hasLoadedOnce &&
     (serverCount > 0 || (discoveryStarted && !discovering));
 
-  // Failures are logged rather than swallowed. `show`/`setFocus` are IPC calls
-  // gated by the window's capability, and a missing permission rejects the
-  // promise instead of throwing anywhere visible — a bare `void` turned "the
-  // launcher is not allowed to reveal itself" into "the splash closes and
-  // nothing happens", with nothing in the console to say why.
-  //
-  // **One-shot by design.** This exists to dismiss the startup splash and raise
-  // `main` exactly once. It must never run again mid-session: it calls
-  // `self.show()` + `setFocus()`, and a second invocation after the launcher
-  // has gone to the tray would rip it back over the game. That used to happen
-  // when a mid-session Steam-connection blip set `steamError`/flipped
-  // `startupReady`, re-arming the reveal effect below — so `revealDone` makes
-  // only the first call past the gate, and a later re-fire is a no-op.
+  // Reveals main and closes the splash exactly once — a second call would
+  // rip focus back from the game, so `revealDone` gates any re-fire.
   const revealDone = useRef(false);
   const revealLauncherWhenReady = useCallback(() => {
     if (revealDone.current) return;
@@ -611,8 +456,7 @@ export function App() {
       } catch (e) {
         console.error("Could not reveal the launcher window:", e);
       }
-      // Only after `main` is up. Closing the splash first would leave the
-      // desktop bare for a frame if showing turns out to be slow.
+      // Close splash only after main is shown, to avoid a bare-desktop frame.
       try {
         const windows = await getAllWindows();
         await windows.find((w) => w.label === "splash")?.close();
@@ -622,28 +466,17 @@ export function App() {
     })();
   }, []);
 
-  // Give the "Ready — 100%" beat its moment, then reveal the launcher and
-  // close the splash. A Steam failure also reveals: the Steam-required modal
-  // has to be actionable even though startup never completed.
+  // Let "Ready" show briefly, then reveal. A Steam failure also reveals so
+  // the required-modal is actionable.
   useEffect(() => {
     if (!(startupReady || steamError)) return;
     const t = window.setTimeout(revealLauncherWhenReady, SPLASH_READY_MS);
     return () => clearTimeout(t);
   }, [startupReady, steamError, revealLauncherWhenReady]);
 
-  /**
-   * Splash-70% safety net (fix direction B, see progress.md).
-   *
-   * The `main` window stays hidden through startup, and on some Windows
-   * machines WebView2 stalls the timer-driven reload chain while a window is
-   * not visible — so the list never fills and the splash waits at
-   * "Propagating server list…" forever. The first time this window actually
-   * becomes visible (e.g. a tray-icon reveal, exactly what the manual
-   * workaround did) we force the same reload the tab-click used to.
-   *
-   * Scoped to `revealDone`: once the normal reveal has happened the window
-   * turning visible again (alt-tab back from DayZ) must not reload.
-   */
+  // Safety net: some Windows/WebView2 setups stall reloads while the window
+  // is hidden, so force one the first time it becomes visible. Scoped to
+  // `revealDone` so alt-tabbing back from DayZ doesn't retrigger it.
   useEffect(() => {
     const onVisibility = () => {
       if (document.visibilityState !== "visible") return;
@@ -662,11 +495,7 @@ export function App() {
     return () => clearTimeout(t);
   }, [revealLauncherWhenReady]);
 
-  // Status / % milestones, in the order startup passes through them. The
-  // percentages are cumulative markers along that journey, not live progress —
-  // on a warm registry the splash flashes through 15→45→100 in well under a
-  // second, which is exactly why it "only lingers when it actually takes a
-  // while".
+  // Status/% milestones in startup order; percentages are markers, not live progress.
   const splash: SplashScreenProps = (() => {
     if (!steamConnected) {
       return { status: "Connecting to Steam…", pct: 15 };
@@ -690,14 +519,10 @@ export function App() {
     return { status: "Ready", pct: 100 };
   })();
 
-  // Publish the current milestone to the splash window as it changes. Emitted
-  // app-wide, so the separate `splash` window's `listen` picks it up. The ref
-  // is kept in step here so the replay below always has the live milestone.
+  // Publish the current milestone to the splash window as it changes.
   const latestSplash = useRef(splash);
   useEffect(() => {
     latestSplash.current = splash;
-    // Splash-70% diagnostic: every milestone transition is timelogged with the
-    // server-store count, so a stuck { pct: 70 } is visible in the log.
     void logClient(
       "splash",
       `milestone ${splash.pct}% "${splash.status}" servers=${serverCount}`,
@@ -710,14 +535,8 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [splash.status, splash.detail, splash.pct]);
 
-  // Replay the current milestone when the splash announces itself.
-  //
-  // Each milestone is emitted exactly once, as it is reached, so anything that
-  // happens before the splash window finishes registering its listener is gone
-  // for good — and registering it is an async IPC round trip that races this
-  // window's startup. On a warm registry startup can pass 15→45→100 before the
-  // splash is listening, which is precisely how it ends up reading
-  // "Starting… 0%" for the entire load.
+  // Replay the current milestone when the splash announces itself — it may
+  // miss early events while still registering its listener.
   useEffect(() => {
     const pending = listen("splash-ready", () => {
       void emit("splash-progress", {
@@ -752,9 +571,7 @@ export function App() {
         <div className="flex min-w-0 flex-1 flex-col">
           <WindowControls />
 
-          {/* Prominent startup alert for a pending update: not a dot to hunt
-              for, a bar at the very top. Opens the same update dialog as the
-              badge; "Later" dismisses for this session only. */}
+          {/* "Later" dismisses for this session only. */}
       {updateAvailable && !updateBannerDismissed && (
             <div className="flex items-center gap-3 border-b border-accent-line bg-accent-soft px-3 py-1.5">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-accent">
@@ -782,17 +599,13 @@ export function App() {
           )}
 
           {activeView === "mods" ? (
-            /* The Mods tab is a full-width view, not a server filter: it
-               replaces the whole server-browser stack (filter bar, status
-               line, list) while it is active. */
+            /* Mods tab replaces the whole server-browser stack while active. */
         <ModsTab />
       ) : (
         <>
           <FilterBar onRefresh={handleRefresh} refreshing={refreshing} />
 
-              {/* Not dismissible: it stays true for the whole session, and
-                  silently losing favourites is exactly what this exists to
-                  prevent. */}
+              {/* Not dismissible — favourites/recent are not being saved. */}
           {storageDegraded && (
                 <div className="flex items-center gap-2 border-b border-warn bg-warn-soft px-3 py-1.5">
                   <span className="text-[10px] font-semibold uppercase text-warn">STORAGE</span>
@@ -854,8 +667,7 @@ export function App() {
 
       {infoServer && <ServerInfoModal server={infoServer} onClose={() => setInfoServer(null)} />}
 
-      {/* Blocking: nothing in the launcher works without Steam, and the mod
-          panel reads a missing Steam connection as "no mods needed". */}
+      {/* Blocking: nothing works without Steam. */}
       {!steamConnected && steamError && (
         <SteamRequiredModal
           error={steamError}

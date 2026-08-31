@@ -15,12 +15,8 @@ impl Default for ServerKey {
     }
 }
 
-/// A server as a writer sees it.
-///
-/// Note what is absent: `map_normalised`, `in_game_time`, and the four tag
-/// booleans. Those are derived by the writer from `map` and `keywords`. A
-/// caller cannot supply an inconsistent normalisation because a caller cannot
-/// supply one at all.
+/// A server as a writer sees it. `map_normalised`, `in_game_time`, and the
+/// tag booleans are absent — the writer derives them from `map`/`keywords`.
 #[derive(Debug, Clone, Default)]
 pub struct ServerRow {
     pub key: ServerKey,

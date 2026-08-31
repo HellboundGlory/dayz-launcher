@@ -2,39 +2,18 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
 /// What the launcher does with itself once DayZ is starting.
-///
-/// A dedicated enum rather than a bare string, so the three cases are exhaustive
-/// at every call site instead of a `_ => {}` arm swallowing typos.
-///
-/// Note this does *not* isolate a bad value: an unrecognised variant fails the
-/// whole `AppSettings` parse, and `read_from_disk` then falls back to every
-/// default rather than just this field. That is how any malformed settings file
-/// already behaved, but it is not per-field recovery.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum OnJoin {
-    /// Leave the window exactly as it is. What the launcher has always done.
     #[default]
     Stay,
-    /// Hide to the tray. Independent of `close_to_tray`: the tray exists either
-    /// way, and wanting the launcher out of the way during a session is a
-    /// different question from what the close button does.
+    /// Hide to the tray, independent of `close_to_tray`.
     Tray,
-    /// Quit the launcher outright.
     Close,
 }
 
-/// Retired. Read once to migrate, never written.
-///
-/// A short-lived attempt to express close behaviour as one dropdown. It was the
-/// wrong shape: tray-versus-taskbar is a property of *each* window button, not a
-/// single choice between them, so "hide to the tray" and "minimise to the
-/// taskbar" sat in one list looking like alternatives when the real question was
-/// which button each applied to. Two independent checkboxes replaced it —
-/// `minimise_to_tray` and `close_to_tray`.
-///
-/// It exists only because an unreleased debug build wrote `onClose` into a real
-/// settings file. Nothing shipped with it, so this can go after one release.
+/// Retired in favour of `close_to_tray`/`minimise_to_tray`. Read once to
+/// migrate, never written — see .ai-notes/src-tauri/src/commands/settings.rs.md.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum OnClose {
@@ -43,25 +22,15 @@ pub enum OnClose {
     Quit,
 }
 
-/// Interface scale, as a webview zoom factor.
-///
-/// The floor is 1.0 because the app's type sizes are hard-coded in pixels
-/// (`text-[10px]` and up) and were already at the edge of readable at 100%.
-/// The ceiling is 1.5 because [`MIN_WINDOW`] is multiplied by this: much beyond
-/// 1.5 and the smallest permitted window stops fitting on a 1080p screen.
+/// Interface scale, as a webview zoom factor. Floor 1.0 (type sizes are
+/// hard-coded pixels, already edge-of-readable at 100%); ceiling 1.5 (beyond
+/// that [`MIN_WINDOW`] stops fitting on a 1080p screen).
 pub const MIN_UI_SCALE: f64 = 1.0;
 pub const MAX_UI_SCALE: f64 = 1.5;
 pub const DEFAULT_UI_SCALE: f64 = 1.25;
 
-/// User settings, persisted as JSON beside the registry in the app data dir.
-///
-/// Serialised in camelCase so the on-disk shape and the wire shape match the
-/// frontend store's field names exactly — the alternative is a translation
-/// layer at the bridge that has to be kept in sync by hand.
-///
-/// Every field is defaulted individually via `#[serde(default)]` on the struct,
-/// so a settings file written by an older build (missing fields added since)
-/// still loads instead of being discarded.
+/// User settings, persisted as JSON beside the registry in the app data
+/// dir. camelCase to match the frontend store's field names directly.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AppSettings {
@@ -73,90 +42,40 @@ pub struct AppSettings {
     pub query_timeout_ms: u64,
     pub launch_params: Vec<String>,
     /// The close button hides the launcher to the tray instead of quitting.
-    ///
-    /// `Option` only so that "absent" is distinguishable from "chosen", which is
-    /// what `migrate` needs to seed it from the retired `onClose`. Read it
-    /// through [`AppSettings::closes_to_tray`] rather than unwrapping it.
-    ///
-    /// Mirrored into `AppState::close_to_tray`, which is what the window-event
-    /// handler actually reads — see that field.
+    /// `Option` so "absent" is distinguishable from "chosen" — read via
+    /// [`AppSettings::closes_to_tray`], not directly.
     pub close_to_tray: Option<bool>,
-    /// The minimise button hides the launcher to the tray instead of putting it
-    /// on the taskbar.
-    ///
-    /// Independent of `close_to_tray` on purpose. They are two different
-    /// buttons, and wanting the launcher out of the taskbar while you play says
-    /// nothing about whether closing it should quit.
+    /// The minimise button hides to the tray instead of the taskbar.
+    /// Independent of `close_to_tray` on purpose.
     pub minimise_to_tray: bool,
-    /// Retired in favour of the two booleans above; read once, never written.
-    ///
-    /// `skip_serializing` is what retires it: the value migrates an existing
-    /// file, and the next save drops it. Deleting the field outright would have
-    /// been silently wrong — serde ignores unknown keys, so a settings file
-    /// carrying `"onClose": "quit"` would have parsed clean and then had
-    /// close-to-tray switched back on underneath it.
+    /// Retired in favour of the two booleans above; read once, never
+    /// written (`skip_serializing` drops it on the next save).
     #[serde(skip_serializing)]
     pub on_close: Option<OnClose>,
-    /// Interface scale, applied as a webview zoom factor.
-    ///
-    /// Defaults to 1.25 rather than 1.0, and deliberately applies to existing
-    /// installs on upgrade: at 100% the launcher's 10–11px labels were too
-    /// small to read comfortably, which is a defect rather than a preference
-    /// someone opted into. Adjustable from the slider in the status bar.
+    /// Interface scale, applied as a webview zoom factor. Defaults to 1.25
+    /// (100% was too small to read comfortably). Adjustable from the status bar slider.
     pub ui_scale: f64,
     /// Seconds between automatic refreshes of the visible rows. `0` is off.
     pub auto_refresh_interval_secs: u64,
-    /// Register the launcher to start when Windows does.
-    ///
-    /// Applied by `apply_autostart` rather than stored anywhere else: the OS
-    /// registry is the authority, and this field is the intent. They can drift
-    /// if a user removes the entry by hand, so startup reconciles them.
+    /// Register the launcher to start when Windows does. Applied by
+    /// `apply_autostart`; the OS registry is the authority, this is the intent.
     pub start_with_windows: bool,
-    /// Start hidden, leaving only the tray icon. Only meaningful alongside
-    /// `start_with_windows` — nobody launches an app by hand to have it not
-    /// appear — and the UI disables it when that is off.
+    /// Start hidden, leaving only the tray icon. Only meaningful alongside `start_with_windows`.
     pub start_minimised: bool,
     /// What the launcher does with itself once DayZ is starting.
     pub on_join: OnJoin,
     /// Launch automatically once every required mod finishes downloading.
-    ///
-    /// When off, "Subscribe and join" still subscribes and downloads, but stops
-    /// there and leaves the join to a second click.
     pub auto_join_after_download: bool,
-    /// Hide hosting-company defaults and template names ("nitrado.net
-    /// gameserver", "EXAMPLE NAME") — see `classify::names::is_placeholder_name`.
+    /// Hide hosting-company defaults and template names — see
+    /// `classify::names::is_placeholder_name`.
     pub hide_placeholder_servers: bool,
-    /// The ENGLISH ONLY tag in the filter bar, remembered across restarts.
-    ///
-    /// Tri-state, matching the tag: `Some(true)` keeps English names,
-    /// `Some(false)` keeps only the non-English ones, `None` does not filter on
-    /// language. It lives here rather than in the transient filter store
-    /// because it defaults to *on* — a default-on filter that reset every
-    /// launch would make the player opt out again every session.
-    ///
-    /// "English" is decided by `classify::names::is_english_name`, which reads
-    /// the name only: script, bracketed language tags, accented letters and a
-    /// word list.
+    /// The ENGLISH ONLY filter tag. Tri-state: keep English, keep
+    /// non-English, or don't filter. See `classify::names::is_english_name`.
     pub english_names_filter: Option<bool>,
-    /// Show "Playing on {server}" / "Browsing servers" in Discord.
-    ///
-    /// `Option` for the same reason as `close_to_tray`: `None` is what lets
-    /// `discord_presence_enabled` tell "never set" apart from "explicitly
-    /// turned off", and the default lives in the accessor rather than here.
+    /// Show "Playing on {server}" / "Browsing servers" in Discord. `Option`
+    /// so `discord_presence_enabled` can tell "never set" from "explicitly off".
     pub discord_rich_presence: Option<bool>,
-    /// The window's size, position and maximised state.
-    ///
-    /// Here rather than in the `.window-state.json` that
-    /// `tauri-plugin-window-state` used to write, because that plugin resolves
-    /// its own directory and only lets the filename be configured — one stray
-    /// file outside the data root, which was the entire reason the plugin was
-    /// dropped. See [`crate::window_state`].
-    ///
-    /// **The frontend does not own this field.** It is absent from the settings
-    /// payload the UI sends, which would deserialise to `None` and wipe the
-    /// geometry on every settings write; `save_settings` puts the live value
-    /// back before writing. `None` means "nothing remembered yet" — a first
-    /// run, or an upgrade whose geometry has not been adopted yet.
+    /// The window's size, position and maximised state — see [`crate::window_state`].
     pub window: Option<crate::window_state::WindowState>,
 }
 
@@ -167,79 +86,45 @@ impl Default for AppSettings {
             steam_path: None,
             dayz_path: None,
             workshop_path: None,
-            // Mirrors `tetra_net::MAX_IN_FLIGHT`. Was 1024, lowered because the
-            // measurement behind that number ran over loopback and so never met
-            // a NAT table — see the constant's own docs.
             max_concurrent_queries: tetra_net::MAX_IN_FLIGHT,
             query_timeout_ms: 1000,
             launch_params: Vec::new(),
-            // `None`, not `Some(true)`. The container's `#[serde(default)]`
-            // fills an absent field from *here*, so a concrete value would make
-            // "the file never had closeToTray" indistinguishable from "the user
-            // chose it" — and the migration in `closes_to_tray` reads exactly
-            // that distinction. The `true` default lives there instead.
+            // `None`, not `Some(true)`: lets `closes_to_tray`'s migration
+            // distinguish "never written" from "user chose true".
             close_to_tray: None,
-            // Off: the launcher disappearing from the taskbar is surprising
-            // unless it was asked for.
             minimise_to_tray: false,
             on_close: None,
             ui_scale: DEFAULT_UI_SCALE,
-            // Off, not the 60 this field carried while nothing read it. Turning
-            // a previously-inert setting into a live one would have switched
-            // auto-refresh on for every existing user without their asking, and
-            // a refresh re-sorts the table — rows would move under the cursor
-            // once a minute mid-click. Opt in from the Server Browser section.
             auto_refresh_interval_secs: 0,
-            // Both off: registering for OS startup is not something to opt a
-            // user into silently, and starting hidden without it is meaningless.
             start_with_windows: false,
             start_minimised: false,
             on_join: OnJoin::Stay,
             auto_join_after_download: true,
-            // On by default, and reversible in Settings. Its counterpart —
-            // hiding servers with no name at all — is no longer a setting: a
-            // row that has never answered a probe carries no name, no player
-            // count and nothing to choose by, so there was never a reason to
-            // show one. It is applied unconditionally in `filter_from_params`.
             hide_placeholder_servers: true,
-            // On by default too. `Some(true)`, not `None` — see the field docs.
             english_names_filter: Some(true),
             // `None`, not `Some(true)` — same reasoning as `close_to_tray`.
-            // The default (on) lives in `discord_presence_enabled`.
             discord_rich_presence: None,
-            // Nothing remembered. The window opens at the size in
-            // tauri.conf.json and the OS places it.
             window: None,
         }
     }
 }
 
 impl AppSettings {
-    /// Whether the close button hides to the tray, with the retired dropdown
-    /// folded in.
-    ///
-    /// The one place `close_to_tray` is read. Everything else goes through here
-    /// so there is no call site that could unwrap the `None` differently.
+    /// Whether the close button hides to the tray, with the retired dropdown folded in.
     pub fn closes_to_tray(&self) -> bool {
         self.close_to_tray.unwrap_or(match self.on_close {
-            // The dropdown's two non-tray options both meant "do not hide".
-            // `Minimise` is not lost — it becomes `minimise_to_tray: false`,
-            // which is the same taskbar behaviour by the ordinary route.
             Some(OnClose::Minimise) | Some(OnClose::Quit) => false,
-            // Either the dropdown's tray option, or a file predating all of
-            // this — and hiding to the tray has been the default throughout.
             Some(OnClose::Tray) | None => true,
         })
     }
 
-    /// Whether Discord Rich Presence is on. The one place
-    /// `discord_rich_presence` is read — see the field docs.
+    /// Whether Discord Rich Presence is on.
     pub fn discord_presence_enabled(&self) -> bool {
         self.discord_rich_presence.unwrap_or(true)
     }
 
-    /// The zoom factor to actually apply, with a hand-edited value brought back
-    /// into range. A `0` in the file would otherwise collapse the window.
+    /// The zoom factor to actually apply, clamped back into range — a `0` in
+    /// the file would otherwise collapse the window.
     pub fn scale(&self) -> f64 {
         if self.ui_scale.is_finite() {
             self.ui_scale.clamp(MIN_UI_SCALE, MAX_UI_SCALE)
@@ -248,30 +133,19 @@ impl AppSettings {
         }
     }
 
-    /// Fold retired fields into their replacements, so everything downstream —
-    /// including the frontend store — sees one canonical shape.
+    /// Fold retired fields into their replacements, so everything downstream sees one canonical shape.
     fn migrate(&mut self) {
         self.close_to_tray = Some(self.closes_to_tray());
         self.on_close = None;
         self.ui_scale = self.scale();
-        // Plain on/off, unlike `english_names_filter`'s meaningful tri-state
-        // `None` — so it is normalised the same way as `close_to_tray`, and
-        // the frontend never has to treat a missing value as anything but
-        // "not written yet".
         self.discord_rich_presence = Some(self.discord_presence_enabled());
     }
 }
 
-/// The settings file's name, in one place because `paths::migrate` also has to
-/// know it.
+/// The settings file's name, in one place because `paths::migrate` also has to know it.
 pub const FILENAME: &str = "settings.json";
 
 /// `<data root>/settings.json`, the same directory the registry lives in.
-///
-/// The root comes from [`crate::paths::data_root`] rather than straight from
-/// Tauri, which is what keeps a portable copy's settings beside its exe and an
-/// installed copy's in local app data. This and the registry open in `setup`
-/// are the only two places that decide where anything is written.
 fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = crate::paths::data_root(app);
     std::fs::create_dir_all(&dir)
@@ -279,11 +153,8 @@ fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir.join(FILENAME))
 }
 
-/// Read and parse the settings file, falling back to defaults.
-///
-/// A missing file is the ordinary first-run case, not an error. A *corrupt*
-/// file is also non-fatal: returning defaults keeps the app usable, and the
-/// next save overwrites the bad file.
+/// Read and parse the settings file, falling back to defaults on a missing
+/// or corrupt file (non-fatal; the next save overwrites it).
 fn read_from_disk(path: &std::path::Path) -> AppSettings {
     let mut settings = match std::fs::read_to_string(path) {
         Err(_) => AppSettings::default(),
@@ -295,30 +166,12 @@ fn read_from_disk(path: &std::path::Path) -> AppSettings {
             AppSettings::default()
         }),
     };
-    // On every path, including the defaults ones: `migrate` is what turns the
-    // parse-time `None` that marks an absent `onClose` into the concrete value
-    // the frontend store and the window handler both expect.
     settings.migrate();
     settings
 }
 
-/// Make the OS startup entry match `start_with_windows`.
-///
-/// The registry entry is the authority and this is only the intent, so the two
-/// can drift — a user removing the entry by hand, or a reinstall to a new path.
-/// Reconciling on every save and once at startup keeps the setting honest
-/// instead of describing a state that stopped being true.
-///
-/// Failure is reported and swallowed. Not being able to write an autostart
-/// entry is not a reason to refuse to save the rest of someone's settings.
-///
-/// **Debug builds never touch the OS.** The entry records an absolute path to
-/// the executable that wrote it, so a debug build would register
-/// `target/debug/tetra-launcher.exe` — a path that moves with every rebuild —
-/// and would overwrite the installed release build's entry under the same app
-/// name. The toggle still works and still persists in a debug build; only the
-/// registry write is suppressed, so the switch has to be tested against a
-/// release build.
+/// Make the OS startup entry match `start_with_windows`. Reconciled on every
+/// save and once at startup. Debug builds never touch the OS.
 pub fn apply_autostart(app: &AppHandle, enabled: bool) {
     if cfg!(debug_assertions) {
         eprintln!(
@@ -343,47 +196,12 @@ pub fn apply_autostart(app: &AppHandle, enabled: bool) {
 }
 
 /// The smallest window the layout is designed to survive, in CSS pixels at
-/// 100% scale.
-///
-/// Width is set by the filter bar, which puts MAP/TAGS/REGION/PING and the
-/// three HIDE toggles plus REFRESH on one row. Height is set by the details
-/// panel's pinned regions — identity, stat cards, properties and the join
-/// button — which do not scroll.
-///
-/// Mirrored by `minWidth`/`minHeight` in tauri.conf.json, which is the floor
-/// tao applies before `setup` runs. `apply_ui_scale` then multiplies it. JSON
-/// takes no comments, which is why the explanation lives here.
+/// 100% scale. Mirrored by minWidth/minHeight in tauri.conf.json.
 const MIN_WINDOW: (f64, f64) = (975.0, 620.0);
 
 /// Apply the interface scale to the window: zoom the webview, and raise the
-/// minimum window size to match.
-///
-/// The minimum has to move with the zoom. It is expressed in window pixels,
-/// while every `min-w`/`min-h` in the layout is in CSS pixels, and zooming
-/// divides one into the other — at 1.25 a 975px window gives the layout only
-/// 780px to work with, which is narrower than the filter bar can render. Tying
-/// the two together means the layout always gets [`MIN_WINDOW`] whatever the
-/// slider says.
-///
-/// **Does nothing when the scale has not changed, and that guard is the whole
-/// point.** `save_settings` calls this on every write, and the frontend store
-/// debounces a write after *any* field changes — so ticking a checkbox used to
-/// re-run `set_min_size`, which tao implements as a `SetWindowPos`. On a
-/// maximised window that drops it out of the maximised state into an offset
-/// restored geometry: changing any setting visibly shunted the window down and
-/// to the right.
-///
-/// Both failures are logged and swallowed. A webview that will not zoom is a
-/// launcher that looks wrong, not one that should refuse to open.
-///
-/// **Records `applied` only after the window is resolved and both calls have
-/// returned** (M16, 2026-08-29 audit) — it used to record `scale` as applied
-/// *before* checking whether `get_webview_window("main")` even returned a
-/// window. A save landing before the window exists (a plausible startup
-/// ordering) meant nothing was actually applied, but the memo now claimed
-/// otherwise — so every later call with the same scale short-circuited on
-/// the guard above, and the zoom was silently never applied for the rest of
-/// the session.
+/// minimum window size to match [`MIN_WINDOW`]. No-op when the scale hasn't
+/// changed, so a checkbox toggle can't drop a maximised window out of maximised.
 pub fn apply_ui_scale(app: &AppHandle, scale: f64) {
     if let Some(state) = app.try_state::<crate::state::AppState>() {
         if let Ok(applied) = state.applied_ui_scale.lock() {
@@ -416,17 +234,8 @@ fn minimum_size(scale: f64) -> tauri::LogicalSize<f64> {
     tauri::LogicalSize::new(MIN_WINDOW.0 * scale, MIN_WINDOW.1 * scale)
 }
 
-/// Grow the window if the geometry restored from a previous run is smaller than
-/// the current scale allows. **Startup only.**
-///
-/// A minimum constrains future sizing; it does not resize a window that is
-/// already below it, and the window-state plugin restores saved geometry before
-/// `setup` runs — so without this, a remembered window near the old floor keeps
-/// less room than the floor exists to guarantee.
-///
-/// Deliberately *not* part of `apply_ui_scale`. That function is on the
-/// settings-save path, and a `set_size` reachable from a checkbox is what made
-/// changing any setting move the window.
+/// Grow the window if the geometry restored from a previous run is smaller
+/// than the current scale allows. Startup only, not part of `apply_ui_scale`.
 pub fn fit_window_to_minimum(app: &AppHandle, scale: f64) {
     let Some(window) = app.get_webview_window("main") else {
         return;
@@ -454,11 +263,9 @@ pub fn fit_window_to_minimum(app: &AppHandle, scale: f64) {
     }
 }
 
-/// Apply the interface scale live, from the status-bar slider.
-///
-/// Separate from `save_settings` so dragging the slider is immediate rather
-/// than one round trip through a settings write per pixel of travel. The
-/// frontend persists the value once the drag ends.
+/// Apply the interface scale live, from the status-bar slider. Separate
+/// from `save_settings` so dragging is immediate; the frontend persists
+/// once the drag ends.
 #[tauri::command]
 pub fn set_ui_scale(app: AppHandle, scale: f64) {
     let scale = if scale.is_finite() {
@@ -469,14 +276,9 @@ pub fn set_ui_scale(app: AppHandle, scale: f64) {
     apply_ui_scale(&app, scale);
 }
 
-/// Read settings synchronously, for `setup` — which runs before any window
-/// exists and so cannot go through the async command.
-///
-/// The transport settings are consumed exactly once, here, to size the
-/// process-wide prober. They are deliberately not re-read on save: rebuilding
-/// the prober under in-flight refreshes would mean tearing down a live
-/// semaphore, and since neither has a UI, the only way to change one is editing
-/// the JSON by hand — which implies a restart anyway.
+/// Read settings synchronously, for `setup` (which runs before any window
+/// exists). Transport settings are consumed exactly once here to size the
+/// process-wide prober, and deliberately not re-read on save.
 pub fn load_at_startup(app: &AppHandle) -> AppSettings {
     let mut settings = match settings_path(app) {
         Ok(path) => read_from_disk(&path),
@@ -486,27 +288,18 @@ pub fn load_at_startup(app: &AppHandle) -> AppSettings {
         }
     };
 
-    // One-time upgrade path: geometry that `tauri-plugin-window-state` wrote
-    // into its own file, folded in and the file deleted. Guarded on `None` so
-    // it can never overwrite geometry this build has already saved — the
-    // legacy file is stale the moment `window` exists.
+    // One-time upgrade: geometry from the retired window-state plugin's own
+    // file, folded in and the file deleted. Guarded on `None` so it never
+    // overwrites geometry this build has already saved.
     if settings.window.is_none() {
         settings.window = crate::window_state::adopt_legacy(&crate::paths::data_root(app));
     }
     settings
 }
 
-/// Write the window geometry captured during this session, leaving every other
-/// setting as the file has it.
-///
-/// Read-modify-write rather than a save of the in-memory struct: the frontend
-/// owns everything else in that file and may have written since startup, so
-/// serialising a stale copy over the top would undo whatever it changed.
-///
-/// Called from `RunEvent::Exit`, which is the one event that fires however the
-/// launcher is quitting — the window's close button, the tray's Quit, or the
-/// updater restarting us. Synchronous by necessity: the process is going away
-/// and there is nothing left to keep responsive.
+/// Write the window geometry captured during this session, leaving every
+/// other setting as the file has it. Read-modify-write, since the frontend
+/// may have written since startup.
 pub fn persist_window_state(app: &AppHandle) {
     let Some(state) = crate::window_state::cached(app) else {
         return;
@@ -529,15 +322,8 @@ pub fn persist_window_state(app: &AppHandle) {
     }
 }
 
-/// Show the data directory in the system file manager.
-///
-/// Exists because the answer to "where does the launcher keep my stuff" now
-/// depends on whether this copy is portable, and because the previous single
-/// location — a hashed-looking `com.tetra.launcher` folder under AppData — was
-/// not something anyone found by looking.
-///
-/// Windows: Explorer. Linux: the desktop opener — same split as
-/// `commands::mods::open_mod_folder` and `commands::launch`'s folder reveal.
+/// Show the data directory in the system file manager. Windows: Explorer.
+/// Linux: the desktop opener.
 #[tauri::command]
 pub fn open_data_folder(app: AppHandle) -> Result<(), String> {
     let dir = crate::paths::data_root(&app);
@@ -549,8 +335,6 @@ pub fn open_data_folder(app: AppHandle) -> Result<(), String> {
     let mut cmd = std::process::Command::new("xdg-open");
     cmd.arg(&dir)
         .spawn()
-        // The opener's exit status is not a reliable success signal, so this
-        // only reports a failure to *start* it.
         .map(|_| ())
         .map_err(|e| format!("Could not open {}: {e}", dir.display()))
 }
@@ -561,9 +345,7 @@ pub fn data_folder_path(app: AppHandle) -> String {
     crate::paths::data_root(&app).to_string_lossy().into_owned()
 }
 
-/// `async` so the file read lands on a blocking task instead of the main
-/// thread — a synchronous Tauri command runs inline on the UI thread, and disk
-/// I/O there stalls painting. Same reasoning as `save_settings` below.
+/// `async` so the file read lands on a blocking task instead of the main thread.
 #[tauri::command]
 pub async fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
     let path = settings_path(&app)?;
@@ -572,29 +354,20 @@ pub async fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
         .map_err(|e| format!("Task join error: {e}"))
 }
 
-/// Write settings to disk.
-///
-/// Writes to a temporary file and renames over the target, so an interrupted
-/// write cannot leave a half-written settings file behind — the rename is
-/// atomic and the old file survives until it succeeds.
+/// Write settings to disk, atomically (temp file + rename).
 #[tauri::command]
 pub async fn save_settings(app: AppHandle, mut settings: AppSettings) -> Result<(), String> {
     let path = settings_path(&app)?;
 
-    // Window geometry is not the frontend's to send. The payload from the UI
-    // has no `window` key, which deserialises to `None`, so writing the struct
-    // as received would erase the remembered size and position every time any
-    // setting changed — and the store saves after *any* field changes.
+    // Window geometry is not the frontend's to send — its payload always
+    // omits `window`, which would otherwise erase the remembered geometry on every save.
     settings.window = crate::window_state::cached(&app).or(settings.window);
 
     let json = serde_json::to_string_pretty(&settings)
         .map_err(|e| format!("Could not serialise settings: {e}"))?;
 
-    // Re-publish the flag the window-event handler reads. Done before the write
-    // rather than after it, so toggling "minimise to tray" takes effect on the
-    // very next close even if the disk write is slow — the two copies only
-    // disagree if the write fails, and in that case the in-memory one is the
-    // behaviour the user just asked for.
+    // Re-published before the write so a toggle takes effect on the very
+    // next close even if the disk write is slow.
     if let Some(state) = app.try_state::<crate::state::AppState>() {
         use std::sync::atomic::Ordering;
         state
@@ -607,17 +380,12 @@ pub async fn save_settings(app: AppHandle, mut settings: AppSettings) -> Result<
             *guard = settings.on_join;
         }
     }
-    // Same always-mirror pattern as `close_to_tray`/`minimise_to_tray` above;
-    // both functions are cheap and idempotent, so no transition detection is
-    // needed — toggling the checkbox off and back on just re-runs `enable`.
     if settings.discord_presence_enabled() {
         crate::discord::enable(&app);
     } else {
         crate::discord::disable(&app);
     }
     apply_autostart(&app, settings.start_with_windows);
-    // Idempotent when the slider already applied it live, and the one thing
-    // that puts the scale back after a settings import or a hand-edited file.
     apply_ui_scale(&app, settings.scale());
 
     tokio::task::spawn_blocking(move || {
@@ -632,18 +400,13 @@ pub async fn save_settings(app: AppHandle, mut settings: AppSettings) -> Result<
 mod tests {
     use super::{AppSettings, DEFAULT_UI_SCALE, MAX_UI_SCALE};
 
-    /// Parse the way `read_from_disk` does — the migration is part of reading a
-    /// file, not of deserialising the struct.
+    /// Parse the way `read_from_disk` does — migration is part of reading a file.
     fn load(raw: &str) -> AppSettings {
         let mut settings: AppSettings = serde_json::from_str(raw).expect("should parse");
         settings.migrate();
         settings
     }
 
-    /// An explicit opt-out has to survive. Serde ignores unknown keys, so had
-    /// `closeToTray` simply been deleted when the dropdown arrived, a file
-    /// carrying `false` would have parsed clean and handed the user back the
-    /// tray behaviour they had turned off.
     #[test]
     fn an_explicit_close_to_tray_opt_out_survives() {
         assert!(!load(r#"{ "closeToTray": false }"#).closes_to_tray());
@@ -656,9 +419,6 @@ mod tests {
         assert!(load("{}").closes_to_tray());
     }
 
-    /// The dropdown existed only in an unreleased debug build, but it did write
-    /// real settings files. Both of its non-tray options meant "closing should
-    /// not hide me", so both come back as `false`.
     #[test]
     fn the_retired_dropdown_migrates_to_the_boolean() {
         assert!(load(r#"{ "onClose": "tray" }"#).closes_to_tray());
@@ -666,8 +426,6 @@ mod tests {
         assert!(!load(r#"{ "onClose": "minimise" }"#).closes_to_tray());
     }
 
-    /// The live field is the authority — a stale `onClose` left behind must not
-    /// override a choice made since.
     #[test]
     fn close_to_tray_wins_over_the_retired_dropdown() {
         assert!(load(r#"{ "closeToTray": true, "onClose": "quit" }"#).closes_to_tray());
@@ -680,15 +438,11 @@ mod tests {
         assert!(load("{}").discord_presence_enabled());
     }
 
-    /// An explicit opt-out has to survive a save/load, the same as
-    /// `close_to_tray` — see `an_explicit_close_to_tray_opt_out_survives`.
     #[test]
     fn an_explicit_discord_presence_opt_out_survives() {
         assert!(!load(r#"{ "discordRichPresence": false }"#).discord_presence_enabled());
     }
 
-    /// The retired field is read, never written. One save and it is gone from
-    /// disk, which is what makes the migration a single-release affair.
     #[test]
     fn the_retired_dropdown_is_not_written_back() {
         let settings = load(r#"{ "onClose": "quit" }"#);
@@ -700,27 +454,19 @@ mod tests {
         assert!(json.contains("\"closeToTray\":false"), "{json}");
     }
 
-    /// The two window behaviours are independent: hiding on minimise says
-    /// nothing about what closing should do, and vice versa.
     #[test]
     fn minimise_and_close_to_tray_do_not_imply_each_other() {
         let settings = load(r#"{ "closeToTray": false, "minimiseToTray": true }"#);
         assert!(!settings.closes_to_tray());
         assert!(settings.minimise_to_tray);
-
-        // Off by default — vanishing from the taskbar unasked is surprising.
         assert!(!load("{}").minimise_to_tray);
     }
 
-    /// Existing installs get the larger interface, because 100% was too small
-    /// to read rather than a preference anyone chose.
     #[test]
     fn a_file_predating_ui_scale_gets_the_new_default() {
         assert_eq!(load("{}").scale(), DEFAULT_UI_SCALE);
     }
 
-    /// A hand-edited file must not be able to collapse the window or blow the
-    /// minimum size past the screen.
     #[test]
     fn an_out_of_range_scale_is_clamped() {
         assert_eq!(load(r#"{ "uiScale": 0 }"#).scale(), 1.0);
@@ -728,14 +474,7 @@ mod tests {
     }
 
     /// A settings file written by an older build must pick up new fields at
-    /// their defaults, not at `false`.
-    ///
-    /// This is what `#[serde(default)]` on the container buys, and it is load
-    /// bearing for every upgrade: `hideUnnamedServers` and
-    /// `hidePlaceholderServers` arrived in v1.0.1, so every existing install has
-    /// a file without them. Falling back to `bool::default()` would silently
-    /// turn the new browser filters off for exactly the users the release was
-    /// for, and nothing else in the app would report it.
+    /// their defaults, not at `bool::default()` — see `#[serde(default)]` on the container.
     #[test]
     fn a_settings_file_from_an_older_build_gains_the_new_defaults() {
         let old = r#"{
@@ -758,12 +497,8 @@ mod tests {
         );
         assert_eq!(parsed.dayz_path.as_deref(), Some("C:\\DayZ"));
         assert!(parsed.hide_placeholder_servers, "new filter defaulted off");
-        // The `Option` case is the one worth pinning. Serde fills a missing
-        // `Option<T>` with `None` when there is no default in play, and every
-        // settings.json in existence was written before this field arrived —
-        // if the container `default` did not win here, the ENGLISH ONLY tag
-        // would ship silently off for every upgrading install while looking
-        // correct on a fresh one.
+        // Pinning the Option case: serde fills a missing Option<T> with None
+        // absent a default, which would ship this tag silently off for every upgrading install.
         assert_eq!(
             parsed.english_names_filter,
             Some(true),
@@ -775,9 +510,7 @@ mod tests {
         );
     }
 
-    /// `None` is a state the player can choose (the blank tri-state, "show
-    /// everything"), so it has to survive a save/load rather than being
-    /// re-defaulted back to `Some(true)` on the next start.
+    /// `None` (show everything) must survive a save/load, not re-default to `Some(true)`.
     #[test]
     fn an_explicit_null_language_filter_is_not_re_defaulted() {
         let cleared = AppSettings {
