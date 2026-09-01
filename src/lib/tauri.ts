@@ -233,7 +233,6 @@ export interface AppSettingsDto {
   uiScale: number;
   /** Seconds between automatic refreshes of the visible rows. `0` is off. */
   autoRefreshIntervalSecs: number;
-  autoJoinAfterDownload: boolean;
   /** Hide hosting-company defaults like "nitrado.net gameserver". */
   hidePlaceholderServers: boolean;
   /** ENGLISH ONLY, remembered across restarts. `null` does not filter. */
@@ -244,6 +243,8 @@ export interface AppSettingsDto {
   startMinimised: boolean;
   /** What the launcher does with itself once DayZ is starting. */
   onJoin: OnJoin;
+  /** Set once the first-launch setup modal is completed or skipped. */
+  onboardingDismissed: boolean;
   /** Show "Playing on {server}" / "Browsing servers" in Discord. */
   discordRichPresence: boolean;
 }
@@ -343,6 +344,11 @@ export async function discoverSteamPaths(): Promise<{
   workshop_dir: string;
 } | null> {
   return invoke("discover_steam_paths");
+}
+
+/** Whether `path` has a DayZ executable in it — backs the setup modal's inline check. */
+export async function validateDayzPath(path: string): Promise<boolean> {
+  return invoke("validate_dayz_path", { path });
 }
 
 /** Where this copy keeps `tetra.db`/`settings.json` — depends on portable vs installed, so it's asked for rather than guessed here. */

@@ -64,8 +64,9 @@ pub struct AppSettings {
     pub start_minimised: bool,
     /// What the launcher does with itself once DayZ is starting.
     pub on_join: OnJoin,
-    /// Launch automatically once every required mod finishes downloading.
-    pub auto_join_after_download: bool,
+    /// Set once the first-launch setup modal is completed or skipped, so it
+    /// never shows again even if the user left the name/path blank.
+    pub onboarding_dismissed: bool,
     /// Hide hosting-company defaults and template names — see
     /// `classify::names::is_placeholder_name`.
     pub hide_placeholder_servers: bool,
@@ -99,7 +100,7 @@ impl Default for AppSettings {
             start_with_windows: false,
             start_minimised: false,
             on_join: OnJoin::Stay,
-            auto_join_after_download: true,
+            onboarding_dismissed: false,
             hide_placeholder_servers: true,
             english_names_filter: Some(true),
             // `None`, not `Some(true)` — same reasoning as `close_to_tray`.

@@ -27,8 +27,8 @@ export interface AppSettings {
   startMinimised: boolean;
   /** What the launcher does with itself once DayZ is starting. */
   onJoin: OnJoin;
-  /** Launch automatically once every required mod has downloaded. */
-  autoJoinAfterDownload: boolean;
+  /** Set once the first-launch setup modal is completed or skipped. */
+  onboardingDismissed: boolean;
   /** Hide hosting-company defaults like "nitrado.net gameserver". */
   hidePlaceholderServers: boolean;
   /** ENGLISH ONLY tag. `true` keeps English names, `false` non-English, `null` unfiltered. Lives here, not the filter store, since it defaults on. */
@@ -64,7 +64,7 @@ const defaults: AppSettings = {
   startWithWindows: false,
   startMinimised: false,
   onJoin: "stay",
-  autoJoinAfterDownload: true,
+  onboardingDismissed: false,
   hidePlaceholderServers: true,
   englishNamesFilter: true,
   discordRichPresence: true,
