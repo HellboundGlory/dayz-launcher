@@ -163,7 +163,7 @@ function SearchInput({
 
 function FdropMenu({ children }: { children: React.ReactNode }) {
   return (
-    <div className="fdrop-menu absolute left-0 top-[calc(100%+5px)] z-30 min-w-[190px] rounded-[7px] border border-line bg-surface2 p-[5px] shadow-[0_10px_28px_rgba(0,0,0,0.5)]">
+    <div className="fdrop-menu absolute left-0 top-[calc(100%+5px)] z-30 max-h-80 min-w-[190px] overflow-y-auto rounded-[7px] border border-line bg-surface2 p-[5px] shadow-[0_10px_28px_rgba(0,0,0,0.5)]">
       {children}
     </div>
   );
