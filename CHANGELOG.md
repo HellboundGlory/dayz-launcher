@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.2.1 — 2026-09-01
+
+### Fixed
+
+- **Windows: joining a server failed at the BattlEye step** — the BattlEye
+  Launcher reported "Update Failed (1, 28)" and "Failed to launch game", or
+  Windows refused to start `DayZ_x64.exe` with "cannot access the specified
+  device, path, or file", even though the same install joined fine from the
+  official DayZ launcher. DayZ is now started through `DayZ_BE.exe` the way
+  the official launcher does it — with BattlEye's own arguments
+  (`0 1 0 -exe DayZ_x64.exe`) and from the DayZ folder as working directory,
+  so the stub no longer runs its own updater or has to guess where the game
+  is.
+
 ## v2.2.0 — 2026-09-01
 
 ### Added
