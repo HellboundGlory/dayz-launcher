@@ -8,6 +8,7 @@ import { ServerInfoModal } from "./components/server-info-modal";
 import { ModsTab } from "./components/mods-tab";
 import { FooterBar } from "./components/footer-bar";
 import { SettingsView } from "./components/settings-view";
+import { OnboardingModal } from "./components/onboarding-modal";
 import { UpdateModal } from "./components/update-modal";
 import { SteamRequiredModal } from "./components/steam-required-modal";
 import type { SplashScreenProps } from "./components/splash-screen";
@@ -73,6 +74,7 @@ export function App() {
   const handleViewChange = useCallback(
     (view: ViewId) => {
       setActiveView(view);
+      setSettingsOpen(false);
       setFilter({
         favourites_only: view === "fav",
         recent_only: view === "recent",
@@ -102,6 +104,22 @@ export function App() {
   const [refreshing, setRefreshing] = useState(false);
   const autoRefreshSecs = useSettingsStore((s) => s.autoRefreshIntervalSecs);
   const settingsLoaded = useSettingsStore((s) => s.loaded);
+  const profileName = useSettingsStore((s) => s.profileName);
+  const dayzPath = useSettingsStore((s) => s.dayzPath);
+  const onboardingDismissed = useSettingsStore((s) => s.onboardingDismissed);
+
+  // Decided once, off the settings snapshot from the moment they finish
+  // loading — re-deriving this on every render would hide the modal the
+  // instant it fills in the very fields it's asking about.
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const onboardingDecided = useRef(false);
+  useEffect(() => {
+    if (onboardingDecided.current || !settingsLoaded) return;
+    onboardingDecided.current = true;
+    if (!onboardingDismissed && profileName.trim() === "" && dayzPath === null) {
+      setShowOnboarding(true);
+    }
+  }, [settingsLoaded, onboardingDismissed, profileName, dayzPath]);
   // Guards handleRefresh against overlapping manual/auto-refresh runs.
   const refreshInFlight = useRef(false);
   const [error, setError] = useState<string | null>(null);
@@ -662,6 +680,10 @@ export function App() {
           </div>
 
       {settingsOpen && <SettingsView onClose={() => setSettingsOpen(false)} />}
+
+      {showOnboarding && steamConnected && (
+        <OnboardingModal onDone={() => setShowOnboarding(false)} />
+      )}
 
       <UpdateModal open={updateOpen} onClose={() => setUpdateOpen(false)} />
 

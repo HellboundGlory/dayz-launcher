@@ -1,5 +1,35 @@
 # Changelog
 
+## v2.2.0 — 2026-09-01
+
+### Added
+
+- **Join is now on the row itself.** Every server row has its own JOIN
+  button, with a chevron next to it for More info, Load to menu and Download
+  mods — no need to open the ⋯ menu just to join a server anymore.
+- **A first-launch setup screen** greets a fresh install: set your survivor
+  name and confirm your DayZ install path. The path is auto-detected where
+  possible; when it isn't, a Browse button and a Detect retry are there to
+  fix it by hand. Can be skipped and finished later from Settings.
+- **The splash screen has a new look** — a tactical readout treatment that
+  actually matches the rest of the app's theme, replacing the one left over
+  from before the UI overhaul.
+
+### Changed
+
+- **Settings now closes automatically** when you switch to Servers,
+  Favourites, Recent or Mods from the sidebar, instead of staying open
+  underneath the view you just switched to.
+- Removed the "Auto-join after downloading" setting — joining a server
+  always finishes the job once its mods are downloaded now, so the row
+  JOIN button never needs a second press.
+
+### Fixed
+
+- **The window couldn't be dragged, minimised, maximised or closed while
+  Settings was open** — its panel was covering the only part of the window
+  that handles those.
+
 ## v2.1.0 — 2026-08-29
 
 A reliability and security pass covering a full codebase audit — nothing new

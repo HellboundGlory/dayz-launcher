@@ -65,6 +65,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -134,6 +135,7 @@ pub fn run() {
             commands::launch::verify_server_mods,
             commands::launch::register_protocol_handler,
             commands::launch::discover_steam_paths,
+            commands::launch::validate_dayz_path,
             commands::launch::open_steam,
             commands::launch::dayz_running,
             commands::launch::open_workshop_in_steam,

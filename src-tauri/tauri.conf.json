@@ -1,6 +1,6 @@
 {
  "productName": "Tetra Launcher",
- "version": "2.1.0",
+ "version": "2.2.0",
  "identifier": "com.tetra.launcher",
  "build": {
   "frontendDist": "../dist",
@@ -26,8 +26,8 @@
     "label": "splash",
     "title": "Tetra Launcher",
     "url": "splash.html",
-    "width": 860,
-    "height": 484,
+    "width": 672,
+    "height": 378,
     "center": true,
     "resizable": false,
     "maximizable": false,

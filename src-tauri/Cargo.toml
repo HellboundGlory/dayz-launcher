@@ -16,12 +16,15 @@ tauri-build = { version = "2", features = [] }
 # `tray-icon` is kept ahead of its consumer: the `closeToTray` setting already
 # exists and "minimise to tray instead of closing" is a tracked backlog item.
 tauri = { version = "2", features = ["tray-icon"] }
-# Only the plugins something actually calls. `os`, `fs`, `dialog` and `store`
-# were registered here (and permissioned in capabilities/default.json) without
+# Only the plugins something actually calls. `os`, `fs` and `store` were
+# registered here (and permissioned in capabilities/default.json) without
 # a single call site: settings are read/written by commands::settings through
-# std::fs, and path discovery goes through commands::launch, not a file dialog.
+# std::fs.
 tauri-plugin-shell = "2"
 tauri-plugin-process = "2"
+# The first-launch setup modal's Browse button — everywhere else, path
+# discovery still goes through commands::launch, not a dialog.
+tauri-plugin-dialog = "2"
 # Driven entirely from Rust — `save_settings` applies the change and `setup`
 # reconciles at startup — so no JS counterpart and no capability entry: the
 # permissions only gate the frontend API, which nothing calls.
