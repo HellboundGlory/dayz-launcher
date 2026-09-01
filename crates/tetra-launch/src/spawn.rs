@@ -2,11 +2,49 @@ use crate::error::SpawnError;
 use std::path::PathBuf;
 use std::process::Command;
 
+/// The BattlEye stub the game is launched through, and the game itself.
+const BE_LAUNCHER_EXE: &str = "DayZ_BE.exe";
+const GAME_EXE: &str = "DayZ_x64.exe";
+
+/// The BattlEye launcher's own arguments, which must precede the game's.
+/// Mirrors what the official DayZ launcher passes: `<update check> <game id>
+/// <log mode> -exe <game exe>`. Left off, `DayZ_BE.exe` runs its own updater
+/// (blocked by most firewalls, "Update Failed (1, 28)") and resolves the game
+/// exe against its working directory instead of being told where it is.
+fn battleye_prefix(exe_name: &str, game_exe_present: bool) -> Vec<String> {
+    if !exe_name.eq_ignore_ascii_case(BE_LAUNCHER_EXE) {
+        return Vec::new();
+    }
+    let mut args = vec!["0".to_string(), "1".to_string(), "0".to_string()];
+    if game_exe_present {
+        args.push("-exe".to_string());
+        args.push(GAME_EXE.to_string());
+    }
+    args
+}
+
+/// [`battleye_prefix`] for a real path, checking the disk for the game exe.
+fn battleye_args(exe_path: &std::path::Path) -> Vec<String> {
+    let name = exe_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or_default();
+    battleye_prefix(name, exe_path.with_file_name(GAME_EXE).is_file())
+}
+
 /// Starts DayZ and returns immediately — doesn't `.wait()`, or JOIN/RECENT
 /// would stay stuck until the player quit the game.
+///
+/// Runs from the DayZ folder: the BattlEye stub starts the game relative to
+/// its working directory, and from anywhere else Windows refuses the launch
+/// with "cannot access the specified device, path, or file".
 #[cfg(windows)]
 pub fn spawn_dayz(exe_path: &std::path::Path, args: &[String]) -> Result<(), SpawnError> {
-    Command::new(exe_path)
+    let mut cmd = Command::new(exe_path);
+    if let Some(dir) = exe_path.parent() {
+        cmd.current_dir(dir);
+    }
+    cmd.args(battleye_args(exe_path))
         .args(args)
         .spawn()
         .map(|_child| ())
@@ -55,7 +93,12 @@ pub fn spawn_dayz(exe_path: &std::path::Path, args: &[String]) -> Result<(), Spa
         .arg(&proton)
         .arg("run")
         .arg(exe_path)
+        .args(battleye_args(exe_path))
         .args(args);
+
+    if let Some(dir) = exe_path.parent() {
+        cmd.current_dir(dir);
+    }
 
     // Proton needs these or it aborts with a KeyError.
     cmd.env("STEAM_COMPAT_DATA_PATH", &compat_data);
@@ -256,6 +299,38 @@ pub fn build_launch_args(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The BattlEye stub must be told not to self-update and which exe to
+    /// start — the official launcher's `0 1 0 -exe DayZ_x64.exe`.
+    #[test]
+    fn battleye_stub_gets_the_official_launchers_prefix() {
+        assert_eq!(
+            battleye_prefix("DayZ_BE.exe", true),
+            vec!["0", "1", "0", "-exe", "DayZ_x64.exe"]
+        );
+    }
+
+    #[test]
+    fn battleye_prefix_matches_the_stub_case_insensitively() {
+        assert_eq!(
+            battleye_prefix("dayz_be.exe", true),
+            battleye_prefix("DayZ_BE.exe", true)
+        );
+    }
+
+    /// Launching the game directly takes no BattlEye arguments — they would
+    /// reach DayZ as unknown parameters.
+    #[test]
+    fn the_game_exe_gets_no_battleye_prefix() {
+        assert!(battleye_prefix("DayZ_x64.exe", true).is_empty());
+    }
+
+    /// Without `DayZ_x64.exe` beside it there is nothing to point `-exe` at,
+    /// so the stub falls back to finding the game itself.
+    #[test]
+    fn exe_is_omitted_when_the_game_is_not_beside_the_stub() {
+        assert_eq!(battleye_prefix("DayZ_BE.exe", false), vec!["0", "1", "0"]);
+    }
 
     #[test]
     fn vanilla_launch_no_extra_params() {
