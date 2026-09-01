@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "files": [
+          "splash.html"
+        ],
+        "createdAt": "2026-09-01T01:09:50.350Z",
+        "reason": "Inter is the app's pre-existing, established UI typeface (--font-ui in main.css, used app-wide) — not a new choice; the splash fallback matches it for brand consistency"
+      }
+    ]
+  }
+}

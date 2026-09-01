@@ -1,7 +1,7 @@
 {
   "name": "tetra-launcher",
   "private": true,
-  "version": "2.1.0",
+  "version": "2.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,6 +13,7 @@
   "dependencies": {
     "@tanstack/react-virtual": "^3",
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2",
     "@tauri-apps/plugin-process": "^2",
     "@tauri-apps/plugin-shell": "^2",
     "@tauri-apps/plugin-updater": "^2.10.1",

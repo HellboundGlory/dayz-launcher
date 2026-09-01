@@ -47,7 +47,6 @@ export function SettingsView({ onClose }: { onClose: () => void }) {
   const profileName = useSettingsStore((s) => s.profileName);
   const dayzPath = useSettingsStore((s) => s.dayzPath);
   const workshopPath = useSettingsStore((s) => s.workshopPath);
-  const autoJoinAfterDownload = useSettingsStore((s) => s.autoJoinAfterDownload);
   const hidePlaceholderServers = useSettingsStore((s) => s.hidePlaceholderServers);
   const englishNamesFilter = useSettingsStore((s) => s.englishNamesFilter);
   const launchParams = useSettingsStore((s) => s.launchParams);
@@ -118,7 +117,7 @@ export function SettingsView({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="settings absolute inset-y-0 right-0 left-[var(--side-w,220px)] z-40 flex flex-col bg-bg transition-[left] duration-200">
+    <div className="settings absolute bottom-0 right-0 top-7 left-[var(--side-w,220px)] z-40 flex flex-col bg-bg transition-[left] duration-200">
       <div className="s-head flex shrink-0 items-center justify-between border-b border-line bg-surface px-[18px] py-[13px]">
         <div className="lt flex items-center gap-2.5">
           <button
@@ -204,13 +203,6 @@ export function SettingsView({ onClose }: { onClose: () => void }) {
               className={cn(INPUT_CLASS, "resize-y font-mono text-[11px]")}
             />
           </Field>
-
-          <CheckboxRow
-            checked={autoJoinAfterDownload}
-            onChange={(v) => setSetting("autoJoinAfterDownload", v)}
-            label="Auto-join after downloading"
-            hint="Launch automatically once every required mod has finished downloading."
-          />
         </SettingsAccordion>
 
         <SettingsAccordion

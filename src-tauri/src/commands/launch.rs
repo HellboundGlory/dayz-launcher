@@ -536,6 +536,14 @@ pub fn discover_steam_paths() -> Result<Option<SteamPaths>, String> {
     }))
 }
 
+/// Whether `path` looks like a real DayZ install — i.e. `find_dayz_exe` would
+/// find something to launch there. Backs the setup modal's inline "found it"
+/// check for both Browse and a hand-pasted path.
+#[tauri::command]
+pub fn validate_dayz_path(path: String) -> bool {
+    find_dayz_exe(std::path::Path::new(&path)).is_some()
+}
+
 /// Whether a DayZ session is running right now. Called once on mount for an
 /// immediate answer; day-to-day updates arrive via the `dayz-running` event
 /// (see [`start_dayz_watcher`]) instead of polling this. Enumerates every

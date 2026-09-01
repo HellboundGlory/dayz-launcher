@@ -18,6 +18,7 @@
     "core:window:allow-set-focus",
     "process:allow-exit",
     "process:allow-restart",
-    "updater:default"
+    "updater:default",
+    "dialog:allow-open"
   ]
 }
