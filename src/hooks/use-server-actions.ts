@@ -96,7 +96,6 @@ export function useServerActions() {
   const profileName = useSettingsStore((s) => s.profileName);
   const dayzPath = useSettingsStore((s) => s.dayzPath);
   const launchParams = useSettingsStore((s) => s.launchParams);
-  const autoJoinAfterDownload = useSettingsStore((s) => s.autoJoinAfterDownload);
 
   const op = useLaunchStore((s) => s.op);
   const dayzUp = useLaunchStore((s) => s.dayzRunning);
@@ -238,14 +237,6 @@ export function useServerActions() {
       }
 
       setNote(null);
-
-      const downloaded = missing.length > 0 || verified.refreshed.length > 0;
-
-      // The one case where a press doesn't end in DayZ starting.
-      if (downloaded && !autoJoinAfterDownload) {
-        setNotice({ kind: "plain", text: "Mods updated — press JOIN to go in." });
-        return;
-      }
 
       await launch(addr, gamePort, toMenu);
     } catch (e) {

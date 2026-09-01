@@ -23,3 +23,6 @@ implementation_plan.md
 # UI overhaul mockups & screenshots — not committed
 mockups/
 screenshots/
+
+# impeccable design-hook cache — ephemeral; config.json (ignore decisions) is kept
+.impeccable/hook.cache.json

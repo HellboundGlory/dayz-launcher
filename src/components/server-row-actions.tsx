@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { MoreHorizontal, Info, Play, ListTree, Download, Loader2 } from "lucide-react";
+import { ChevronDown, Info, Play, ListTree, Download, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Server } from "@/types/server";
 import { useServerActions, NOTICES } from "@/hooks/use-server-actions";
@@ -11,7 +11,8 @@ interface RowActionsProps {
   onOpenChange?: (open: boolean) => void;
 }
 
-// The per-row ⋯ menu: More info, Join, Load to menu, Download mods.
+// Row-level Join button plus a chevron menu for the rest: More info, Load to
+// menu, Download mods — same split shape as the More Info modal's Join button.
 export function ServerRowActions({ server, onMoreInfo, onOpenChange }: RowActionsProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -66,9 +67,38 @@ export function ServerRowActions({ server, onMoreInfo, onOpenChange }: RowAction
   }
 
   const busyForThis = actions.op && actions.op.addr === server.addr;
+  const joinDisabled = !!actions.op || actions.dayzUp;
 
   return (
-    <div ref={ref} className="row-act relative flex shrink-0 items-center gap-1.5">
+    <div ref={ref} className="row-act relative flex shrink-0 items-center gap-[5px]">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          if (joinDisabled) return;
+          setOpen(false);
+          void actions.verifyAndJoin(server, false);
+        }}
+        disabled={joinDisabled}
+        title={
+          actions.dayzUp && !busyForThis
+            ? "DayZ is running. Quit the game before joining another server."
+            : undefined
+        }
+        className="flex shrink-0 items-center gap-1.5 rounded-[6px] bg-accent px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#10131a] shadow-[var(--glow)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none disabled:hover:brightness-100"
+      >
+        {busyForThis ? (
+          <>
+            <Loader2 className="size-3.5 shrink-0 animate-spin" />
+            <span className="max-w-[92px] truncate">{actions.phaseLabel(actions.op!)}</span>
+          </>
+        ) : (
+          <>
+            {server.modded ? <Download className="size-3.5" /> : <Play className="size-3.5" />}
+            <span>Join</span>
+          </>
+        )}
+      </button>
+
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -76,13 +106,13 @@ export function ServerRowActions({ server, onMoreInfo, onOpenChange }: RowAction
         }}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`Actions for ${server.name || server.addr}`}
+        aria-label={`More actions for ${server.name || server.addr}`}
         className={cn(
           "rounded-[6px] border border-line bg-surface2 p-[5px] text-muted2 transition-colors hover:border-accent-line hover:text-accent",
           open && "border-accent-line text-accent",
         )}
       >
-        <MoreHorizontal className="size-3.5" />
+        <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} />
       </button>
 
       {open && (
@@ -92,27 +122,15 @@ export function ServerRowActions({ server, onMoreInfo, onOpenChange }: RowAction
           onKeyDown={onMenuKeyDown}
           className="menu absolute right-0 top-[calc(100%+4px)] z-[6] w-[174px] rounded-[7px] border border-line bg-surface2 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
         >
-          {busyForThis && (
-            <div className="flex items-center gap-1.5 rounded-[5px] px-2.5 py-1.5 text-[10px] font-semibold text-accent">
-              <Loader2 className="size-3 animate-spin" />
-              <span className="truncate">{actions.phaseLabel(actions.op!)}</span>
-            </div>
-          )}
           <MenuItem
             icon={<Info className="size-3.5" />}
             label="More info"
             onClick={() => run(() => onMoreInfo(server))}
           />
           <MenuItem
-            icon={<Play className="size-3.5" />}
-            label="Join"
-            disabled={!!actions.op || actions.dayzUp}
-            onClick={() => run(() => void actions.verifyAndJoin(server, false))}
-          />
-          <MenuItem
             icon={<ListTree className="size-3.5" />}
             label="Load to menu"
-            disabled={!!actions.op || actions.dayzUp}
+            disabled={joinDisabled}
             onClick={() => run(() => void actions.verifyAndJoin(server, true))}
           />
           <MenuItem
