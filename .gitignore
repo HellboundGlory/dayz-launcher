@@ -20,9 +20,13 @@ implementation_plan.md
 .claude/
 *.log
 
+# Agent instructions — local only, not published
+CLAUDE.md
+AGENTS.md
+
 # UI overhaul mockups & screenshots — not committed
 mockups/
 screenshots/
 
-# impeccable design-hook cache — ephemeral; config.json (ignore decisions) is kept
-.impeccable/hook.cache.json
+# impeccable — local only, not published
+.impeccable/
