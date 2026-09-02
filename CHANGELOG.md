@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.2.2 — 2026-09-02
+
+### Fixed
+
+- **Servers no longer stay missing until you restart the launcher.** A server
+  that was still appearing on Steam's master list (a new host, or one that had
+  just restarted and was still propagating) used to be invisible for the rest
+  of the session — the master list was only pulled once, at launch. The
+  launcher now re-pulls it every five minutes, so new and returning servers
+  show up on their own.
+
 ## v2.2.1 — 2026-09-01
 
 ### Fixed

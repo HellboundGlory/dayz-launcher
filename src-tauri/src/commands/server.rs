@@ -222,6 +222,20 @@ pub async fn discover_servers(
         guard.as_ref().ok_or("Registry not initialized")?.writer()
     };
 
+    // One master pull at a time: a second `discover_servers` (periodic
+    // rediscovery, retry) while one is streaming would queue a duplicate pull
+    // behind it in the Steam actor. Swap-once makes the second call a cheap
+    // no-op; DiscoveryGuard's Drop clears the flag on every exit path.
+    if state.discovery_running.swap(true, Ordering::Relaxed) {
+        crate::log::log_line(
+            &app,
+            "discovery",
+            "discover_servers: already running, skipping",
+        );
+        return Ok(());
+    }
+    let _discovery_guard = DiscoveryGuard(state.inner());
+
     // Consumed as a stream so rows land in the registry — and on screen —
     // from the first flush onward, instead of the table sitting empty until
     // the whole request completes.
@@ -249,10 +263,6 @@ pub async fn discover_servers(
         }
         Ok::<(), String>(())
     });
-
-    // Cleared by DiscoveryGuard's Drop, not a manual store at the bottom.
-    state.discovery_running.store(true, Ordering::Relaxed);
-    let _discovery_guard = DiscoveryGuard(state.inner());
 
     let mut found = 0usize;
     let mut abandoned = false;
