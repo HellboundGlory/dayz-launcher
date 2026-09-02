@@ -43,6 +43,9 @@ const RELOAD_THROTTLE_MS = 250;
 // several times a second and each reload re-queries the whole table.
 const DISCOVERY_RELOAD_THROTTLE_MS = 1500;
 
+/** Master-list cadence: new/returning servers appear without a relaunch. */
+const REDISCOVER_MS = 5 * 60 * 1000;
+
 /** Interval between Steam-availability rechecks while it's down. */
 const STEAM_RETRY_MS = 4000;
 
@@ -450,6 +453,21 @@ export function App() {
     }, autoRefreshSecs * 1000);
     return () => clearInterval(id);
   }, [settingsLoaded, autoRefreshSecs, steamConnected, handleRefresh]);
+
+  // Periodic master re-pull. Discovery was launch-only, so servers still
+  // propagating to Steam at startup stayed absent for the whole session —
+  // this keeps a long-lived (or trayed) launcher's list growing. Reuses the
+  // startup pass for its status line, throttled reloads and logs; a tick that
+  // lands mid-discovery is a backend no-op (discovery_running), and the
+  // heavier A2S auto-refresh above is untouched.
+  useEffect(() => {
+    if (!steamConnected) return;
+    const id = window.setInterval(() => {
+      void logClient("discovery", "periodic rediscover: start");
+      void runInitialLoad();
+    }, REDISCOVER_MS);
+    return () => clearInterval(id);
+  }, [steamConnected, runInitialLoad]);
 
   // ── Startup splash (separate window) ────────────────────────────
   // `main` stays hidden until startup is ready or Steam fails; the last
