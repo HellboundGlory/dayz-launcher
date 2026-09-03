@@ -10,7 +10,7 @@ use tauri::{AppHandle, State};
 use tetra_steam::{StaleOutcome, SubscribedModInfo};
 
 /// How old a cached Workshop answer may be before the tab re-asks Steam.
-const CACHE_STALE_AFTER_SECS: i64 = 24 * 60 * 60;
+const CACHE_STALE_AFTER_SECS: i64 = 5 * 60;
 
 /// Name of the snapshot in the data root, beside the registry and settings.
 const CACHE_FILENAME: &str = "mods-cache.json";

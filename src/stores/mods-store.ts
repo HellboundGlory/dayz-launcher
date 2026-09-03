@@ -301,6 +301,25 @@ async function runVerify(ids: string[]) {
     const checked = outcomes.filter((o) => o.known).length;
     const outdated = outcomes.filter((o) => o.outdated).length;
     const queued = outcomes.filter((o) => o.queued).length;
+
+    const outdatedMap = new Map(
+      outcomes.filter((o) => o.outdated).map((o) => [o.workshop_id, o.queued]),
+    );
+    if (outdatedMap.size > 0) {
+      const currentRows = useModsStore.getState().rows;
+      const updatedRows = currentRows.map((r) => {
+        const isQueued = outdatedMap.get(r.workshop_id);
+        if (isQueued !== undefined) {
+          return {
+            ...r,
+            state: isQueued ? ("downloading" as const) : ("needs_update" as const),
+          };
+        }
+        return r;
+      });
+      set({ rows: updatedRows });
+    }
+
     set({
       op: null,
       verifyResult: { checked, outdated, queued },
