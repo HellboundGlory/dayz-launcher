@@ -784,7 +784,9 @@ fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>) {
                 for &id in &issued.ids {
                     let installed_at = issued.installed.get(&id).copied().unwrap_or(0);
                     let updated_at = updated.get(&id).copied().unwrap_or(0);
-                    if !crate::workshop::is_stale(installed_at, updated_at) {
+                    let outdated =
+                        updated_at != 0 && (installed_at == 0 || updated_at > installed_at);
+                    if !outdated {
                         continue;
                     }
                     // High priority: someone is waiting on this to join, so it
@@ -875,7 +877,8 @@ fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>) {
                     // Upgrade a stale cached `Ready` to `NeedsUpdate`, but never
                     // overwrite a more specific state.
                     if info.state == crate::workshop::ModState::Ready
-                        && crate::workshop::is_stale(info.install_timestamp, info.time_updated)
+                        && d.time_updated != 0
+                        && (info.install_timestamp == 0 || d.time_updated > info.install_timestamp)
                     {
                         info.state = crate::workshop::ModState::NeedsUpdate;
                     }
