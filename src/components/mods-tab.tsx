@@ -13,6 +13,7 @@ import {
   Trash2,
   Globe,
   X,
+  Check,
 } from "lucide-react";
 import {
   useModsStore,
@@ -52,6 +53,21 @@ const STATUS_FILTERS: { key: ModStatusFilter; label: string }[] = [
 
 function modSubscribed(mod: { time_added_to_user_list: number; install_timestamp: number }) {
   return mod.time_added_to_user_list || mod.install_timestamp || 0;
+}
+
+/**
+ * Resolve effective mod state between the authoritative Workshop enumeration row
+ * and the 1.5s live Steam client poll. Steam's local item_state reports "ready" for
+ * any installed mod because it doesn't query the Workshop; a cheap poll must never
+ * downgrade an authoritative "needs_update" from Workshop enumeration to "ready".
+ */
+export function effectiveModState(rowState: ModState, liveState?: ModState): ModState {
+  if (!liveState) return rowState;
+  if (liveState === "downloading") return "downloading";
+  if (rowState === "needs_update") {
+    if (liveState === "ready") return "needs_update";
+  }
+  return liveState;
 }
 
 // Shallow-compared slice so a change to something only a child cares about
@@ -114,7 +130,7 @@ export function ModsTab() {
     }
     if (statusFilter !== "all") {
       visible = visible.filter((r) => {
-        const state = states[r.workshop_id] ?? r.state;
+        const state = effectiveModState(r.state, states[r.workshop_id]);
         switch (statusFilter) {
           case "outdated":
             return state === "needs_update";
@@ -151,6 +167,7 @@ export function ModsTab() {
     const ids = visibleRows(rows).map((r) => r.workshop_id);
     if (ids.length === 0) return;
     let cancelled = false;
+    let prevStates: Record<string, ModState> = {};
     async function poll() {
       try {
         const [entries, progress] = await Promise.all([
@@ -158,7 +175,12 @@ export function ModsTab() {
           steamDownloadProgress(ids),
         ]);
         if (cancelled) return;
-        setLive(Object.fromEntries(entries.map((e) => [e.workshop_id, e.state])));
+        const nextStates = Object.fromEntries(entries.map((e) => [e.workshop_id, e.state]));
+        const finishedDownload = entries.some(
+          (e) => e.state === "ready" && prevStates[e.workshop_id] === "downloading",
+        );
+        prevStates = nextStates;
+        setLive(nextStates);
         setProgress(
           Object.fromEntries(
             progress.map((p) => [
@@ -167,6 +189,9 @@ export function ModsTab() {
             ]),
           ),
         );
+        if (finishedDownload) {
+          void load(true);
+        }
       } catch {
         /* next tick */
       }
@@ -177,7 +202,7 @@ export function ModsTab() {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [rows, setLive, setProgress]);
+  }, [rows, setLive, setProgress, load]);
 
   const selectedMod = rows.find((r) => r.workshop_id === selectedModId) ?? null;
 
@@ -304,7 +329,8 @@ const ModRow = memo(function ModRow({
   selected: boolean;
 }) {
   const checked = useModsStore((s) => s.selectedIds.has(mod.workshop_id));
-  const state = useModsStore((s) => s.states[mod.workshop_id] ?? mod.state);
+  const rawLive = useModsStore((s) => s.states[mod.workshop_id]);
+  const state = effectiveModState(mod.state, rawLive);
   const progress = useModsStore((s) => s.progress[mod.workshop_id]);
   const toggleSelected = useModsStore((s) => s.toggleSelected);
   const openMod = useModsStore((s) => s.openMod);
@@ -338,10 +364,14 @@ const ModRow = memo(function ModRow({
       >
         <span
           className={cn(
-            "box h-[13px] w-[13px] rounded-[3px] border border-line",
-            checked && "border-accent bg-accent-soft shadow-[var(--glow)]",
+            "box flex h-[13px] w-[13px] items-center justify-center rounded-[3px] border border-line transition-colors",
+            checked
+              ? "border-accent bg-accent text-[#10131a] shadow-[var(--glow)]"
+              : "bg-surface2 hover:border-accent-line",
           )}
-        />
+        >
+          {checked && <Check className="size-2.5 stroke-[3]" />}
+        </span>
       </div>
 
       <div className="mx-thumb h-[30px] w-[30px] shrink-0 overflow-hidden rounded-[7px] bg-surface2">
@@ -404,7 +434,8 @@ const ModRow = memo(function ModRow({
 });
 
 function ModInspector({ mod }: { mod: SubscribedMod }) {
-  const state = useModsStore((s) => s.states[mod.workshop_id] ?? mod.state);
+  const rawLive = useModsStore((s) => s.states[mod.workshop_id]);
+  const state = effectiveModState(mod.state, rawLive);
   const openMod = useModsStore((s) => s.openMod);
   const load = useModsStore((s) => s.load);
   const [reinstalling, setReinstalling] = useState(false);
@@ -558,6 +589,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
       clearMutationFailures: s.clearMutationFailures,
       clearUniqueResult: s.clearUniqueResult,
       clearSelection: s.clearSelection,
+      setAllSelected: s.setAllSelected,
       cleanupRemoved: s.cleanupRemoved,
       unsubscribeSelected: s.unsubscribeSelected,
       unsubscribeAll: s.unsubscribeAll,
@@ -665,13 +697,23 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
             `${allCount} mod${allCount === 1 ? "" : "s"}`
           )}
         </span>
-        <button
-          onClick={() => store.clearSelection()}
-          disabled={selectedCount === 0}
-          className="ab-link shrink-0 text-[9px] font-bold uppercase tracking-[0.06em] text-muted transition-colors hover:text-ink disabled:opacity-40"
-        >
-          Clear
-        </button>
+        {selectedCount < allCount && (
+          <button
+            onClick={() => store.setAllSelected(true)}
+            disabled={allCount === 0}
+            className="ab-link shrink-0 text-[9px] font-bold uppercase tracking-[0.06em] text-muted transition-colors hover:text-ink disabled:opacity-40"
+          >
+            Select all
+          </button>
+        )}
+        {selectedCount > 0 && (
+          <button
+            onClick={() => store.clearSelection()}
+            className="ab-link shrink-0 text-[9px] font-bold uppercase tracking-[0.06em] text-muted transition-colors hover:text-ink"
+          >
+            Clear
+          </button>
+        )}
 
         <div className="ml-auto flex items-center gap-1.5">
           {/* Select unique to a server */}
