@@ -27,6 +27,7 @@
   --success: #4d9a75;
   --warn: #c19a55;
   --warn-soft: rgba(193, 154, 85, 0.14);
+  --warn-line: rgba(193, 154, 85, 0.4);
   --danger: #b3564d;
   --danger-soft: rgba(179, 86, 77, 0.15);
   --danger-line: rgba(179, 86, 77, 0.4);

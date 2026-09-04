@@ -4,6 +4,7 @@ import { useShallow } from "zustand/react/shallow";
 import {
   ChevronDown,
   ChevronRight,
+  Download,
   ExternalLink,
   FolderOpen,
   Loader2,
@@ -438,7 +439,10 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
   const state = effectiveModState(mod.state, rawLive);
   const openMod = useModsStore((s) => s.openMod);
   const load = useModsStore((s) => s.load);
+  const op = useModsStore((s) => s.op);
+  const updateMods = useModsStore((s) => s.updateMods);
   const [reinstalling, setReinstalling] = useState(false);
+  const updating = op?.kind === "update";
   const ui = STATUS_UI[state];
 
   function openInSteam() {
@@ -519,6 +523,17 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
         </div>
 
         <div className="m2-actions mt-0.5 flex gap-1.5">
+          {state === "needs_update" && (
+            <button
+              onClick={() => void updateMods([mod.workshop_id])}
+              disabled={updating}
+              title="Download the newer Workshop copy"
+              className="m2-btn flex flex-1 items-center justify-center gap-1 rounded-[6px] border border-warn-line bg-warn-soft px-2 py-1.5 text-[9px] font-bold uppercase tracking-[0.03em] text-warn transition-colors disabled:opacity-50"
+            >
+              <Download className={cn("size-3", updating && "animate-pulse")} />
+              {updating ? "…" : "Update"}
+            </button>
+          )}
           <button
             onClick={openInSteam}
             className="m2-btn flex flex-1 items-center justify-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-1.5 text-[9px] font-bold uppercase tracking-[0.03em] text-muted2 transition-colors hover:text-ink"
@@ -595,12 +610,14 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
       unsubscribeAll: s.unsubscribeAll,
       verifyAll: s.verifyAll,
       verifySelected: s.verifySelected,
+      updateAllOutdated: s.updateAllOutdated,
     })),
   );
   const [menu, setMenu] = useState<"verify" | "unsub" | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const selectedCount = store.selectedIds.size;
   const allCount = visibleRows(store.rows).length;
+  const outdatedCount = visibleRows(store.rows).filter((r) => r.state === "needs_update").length;
 
   useEffect(() => {
     if (!menu) return;
@@ -808,6 +825,26 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
             </div>
           )}
         </div>
+
+        {/* Update outdated */}
+        {outdatedCount > 0 && (
+          <button
+            onClick={() => void store.updateAllOutdated()}
+            disabled={busy}
+            title={`Download the newer Workshop copy of ${outdatedCount} mod${outdatedCount === 1 ? "" : "s"}`}
+            className={cn(
+              "flex shrink-0 items-center gap-1.5 rounded-[6px] border border-warn-line bg-warn-soft px-2.5 py-[7px] text-[10px] font-bold uppercase tracking-wider text-warn transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50",
+              store.op?.kind === "update" && "animate-pulse",
+            )}
+          >
+            {store.op?.kind === "update" ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : (
+              <Download className="size-3" />
+            )}
+            {store.op?.kind === "update" ? store.op.note ?? "Updating…" : `Update ${outdatedCount}`}
+          </button>
+        )}
 
         {/* Verify group */}
         <div className="relative flex">

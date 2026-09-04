@@ -312,6 +312,33 @@ pub async fn reinstall_subscribed_mod(
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
+/// Explicit re-download for mods already known to be outdated — unlike
+/// `reinstall_subscribed_mod`, nothing on disk is cleared first.
+#[tauri::command]
+pub async fn update_subscribed_mods(
+    state: State<'_, AppState>,
+    workshop_ids: Vec<String>,
+) -> Result<(), String> {
+    let steam = live_steam(&state)
+        .ok_or("Steam is not connected. Start Steam and restart the launcher.")?;
+    let ids: Vec<u64> = workshop_ids
+        .iter()
+        .filter_map(|s| s.parse::<u64>().ok())
+        .filter(|id| tetra_steam::ModState::is_workshop_id(*id))
+        .collect();
+    if ids.is_empty() {
+        return Ok(());
+    }
+    tokio::task::spawn_blocking(move || {
+        steam
+            .force_download(&ids)
+            .map_err(|e| format!("Steam query failed: {e}"))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
 /// Reveal a mod's install folder in the system file manager. Constrained to
 /// resolve inside the Steam Workshop content directory — defence in depth
 /// against the webview passing an arbitrary path.

@@ -491,6 +491,12 @@ export async function reinstallSubscribedMod(workshopId: string): Promise<void> 
   return invoke<void>("reinstall_subscribed_mod", { workshopId: workshopId });
 }
 
+/** Download the latest Workshop copy of one or more mods already flagged as
+    out of date — incremental, unlike `reinstallSubscribedMod`. */
+export async function updateSubscribedMods(workshopIds: string[]): Promise<void> {
+  return invoke<void>("update_subscribed_mods", { workshopIds: workshopIds });
+}
+
 /** Open a mod's Workshop page in the Steam client itself (focuses Steam). */
 export async function openWorkshopInSteam(workshopId: string): Promise<void> {
   return invoke<void>("open_workshop_in_steam", { workshopId: workshopId });
