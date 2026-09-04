@@ -24,6 +24,7 @@ export function applyTheme(palette: Palette, scheme: "dark" | "light", bloom: nu
   p.setProperty("--success", palette.success);
   p.setProperty("--warn", palette.warn);
   p.setProperty("--warn-soft", rgba(palette.warn, 0.14));
+  p.setProperty("--warn-line", rgba(palette.warn, 0.4));
   p.setProperty("--danger", palette.danger);
   p.setProperty("--danger-soft", rgba(palette.danger, 0.15));
   p.setProperty("--danger-line", rgba(palette.danger, 0.4));

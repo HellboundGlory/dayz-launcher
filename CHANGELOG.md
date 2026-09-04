@@ -1,5 +1,26 @@
 # Changelog
 
+## v2.3.0 — 2026-09-04
+
+### Added
+
+- **Mods no longer update themselves through Steam in the background.** The
+  launcher now controls exactly when a mod's files change: an outdated mod
+  shows an Update badge on the Mods page, where you can update it on its own
+  or update every outdated mod at once. Mods still update automatically when
+  needed to join a server, same as before.
+
+### Fixed
+
+- **The Mods page could miss that a mod needed updating.** A background
+  check running every 1.5 seconds could overwrite a correct "needs update"
+  status back to "ready" before you ever saw it, sometimes hiding it from
+  the Outdated filter entirely. The mods list, Verify, and joining a server
+  now all agree on what counts as outdated.
+- **The Mods page selection checkbox had no visible checkmark.** It draws
+  one now, and the action bar offers Select all / Clear instead of an
+  always-visible, usually-disabled Clear button.
+
 ## v2.2.2 — 2026-09-02
 
 ### Fixed

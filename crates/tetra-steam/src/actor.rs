@@ -164,12 +164,66 @@ pub struct MutationResult {
 /// never fires still surfaces as an error rather than an indefinite spinner.
 const MUTATION_DEADLINE: Duration = Duration::from_secs(60);
 
+// Explicit-download gate: Steam otherwise auto-updates subscribed items in
+// the background on its own. See .ai-notes/crates/tetra-steam/src/actor.rs.md.
+
+/// Ids explicitly queued for download, and when.
+type ActiveDownloads = HashMap<u64, Instant>;
+
+/// Gives Steam a beat to flip to `Downloading` before an id counts as done.
+const DOWNLOAD_SETTLE: Duration = Duration::from_millis(1500);
+
+/// Bounds how long one stuck id can keep the background updater re-enabled.
+const DOWNLOAD_WATCH_TIMEOUT: Duration = Duration::from_secs(30 * 60);
+
+/// Lifts the suspend before queuing, if this is the first thing in flight.
+fn queue_download(
+    client: &Client,
+    active: &mut ActiveDownloads,
+    id: u64,
+    high_priority: bool,
+) -> bool {
+    let ugc = client.ugc();
+    if active.is_empty() {
+        ugc.suspend_downloads(false);
+    }
+    let queued = ugc.download_item(steamworks::PublishedFileId(id), high_priority);
+    if queued {
+        active.insert(id, Instant::now());
+    }
+    queued
+}
+
+/// Re-suspends once nothing explicit is left in flight. Called every actor
+/// loop tick via `poll_checks`.
+fn reap_downloads(client: &Client, active: &mut ActiveDownloads) {
+    if active.is_empty() {
+        return;
+    }
+    let ugc = client.ugc();
+    let now = Instant::now();
+    active.retain(|&id, queued_at| {
+        if now.duration_since(*queued_at) > DOWNLOAD_WATCH_TIMEOUT {
+            return false;
+        }
+        let bits = ugc.item_state(steamworks::PublishedFileId(id)).bits();
+        let state = crate::workshop::ModState::from_bits(bits);
+        let settled = state == crate::workshop::ModState::Ready
+            && now.duration_since(*queued_at) > DOWNLOAD_SETTLE;
+        !settled
+    });
+    if active.is_empty() {
+        ugc.suspend_downloads(true);
+    }
+}
+
 /// Answer a command that resolves instantly from local Steam state, with no
 /// callback pump of its own. Returns `Some(cmd)` for anything unhandled.
 fn service_instant(
     client: &Client,
     cmd: Command,
     pending: &mut Vec<PendingCheck>,
+    active: &mut ActiveDownloads,
 ) -> Option<Command> {
     match cmd {
         // Issuing needs no pump of its own; replies are collected by
@@ -197,11 +251,10 @@ fn service_instant(
             None
         }
         Command::UGCDownload(ids, ack) => {
-            let ugc = client.ugc();
             let accepted: Vec<u64> = ids
                 .into_iter()
                 .filter(|id| crate::workshop::ModState::is_workshop_id(*id))
-                .filter(|id| ugc.download_item(steamworks::PublishedFileId(*id), true))
+                .filter(|&id| queue_download(client, active, id, true))
                 .collect();
             let _ = ack.send(Ok(accepted));
             None
@@ -287,6 +340,9 @@ pub(crate) fn run(
         return;
     }
 
+    // Otherwise Steam auto-updates subscribed items in the background.
+    client.ugc().suspend_downloads(true);
+
     // Kept alive for the life of the loop below — a `CallbackHandle` drops
     // its registration, so binding these to `_` would unregister them
     // immediately instead of leaving them listening.
@@ -305,10 +361,11 @@ pub(crate) fn run(
     // Check-and-enumerate commands issued but not yet answered. Drained by
     // `poll_checks` on every turn of this loop and of `request_list`'s.
     let mut pending: Vec<PendingCheck> = Vec::new();
+    let mut active: ActiveDownloads = HashMap::new();
 
     loop {
         client.run_callbacks();
-        poll_checks(&client, &mut pending);
+        poll_checks(&client, &mut pending, &mut active);
 
         let next = match deferred.pop_front() {
             Some(cmd) => Ok(cmd),
@@ -324,6 +381,7 @@ pub(crate) fn run(
                     &rx,
                     &mut deferred,
                     &mut pending,
+                    &mut active,
                 );
                 let _ = tx.send(StreamChunk::Done(result.map(|_| ())));
             }
@@ -336,13 +394,18 @@ pub(crate) fn run(
                 | Command::SubscribedMods { .. }
                 | Command::UGCDownload(..)),
             ) => {
-                service_instant(&client, cmd, &mut pending);
+                service_instant(&client, cmd, &mut pending, &mut active);
             }
             Ok(Command::UGCSubscribe(ids, ack)) => {
-                let _ = ack.send(Ok(mutate(&client, &ids, Mutation::Subscribe)));
+                let _ = ack.send(Ok(mutate(&client, &ids, Mutation::Subscribe, &mut active)));
             }
             Ok(Command::UGCUnsubscribe(ids, ack)) => {
-                let _ = ack.send(Ok(mutate(&client, &ids, Mutation::Unsubscribe)));
+                let _ = ack.send(Ok(mutate(
+                    &client,
+                    &ids,
+                    Mutation::Unsubscribe,
+                    &mut active,
+                )));
             }
             Ok(Command::Shutdown(ack)) => {
                 drop(client);
@@ -364,7 +427,12 @@ enum Mutation {
 /// Issue a subscribe/unsubscribe for every id, then pump until each has
 /// answered or the deadline passes. All ids are issued before any pumping,
 /// so the calls overlap rather than running one round trip at a time.
-fn mutate(client: &Client, ids: &[u64], kind: Mutation) -> Vec<MutationResult> {
+fn mutate(
+    client: &Client,
+    ids: &[u64],
+    kind: Mutation,
+    active: &mut ActiveDownloads,
+) -> Vec<MutationResult> {
     // Dedup (a duplicate id would make the completion count below unreachable)
     // and drop non-Workshop ids (id 0 denotes server-side content).
     let ids: Vec<u64> = {
@@ -419,7 +487,7 @@ fn mutate(client: &Client, ids: &[u64], kind: Mutation) -> Vec<MutationResult> {
         // Subscribing alone doesn't reliably start a transfer, so queue it
         // explicitly — a harmless no-op if Steam already queued one.
         let error = if kind == Mutation::Subscribe && error.is_none() {
-            if ugc.download_item(steamworks::PublishedFileId(id), false) {
+            if queue_download(client, active, id, false) {
                 None
             } else {
                 Some("Subscribed, but Steam would not start the download".to_string())
@@ -760,11 +828,11 @@ fn workshop_only_ids(ids: Vec<u64>) -> Vec<u64> {
 
 /// Complete any pending check whose replies have all landed, or whose
 /// deadline has passed. Called from every loop that pumps callbacks.
-fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>) {
+fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>, active: &mut ActiveDownloads) {
+    reap_downloads(client, active);
     if pending.is_empty() {
         return;
     }
-    let ugc = client.ugc();
     pending.retain_mut(|p| {
         match p {
             PendingCheck::Refresh { issued, ack } => {
@@ -791,7 +859,7 @@ fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>) {
                     }
                     // High priority: someone is waiting on this to join, so it
                     // must not queue behind an unrelated library download.
-                    if ugc.download_item(steamworks::PublishedFileId(id), true) {
+                    if queue_download(client, active, id, true) {
                         queued.push(id);
                     }
                 }
@@ -819,8 +887,7 @@ fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>) {
                     // should bring down.
                     let outdated =
                         updated_at != 0 && (installed_at == 0 || updated_at > installed_at);
-                    let queued =
-                        outdated && ugc.download_item(steamworks::PublishedFileId(id), true);
+                    let queued = outdated && queue_download(client, active, id, true);
                     outcomes.push(StaleOutcome {
                         workshop_id: id.to_string(),
                         known,
@@ -900,6 +967,7 @@ fn request_list(
     rx: &Receiver<Command>,
     deferred: &mut VecDeque<Command>,
     pending: &mut Vec<PendingCheck>,
+    active: &mut ActiveDownloads,
 ) -> Result<Vec<GameServerRow>, SteamError> {
     let mms = client.matchmaking_servers();
 
@@ -996,13 +1064,13 @@ fn request_list(
         // Answer instant queries while this request runs, so a mod-state
         // lookup doesn't wait behind a whole discovery.
         while let Ok(cmd) = rx.try_recv() {
-            if let Some(unhandled) = service_instant(client, cmd, pending) {
+            if let Some(unhandled) = service_instant(client, cmd, pending, active) {
                 deferred.push_back(unhandled);
             }
         }
 
         // Complete any pending check issued above, same reasoning.
-        poll_checks(client, pending);
+        poll_checks(client, pending, active);
 
         if !flush(false, &mut streamed) {
             break;
