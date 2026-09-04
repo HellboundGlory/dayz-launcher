@@ -31,6 +31,7 @@ export default {
         "danger-soft": "var(--danger-soft)",
         "danger-line": "var(--danger-line)",
         "warn-soft": "var(--warn-soft)",
+        "warn-line": "var(--warn-line)",
         "row-hover": "var(--row-hover)",
         "row-selected": "var(--row-selected)",
       },
