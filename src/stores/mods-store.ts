@@ -8,6 +8,7 @@ import {
   steamDownloadProgress,
   verifySubscribedMods,
   steamUnsubscribeMods,
+  updateSubscribedMods,
   type SubscribedMod,
   type ModState,
   type CaredServer,
@@ -24,7 +25,7 @@ export type ModStatusFilter = "all" | "outdated" | "downloading";
 
 /** A batch operation the action bar is running (one at a time). */
 export interface ModOp {
-  kind: "verify" | "unsubscribe" | "cleanup";
+  kind: "verify" | "unsubscribe" | "cleanup" | "update";
   /** Live detail under the action, e.g. `VERIFYING 13…`. */
   note: string | null;
 }
@@ -91,6 +92,10 @@ interface ModsState {
 
   verifySelected: () => Promise<void>;
   verifyAll: () => Promise<void>;
+  /** Download the given mods — no Workshop re-check; already known outdated. */
+  updateMods: (ids: string[]) => Promise<void>;
+  /** Update every currently-visible mod flagged as needing an update. */
+  updateAllOutdated: () => Promise<void>;
   unsubscribeSelected: () => Promise<void>;
   unsubscribeAll: () => Promise<void>;
   cleanupRemoved: () => Promise<void>;
@@ -260,6 +265,16 @@ export const useModsStore = create<ModsState>((set, get) => ({
     await runVerify(visibleRows(get().rows).map((r) => r.workshop_id));
   },
 
+  updateMods: async (ids) => {
+    await runUpdate(ids);
+  },
+  updateAllOutdated: async () => {
+    const outdated = visibleRows(get().rows)
+      .filter((r) => r.state === "needs_update")
+      .map((r) => r.workshop_id);
+    await runUpdate(outdated);
+  },
+
   unsubscribeSelected: async () => {
     await runUnsubscribe([...get().selectedIds]);
   },
@@ -324,6 +339,21 @@ async function runVerify(ids: string[]) {
       op: null,
       verifyResult: { checked, outdated, queued },
     });
+    // Re-poll now so the "downloading" dots appear without waiting for the
+    // 1.5s poll interval.
+    void refreshLiveState();
+  } catch (e) {
+    set({ op: null, error: String(e) });
+  }
+}
+
+async function runUpdate(ids: string[]) {
+  const s = useModsStore.getState();
+  if (ids.length === 0 || s.op) return;
+  set({ op: { kind: "update", note: `UPDATING ${ids.length}…` } });
+  try {
+    await updateSubscribedMods(ids);
+    set({ op: null });
     // Re-poll now so the "downloading" dots appear without waiting for the
     // 1.5s poll interval.
     void refreshLiveState();

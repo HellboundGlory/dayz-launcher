@@ -147,6 +147,7 @@ pub fn run() {
             commands::mods::get_unique_mods_for,
             commands::mods::get_servers_needing,
             commands::mods::reinstall_subscribed_mod,
+            commands::mods::update_subscribed_mods,
             commands::mods::open_mod_folder,
             commands::settings::get_settings,
             commands::settings::save_settings,
