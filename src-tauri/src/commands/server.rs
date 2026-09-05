@@ -158,6 +158,10 @@ pub struct FilterParams {
     /// "any" or "all"; anything else (including omission) means "any".
     #[serde(default)]
     pub mod_match: String,
+    /// Stringified Workshop ids to keep off the list — a server declaring any
+    /// one of these is dropped, independent of `mod_match`.
+    #[serde(default)]
+    pub mod_ids_exclude: Vec<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -905,6 +909,7 @@ fn filter_from_params(p: FilterParams) -> ServerFilter {
         } else {
             ModMatch::Any
         },
+        mod_ids_exclude: p.mod_ids_exclude.iter().filter_map(|id| id.parse().ok()).collect(),
     }
 }
 

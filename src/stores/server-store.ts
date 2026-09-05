@@ -66,6 +66,7 @@ const DEFAULT_FILTER: ServerFilter = {
   first_person: null,
   mod_ids: [],
   mod_match: "any",
+  mod_ids_exclude: [],
 };
 
 /** Persisted filters use their own key — the opposite choice from settings. */
@@ -100,6 +101,7 @@ function loadFilter(): ServerFilter {
       first_person: tri(saved.first_person),
       mod_ids: strings(saved.mod_ids),
       mod_match: saved.mod_match === "all" ? "all" : "any",
+      mod_ids_exclude: strings(saved.mod_ids_exclude),
     };
   } catch {
     return DEFAULT_FILTER;

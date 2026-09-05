@@ -52,6 +52,10 @@ pub struct ServerFilter {
     pub mod_ids: Vec<u64>,
     /// Whether a server must declare all of `mod_ids` or just one.
     pub mod_match: ModMatch,
+    /// Workshop ids to keep off the list entirely — a server declaring any one
+    /// of these is dropped, regardless of `mod_match`. Independent of
+    /// `mod_ids`: a mod can be required, excluded, or neither, never both.
+    pub mod_ids_exclude: Vec<u64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -210,6 +214,18 @@ pub(crate) fn build(
                 binds.extend(mod_binds);
                 binds.push(Value::Integer(filter.mod_ids.len() as i64));
             }
+        }
+    }
+    if !filter.mod_ids_exclude.is_empty() {
+        let holes = std::iter::repeat_n("?", filter.mod_ids_exclude.len())
+            .collect::<Vec<_>>()
+            .join(", ");
+        clauses.push(format!(
+            "NOT EXISTS (SELECT 1 FROM server_mods sm WHERE sm.ip = servers.ip \
+             AND sm.query_port = servers.query_port AND sm.workshop_id IN ({holes}))"
+        ));
+        for &id in &filter.mod_ids_exclude {
+            binds.push(Value::Integer(id as i64));
         }
     }
     // Name-based noise filters. `tetra_is_placeholder`/`tetra_is_english` are

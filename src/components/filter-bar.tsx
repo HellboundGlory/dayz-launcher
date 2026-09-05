@@ -75,7 +75,12 @@ export function FilterBar({ onRefresh, refreshing, onOpenModFilter, modFilterOpe
         onChange={(field, value) => setFilter({ [field]: value })}
       />
 
-      <ModsFilterTrigger modIds={filter.mod_ids} onOpen={onOpenModFilter} open={modFilterOpen} />
+      <ModsFilterTrigger
+        modIds={filter.mod_ids}
+        modIdsExclude={filter.mod_ids_exclude}
+        onOpen={onOpenModFilter}
+        open={modFilterOpen}
+      />
 
       <CountryDropdown
         selectedCountries={filter.countries ?? []}
@@ -261,17 +266,28 @@ function FdropTrigger({
 // experience needs more room than a 240px menu.
 function ModsFilterTrigger({
   modIds,
+  modIdsExclude,
   onOpen,
   open,
 }: {
   modIds: string[];
+  modIdsExclude: string[];
   onOpen: () => void;
   open: boolean;
 }) {
-  const label = modIds.length === 0 ? "Any" : modIds.length === 1 ? "1 mod" : `${modIds.length} mods`;
+  const included = modIds.length;
+  const excluded = modIdsExclude.length;
+  const label =
+    included === 0 && excluded === 0
+      ? "Any"
+      : excluded === 0
+        ? `${included} mod${included === 1 ? "" : "s"}`
+        : included === 0
+          ? `${excluded} excluded`
+          : `${included} in, ${excluded} out`;
 
   return (
-    <FdropTrigger label="MODS" on={modIds.length > 0} open={open} haspopup="dialog" onClick={onOpen}>
+    <FdropTrigger label="MODS" on={included + excluded > 0} open={open} haspopup="dialog" onClick={onOpen}>
       {label}
     </FdropTrigger>
   );
