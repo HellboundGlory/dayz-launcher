@@ -71,6 +71,7 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
           first_person: filter.first_person,
           mod_ids: filter.mod_ids,
           mod_match: filter.mod_match,
+          mod_ids_exclude: filter.mod_ids_exclude,
           // Preferences, not view state, so they come from Settings.
           hide_placeholder: hidePlaceholder,
           english_names: englishNames,

@@ -21,6 +21,7 @@ export interface FilterParams {
   english_names: boolean | null;
   mod_ids: string[];
   mod_match: "any" | "all";
+  mod_ids_exclude: string[];
 }
 
 export interface SortParams {

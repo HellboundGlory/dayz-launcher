@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { X, Search, Check, Star, ExternalLink, ThumbsUp, Users, Loader2, Inbox } from "lucide-react";
+import { X, Search, Check, Ban, Star, ExternalLink, ThumbsUp, Users, Loader2, Inbox } from "lucide-react";
 import { useServerStore } from "@/stores/server-store";
 import { useModsStore, visibleRows } from "@/stores/mods-store";
 import {
@@ -13,6 +13,9 @@ import {
 import { cn, formatBytes, formatLastPlayed } from "@/lib/utils";
 
 type Tab = "subscribed" | "seen" | "workshop";
+
+/** A mod is required, kept off the list, or neither — never both at once. */
+type Pick = "include" | "exclude";
 
 /** How long typing pauses before the Workshop search re-queries — same budget as the server search box. */
 const SEARCH_DEBOUNCE_MS = 350;
@@ -93,7 +96,12 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
 
   const [tab, setTab] = useState<Tab>("subscribed");
   const [query, setQuery] = useState("");
-  const [pending, setPending] = useState<string[]>(filter.mod_ids);
+  const [selection, setSelection] = useState<Record<string, Pick>>(() => {
+    const init: Record<string, Pick> = {};
+    for (const id of filter.mod_ids) init[id] = "include";
+    for (const id of filter.mod_ids_exclude) init[id] = "exclude";
+    return init;
+  });
   const [mode, setMode] = useState<"any" | "all">(filter.mod_match);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [meta, setMeta] = useState<Record<string, { title: string; previewUrl: string | null }>>({});
@@ -298,13 +306,45 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
 
   const preview = activeList.find((e) => e.id === previewId) ?? null;
 
-  function toggle(entry: Entry) {
-    setPending((p) => (p.includes(entry.id) ? p.filter((x) => x !== entry.id) : [...p, entry.id]));
+  const included = useMemo(
+    () => Object.keys(selection).filter((id) => selection[id] === "include"),
+    [selection],
+  );
+  const excluded = useMemo(
+    () => Object.keys(selection).filter((id) => selection[id] === "exclude"),
+    [selection],
+  );
+
+  function remember(entry: Entry) {
     setMeta((m) => ({ ...m, [entry.id]: { title: entry.title, previewUrl: entry.previewUrl } }));
   }
 
+  /** Row checkbox: cycles none → include → exclude → none. */
+  function cycle(entry: Entry) {
+    setSelection((s) => {
+      const next = { ...s };
+      if (next[entry.id] === "include") next[entry.id] = "exclude";
+      else if (next[entry.id] === "exclude") delete next[entry.id];
+      else next[entry.id] = "include";
+      return next;
+    });
+    remember(entry);
+  }
+
+  /** Preview pane's Include/Exclude buttons: pick a specific state, or clear it
+      if that state is already active — same result as cycling back to none. */
+  function setPick(entry: Entry, pick: Pick) {
+    setSelection((s) => {
+      const next = { ...s };
+      if (next[entry.id] === pick) delete next[entry.id];
+      else next[entry.id] = pick;
+      return next;
+    });
+    remember(entry);
+  }
+
   function apply() {
-    setFilter({ mod_ids: pending, mod_match: mode });
+    setFilter({ mod_ids: included, mod_match: mode, mod_ids_exclude: excluded });
     onClose();
   }
 
@@ -330,7 +370,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
         <div className="flex shrink-0 items-center justify-between border-b border-line px-4 py-3">
           <div>
             <h3 className="text-[13px] font-extrabold tracking-tight text-ink">Filter by mod</h3>
-            <p className="mt-0.5 text-[10px] text-muted">Only show servers running the mods you pick</p>
+            <p className="mt-0.5 text-[10px] text-muted">Require or exclude servers by the mods they run</p>
           </div>
           <button onClick={onClose} aria-label="Close" className="text-muted transition-colors hover:text-ink">
             <X className="size-[15px]" />
@@ -433,16 +473,26 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    toggle(entry);
+                    cycle(entry);
                   }}
-                  aria-pressed={pending.includes(entry.id)}
-                  aria-label={pending.includes(entry.id) ? `Remove ${entry.title} from filter` : `Add ${entry.title} to filter`}
+                  aria-label={
+                    selection[entry.id] === "include"
+                      ? `Exclude ${entry.title} instead`
+                      : selection[entry.id] === "exclude"
+                        ? `Clear the ${entry.title} filter`
+                        : `Include ${entry.title}`
+                  }
                   className={cn(
                     "flex size-[15px] shrink-0 items-center justify-center rounded-[4px] border-[1.5px] border-muted text-transparent",
-                    pending.includes(entry.id) && "border-accent bg-accent text-bg",
+                    selection[entry.id] === "include" && "border-accent bg-accent text-bg",
+                    selection[entry.id] === "exclude" && "border-danger bg-danger text-bg",
                   )}
                 >
-                  <Check className="size-[10px]" strokeWidth={2.6} />
+                  {selection[entry.id] === "exclude" ? (
+                    <Ban className="size-[10px]" strokeWidth={2.6} />
+                  ) : (
+                    <Check className="size-[10px]" strokeWidth={2.6} />
+                  )}
                 </button>
               </div>
             ))}
@@ -535,27 +585,32 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
                     "Not seen on any currently listed server yet — you can still filter for it"
                   )}
                 </div>
-                <button
-                  onClick={() => toggle(preview)}
-                  className={cn(
-                    "mt-auto flex w-full items-center justify-center gap-1.5 rounded-[6px] border px-3 py-2 pt-4 text-[10.5px] font-bold",
-                    pending.includes(preview.id)
-                      ? "border-line text-muted hover:text-ink"
-                      : "border-accent-line bg-accent-soft text-accent shadow-[var(--glow)] hover:brightness-110",
-                  )}
-                >
-                  {pending.includes(preview.id) ? (
-                    <>
-                      <X className="size-[13px]" />
-                      Remove from filter
-                    </>
-                  ) : (
-                    <>
-                      <Check className="size-[13px]" />
-                      Add to filter
-                    </>
-                  )}
-                </button>
+                <div className="mt-auto flex gap-2 pt-4">
+                  <button
+                    onClick={() => setPick(preview, "include")}
+                    className={cn(
+                      "flex flex-1 items-center justify-center gap-1.5 rounded-[6px] border px-3 py-2 text-[10.5px] font-bold",
+                      selection[preview.id] === "include"
+                        ? "border-accent-line bg-accent-soft text-accent shadow-[var(--glow)]"
+                        : "border-line text-muted hover:text-ink",
+                    )}
+                  >
+                    <Check className="size-[13px]" />
+                    {selection[preview.id] === "include" ? "Included" : "Include"}
+                  </button>
+                  <button
+                    onClick={() => setPick(preview, "exclude")}
+                    className={cn(
+                      "flex flex-1 items-center justify-center gap-1.5 rounded-[6px] border px-3 py-2 text-[10.5px] font-bold",
+                      selection[preview.id] === "exclude"
+                        ? "border-danger-line bg-danger-soft text-danger"
+                        : "border-line text-muted hover:text-ink",
+                    )}
+                  >
+                    <Ban className="size-[13px]" />
+                    {selection[preview.id] === "exclude" ? "Excluded" : "Exclude"}
+                  </button>
+                </div>
               </>
             )}
           </div>
@@ -563,29 +618,41 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
 
         <div className="flex shrink-0 items-center gap-2.5 border-t border-line px-4 py-2.5">
           <div className="mr-auto flex items-center">
-            {pending.length === 0 ? (
+            {included.length === 0 && excluded.length === 0 ? (
               <span className="text-[10px] text-muted">Nothing selected</span>
             ) : (
               <>
                 <div className="flex">
-                  {pending.slice(0, 4).map((id, i) => (
-                    <span
-                      key={id}
-                      className="-ml-1.5 size-[18px] overflow-hidden rounded-[5px] border-[1.5px] border-surface first:ml-0"
-                      style={{ zIndex: 4 - i }}
-                    >
-                      <ModThumb id={id} title={meta[id]?.title ?? id} previewUrl={meta[id]?.previewUrl ?? null} />
-                    </span>
-                  ))}
-                  {pending.length > 4 && (
+                  {[
+                    ...included.map((id) => ({ id, pick: "include" as const })),
+                    ...excluded.map((id) => ({ id, pick: "exclude" as const })),
+                  ]
+                    .slice(0, 4)
+                    .map(({ id, pick }, i) => (
+                      <span
+                        key={id}
+                        className={cn(
+                          "-ml-1.5 size-[18px] overflow-hidden rounded-[5px] border-[1.5px] first:ml-0",
+                          pick === "include" ? "border-accent" : "border-danger",
+                        )}
+                        style={{ zIndex: 4 - i }}
+                      >
+                        <ModThumb id={id} title={meta[id]?.title ?? id} previewUrl={meta[id]?.previewUrl ?? null} />
+                      </span>
+                    ))}
+                  {included.length + excluded.length > 4 && (
                     <span className="-ml-1.5 flex size-[18px] items-center justify-center rounded-[5px] border-[1.5px] border-surface bg-surface2 text-[8px] font-bold text-muted2">
-                      +{pending.length - 4}
+                      +{included.length + excluded.length - 4}
                     </span>
                   )}
                 </div>
-                <span className="ml-2 text-[10px] text-muted">{pending.length} selected</span>
+                <span className="ml-2 text-[10px] text-muted">
+                  {included.length > 0 && `${included.length} included`}
+                  {included.length > 0 && excluded.length > 0 && " · "}
+                  {excluded.length > 0 && `${excluded.length} excluded`}
+                </span>
                 <button
-                  onClick={() => setPending([])}
+                  onClick={() => setSelection({})}
                   className="ml-2.5 text-[9px] font-bold uppercase tracking-[0.05em] text-muted transition-colors hover:text-ink"
                 >
                   Clear

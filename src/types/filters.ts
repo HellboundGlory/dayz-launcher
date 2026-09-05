@@ -18,6 +18,9 @@ export interface ServerFilter {
   mod_ids: string[];
   /** Whether a server must declare every id in `mod_ids`, or just one. */
   mod_match: "any" | "all";
+  /** Stringified Workshop ids to keep off the list — a server declaring any
+      one of these is dropped, independent of `mod_match`. */
+  mod_ids_exclude: string[];
 }
 
 export type SortKey = 'players' | 'ping' | 'mod_count' | 'name' | 'map' | 'last_played';
