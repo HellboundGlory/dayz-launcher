@@ -11,6 +11,15 @@ pub(crate) const SERVER_LIST_COLUMNS: &str =
                 official, first_person, modded, battleye, vac, version, online,
                 queue, day_multiplier, night_multiplier";
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ModMatch {
+    /// Server must declare at least one of `mod_ids`.
+    #[default]
+    Any,
+    /// Server must declare every id in `mod_ids`.
+    All,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct ServerFilter {
     pub maps: Vec<String>,
@@ -39,6 +48,10 @@ pub struct ServerFilter {
     /// `Some(true)` is the ENGLISH ONLY tag; `Some(false)` inverts it, which is
     /// how a player who *wants* the Chinese or Russian servers finds them.
     pub english_names: Option<bool>,
+    /// Workshop ids picked in the "Filter by mod" modal. Empty means no filter.
+    pub mod_ids: Vec<u64>,
+    /// Whether a server must declare all of `mod_ids` or just one.
+    pub mod_match: ModMatch,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -170,6 +183,33 @@ pub(crate) fn build(
         if let Some(v) = want {
             clauses.push(format!("{column} = ?"));
             binds.push(Value::Integer(v as i64));
+        }
+    }
+    if !filter.mod_ids.is_empty() {
+        let mut mod_binds: Vec<Value> = Vec::new();
+        let holes = std::iter::repeat_n("?", filter.mod_ids.len())
+            .collect::<Vec<_>>()
+            .join(", ");
+        for &id in &filter.mod_ids {
+            mod_binds.push(Value::Integer(id as i64));
+        }
+        match filter.mod_match {
+            ModMatch::Any => {
+                clauses.push(format!(
+                    "EXISTS (SELECT 1 FROM server_mods sm WHERE sm.ip = servers.ip \
+                     AND sm.query_port = servers.query_port AND sm.workshop_id IN ({holes}))"
+                ));
+                binds.extend(mod_binds);
+            }
+            ModMatch::All => {
+                clauses.push(format!(
+                    "(SELECT COUNT(DISTINCT sm.workshop_id) FROM server_mods sm \
+                     WHERE sm.ip = servers.ip AND sm.query_port = servers.query_port \
+                     AND sm.workshop_id IN ({holes})) = ?"
+                ));
+                binds.extend(mod_binds);
+                binds.push(Value::Integer(filter.mod_ids.len() as i64));
+            }
         }
     }
     // Name-based noise filters. `tetra_is_placeholder`/`tetra_is_english` are
