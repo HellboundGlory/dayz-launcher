@@ -909,7 +909,11 @@ fn filter_from_params(p: FilterParams) -> ServerFilter {
         } else {
             ModMatch::Any
         },
-        mod_ids_exclude: p.mod_ids_exclude.iter().filter_map(|id| id.parse().ok()).collect(),
+        mod_ids_exclude: p
+            .mod_ids_exclude
+            .iter()
+            .filter_map(|id| id.parse().ok())
+            .collect(),
     }
 }
 
@@ -990,21 +994,49 @@ mod tests {
 
         let registry = Registry::open_in_memory().expect("registry");
         let writer = registry.writer();
-        let a = ServerKey { ip: Ipv4Addr::new(203, 0, 113, 10), query_port: 27016 };
-        let b = ServerKey { ip: Ipv4Addr::new(203, 0, 113, 11), query_port: 27016 };
+        let a = ServerKey {
+            ip: Ipv4Addr::new(203, 0, 113, 10),
+            query_port: 27016,
+        };
+        let b = ServerKey {
+            ip: Ipv4Addr::new(203, 0, 113, 11),
+            query_port: 27016,
+        };
         writer
             .upsert_servers(vec![
-                ServerRow { key: a, name: "Vertex PvP".into(), responded: true, ..Default::default() },
-                ServerRow { key: b, name: "Vertex RP".into(), responded: true, ..Default::default() },
+                ServerRow {
+                    key: a,
+                    name: "Vertex PvP".into(),
+                    responded: true,
+                    ..Default::default()
+                },
+                ServerRow {
+                    key: b,
+                    name: "Vertex RP".into(),
+                    responded: true,
+                    ..Default::default()
+                },
             ])
             .await
             .expect("servers");
         writer
-            .upsert_server_mods(a, vec![ServerMod { workshop_id: 1, name: "CF".into() }])
+            .upsert_server_mods(
+                a,
+                vec![ServerMod {
+                    workshop_id: 1,
+                    name: "CF".into(),
+                }],
+            )
             .await
             .expect("mods a");
         writer
-            .upsert_server_mods(b, vec![ServerMod { workshop_id: 1, name: "CF".into() }])
+            .upsert_server_mods(
+                b,
+                vec![ServerMod {
+                    workshop_id: 1,
+                    name: "CF".into(),
+                }],
+            )
             .await
             .expect("mods b");
 
@@ -1014,7 +1046,9 @@ mod tests {
         params.mod_ids = vec!["1".to_string()];
         params.mod_match = "any".to_string();
         let filter = super::filter_from_params(params);
-        let rows = reader.list(&filter, SortKey::Name, SortDir::Asc, 10).expect("list");
+        let rows = reader
+            .list(&filter, SortKey::Name, SortDir::Asc, 10)
+            .expect("list");
         assert_eq!(rows.len(), 2, "mod filter alone should match both");
 
         let mut params = default_params();
@@ -1022,7 +1056,9 @@ mod tests {
         params.mod_match = "any".to_string();
         params.search = Some("PvP".to_string());
         let filter = super::filter_from_params(params);
-        let rows = reader.list(&filter, SortKey::Name, SortDir::Asc, 10).expect("list");
+        let rows = reader
+            .list(&filter, SortKey::Name, SortDir::Asc, 10)
+            .expect("list");
         assert_eq!(
             rows.len(),
             1,
