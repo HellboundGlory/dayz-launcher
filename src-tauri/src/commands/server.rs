@@ -958,4 +958,76 @@ mod tests {
         assert!(server_key("not-an-ip:2303", 2303).is_err());
         assert!(server_key("", 2303).is_err());
     }
+
+    fn default_params() -> super::FilterParams {
+        super::FilterParams {
+            maps: vec![],
+            countries: vec![],
+            hide_empty: false,
+            hide_full: false,
+            hide_locked: false,
+            hide_offline: false,
+            max_ping: None,
+            search: None,
+            favourites_only: false,
+            recent_only: false,
+            official: None,
+            modded: None,
+            first_person: None,
+            hide_placeholder: false,
+            english_names: None,
+            mod_ids: vec![],
+            mod_match: String::new(),
+            mod_ids_exclude: vec![],
+        }
+    }
+
+    #[tokio::test]
+    async fn mod_filter_from_the_real_bridge_still_lets_search_narrow_the_list() {
+        use std::net::Ipv4Addr;
+        use tetra_core::a2s::dayz::ServerMod;
+        use tetra_registry::{Registry, ServerKey, ServerRow, SortDir, SortKey};
+
+        let registry = Registry::open_in_memory().expect("registry");
+        let writer = registry.writer();
+        let a = ServerKey { ip: Ipv4Addr::new(203, 0, 113, 10), query_port: 27016 };
+        let b = ServerKey { ip: Ipv4Addr::new(203, 0, 113, 11), query_port: 27016 };
+        writer
+            .upsert_servers(vec![
+                ServerRow { key: a, name: "Vertex PvP".into(), responded: true, ..Default::default() },
+                ServerRow { key: b, name: "Vertex RP".into(), responded: true, ..Default::default() },
+            ])
+            .await
+            .expect("servers");
+        writer
+            .upsert_server_mods(a, vec![ServerMod { workshop_id: 1, name: "CF".into() }])
+            .await
+            .expect("mods a");
+        writer
+            .upsert_server_mods(b, vec![ServerMod { workshop_id: 1, name: "CF".into() }])
+            .await
+            .expect("mods b");
+
+        let reader = registry.reader().expect("reader");
+
+        let mut params = default_params();
+        params.mod_ids = vec!["1".to_string()];
+        params.mod_match = "any".to_string();
+        let filter = super::filter_from_params(params);
+        let rows = reader.list(&filter, SortKey::Name, SortDir::Asc, 10).expect("list");
+        assert_eq!(rows.len(), 2, "mod filter alone should match both");
+
+        let mut params = default_params();
+        params.mod_ids = vec!["1".to_string()];
+        params.mod_match = "any".to_string();
+        params.search = Some("PvP".to_string());
+        let filter = super::filter_from_params(params);
+        let rows = reader.list(&filter, SortKey::Name, SortDir::Asc, 10).expect("list");
+        assert_eq!(
+            rows.len(),
+            1,
+            "adding a search term through the real FilterParams bridge should narrow the mod-filtered list"
+        );
+        assert_eq!(rows[0].name, "Vertex PvP");
+    }
 }
