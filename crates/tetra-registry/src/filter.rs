@@ -189,6 +189,13 @@ pub(crate) fn build(
             binds.push(Value::Integer(v as i64));
         }
     }
+    // Non-correlated on purpose: an `EXISTS`/`= ?` clause correlated to
+    // `servers.ip`/`servers.query_port` re-runs its subquery once per outer
+    // row, which turned an 8ms query into a 2-second one at 6,000 servers —
+    // see .ai-notes/crates/tetra-registry/src/filter.rs.md. Matching by the
+    // `ip || ':' || query_port` key (same idiom `mod_usage` already uses)
+    // lets SQLite compute the qualifying-server set once and probe it with a
+    // hash/index lookup per outer row instead.
     if !filter.mod_ids.is_empty() {
         let mut mod_binds: Vec<Value> = Vec::new();
         let holes = std::iter::repeat_n("?", filter.mod_ids.len())
@@ -200,16 +207,16 @@ pub(crate) fn build(
         match filter.mod_match {
             ModMatch::Any => {
                 clauses.push(format!(
-                    "EXISTS (SELECT 1 FROM server_mods sm WHERE sm.ip = servers.ip \
-                     AND sm.query_port = servers.query_port AND sm.workshop_id IN ({holes}))"
+                    "(ip || ':' || query_port) IN (SELECT sm.ip || ':' || sm.query_port \
+                     FROM server_mods sm WHERE sm.workshop_id IN ({holes}))"
                 ));
                 binds.extend(mod_binds);
             }
             ModMatch::All => {
                 clauses.push(format!(
-                    "(SELECT COUNT(DISTINCT sm.workshop_id) FROM server_mods sm \
-                     WHERE sm.ip = servers.ip AND sm.query_port = servers.query_port \
-                     AND sm.workshop_id IN ({holes})) = ?"
+                    "(ip || ':' || query_port) IN (SELECT sm.ip || ':' || sm.query_port \
+                     FROM server_mods sm WHERE sm.workshop_id IN ({holes}) \
+                     GROUP BY sm.ip, sm.query_port HAVING COUNT(DISTINCT sm.workshop_id) = ?)"
                 ));
                 binds.extend(mod_binds);
                 binds.push(Value::Integer(filter.mod_ids.len() as i64));
@@ -221,8 +228,8 @@ pub(crate) fn build(
             .collect::<Vec<_>>()
             .join(", ");
         clauses.push(format!(
-            "NOT EXISTS (SELECT 1 FROM server_mods sm WHERE sm.ip = servers.ip \
-             AND sm.query_port = servers.query_port AND sm.workshop_id IN ({holes}))"
+            "(ip || ':' || query_port) NOT IN (SELECT sm.ip || ':' || sm.query_port \
+             FROM server_mods sm WHERE sm.workshop_id IN ({holes}))"
         ));
         for &id in &filter.mod_ids_exclude {
             binds.push(Value::Integer(id as i64));
