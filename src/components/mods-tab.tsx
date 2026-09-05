@@ -381,6 +381,7 @@ const ModRow = memo(function ModRow({
             src={mod.preview_url}
             alt=""
             loading="lazy"
+            draggable={false}
             className="h-full w-full object-cover"
             onError={(e) => {
               (e.currentTarget as HTMLImageElement).style.display = "none";
@@ -473,7 +474,7 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
       <div className="body flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2.5">
         <div className="m2-preview relative h-[118px] shrink-0 overflow-hidden rounded-[7px] bg-surface2">
           {mod.preview_url ? (
-            <img src={mod.preview_url} alt="" className="h-full w-full object-cover" />
+            <img src={mod.preview_url} alt="" draggable={false} className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full items-center justify-center text-[10px] text-muted">
               No preview image
@@ -636,10 +637,43 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
     message: string;
     action: () => void;
   } | null>(null);
+  const confirmWrapRef = useRef<HTMLDivElement>(null);
+  const confirmCancelRef = useRef<HTMLButtonElement>(null);
 
   function askConfirm(title: string, message: string, action: () => void) {
     setMenu(null);
     setConfirm({ title, message, action });
+  }
+
+  // Focus Cancel by default (safer default for a destructive action); Escape closes.
+  useEffect(() => {
+    if (!confirm) return;
+    confirmCancelRef.current?.focus();
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setConfirm(null);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [confirm]);
+
+  /** Tab wraps within the confirm dialog; Shift+Tab goes backwards. */
+  function trapConfirmTab(e: React.KeyboardEvent) {
+    if (e.key !== "Tab") return;
+    const els = Array.from(
+      confirmWrapRef.current?.querySelectorAll<HTMLElement>(
+        "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])",
+      ) ?? [],
+    ).filter((el) => !el.hasAttribute("disabled"));
+    if (els.length === 0) return;
+    const first = els[0];
+    const last = els[els.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
   }
 
   return (
@@ -772,7 +806,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
             disabled={busy || selectedCount === 0}
             title="Unsubscribe from the selected mods (Steam deletes them from disk)"
             className={cn(
-              "flex items-center justify-center gap-1.5 rounded-l-[6px] bg-danger px-3 py-[7px] text-[10px] font-bold uppercase tracking-wider text-[#10131a] transition-[filter] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40",
+              "flex items-center justify-center gap-1.5 rounded-l-[6px] border border-danger-line bg-danger-soft px-3 py-[7px] text-[10px] font-bold uppercase tracking-wider text-danger transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40",
               store.op?.kind === "unsubscribe" && "animate-pulse",
             )}
           >
@@ -790,7 +824,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
           <button
             onClick={() => setMenu(menu === "unsub" ? null : "unsub")}
             disabled={busy}
-            className="flex items-center justify-center rounded-r-[6px] bg-danger px-1.5 text-[#10131a] transition-[filter] hover:brightness-110 disabled:opacity-40"
+            className="flex items-center justify-center rounded-r-[6px] border border-l-0 border-danger-line bg-danger-soft px-1.5 text-danger transition-colors hover:brightness-110 disabled:opacity-40"
             aria-haspopup="menu"
             aria-expanded={menu === "unsub"}
           >
@@ -903,6 +937,11 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
           onClick={() => setConfirm(null)}
         >
           <div
+            ref={confirmWrapRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={confirm.title}
+            onKeyDown={trapConfirmTab}
             className="w-80 rounded-[8px] border border-line bg-surface p-3 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
@@ -910,6 +949,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
             <p className="mt-1.5 text-[11px] leading-relaxed text-muted2">{confirm.message}</p>
             <div className="mt-3 flex justify-end gap-2">
               <button
+                ref={confirmCancelRef}
                 onClick={() => setConfirm(null)}
                 className="rounded-[6px] border border-line bg-surface2 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted2 transition-colors hover:text-ink"
               >

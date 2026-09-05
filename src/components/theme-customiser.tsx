@@ -72,8 +72,8 @@ export function ThemeCustomiser() {
           />
           <span
             className={cn(
-              "kn pointer-events-none absolute top-[2px] h-4 w-4 rounded-full transition-[left] duration-150",
-              isDark ? "left-5 bg-[#10131a]" : "left-[2px] bg-muted2",
+              "kn pointer-events-none absolute left-[2px] top-[2px] h-4 w-4 rounded-full transition-transform duration-150",
+              isDark ? "translate-x-[18px] bg-[#10131a]" : "translate-x-0 bg-muted2",
             )}
           />
         </label>

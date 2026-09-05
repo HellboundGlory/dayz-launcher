@@ -75,8 +75,8 @@ export function FooterBar({ servers, populated, refreshedAt, steamConnected }: F
         <span className="lbl font-bold">Scale</span>
         <span className="track relative h-[3px] w-[120px] rounded-[2px] bg-line">
           <span
-            className="knob absolute top-1/2 h-[7px] w-[7px] -translate-y-1/2 rounded-full bg-accent shadow-[var(--glow)] transition-[left] duration-150"
-            style={{ left: `${knobLeft}px` }}
+            className="knob absolute left-0 top-1/2 h-[7px] w-[7px] rounded-full bg-accent shadow-[var(--glow)] transition-transform duration-150"
+            style={{ transform: `translate(${knobLeft}px, -50%)` }}
           />
           <input
             type="range"
