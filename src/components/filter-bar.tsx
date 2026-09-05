@@ -7,6 +7,8 @@ import type { SortKey } from "@/types/filters";
 interface FilterBarProps {
   onRefresh: () => void;
   refreshing: boolean;
+  onOpenModFilter: () => void;
+  modFilterOpen: boolean;
 }
 
 type TagField = "official" | "modded" | "first_person";
@@ -52,7 +54,7 @@ function useCloseOnOutsideClick(open: boolean, onClose: () => void) {
 /** How long typing pauses before the list re-queries. */
 const SEARCH_DEBOUNCE_MS = 250;
 
-export function FilterBar({ onRefresh, refreshing }: FilterBarProps) {
+export function FilterBar({ onRefresh, refreshing, onOpenModFilter, modFilterOpen }: FilterBarProps) {
   const filter = useServerStore((s) => s.filter);
   const setFilter = useServerStore((s) => s.setFilter);
   const resetFilter = useServerStore((s) => s.resetFilter);
@@ -72,6 +74,8 @@ export function FilterBar({ onRefresh, refreshing }: FilterBarProps) {
         firstPerson={filter.first_person}
         onChange={(field, value) => setFilter({ [field]: value })}
       />
+
+      <ModsFilterTrigger modIds={filter.mod_ids} onOpen={onOpenModFilter} open={modFilterOpen} />
 
       <CountryDropdown
         selectedCountries={filter.countries ?? []}
@@ -220,6 +224,7 @@ function FdropTrigger({
   children,
   onClick,
   title,
+  haspopup = "listbox",
 }: {
   label: string;
   on?: boolean;
@@ -227,12 +232,13 @@ function FdropTrigger({
   children: React.ReactNode;
   onClick: () => void;
   title?: string;
+  haspopup?: "listbox" | "dialog";
 }) {
   return (
     <button
       onClick={onClick}
       title={title}
-      aria-haspopup="listbox"
+      aria-haspopup={haspopup}
       aria-expanded={open ?? false}
       className={cn(
         "fdrop-trigger flex items-center gap-1.5 whitespace-nowrap rounded-[6px] border border-line bg-surface2 px-2 py-[5px] text-[10px] font-bold text-muted transition-colors hover:border-accent-line hover:text-ink",
@@ -245,6 +251,29 @@ function FdropTrigger({
       </span>
       <ChevronDown className="size-[11px] text-muted" />
     </button>
+  );
+}
+
+// ─── Mods Filter Trigger ─────────────────────────────────────────
+
+// Opens the "Filter by mod" modal (rendered at the App level, like the
+// server-info modal) rather than a `.fdrop` popover — the modal's browse
+// experience needs more room than a 240px menu.
+function ModsFilterTrigger({
+  modIds,
+  onOpen,
+  open,
+}: {
+  modIds: string[];
+  onOpen: () => void;
+  open: boolean;
+}) {
+  const label = modIds.length === 0 ? "Any" : modIds.length === 1 ? "1 mod" : `${modIds.length} mods`;
+
+  return (
+    <FdropTrigger label="MODS" on={modIds.length > 0} open={open} haspopup="dialog" onClick={onOpen}>
+      {label}
+    </FdropTrigger>
   );
 }
 

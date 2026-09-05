@@ -19,6 +19,8 @@ export interface FilterParams {
   first_person: boolean | null;
   hide_placeholder: boolean;
   english_names: boolean | null;
+  mod_ids: string[];
+  mod_match: "any" | "all";
 }
 
 export interface SortParams {
@@ -444,6 +446,43 @@ export interface ModUsage {
 
 export async function getModUsage(workshopIds: string[]): Promise<ModUsage[]> {
   return invoke<ModUsage[]>("get_mod_usage", { workshopIds: workshopIds });
+}
+
+/** One mod declared by at least one registered server — the "Filter by mod"
+    modal's "Seen on servers" tab. */
+export interface KnownMod {
+  workshop_id: string;
+  name: string;
+  server_count: number;
+}
+
+/** Every mod seen on a registered server, ranked by server count. */
+export async function getKnownMods(limit = 200): Promise<KnownMod[]> {
+  return invoke<KnownMod[]>("get_known_mods", { limit });
+}
+
+/** One Workshop item returned by a text search. No local install state —
+    unlike a `SubscribedMod`, this may never have been subscribed to. */
+export interface WorkshopSearchResult {
+  workshop_id: string;
+  title: string;
+  preview_url: string | null;
+  description: string;
+  tags: string[];
+  workshop_url: string;
+  time_created: number;
+  time_updated: number;
+  file_size: number;
+  num_subscriptions: string;
+  num_upvotes: number;
+  num_downvotes: number;
+  score: number;
+}
+
+/** The "Filter by mod" modal's "Search Workshop" tab: a live text-search
+    query against the Workshop, scoped to DayZ. Requires Steam to be running. */
+export async function searchWorkshopMods(query: string): Promise<WorkshopSearchResult[]> {
+  return invoke<WorkshopSearchResult[]>("search_workshop_mods", { query });
 }
 
 /** A server the user cares about (favourite or recently played). */

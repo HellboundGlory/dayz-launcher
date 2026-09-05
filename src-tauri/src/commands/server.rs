@@ -4,7 +4,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tauri::{Emitter, State};
 use tetra_net::Prober;
-use tetra_registry::filter::{ServerFilter, SortDir, SortKey};
+use tetra_registry::filter::{ModMatch, ServerFilter, SortDir, SortKey};
 use tetra_registry::rows::ServerKey;
 use tetra_steam::to_server_row;
 
@@ -151,6 +151,13 @@ pub struct FilterParams {
     pub hide_placeholder: bool,
     #[serde(default)]
     pub english_names: Option<bool>,
+    /// Stringified Workshop ids from the "Filter by mod" modal — JS safe-integer
+    /// range, same reason every other workshop id crosses the bridge as a string.
+    #[serde(default)]
+    pub mod_ids: Vec<String>,
+    /// "any" or "all"; anything else (including omission) means "any".
+    #[serde(default)]
+    pub mod_match: String,
 }
 
 #[derive(serde::Deserialize)]
@@ -892,6 +899,12 @@ fn filter_from_params(p: FilterParams) -> ServerFilter {
         hide_unnamed: true,
         hide_placeholder: p.hide_placeholder,
         english_names: p.english_names,
+        mod_ids: p.mod_ids.iter().filter_map(|id| id.parse().ok()).collect(),
+        mod_match: if p.mod_match == "all" {
+            ModMatch::All
+        } else {
+            ModMatch::Any
+        },
     }
 }
 

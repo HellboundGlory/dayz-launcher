@@ -1,5 +1,6 @@
 use crate::actor::{
     self, Command, DownloadRow, MutationResult, StaleOutcome, StreamChunk, SubscribedModInfo,
+    WorkshopSearchRow,
 };
 use crate::error::{InitFailure, SteamError};
 use crate::source::Filters;
@@ -18,6 +19,10 @@ const VERIFY_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// Mods-tab enumeration timeout — above the actor's 60s first-pull deadline.
 const ENUM_BUDGET: std::time::Duration = std::time::Duration::from_secs(90);
+
+/// Workshop text-search timeout — above the actor's 20s query deadline, same
+/// reasoning as `REFRESH_STALE_BUDGET`.
+const SEARCH_BUDGET: std::time::Duration = std::time::Duration::from_secs(25);
 
 /// Subscribe/unsubscribe timeout — a single click the user is waiting on.
 const MUTATION_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
@@ -216,6 +221,17 @@ impl SteamHandle {
     ) -> Result<Vec<SubscribedModInfo>, SteamError> {
         self.dispatch_within(ENUM_BUDGET, |ack| Command::SubscribedMods {
             cache_age_secs,
+            ack,
+        })
+    }
+
+    /// The "Search Workshop" tab: a live text-search query against the whole
+    /// Workshop (scoped to DayZ), independent of what's subscribed or seen on
+    /// any server. Empty query is rejected by the caller, not here.
+    pub fn search_workshop(&self, query: &str) -> Result<Vec<WorkshopSearchRow>, SteamError> {
+        let owned = query.to_string();
+        self.dispatch_within(SEARCH_BUDGET, |ack| Command::SearchWorkshop {
+            query: owned,
             ack,
         })
     }

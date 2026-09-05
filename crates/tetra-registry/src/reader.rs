@@ -201,6 +201,31 @@ impl Reader {
         Ok(rows)
     }
 
+    /// Every mod declared by at least one registered server, ranked by how many
+    /// servers declare it — the "Seen on servers" tab's pool. Unlike
+    /// [`Self::mod_usage`], the caller doesn't need to know the ids up front.
+    pub fn known_mods(&self, limit: usize) -> Result<Vec<(u64, String, usize)>, RegistryError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT sm.workshop_id,
+                    MAX(sm.name) FILTER (WHERE sm.name <> ''),
+                    COUNT(DISTINCT sm.ip || ':' || sm.query_port) AS server_count
+             FROM server_mods sm
+             GROUP BY sm.workshop_id
+             ORDER BY server_count DESC
+             LIMIT ?1",
+        )?;
+        let rows = stmt
+            .query_map(params![limit as i64], |r| {
+                Ok((
+                    r.get::<_, i64>(0)? as u64,
+                    r.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                    r.get::<_, i64>(2)? as usize,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
     /// Servers the user has signalled interest in: favourites plus recently
     /// played, most recently played first then by name. This "cared about"
     /// set is what the Mods tab's unique-per-server tool compares against.
