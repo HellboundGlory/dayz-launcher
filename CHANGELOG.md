@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.4.1 — 2026-09-05
+
+### Fixed
+
+- **Selecting a mod filter could make the whole server browser feel broken** —
+  typing in Search or changing any other filter appeared to do nothing while
+  a mod filter was active, and the launcher could take noticeably longer to
+  start if a mod filter was still selected from a previous session. The mod
+  filter query is far more efficient now (well under a millisecond where it
+  previously took up to two seconds on a large server list), so every other
+  filter keeps working normally alongside it.
+
 ## v2.4.0 — 2026-09-05
 
 ### Added
