@@ -1,5 +1,30 @@
 # Changelog
 
+## v2.4.0 — 2026-09-05
+
+### Added
+
+- **Filter servers by the mods they run — require them or keep them off the
+  list.** A new MODS filter in the server browser opens a picker with three
+  ways to find a mod: your subscribed mods, mods already seen on servers in
+  the list (ranked by how common they are), or a live Workshop search. Mark
+  any mod as required or excluded, pick several, and choose whether a server
+  needs all of your required mods or just one.
+
+### Fixed
+
+- **The scale slider and dark-mode toggle could look like they were lagging
+  behind your input** under load. Their knobs move via a smoother animation
+  now, instead of one that got choppier the more the app had to do.
+- **The Mods page's confirm dialog was missing standard dialog behavior** —
+  Escape, focus trapping, and screen-reader labelling now work like every
+  other dialog in the app.
+- **The Unsubscribe button on the Mods page visually competed with Verify
+  Mods.** It's now a quieter outline button, so Verify Mods reads as the
+  primary action.
+- **Mod thumbnails on the Mods page could be dragged like an image.** They
+  no longer can.
+
 ## v2.3.0 — 2026-09-04
 
 ### Added
