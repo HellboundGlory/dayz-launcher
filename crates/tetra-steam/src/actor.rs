@@ -118,6 +118,28 @@ pub struct SubscribedModInfo {
     pub score: f32,
 }
 
+/// One Workshop item returned by a text search — the "Search Workshop" tab of
+/// the filter-by-mod modal. Unlike [`SubscribedModInfo`] there is no local
+/// install state: these items may never have been subscribed to.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct WorkshopSearchRow {
+    /// Stringified: Workshop ids exceed JS's safe integer range.
+    pub workshop_id: String,
+    pub title: String,
+    pub preview_url: Option<String>,
+    pub description: String,
+    pub tags: Vec<String>,
+    pub workshop_url: String,
+    pub time_created: u32,
+    pub time_updated: u32,
+    pub file_size: u32,
+    /// Stringified (`u64` on the wire).
+    pub num_subscriptions: String,
+    pub num_upvotes: u32,
+    pub num_downvotes: u32,
+    pub score: f32,
+}
+
 pub(crate) enum Command {
     InternetListStream(Filters, Sender<StreamChunk>),
     /// Batched `item_state`, returned as `(id, bits)` pairs — one command per
@@ -145,6 +167,13 @@ pub(crate) enum Command {
     SubscribedMods {
         cache_age_secs: u32,
         ack: Sender<Result<Vec<SubscribedModInfo>, SteamError>>,
+    },
+    /// The "Search Workshop" tab: a live text-search query against the whole
+    /// Workshop, scoped to DayZ. Completed later by `poll_checks`, same as
+    /// `SubscribedMods`.
+    SearchWorkshop {
+        query: String,
+        ack: Sender<Result<Vec<WorkshopSearchRow>, SteamError>>,
     },
     /// Queue a fresh download of each id, answering with the ones Steam
     /// accepted. Used for per-mod "reinstall" and re-pinning a cleared item.
@@ -246,6 +275,12 @@ fn service_instant(
             ack,
         } => {
             if let Some(started) = start_mod_enumeration(client, ack, cache_age_secs) {
+                pending.push(started);
+            }
+            None
+        }
+        Command::SearchWorkshop { query, ack } => {
+            if let Some(started) = start_workshop_search(client, query, ack) {
                 pending.push(started);
             }
             None
@@ -392,6 +427,7 @@ pub(crate) fn run(
                 | Command::UGCRefreshStale(..)
                 | Command::UGCVerifyMods(..)
                 | Command::SubscribedMods { .. }
+                | Command::SearchWorkshop { .. }
                 | Command::UGCDownload(..)),
             ) => {
                 service_instant(&client, cmd, &mut pending, &mut active);
@@ -583,6 +619,15 @@ enum PendingCheck {
         issued: IssuedDetails,
         rows: HashMap<u64, SubscribedModInfo>,
         ack: Sender<Result<Vec<SubscribedModInfo>, SteamError>>,
+    },
+    /// The "Search Workshop" tab's text-search query. Simpler than the other
+    /// variants: there is no known id list or local install state to merge in,
+    /// just one query's worth of rows to wait for.
+    Search {
+        rows: Arc<Mutex<Vec<WorkshopSearchRow>>>,
+        done: Arc<AtomicBool>,
+        deadline: Instant,
+        ack: Sender<Result<Vec<WorkshopSearchRow>, SteamError>>,
     },
 }
 
@@ -816,6 +861,72 @@ fn start_mod_enumeration(
     Some(PendingCheck::Enumerate { issued, rows, ack })
 }
 
+/// Issue a live text-search query against the Workshop, scoped to DayZ via
+/// `ConsumerAppId` — unlike [`issue_details_query`] this asks about items
+/// whose ids are not known ahead of time, so it has no local/install half to
+/// assemble first. First page only (Steam's default page size): a filter
+/// picker, not a paginated browser.
+fn start_workshop_search(
+    client: &Client,
+    query: String,
+    ack: Sender<Result<Vec<WorkshopSearchRow>, SteamError>>,
+) -> Option<PendingCheck> {
+    let ugc = client.ugc();
+    let Ok(handle) = ugc.query_all(
+        steamworks::UGCQueryType::RankedByTextSearch,
+        steamworks::UGCType::Items,
+        steamworks::AppIDs::ConsumerAppId(steamworks::AppId(DAYZ_APP_ID)),
+        1,
+    ) else {
+        let _ = ack.send(Err(SteamError::Request(
+            "Steam refused the Workshop search request".into(),
+        )));
+        return None;
+    };
+
+    let rows: Arc<Mutex<Vec<WorkshopSearchRow>>> = Arc::new(Mutex::new(Vec::new()));
+    let done = Arc::new(AtomicBool::new(false));
+    let slot_rows = Arc::clone(&rows);
+    let slot_done = Arc::clone(&done);
+
+    handle.set_search_text(&query).fetch(move |result| {
+        if let Ok(results) = result {
+            let mut out = slot_rows.lock().unwrap_or_else(|e| e.into_inner());
+            for (index, item) in results.iter().enumerate() {
+                let Some(item) = item else {
+                    continue;
+                };
+                out.push(WorkshopSearchRow {
+                    workshop_id: item.published_file_id.0.to_string(),
+                    title: item.title,
+                    preview_url: results.preview_url(index as u32),
+                    description: item.description,
+                    tags: item.tags,
+                    workshop_url: item.url,
+                    time_created: item.time_created,
+                    time_updated: item.time_updated,
+                    file_size: item.file_size,
+                    num_subscriptions: results
+                        .statistic(index as u32, steamworks::UGCStatisticType::Subscriptions)
+                        .unwrap_or(0)
+                        .to_string(),
+                    num_upvotes: item.num_upvotes,
+                    num_downvotes: item.num_downvotes,
+                    score: item.score,
+                });
+            }
+        }
+        slot_done.store(true, Ordering::Relaxed);
+    });
+
+    Some(PendingCheck::Search {
+        rows,
+        done,
+        deadline: Instant::now() + QUERY_DEADLINE,
+        ack,
+    })
+}
+
 /// Deduplicate ids and drop anything that is not a Workshop id (id 0 marks
 /// server-side content Steam must never be asked about).
 fn workshop_only_ids(ids: Vec<u64>) -> Vec<u64> {
@@ -951,6 +1062,20 @@ fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>, active: &mut Ac
                     }
                     out.push(info);
                 }
+                let _ = ack.send(Ok(out));
+                false
+            }
+            PendingCheck::Search {
+                rows,
+                done,
+                deadline,
+                ack,
+            } => {
+                let expired = Instant::now() > *deadline;
+                if !done.load(Ordering::Relaxed) && !expired {
+                    return true;
+                }
+                let out = rows.lock().unwrap_or_else(|e| e.into_inner()).clone();
                 let _ = ack.send(Ok(out));
                 false
             }

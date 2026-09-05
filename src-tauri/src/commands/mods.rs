@@ -7,7 +7,7 @@ use crate::state::AppState;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{AppHandle, State};
-use tetra_steam::{StaleOutcome, SubscribedModInfo};
+use tetra_steam::{StaleOutcome, SubscribedModInfo, WorkshopSearchRow};
 
 /// How old a cached Workshop answer may be before the tab re-asks Steam.
 const CACHE_STALE_AFTER_SECS: i64 = 5 * 60;
@@ -183,6 +183,55 @@ pub async fn get_mod_usage(
             .collect())
     })
     .await
+}
+
+/// One mod declared by at least one registered server — the "Seen on
+/// servers" tab of the filter-by-mod modal.
+#[derive(serde::Serialize)]
+pub struct KnownMod {
+    /// Stringified: Workshop ids exceed JS's safe integer range.
+    pub workshop_id: String,
+    pub name: String,
+    pub server_count: usize,
+}
+
+/// Every mod seen on a registered server, ranked by how many servers declare
+/// it. Unlike `get_mod_usage`, the caller doesn't supply ids up front.
+#[tauri::command]
+pub async fn get_known_mods(
+    state: State<'_, AppState>,
+    limit: usize,
+) -> Result<Vec<KnownMod>, String> {
+    crate::commands::server::blocking_read(&state, move |reader| {
+        let rows = reader.known_mods(limit).map_err(|e| e.to_string())?;
+        Ok(rows
+            .into_iter()
+            .map(|(id, name, server_count)| KnownMod {
+                workshop_id: id.to_string(),
+                name,
+                server_count,
+            })
+            .collect())
+    })
+    .await
+}
+
+/// The "Search Workshop" tab: a live text-search query against the Workshop,
+/// scoped to DayZ, independent of what's subscribed or seen on any server.
+#[tauri::command]
+pub async fn search_workshop_mods(
+    state: State<'_, AppState>,
+    query: String,
+) -> Result<Vec<WorkshopSearchRow>, String> {
+    if query.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    let steam = live_steam(&state)
+        .ok_or("Steam is not connected. Start Steam and restart the launcher.")?;
+    tokio::task::spawn_blocking(move || steam.search_workshop(&query))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))?
+        .map_err(|e| format!("Steam query failed: {e}"))
 }
 
 /// One entry in the Mods tab's server-aware lists.

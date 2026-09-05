@@ -146,6 +146,8 @@ pub fn run() {
             commands::mods::get_cared_servers,
             commands::mods::get_unique_mods_for,
             commands::mods::get_servers_needing,
+            commands::mods::get_known_mods,
+            commands::mods::search_workshop_mods,
             commands::mods::reinstall_subscribed_mod,
             commands::mods::update_subscribed_mods,
             commands::mods::open_mod_folder,

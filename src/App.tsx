@@ -5,6 +5,7 @@ import { WindowControls } from "./components/window-controls";
 import { FilterBar } from "./components/filter-bar";
 import { ServerList } from "./components/server-list";
 import { ServerInfoModal } from "./components/server-info-modal";
+import { ModFilterModal } from "./components/mod-filter-modal";
 import { ModsTab } from "./components/mods-tab";
 import { FooterBar } from "./components/footer-bar";
 import { SettingsView } from "./components/settings-view";
@@ -65,6 +66,7 @@ export function App() {
   const [activeView, setActiveView] = useState<ViewId>("servers");
   /** The row whose ⋯ menu asked for "More info" — drives the M1 modal. */
   const [infoServer, setInfoServer] = useState<Server | null>(null);
+  const [modFilterOpen, setModFilterOpen] = useState(false);
   /** Mirrors the sidebar's collapse so `--side-w` tracks it on the shell. */
   const [sideCollapsed, setSideCollapsed] = useState(false);
   const triggerReload = useServerStore((s) => s.triggerReload);
@@ -639,7 +641,12 @@ export function App() {
         <ModsTab />
       ) : (
         <>
-          <FilterBar onRefresh={handleRefresh} refreshing={refreshing} />
+          <FilterBar
+            onRefresh={handleRefresh}
+            refreshing={refreshing}
+            onOpenModFilter={() => setModFilterOpen(true)}
+            modFilterOpen={modFilterOpen}
+          />
 
               {/* Not dismissible — favourites/recent are not being saved. */}
           {storageDegraded && (
@@ -706,6 +713,8 @@ export function App() {
       <UpdateModal open={updateOpen} onClose={() => setUpdateOpen(false)} />
 
       {infoServer && <ServerInfoModal server={infoServer} onClose={() => setInfoServer(null)} />}
+
+      {modFilterOpen && <ModFilterModal onClose={() => setModFilterOpen(false)} />}
 
       {/* Blocking: nothing works without Steam. */}
       {!steamConnected && steamError && (

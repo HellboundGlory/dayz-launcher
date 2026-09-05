@@ -64,6 +64,8 @@ const DEFAULT_FILTER: ServerFilter = {
   official: null,
   modded: null,
   first_person: null,
+  mod_ids: [],
+  mod_match: "any",
 };
 
 /** Persisted filters use their own key — the opposite choice from settings. */
@@ -96,6 +98,8 @@ function loadFilter(): ServerFilter {
       official: tri(saved.official),
       modded: tri(saved.modded),
       first_person: tri(saved.first_person),
+      mod_ids: strings(saved.mod_ids),
+      mod_match: saved.mod_match === "all" ? "all" : "any",
     };
   } catch {
     return DEFAULT_FILTER;

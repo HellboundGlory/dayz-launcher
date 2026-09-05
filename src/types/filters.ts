@@ -14,6 +14,10 @@ export interface ServerFilter {
   first_person: boolean | null;
   // ENGLISH ONLY isn't here: it defaults on, so it lives in
   // AppSettings.englishNamesFilter instead — here it'd reset every launch.
+  /** Stringified Workshop ids picked in the "Filter by mod" modal. */
+  mod_ids: string[];
+  /** Whether a server must declare every id in `mod_ids`, or just one. */
+  mod_match: "any" | "all";
 }
 
 export type SortKey = 'players' | 'ping' | 'mod_count' | 'name' | 'map' | 'last_played';
