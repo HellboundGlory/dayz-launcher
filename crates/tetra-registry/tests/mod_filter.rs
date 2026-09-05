@@ -110,7 +110,10 @@ async fn any_match_unions_across_multiple_selected_mods() {
         mod_match: ModMatch::Any,
         ..Default::default()
     };
-    assert_eq!(list(&registry, &filter).await, vec!["CF + Trader", "CF Only"]);
+    assert_eq!(
+        list(&registry, &filter).await,
+        vec!["CF + Trader", "CF Only"]
+    );
 }
 
 #[tokio::test]
