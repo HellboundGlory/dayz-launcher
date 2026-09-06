@@ -145,6 +145,8 @@ pub(crate) enum Command {
     /// Batched `item_state`, returned as `(id, bits)` pairs — one command per
     /// batch (not per mod) avoids interleaving a callback pump per query.
     UGCItemStates(Vec<u64>, Sender<Result<Vec<(u64, u32)>, SteamError>>),
+    /// Every id Steam currently reports as subscribed — cheaper than a full `SubscribedMods`.
+    SubscribedIds(Sender<Result<Vec<u64>, SteamError>>),
     /// Returns install folder + size, or None.
     UGCInstallInfo(u64, Sender<Result<Option<UgcInstallInfo>, SteamError>>),
     /// Batched download progress; only ids Steam currently reports a transfer
@@ -303,6 +305,16 @@ fn service_instant(
             let _ = ack.send(Ok(states));
             None
         }
+        Command::SubscribedIds(ack) => {
+            let ids = client
+                .ugc()
+                .subscribed_items(true)
+                .into_iter()
+                .map(|id| id.0)
+                .collect();
+            let _ = ack.send(Ok(ids));
+            None
+        }
         Command::UGCInstallInfo(id, ack) => {
             let result = client
                 .ugc()
@@ -422,6 +434,7 @@ pub(crate) fn run(
             }
             Ok(
                 cmd @ (Command::UGCItemStates(..)
+                | Command::SubscribedIds(..)
                 | Command::UGCInstallInfo(..)
                 | Command::UGCDownloadInfo(..)
                 | Command::UGCRefreshStale(..)
@@ -959,6 +972,7 @@ fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>, active: &mut Ac
                     .lock()
                     .unwrap_or_else(|e| e.into_inner())
                     .clone();
+                let ugc = client.ugc();
                 let mut queued = Vec::new();
                 for &id in &issued.ids {
                     let installed_at = issued.installed.get(&id).copied().unwrap_or(0);
@@ -966,6 +980,11 @@ fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>, active: &mut Ac
                     let outdated =
                         updated_at != 0 && (installed_at == 0 || updated_at > installed_at);
                     if !outdated {
+                        continue;
+                    }
+                    // Never subscribe on this path — only queue for what already is.
+                    let bits = ugc.item_state(steamworks::PublishedFileId(id)).bits();
+                    if bits & crate::workshop::ItemFlags::SUBSCRIBED == 0 {
                         continue;
                     }
                     // High priority: someone is waiting on this to join, so it
