@@ -212,6 +212,11 @@ impl SteamHandle {
         self.dispatch_within(VERIFY_BUDGET, |ack| Command::UGCVerifyMods(owned, ack))
     }
 
+    /// Every subscribed id, without the Workshop round trip `subscribed_mods` pays for.
+    pub fn subscribed_ids(&self) -> Result<Vec<u64>, SteamError> {
+        self.dispatch(Command::SubscribedIds)
+    }
+
     /// The Mods tab's enumeration: every subscribed Workshop item filtered to DayZ, with
     /// install facts and Workshop metadata. `cache_age_secs` controls whether Steam answers
     /// from its cache (cheap re-open) or 0 to force a live refresh.

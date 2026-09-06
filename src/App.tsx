@@ -16,6 +16,7 @@ import type { SplashScreenProps } from "./components/splash-screen";
 import { useServerStore } from "./stores/server-store";
 import { useSettingsStore } from "./stores/settings-store";
 import { useUpdateStore } from "./stores/update-store";
+import { useModsStore } from "./stores/mods-store";
 import { watchDayz } from "./stores/launch-store";
 import type { Server } from "./types/server";
 import {
@@ -55,6 +56,9 @@ const CONNECTION_POLL_MS = 3000;
 
 /** No urgency on release checks, so this stays infrequent. */
 const UPDATE_RECHECK_MS = 6 * 60 * 60 * 1000;
+
+/** Catches a subscribe made outside the launcher without reopening the Mods tab. */
+const MODS_RECHECK_MS = 5 * 60 * 1000;
 
 /** Let "Ready — 100%" show briefly before revealing the launcher. */
 const SPLASH_READY_MS = 400;
@@ -180,6 +184,15 @@ export function App() {
     void resolveInstalled();
     void checkForUpdates();
     const timer = window.setInterval(() => void checkForUpdates(), UPDATE_RECHECK_MS);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // App-level, not the Mods tab, so the Browse Workshop modal stays fresh too.
+  const loadMods = useModsStore((s) => s.load);
+  useEffect(() => {
+    void loadMods();
+    const timer = window.setInterval(() => void loadMods(), MODS_RECHECK_MS);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
