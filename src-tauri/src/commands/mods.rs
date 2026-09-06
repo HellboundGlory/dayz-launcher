@@ -4,6 +4,7 @@
 //! subscribed/installed; the registry owns servers' declared mod lists.
 
 use crate::state::AppState;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{AppHandle, State};
@@ -86,12 +87,29 @@ pub async fn get_subscribed_mods(
         });
     };
 
-    // Serve straight from the snapshot when fresh enough — no Steam round trip.
+    // Cheap check that the subscribed set hasn't drifted before trusting the snapshot.
     if !force_details && now() - cached.fetched_at < CACHE_STALE_AFTER_SECS {
-        return Ok(ModsListOutcome {
-            rows: cached.rows,
-            from_cache: false,
-        });
+        let steam_ids = Arc::clone(&steam);
+        let unchanged = tokio::task::spawn_blocking(move || steam_ids.subscribed_ids())
+            .await
+            .ok()
+            .and_then(Result::ok)
+            .map(|ids| {
+                let live: HashSet<u64> = ids.into_iter().collect();
+                let known: HashSet<u64> = cached
+                    .rows
+                    .iter()
+                    .filter_map(|r| r.workshop_id.parse().ok())
+                    .collect();
+                live == known
+            })
+            .unwrap_or(true);
+        if unchanged {
+            return Ok(ModsListOutcome {
+                rows: cached.rows,
+                from_cache: false,
+            });
+        }
     }
 
     let cache_age = if force_details { 0 } else { 3600 };
