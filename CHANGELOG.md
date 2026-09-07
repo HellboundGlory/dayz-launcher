@@ -1,5 +1,32 @@
 # Changelog
 
+## v2.5.0 — 2026-09-07
+
+### Added
+
+- **Mods that need a Workshop update are now impossible to miss on the Mods
+  page.** Every mod's status renders as a filled, coloured pill (Ready,
+  Update, Downloading, and so on) instead of a plain dot next to coloured
+  text, and a banner appears above the list whenever any mod needs
+  updating, with a one-click "Update all".
+
+### Fixed
+
+- **An already-subscribed mod's Workshop update could go unnoticed
+  indefinitely in the background**, only showing up after you manually hit
+  Refresh on the Mods page. Background rechecks now actually re-check.
+- **Verifying a server's mod list could download a mod's content without
+  ever actually subscribing to it.** That mod would then read as "still
+  needs subscribing" and get skipped over, even though its files were
+  already sitting on disk, unsubscribed.
+- **Mods subscribed from the Steam client or website instead of the
+  launcher itself could take a while to show up on the Mods page.** The
+  launcher now notices those subscriptions right away instead of waiting on
+  its next scheduled refresh.
+- **The Mods page's size and updated-date columns didn't line up between
+  rows.** They now use a fixed column width, so every row lines up the same
+  way regardless of mod name length.
+
 ## v2.4.2 — 2026-09-05
 
 ### Added
