@@ -25,6 +25,8 @@
   --accent2-soft: rgba(176, 151, 106, 0.14);
   --accent2-line: rgba(176, 151, 106, 0.4);
   --success: #4d9a75;
+  --success-soft: rgba(77, 154, 117, 0.14);
+  --success-line: rgba(77, 154, 117, 0.4);
   --warn: #c19a55;
   --warn-soft: rgba(193, 154, 85, 0.14);
   --warn-line: rgba(193, 154, 85, 0.4);

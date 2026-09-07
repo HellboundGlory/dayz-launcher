@@ -26,6 +26,8 @@ export default {
         "accent2-soft": "var(--accent2-soft)",
         "accent2-line": "var(--accent2-line)",
         success: "var(--success)",
+        "success-soft": "var(--success-soft)",
+        "success-line": "var(--success-line)",
         warn: "var(--warn)",
         danger: "var(--danger)",
         "danger-soft": "var(--danger-soft)",

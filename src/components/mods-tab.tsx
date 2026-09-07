@@ -12,6 +12,7 @@ import {
   Search,
   Star,
   Trash2,
+  TriangleAlert,
   Globe,
   X,
   Check,
@@ -44,6 +45,22 @@ const STATUS_UI: Record<
   not_installed: { tone: "muted", label: "Missing" },
   not_subscribed: { tone: "muted", label: "Not subscribed" },
   not_on_workshop: { tone: "muted", label: "Server-side" },
+};
+
+// Filled pill, not just a coloured dot+label — "needs update" reads at the
+// same weight as a dot otherwise, easy to miss scanning a dense list.
+const PILL_TONE: Record<"ready" | "update" | "dl" | "muted", string> = {
+  ready: "border-success-line bg-success-soft text-success",
+  update: "border-warn-line bg-warn-soft text-warn",
+  dl: "border-accent-line bg-accent-soft text-accent",
+  muted: "border-line bg-muted-soft text-muted2",
+};
+
+const PILL_DOT_GLOW: Record<"ready" | "update" | "dl" | "muted", string> = {
+  ready: "shadow-[0_0_4px_currentColor]",
+  update: "shadow-[0_0_4px_currentColor]",
+  dl: "shadow-[var(--glow)]",
+  muted: "",
 };
 
 const STATUS_FILTERS: { key: ModStatusFilter; label: string }[] = [
@@ -93,6 +110,7 @@ function useModsTabSlice() {
       setProgress: s.setProgress,
       setSearch: s.setSearch,
       setStatusFilter: s.setStatusFilter,
+      updateAllOutdated: s.updateAllOutdated,
     })),
   );
 }
@@ -116,7 +134,13 @@ export function ModsTab() {
     setProgress,
     setSearch,
     setStatusFilter,
+    updateAllOutdated,
   } = useModsTabSlice();
+
+  const outdatedCount = useMemo(
+    () => visibleRows(rows).filter((r) => r.state === "needs_update").length,
+    [rows],
+  );
 
   const mods = useMemo(() => {
     let visible = visibleRows(rows);
@@ -270,6 +294,19 @@ export function ModsTab() {
           Steam unreachable — showing last known mod list
         </div>
       )}
+      {outdatedCount > 0 && (
+        <div className="flex items-center gap-2 border-b border-warn-line bg-warn-soft px-3 py-1.5 text-[10.5px] font-semibold text-warn">
+          <TriangleAlert className="size-3 shrink-0" />
+          {outdatedCount} mod{outdatedCount === 1 ? "" : "s"} need{outdatedCount === 1 ? "s" : ""} updating
+          <button
+            onClick={() => void updateAllOutdated()}
+            disabled={!!op}
+            className="ml-auto shrink-0 rounded-[5px] bg-warn px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-[#10131a] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {op?.kind === "update" ? op.note ?? "Updating…" : "Update all"}
+          </button>
+        </div>
+      )}
 
       {/* ── Body: list + slide-in inspector ── */}
       <div className="mods-content relative min-h-0 flex-1 overflow-hidden">
@@ -409,9 +446,14 @@ const ModRow = memo(function ModRow({
       </div>
 
       <div className="mx-state flex w-[104px] shrink-0 flex-col justify-center gap-[3px]">
-        <span className={cn("st inline-flex items-center gap-1.5", ui.tone)}>
-          <span className="d h-[7px] w-[7px] shrink-0 rounded-full" />
-          <span className="l text-[8px] whitespace-nowrap">{ui.label}</span>
+        <span
+          className={cn(
+            "st inline-flex w-fit items-center gap-1.5 rounded-full border px-1.5 py-[3px]",
+            PILL_TONE[ui.tone],
+          )}
+        >
+          <span className={cn("d h-[5px] w-[5px] shrink-0 rounded-full bg-current", PILL_DOT_GLOW[ui.tone])} />
+          <span className="l text-[8px] font-bold uppercase tracking-wider whitespace-nowrap">{ui.label}</span>
         </span>
         {state === "downloading" && progress && progress.total && Number(progress.total) > 0 && (
           <div className="mx-prog h-[3px] overflow-hidden rounded-full bg-line">
@@ -425,10 +467,10 @@ const ModRow = memo(function ModRow({
         )}
       </div>
 
-      <span className="mx-num sz shrink-0 text-right font-mono-data text-[9px] text-accent2">
+      <span className="mx-num sz w-[64px] shrink-0 truncate text-right font-mono-data text-[9px] text-accent2">
         {mod.size_on_disk ? formatBytes(Number(mod.size_on_disk), 1) : "—"}
       </span>
-      <span className="mx-num upd shrink-0 text-right font-mono-data text-[9px] text-muted2">
+      <span className="mx-num upd w-[76px] shrink-0 truncate text-right font-mono-data text-[9px] text-muted2">
         {mod.time_updated ? formatLastPlayed(mod.time_updated) : "—"}
       </span>
     </div>
@@ -490,10 +532,15 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
         <h2 className="m2-title text-[13px] font-bold leading-snug text-ink">
           {mod.title ?? mod.workshop_id}
         </h2>
-        <div className="flex items-center gap-1.5 text-[9px] text-muted">
-          <span className={cn("inline-block h-[7px] w-[7px] rounded-full", STATUS_DOT[ui.tone])} />
-          <span className={cn("truncate", STATUS_LABEL[ui.tone])}>{ui.label}</span>
-        </div>
+        <span
+          className={cn(
+            "inline-flex w-fit items-center gap-1.5 rounded-full border px-2 py-[3px]",
+            PILL_TONE[ui.tone],
+          )}
+        >
+          <span className={cn("h-[6px] w-[6px] shrink-0 rounded-full bg-current", PILL_DOT_GLOW[ui.tone])} />
+          <span className="truncate text-[9px] font-bold uppercase tracking-wider">{ui.label}</span>
+        </span>
 
         <div className="m2-tags flex flex-wrap gap-1">
           {(mod.tags ?? []).slice(0, 6).map((t: string) => (
@@ -562,20 +609,6 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
     </div>
   );
 }
-
-const STATUS_DOT: Record<"ready" | "update" | "dl" | "muted", string> = {
-  ready: "bg-success shadow-[0_0_5px_rgba(77,154,117,0.6)]",
-  update: "bg-warn shadow-[0_0_5px_rgba(193,154,85,0.6)]",
-  dl: "bg-accent shadow-[var(--glow)]",
-  muted: "bg-muted",
-};
-
-const STATUS_LABEL: Record<"ready" | "update" | "dl" | "muted", string> = {
-  ready: "text-success",
-  update: "text-warn",
-  dl: "text-accent",
-  muted: "text-muted2",
-};
 
 function InspectorRow({ label, value }: { label: string; value: string }) {
   return (
