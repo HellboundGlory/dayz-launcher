@@ -22,6 +22,8 @@ export function applyTheme(palette: Palette, scheme: "dark" | "light", bloom: nu
   p.setProperty("--accent2-soft", rgba(palette.accent2, 0.16));
   p.setProperty("--accent2-line", rgba(palette.accent2, 0.4));
   p.setProperty("--success", palette.success);
+  p.setProperty("--success-soft", rgba(palette.success, 0.14));
+  p.setProperty("--success-line", rgba(palette.success, 0.4));
   p.setProperty("--warn", palette.warn);
   p.setProperty("--warn-soft", rgba(palette.warn, 0.14));
   p.setProperty("--warn-line", rgba(palette.warn, 0.4));
