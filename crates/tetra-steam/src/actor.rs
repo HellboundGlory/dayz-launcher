@@ -2,7 +2,7 @@ use crate::error::{InitFailure, SteamError};
 use crate::rows::GameServerRow;
 use crate::source::Filters;
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
@@ -402,35 +402,35 @@ pub(crate) fn run(
         connected_flag.store(true, Ordering::Relaxed);
     });
 
-    // Commands that arrived while a server-list request held the thread, and
-    // could not be answered inline.
-    let mut deferred: VecDeque<Command> = VecDeque::new();
     // Check-and-enumerate commands issued but not yet answered. Drained by
-    // `poll_checks` on every turn of this loop and of `request_list`'s.
+    // `poll_checks` on every turn of this loop.
     let mut pending: Vec<PendingCheck> = Vec::new();
+    // Server-list requests in flight. Nothing here blocks the loop, so
+    // several run at once and other commands are answered while they stream.
+    let mut lists: Vec<ListJob> = Vec::new();
     let mut active: ActiveDownloads = HashMap::new();
 
     loop {
         client.run_callbacks();
         poll_checks(&client, &mut pending, &mut active);
+        poll_lists(&mut lists);
 
-        let next = match deferred.pop_front() {
-            Some(cmd) => Ok(cmd),
-            None => rx.recv_timeout(PUMP_INTERVAL),
-        };
+        // List callbacks only arrive inside `run_callbacks`, so a live list
+        // needs a tight pump; an idle actor doesn't.
+        let next = rx.recv_timeout(if lists.is_empty() {
+            PUMP_INTERVAL
+        } else {
+            PUMP_SLEEP
+        });
 
         match next {
             Ok(Command::InternetListStream(filters, tx)) => {
-                let result = request_list(
-                    &client,
-                    &filters,
-                    Some(&tx),
-                    &rx,
-                    &mut deferred,
-                    &mut pending,
-                    &mut active,
-                );
-                let _ = tx.send(StreamChunk::Done(result.map(|_| ())));
+                match start_list(&client, filters, tx.clone()) {
+                    Ok(job) => lists.push(job),
+                    Err(e) => {
+                        let _ = tx.send(StreamChunk::Done(Err(e)));
+                    }
+                }
             }
             Ok(
                 cmd @ (Command::UGCItemStates(..)
@@ -457,6 +457,10 @@ pub(crate) fn run(
                 )));
             }
             Ok(Command::Shutdown(ack)) => {
+                // Native requests outlive the client otherwise.
+                for job in lists.drain(..) {
+                    release(&job.request);
+                }
                 drop(client);
                 let _ = ack.send(());
                 return;
@@ -1102,22 +1106,61 @@ fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>, active: &mut Ac
     });
 }
 
-/// Run one server-list request to completion. When `stream` is `Some`, rows
-/// are flushed to it every `STREAM_FLUSH` and the returned `Vec` is empty.
-fn request_list(
+/// One server-list request in flight: the native handle, the rows its
+/// callbacks have accumulated so far, and the consumer they flush to.
+///
+/// Several of these run at once — Steam paces each request by pinging the
+/// servers it lists (~80 rows/s), so a serial pass over the shard plan is
+/// bounded by Steam's ping rate rather than by anything local.
+struct ListJob {
+    filters: Filters,
+    request: Arc<Mutex<steamworks::ServerListRequest>>,
+    rows: Rc<RefCell<Vec<GameServerRow>>>,
+    done: Rc<RefCell<Option<ServerResponse>>>,
+    /// When the first row landed, for diagnosing trickle-vs-buffering slowness.
+    first_row: Rc<RefCell<Option<Instant>>>,
+    stream: Sender<StreamChunk>,
+    started: Instant,
+    deadline: Instant,
+    streamed: usize,
+    last_flush: Instant,
+}
+
+/// `ServerListRequest` has no `Drop` impl — every path that finishes a job
+/// must call this or the native request leaks.
+fn release(request: &Arc<Mutex<steamworks::ServerListRequest>>) {
+    if let Ok(mut guard) = request.lock() {
+        let _ = guard.release();
+    }
+}
+
+impl ListJob {
+    /// Hand the consumer everything accumulated since the last flush.
+    /// Returns `false` once the consumer has hung up.
+    fn flush(&mut self, force: bool) -> bool {
+        if !force && self.last_flush.elapsed() < STREAM_FLUSH {
+            return true;
+        }
+        self.last_flush = Instant::now();
+        let batch: Vec<GameServerRow> = self.rows.borrow_mut().drain(..).collect();
+        if batch.is_empty() {
+            return true;
+        }
+        self.streamed += batch.len();
+        self.stream.send(StreamChunk::Rows(batch)).is_ok()
+    }
+}
+
+/// Issue a server-list request and return it for [`poll_lists`] to finish.
+fn start_list(
     client: &Client,
-    filters: &Filters,
-    stream: Option<&Sender<StreamChunk>>,
-    rx: &Receiver<Command>,
-    deferred: &mut VecDeque<Command>,
-    pending: &mut Vec<PendingCheck>,
-    active: &mut ActiveDownloads,
-) -> Result<Vec<GameServerRow>, SteamError> {
+    filters: Filters,
+    stream: Sender<StreamChunk>,
+) -> Result<ListJob, SteamError> {
     let mms = client.matchmaking_servers();
 
     let rows: Rc<RefCell<Vec<GameServerRow>>> = Rc::new(RefCell::new(Vec::new()));
     let done: Rc<RefCell<Option<ServerResponse>>> = Rc::new(RefCell::new(None));
-    // When the first row lands, for diagnosing trickle-vs-buffering slowness.
     let first_row: Rc<RefCell<Option<Instant>>> = Rc::new(RefCell::new(None));
 
     let responded_rows = Rc::clone(&rows);
@@ -1168,85 +1211,51 @@ fn request_list(
         .map_err(|_| SteamError::Request("filter key or value exceeds 255 bytes".into()))?;
 
     let started = Instant::now();
-    let deadline = started + REQUEST_DEADLINE;
-    let mut streamed = 0usize;
-    let mut last_flush = Instant::now();
+    Ok(ListJob {
+        filters,
+        request,
+        rows,
+        done,
+        first_row,
+        stream,
+        started,
+        deadline: started + REQUEST_DEADLINE,
+        streamed: 0,
+        last_flush: started,
+    })
+}
 
-    // Safe without a lock: callbacks only run inside `run_callbacks`, on this
-    // same thread.
-    let mut flush = |force: bool, streamed: &mut usize| -> bool {
-        let Some(tx) = stream else { return true };
-        if !force && last_flush.elapsed() < STREAM_FLUSH {
+/// Flush and retire in-flight list requests. Called from every loop that
+/// pumps callbacks, since list callbacks are only delivered inside
+/// `run_callbacks`.
+fn poll_lists(jobs: &mut Vec<ListJob>) {
+    jobs.retain_mut(|job| {
+        let finished = *job.done.borrow();
+        let timed_out = finished.is_none() && Instant::now() > job.deadline;
+        // A send error means the consumer hung up; stop paying for a list
+        // nobody is reading.
+        let live = job.flush(finished.is_some() || timed_out);
+
+        if finished.is_none() && live && !timed_out {
             return true;
         }
-        last_flush = Instant::now();
-        let batch: Vec<GameServerRow> = rows.borrow_mut().drain(..).collect();
-        if batch.is_empty() {
-            return true;
-        }
-        *streamed += batch.len();
-        // A send error means the consumer hung up; stop early rather than
-        // keep paying for a list nobody is reading.
-        tx.send(StreamChunk::Rows(batch)).is_ok()
-    };
 
-    // `ServerListRequest` has no `Drop` impl — every return path must call
-    // `release()` itself or the native request leaks.
-    let release = |request: &Arc<Mutex<steamworks::ServerListRequest>>| {
-        if let Ok(mut guard) = request.lock() {
-            let _ = guard.release();
-        }
-    };
-
-    while done.borrow().is_none() {
-        if Instant::now() > deadline {
-            release(&request);
-            return Err(SteamError::Timeout);
-        }
-        client.run_callbacks();
-
-        // Answer instant queries while this request runs, so a mod-state
-        // lookup doesn't wait behind a whole discovery.
-        while let Ok(cmd) = rx.try_recv() {
-            if let Some(unhandled) = service_instant(client, cmd, pending, active) {
-                deferred.push_back(unhandled);
-            }
+        if finished.is_some() {
+            tracing::info!(
+                filters = ?job.filters,
+                rows = job.streamed,
+                first_row_ms = job.first_row.borrow().map(|t| (t - job.started).as_millis()),
+                total_ms = job.started.elapsed().as_millis(),
+                "steam server list complete"
+            );
+            let _ = job.stream.send(StreamChunk::Done(Ok(())));
+        } else if timed_out {
+            let _ = job.stream.send(StreamChunk::Done(Err(SteamError::Timeout)));
         }
 
-        // Complete any pending check issued above, same reasoning.
-        poll_checks(client, pending, active);
-
-        if !flush(false, &mut streamed) {
-            break;
-        }
-        std::thread::sleep(PUMP_SLEEP);
-    }
-    flush(true, &mut streamed);
-
-    // A broken stream leaves the loop before `done` is set; treat that as a
-    // completed-but-empty request rather than panicking on the `expect`.
-    let Some(response) = *done.borrow() else {
-        release(&request);
-        return Ok(Vec::new());
-    };
-
-    tracing::info!(
-        filters = ?filters,
-        rows = rows.borrow().len() + streamed,
-        streamed,
-        first_row_ms = first_row.borrow().map(|t| (t - started).as_millis()),
-        total_ms = started.elapsed().as_millis(),
-        "steam server list complete"
-    );
-
-    release(&request);
-
-    match response {
-        ServerResponse::NoServersListedOnMasterServer => Ok(Vec::new()),
-        _ => Ok(Rc::try_unwrap(rows)
-            .map(RefCell::into_inner)
-            .unwrap_or_else(|rc| rc.borrow().clone())),
-    }
+        release(&job.request);
+        false
+    });
 }
 
 fn from_item(item: &steamworks::GameServerItem) -> GameServerRow {
