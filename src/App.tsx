@@ -1,4 +1,10 @@
-import { useState, useEffect, useCallback, useRef, type CSSProperties } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type CSSProperties,
+} from "react";
 import { WindowResizeHandles } from "./components/window-resize-handles";
 import { Sidebar, type ViewId } from "./components/sidebar";
 import { WindowControls } from "./components/window-controls";
@@ -43,7 +49,9 @@ const RELOAD_THROTTLE_MS = 250;
 
 // Longer throttle while discovery is streaming — discovery-progress fires
 // several times a second and each reload re-queries the whole table.
-const DISCOVERY_RELOAD_THROTTLE_MS = 1500;
+// That read covers ~40k rows, so a tighter cadence just queues reads back to
+// back for the whole pass.
+const DISCOVERY_RELOAD_THROTTLE_MS = 5000;
 
 /**
  * Master-list cadence: new/returning servers appear without a relaunch. A
@@ -101,7 +109,10 @@ export function App() {
   const [connecting, setConnecting] = useState(false);
   const connectInFlight = useRef(false);
   /** Consecutive failed attempts, reset whenever the failure kind changes. */
-  const steamAttempts = useRef<{ kind: SteamInitFailure; count: number } | null>(null);
+  const steamAttempts = useRef<{
+    kind: SteamInitFailure;
+    count: number;
+  } | null>(null);
   const [autoRetryExhausted, setAutoRetryExhausted] = useState(false);
   const [discovering, setDiscovering] = useState(false);
   // Lets scheduleReload read `discovering` without depending on it.
@@ -130,7 +141,11 @@ export function App() {
   useEffect(() => {
     if (onboardingDecided.current || !settingsLoaded) return;
     onboardingDecided.current = true;
-    if (!onboardingDismissed && profileName.trim() === "" && dayzPath === null) {
+    if (
+      !onboardingDismissed &&
+      profileName.trim() === "" &&
+      dayzPath === null
+    ) {
       setShowOnboarding(true);
     }
   }, [settingsLoaded, onboardingDismissed, profileName, dayzPath]);
@@ -159,13 +174,17 @@ export function App() {
   const discoveryLogFloor = useRef(0);
   const scheduleReload = useCallback(() => {
     if (reloadTimer.current !== null) return;
-    const delay = discoveringRef.current ? DISCOVERY_RELOAD_THROTTLE_MS : RELOAD_THROTTLE_MS;
+    const delay = discoveringRef.current
+      ? DISCOVERY_RELOAD_THROTTLE_MS
+      : RELOAD_THROTTLE_MS;
     reloadTimer.current = window.setTimeout(() => {
       reloadTimer.current = null;
       void logClient("reload", "scheduleReload: dispatching reload", true);
       triggerReload();
       setRefreshedAt(new Date().toLocaleTimeString());
-      getServerCounts().then(setCounts).catch(() => {});
+      getServerCounts()
+        .then(setCounts)
+        .catch(() => {});
     }, delay);
   }, [triggerReload]);
 
@@ -188,7 +207,10 @@ export function App() {
   useEffect(() => {
     void resolveInstalled();
     void checkForUpdates();
-    const timer = window.setInterval(() => void checkForUpdates(), UPDATE_RECHECK_MS);
+    const timer = window.setInterval(
+      () => void checkForUpdates(),
+      UPDATE_RECHECK_MS,
+    );
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -232,13 +254,19 @@ export function App() {
     try {
       await discoverServers();
     } catch (e) {
-      void logClient("startup", "runInitialLoad: discovery threw: " + String(e));
+      void logClient(
+        "startup",
+        "runInitialLoad: discovery threw: " + String(e),
+      );
       console.error("Discovery failed:", e);
     } finally {
       setDiscovering(false);
     }
 
-    void logClient("startup", "runInitialLoad: discovery settled, dispatching final reload");
+    void logClient(
+      "startup",
+      "runInitialLoad: discovery settled, dispatching final reload",
+    );
     triggerReload();
     setRefreshedAt(new Date().toLocaleTimeString());
   }, [triggerReload]);
@@ -311,7 +339,8 @@ export function App() {
         setSteamConnected(false);
         setSteamError({
           kind: "disconnected",
-          message: "The connection to Steam was lost while the launcher was running.",
+          message:
+            "The connection to Steam was lost while the launcher was running.",
           autoRetry: false,
           autoRetryLimit: 0,
         });
@@ -327,15 +356,18 @@ export function App() {
   // startup's own queries can otherwise race ahead of it.
   const registryReadyHandled = useRef(false);
   useEffect(() => {
-    const unlistenRegistryReady = listen<{ degraded: boolean }>("registry-ready", (event) => {
-      if (registryReadyHandled.current) return;
-      registryReadyHandled.current = true;
-      void logClient(
-        "startup",
-        `registry-ready received (degraded=${event.payload.degraded}) -> scheduleReload`,
-      );
-      scheduleReload();
-    });
+    const unlistenRegistryReady = listen<{ degraded: boolean }>(
+      "registry-ready",
+      (event) => {
+        if (registryReadyHandled.current) return;
+        registryReadyHandled.current = true;
+        void logClient(
+          "startup",
+          `registry-ready received (degraded=${event.payload.degraded}) -> scheduleReload`,
+        );
+        scheduleReload();
+      },
+    );
     return () => {
       unlistenRegistryReady.then((fn) => fn());
     };
@@ -343,47 +375,55 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const unlistenProgress = listen<{ tier: number; requests: number; found: number }>(
-      "discovery-progress",
-      (event) => {
-        // The splash's live detail line ("Found N servers") reads this.
-        setDiscovered(event.payload.found);
-        // Log a thin sample (first + every 1000) — the full event stream
-        // during discovery would otherwise be the whole log.
-        if (
-          discoveryLogFloor.current === 0 ||
-          event.payload.found - discoveryLogFloor.current >= 1000
-        ) {
-          discoveryLogFloor.current = event.payload.found;
-          void logClient("discovery", `discovery-progress: found ${event.payload.found}`);
-        }
-        scheduleReload();
-      },
-    );
+    const unlistenProgress = listen<{
+      tier: number;
+      requests: number;
+      found: number;
+    }>("discovery-progress", (event) => {
+      // The splash's live detail line ("Found N servers") reads this.
+      setDiscovered(event.payload.found);
+      // Log a thin sample (first + every 1000) — the full event stream
+      // during discovery would otherwise be the whole log.
+      if (
+        discoveryLogFloor.current === 0 ||
+        event.payload.found - discoveryLogFloor.current >= 1000
+      ) {
+        discoveryLogFloor.current = event.payload.found;
+        void logClient(
+          "discovery",
+          `discovery-progress: found ${event.payload.found}`,
+        );
+      }
+      scheduleReload();
+    });
 
     const unlistenRefreshed = listen("server-refreshed", () => {
       scheduleReload();
     });
 
-    const unlistenModsPending = listen<ModsPendingEntry[]>("mods-pending", (event) => {
-      useServerStore.getState().mergeModPending(event.payload);
-    });
+    const unlistenModsPending = listen<ModsPendingEntry[]>(
+      "mods-pending",
+      (event) => {
+        useServerStore.getState().mergeModPending(event.payload);
+      },
+    );
 
     // Completion is the one event that reloads immediately rather than on the
     // throttle, so the final state is never left a beat behind.
-    const unlistenComplete = listen<{ ok: number; failed: number; scope?: string }>(
-      "refresh-complete",
-      (event) => {
-        // Always reload — a row refresh has new data for the table too.
-        triggerReload();
-        // But only a full pass owns the spinner and the timestamp. A row
-        // refresh finishing mid-pass would otherwise report the whole refresh
-        // as done and stamp a time nothing had reached.
-        if (event.payload?.scope === "row") return;
-        setRefreshing(false);
-        setRefreshedAt(new Date().toLocaleTimeString());
-      },
-    );
+    const unlistenComplete = listen<{
+      ok: number;
+      failed: number;
+      scope?: string;
+    }>("refresh-complete", (event) => {
+      // Always reload — a row refresh has new data for the table too.
+      triggerReload();
+      // But only a full pass owns the spinner and the timestamp. A row
+      // refresh finishing mid-pass would otherwise report the whole refresh
+      // as done and stamp a time nothing had reached.
+      if (event.payload?.scope === "row") return;
+      setRefreshing(false);
+      setRefreshedAt(new Date().toLocaleTimeString());
+    });
 
     return () => {
       unlistenProgress.then((fn) => fn());
@@ -397,35 +437,41 @@ export function App() {
   // dzsa://connect/... link from the OS protocol handler (src-tauri/src/protocol.rs).
   // Selects the server but never auto-launches — joining still needs the button.
   useEffect(() => {
-    const unlistenConnect = listen<{ ip: string; queryPort: number; favourite: boolean }>(
-      "dzsa-connect",
-      (event) => {
-        const { ip, queryPort, favourite } = event.payload;
-        setActiveView("servers");
-        void getServer(`${ip}:${queryPort}`, queryPort)
-          .then((server) => {
-            if (!server) {
-              // Not an error — registry just hasn't discovered this server yet.
-              setError(
-                `${ip}:${queryPort} isn't in your server list yet — press DISCOVER, then try the link again.`,
-              );
-              return;
-            }
-            useServerStore.getState().setSelectedServer(server);
-            if (favourite && !server.favourite) {
-              useServerStore.getState().toggleFavourite(server.addr);
-              void toggleFavourite(server.addr, server.query_port, true).catch((e) => {
-                console.error("Failed to persist favourite from dzsa:// link:", e);
+    const unlistenConnect = listen<{
+      ip: string;
+      queryPort: number;
+      favourite: boolean;
+    }>("dzsa-connect", (event) => {
+      const { ip, queryPort, favourite } = event.payload;
+      setActiveView("servers");
+      void getServer(`${ip}:${queryPort}`, queryPort)
+        .then((server) => {
+          if (!server) {
+            // Not an error — registry just hasn't discovered this server yet.
+            setError(
+              `${ip}:${queryPort} isn't in your server list yet — press DISCOVER, then try the link again.`,
+            );
+            return;
+          }
+          useServerStore.getState().setSelectedServer(server);
+          if (favourite && !server.favourite) {
+            useServerStore.getState().toggleFavourite(server.addr);
+            void toggleFavourite(server.addr, server.query_port, true).catch(
+              (e) => {
+                console.error(
+                  "Failed to persist favourite from dzsa:// link:",
+                  e,
+                );
                 useServerStore.getState().toggleFavourite(server.addr);
-              });
-            }
-          })
-          .catch((e) => {
-            console.error("Failed to resolve dzsa:// link target:", e);
-            setError(`Could not look up ${ip}:${queryPort}: ${String(e)}`);
-          });
-      },
-    );
+              },
+            );
+          }
+        })
+        .catch((e) => {
+          console.error("Failed to resolve dzsa:// link target:", e);
+          setError(`Could not look up ${ip}:${queryPort}: ${String(e)}`);
+        });
+    });
     return () => {
       unlistenConnect.then((fn) => fn());
     };
@@ -440,13 +486,18 @@ export function App() {
     // An A2S refresh opens thousands of UDP sockets; don't run it against a
     // download the user is waiting on.
     if (useServerStore.getState().downloadsActive) {
-      setError("Paused while mods are downloading — try again once they finish.");
+      setError(
+        "Paused while mods are downloading — try again once they finish.",
+      );
       return;
     }
     const { servers } = useServerStore.getState();
     if (servers.length === 0) return;
     // The whole list, not just the rows currently mounted by the virtualizer.
-    const targets = servers.map((s) => ({ addr: s.addr, query_port: s.query_port }));
+    const targets = servers.map((s) => ({
+      addr: s.addr,
+      query_port: s.query_port,
+    }));
 
     refreshInFlight.current = true;
     setRefreshing(true);
@@ -537,7 +588,10 @@ export function App() {
     const onVisibility = () => {
       if (document.visibilityState !== "visible") return;
       if (revealDone.current) return;
-      void logClient("reload", "window became visible -> scheduleReload (safety net)");
+      void logClient(
+        "reload",
+        "window became visible -> scheduleReload (safety net)",
+      );
       scheduleReload();
     };
     document.addEventListener("visibilitychange", onVisibility);
@@ -579,10 +633,6 @@ export function App() {
   const latestSplash = useRef(splash);
   useEffect(() => {
     latestSplash.current = splash;
-    void logClient(
-      "splash",
-      `milestone ${splash.pct}% "${splash.status}" servers=${serverCount}`,
-    );
     void emit("splash-progress", {
       status: splash.status,
       detail: splash.detail,
@@ -590,6 +640,17 @@ export function App() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [splash.status, splash.detail, splash.pct]);
+
+  // Logged from its own effect, keyed on the milestone alone: `detail` ticks
+  // with every discovery-progress event, which wrote ~8k identical lines a
+  // pass.
+  useEffect(() => {
+    void logClient(
+      "splash",
+      `milestone ${splash.pct}% "${splash.status}" servers=${serverCount}`,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [splash.status, splash.pct]);
 
   // Replay the current milestone when the splash announces itself — it may
   // miss early events while still registering its listener.
@@ -607,19 +668,19 @@ export function App() {
   }, []);
 
   return (
-            <div
+    <div
       className="relative flex h-screen flex-col overflow-hidden rounded-[8px] border border-line bg-bg"
       style={{ "--side-w": sideCollapsed ? "52px" : "220px" } as CSSProperties}
-          >
+    >
       <WindowResizeHandles />
 
       <div className="flex min-h-0 flex-1">
         <Sidebar
           activeView={activeView}
           onViewChange={handleViewChange}
-        steamConnected={steamConnected}
+          steamConnected={steamConnected}
           settingsOpen={settingsOpen}
-        onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
           onCloseSettings={() => setSettingsOpen(false)}
           onCollapsedChange={setSideCollapsed}
         />
@@ -628,99 +689,104 @@ export function App() {
           <WindowControls />
 
           {/* "Later" dismisses for this session only. */}
-      {updateAvailable && !updateBannerDismissed && (
+          {updateAvailable && !updateBannerDismissed && (
             <div className="flex items-center gap-3 border-b border-accent-line bg-accent-soft px-3 py-1.5">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-accent">
-            Update available
+                Update available
               </span>
               <span className="min-w-0 flex-1 truncate text-[11px] text-ink">
-            Tetra Launcher v{updateAvailable.version} is ready to install.
+                Tetra Launcher v{updateAvailable.version} is ready to install.
               </span>
               <button
-            onClick={() => {
-              setUpdateBannerDismissed(true);
-              setUpdateOpen(true);
-            }}
+                onClick={() => {
+                  setUpdateBannerDismissed(true);
+                  setUpdateOpen(true);
+                }}
                 className="shrink-0 rounded bg-accent px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-bg transition-[filter] hover:brightness-110"
               >
-            Update
+                Update
               </button>
               <button
-            onClick={() => setUpdateBannerDismissed(true)}
+                onClick={() => setUpdateBannerDismissed(true)}
                 className="shrink-0 rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted transition-colors hover:text-ink"
               >
-            Later
+                Later
               </button>
             </div>
           )}
 
           {activeView === "mods" ? (
             /* Mods tab replaces the whole server-browser stack while active. */
-        <ModsTab />
-      ) : (
-        <>
-          <FilterBar
-            onRefresh={handleRefresh}
-            refreshing={refreshing}
-            onOpenModFilter={() => setModFilterOpen(true)}
-            modFilterOpen={modFilterOpen}
-          />
+            <ModsTab />
+          ) : (
+            <>
+              <FilterBar
+                onRefresh={handleRefresh}
+                refreshing={refreshing}
+                onOpenModFilter={() => setModFilterOpen(true)}
+                modFilterOpen={modFilterOpen}
+              />
 
               {/* Not dismissible — favourites/recent are not being saved. */}
-          {storageDegraded && (
+              {storageDegraded && (
                 <div className="flex items-center gap-2 border-b border-warn bg-warn-soft px-3 py-1.5">
-                  <span className="text-[10px] font-semibold uppercase text-warn">STORAGE</span>
+                  <span className="text-[10px] font-semibold uppercase text-warn">
+                    STORAGE
+                  </span>
                   <span className="text-[11px] text-ink">
-                    The server database could not be opened, so this session is running from
-                    memory — favourites and recently-played will not be saved.
-          </span>
-        </div>
-      )}
+                    The server database could not be opened, so this session is
+                    running from memory — favourites and recently-played will
+                    not be saved.
+                  </span>
+                </div>
+              )}
 
-          {error && (
+              {error && (
                 <div className="flex items-center gap-2 border-b border-danger bg-surface2 px-3 py-1.5">
-                  <span className="text-[10px] font-semibold uppercase text-danger">ERROR</span>
+                  <span className="text-[10px] font-semibold uppercase text-danger">
+                    ERROR
+                  </span>
                   <span className="truncate text-[11px] text-ink">{error}</span>
-          <button
-                onClick={() => setError(null)}
+                  <button
+                    onClick={() => setError(null)}
                     className="ml-auto shrink-0 text-[10px] text-muted hover:text-ink"
-          >
-                DISMISS
-          </button>
-            </div>
-          )}
+                  >
+                    DISMISS
+                  </button>
+                </div>
+              )}
 
               <div className="flex items-center gap-2 border-b border-line bg-bg px-3 py-1.5">
-            <div
+                <div
                   className={
                     discovering
                       ? "size-1.5 animate-pulse rounded-full bg-warn"
-                : refreshing
+                      : refreshing
                         ? "size-1.5 animate-pulse rounded-full bg-accent"
                         : "size-1.5 rounded-full bg-success"
                   }
-      />
+                />
                 <span className="text-[10px] text-muted">
-              {discovering
-                ? "Discovering servers from Steam..."
-                : refreshing
-                  ? "Probing server details..."
-                  : `Live · ${refreshedAt ?? "waiting"}`}
-          </span>
-            </div>
+                  {discovering
+                    ? "Discovering servers from Steam..."
+                    : refreshing
+                      ? "Probing server details..."
+                      : `Live · ${refreshedAt ?? "waiting"}`}
+                </span>
+              </div>
 
               <ServerList view={activeView} onMoreInfo={setInfoServer} />
-        </>
+            </>
           )}
 
-      <FooterBar
-        servers={counts.total}
-        populated={counts.populated}
-        refreshedAt={refreshedAt}
-        steamConnected={steamConnected}
-      />
+          <FooterBar
+            servers={counts.total}
+            populated={counts.populated}
+            refreshedAt={refreshedAt}
+            steamConnected={steamConnected}
+          />
         </div>
-          </div>
+      </div>
 
       {settingsOpen && <SettingsView onClose={() => setSettingsOpen(false)} />}
 
@@ -730,9 +796,16 @@ export function App() {
 
       <UpdateModal open={updateOpen} onClose={() => setUpdateOpen(false)} />
 
-      {infoServer && <ServerInfoModal server={infoServer} onClose={() => setInfoServer(null)} />}
+      {infoServer && (
+        <ServerInfoModal
+          server={infoServer}
+          onClose={() => setInfoServer(null)}
+        />
+      )}
 
-      {modFilterOpen && <ModFilterModal onClose={() => setModFilterOpen(false)} />}
+      {modFilterOpen && (
+        <ModFilterModal onClose={() => setModFilterOpen(false)} />
+      )}
 
       {/* Blocking: nothing works without Steam. */}
       {!steamConnected && steamError && (

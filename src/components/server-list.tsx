@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useServerStore } from "@/stores/server-store";
 import { useSettingsStore } from "@/stores/settings-store";
@@ -47,76 +47,101 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
   // are each their own stacking context.
   const [menuOpenKey, setMenuOpenKey] = useState<string | null>(null);
 
-  // Results are applied only if this effect run is still the current one —
-  // async command replies can overtake each other under this much traffic
-  // (filter edits, sort clicks, loadVersion bumping every 250ms).
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      try {
-        const filterParams: FilterParams = {
-          maps: filter.maps,
-          countries: filter.countries,
-          hide_empty: filter.hide_empty,
-          hide_full: filter.hide_full,
-          hide_locked: filter.hide_locked,
-          hide_offline: filter.hide_offline,
-          max_ping: filter.max_ping,
-          search: filter.search,
-          favourites_only: filter.favourites_only,
-          recent_only: filter.recent_only,
-          official: filter.official,
-          modded: filter.modded,
-          first_person: filter.first_person,
-          mod_ids: filter.mod_ids,
-          mod_match: filter.mod_match,
-          mod_ids_exclude: filter.mod_ids_exclude,
-          // Preferences, not view state, so they come from Settings.
-          hide_placeholder: hidePlaceholder,
-          english_names: englishNames,
-        };
-        const sortParams: SortParams = {
-          sort_key: sortKey,
-          sort_dir: sortDir,
-          // Covers the whole DayZ browser (~30k servers) rather than a slice:
-          // at 5000, with the default players-descending sort, empty servers
-          // — most of the browser — fell off the end. The read is ~60ms and
-          // the list is virtualised; REFRESH still probes only the first
-          // PROBE_WINDOW rows.
-          limit: 40000,
-        };
+  // One load at a time, and a bump that lands mid-load is remembered rather
+  // than pre-empting it. Cancelling the in-flight run on every bump starved
+  // it outright: a 40k-row read takes longer than the reload cadence during
+  // discovery, so every run was superseded before it could apply and the
+  // table stayed empty (splash up) for the whole pass.
+  const loadInFlight = useRef(false);
+  const reloadQueued = useRef(false);
+  // Read at run time, so a coalesced re-run uses the newest filter/sort
+  // rather than whatever was current when it was queued.
+  const queryRef = useRef<{
+    filterParams: FilterParams;
+    sortParams: SortParams;
+  } | null>(null);
+
+  const runLoad = useCallback(async () => {
+    if (loadInFlight.current) {
+      reloadQueued.current = true;
+      return;
+    }
+    loadInFlight.current = true;
+    setLoading(true);
+    try {
+      do {
+        reloadQueued.current = false;
+        const query = queryRef.current;
+        if (!query) break;
         const t0 = performance.now();
-        void logClient("servers", `load: start (loadVersion=${loadVersion})`, true);
-        const rows = await getServerList(filterParams, sortParams);
-        if (!cancelled) {
+        void logClient("servers", "load: start", true);
+        try {
+          const rows = await getServerList(
+            query.filterParams,
+            query.sortParams,
+          );
           setServers(rows);
           void logClient(
             "servers",
-            `load: ${rows.length} rows in ${Math.round(performance.now() - t0)}ms (loadVersion=${loadVersion})`,
+            `load: ${rows.length} rows in ${Math.round(performance.now() - t0)}ms`,
             true,
           );
-        }
-      } catch (e) {
-        if (!cancelled) {
-          void logClient("servers", `load: failed (loadVersion=${loadVersion}): ${String(e)}`);
+        } catch (e) {
+          void logClient("servers", `load: failed: ${String(e)}`);
           console.error("Failed to load servers:", e);
         }
-      } finally {
-        // Guarded too: a superseded run resolving late shouldn't clear the
-        // spinner while the current request is still in flight.
-        if (!cancelled) {
-          setLoading(false);
-          setHasLoadedOnce();
-        }
-      }
+      } while (reloadQueued.current);
+    } finally {
+      loadInFlight.current = false;
+      setLoading(false);
+      setHasLoadedOnce();
     }
-    load();
-    return () => {
-      cancelled = true;
+  }, [setLoading, setServers, setHasLoadedOnce]);
+
+  useEffect(() => {
+    queryRef.current = {
+      filterParams: {
+        maps: filter.maps,
+        countries: filter.countries,
+        hide_empty: filter.hide_empty,
+        hide_full: filter.hide_full,
+        hide_locked: filter.hide_locked,
+        hide_offline: filter.hide_offline,
+        max_ping: filter.max_ping,
+        search: filter.search,
+        favourites_only: filter.favourites_only,
+        recent_only: filter.recent_only,
+        official: filter.official,
+        modded: filter.modded,
+        first_person: filter.first_person,
+        mod_ids: filter.mod_ids,
+        mod_match: filter.mod_match,
+        mod_ids_exclude: filter.mod_ids_exclude,
+        // Preferences, not view state, so they come from Settings.
+        hide_placeholder: hidePlaceholder,
+        english_names: englishNames,
+      },
+      sortParams: {
+        sort_key: sortKey,
+        sort_dir: sortDir,
+        // Covers the whole DayZ browser (~30k servers) rather than a slice:
+        // at 5000, with the default players-descending sort, empty servers
+        // (most of the browser) fell off the end. The list is virtualised;
+        // REFRESH still probes only the first PROBE_WINDOW rows.
+        limit: 40000,
+      },
     };
+    void runLoad();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, sortKey, sortDir, loadVersion, hidePlaceholder, englishNames]);
+  }, [
+    filter,
+    sortKey,
+    sortDir,
+    loadVersion,
+    hidePlaceholder,
+    englishNames,
+    runLoad,
+  ]);
 
   // Distinct maps for the filter dropdown, decoupled from loadVersion so a
   // discovery storm doesn't mean a GROUP BY several times a second.
@@ -128,7 +153,8 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
           if (!cancelled) setMaps(maps);
         })
         .catch((e) => {
-          if (!cancelled) void logClient("servers", `getMapList failed: ${String(e)}`);
+          if (!cancelled)
+            void logClient("servers", `getMapList failed: ${String(e)}`);
         });
     };
     fetchMaps();
@@ -175,7 +201,12 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
           </span>
         </div>
       ) : (
-        <div style={{ position: "relative", height: rowVirtualizer.getTotalSize() }}>
+        <div
+          style={{
+            position: "relative",
+            height: rowVirtualizer.getTotalSize(),
+          }}
+        >
           {virtualItems.map((virtualRow) => {
             const server = servers[virtualRow.index];
             const isSelected = selectedServer?.addr === server.addr;
@@ -189,7 +220,8 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                 className={cn(
                   "l2-row flex cursor-pointer items-center gap-3 rounded-[8px] border border-line bg-surface px-3 py-2 transition-[border-color,background,box-shadow] duration-150",
                   "hover:border-accent-line",
-                  isSelected && "border-accent-line bg-accent-soft shadow-[var(--glow)]",
+                  isSelected &&
+                    "border-accent-line bg-accent-soft shadow-[var(--glow)]",
                   !server.online && "opacity-50",
                 )}
                 style={{
@@ -207,12 +239,22 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                     e.stopPropagation();
                     void handleToggleFavourite(server);
                   }}
-                  title={server.favourite ? "Remove from favourites" : "Add to favourites"}
-                  aria-label={server.favourite ? "Remove from favourites" : "Add to favourites"}
+                  title={
+                    server.favourite
+                      ? "Remove from favourites"
+                      : "Add to favourites"
+                  }
+                  aria-label={
+                    server.favourite
+                      ? "Remove from favourites"
+                      : "Add to favourites"
+                  }
                   aria-pressed={server.favourite}
                   className={cn(
                     "star flex shrink-0 items-center justify-center transition-colors",
-                    server.favourite ? "text-warn" : "text-muted hover:text-muted2",
+                    server.favourite
+                      ? "text-warn"
+                      : "text-muted hover:text-muted2",
                   )}
                 >
                   <Star
@@ -231,12 +273,17 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                       {server.first_person && <Tag tone="muted">1PP</Tag>}
                       {server.locked && <Tag tone="danger">LOCKED</Tag>}
                       {modPending[server.addr] && (
-                        <Tag tone="accent" title="A declared mod has a Steam update pending">
+                        <Tag
+                          tone="accent"
+                          title="A declared mod has a Steam update pending"
+                        >
                           UPDATE
                         </Tag>
                       )}
                     </div>
-                    <span className="min-w-0 truncate text-ink">{server.name}</span>
+                    <span className="min-w-0 truncate text-ink">
+                      {server.name}
+                    </span>
                   </div>
                   <div className="mt-0.5 flex items-center gap-2.5 whitespace-nowrap text-[9px] text-muted">
                     <span className="font-mono-data">{server.map_display}</span>
@@ -255,7 +302,9 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                     {view === "recent" && server.last_played != null && (
                       <>
                         <span>·</span>
-                        <span>played {formatLastPlayed(server.last_played)}</span>
+                        <span>
+                          played {formatLastPlayed(server.last_played)}
+                        </span>
                       </>
                     )}
                   </div>
@@ -280,7 +329,10 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                     >
                       {server.players}/{server.max_players}
                       {server.queue != null && server.queue > 0 && (
-                        <span className="text-[10px] text-warn" title={`${server.queue} waiting in the join queue`}>
+                        <span
+                          className="text-[10px] text-warn"
+                          title={`${server.queue} waiting in the join queue`}
+                        >
                           +{server.queue}
                         </span>
                       )}
@@ -302,7 +354,9 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                               : "text-success",
                       )}
                       title={
-                        !server.online ? "Server did not respond to the last refresh" : undefined
+                        !server.online
+                          ? "Server did not respond to the last refresh"
+                          : undefined
                       }
                     >
                       {server.online ? (server.ping ?? "—") : "—"}
@@ -323,7 +377,9 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                   server={server}
                   onMoreInfo={onMoreInfo}
                   onOpenChange={(o) =>
-                    setMenuOpenKey((cur) => (o ? rowKey : cur === rowKey ? null : cur))
+                    setMenuOpenKey((cur) =>
+                      o ? rowKey : cur === rowKey ? null : cur,
+                    )
                   }
                 />
               </div>
@@ -355,7 +411,11 @@ function ModCount({ server }: { server: Server }) {
       </div>
     );
   }
-  return <div className="font-mono-data text-[13px] font-bold leading-none text-muted">—</div>;
+  return (
+    <div className="font-mono-data text-[13px] font-bold leading-none text-muted">
+      —
+    </div>
+  );
 }
 
 type TagTone = "accent" | "accent2" | "muted" | "danger";
@@ -388,4 +448,3 @@ function Tag({
     </span>
   );
 }
-
