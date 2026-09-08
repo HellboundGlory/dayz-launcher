@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Most of the DayZ server browser was missing from the launcher.** Server
+  discovery only ever asked Steam for servers that had at least one player on
+  them, so an empty server was invisible until somebody happened to be online
+  the moment the launcher pulled the list — which is why a quiet PVE server
+  could be nowhere to be found, then appear later for no obvious reason.
+  Discovery now walks the whole browser (populated *and* empty), and splits
+  any request Steam truncates into smaller ones: on a live pull that took the
+  count from 3,764 servers to 38,881.
+- **Servers Steam listed but couldn't reach were stored nameless and then
+  hidden forever.** Nothing ever asked them again, since Refresh only
+  re-checks servers already on your list. The launcher now queries them
+  itself at the end of each discovery pass, rotating through them so a dead
+  address can't hog the queue, and ages them out instead of keeping them
+  forever.
+- **The list showed at most 5,000 servers**, sorted by player count, so the
+  quieter half of the browser was unreachable by scrolling. The whole list is
+  loaded now; Refresh still probes only the first 5,000 rows in view, so it's
+  no slower than before.
+
 ## v2.5.0 — 2026-09-07
 
 ### Added

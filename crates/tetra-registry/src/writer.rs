@@ -15,6 +15,7 @@ pub(crate) enum Job {
     Favourite(ServerKey, bool, Ack<usize>),
     LastPlayed(ServerKey, Ack<usize>),
     SetOnline(Vec<ServerKey>, bool, Ack<()>),
+    ProbeAttempt(Vec<ServerKey>, Ack<()>),
 }
 
 /// Handle to the single writer thread. Cheap to clone.
@@ -73,6 +74,13 @@ impl Writer {
     ) -> Result<(), RegistryError> {
         self.send(|ack| Job::SetOnline(keys, online, ack)).await
     }
+
+    /// Stamp "we asked these ourselves, just now" — written before the probe,
+    /// not after, so an address that never answers still advances and the
+    /// unresolved sweep keeps rotating instead of retrying the same dead rows.
+    pub async fn mark_probe_attempt(&self, keys: Vec<ServerKey>) -> Result<(), RegistryError> {
+        self.send(|ack| Job::ProbeAttempt(keys, ack)).await
+    }
 }
 
 pub(crate) fn run(conn: Connection, mut rx: mpsc::Receiver<Job>) {
@@ -92,6 +100,9 @@ pub(crate) fn run(conn: Connection, mut rx: mpsc::Receiver<Job>) {
             }
             Job::SetOnline(keys, online, ack) => {
                 let _ = ack.send(set_online(&conn, &keys, online));
+            }
+            Job::ProbeAttempt(keys, ack) => {
+                let _ = ack.send(mark_probe_attempt(&conn, &keys));
             }
         }
     }
@@ -297,6 +308,21 @@ fn set_online(conn: &Connection, keys: &[ServerKey], online: bool) -> Result<(),
             tx.prepare_cached("UPDATE servers SET online = ?3 WHERE ip = ?1 AND query_port = ?2")?;
         for key in keys {
             stmt.execute(params![key.ip.to_string(), key.query_port, online])?;
+        }
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+fn mark_probe_attempt(conn: &Connection, keys: &[ServerKey]) -> Result<(), RegistryError> {
+    let tx = conn.unchecked_transaction()?;
+    {
+        let mut stmt = tx.prepare_cached(
+            "UPDATE servers SET last_probe_attempt = unixepoch()
+             WHERE ip = ?1 AND query_port = ?2",
+        )?;
+        for key in keys {
+            stmt.execute(params![key.ip.to_string(), key.query_port])?;
         }
     }
     tx.commit()?;
