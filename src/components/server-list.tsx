@@ -79,9 +79,12 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
         const sortParams: SortParams = {
           sort_key: sortKey,
           sort_dir: sortDir,
-          // Matches the backend's PROBE_WINDOW so every server with a
-          // mod_count is shown; safe now that the list is virtualised.
-          limit: 5000,
+          // Covers the whole DayZ browser (~30k servers) rather than a slice:
+          // at 5000, with the default players-descending sort, empty servers
+          // — most of the browser — fell off the end. The read is ~60ms and
+          // the list is virtualised; REFRESH still probes only the first
+          // PROBE_WINDOW rows.
+          limit: 40000,
         };
         const t0 = performance.now();
         void logClient("servers", `load: start (loadVersion=${loadVersion})`, true);

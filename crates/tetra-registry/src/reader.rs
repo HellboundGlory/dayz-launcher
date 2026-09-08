@@ -134,6 +134,40 @@ impl Reader {
         }))
     }
 
+    /// Addresses Steam has listed but that have never answered anyone, so their
+    /// `name` was never written and the browser hides them (`hide_unnamed`).
+    /// Oldest attempt first, so a permanently dead address rotates out of the
+    /// window instead of occupying it every pass, and never one that was
+    /// already asked within `min_age_secs`.
+    pub fn unresolved(
+        &self,
+        limit: usize,
+        min_age_secs: i64,
+    ) -> Result<Vec<ServerKey>, RegistryError> {
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT ip, query_port FROM servers
+             WHERE last_responded IS NULL
+               AND (last_probe_attempt IS NULL
+                    OR last_probe_attempt <= unixepoch() - ?2)
+             ORDER BY COALESCE(last_probe_attempt, 0) ASC, last_seen DESC
+             LIMIT ?1",
+        )?;
+        let rows = collect_skipping_bad_rows(
+            stmt.query_map(params![limit as i64, min_age_secs], |r| {
+                let ip: String = r.get(0)?;
+                let Ok(ip) = Ipv4Addr::from_str(&ip) else {
+                    return Ok(None);
+                };
+                Ok(Some(ServerKey {
+                    ip,
+                    query_port: r.get(1)?,
+                }))
+            })?,
+            "unresolved",
+        )?;
+        Ok(rows)
+    }
+
     pub fn distinct_maps(&self) -> Result<Vec<(String, String)>, RegistryError> {
         let mut stmt = self.conn.prepare(
             "SELECT map_normalised, MIN(map_raw) FROM servers

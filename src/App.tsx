@@ -45,8 +45,13 @@ const RELOAD_THROTTLE_MS = 250;
 // several times a second and each reload re-queries the whole table.
 const DISCOVERY_RELOAD_THROTTLE_MS = 1500;
 
-/** Master-list cadence: new/returning servers appear without a relaunch. */
-const REDISCOVER_MS = 5 * 60 * 1000;
+/**
+ * Master-list cadence: new/returning servers appear without a relaunch. A
+ * full pass is a dozen Steam requests and takes ~15 minutes (it walks every
+ * shard of the browser, not just the populated slice), so ticking faster than
+ * that just means the backend no-ops on `discovery_running`.
+ */
+const REDISCOVER_MS = 30 * 60 * 1000;
 
 /** Interval between Steam-availability rechecks while it's down. */
 const STEAM_RETRY_MS = 4000;

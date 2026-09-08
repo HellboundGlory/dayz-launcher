@@ -1,7 +1,7 @@
 use crate::error::RegistryError;
 use rusqlite::Connection;
 
-pub const LATEST_VERSION: u32 = 3;
+pub const LATEST_VERSION: u32 = 4;
 
 struct Migration {
     version: u32,
@@ -20,6 +20,10 @@ const MIGRATIONS: &[Migration] = &[
     Migration {
         version: 3,
         sql: V3,
+    },
+    Migration {
+        version: 4,
+        sql: V4,
     },
 ];
 
@@ -134,6 +138,14 @@ ALTER TABLE servers ADD COLUMN day_multiplier REAL;
 ALTER TABLE servers ADD COLUMN night_multiplier REAL;
 "#;
 
+/// When Tetra last sent this server an A2S_INFO of its own, whether or not it
+/// answered. Only the unresolved sweep reads it, to rotate fairly through rows
+/// Steam listed but never resolved — without it, the same permanently dead
+/// addresses fill the window every pass and newly listed ones never get asked.
+const V4: &str = r#"
+ALTER TABLE servers ADD COLUMN last_probe_attempt INTEGER;
+"#;
+
 /// How long a server may go unresponsive, in days, before it's pruned —
 /// unless the user has favourited or played it. See [`prune_stale`].
 const PRUNE_AFTER_DAYS: i64 = 60;
@@ -141,8 +153,11 @@ const PRUNE_AFTER_DAYS: i64 = 60;
 /// Delete servers unresponsive past [`PRUNE_AFTER_DAYS`] with no favourite/play history, plus
 /// their mod rows. Only `VACUUM`s if something was actually deleted.
 pub fn prune_stale(conn: &Connection) -> Result<usize, RegistryError> {
-    const CUTOFF_PREDICATE: &str = "last_responded IS NOT NULL \
-         AND last_responded < unixepoch() - ?1 \
+    // A row that has *never* answered is pruned on `last_seen` instead: it has
+    // no `last_responded` to age out on, so the old predicate kept every one of
+    // them forever — thousands of nameless, unlistable rows that the browser
+    // hides and nothing ever deleted.
+    const CUTOFF_PREDICATE: &str = "COALESCE(last_responded, last_seen) < unixepoch() - ?1 \
          AND favourite = 0 \
          AND last_played IS NULL";
     let cutoff_secs = PRUNE_AFTER_DAYS * 86_400;
@@ -198,6 +213,17 @@ mod tests {
             "INSERT INTO servers (ip, query_port, first_seen, last_seen, last_responded, favourite, last_played)
              VALUES (?1, ?2, ?3, ?3, ?4, ?5, ?6)",
             rusqlite::params![ip, port, now(), last_responded, favourite as i64, last_played],
+        )
+        .unwrap();
+    }
+
+    /// A row Steam listed but that never answered anyone, last listed
+    /// `age_days` ago.
+    fn insert_never_responded(conn: &Connection, ip: &str, port: i64, age_days: i64) {
+        conn.execute(
+            "INSERT INTO servers (ip, query_port, first_seen, last_seen, last_responded)
+             VALUES (?1, ?2, ?3, ?3, NULL)",
+            rusqlite::params![ip, port, now() - age_days * 86_400],
         )
         .unwrap();
     }
@@ -263,12 +289,20 @@ mod tests {
     }
 
     #[test]
-    fn a_never_responded_server_is_left_alone() {
-        // `last_responded IS NULL` means "discovered but never A2S-probed",
-        // not "confirmed dead" — pruning on a guess like that is
-        // deliberately out of this policy's scope.
+    fn a_never_responded_server_ages_out_on_last_seen() {
+        // These rows have no `last_responded` to age out on, so the original
+        // predicate kept every one of them forever: nameless, hidden by the
+        // browser, and growing without bound.
         let conn = fresh_conn();
-        insert_server(&conn, "1.2.3.4", 2302, None, false, None);
+        insert_never_responded(&conn, "1.2.3.4", 2302, 61);
+        assert_eq!(prune_stale(&conn).unwrap(), 1);
+    }
+
+    #[test]
+    fn a_never_responded_server_steam_still_lists_survives() {
+        // Still in the master list, so it's a probe candidate, not garbage.
+        let conn = fresh_conn();
+        insert_never_responded(&conn, "1.2.3.4", 2302, 1);
         assert_eq!(prune_stale(&conn).unwrap(), 0);
     }
 
