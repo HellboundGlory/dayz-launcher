@@ -15,6 +15,16 @@ const PROBE_WINDOW: usize = 5000;
 /// Servers per registry write batch during a refresh.
 const WRITE_BATCH: usize = 200;
 
+/// How many never-resolved rows one discovery pass asks itself, after the
+/// master pull. Measured at ~105s of A2S_INFO against a real backlog — a
+/// tenth of the master pull it follows — and it drains a fresh install's
+/// backlog over a few passes.
+const RESOLVE_WINDOW: usize = 8000;
+
+/// How long a never-resolved row is left alone after Tetra last asked it, so a
+/// short backlog doesn't mean re-probing the same dead addresses every pass.
+const RESOLVE_RETRY_AFTER_SECS: i64 = 60 * 60;
+
 /// Ceiling on one server's whole A2S_RULES retry chain, measured from when a
 /// permit is actually acquired — never from when the probe task was spawned.
 const RULES_DEADLINE: std::time::Duration = std::time::Duration::from_secs(8);
@@ -215,6 +225,10 @@ impl Drop for DiscoveryGuard<'_> {
 }
 
 /// Discover servers through Steam and store them in the registry.
+///
+/// One pass walks every shard of [`tetra_steam::Shard::population_halves`],
+/// subdividing any shard Steam truncated at [`tetra_steam::LIST_CAP`], then
+/// asks the servers Steam listed but couldn't resolve itself.
 #[tauri::command]
 pub async fn discover_servers(
     app: tauri::AppHandle,
@@ -247,88 +261,230 @@ pub async fn discover_servers(
     }
     let _discovery_guard = DiscoveryGuard(state.inner());
 
-    // Consumed as a stream so rows land in the registry — and on screen —
-    // from the first flush onward, instead of the table sitting empty until
-    // the whole request completes.
-    let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<tetra_steam::GameServerRow>>(16);
-
-    let pump = tokio::task::spawn_blocking(move || {
-        let mut filters = tetra_steam::Filters::new();
-        filters.insert("empty".into(), "1".into());
-
-        let chunks = steam
-            .internet_list_stream(&filters)
-            .map_err(|e| format!("Steam discovery failed: {e}"))?;
-
-        for chunk in chunks {
-            match chunk {
-                tetra_steam::StreamChunk::Rows(rows) => {
-                    if tx.blocking_send(rows).is_err() {
-                        break;
-                    }
-                }
-                tetra_steam::StreamChunk::Done(result) => {
-                    return result.map_err(|e| format!("Steam discovery failed: {e}"));
-                }
-            }
-        }
-        Ok::<(), String>(())
-    });
-
-    let mut found = 0usize;
+    let mut queue: std::collections::VecDeque<tetra_steam::Shard> =
+        tetra_steam::Shard::population_halves().into();
+    // Unique across shards: the halves are disjoint but a subdivided shard's
+    // children re-list rows the truncated parent already returned, so a raw
+    // row count would badly overstate what was found. Upsert stays idempotent
+    // on (ip, query_port) either way — this set is only for the count.
+    let mut seen: std::collections::HashSet<(Ipv4Addr, u16)> = std::collections::HashSet::new();
     let mut abandoned = false;
-    while let Some(rows) = rx.recv().await {
-        // Stop pulling chunks on shutdown so shutdown_steam's join isn't left waiting.
+    let mut shards_run = 0usize;
+    let mut shards_failed = 0usize;
+    let mut truncated_shards = 0usize;
+
+    while let Some(shard) = queue.pop_front() {
         if state.shutting_down.load(Ordering::Relaxed) {
             abandoned = true;
+            break;
+        }
+
+        // Consumed as a stream so rows land in the registry — and on screen —
+        // from the first flush onward, instead of the table sitting empty
+        // until the whole request completes.
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<tetra_steam::GameServerRow>>(16);
+        let shard_steam = Arc::clone(&steam);
+        let filters = shard.filters.clone();
+        let pump = tokio::task::spawn_blocking(move || {
+            let chunks = shard_steam
+                .internet_list_stream(&filters)
+                .map_err(|e| format!("Steam discovery failed: {e}"))?;
+
+            for chunk in chunks {
+                match chunk {
+                    tetra_steam::StreamChunk::Rows(rows) => {
+                        if tx.blocking_send(rows).is_err() {
+                            break;
+                        }
+                    }
+                    tetra_steam::StreamChunk::Done(result) => {
+                        return result.map_err(|e| format!("Steam discovery failed: {e}"));
+                    }
+                }
+            }
+            Ok::<(), String>(())
+        });
+
+        let mut shard_rows = 0usize;
+        while let Some(rows) = rx.recv().await {
+            // Stop pulling chunks on shutdown so shutdown_steam's join isn't left waiting.
+            if state.shutting_down.load(Ordering::Relaxed) {
+                abandoned = true;
+                crate::log::log_line(
+                    &app,
+                    "discovery",
+                    "discover_servers: shutdown requested, abandoning stream",
+                );
+                break;
+            }
+
+            shard_rows += rows.len();
+            for row in &rows {
+                seen.insert((row.ip, row.query_port));
+            }
+
+            let server_rows: Vec<tetra_registry::rows::ServerRow> =
+                rows.iter().map(to_server_row).collect();
+            writer
+                .upsert_servers(server_rows)
+                .await
+                .map_err(|e| format!("Registry write error: {e}"))?;
+
+            let _ = window.emit(
+                "discovery-progress",
+                serde_json::json!({ "tier": shards_run + 1, "found": seen.len() }),
+            );
+        }
+
+        if abandoned {
             crate::log::log_line(
                 &app,
                 "discovery",
-                "discover_servers: shutdown requested, abandoning stream",
+                "discover_servers: not waiting on the abandoned pump",
             );
             break;
         }
 
-        // No dedup pass needed: upsert is idempotent on (ip, query_port).
-        let server_rows: Vec<tetra_registry::rows::ServerRow> =
-            rows.iter().map(to_server_row).collect();
-        found += server_rows.len();
+        shards_run += 1;
+        // One shard failing is not the pass failing: the halves are
+        // independent, and the rows other shards already wrote are good.
+        match pump.await {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => {
+                shards_failed += 1;
+                crate::log::log_line(
+                    &app,
+                    "discovery",
+                    &format!("discover_servers: shard {} failed: {e}", shard.label),
+                );
+            }
+            Err(e) => {
+                shards_failed += 1;
+                crate::log::log_line(
+                    &app,
+                    "discovery",
+                    &format!("discover_servers: shard {} join error: {e}", shard.label),
+                );
+            }
+        }
 
-        writer
-            .upsert_servers(server_rows)
-            .await
-            .map_err(|e| format!("Registry write error: {e}"))?;
+        // Steam truncates an over-full request and says nothing, so a shard
+        // that comes back exactly at the cap is assumed cut short and is split
+        // into two complementary halves.
+        if shard_rows >= tetra_steam::LIST_CAP {
+            truncated_shards += 1;
+            match shard.subdivide() {
+                Some(children) => queue.extend(children),
+                None => crate::log::log_line(
+                    &app,
+                    "discovery",
+                    &format!(
+                        "discover_servers: shard {} still truncated with no axis left; \
+                         {shard_rows} rows is a partial sample",
+                        shard.label
+                    ),
+                ),
+            }
+        }
 
-        let _ = window.emit(
-            "discovery-progress",
-            serde_json::json!({ "tier": 1, "found": found }),
+        crate::log::log_line(
+            &app,
+            "discovery",
+            &format!(
+                "discover_servers: shard {} returned {shard_rows} rows ({} unique so far, {} queued)",
+                shard.label,
+                seen.len(),
+                queue.len()
+            ),
         );
     }
 
-    // All registry upserts are done before `pump.await`, so a `get_server_list`
-    // issued after this returns sees the full list.
+    // All registry upserts are done before this returns, so a `get_server_list`
+    // issued after it sees the full list.
     crate::log::log_line(
         &app,
         "discovery",
         &format!(
-            "discover_servers: done, found {found} in {:?}",
+            "discover_servers: done, found {} unique across {shards_run} shards \
+             ({shards_failed} failed, {truncated_shards} truncated) in {:?}",
+            seen.len(),
             discovered_at.elapsed()
         ),
     );
 
-    // Don't wait on an abandoned stream — that's precisely what would block the exit path.
-    if abandoned {
-        crate::log::log_line(
-            &app,
-            "discovery",
-            "discover_servers: not waiting on the abandoned pump",
-        );
-    } else {
-        pump.await.map_err(|e| format!("Task join error: {e}"))??;
+    if shards_run > 0 && shards_failed == shards_run {
+        return Err("Steam discovery failed: every request was refused".into());
+    }
+
+    if !abandoned {
+        resolve_unlisted(&app, &state, &writer, &window).await;
         crate::log::log_line(&app, "discovery", "discover_servers: complete");
     }
 
     Ok(())
+}
+
+/// Ask the servers Steam listed but could not resolve itself.
+///
+/// A row Steam failed to ping arrives with `responded = false` and no name,
+/// and the upsert refuses to write live fields from it — so the row is stored
+/// nameless, and a nameless row is hidden from the browser. Nothing else would
+/// ever query it: the REFRESH button only re-probes rows the frontend has
+/// loaded, which by definition excludes hidden ones. Tetra's own prober has a
+/// different timeout and socket than Steam's, so it reaches plenty of them.
+async fn resolve_unlisted(
+    app: &tauri::AppHandle,
+    state: &State<'_, AppState>,
+    writer: &tetra_registry::Writer,
+    window: &tauri::Window,
+) {
+    let backlog = reader(state).and_then(|r| {
+        r.unresolved(RESOLVE_WINDOW, RESOLVE_RETRY_AFTER_SECS)
+            .map_err(|e| e.to_string())
+    });
+    let keys = match backlog {
+        Ok(keys) => keys,
+        Err(e) => {
+            crate::log::log_line(app, "discovery", &format!("resolve_unlisted: {e}"));
+            return;
+        }
+    };
+    if keys.is_empty() {
+        return;
+    }
+
+    // Stamped before probing, so a batch of dead addresses rotates out of the
+    // window even if every probe times out.
+    if let Err(e) = writer.mark_probe_attempt(keys.clone()).await {
+        crate::log::log_line(app, "discovery", &format!("resolve_unlisted: {e}"));
+        return;
+    }
+
+    let prober = match prober(state) {
+        Ok(p) => p,
+        Err(e) => {
+            crate::log::log_line(app, "discovery", &format!("resolve_unlisted: {e}"));
+            return;
+        }
+    };
+    let addrs: Vec<SocketAddr> = keys
+        .iter()
+        .map(|k| SocketAddr::from((k.ip, k.query_port)))
+        .collect();
+    let asked = addrs.len();
+
+    // A2S_INFO only: this exists to give a hidden row a name, and mods cost a
+    // second round trip per server. `mark_offline` stays false — these rows
+    // have never been shown to be up in the first place.
+    let info = probe_info(&prober, addrs, writer, window, false).await;
+    crate::log::log_line(
+        app,
+        "discovery",
+        &format!(
+            "resolve_unlisted: asked {asked} never-resolved rows, {} answered",
+            info.refreshed
+        ),
+    );
 }
 
 /// Query the SQLite registry for the filtered/sorted server list.
@@ -683,8 +839,15 @@ pub async fn refresh_visible_servers(
     scope: Option<String>,
 ) -> Result<(), String> {
     // Unparseable entries are skipped, not fatal — one bad address shouldn't fail the whole click.
+    //
+    // Capped at PROBE_WINDOW: the frontend loads the whole filtered list,
+    // which is now the whole browser rather than a 5000-row slice of it, and
+    // one click must not turn into tens of thousands of INFO+RULES round
+    // trips. The list arrives in the table's sort order, so the cap keeps the
+    // rows the user is actually looking at.
     let socket_addrs: Vec<SocketAddr> = addrs
         .iter()
+        .take(PROBE_WINDOW)
         .filter_map(|a| server_key(&a.addr, a.query_port).ok())
         .map(|k| SocketAddr::from((k.ip, k.query_port)))
         .collect();

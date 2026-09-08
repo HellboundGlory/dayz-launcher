@@ -9,6 +9,7 @@
 mod actor;
 pub mod error;
 pub mod handle;
+pub mod plan;
 pub mod rows;
 pub mod source;
 pub mod workshop;
@@ -19,6 +20,7 @@ pub use actor::{
 };
 pub use error::{InitFailure, SteamError};
 pub use handle::SteamHandle;
+pub use plan::{Shard, LIST_CAP};
 pub use rows::{to_server_row, GameServerRow};
 pub use source::Filters;
 pub use workshop::ModState;
