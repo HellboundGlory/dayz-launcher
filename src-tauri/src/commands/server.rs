@@ -15,6 +15,23 @@ const PROBE_WINDOW: usize = 5000;
 /// Servers per registry write batch during a refresh.
 const WRITE_BATCH: usize = 200;
 
+/// How many master-list requests one discovery pass keeps in flight.
+///
+/// Steam paces each request by pinging the servers it lists (~80 rows/s) and
+/// paces concurrent requests independently: 32 at once were measured to hold
+/// full per-request throughput. A pass is therefore bounded by how many are
+/// in flight, not by anything local, so this is sized to run a whole
+/// pre-expanded [`tetra_steam::Shard::plan`] at once and cost about what its
+/// largest single cell costs.
+const SHARD_WORKERS: usize = 32;
+
+/// One instalment from a shard's stream, tagged with the shard it came from so
+/// one channel can carry every in-flight request.
+enum ShardMsg {
+    Rows(Vec<tetra_steam::GameServerRow>),
+    Done(Result<(), String>),
+}
+
 /// How many never-resolved rows one discovery pass asks itself, after the
 /// master pull. Measured at ~105s of A2S_INFO against a real backlog — a
 /// tenth of the master pull it follows — and it drains a fresh install's
@@ -226,8 +243,8 @@ impl Drop for DiscoveryGuard<'_> {
 
 /// Discover servers through Steam and store them in the registry.
 ///
-/// One pass walks every shard of [`tetra_steam::Shard::population_halves`],
-/// subdividing any shard Steam truncated at [`tetra_steam::LIST_CAP`], then
+/// One pass runs every cell of [`tetra_steam::Shard::plan`] concurrently,
+/// subdividing any cell Steam truncated at [`tetra_steam::LIST_CAP`], then
 /// asks the servers Steam listed but couldn't resolve itself.
 #[tauri::command]
 pub async fn discover_servers(
@@ -262,7 +279,7 @@ pub async fn discover_servers(
     let _discovery_guard = DiscoveryGuard(state.inner());
 
     let mut queue: std::collections::VecDeque<tetra_steam::Shard> =
-        tetra_steam::Shard::population_halves().into();
+        tetra_steam::Shard::plan().into();
     // Unique across shards: the halves are disjoint but a subdivided shard's
     // children re-list rows the truncated parent already returned, so a raw
     // row count would badly overstate what was found. Upsert stays idempotent
@@ -273,130 +290,151 @@ pub async fn discover_servers(
     let mut shards_failed = 0usize;
     let mut truncated_shards = 0usize;
 
-    while let Some(shard) = queue.pop_front() {
+    // Every in-flight shard streams into one channel, so this loop stays the
+    // only writer: no shared counters, no locks around `seen`.
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<(usize, ShardMsg)>(64);
+    let mut in_flight: std::collections::HashMap<usize, (tetra_steam::Shard, usize)> =
+        std::collections::HashMap::new();
+    let mut next_id = 0usize;
+
+    loop {
         if state.shutting_down.load(Ordering::Relaxed) {
             abandoned = true;
-            break;
-        }
-
-        // Consumed as a stream so rows land in the registry — and on screen —
-        // from the first flush onward, instead of the table sitting empty
-        // until the whole request completes.
-        let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<tetra_steam::GameServerRow>>(16);
-        let shard_steam = Arc::clone(&steam);
-        let filters = shard.filters.clone();
-        let pump = tokio::task::spawn_blocking(move || {
-            let chunks = shard_steam
-                .internet_list_stream(&filters)
-                .map_err(|e| format!("Steam discovery failed: {e}"))?;
-
-            for chunk in chunks {
-                match chunk {
-                    tetra_steam::StreamChunk::Rows(rows) => {
-                        if tx.blocking_send(rows).is_err() {
-                            break;
-                        }
-                    }
-                    tetra_steam::StreamChunk::Done(result) => {
-                        return result.map_err(|e| format!("Steam discovery failed: {e}"));
-                    }
-                }
-            }
-            Ok::<(), String>(())
-        });
-
-        let mut shard_rows = 0usize;
-        while let Some(rows) = rx.recv().await {
-            // Stop pulling chunks on shutdown so shutdown_steam's join isn't left waiting.
-            if state.shutting_down.load(Ordering::Relaxed) {
-                abandoned = true;
-                crate::log::log_line(
-                    &app,
-                    "discovery",
-                    "discover_servers: shutdown requested, abandoning stream",
-                );
-                break;
-            }
-
-            shard_rows += rows.len();
-            for row in &rows {
-                seen.insert((row.ip, row.query_port));
-            }
-
-            let server_rows: Vec<tetra_registry::rows::ServerRow> =
-                rows.iter().map(to_server_row).collect();
-            writer
-                .upsert_servers(server_rows)
-                .await
-                .map_err(|e| format!("Registry write error: {e}"))?;
-
-            let _ = window.emit(
-                "discovery-progress",
-                serde_json::json!({ "tier": shards_run + 1, "found": seen.len() }),
-            );
-        }
-
-        if abandoned {
             crate::log::log_line(
                 &app,
                 "discovery",
-                "discover_servers: not waiting on the abandoned pump",
+                "discover_servers: shutdown requested, abandoning in-flight shards",
             );
             break;
         }
 
-        shards_run += 1;
-        // One shard failing is not the pass failing: the halves are
-        // independent, and the rows other shards already wrote are good.
-        match pump.await {
-            Ok(Ok(())) => {}
-            Ok(Err(e)) => {
-                shards_failed += 1;
-                crate::log::log_line(
-                    &app,
-                    "discovery",
-                    &format!("discover_servers: shard {} failed: {e}", shard.label),
-                );
-            }
-            Err(e) => {
-                shards_failed += 1;
-                crate::log::log_line(
-                    &app,
-                    "discovery",
-                    &format!("discover_servers: shard {} join error: {e}", shard.label),
-                );
-            }
+        // Top up to the concurrency limit. A shard that finishes early frees
+        // its slot for the next one — including children queued by a
+        // truncated shard that is still streaming.
+        while in_flight.len() < SHARD_WORKERS {
+            let Some(shard) = queue.pop_front() else {
+                break;
+            };
+            let id = next_id;
+            next_id += 1;
+            let shard_steam = Arc::clone(&steam);
+            let filters = shard.filters.clone();
+            let chunk_tx = tx.clone();
+            // Consumed as a stream so rows land in the registry — and on
+            // screen — from the first flush onward, instead of the table
+            // sitting empty until the whole request completes.
+            tokio::task::spawn_blocking(move || {
+                let chunks = match shard_steam.internet_list_stream(&filters) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        let _ = chunk_tx.blocking_send((
+                            id,
+                            ShardMsg::Done(Err(format!("Steam discovery failed: {e}"))),
+                        ));
+                        return;
+                    }
+                };
+                for chunk in chunks {
+                    match chunk {
+                        tetra_steam::StreamChunk::Rows(rows) => {
+                            if chunk_tx.blocking_send((id, ShardMsg::Rows(rows))).is_err() {
+                                return;
+                            }
+                        }
+                        tetra_steam::StreamChunk::Done(result) => {
+                            let _ = chunk_tx.blocking_send((
+                                id,
+                                ShardMsg::Done(
+                                    result.map_err(|e| format!("Steam discovery failed: {e}")),
+                                ),
+                            ));
+                            return;
+                        }
+                    }
+                }
+            });
+            in_flight.insert(id, (shard, 0));
         }
 
-        // Steam truncates an over-full request and says nothing, so a shard
-        // that comes back exactly at the cap is assumed cut short and is split
-        // into two complementary halves.
-        if shard_rows >= tetra_steam::LIST_CAP {
-            truncated_shards += 1;
-            match shard.subdivide() {
-                Some(children) => queue.extend(children),
-                None => crate::log::log_line(
+        if in_flight.is_empty() {
+            break;
+        }
+
+        let Some((id, msg)) = rx.recv().await else {
+            break;
+        };
+
+        match msg {
+            ShardMsg::Rows(rows) => {
+                if let Some((_, count)) = in_flight.get_mut(&id) {
+                    *count += rows.len();
+                }
+                for row in &rows {
+                    seen.insert((row.ip, row.query_port));
+                }
+
+                let server_rows: Vec<tetra_registry::rows::ServerRow> =
+                    rows.iter().map(to_server_row).collect();
+                writer
+                    .upsert_servers(server_rows)
+                    .await
+                    .map_err(|e| format!("Registry write error: {e}"))?;
+
+                let _ = window.emit(
+                    "discovery-progress",
+                    serde_json::json!({ "tier": shards_run + 1, "found": seen.len() }),
+                );
+            }
+            ShardMsg::Done(result) => {
+                let Some((shard, shard_rows)) = in_flight.remove(&id) else {
+                    continue;
+                };
+                shards_run += 1;
+
+                // One shard failing is not the pass failing: the halves are
+                // independent, and the rows other shards already wrote are good.
+                if let Err(e) = result {
+                    shards_failed += 1;
+                    crate::log::log_line(
+                        &app,
+                        "discovery",
+                        &format!("discover_servers: shard {} failed: {e}", shard.label),
+                    );
+                }
+
+                // Steam truncates an over-full request and says nothing, so a
+                // shard that comes back exactly at the cap is assumed cut
+                // short and is split into two complementary halves.
+                if shard_rows >= tetra_steam::LIST_CAP {
+                    truncated_shards += 1;
+                    match shard.subdivide() {
+                        Some(children) => queue.extend(children),
+                        None => crate::log::log_line(
+                            &app,
+                            "discovery",
+                            &format!(
+                                "discover_servers: shard {} still truncated with no axis left; \
+                                 {shard_rows} rows is a partial sample",
+                                shard.label
+                            ),
+                        ),
+                    }
+                }
+
+                crate::log::log_line(
                     &app,
                     "discovery",
                     &format!(
-                        "discover_servers: shard {} still truncated with no axis left; \
-                         {shard_rows} rows is a partial sample",
-                        shard.label
+                        "discover_servers: shard {} returned {shard_rows} rows \
+                         ({} unique so far, {} in flight, {} queued)",
+                        shard.label,
+                        seen.len(),
+                        in_flight.len(),
+                        queue.len()
                     ),
-                ),
+                );
             }
         }
-
-        crate::log::log_line(
-            &app,
-            "discovery",
-            &format!(
-                "discover_servers: shard {} returned {shard_rows} rows ({} unique so far, {} queued)",
-                shard.label,
-                seen.len(),
-                queue.len()
-            ),
-        );
     }
 
     // All registry upserts are done before this returns, so a `get_server_list`
