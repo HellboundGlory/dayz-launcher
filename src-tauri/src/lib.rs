@@ -125,6 +125,7 @@ pub fn run() {
             commands::server::discover_servers,
             commands::server::refresh_servers,
             commands::server::refresh_visible_servers,
+            commands::index::server_list_source,
             commands::steam::steam_init,
             commands::steam::steam_connection_state,
             commands::steam::steam_mod_states,

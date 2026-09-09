@@ -43,6 +43,9 @@ pub struct AppState {
     pub log_file: Mutex<Option<std::fs::File>>,
     /// Pooled, shared read connection for `commands::server::blocking_read`.
     pub server_reader: Mutex<Option<Arc<Mutex<tetra_registry::Reader>>>>,
+    /// Backend-index session: conditional-GET tokens, health backoff, and
+    /// which source last served the list. In memory only, per launch.
+    pub index: Mutex<crate::commands::index::IndexSession>,
 }
 
 impl AppState {
@@ -69,6 +72,7 @@ impl AppState {
             discord_now_playing: Mutex::new(None),
             log_file: Mutex::new(None),
             server_reader: Mutex::new(None),
+            index: Mutex::new(crate::commands::index::IndexSession::default()),
         }
     }
 }

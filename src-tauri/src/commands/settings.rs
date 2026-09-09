@@ -76,6 +76,13 @@ pub struct AppSettings {
     /// Show "Playing on {server}" / "Browsing servers" in Discord. `Option`
     /// so `discord_presence_enabled` can tell "never set" from "explicitly off".
     pub discord_rich_presence: Option<bool>,
+    /// Prefer Tetra's server index over a client-side Steam pass. On by
+    /// default; the index is an accelerator, so a failure is a fallback, not an error.
+    pub use_server_index: bool,
+    /// Base URL of the index to use. Empty means the feature is inert — no
+    /// requests at all — so a build without a baked-in default stays
+    /// Steam-only until the user points it at their own backend.
+    pub server_index_url: String,
     /// The window's size, position and maximised state — see [`crate::window_state`].
     pub window: Option<crate::window_state::WindowState>,
 }
@@ -105,6 +112,10 @@ impl Default for AppSettings {
             english_names_filter: Some(true),
             // `None`, not `Some(true)` — same reasoning as `close_to_tray`.
             discord_rich_presence: None,
+            use_server_index: true,
+            // Baked in at build time by the release pipeline; blank in a
+            // plain `cargo build`.
+            server_index_url: option_env!("TETRA_INDEX_URL").unwrap_or("").to_string(),
             window: None,
         }
     }
@@ -117,6 +128,15 @@ impl AppSettings {
             Some(OnClose::Minimise) | Some(OnClose::Quit) => false,
             Some(OnClose::Tray) | None => true,
         })
+    }
+
+    /// The index base URL to use, or `None` when the feature is off or unset.
+    pub fn index_url(&self) -> Option<&str> {
+        if !self.use_server_index {
+            return None;
+        }
+        let url = self.server_index_url.trim();
+        (!url.is_empty()).then_some(url)
     }
 
     /// Whether Discord Rich Presence is on.
@@ -442,6 +462,29 @@ mod tests {
     #[test]
     fn an_explicit_discord_presence_opt_out_survives() {
         assert!(!load(r#"{ "discordRichPresence": false }"#).discord_presence_enabled());
+    }
+
+    /// The index is on by default but has no URL unless one was baked in at
+    /// build time, so a stock build stays Steam-only rather than erroring.
+    #[test]
+    fn the_server_index_is_enabled_by_default_and_inert_without_a_url() {
+        let mut stock = load("{}");
+        assert!(stock.use_server_index);
+        // A build with no URL baked in is enabled but silent.
+        stock.server_index_url = String::new();
+        assert_eq!(stock.index_url(), None);
+
+        let configured = load(r#"{ "serverIndexUrl": "https://index.example/" }"#);
+        assert_eq!(configured.index_url(), Some("https://index.example/"));
+    }
+
+    #[test]
+    fn turning_the_server_index_off_makes_a_configured_url_inert() {
+        let off =
+            load(r#"{ "useServerIndex": false, "serverIndexUrl": "https://index.example/" }"#);
+        assert_eq!(off.index_url(), None);
+        // And whitespace is not a URL.
+        assert_eq!(load(r#"{ "serverIndexUrl": "  " }"#).index_url(), None);
     }
 
     #[test]

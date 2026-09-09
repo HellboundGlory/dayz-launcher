@@ -35,6 +35,10 @@ export interface AppSettings {
   englishNamesFilter: boolean | null;
   /** Show "Playing on {server}" / "Browsing servers" in Discord. */
   discordRichPresence: boolean;
+  /** Prefer Tetra's server index over the launcher's own Steam pass. */
+  useServerIndex: boolean;
+  /** Base URL of the index. Empty means the feature is inert — no requests, straight to Steam. */
+  serverIndexUrl: string;
 }
 
 interface SettingsState extends AppSettings {
@@ -68,6 +72,10 @@ const defaults: AppSettings = {
   hidePlaceholderServers: true,
   englishNamesFilter: true,
   discordRichPresence: true,
+  useServerIndex: true,
+  // The Rust default may carry a URL baked in at build time; the file is the
+  // authority, so this is only what the store shows before `load()` returns.
+  serverIndexUrl: "",
 };
 
 const KEYS = Object.keys(defaults) as (keyof AppSettings)[];
