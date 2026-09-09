@@ -63,7 +63,10 @@ export function FilterBar({ onRefresh, refreshing, onOpenModFilter, modFilterOpe
   const setSort = useServerStore((s) => s.setSort);
 
   return (
-    <div className="filterbar flex shrink-0 items-center gap-1.5 border-b border-line bg-surface px-2.5 py-2">
+    // At 1.5x scale the viewport is ~975 CSS px and the fixed-width controls
+    // alone exceed it, so the row wraps — a second row beats clipping the
+    // Refresh button off the right edge.
+    <div className="filterbar flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-2 border-b border-line bg-surface px-2.5 py-2">
       <SearchInput value={filter.search} onChange={(search) => setFilter({ search })} />
 
       <MapDropdown selectedMaps={filter.maps ?? []} onChange={(maps) => setFilter({ maps })} />
@@ -154,7 +157,7 @@ function SearchInput({
   }, [text]);
 
   return (
-    <div className="search flex min-w-0 flex-1 items-center gap-1.5 rounded-[6px] border border-line bg-surface2 px-2.5 py-[5px]">
+    <div className="search flex min-w-[140px] flex-1 items-center gap-1.5 rounded-[6px] border border-line bg-surface2 px-2.5 py-[5px]">
       <Search className="size-3 shrink-0 text-muted" />
       <input
         type="text"
