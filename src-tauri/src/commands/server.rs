@@ -311,7 +311,8 @@ pub async fn discover_servers(
     // Every in-flight shard streams into one channel, so this loop stays the
     // only writer: no shared counters, no locks around `seen`.
     let (tx, mut rx) = tokio::sync::mpsc::channel::<(usize, ShardMsg)>(64);
-    let mut in_flight: std::collections::HashMap<usize, (tetra_steam::Shard, usize)> =
+    // Shard, rows seen so far, and whether it has already been subdivided.
+    let mut in_flight: std::collections::HashMap<usize, (tetra_steam::Shard, usize, bool)> =
         std::collections::HashMap::new();
     let mut next_id = 0usize;
 
@@ -389,7 +390,7 @@ pub async fn discover_servers(
                     }
                 }
             });
-            in_flight.insert(id, (shard, 0));
+            in_flight.insert(id, (shard, 0, false));
         }
 
         if in_flight.is_empty() {
@@ -402,8 +403,29 @@ pub async fn discover_servers(
 
         match msg {
             ShardMsg::Rows(rows) => {
-                if let Some((_, count)) = in_flight.get_mut(&id) {
+                // Crossing the cap is what says a cell is truncated, and it is
+                // knowable now rather than when the request finishes. Waiting
+                // for that costs the rest of this request before a child can
+                // even be queued, and it is the tail of those serial levels
+                // that sets the length of a pass.
+                if let Some((shard, count, split)) = in_flight.get_mut(&id) {
                     *count += rows.len();
+                    if !*split && *count >= tetra_steam::LIST_CAP {
+                        *split = true;
+                        truncated_shards += 1;
+                        let (label, children) = (shard.label.clone(), shard.subdivide());
+                        match children {
+                            Some(children) => queue.extend(children),
+                            None => crate::log::log_line(
+                                &app,
+                                "discovery",
+                                &format!(
+                                    "discover_servers: shard {label} is truncated with no axis \
+                                     left; its rows are a partial sample"
+                                ),
+                            ),
+                        }
+                    }
                 }
                 for row in &rows {
                     seen.insert((row.ip, row.query_port));
@@ -422,7 +444,7 @@ pub async fn discover_servers(
                 );
             }
             ShardMsg::Done(result) => {
-                let Some((shard, shard_rows)) = in_flight.remove(&id) else {
+                let Some((shard, shard_rows, split)) = in_flight.remove(&id) else {
                     continue;
                 };
                 shards_run += 1;
@@ -438,22 +460,12 @@ pub async fn discover_servers(
                     );
                 }
 
-                // Steam truncates an over-full request and says nothing, so a
-                // shard that comes back exactly at the cap is assumed cut
-                // short and is split into two complementary halves.
-                if shard_rows >= tetra_steam::LIST_CAP {
+                // Normally the split already happened mid-stream; this catches
+                // a request that only reached the cap on its final flush.
+                if shard_rows >= tetra_steam::LIST_CAP && !split {
                     truncated_shards += 1;
-                    match shard.subdivide() {
-                        Some(children) => queue.extend(children),
-                        None => crate::log::log_line(
-                            &app,
-                            "discovery",
-                            &format!(
-                                "discover_servers: shard {} still truncated with no axis left; \
-                                 {shard_rows} rows is a partial sample",
-                                shard.label
-                            ),
-                        ),
+                    if let Some(children) = shard.subdivide() {
+                        queue.extend(children);
                     }
                 }
 
