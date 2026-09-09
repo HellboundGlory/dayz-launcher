@@ -16,10 +16,8 @@ tetra.db-wal
 *.log
 
 
-# UI overhaul mockups & screenshots — not committed
-mockups/
+# UI overhaul screenshots — not committed
 screenshots/
-
 
 # Backend deployment secrets — holds the Steam Web API key
 deploy/.env
