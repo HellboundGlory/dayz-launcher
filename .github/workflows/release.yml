@@ -78,6 +78,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Baked into the binary as the server-index base URL (repo variable
+          # set in Settings > Secrets and variables > Actions). Unset = the
+          # release is Steam-only, no index.
+          TETRA_INDEX_URL: ${{ vars.TETRA_INDEX_URL }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Tetra Launcher ${{ github.ref_name }}"
@@ -180,6 +184,8 @@ jobs:
       # which the next step stages for linuxdeploy.
       - name: Build Rust binary (release)
         run: cargo build --release --package tetra-launcher
+        env:
+          TETRA_INDEX_URL: ${{ vars.TETRA_INDEX_URL }}
 
       # linuxdeploy cannot discover libsteam_api.so by itself (it lives in a
       # hashed build dir, not a library path). Stage a copy in a fixed directory
@@ -219,6 +225,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           NO_STRIP: "1"
           LD_LIBRARY_PATH: ${{ github.workspace }}/target/steamlib
+          TETRA_INDEX_URL: ${{ vars.TETRA_INDEX_URL }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Tetra Launcher ${{ github.ref_name }}"

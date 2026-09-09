@@ -91,17 +91,18 @@ Endpoints:
 
 ## Pointing a launcher at it
 
-Either at runtime or at build time:
+Baked in at **build time** — there is deliberately no runtime setting, so a
+launcher and its backend move together:
 
-- **Runtime** — set the `serverIndexUrl` setting in the launcher to
-  `https://index.example.com` (scheme + host, no path; the client appends the
-  `/v1/...` paths itself).
-- **Build time** — set `TETRA_INDEX_URL` when building the launcher; it becomes
-  the compiled-in default via `option_env!("TETRA_INDEX_URL")`:
+```sh
+TETRA_INDEX_URL=https://index.example.com npx tauri build --debug
+```
 
-  ```sh
-  TETRA_INDEX_URL=https://index.example.com npx tauri build
-  ```
+The release pipeline does this from the `TETRA_INDEX_URL` Actions variable
+(repo → Settings → Secrets and variables → Actions). A build without the
+URL simply runs its own Steam pass; the launcher falls back to it
+automatically whenever the backend is unreachable or stale. The URL is
+scheme + host, no path — the client appends the `/v1/...` paths itself.
 
 ## TLS / reverse proxy
 
@@ -260,5 +261,5 @@ exactly the shape of a UDP scan, and it will be reported as one.
 | "Too many open files" in the log | fd limit below `TETRA_MAX_IN_FLIGHT` | `ulimits.nofile` in `docker-compose.yml` is 65536; if you changed it, put it back, then `docker compose up -d`. |
 | Disk growth: volume much larger than the ~29k servers the API serves | The SQLite DB keeps every address ever seen, including the advert farms the same-IP cap excludes from the API (273k addresses from 8,014 IPs; 88 IPs account for 186k of them). It only ever grows. | Nothing is lost by resetting: the DB is fully regenerable from one crawl cycle. `docker compose down && docker volume rm deploy_index-data && docker compose up -d`. Log rotation is already capped at 50 MB. |
 | Clients see 429 | `TETRA_RATE_LIMIT_PER_MIN` (default 60/min per client IP) | Expected for a shared NAT or a misbehaving client. If a reverse proxy is in front, make sure it forwards the real client address (see the nginx snippet) or every client counts as one. Raise the limit only if the traffic is legitimate. |
-| `/v1/health` reachable but a launcher shows no servers | `format_version` mismatch, or the URL includes a path | Compare `formatVersion` in `/v1/health` with the launcher's build. `serverIndexUrl` must be scheme + host only. |
+| `/v1/health` reachable but a launcher shows no servers | `format_version` mismatch, or the baked URL includes a path | Compare `formatVersion` in `/v1/health` with the launcher's build. `TETRA_INDEX_URL` must be scheme + host only (no `/v1/...`). |
 | `docker build` fails with "rustc … is not supported by the following packages" | Pinned `RUST_IMAGE` older than the lockfile's MSRV | Drop the `--build-arg RUST_IMAGE=…` override, or pin a newer `rust:<ver>-bookworm`. |
