@@ -1,6 +1,6 @@
 use crate::error::RegistryError;
 use crate::filter::{self, ServerFilter, ServerListRow, SortDir, SortKey, SERVER_LIST_COLUMNS};
-use crate::rows::ServerKey;
+use crate::rows::{Export, ExportRow, ServerKey};
 use rusqlite::functions::FunctionFlags;
 use rusqlite::{params, Connection};
 use std::net::Ipv4Addr;
@@ -20,6 +20,10 @@ fn register_name_functions(conn: &Connection) -> Result<(), RegistryError> {
     })?;
     Ok(())
 }
+
+/// Columns [`Reader::map_export_row`] reads, positionally.
+const EXPORT_COLUMNS: &str = "ip, query_port, game_port, name, map_raw, players, max_players, bots,
+     locked, vac, version, keywords, description, mod_count, last_seen, last_responded";
 
 /// Collects `query_map` results where `None` marks a row to drop, logging once if any were skipped.
 fn collect_skipping_bad_rows<T>(
@@ -166,6 +170,184 @@ impl Reader {
             "unresolved",
         )?;
         Ok(rows)
+    }
+
+    /// Every address on record, newest sighting first. The index backend's
+    /// A2S sweeps walk this; `limit` bounds one sweep's fanout.
+    pub fn addresses(&self, limit: usize) -> Result<Vec<(ServerKey, u16)>, RegistryError> {
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT ip, query_port, game_port FROM servers
+             ORDER BY last_seen DESC
+             LIMIT ?1",
+        )?;
+        let rows = collect_skipping_bad_rows(
+            stmt.query_map(params![limit as i64], |r| {
+                let ip: String = r.get(0)?;
+                let Ok(ip) = Ipv4Addr::from_str(&ip) else {
+                    return Ok(None);
+                };
+                Ok(Some((
+                    ServerKey {
+                        ip,
+                        query_port: r.get(1)?,
+                    },
+                    r.get(2)?,
+                )))
+            })?,
+            "addresses",
+        )?;
+        Ok(rows)
+    }
+
+    /// Servers whose mod list is missing or older than `max_age_secs`,
+    /// oldest first. Only rows that have answered A2S at all are candidates:
+    /// A2S_RULES is a second round trip and an address that ignores INFO is
+    /// not going to answer RULES.
+    pub fn rules_backlog(
+        &self,
+        limit: usize,
+        max_age_secs: i64,
+    ) -> Result<Vec<(ServerKey, u16)>, RegistryError> {
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT ip, query_port, game_port FROM servers
+             WHERE last_responded IS NOT NULL
+               AND (mods_updated_at IS NULL
+                    OR mods_updated_at <= unixepoch() - ?2)
+             ORDER BY COALESCE(mods_updated_at, 0) ASC, players DESC
+             LIMIT ?1",
+        )?;
+        let rows = collect_skipping_bad_rows(
+            stmt.query_map(params![limit as i64, max_age_secs], |r| {
+                let ip: String = r.get(0)?;
+                let Ok(ip) = Ipv4Addr::from_str(&ip) else {
+                    return Ok(None);
+                };
+                Ok(Some((
+                    ServerKey {
+                        ip,
+                        query_port: r.get(1)?,
+                    },
+                    r.get(2)?,
+                )))
+            })?,
+            "rules_backlog",
+        )?;
+        Ok(rows)
+    }
+
+    /// Every server last seen at or after `since`, with its declared mods.
+    /// `since = 0` exports the whole table; a later value is how the index
+    /// backend builds a delta.
+    ///
+    /// Two statements rather than a join: a join would repeat every server
+    /// column once per mod row, and the live index has over a million mod
+    /// rows against a quarter-million servers.
+    pub fn export(&self, since: i64) -> Result<Export, RegistryError> {
+        let mut stmt = self.conn.prepare_cached(&format!(
+            "SELECT {EXPORT_COLUMNS} FROM servers
+             WHERE last_seen >= ?1
+             ORDER BY ip, query_port"
+        ))?;
+        let rows = collect_skipping_bad_rows(
+            stmt.query_map(params![since], Self::map_export_row)?,
+            "export",
+        )?;
+
+        let mut by_key: std::collections::HashMap<ServerKey, usize> =
+            std::collections::HashMap::with_capacity(rows.len());
+        let mut rows = rows;
+        for (i, row) in rows.iter().enumerate() {
+            by_key.insert(row.key, i);
+        }
+
+        let mut mod_names: std::collections::HashMap<u64, String> =
+            std::collections::HashMap::new();
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT sm.ip, sm.query_port, sm.workshop_id, sm.name
+             FROM server_mods sm
+             JOIN servers s ON s.ip = sm.ip AND s.query_port = sm.query_port
+             WHERE s.last_seen >= ?1
+             ORDER BY sm.ip, sm.query_port, sm.ordinal",
+        )?;
+        let mut cursor = stmt.query(params![since])?;
+        while let Some(r) = cursor.next()? {
+            let ip: String = r.get(0)?;
+            let Ok(ip) = Ipv4Addr::from_str(&ip) else {
+                continue;
+            };
+            let key = ServerKey {
+                ip,
+                query_port: r.get(1)?,
+            };
+            let id = r.get::<_, i64>(2)? as u64;
+            let name: String = r.get(3)?;
+            if !name.is_empty() {
+                mod_names.entry(id).or_insert(name);
+            }
+            if let Some(&i) = by_key.get(&key) {
+                rows[i].mod_ids.get_or_insert_with(Vec::new).push(id);
+            }
+        }
+
+        Ok(Export { rows, mod_names })
+    }
+
+    /// One server in [`ExportRow`] shape, mods included. The index backend's
+    /// per-server endpoint uses this rather than [`Self::export`], which
+    /// scans the table.
+    pub fn export_one(&self, key: ServerKey) -> Result<Option<ExportRow>, RegistryError> {
+        let mut stmt = self.conn.prepare_cached(&format!(
+            "SELECT {EXPORT_COLUMNS} FROM servers WHERE ip = ?1 AND query_port = ?2"
+        ))?;
+        let row = stmt
+            .query_map(
+                params![key.ip.to_string(), key.query_port],
+                Self::map_export_row,
+            )?
+            .next()
+            .transpose()?
+            .flatten();
+        let Some(mut row) = row else {
+            return Ok(None);
+        };
+
+        if row.mod_ids.is_some() {
+            let mods = self.mods_for(key)?;
+            row.mod_ids = Some(mods.iter().map(|m| m.workshop_id).collect());
+        }
+        Ok(Some(row))
+    }
+
+    /// Shared mapping for [`Self::export`] and [`Self::export_one`].
+    /// `mod_ids` comes back empty here and is filled by the caller's mod
+    /// query; `Some(vec![])` vs `None` is decided by `mod_count`, which is
+    /// the record of whether A2S_RULES ever answered.
+    fn map_export_row(r: &rusqlite::Row) -> rusqlite::Result<Option<ExportRow>> {
+        let ip: String = r.get(0)?;
+        let Ok(ip) = Ipv4Addr::from_str(&ip) else {
+            return Ok(None);
+        };
+        let probed_for_mods: Option<i64> = r.get(13)?;
+        Ok(Some(ExportRow {
+            key: ServerKey {
+                ip,
+                query_port: r.get(1)?,
+            },
+            game_port: r.get(2)?,
+            name: r.get(3)?,
+            map: r.get(4)?,
+            players: r.get(5)?,
+            max_players: r.get(6)?,
+            bots: r.get(7)?,
+            locked: r.get::<_, i64>(8)? != 0,
+            vac: r.get::<_, i64>(9)? != 0,
+            version: r.get(10)?,
+            keywords: r.get(11)?,
+            description: r.get(12)?,
+            mod_ids: probed_for_mods.map(|_| Vec::new()),
+            last_seen: r.get(14)?,
+            last_responded: r.get(15)?,
+        }))
     }
 
     pub fn distinct_maps(&self) -> Result<Vec<(String, String)>, RegistryError> {

@@ -1,0 +1,21 @@
+[package]
+name = "tetra-index"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[features]
+# Types only by default, so the backend can serialise the wire format without
+# pulling an HTTP client it doesn't need. The launcher enables `client`.
+default = []
+client = ["dep:reqwest"]
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror.workspace = true
+reqwest = { workspace = true, optional = true }
+
+[lints.rust]
+unsafe_code = "forbid"

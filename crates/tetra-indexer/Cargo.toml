@@ -1,0 +1,30 @@
+[package]
+name = "tetra-indexer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+# Server-side only: never linked into the launcher, so it may depend on an
+# HTTP server and a Steam Web API key that must not exist on a client.
+publish = false
+
+[[bin]]
+name = "tetra-indexer"
+path = "src/main.rs"
+
+[dependencies]
+tetra-core = { path = "../tetra-core" }
+tetra-net = { path = "../tetra-net" }
+tetra-registry = { path = "../tetra-registry" }
+tetra-index = { path = "../tetra-index" }
+tokio = { workspace = true, features = ["signal", "fs"] }
+axum.workspace = true
+reqwest.workspace = true
+flate2.workspace = true
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lints.rust]
+unsafe_code = "forbid"
