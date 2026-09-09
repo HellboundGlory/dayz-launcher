@@ -67,22 +67,9 @@ pub struct AppSettings {
     /// Set once the first-launch setup modal is completed or skipped, so it
     /// never shows again even if the user left the name/path blank.
     pub onboarding_dismissed: bool,
-    /// Hide hosting-company defaults and template names — see
-    /// `classify::names::is_placeholder_name`.
-    pub hide_placeholder_servers: bool,
-    /// The ENGLISH ONLY filter tag. Tri-state: keep English, keep
-    /// non-English, or don't filter. See `classify::names::is_english_name`.
-    pub english_names_filter: Option<bool>,
     /// Show "Playing on {server}" / "Browsing servers" in Discord. `Option`
     /// so `discord_presence_enabled` can tell "never set" from "explicitly off".
     pub discord_rich_presence: Option<bool>,
-    /// Prefer Tetra's server index over a client-side Steam pass. On by
-    /// default; the index is an accelerator, so a failure is a fallback, not an error.
-    pub use_server_index: bool,
-    /// Base URL of the index to use. Empty means the feature is inert — no
-    /// requests at all — so a build without a baked-in default stays
-    /// Steam-only until the user points it at their own backend.
-    pub server_index_url: String,
     /// The window's size, position and maximised state — see [`crate::window_state`].
     pub window: Option<crate::window_state::WindowState>,
 }
@@ -103,19 +90,16 @@ impl Default for AppSettings {
             minimise_to_tray: false,
             on_close: None,
             ui_scale: DEFAULT_UI_SCALE,
-            auto_refresh_interval_secs: 0,
+            // 60 s: the index supplies the list, but ping is per-user, so a
+            // screenful of servers gets its numbers shortly after every load
+            // without the user having to hit REFRESH.
+            auto_refresh_interval_secs: 60,
             start_with_windows: false,
             start_minimised: false,
             on_join: OnJoin::Stay,
             onboarding_dismissed: false,
-            hide_placeholder_servers: true,
-            english_names_filter: Some(true),
             // `None`, not `Some(true)` — same reasoning as `close_to_tray`.
             discord_rich_presence: None,
-            use_server_index: true,
-            // Baked in at build time by the release pipeline; blank in a
-            // plain `cargo build`.
-            server_index_url: option_env!("TETRA_INDEX_URL").unwrap_or("").to_string(),
             window: None,
         }
     }
@@ -128,15 +112,6 @@ impl AppSettings {
             Some(OnClose::Minimise) | Some(OnClose::Quit) => false,
             Some(OnClose::Tray) | None => true,
         })
-    }
-
-    /// The index base URL to use, or `None` when the feature is off or unset.
-    pub fn index_url(&self) -> Option<&str> {
-        if !self.use_server_index {
-            return None;
-        }
-        let url = self.server_index_url.trim();
-        (!url.is_empty()).then_some(url)
     }
 
     /// Whether Discord Rich Presence is on.
@@ -464,29 +439,6 @@ mod tests {
         assert!(!load(r#"{ "discordRichPresence": false }"#).discord_presence_enabled());
     }
 
-    /// The index is on by default but has no URL unless one was baked in at
-    /// build time, so a stock build stays Steam-only rather than erroring.
-    #[test]
-    fn the_server_index_is_enabled_by_default_and_inert_without_a_url() {
-        let mut stock = load("{}");
-        assert!(stock.use_server_index);
-        // A build with no URL baked in is enabled but silent.
-        stock.server_index_url = String::new();
-        assert_eq!(stock.index_url(), None);
-
-        let configured = load(r#"{ "serverIndexUrl": "https://index.example/" }"#);
-        assert_eq!(configured.index_url(), Some("https://index.example/"));
-    }
-
-    #[test]
-    fn turning_the_server_index_off_makes_a_configured_url_inert() {
-        let off =
-            load(r#"{ "useServerIndex": false, "serverIndexUrl": "https://index.example/" }"#);
-        assert_eq!(off.index_url(), None);
-        // And whitespace is not a URL.
-        assert_eq!(load(r#"{ "serverIndexUrl": "  " }"#).index_url(), None);
-    }
-
     #[test]
     fn the_retired_dropdown_is_not_written_back() {
         let settings = load(r#"{ "onClose": "quit" }"#);
@@ -540,62 +492,9 @@ mod tests {
             "existing values are preserved"
         );
         assert_eq!(parsed.dayz_path.as_deref(), Some("C:\\DayZ"));
-        assert!(parsed.hide_placeholder_servers, "new filter defaulted off");
-        // Pinning the Option case: serde fills a missing Option<T> with None
-        // absent a default, which would ship this tag silently off for every upgrading install.
-        assert_eq!(
-            parsed.english_names_filter,
-            Some(true),
-            "a missing Option field must come from Default, not fall to None"
-        );
         assert!(
             parsed.discord_presence_enabled(),
             "an older file predating this setting must not read as opted out"
         );
-    }
-
-    /// `None` (show everything) must survive a save/load, not re-default to `Some(true)`.
-    #[test]
-    fn an_explicit_null_language_filter_is_not_re_defaulted() {
-        let cleared = AppSettings {
-            english_names_filter: None,
-            ..AppSettings::default()
-        };
-        let json = serde_json::to_string(&cleared).expect("serialise");
-        assert!(
-            json.contains("\"englishNamesFilter\":null"),
-            "the cleared state must be written explicitly: {json}"
-        );
-        let back: AppSettings = serde_json::from_str(&json).expect("deserialise");
-        assert_eq!(back.english_names_filter, None, "cleared state was lost");
-    }
-
-    /// The inverted tag (✗ — show only names you *cannot* read) round trips too.
-    #[test]
-    fn an_inverted_language_filter_round_trips() {
-        let inverted = AppSettings {
-            english_names_filter: Some(false),
-            ..AppSettings::default()
-        };
-        let json = serde_json::to_string(&inverted).expect("serialise");
-        let back: AppSettings = serde_json::from_str(&json).expect("deserialise");
-        assert_eq!(back.english_names_filter, Some(false));
-    }
-
-    /// The round trip the frontend store relies on: every field it sends back
-    /// must survive serialise → deserialise unchanged, including `false`.
-    #[test]
-    fn settings_round_trip_preserves_an_opted_out_user() {
-        let opted_out = AppSettings {
-            hide_placeholder_servers: false,
-            ..AppSettings::default()
-        };
-        let json = serde_json::to_string(&opted_out).expect("serialise");
-        assert!(
-            json.contains("hidePlaceholderServers"),
-            "must serialise in camelCase to match the frontend: {json}"
-        );
-        let back: AppSettings = serde_json::from_str(&json).expect("deserialise");
-        assert!(!back.hide_placeholder_servers, "an explicit false was lost");
     }
 }
