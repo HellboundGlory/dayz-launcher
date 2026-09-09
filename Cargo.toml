@@ -7,13 +7,17 @@ members = [
     "crates/tetra-steam",
     "crates/tetra-launch",
     "crates/tetra-discord",
+    "crates/tetra-index",
+    "crates/tetra-indexer",
     "src-tauri",
 ]
 
 [workspace.package]
 version = "2.5.0"
 edition = "2021"
-rust-version = "1.85"
+# 1.86 is the floor the lockfile actually imposes: reqwest -> url -> idna pulls
+# icu 2.2, which refuses to build on 1.85.
+rust-version = "1.86"
 license = "PolyForm-Noncommercial-1.0.0"
 
 [workspace.dependencies]
@@ -27,3 +31,17 @@ steamworks = "0.13"
 winreg = "0.52"
 discord-rich-presence = "1.1"
 percent-encoding = "2"
+# Server-index backend and its client. `reqwest` is already in the tree via
+# tauri-plugin-updater; rustls keeps the Linux container free of OpenSSL.
+# Bundled webpki roots rather than the platform store: one TLS behaviour on
+# every Windows box and inside the scratch container.
+reqwest = { version = "0.13", default-features = false, features = [
+    "rustls",
+    "webpki-roots",
+    "http2",
+    "gzip",
+    "json",
+] }
+axum = "0.8"
+flate2 = "1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
