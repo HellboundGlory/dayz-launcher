@@ -33,11 +33,13 @@ import {
   refreshVisibleServers,
   getServerCounts,
   registryDegraded,
+  serverListSource,
   getServer,
   toggleFavourite,
   type SteamInitError,
   type SteamInitFailure,
   type ModsPendingEntry,
+  type ListSource,
   logClient,
 } from "./lib/tauri";
 import { listen, emit } from "@tauri-apps/api/event";
@@ -160,10 +162,16 @@ export function App() {
   const [updateBannerDismissed, setUpdateBannerDismissed] = useState(false);
   /** Registry fell back to in-memory: nothing the user saves will survive. */
   const [storageDegraded, setStorageDegraded] = useState(false);
+  /** Which source served the loaded list; `null` until a pass finishes. */
+  const [listSource, setListSource] = useState<ListSource | null>(null);
 
   useEffect(() => {
     registryDegraded()
       .then(setStorageDegraded)
+      .catch(() => {});
+    // Covers a remount mid-session; a fresh launch has no source yet.
+    serverListSource()
+      .then(setListSource)
       .catch(() => {});
   }, []);
 
@@ -401,6 +409,17 @@ export function App() {
       scheduleReload();
     });
 
+    const unlistenSource = listen<{ source: ListSource; servers: number; ms: number }>(
+      "discovery-source",
+      (event) => {
+        setListSource(event.payload.source);
+        void logClient(
+          "discovery",
+          `discovery-source: ${event.payload.servers} servers from ${event.payload.source} in ${event.payload.ms}ms`,
+        );
+      },
+    );
+
     const unlistenModsPending = listen<ModsPendingEntry[]>(
       "mods-pending",
       (event) => {
@@ -438,6 +457,7 @@ export function App() {
     return () => {
       unlistenProgress.then((fn) => fn());
       unlistenRefreshed.then((fn) => fn());
+      unlistenSource.then((fn) => fn());
       unlistenModsPending.then((fn) => fn());
       unlistenExhausted.then((fn) => fn());
       unlistenComplete.then((fn) => fn());
@@ -795,6 +815,7 @@ export function App() {
             populated={counts.populated}
             refreshedAt={refreshedAt}
             steamConnected={steamConnected}
+            listSource={listSource}
           />
         </div>
       </div>

@@ -1,5 +1,11 @@
 import { useSettingsStore } from "@/stores/settings-store";
-import { setUiScale, UI_SCALE_MAX, UI_SCALE_MIN, UI_SCALE_STEP } from "@/lib/tauri";
+import {
+  setUiScale,
+  UI_SCALE_MAX,
+  UI_SCALE_MIN,
+  UI_SCALE_STEP,
+  type ListSource,
+} from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 
 interface FooterBarProps {
@@ -7,10 +13,18 @@ interface FooterBarProps {
   populated: number;
   refreshedAt: string | null;
   steamConnected: boolean;
+  /** Where the loaded list came from; `null` until a discovery pass finishes. */
+  listSource: ListSource | null;
 }
 
 // Segmented footer: Steam state chip, mono stats, and the interface-scale track/knob.
-export function FooterBar({ servers, populated, refreshedAt, steamConnected }: FooterBarProps) {
+export function FooterBar({
+  servers,
+  populated,
+  refreshedAt,
+  steamConnected,
+  listSource,
+}: FooterBarProps) {
   const uiScale = useSettingsStore((s) => s.uiScale);
   const setSetting = useSettingsStore((s) => s.setSetting);
 
@@ -60,6 +74,23 @@ export function FooterBar({ servers, populated, refreshedAt, steamConnected }: F
             </em>{" "}
             populated
           </span>
+          {listSource && (
+            <>
+              <span className="sep text-line">·</span>
+              <span
+                title={
+                  listSource === "index"
+                    ? "Served by Tetra's server index in one request"
+                    : "Asked Steam directly — the index was off, unreachable or stale"
+                }
+              >
+                via{" "}
+                <em className="font-semibold not-italic text-muted2">
+                  {listSource === "index" ? "index" : "Steam"}
+                </em>
+              </span>
+            </>
+          )}
           {refreshedAt && (
             <>
               <span className="sep text-line">·</span>
