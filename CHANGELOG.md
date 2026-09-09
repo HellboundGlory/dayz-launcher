@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+## v2.6.0 — 2026-09-09
 
 ### Added
 
@@ -12,10 +13,25 @@
   snapshot with ETag/If-None-Match and generation-based deltas. The launcher
   prefers the index and falls back to its own Steam pass on any failure, a
   stale snapshot, or a schema it doesn't read — the index is an accelerator,
-  never a dependency. Configure it in Settings ("Use Tetra's server index"
-  + URL), or bake a URL in at build time with `TETRA_INDEX_URL`. Deployable
-  with `deploy/` (Dockerfile, compose, runbook); runs on any Linux host with
-  a Steam Web API key — no Steam install, no DayZ purchase.
+  never a dependency. The backend's address is baked into the build
+  (`TETRA_INDEX_URL`); a build without one simply does its own Steam pass.
+  Deployable with `deploy/` (Dockerfile, compose, runbook); runs on any
+  Linux host with a Steam Web API key — no Steam install, no DayZ purchase.
+
+### Removed
+
+- **The server-browser settings that existed to hide junk before the index
+  cleaned the list.** The "Default hoster names" toggle, the "Language"
+  filter (which defaulted to English-only), and the "Use Tetra's server
+  index" switch + address field are gone. The backend already rejects
+  spoofed and farm listings at the write boundary, so the browser shows
+  every real server in every language; the index is always used when the
+  build knows one, with the Steam pass as the automatic fallback.
+- **The Server Browser settings section itself.** Its only remaining
+  control, auto-refresh, moved under Launcher and now defaults to **every
+  60 seconds** — the index supplies the list, but ping is per-user, so
+  rows on screen get their numbers about a minute after every load without
+  pressing REFRESH.
 
 ### Performance
 
