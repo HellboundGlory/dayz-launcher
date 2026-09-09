@@ -2,8 +2,8 @@
 
 Tetra Launcher — design contract. The visual system for this app, recorded so
 every future session builds on it instead of drifting. Source of truth for the
-look: `mockups/final-integrated-board.html` (V4 Glow board); the implementation
-spec is `PLAN.md`; this file records the *decisions*.
+look: the CSS-var token spine in `src/main.css` and `src/theme/`; this file
+records the *decisions*.
 
 ## 1. Product Intent
 
@@ -210,6 +210,8 @@ Append-only. Each entry: date, what was decided, why, and what it overrides.
 - [2026-08-28]: **V4 Glow design locked** — `final-integrated-board.html` is the
   sole visual spec; `PLAN.md` the implementation spec. Overrides the pre-overhaul
   shadcn/HSL theme and the old resizable server-table layout.
+  (2026-09-09: the board HTML and `PLAN.md` were removed with the `mockups/`
+  dev directory; the token spine in `src/main.css` + this file are the spec.)
 - [2026-08-28]: **Theme engine is CSS-driven** — palette as custom properties on
   `<html>`, zero component subscriptions; React only owns the editor. New
   additive store (`useThemeStore`); no store/backend churn.

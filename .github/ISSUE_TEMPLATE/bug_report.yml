@@ -1,0 +1,265 @@
+```yaml
+name: Bug Report
+description: Report a reproducible problem with Tetra Launcher
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug in **Tetra Launcher**.
+
+        Please provide as much information as possible. Clear reproduction steps, logs, and environment details make bugs much easier to investigate.
+
+        > **Security vulnerability?**
+        >
+        > Do **not** report security vulnerabilities here. Please follow the private reporting process in [`SECURITY.md`](../../SECURITY.md).
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      description: Please confirm the following before opening the report.
+      options:
+        - label: I searched existing issues and could not find an existing report for this problem.
+          required: true
+        - label: I am using a current version of Tetra Launcher, or I have confirmed the problem also occurs on the current version.
+          required: true
+        - label: I believe this problem is caused by Tetra Launcher rather than DayZ, Steam, a Workshop mod, or the server itself.
+          required: true
+        - label: I have removed passwords, tokens, personal information, and other sensitive data from any logs or screenshots.
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Tetra Launcher version
+      description: |
+        Enter the Tetra Launcher version where the problem occurs.
+        If you built from source, provide the commit hash instead.
+      placeholder: "e.g. 2.5.0 or commit abc1234"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: operating-system
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - Linux
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: os-details
+    attributes:
+      label: Operating system details
+      description: |
+        Provide any additional OS information that may be relevant.
+
+        Linux users should include their distribution and version.
+      placeholder: "e.g. Fedora 43, Ubuntu 26.04, Windows 11 25H2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-type
+    attributes:
+      label: Tetra installation type
+      options:
+        - Windows installer
+        - Windows portable ZIP
+        - Linux AppImage
+        - Linux .deb
+        - Built from source
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area affected
+      description: Which part of Tetra Launcher appears to be affected?
+      multiple: true
+      options:
+        - Launcher startup
+        - Server browser
+        - Server search / filters
+        - Server details
+        - Favourites
+        - Recently Played
+        - Server refresh / querying
+        - Verify & Join
+        - DayZ launching
+        - Steam detection
+        - Steam Workshop
+        - Mod detection
+        - Mod verification
+        - Mod installation / repair
+        - Discord Rich Presence
+        - Updates / updater
+        - Settings
+        - User interface
+        - Performance
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: |
+        Give a clear description of what is going wrong.
+
+        Include any useful context about what you were trying to do when the problem occurred.
+      placeholder: |
+        When I try to...
+        Tetra Launcher...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: List the smallest set of steps that reliably reproduces the problem.
+      placeholder: |
+        1. Open Tetra Launcher
+        2. Go to ...
+        3. Select ...
+        4. Click ...
+        5. The problem occurs
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What did you expect Tetra Launcher to do?
+      placeholder: "I expected..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: What happened instead?
+      placeholder: "Instead..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: How often does this happen?
+      options:
+        - Every time
+        - Most of the time
+        - Sometimes
+        - Happened once
+        - Unsure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: regression
+    attributes:
+      label: Did this work in a previous Tetra Launcher version?
+      options:
+        - "Yes"
+        - "No"
+        - Unsure
+        - Not applicable
+    validations:
+      required: true
+
+  - type: input
+    id: last-working-version
+    attributes:
+      label: Last known working version
+      description: If this worked previously, which version last worked correctly?
+      placeholder: "e.g. 2.4.2"
+
+  - type: textarea
+    id: server
+    attributes:
+      label: Server details
+      description: |
+        If the problem involves a particular DayZ server, provide enough information to identify it.
+
+        You can leave this blank if the problem is not server-specific.
+      placeholder: |
+        Server name:
+        Server IP/domain:
+        Port:
+        Map:
+        Does the issue happen on other servers too?
+
+  - type: textarea
+    id: mods
+    attributes:
+      label: Mod / Workshop details
+      description: |
+        If the problem involves mods or Steam Workshop content, provide the relevant Workshop IDs or mod names.
+
+        Do not paste an entire mod list unless it is necessary.
+      placeholder: |
+        Mod name:
+        Workshop ID:
+        Does the issue happen without this mod?
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or error messages
+      description: |
+        Paste relevant logs, errors, or crash output here.
+
+        **Remove usernames, tokens, private paths, IP addresses you do not wish to share, and other sensitive information before posting.**
+      render: shell
+      placeholder: Paste relevant log output here...
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or recordings
+      description: |
+        Drag and drop screenshots or recordings here if they help demonstrate the problem.
+
+        Please check images for personal or sensitive information before uploading them.
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: |
+        Add anything else that might help investigate the issue.
+
+        Useful examples include:
+        - Unusual Steam installation locations
+        - Multiple Steam libraries
+        - Proton or Wine configuration
+        - Custom filesystem layouts
+        - Network restrictions
+        - VPN or proxy usage
+        - Whether DayZ launches normally through Steam
+        - Workarounds you have already tried
+
+  - type: checkboxes
+    id: final-confirmation
+    attributes:
+      label: Final confirmation
+      options:
+        - label: I can provide additional information or test a potential fix if needed.
+          required: false
+        - label: I have read and agree to follow the project's Code of Conduct.
+          required: true
+```
