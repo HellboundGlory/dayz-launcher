@@ -51,7 +51,10 @@ jobs:
         with:
           context: .
           file: deploy/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          # amd64 only: the target hosts are x86_64 VPSes, and an emulated
+          # arm64 leg compiles the whole Rust workspace under qemu (20-40 min
+          # cold). Add linux/arm64 here if an arm64 host ever appears.
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
