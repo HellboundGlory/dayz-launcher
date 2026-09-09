@@ -76,6 +76,10 @@ pub enum SteamError {
     Request(String),
     #[error("server list request did not complete in time")]
     Timeout,
+    /// Steam stops completing list requests after a per-process allowance;
+    /// asking anyway just burns a deadline.
+    #[error("Steam will not serve more server lists until the launcher restarts")]
+    ListBudgetSpent,
     #[error("the Steam thread has shut down")]
     Closed,
 }
