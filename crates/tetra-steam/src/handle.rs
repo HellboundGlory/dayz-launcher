@@ -6,7 +6,7 @@ use crate::error::{InitFailure, SteamError};
 use crate::source::Filters;
 use crate::workshop::ModState;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -27,6 +27,12 @@ const SEARCH_BUDGET: std::time::Duration = std::time::Duration::from_secs(25);
 /// Subscribe/unsubscribe timeout — a single click the user is waiting on.
 const MUTATION_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
 
+/// List requests Steam will answer for one process. Past this it accepts the
+/// request and never completes it: measured 96 served then 4 more in a second
+/// pass, with the 32 after those all stalling. Not per pass, and it does not
+/// refill — see .ai-notes/crates/tetra-steam/src/plan.rs.md.
+pub const LIST_REQUEST_BUDGET: usize = 96;
+
 /// How long [`SteamHandle::shutdown`] waits for the actor to acknowledge a
 /// shutdown request before giving up and letting exit continue anyway.
 const SHUTDOWN_ACK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
@@ -37,6 +43,8 @@ pub struct SteamHandle {
     thread: Mutex<Option<JoinHandle<()>>>,
     /// Live connection flag, updated by the actor's Steam connect/disconnect callbacks.
     connected: Arc<AtomicBool>,
+    /// List requests issued since this process started.
+    lists_issued: AtomicUsize,
 }
 
 impl SteamHandle {
@@ -56,6 +64,7 @@ impl SteamHandle {
                 tx: Mutex::new(tx),
                 thread: Mutex::new(Some(thread)),
                 connected,
+                lists_issued: AtomicUsize::new(0),
             }),
             Ok(Err(e)) => Err(e),
             Err(_) => Err(SteamError::Init(
@@ -260,12 +269,22 @@ impl SteamHandle {
 }
 
 impl SteamHandle {
+    /// List requests still available to this process.
+    pub fn lists_remaining(&self) -> usize {
+        LIST_REQUEST_BUDGET.saturating_sub(self.lists_issued.load(Ordering::Relaxed))
+    }
+
     /// Request an internet server list; the receiver yields `Rows` batches then one `Done`.
     /// Dropping it asks the actor to abandon the request at its next flush.
     pub fn internet_list_stream(
         &self,
         filters: &Filters,
     ) -> Result<Receiver<StreamChunk>, SteamError> {
+        // Past the budget Steam accepts a request and never completes it, so
+        // asking costs a full deadline and returns nothing.
+        if self.lists_issued.fetch_add(1, Ordering::Relaxed) >= LIST_REQUEST_BUDGET {
+            return Err(SteamError::ListBudgetSpent);
+        }
         let (tx, rx) = channel();
         let filters = filters.clone();
         self.tx
