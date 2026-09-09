@@ -1,0 +1,51 @@
+# Build context for deploy/Dockerfile. The context must be the repo root
+# (tetra-indexer is a workspace member with path deps on its siblings, and
+# cargo needs every member manifest present), so exclude everything the
+# `cargo build -p tetra-indexer` never reads.
+#
+# Deny-list, not an allow-list: anything cargo needs for workspace resolution
+# stays in by default.
+
+# Rust build output — `target/` is tens of GB locally and is rebuilt in-image
+target/
+src-tauri/target/
+
+# Frontend: the indexer has no web assets
+node_modules/
+dist/
+src-tauri/gen/
+public/
+mockups/
+screenshots/
+docs/
+
+# VCS and editor/tooling state
+.git/
+.github/
+.gitignore
+.claude/
+.impeccable/
+.vscode/
+.idea/
+*.log
+
+# Local secrets — never bake the Steam key into an image layer
+deploy/.env
+.env
+.env.local
+
+# Local untracked notes (gitignored; not source)
+progress.md
+HANDOFF.md
+BACKEND_DISCOVERY_PLAN.md
+THEME_SYSTEM_PROPOSAL.md
+implementation_plan.md
+.ai-notes/
+CLAUDE.md
+AGENTS.md
+
+# Windows-only Steam redistributable, and local launcher databases
+src-tauri/steam_api64.dll
+tetra.db
+tetra.db-shm
+tetra.db-wal

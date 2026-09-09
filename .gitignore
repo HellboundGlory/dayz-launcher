@@ -32,3 +32,6 @@ screenshots/
 
 # impeccable — local only, not published
 .impeccable/
+
+# Backend deployment secrets — holds the Steam Web API key
+deploy/.env
