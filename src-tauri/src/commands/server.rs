@@ -25,6 +25,11 @@ const WRITE_BATCH: usize = 200;
 /// largest single cell costs.
 const SHARD_WORKERS: usize = 32;
 
+/// List requests one pass may issue. Steam serves ~100 per client session and
+/// stalls everything after that, so overrunning costs coverage, not just time.
+/// See .ai-notes/src-tauri/src/commands/server.rs.md.
+const LIST_REQUEST_BUDGET: usize = 96;
+
 /// One instalment from a shard's stream, tagged with the shard it came from so
 /// one channel can carry every in-flight request.
 enum ShardMsg {
@@ -289,6 +294,18 @@ pub async fn discover_servers(
     let mut shards_run = 0usize;
     let mut shards_failed = 0usize;
     let mut truncated_shards = 0usize;
+    let mut budget_spent = false;
+    // What the pass paid Steam to send and then threw away. Tallied by tag
+    // token to find one `gametagsnor` can reject server-side instead.
+    let mut fake_rows = 0usize;
+    let mut rows_fetched = 0usize;
+    let mut fake_tokens: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::new();
+    // Shape of the rejected rows as Steam reports them, which is what decides
+    // whether a server-side filter can reach them at all.
+    let mut fake_full = 0usize;
+    let mut fake_no_players = 0usize;
+    let mut fake_bots_only = 0usize;
 
     // Every in-flight shard streams into one channel, so this loop stays the
     // only writer: no shared counters, no locks around `seen`.
@@ -312,6 +329,23 @@ pub async fn discover_servers(
         // its slot for the next one — including children queued by a
         // truncated shard that is still streaming.
         while in_flight.len() < SHARD_WORKERS {
+            // Past the quota Steam stalls rather than answers, so asking costs
+            // a slot for the whole deadline and returns nothing.
+            if next_id >= LIST_REQUEST_BUDGET {
+                if !queue.is_empty() && !budget_spent {
+                    budget_spent = true;
+                    crate::log::log_line(
+                        &app,
+                        "discovery",
+                        &format!(
+                            "discover_servers: request budget of {LIST_REQUEST_BUDGET} spent \
+                             with {} cells unlisted; pass is a partial sample",
+                            queue.len()
+                        ),
+                    );
+                }
+                break;
+            }
             let Some(shard) = queue.pop_front() else {
                 break;
             };
@@ -371,6 +405,29 @@ pub async fn discover_servers(
                 }
                 for row in &rows {
                     seen.insert((row.ip, row.query_port));
+                }
+                rows_fetched += rows.len();
+                for row in &rows {
+                    if tetra_core::classify::fake::is_fake_listing(
+                        &row.name,
+                        row.players,
+                        row.max_players,
+                        row.bots,
+                    ) {
+                        fake_rows += 1;
+                        if row.max_players > 0 && row.players >= row.max_players {
+                            fake_full += 1;
+                        }
+                        if row.players == 0 {
+                            fake_no_players += 1;
+                        }
+                        if row.bots > 0 && row.players < 255 && row.max_players < 255 {
+                            fake_bots_only += 1;
+                        }
+                        for token in row.tags.split(',').map(str::trim).filter(|t| !t.is_empty()) {
+                            *fake_tokens.entry(token.to_string()).or_default() += 1;
+                        }
+                    }
                 }
 
                 let server_rows: Vec<tetra_registry::rows::ServerRow> =
@@ -449,6 +506,36 @@ pub async fn discover_servers(
             discovered_at.elapsed()
         ),
     );
+
+    // The budget note is logged when the quota runs out, but the queue keeps
+    // growing after it, so this is the number that actually went unlisted.
+    if !queue.is_empty() {
+        crate::log::log_line(
+            &app,
+            "discovery",
+            &format!(
+                "discover_servers: {} cells never listed; this pass is a partial \
+                 sample of the browser",
+                queue.len()
+            ),
+        );
+    }
+
+    if fake_rows > 0 {
+        let mut tokens: Vec<_> = fake_tokens.into_iter().collect();
+        tokens.sort_by_key(|t| std::cmp::Reverse(t.1));
+        tokens.truncate(6);
+        crate::log::log_line(
+            &app,
+            "discovery",
+            &format!(
+                "discover_servers: {fake_rows} of {} rows fetched were spoofed \
+                 (full={fake_full}, no players={fake_no_players}, bots only={fake_bots_only}); \
+                 top tags {:?}",
+                rows_fetched, tokens
+            ),
+        );
+    }
 
     if shards_run > 0 && shards_failed == shards_run {
         return Err("Steam discovery failed: every request was refused".into());

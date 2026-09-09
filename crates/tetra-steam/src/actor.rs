@@ -15,7 +15,9 @@ use steamworks::{
 
 pub const DAYZ_APP_ID: u32 = 221100;
 
-const REQUEST_DEADLINE: Duration = Duration::from_secs(300);
+/// A full [`crate::LIST_CAP`] response needs ~125s at the ~80 rows/s Steam
+/// paces at, so this is headroom; past it the request has stalled, not slowed.
+const REQUEST_DEADLINE: Duration = Duration::from_secs(180);
 /// Idle pump cadence, when no request is in flight.
 const PUMP_INTERVAL: Duration = Duration::from_millis(50);
 /// Pump cadence *during* a request. Server-list callbacks are only delivered
