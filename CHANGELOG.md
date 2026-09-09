@@ -2,7 +2,29 @@
 
 ## Unreleased
 
+### Performance
+
+- **Server discovery is roughly 4x faster.** Steam list requests used to run
+  one at a time; the whole shard plan is now issued concurrently (32 at
+  once), and the plan itself starts pre-expanded instead of walking down to
+  each split one request at a time. A full pass that took 17.5 minutes now
+  reaches a usable list in seconds and finishes in well under half the time.
+
 ### Fixed
+
+- **The server list could stay empty, and the splash screen up, for the
+  entire discovery pass.** Every progress update cancelled whatever load was
+  already in flight, and a full-list read takes longer than that update
+  cadence — so the table never got a chance to apply. Loads now queue behind
+  each other instead of cancelling, and the first list appears in about 2
+  seconds.
+- **Spoofed servers — the ones showing 255/255 players, absurd queue counts,
+  or garbled names — no longer pollute the list.** DayZ has no bot slots, and
+  fake listings were mirroring their fake player count into that field, so
+  it's now the tell used to reject them: any listing that reports bots, an
+  impossible player/queue count, or a name with control characters is
+  dropped rather than stored, and a server that starts lying after being
+  seen honestly is removed.
 
 - **Most of the DayZ server browser was missing from the launcher.** Server
   discovery only ever asked Steam for servers that had at least one player on

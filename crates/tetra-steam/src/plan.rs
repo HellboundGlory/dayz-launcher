@@ -53,11 +53,12 @@ const TAG_AXES: &[&str] = &[
 /// How many tag splits deep a pass may go before it switches to the map axis.
 pub const MAX_TAG_DEPTH: usize = 8;
 
-/// How many tag splits every pass starts from, without waiting to be told a
-/// shard was truncated. 2^4 cells per population half = 32 requests, all in
-/// flight together; measured against the live master, per-request throughput
-/// is unaffected by running 32 at once.
-const PRESPLIT_DEPTH: usize = 4;
+/// Tag splits each population half starts from, before anything is known to be
+/// truncated. Asymmetric: every measured truncation is in the quiet half, and
+/// Steam only serves ~100 list requests a session, so depth goes where the
+/// servers are. See .ai-notes/crates/tetra-steam/src/plan.rs.md.
+const PRESPLIT_POPULATED: usize = 3;
+const PRESPLIT_QUIET: usize = 6;
 
 /// Maps to split a still-truncated cell by, in descending share of the live
 /// browser. `map` is the one non-tag filter DayZ servers answer honestly
@@ -97,8 +98,20 @@ impl Shard {
     /// [`PRESPLIT_DEPTH`] tag splits deep. Disjoint and total, so no row is
     /// listed twice and nothing is missed.
     pub fn plan() -> Vec<Shard> {
-        let mut cells = Self::population_halves();
-        for _ in 0..PRESPLIT_DEPTH {
+        // Index order is the one `population_halves` documents and its test
+        // pins: populated first, then quiet.
+        let depths = [PRESPLIT_POPULATED, PRESPLIT_QUIET];
+        Self::population_halves()
+            .into_iter()
+            .zip(depths)
+            .flat_map(|(half, depth)| Self::pre_expand(half, depth))
+            .collect()
+    }
+
+    /// One half, split `depth` tag axes deep, without asking Steam anything.
+    fn pre_expand(half: Shard, depth: usize) -> Vec<Shard> {
+        let mut cells = vec![half];
+        for _ in 0..depth {
             cells = cells
                 .iter()
                 .flat_map(|cell| cell.subdivide().unwrap_or_else(|| vec![cell.clone()]))
@@ -324,7 +337,10 @@ mod tests {
     #[test]
     fn the_plan_is_pre_expanded_to_distinct_cells() {
         let cells = Shard::plan();
-        assert_eq!(cells.len(), 2 * 2usize.pow(PRESPLIT_DEPTH as u32));
+        assert_eq!(
+            cells.len(),
+            2usize.pow(PRESPLIT_POPULATED as u32) + 2usize.pow(PRESPLIT_QUIET as u32)
+        );
 
         // Every cell is a distinct filter set: a duplicate would be a whole
         // request's worth of rows pulled twice.
@@ -344,13 +360,20 @@ mod tests {
         // And every cell still carries a population predicate plus the full
         // tag path, so the union is the whole browser.
         for cell in &cells {
-            assert!(
-                cell.filters.contains_key("empty") || cell.filters.contains_key("noplayers"),
-                "{} lost its population half",
-                cell.label
-            );
-            assert_eq!(cell.and_tags.len() + cell.nor_tags.len(), PRESPLIT_DEPTH);
+            // The half a cell came from decides how deep it was pre-expanded:
+            // the quiet half is where every measured truncation was.
+            let depth = if cell.filters.contains_key("empty") {
+                PRESPLIT_POPULATED
+            } else if cell.filters.contains_key("noplayers") {
+                PRESPLIT_QUIET
+            } else {
+                panic!("{} lost its population half", cell.label);
+            };
+            assert_eq!(cell.and_tags.len() + cell.nor_tags.len(), depth);
         }
+
+        // The plan has to leave the pass room to subdivide what still caps.
+        assert!(cells.len() < 96, "plan alone would spend the request quota");
     }
 
     #[test]
