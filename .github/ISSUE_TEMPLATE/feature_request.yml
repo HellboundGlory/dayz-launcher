@@ -1,0 +1,234 @@
+```yaml
+name: Feature Request
+description: Suggest an improvement or new feature for Tetra Launcher
+title: "[Feature]: "
+labels:
+  - enhancement
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement to **Tetra Launcher**.
+
+        Good feature requests explain the **problem first**, then describe a possible solution.
+
+        Before submitting, please check whether a similar request already exists.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      description: Please confirm the following.
+      options:
+        - label: I searched existing issues and could not find an existing request for this feature.
+          required: true
+        - label: This request is related to Tetra Launcher rather than a feature that belongs primarily to DayZ, Steam, or another third-party service.
+          required: true
+        - label: I have described the problem or use case this feature would solve.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this feature solve?
+      description: |
+        Describe the problem, limitation, or frustration you currently experience.
+
+        Try to explain the problem independently of your proposed implementation.
+      placeholder: |
+        Currently, when I...
+
+        This makes it difficult to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: |
+        Describe how you think Tetra Launcher could solve the problem.
+
+        This does not need to be a technical implementation plan.
+      placeholder: |
+        I would like Tetra Launcher to...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area of Tetra Launcher
+      description: Which part of the launcher would this feature affect?
+      multiple: true
+      options:
+        - Launcher startup
+        - Server browser
+        - Server search / filters
+        - Server details
+        - Favourites
+        - Recently Played
+        - Server refresh / querying
+        - Verify & Join
+        - DayZ launching
+        - Steam integration
+        - Steam Workshop
+        - Mod manager
+        - Mod detection / verification
+        - Mod installation / repair
+        - Discord Rich Presence
+        - Updates / updater
+        - Settings
+        - User interface
+        - Notifications
+        - Performance
+        - Accessibility
+        - Developer experience
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platforms
+    attributes:
+      label: Platform
+      description: Which platforms should this feature apply to?
+      multiple: true
+      options:
+        - Windows
+        - Linux
+        - Both Windows and Linux
+        - Platform independent
+        - Unsure
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Example use case
+      description: |
+        Give a practical example of how someone would use this feature.
+
+        Concrete examples make it easier to understand whether a proposed design solves the underlying problem.
+      placeholder: |
+        For example:
+
+        1. I open Tetra Launcher
+        2. I...
+        3. Tetra would...
+        4. This would allow me to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: |
+        Have you tried another way to solve this problem?
+
+        Are there other implementations that could achieve the same goal?
+      placeholder: |
+        I currently work around this by...
+
+        Another possible approach would be...
+
+  - type: textarea
+    id: ui
+    attributes:
+      label: UI / UX ideas
+      description: |
+        If this feature changes the interface, describe how you imagine it working.
+
+        You can also drag and drop mockups, screenshots, sketches, or examples from other applications here.
+      placeholder: |
+        The feature could appear...
+
+  - type: textarea
+    id: technical
+    attributes:
+      label: Technical ideas
+      description: |
+        Optional.
+
+        If you have implementation ideas, relevant APIs, libraries, architectural suggestions, or knowledge about DayZ/Steam behaviour, include them here.
+
+        You do not need to provide a technical solution to submit a feature request.
+      placeholder: |
+        One possible implementation could be...
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: How significant is this feature?
+      options:
+        - Small quality-of-life improvement
+        - Moderate feature
+        - Major feature
+        - Large architectural change
+        - Unsure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: importance
+    attributes:
+      label: How important is this feature to your workflow?
+      options:
+        - Nice to have
+        - Useful improvement
+        - Important
+        - Blocks or significantly impacts how I use Tetra Launcher
+    validations:
+      required: true
+
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility considerations
+      description: |
+        Does this feature interact with anything that may need special consideration?
+
+        Examples:
+        - Steam
+        - Steam Workshop
+        - DayZ launch parameters
+        - DayZ servers
+        - Mods
+        - Proton / Wine
+        - Protocol links
+        - Existing Tetra settings or stored data
+        - Discord
+        - Update behaviour
+      placeholder: |
+        This may interact with...
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: |
+        Add anything else that would help explain the request.
+
+        Links to documentation, related projects, screenshots, mockups, or similar implementations are welcome.
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I would be interested in helping implement this feature.
+          required: false
+        - label: I would be willing to test this feature if implemented.
+          required: false
+
+  - type: checkboxes
+    id: conduct
+    attributes:
+      label: Code of Conduct
+      options:
+        - label: I have read and agree to follow the project's Code of Conduct.
+          required: true
+```
