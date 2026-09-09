@@ -12,10 +12,7 @@ tetra.db-shm
 tetra.db-wal
 
 # Project notes kept local, not published
-progress.md
-implementation_plan.md
-BACKEND_DISCOVERY_PLAN.md
-HANDOFF.md
+# Design-rationale notes mirroring the source tree
 .ai-notes/
 
 # Editor / tooling
@@ -26,12 +23,8 @@ HANDOFF.md
 CLAUDE.md
 AGENTS.md
 
-# UI overhaul mockups & screenshots — not committed
-mockups/
+# UI overhaul screenshots — not committed
 screenshots/
-
-# impeccable — local only, not published
-.impeccable/
 
 # Backend deployment secrets — holds the Steam Web API key
 deploy/.env
