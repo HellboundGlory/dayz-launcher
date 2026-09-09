@@ -11,6 +11,9 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile
     container_name: tetra-indexer
+    # Scopes Watchtower (--label-enable) to this container alone.
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
     env_file: .env
     volumes:
       - index-data:/data
