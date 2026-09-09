@@ -2,6 +2,7 @@ use crate::error::RegistryError;
 use crate::rows::{ServerKey, ServerRow};
 use rusqlite::{params, Connection};
 use tetra_core::a2s::dayz::ServerMod;
+use tetra_core::classify::fake::is_fake_listing;
 use tetra_core::classify::geoip::country_code as geo_country_code;
 use tetra_core::classify::keywords::parse_keywords;
 use tetra_core::classify::maps::normalise_map;
@@ -186,12 +187,24 @@ ON CONFLICT(ip, query_port) DO UPDATE SET
     country_code   = COALESCE(excluded.country_code,   servers.country_code)
 "#;
 
+/// Removes a row (and, by foreign key, its mods) that turned out to be a
+/// spoofed listing.
+const DELETE_SERVER: &str = "DELETE FROM servers WHERE ip = ?1 AND query_port = ?2";
+
 fn upsert_servers(conn: &Connection, rows: &[ServerRow]) -> Result<usize, RegistryError> {
     let tx = conn.unchecked_transaction()?;
     let mut n = 0;
     {
         let mut stmt = tx.prepare_cached(UPSERT_SERVER)?;
+        let mut drop_fake = tx.prepare_cached(DELETE_SERVER)?;
         for row in rows {
+            // Spoofed listings are dropped at the boundary, so no read path
+            // has to know about them. A row that starts lying after it was
+            // stored honestly is deleted rather than left behind.
+            if is_fake_listing(&row.name, row.players, row.max_players, row.bots) {
+                drop_fake.execute(params![row.key.ip.to_string(), row.key.query_port])?;
+                continue;
+            }
             let kw = row.keywords.as_deref().map(parse_keywords);
             let in_game_time = kw.as_ref().and_then(|k| k.in_game_time.clone());
             let queue = kw.as_ref().and_then(|k| k.queue).map(i64::from);
