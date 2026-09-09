@@ -30,6 +30,10 @@ fn is_clock(token: &str) -> bool {
     h < 24 && m < 60
 }
 
+/// Longest join queue worth believing. DayZ's own queue is bounded by the
+/// server's slot count; anything past this is a spoofed listing's noise.
+const MAX_QUEUE: u32 = 1000;
+
 pub fn parse_keywords(raw: &str) -> Keywords {
     let mut k = Keywords::default();
     let mut private_hive = false;
@@ -55,8 +59,11 @@ pub fn parse_keywords(raw: &str) -> Keywords {
                 } else if let Some(rest) = token.strip_prefix("lqs") {
                     // Only a parseable count is taken; a malformed `lqs` must
                     // not null out a value an earlier token already set.
-                    if let Ok(queue) = rest.parse() {
-                        k.queue = Some(queue);
+                    // Spoofed listings publish `lqs2147483647`, which is no
+                    // more a count than a missing token is.
+                    match rest.parse::<u32>() {
+                        Ok(queue) if queue <= MAX_QUEUE => k.queue = Some(queue),
+                        _ => {}
                     }
                 } else if is_clock(token) {
                     k.in_game_time = Some(token.to_string());
@@ -124,6 +131,14 @@ mod tests {
         );
         assert_eq!(parse_keywords("battleye,lqs0").queue, Some(0));
         assert_eq!(parse_keywords("battleye").queue, None);
+    }
+
+    #[test]
+    fn an_impossible_queue_is_no_queue() {
+        // What spoofed listings publish.
+        assert_eq!(parse_keywords("battleye,lqs2147483647").queue, None);
+        assert_eq!(parse_keywords("battleye,lqs1000").queue, Some(1000));
+        assert_eq!(parse_keywords("battleye,lqs1001").queue, None);
     }
 
     #[test]

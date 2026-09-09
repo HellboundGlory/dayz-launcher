@@ -1,7 +1,7 @@
 use crate::error::RegistryError;
 use rusqlite::Connection;
 
-pub const LATEST_VERSION: u32 = 4;
+pub const LATEST_VERSION: u32 = 5;
 
 struct Migration {
     version: u32,
@@ -24,6 +24,10 @@ const MIGRATIONS: &[Migration] = &[
     Migration {
         version: 4,
         sql: V4,
+    },
+    Migration {
+        version: 5,
+        sql: V5,
     },
 ];
 
@@ -144,6 +148,24 @@ ALTER TABLE servers ADD COLUMN night_multiplier REAL;
 /// addresses fill the window every pass and newly listed ones never get asked.
 const V4: &str = r#"
 ALTER TABLE servers ADD COLUMN last_probe_attempt INTEGER;
+"#;
+
+// Spoofed listings collected before `is_fake_listing` existed. The numeric
+// half of that predicate is expressible in SQL; control-character names are
+// left to the write path, which deletes them on the next sighting.
+const V5: &str = r#"
+DELETE FROM server_mods WHERE (ip, query_port) IN (
+    SELECT ip, query_port FROM servers
+    WHERE bots > 0
+       OR players >= 255
+       OR max_players >= 255
+       OR (max_players > 0 AND players > max_players)
+);
+DELETE FROM servers
+WHERE bots > 0
+   OR players >= 255
+   OR max_players >= 255
+   OR (max_players > 0 AND players > max_players);
 "#;
 
 /// How long a server may go unresponsive, in days, before it's pruned —
