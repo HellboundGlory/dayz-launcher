@@ -1,0 +1,61 @@
+# Run from this directory: `docker compose up -d --build`
+#
+# The published image is pulled from GitHub Container Registry — no build, no
+# repo checkout needed on the VPS. `--build` is only for developing against a
+# local tree (the Dockerfile path is relative to the repo root context).
+
+services:
+  indexer:
+    image: ghcr.io/hellboundglory/dayz-launcher:latest
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: tetra-indexer
+    env_file: .env
+    volumes:
+      - index-data:/data
+    # Loopback only. The service speaks plain HTTP with no auth beyond the rate
+    # limiter, so TLS termination belongs to a reverse proxy (Caddy/nginx) or a
+    # Cloudflare tunnel in front of it. Do not change this to "8080:8080" —
+    # that publishes an unencrypted public endpoint on every interface.
+    ports:
+      - "127.0.0.1:8080:8080"
+    restart: unless-stopped
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    # The A2S sweep holds up to TETRA_MAX_IN_FLIGHT (default 1024) UDP sockets
+    # open at once, each an fd, on top of the HTTP server's sockets and the
+    # SQLite handles. Docker's 1024 default is not enough.
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    # Sustained high-fanout outbound UDP tuning. Only uncomment what you
+    # actually need — a value the kernel does not namespace makes the container
+    # fail to start.
+    #
+    # sysctls:
+    #   # More ephemeral source ports for the concurrent probes (namespaced,
+    #   # safe per-container).
+    #   net.ipv4.ip_local_port_range: "10240 65535"
+    #   # Each probe creates a conntrack entry that lingers for the UDP timeout;
+    #   # 1024-way fanout every TETRA_INFO_INTERVAL_SECS fills the table and the
+    #   # kernel starts logging "nf_conntrack: table full, dropping packet".
+    #   # Shortening the timeouts is the cheaper half of the fix.
+    #   net.netfilter.nf_conntrack_udp_timeout: "10"
+    #   net.netfilter.nf_conntrack_udp_timeout_stream: "30"
+    #
+    # HOST-LEVEL (not settable per container — put these in /etc/sysctl.d/
+    # and `sysctl --system`, see deploy/README.md):
+    #   net.netfilter.nf_conntrack_max = 262144
+    #   net.core.rmem_max = 16777216
+    #   net.core.wmem_max = 16777216
+    # and the hash-bucket count, which is a module parameter:
+    #   options nf_conntrack hashsize=65536   (/etc/modprobe.d/nf_conntrack.conf)
+
+volumes:
+  index-data:
