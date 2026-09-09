@@ -556,6 +556,26 @@ export function App() {
     return () => clearInterval(id);
   }, [settingsLoaded, autoRefreshSecs, steamConnected, handleRefresh]);
 
+  // First list load triggers one immediate sweep, so a fresh launch never
+  // First *populated* load triggers one immediate sweep, so a fresh launch
+  // never shows a screenful of "—" pings waiting for the first interval
+  // tick. `hasLoadedOnce` alone is not enough: on an empty registry the
+  // first load completes with zero rows, so this retries on every store
+  // change until rows exist. The interval effect above owns every later sweep.
+  const sweptOnce = useRef(false);
+  useEffect(() => {
+    if (autoRefreshSecs <= 0 || !steamConnected) return;
+    const trySweep = () => {
+      if (sweptOnce.current) return;
+      const { hasLoadedOnce, servers } = useServerStore.getState();
+      if (!hasLoadedOnce || servers.length === 0) return;
+      sweptOnce.current = true;
+      void handleRefresh();
+    };
+    trySweep();
+    return useServerStore.subscribe(trySweep);
+  }, [autoRefreshSecs, steamConnected, handleRefresh]);
+
   // Periodic master re-pull. Discovery was launch-only, so servers still
   // propagating to Steam at startup stayed absent for the whole session —
   // this keeps a long-lived (or trayed) launcher's list growing. Reuses the
@@ -701,7 +721,7 @@ export function App() {
   return (
     <div
       className="relative flex h-screen flex-col overflow-hidden rounded-[8px] border border-line bg-bg"
-      style={{ "--side-w": sideCollapsed ? "52px" : "220px" } as CSSProperties}
+      style={{ "--side-w": sideCollapsed ? "52px" : "176px" } as CSSProperties}
     >
       <WindowResizeHandles />
 
@@ -786,25 +806,6 @@ export function App() {
                   </button>
                 </div>
               )}
-
-              <div className="flex items-center gap-2 border-b border-line bg-bg px-3 py-1.5">
-                <div
-                  className={
-                    discovering
-                      ? "size-1.5 animate-pulse rounded-full bg-warn"
-                      : refreshing
-                        ? "size-1.5 animate-pulse rounded-full bg-accent"
-                        : "size-1.5 rounded-full bg-success"
-                  }
-                />
-                <span className="text-[10px] text-muted">
-                  {discovering
-                    ? "Discovering servers from Steam..."
-                    : refreshing
-                      ? "Probing server details..."
-                      : `Live · ${refreshedAt ?? "waiting"}`}
-                </span>
-              </div>
 
               <ServerList view={activeView} onMoreInfo={setInfoServer} />
             </>

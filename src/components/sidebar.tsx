@@ -25,6 +25,7 @@ const NAV: { id: ViewId; label: string; icon: typeof Globe }[] = [
 ];
 
 // 220px icon+label rail that collapses to 52px icon-only. Width is driven
+// 176px icon+label rail that collapses to 52px icon-only. Width is driven
 // by --side-w on the shell so other surfaces track it without subscribing.
 export function Sidebar({
   activeView,
@@ -56,7 +57,7 @@ export function Sidebar({
   return (
     <aside
       className="side relative flex shrink-0 flex-col overflow-hidden border-r border-line bg-surface transition-[width] duration-200"
-      style={{ width: "var(--side-w, 220px)" }}
+      style={{ width: "var(--side-w, 176px)" }}
       data-collapsed={collapsed || undefined}
     >
       <div
