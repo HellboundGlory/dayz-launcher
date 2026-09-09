@@ -13,6 +13,7 @@ type Ack<T> = oneshot::Sender<Result<T, RegistryError>>;
 pub(crate) enum Job {
     Servers(Vec<ServerRow>, Ack<usize>),
     ServerMods(ServerKey, Vec<ServerMod>, Ack<()>),
+    ServerModsBulk(Vec<(ServerKey, Vec<ServerMod>)>, Ack<()>),
     Favourite(ServerKey, bool, Ack<usize>),
     LastPlayed(ServerKey, Ack<usize>),
     SetOnline(Vec<ServerKey>, bool, Ack<()>),
@@ -49,6 +50,18 @@ impl Writer {
         mods: Vec<ServerMod>,
     ) -> Result<(), RegistryError> {
         self.send(|ack| Job::ServerMods(key, mods, ack)).await
+    }
+
+    /// Replace the mod lists of many servers in one transaction. The
+    /// per-server call is a transaction each, which is fine for a probe that
+    /// trickles in but not for ingesting an index snapshot — tens of
+    /// thousands of separate commits is minutes of fsync for work SQLite can
+    /// do in one.
+    pub async fn upsert_server_mods_bulk(
+        &self,
+        batch: Vec<(ServerKey, Vec<ServerMod>)>,
+    ) -> Result<(), RegistryError> {
+        self.send(|ack| Job::ServerModsBulk(batch, ack)).await
     }
 
     /// Set or clear a server's favourite flag — a targeted `UPDATE`, not an upsert, so it can't
@@ -89,6 +102,9 @@ pub(crate) fn run(conn: Connection, mut rx: mpsc::Receiver<Job>) {
         match job {
             Job::Servers(rows, ack) => {
                 let _ = ack.send(upsert_servers(&conn, &rows));
+            }
+            Job::ServerModsBulk(batch, ack) => {
+                let _ = ack.send(upsert_server_mods_bulk(&conn, &batch));
             }
             Job::ServerMods(key, mods, ack) => {
                 let _ = ack.send(upsert_server_mods(&conn, key, &mods));
@@ -152,7 +168,12 @@ ON CONFLICT(ip, query_port) DO UPDATE SET
     bots           = CASE WHEN excluded.last_responded IS NOT NULL
                           THEN excluded.bots
                           ELSE servers.bots END,
+    -- Ping is the one live field a row can legitimately carry no measurement
+    -- for: an index snapshot describes servers someone else probed, and only
+    -- this client's own round trip means anything. A zero from such a row must
+    -- not erase a ping this client measured itself.
     ping_ms        = CASE WHEN excluded.last_responded IS NOT NULL
+                           AND excluded.ping_ms > 0
                           THEN excluded.ping_ms
                           ELSE servers.ping_ms END,
     locked         = CASE WHEN excluded.last_responded IS NOT NULL
@@ -287,9 +308,47 @@ fn upsert_server_mods(
         }
     }
     tx.execute(
-        "UPDATE servers SET mod_count = ?3 WHERE ip = ?1 AND query_port = ?2",
+        "UPDATE servers SET mod_count = ?3, mods_updated_at = unixepoch()
+         WHERE ip = ?1 AND query_port = ?2",
         params![ip, key.query_port, mods.len() as i64],
     )?;
+    tx.commit()?;
+    Ok(())
+}
+
+/// [`upsert_server_mods`] for many servers under one commit. Same semantics
+/// per server, including `mod_count = 0` for an empty list.
+fn upsert_server_mods_bulk(
+    conn: &Connection,
+    batch: &[(ServerKey, Vec<ServerMod>)],
+) -> Result<(), RegistryError> {
+    let tx = conn.unchecked_transaction()?;
+    {
+        let mut clear =
+            tx.prepare_cached("DELETE FROM server_mods WHERE ip = ?1 AND query_port = ?2")?;
+        let mut insert = tx.prepare_cached(
+            "INSERT INTO server_mods (ip, query_port, ordinal, workshop_id, name)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+        )?;
+        let mut count = tx.prepare_cached(
+            "UPDATE servers SET mod_count = ?3, mods_updated_at = unixepoch()
+             WHERE ip = ?1 AND query_port = ?2",
+        )?;
+        for (key, mods) in batch {
+            let ip = key.ip.to_string();
+            clear.execute(params![ip, key.query_port])?;
+            for (ordinal, m) in mods.iter().enumerate() {
+                insert.execute(params![
+                    ip,
+                    key.query_port,
+                    ordinal as i64,
+                    m.workshop_id as i64,
+                    m.name
+                ])?;
+            }
+            count.execute(params![ip, key.query_port, mods.len() as i64])?;
+        }
+    }
     tx.commit()?;
     Ok(())
 }
