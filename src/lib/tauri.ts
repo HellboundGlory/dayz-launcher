@@ -104,6 +104,14 @@ export async function registryDegraded(): Promise<boolean> {
   return invoke<boolean>("registry_degraded");
 }
 
+/** Which source served the list the browser is showing: Tetra's index, or the launcher's own Steam pass. */
+export type ListSource = "index" | "steam";
+
+/** The source of the last completed discovery pass, or `null` before one has finished. */
+export async function serverListSource(): Promise<ListSource | null> {
+  return invoke<ListSource | null>("server_list_source");
+}
+
 // ── Steam Commands ──
 
 /** Mirrors the Rust `InitFailure`. */

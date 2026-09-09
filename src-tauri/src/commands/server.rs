@@ -241,7 +241,11 @@ impl Drop for DiscoveryGuard<'_> {
     }
 }
 
-/// Discover servers through Steam and store them in the registry.
+/// Discover servers and store them in the registry.
+///
+/// The backend index is tried first — one HTTP round trip instead of a
+/// ~17-minute master pass — and anything going wrong there falls through to
+/// the Steam pass below, unchanged.
 ///
 /// One pass runs every cell of [`tetra_steam::Shard::plan`] concurrently,
 /// subdividing any cell Steam truncated at [`tetra_steam::LIST_CAP`], then
@@ -254,10 +258,6 @@ pub async fn discover_servers(
 ) -> Result<(), String> {
     crate::log::log_line(&app, "discovery", "discover_servers: start");
     let discovered_at = std::time::Instant::now();
-    let steam = {
-        let guard = state.steam.lock().map_err(|e| e.to_string())?;
-        Arc::clone(guard.as_ref().ok_or("Steam not initialized")?)
-    };
 
     let writer = {
         let guard = state.registry.lock().map_err(|e| e.to_string())?;
@@ -277,6 +277,28 @@ pub async fn discover_servers(
         return Ok(());
     }
     let _discovery_guard = DiscoveryGuard(state.inner());
+
+    // The index already A2S-probed every address it lists, so a pass served
+    // from it needs neither the master pull nor `resolve_unlisted`.
+    if let Some(found) = crate::commands::index::try_index(&app, &state, &writer, &window).await {
+        crate::log::log_line(
+            &app,
+            "discovery",
+            &format!(
+                "discover_servers: served {found} servers from the index in {:?}",
+                discovered_at.elapsed()
+            ),
+        );
+        return Ok(());
+    }
+
+    // Only the Steam path needs the client, and it is acquired here rather
+    // than at the top so a launcher whose Steam init failed can still fill
+    // its browser from the index.
+    let steam = {
+        let guard = state.steam.lock().map_err(|e| e.to_string())?;
+        Arc::clone(guard.as_ref().ok_or("Steam not initialized")?)
+    };
 
     // Steam's list allowance is spent for the life of this process, so every
     // shard would be refused and the pass would report itself as a total
@@ -518,6 +540,12 @@ pub async fn discover_servers(
 
     if !abandoned {
         resolve_unlisted(&app, &state, &writer, &window).await;
+        crate::commands::index::record_steam_source(
+            state.inner(),
+            &window,
+            seen.len(),
+            discovered_at.elapsed().as_millis(),
+        );
         crate::log::log_line(&app, "discovery", "discover_servers: complete");
     }
 

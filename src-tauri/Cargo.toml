@@ -45,6 +45,7 @@ tokio = { workspace = true }
 tetra-core = { path = "../crates/tetra-core" }
 tetra-net = { path = "../crates/tetra-net" }
 tetra-registry = { path = "../crates/tetra-registry" }
+tetra-index = { path = "../crates/tetra-index", features = ["client"] }
 tetra-steam = { path = "../crates/tetra-steam" }
 tetra-launch = { path = "../crates/tetra-launch" }
 tetra-discord = { path = "../crates/tetra-discord" }

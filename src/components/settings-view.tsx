@@ -57,6 +57,8 @@ export function SettingsView({ onClose }: { onClose: () => void }) {
   const onJoin = useSettingsStore((s) => s.onJoin);
   const autoRefreshIntervalSecs = useSettingsStore((s) => s.autoRefreshIntervalSecs);
   const discordRichPresence = useSettingsStore((s) => s.discordRichPresence);
+  const useServerIndex = useSettingsStore((s) => s.useServerIndex);
+  const serverIndexUrl = useSettingsStore((s) => s.serverIndexUrl);
   const setSetting = useSettingsStore((s) => s.setSetting);
 
   const [openSec, setOpenSec] = useState<SecId | null>(null);
@@ -366,6 +368,37 @@ export function SettingsView({ onClose }: { onClose: () => void }) {
                 ))}
               </select>
             </Field>
+          </div>
+
+          <div className="mt-2 border-t border-line pt-3">
+            <h3 className="mb-0.5 text-xs font-medium text-ink">Server index</h3>
+            <p className="mb-1.5 text-[10px] leading-relaxed text-muted">
+              A backend that has already crawled Steam and queried every server, so the list
+              arrives in one request instead of the ~17 minutes asking Steam yourself takes.
+              Whenever it can&apos;t be reached or its data is stale, the Steam pass runs instead.
+            </p>
+            <CheckboxRow
+              checked={useServerIndex}
+              onChange={(v) => setSetting("useServerIndex", v)}
+              label="Use Tetra's server index"
+              hint="Off means every pass asks Steam directly, as older builds did."
+            />
+            <div className={cn(!useServerIndex && "opacity-40")}>
+              <Field
+                label="Index address"
+                hint="Optional. Point this at a backend you host yourself; blank means the index is never contacted."
+              >
+                <input
+                  type="url"
+                  spellCheck={false}
+                  disabled={!useServerIndex}
+                  value={serverIndexUrl}
+                  onChange={(e) => setSetting("serverIndexUrl", e.target.value)}
+                  placeholder="https://index.example.com"
+                  className={cn(INPUT_CLASS, "font-mono text-[10px] disabled:cursor-not-allowed")}
+                />
+              </Field>
+            </div>
           </div>
 
           <div className="mt-2 border-t border-line pt-3">
