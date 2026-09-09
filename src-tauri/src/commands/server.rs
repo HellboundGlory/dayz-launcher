@@ -278,6 +278,23 @@ pub async fn discover_servers(
     }
     let _discovery_guard = DiscoveryGuard(state.inner());
 
+    // Steam's list allowance is spent for the life of this process, so every
+    // shard would be refused and the pass would report itself as a total
+    // failure. Say what is actually wrong instead of running it.
+    if steam.lists_remaining() == 0 {
+        crate::log::log_line(
+            &app,
+            "discovery",
+            "discover_servers: Steam's per-process list allowance is spent; \
+             restart the launcher to refresh the browser",
+        );
+        let _ = window.emit(
+            "discovery-exhausted",
+            serde_json::json!({ "reason": "steam-list-allowance" }),
+        );
+        return Ok(());
+    }
+
     let mut queue: std::collections::VecDeque<tetra_steam::Shard> =
         tetra_steam::Shard::plan().into();
     // Unique across shards: the halves are disjoint but a subdivided shard's
