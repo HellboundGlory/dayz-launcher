@@ -408,6 +408,16 @@ export function App() {
       },
     );
 
+    // Steam stops answering server-list requests after a per-process
+    // allowance, so rediscovery can only silently do nothing until restart.
+    // Say so rather than leaving a stale list looking current.
+    const unlistenExhausted = listen("discovery-exhausted", () => {
+      setError(
+        "Steam won't send any more of the server list until Tetra is restarted. " +
+          "The list below is the last full pass — restart to refresh it.",
+      );
+    });
+
     // Completion is the one event that reloads immediately rather than on the
     // throttle, so the final state is never left a beat behind.
     const unlistenComplete = listen<{
@@ -429,6 +439,7 @@ export function App() {
       unlistenProgress.then((fn) => fn());
       unlistenRefreshed.then((fn) => fn());
       unlistenModsPending.then((fn) => fn());
+      unlistenExhausted.then((fn) => fn());
       unlistenComplete.then((fn) => fn());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
