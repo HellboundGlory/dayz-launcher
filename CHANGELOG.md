@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Added
+
+- **A server index the launcher reads instead of discovering the list itself
+  (when one is configured).** The backend (`tetra-indexer`) crawls Steam's
+  Web API — 324k addresses in ~160 s, versus 38k in 17.5 min from a client
+  — and A2S-probes every address, then serves the whole browser (names,
+  maps, player counts, keywords, mod lists, descriptions) as one gzipped
+  snapshot with ETag/If-None-Match and generation-based deltas. The launcher
+  prefers the index and falls back to its own Steam pass on any failure, a
+  stale snapshot, or a schema it doesn't read — the index is an accelerator,
+  never a dependency. Configure it in Settings ("Use Tetra's server index"
+  + URL), or bake a URL in at build time with `TETRA_INDEX_URL`. Deployable
+  with `deploy/` (Dockerfile, compose, runbook); runs on any Linux host with
+  a Steam Web API key — no Steam install, no DayZ purchase.
+
 ### Performance
 
 - **Server discovery is roughly 4x faster.** Steam list requests used to run
