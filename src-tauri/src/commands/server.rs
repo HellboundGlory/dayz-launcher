@@ -173,11 +173,6 @@ pub struct FilterParams {
     pub official: Option<bool>,
     pub modded: Option<bool>,
     pub first_person: Option<bool>,
-    // Defaulted so omission means "show everything", never "hide silently".
-    #[serde(default)]
-    pub hide_placeholder: bool,
-    #[serde(default)]
-    pub english_names: Option<bool>,
     /// Stringified Workshop ids from the "Filter by mod" modal — JS safe-integer
     /// range, same reason every other workshop id crosses the bridge as a string.
     #[serde(default)]
@@ -1192,8 +1187,6 @@ fn filter_from_params(p: FilterParams) -> ServerFilter {
         first_person: p.first_person,
         // Not a setting — a never-probed row has no name/players/map, so showing it is only noise.
         hide_unnamed: true,
-        hide_placeholder: p.hide_placeholder,
-        english_names: p.english_names,
         mod_ids: p.mod_ids.iter().filter_map(|id| id.parse().ok()).collect(),
         mod_match: if p.mod_match == "all" {
             ModMatch::All
@@ -1269,8 +1262,6 @@ mod tests {
             official: None,
             modded: None,
             first_person: None,
-            hide_placeholder: false,
-            english_names: None,
             mod_ids: vec![],
             mod_match: String::new(),
             mod_ids_exclude: vec![],

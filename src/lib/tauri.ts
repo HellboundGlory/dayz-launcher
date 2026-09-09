@@ -17,8 +17,6 @@ export interface FilterParams {
   official: boolean | null;
   modded: boolean | null;
   first_person: boolean | null;
-  hide_placeholder: boolean;
-  english_names: boolean | null;
   mod_ids: string[];
   mod_match: "any" | "all";
   mod_ids_exclude: string[];
@@ -244,10 +242,6 @@ export interface AppSettingsDto {
   uiScale: number;
   /** Seconds between automatic refreshes of the visible rows. `0` is off. */
   autoRefreshIntervalSecs: number;
-  /** Hide hosting-company defaults like "nitrado.net gameserver". */
-  hidePlaceholderServers: boolean;
-  /** ENGLISH ONLY, remembered across restarts. `null` does not filter. */
-  englishNamesFilter: boolean | null;
   /** Register the launcher to start with Windows. No-op in debug builds. */
   startWithWindows: boolean;
   /** Start hidden in the tray. Only applies when Windows did the starting. */

@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { Gamepad2, AppWindow, Filter, Palette, ChevronLeft, Folder } from "lucide-react";
+import { Gamepad2, AppWindow, Palette, ChevronLeft, Folder } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSettingsStore } from "@/stores/settings-store";
 import { discoverSteamPaths, dataFolderPath, openDataFolder } from "@/lib/tauri";
 import { SettingsAccordion } from "./settings-accordion";
 import { ThemeCustomiser } from "./theme-customiser";
 
-type SecId = "game" | "launcher" | "browser" | "theme";
+type SecId = "game" | "launcher" | "theme";
 
 const SECS: { id: SecId; icon: typeof Gamepad2; title: string; description: string }[] = [
   { id: "game", icon: Gamepad2, title: "Game", description: "DayZ path, launch params, join behaviour" },
@@ -14,13 +14,7 @@ const SECS: { id: SecId; icon: typeof Gamepad2; title: string; description: stri
     id: "launcher",
     icon: AppWindow,
     title: "Launcher",
-    description: "Tray behaviour, startup, Discord presence",
-  },
-  {
-    id: "browser",
-    icon: Filter,
-    title: "Server Browser",
-    description: "Discovery, refresh, filters",
+    description: "Tray, startup, refresh cadence, Discord presence",
   },
   { id: "theme", icon: Palette, title: "Theme", description: "Palette, bloom, custom skins" },
 ];
@@ -47,8 +41,6 @@ export function SettingsView({ onClose }: { onClose: () => void }) {
   const profileName = useSettingsStore((s) => s.profileName);
   const dayzPath = useSettingsStore((s) => s.dayzPath);
   const workshopPath = useSettingsStore((s) => s.workshopPath);
-  const hidePlaceholderServers = useSettingsStore((s) => s.hidePlaceholderServers);
-  const englishNamesFilter = useSettingsStore((s) => s.englishNamesFilter);
   const launchParams = useSettingsStore((s) => s.launchParams);
   const closeToTray = useSettingsStore((s) => s.closeToTray);
   const minimiseToTray = useSettingsStore((s) => s.minimiseToTray);
@@ -57,8 +49,6 @@ export function SettingsView({ onClose }: { onClose: () => void }) {
   const onJoin = useSettingsStore((s) => s.onJoin);
   const autoRefreshIntervalSecs = useSettingsStore((s) => s.autoRefreshIntervalSecs);
   const discordRichPresence = useSettingsStore((s) => s.discordRichPresence);
-  const useServerIndex = useSettingsStore((s) => s.useServerIndex);
-  const serverIndexUrl = useSettingsStore((s) => s.serverIndexUrl);
   const setSetting = useSettingsStore((s) => s.setSetting);
 
   const [openSec, setOpenSec] = useState<SecId | null>(null);
@@ -119,7 +109,7 @@ export function SettingsView({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="settings absolute bottom-0 right-0 top-7 left-[var(--side-w,220px)] z-40 flex flex-col bg-bg transition-[left] duration-200">
+    <div className="settings absolute bottom-0 right-0 top-7 left-[var(--side-w,176px)] z-40 flex flex-col bg-bg transition-[left] duration-200">
       <div className="s-head flex shrink-0 items-center justify-between border-b border-line bg-surface px-[18px] py-[13px]">
         <div className="lt flex items-center gap-2.5">
           <button
@@ -326,39 +316,15 @@ export function SettingsView({ onClose }: { onClose: () => void }) {
               </div>
             </Field>
           </div>
-        </SettingsAccordion>
-
-        <SettingsAccordion
-          id="browser"
-          icon={<Filter className="h-[17px] w-[17px]" />}
-          title={SECS[2].title}
-          description={SECS[2].description}
-          open={openSec === "browser"}
-          onToggle={() => toggle("browser")}
-          onKeyDown={(e) => rove(e, 2)}
-        >
-          <div>
-            <h3 className="mb-0.5 text-xs font-medium text-ink">Hide noise</h3>
-            <p className="mb-1.5 text-[10px] leading-relaxed text-muted">
-              Roughly a third of a raw server list is entries you can do nothing with. Servers
-              that have never answered a probe — no name, no players, no map — are always hidden.
-              The rest is judged on the server&apos;s name alone, offline.
-            </p>
-            <CheckboxRow
-              checked={hidePlaceholderServers}
-              onChange={(v) => setSetting("hidePlaceholderServers", v)}
-              label="Default hoster names"
-              hint='Any name carrying a hosting company, plus templates like "EXAMPLE NAME".'
-            />
-          </div>
 
           <div className="mt-2 border-t border-line pt-3">
-            <Field label="Auto-refresh" hint="Re-queries the servers on screen, not the whole list.">
+            <Field
+              label="Auto-refresh"
+              hint="Re-queries the servers on screen, not the whole list. Defaults to a minute — ping is measured from your connection, so rows get their numbers shortly after every load."
+            >
               <select
                 value={autoRefreshIntervalSecs}
-                onChange={(e) =>
-                  setSetting("autoRefreshIntervalSecs", Number(e.target.value))
-                }
+                onChange={(e) => setSetting("autoRefreshIntervalSecs", Number(e.target.value))}
                 className={cn(INPUT_CLASS, "cursor-pointer")}
               >
                 {REFRESH_INTERVALS.map(({ value, label }) => (
@@ -369,69 +335,16 @@ export function SettingsView({ onClose }: { onClose: () => void }) {
               </select>
             </Field>
           </div>
-
-          <div className="mt-2 border-t border-line pt-3">
-            <h3 className="mb-0.5 text-xs font-medium text-ink">Server index</h3>
-            <p className="mb-1.5 text-[10px] leading-relaxed text-muted">
-              A backend that has already crawled Steam and queried every server, so the list
-              arrives in one request instead of the ~17 minutes asking Steam yourself takes.
-              Whenever it can&apos;t be reached or its data is stale, the Steam pass runs instead.
-            </p>
-            <CheckboxRow
-              checked={useServerIndex}
-              onChange={(v) => setSetting("useServerIndex", v)}
-              label="Use Tetra's server index"
-              hint="Off means every pass asks Steam directly, as older builds did."
-            />
-            <div className={cn(!useServerIndex && "opacity-40")}>
-              <Field
-                label="Index address"
-                hint="Optional. Point this at a backend you host yourself; blank means the index is never contacted."
-              >
-                <input
-                  type="url"
-                  spellCheck={false}
-                  disabled={!useServerIndex}
-                  value={serverIndexUrl}
-                  onChange={(e) => setSetting("serverIndexUrl", e.target.value)}
-                  placeholder="https://index.example.com"
-                  className={cn(INPUT_CLASS, "font-mono text-[10px] disabled:cursor-not-allowed")}
-                />
-              </Field>
-            </div>
-          </div>
-
-          <div className="mt-2 border-t border-line pt-3">
-            <Field
-              label="Language"
-              hint="Read from the name — its script, [GER]/[RU]-style tags, accented letters and non-English words. A server that is foreign but says so nowhere in its name will still appear."
-            >
-              <select
-                value={englishNamesFilter === null ? "all" : englishNamesFilter ? "en" : "other"}
-                onChange={(e) =>
-                  setSetting(
-                    "englishNamesFilter",
-                    e.target.value === "all" ? null : e.target.value === "en",
-                  )
-                }
-                className={cn(INPUT_CLASS, "cursor-pointer")}
-              >
-                <option value="en">English servers only</option>
-                <option value="other">Non-English servers only</option>
-                <option value="all">All languages</option>
-              </select>
-            </Field>
-          </div>
         </SettingsAccordion>
 
         <SettingsAccordion
           id="theme"
           icon={<Palette className="h-[17px] w-[17px]" />}
-          title={SECS[3].title}
-          description={SECS[3].description}
+          title={SECS[2].title}
+          description={SECS[2].description}
           open={openSec === "theme"}
           onToggle={() => toggle("theme")}
-          onKeyDown={(e) => rove(e, 3)}
+          onKeyDown={(e) => rove(e, 2)}
         >
           <ThemeCustomiser />
         </SettingsAccordion>
