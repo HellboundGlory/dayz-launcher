@@ -103,7 +103,7 @@ pub async fn try_index(
     }
 
     let started = Instant::now();
-    let client = match IndexClient::new(&url, USER_AGENT) {
+    let client = match IndexClient::new(url, USER_AGENT) {
         Ok(c) => c,
         Err(e) => return decline(app, state, &format!("{url} is unusable: {e}")),
     };
