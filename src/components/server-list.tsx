@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useServerStore } from "@/stores/server-store";
-import { useSettingsStore } from "@/stores/settings-store";
 import { Star } from "lucide-react";
 import {
   getServerList,
@@ -39,8 +38,6 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
   const setHasLoadedOnce = useServerStore((s) => s.setHasLoadedOnce);
   const toggleFavouriteLocal = useServerStore((s) => s.toggleFavourite);
   const modPending = useServerStore((s) => s.modPending);
-  const hidePlaceholder = useSettingsStore((s) => s.hidePlaceholderServers);
-  const englishNames = useSettingsStore((s) => s.englishNamesFilter);
   const hasLoadedOnce = useServerStore((s) => s.hasLoadedOnce);
 
   // Row whose ⋯ menu is open — lifted above siblings since virtualized rows
@@ -117,9 +114,6 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
         mod_ids: filter.mod_ids,
         mod_match: filter.mod_match,
         mod_ids_exclude: filter.mod_ids_exclude,
-        // Preferences, not view state, so they come from Settings.
-        hide_placeholder: hidePlaceholder,
-        english_names: englishNames,
       },
       sortParams: {
         sort_key: sortKey,
@@ -132,14 +126,11 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
       },
     };
     void runLoad();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     filter,
     sortKey,
     sortDir,
     loadVersion,
-    hidePlaceholder,
-    englishNames,
     runLoad,
   ]);
 

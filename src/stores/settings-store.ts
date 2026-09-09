@@ -29,16 +29,8 @@ export interface AppSettings {
   onJoin: OnJoin;
   /** Set once the first-launch setup modal is completed or skipped. */
   onboardingDismissed: boolean;
-  /** Hide hosting-company defaults like "nitrado.net gameserver". */
-  hidePlaceholderServers: boolean;
-  /** ENGLISH ONLY tag. `true` keeps English names, `false` non-English, `null` unfiltered. Lives here, not the filter store, since it defaults on. */
-  englishNamesFilter: boolean | null;
   /** Show "Playing on {server}" / "Browsing servers" in Discord. */
   discordRichPresence: boolean;
-  /** Prefer Tetra's server index over the launcher's own Steam pass. */
-  useServerIndex: boolean;
-  /** Base URL of the index. Empty means the feature is inert — no requests, straight to Steam. */
-  serverIndexUrl: string;
 }
 
 interface SettingsState extends AppSettings {
@@ -62,20 +54,14 @@ const defaults: AppSettings = {
   // Matches the Rust `DEFAULT_UI_SCALE`. Only ever seen for the instant before
   // `load()` returns — the file is the authority.
   uiScale: 1.25,
-  // Off by default — see the Rust `AppSettings::default` for why this is 0 and
-  // not the 60 it carried while nothing read it.
-  autoRefreshIntervalSecs: 0,
+  // 60 s — matches the Rust default. Pings are per-user (the index carries
+  // none), so a minute after load the rows on screen have numbers.
+  autoRefreshIntervalSecs: 60,
   startWithWindows: false,
   startMinimised: false,
   onJoin: "stay",
   onboardingDismissed: false,
-  hidePlaceholderServers: true,
-  englishNamesFilter: true,
   discordRichPresence: true,
-  useServerIndex: true,
-  // The Rust default may carry a URL baked in at build time; the file is the
-  // authority, so this is only what the store shows before `load()` returns.
-  serverIndexUrl: "",
 };
 
 const KEYS = Object.keys(defaults) as (keyof AppSettings)[];

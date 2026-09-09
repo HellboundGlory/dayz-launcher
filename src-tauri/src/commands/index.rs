@@ -83,10 +83,13 @@ pub async fn try_index(
     writer: &Writer,
     window: &tauri::Window,
 ) -> Option<usize> {
-    let settings = crate::commands::settings::get_settings(app.clone())
-        .await
-        .ok()?;
-    let url = settings.index_url()?.to_string();
+    // The index address is baked in at build time by the release pipeline
+    // (`TETRA_INDEX_URL`); a build without it simply never contacts one, and
+    // every discovery falls through to the Steam pass below.
+    if INDEX_URL.is_empty() {
+        return None;
+    }
+    let url = INDEX_URL;
 
     if let Some(retry_at) = state.index.lock().ok().and_then(|s| s.retry_at) {
         if Instant::now() < retry_at {
@@ -174,6 +177,14 @@ pub async fn try_index(
     );
     Some(ingested.servers)
 }
+
+/// The backend's base URL, from the build. There is deliberately no runtime
+/// setting: the launcher's backend is the release's backend, and repointing
+/// it is a build decision.
+const INDEX_URL: &str = match option_env!("TETRA_INDEX_URL") {
+    Some(url) => url,
+    None => "",
+};
 
 /// Identifies this build to the backend, so a misbehaving launcher version is
 /// diagnosable from its access log.

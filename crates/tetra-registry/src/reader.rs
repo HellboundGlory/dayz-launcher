@@ -1,25 +1,11 @@
 use crate::error::RegistryError;
 use crate::filter::{self, ServerFilter, ServerListRow, SortDir, SortKey, SERVER_LIST_COLUMNS};
 use crate::rows::{Export, ExportRow, ServerKey};
-use rusqlite::functions::FunctionFlags;
 use rusqlite::{params, Connection};
 use std::net::Ipv4Addr;
 use std::str::FromStr;
 use tetra_core::a2s::dayz::ServerMod;
 use tetra_core::classify::maps::display_name;
-use tetra_core::classify::names::{is_english_name, is_placeholder_name};
-
-/// Expose the name classifiers to SQL as `tetra_is_placeholder(name)` and `tetra_is_english(name)`.
-fn register_name_functions(conn: &Connection) -> Result<(), RegistryError> {
-    let flags = FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC;
-    conn.create_scalar_function("tetra_is_placeholder", 1, flags, |ctx| {
-        Ok(is_placeholder_name(ctx.get_raw(0).as_str().unwrap_or("")))
-    })?;
-    conn.create_scalar_function("tetra_is_english", 1, flags, |ctx| {
-        Ok(is_english_name(ctx.get_raw(0).as_str().unwrap_or("")))
-    })?;
-    Ok(())
-}
 
 /// Columns [`Reader::map_export_row`] reads, positionally.
 const EXPORT_COLUMNS: &str = "ip, query_port, game_port, name, map_raw, players, max_players, bots,
@@ -53,7 +39,6 @@ pub struct Reader {
 
 impl Reader {
     pub(crate) fn new(conn: Connection) -> Result<Self, RegistryError> {
-        register_name_functions(&conn)?;
         Ok(Self { conn })
     }
 

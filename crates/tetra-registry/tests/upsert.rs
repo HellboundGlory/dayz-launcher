@@ -344,36 +344,16 @@ async fn counts_are_zero_on_an_untouched_registry() {
 }
 
 /// The browser's noise filters, end to end through the SQL — also proves
-/// the `tetra_is_placeholder`/`tetra_is_english` SQLite functions actually
-/// get registered, which a unit test of the classifier alone cannot.
+/// Nameless rows are always hidden from the browser — the one name filter
+/// that survives: a row that never answered a probe has nothing to show.
 #[tokio::test]
-async fn name_filters_hide_noise_and_keep_real_servers() {
+async fn hide_unnamed_keeps_only_named_servers() {
     let registry = Registry::open_in_memory().expect("registry");
     let writer = registry.writer();
 
-    let named = |n: u8, name: &str| ServerRow {
-        key: ServerKey {
-            ip: Ipv4Addr::new(203, 0, 113, n),
-            query_port: 27016,
-        },
-        name: name.into(),
-        ..live_row()
-    };
-
     writer
         .upsert_servers(vec![
-            named(40, "Survivor Haven | PVE"),
-            named(41, "nitrado.net gameserver"),
-            named(42, "Hosted by GTXGaming.co.uk"),
-            // Hoster branding plus a real name. Hidden all the same — the
-            // filter is "no hoster names in my list", not "no unnamed servers".
-            named(43, "4Netplayers Purgatorio [ESP]"),
-            named(44, "Русский сервер PVE"),
-            named(45, "生存服务器"),
-            // Latin script, but not English — the case that prompted the
-            // language rule. Caught by its bracket tag.
-            named(47, "[GER][PvE] Zockerfreunde | Trader | Helis"),
-            // Never answered a probe, so no name was ever written.
+            live_row(),
             ServerRow {
                 key: ServerKey {
                     ip: Ipv4Addr::new(203, 0, 113, 46),
@@ -387,68 +367,21 @@ async fn name_filters_hide_noise_and_keep_real_servers() {
         .expect("rows");
 
     let reader = registry.reader().expect("reader");
-    let names = |f: &ServerFilter| -> Vec<String> {
-        let mut v: Vec<String> = reader
+    let list = |f: &ServerFilter| -> Vec<String> {
+        reader
             .list(f, SortKey::Name, SortDir::Asc, 50)
             .expect("list")
             .into_iter()
             .map(|r| r.name)
-            .collect();
-        v.sort();
-        v
+            .collect()
     };
 
-    assert_eq!(
-        names(&ServerFilter::default()).len(),
-        8,
-        "no filter shows all"
-    );
-
+    assert_eq!(list(&ServerFilter::default()).len(), 2);
     let hidden = ServerFilter {
         hide_unnamed: true,
-        hide_placeholder: true,
         ..Default::default()
     };
-    let kept = names(&hidden);
-    assert!(kept.contains(&"Survivor Haven | PVE".to_string()));
-    assert!(
-        !kept.contains(&"4Netplayers Purgatorio [ESP]".to_string()),
-        "a hoster name anywhere in the string is hidden, named or not"
-    );
-    assert!(!kept.iter().any(|n| n.contains("nitrado")));
-    assert!(!kept.iter().any(|n| n.contains("GTXGaming")));
-    assert!(!kept.iter().any(|n| n.is_empty()), "unnamed row survived");
-    // The non-English names are untouched by these two filters.
-    assert_eq!(kept.len(), 4, "kept: {kept:?}");
-
-    let english = ServerFilter {
-        english_names: Some(true),
-        ..Default::default()
-    };
-    let kept = names(&english);
-    assert!(!kept.iter().any(|n| n.contains('Р') || n.contains('生')));
-    assert!(
-        !kept.iter().any(|n| n.contains("Zockerfreunde")),
-        "a [GER]-tagged server is Latin script but not English: {kept:?}"
-    );
-    assert!(kept.contains(&"Survivor Haven | PVE".to_string()));
-
-    // Inverted, for a player who wants exactly those servers. The unnamed row
-    // must not be swept in — it has nothing to read either way.
-    let not_english = ServerFilter {
-        english_names: Some(false),
-        ..Default::default()
-    };
-    let kept = names(&not_english);
-    // Cyrillic, Chinese, the [GER] tag — and `4Netplayers Purgatorio [ESP]`,
-    // which this filter alone does not hide (it is `hide_placeholder`'s job)
-    // and whose [ESP] tag makes it non-English.
-    assert_eq!(kept.len(), 4, "kept: {kept:?}");
-    assert!(kept.iter().all(|n| !n.is_empty()));
-    assert!(
-        kept.iter().any(|n| n.contains("Zockerfreunde")),
-        "inverting the tag is how someone finds the German servers: {kept:?}"
-    );
+    assert_eq!(list(&hidden), vec!["Survivor Haven"]);
 }
 
 #[tokio::test]
