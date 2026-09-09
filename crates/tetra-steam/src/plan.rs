@@ -95,7 +95,8 @@ pub struct Shard {
 
 impl Shard {
     /// Every request a pass starts with: the population halves, pre-expanded
-    /// [`PRESPLIT_DEPTH`] tag splits deep. Disjoint and total, so no row is
+    /// [`PRESPLIT_POPULATED`] and [`PRESPLIT_QUIET`] tag splits deep
+    /// respectively. Disjoint and total, so no row is
     /// listed twice and nothing is missed.
     pub fn plan() -> Vec<Shard> {
         // Index order is the one `population_halves` documents and its test
@@ -373,7 +374,10 @@ mod tests {
         }
 
         // The plan has to leave the pass room to subdivide what still caps.
-        assert!(cells.len() < 96, "plan alone would spend the request quota");
+        assert!(
+            cells.len() < crate::LIST_REQUEST_BUDGET,
+            "plan alone would spend the request quota"
+        );
     }
 
     #[test]
