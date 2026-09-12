@@ -95,6 +95,7 @@ export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
     >
       <div
         ref={wrapRef}
+        data-tetra-slot="modal.serverInfo"
         role="dialog"
         aria-modal="true"
         aria-label={`Server info: ${server.name || server.addr}`}
@@ -103,6 +104,7 @@ export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
       >
         <div className="modal-wrap relative">
           <button
+            data-tetra-el="closeAction"
             onClick={onClose}
             aria-label="Close"
             className="absolute right-3 top-2.5 z-[2] text-muted transition-colors hover:text-ink"
@@ -131,7 +133,10 @@ export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
             </div>
           </div>
 
-          <div className="m-band grid grid-cols-3 gap-px border-b border-line bg-line">
+          <div
+            data-tetra-el="statGrid"
+            className="m-band grid grid-cols-3 gap-px border-b border-line bg-line"
+          >
             <Stat label="Players" value={`${server.players}/${server.max_players}`} className="text-accent2" />
             <Stat
               label="Ping ms"
@@ -145,7 +150,10 @@ export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
             />
           </div>
 
-          <div className="flex items-center gap-1.5 border-b border-line px-3.5 py-2 text-[10px] text-muted">
+          <div
+            data-tetra-el="readinessStrip"
+            className="flex items-center gap-1.5 border-b border-line px-3.5 py-2 text-[10px] text-muted"
+          >
             <span
               className={cn(
                 "inline-block h-[7px] w-[7px] rounded-full",
@@ -157,7 +165,7 @@ export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
             {readiness.text}
           </div>
 
-          <div className="m-props px-3.5 py-2">
+          <div data-tetra-el="propsList" className="m-props px-3.5 py-2">
             <Prop label="Map" value={server.map_display || "—"} />
             <Prop label="Version" value={server.version || "unknown"} />
             <Prop label="Region" value={regionName(server.country_code)} />
@@ -214,6 +222,7 @@ export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
               <div className="relative flex w-full gap-1">
                 <button
                   ref={joinRef}
+                  data-tetra-el="joinAction"
                   onClick={() => void actions.verifyAndJoin(server, false)}
                   className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-[6px] bg-accent px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-[#10131a] shadow-[var(--glow)] transition-colors hover:brightness-110"
                 >
