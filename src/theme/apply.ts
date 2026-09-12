@@ -1,9 +1,36 @@
 // Writes the active palette onto document.documentElement.style as CSS
 // custom properties — components only ever read var(--token), so switching
 // a theme costs one style write and zero re-renders.
-import { rgba, type Palette } from "./palette";
+import {
+  rgba,
+  DEFAULT_RADII,
+  DEFAULT_SPACING,
+  DEFAULT_TYPOGRAPHY,
+  type Palette,
+  type Radii,
+  type Spacing,
+  type Typography,
+} from "./palette";
 
-export function applyTheme(palette: Palette, scheme: "dark" | "light", bloom: number): void {
+/** Non-colour design tokens. Same default-and-override shape as a Palette. */
+export interface ThemeExtras {
+  spacing: Spacing;
+  radii: Radii;
+  typography: Typography;
+}
+
+export const DEFAULT_EXTRAS: ThemeExtras = {
+  spacing: DEFAULT_SPACING,
+  radii: DEFAULT_RADII,
+  typography: DEFAULT_TYPOGRAPHY,
+};
+
+export function applyTheme(
+  palette: Palette,
+  scheme: "dark" | "light",
+  bloom: number,
+  extras: ThemeExtras = DEFAULT_EXTRAS,
+): void {
   const p = document.documentElement.style;
   // Base tokens.
   p.setProperty("--bg", palette.bg);
@@ -49,6 +76,20 @@ export function applyTheme(palette: Palette, scheme: "dark" | "light", bloom: nu
       `0 0 ${r(34)} ${rgba(palette.accent, A(0.3))},` +
       `0 0 ${r(60)} ${rgba(palette.accent, A(0.16))}`,
   );
+
+  // Non-colour tokens (spacing / radii / typography). Same mechanism as the
+  // color tokens above: direct literal values, never calc() — the engines the
+  // app ships on drop computed custom-property math.
+  p.setProperty("--space-xs", extras.spacing.xs);
+  p.setProperty("--space-sm", extras.spacing.sm);
+  p.setProperty("--space-md", extras.spacing.md);
+  p.setProperty("--space-lg", extras.spacing.lg);
+  p.setProperty("--radius-control", extras.radii.control);
+  p.setProperty("--radius-row", extras.radii.row);
+  p.setProperty("--radius-chip", extras.radii.chip);
+  p.setProperty("--radius-pill", extras.radii.pill);
+  p.setProperty("--font-ui", extras.typography.uiFont);
+  p.setProperty("--font-data", extras.typography.dataFont);
 
   // Native form controls (selects, date pickers) follow the OS scheme unless
   // told otherwise — flip them with the theme so the Settings selects render
