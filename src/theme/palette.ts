@@ -323,12 +323,8 @@ export const STORE_KEY = "tetra.customThemes";
 export type CustomOverrides = { dark: Partial<Palette>; light: Partial<Palette> };
 
 // ── Non-colour design tokens: spacing / radii / typography ─────────
-// Same contract as the colour palette — plain data, no React/DOM/store — so
-// apply.ts can write them as CSS custom properties in the same pass. The
-// defaults mirror what main.css already declares statically (the control/row/
-// chip/pill radii from DESIGN.md §9, the 2/4/8/16 spacing steps, and the
-// --font-ui/--font-data stacks from main.css :root), so applying them is a
-// no-op until a caller passes real overrides.
+// Plain data, like the colour palette above. Defaults mirror main.css's
+// existing static values, so applying them is a no-op until overridden.
 
 export interface Spacing {
   xs: string;
@@ -345,7 +341,7 @@ export interface Radii {
 }
 
 export interface Typography {
-  /** CSS font-family value, e.g. `"\"Inter\", \"Segoe UI\", system-ui, sans-serif"`. A reference only — no bundled font files in this phase. */
+  /** CSS font-family value — a reference only, no bundled font files yet. */
   uiFont: string;
   dataFont: string;
 }

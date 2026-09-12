@@ -50,9 +50,7 @@ pub fn is_portable(app: &AppHandle) -> bool {
     root(app).portable
 }
 
-/// Where installed themes live: one directory per theme, `<data root>/themes`.
-/// Derived rather than memoized separately — [`data_root`] already is, and the
-/// join is a `PathBuf` push.
+/// `<data root>/themes` — one directory per installed theme.
 pub fn themes_dir(app: &AppHandle) -> PathBuf {
     data_root(app).join("themes")
 }
