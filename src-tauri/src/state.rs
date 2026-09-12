@@ -1,5 +1,6 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 use tetra_discord::{DiscordHandle, DiscordSession};
 use tetra_net::prober::Prober;
 use tetra_registry::Registry;
@@ -46,6 +47,28 @@ pub struct AppState {
     /// Backend-index session: conditional-GET tokens, health backoff, and
     /// which source last served the list. In memory only, per launch.
     pub index: Mutex<crate::commands::index::IndexSession>,
+    /// A theme activation awaiting confirm-or-revert. `None` when nothing is
+    /// mid-preview. See the Theme Activation Safety Window.
+    pub pending_theme: Mutex<Option<PendingActivation>>,
+}
+
+/// A theme switch that has been applied in the frontend but not yet made
+/// durable: nothing is written to `settings.json` until the user confirms they
+/// can see the result, and the guard window's revert path throws the switch away.
+///
+/// [`Instant`] rather than a wall-clock timestamp or a decrementing counter: the
+/// deadline has to stay correct across OS suspend, where wall-clock time and
+/// timer ticks both move in ways that would either leave the guard window up
+/// indefinitely or expire it early. See the Theme Activation Safety Window.
+pub struct PendingActivation {
+    /// The theme that was active when this was armed, to revert to. `None`
+    /// means the built-in default was in force.
+    pub previous_id: Option<String>,
+    /// The theme being previewed. This is what `confirm_activation` persists.
+    pub new_id: Option<String>,
+    /// When an unconfirmed preview has been up too long. Read on every
+    /// `get_activation_status` call rather than counted down.
+    pub deadline: Instant,
 }
 
 impl AppState {
@@ -73,6 +96,7 @@ impl AppState {
             log_file: Mutex::new(None),
             server_reader: Mutex::new(None),
             index: Mutex::new(crate::commands::index::IndexSession::default()),
+            pending_theme: Mutex::new(None),
         }
     }
 }

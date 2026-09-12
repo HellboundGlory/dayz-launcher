@@ -1,0 +1,10 @@
+{
+  "identifier": "theme-guard",
+  "description": "The theme guard window: a confirm-or-revert prompt shown while a theme activation is pending. It polls `get_activation_status` and answers with `confirm_activation` or `revert_activation`, and needs the window calls that let it appear and place itself. Deliberately not folded into `default`, which is scoped to `main` and carries `dialog:*`, `updater:*`, `shell:*`, window-close and `process:exit` — none of which a two-button prompt has any business reaching. This window renders theme-independent chrome only, so it loads no theme stylesheet and needs no theme permission.",
+  "windows": ["theme-guard"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-show",
+    "core:window:allow-set-focus"
+  ]
+}
