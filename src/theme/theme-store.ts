@@ -12,11 +12,18 @@ import {
   NEUTRAL_LIGHT,
   TOKENS,
   STORE_KEY,
+  DEFAULT_RADII,
+  DEFAULT_SPACING,
+  DEFAULT_TYPOGRAPHY,
+  type CustomExtrasOverrides,
   type Palette,
   type CustomOverrides,
+  type Radii,
+  type Spacing,
   type Token,
+  type Typography,
 } from "./palette";
-import { applyTheme } from "./apply";
+import { applyTheme, DEFAULT_EXTRAS, type ThemeExtras } from "./apply";
 import {
   armActivation,
   deleteTheme as deleteThemeCmd,
@@ -40,6 +47,8 @@ interface ThemeState {
   activeId: string;
   /** Editor overrides, per scheme. */
   custom: CustomOverrides;
+  /** Editor overrides for spacing/radii/typography — not per-scheme. */
+  customExtras: CustomExtrasOverrides;
   /** True once the user hand-edits light — dark edits stop re-deriving then. */
   lightRefined: boolean;
   /** 0–1; "100% = neon, 0 = off". */
@@ -54,6 +63,9 @@ interface ThemeState {
   pickTheme: (id: string) => Promise<void>;
   setBloom: (bloom: number) => void;
   setColorOverride: (token: Token, value: string) => void;
+  setSpacingOverride: (key: keyof Spacing, value: string) => void;
+  setRadiusOverride: (key: keyof Radii, value: string) => void;
+  setTypographyOverride: (key: keyof Typography, value: string) => void;
   toggleLightRefined: () => void;
   saveTheme: (name: string) => Promise<void>;
   deleteTheme: (id: string) => Promise<void>;
@@ -152,6 +164,71 @@ export function effective(
 }
 
 /**
+ * Spacing, radii and typography for the active theme. Presets and `neutral`
+ * carry colours only, so they always resolve to the static defaults; a
+ * file-backed theme may supply any subset, and untrusted values are read the
+ * same way `paletteFromTokens` reads colours.
+ */
+export function resolvedExtras(
+  activeId: string,
+  themeFiles: Record<string, ThemeFile>,
+): ThemeExtras {
+  const tokens = themeFiles[activeId]?.tokens;
+  if (activeId === "neutral" || activePreset(activeId) !== undefined || tokens === undefined) {
+    return DEFAULT_EXTRAS;
+  }
+  const root = (typeof tokens === "object" && tokens !== null ? tokens : {}) as Record<
+    string,
+    unknown
+  >;
+  const spacing = stringEntries(root.spacing);
+  const radii = stringEntries(root.radii);
+  const typography = stringEntries(root.typography);
+  return {
+    spacing: {
+      xs: spacing.xs ?? DEFAULT_SPACING.xs,
+      sm: spacing.sm ?? DEFAULT_SPACING.sm,
+      md: spacing.md ?? DEFAULT_SPACING.md,
+      lg: spacing.lg ?? DEFAULT_SPACING.lg,
+    },
+    radii: {
+      control: radii.control ?? DEFAULT_RADII.control,
+      row: radii.row ?? DEFAULT_RADII.row,
+      chip: radii.chip ?? DEFAULT_RADII.chip,
+      pill: radii.pill ?? DEFAULT_RADII.pill,
+    },
+    typography: {
+      uiFont: typography.uiFont ?? DEFAULT_TYPOGRAPHY.uiFont,
+      dataFont: typography.dataFont ?? DEFAULT_TYPOGRAPHY.dataFont,
+    },
+  };
+}
+
+/** The string-valued entries of one untrusted `tokens.json` group; anything else is dropped. */
+function stringEntries(raw: unknown): Record<string, string> {
+  if (typeof raw !== "object" || raw === null) return {};
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value === "string") out[key] = value;
+  }
+  return out;
+}
+
+/** The extras that actually render, editor overrides merged. Not per-scheme — these don't vary by mode. */
+export function effectiveExtras(
+  activeId: string,
+  themeFiles: Record<string, ThemeFile>,
+  customExtras: CustomExtrasOverrides,
+): ThemeExtras {
+  const base = resolvedExtras(activeId, themeFiles);
+  return {
+    spacing: { ...base.spacing, ...customExtras.spacing },
+    radii: { ...base.radii, ...customExtras.radii },
+    typography: { ...base.typography, ...customExtras.typography },
+  };
+}
+
+/**
  * Re-read what's installed, plus every theme's full `tokens.json` — the latter
  * a deliberate tradeoff: `list_installed_themes` itself never reads
  * `tokens.json`, but the picker's two-colour swatch dots need each palette,
@@ -189,6 +266,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   scheme: "dark",
   activeId: "neutral",
   custom: { dark: {}, light: {} },
+  customExtras: { spacing: {}, radii: {}, typography: {} },
   lightRefined: false,
   bloom: 0.9,
   installedThemes: [],
@@ -263,8 +341,13 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   },
 
   apply: () => {
-    const { scheme, activeId, custom, bloom, themeFiles } = get();
-    applyTheme(effective(scheme, activeId, themeFiles, custom), scheme, bloom);
+    const { scheme, activeId, custom, customExtras, bloom, themeFiles } = get();
+    applyTheme(
+      effective(scheme, activeId, themeFiles, custom),
+      scheme,
+      bloom,
+      effectiveExtras(activeId, themeFiles, customExtras),
+    );
     // Every mutation funnels through apply() — persisting the UI prefs here
     // means a scheme flip or bloom drag survives a restart without each action
     // having to remember to save. The active id isn't stored locally: only a
@@ -288,7 +371,12 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
         return;
       }
     }
-    set({ activeId: id, custom: { dark: {}, light: {} }, lightRefined: false });
+    set({
+      activeId: id,
+      custom: { dark: {}, light: {} },
+      customExtras: { spacing: {}, radii: {}, typography: {} },
+      lightRefined: false,
+    });
     get().apply();
     try {
       await armActivation(id);
@@ -323,12 +411,32 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     get().apply();
   },
 
+  // Extras overrides are flat, not per-scheme: spacing, radii and fonts don't
+  // vary between dark and light, so nothing here re-derives anything.
+  setSpacingOverride: (key, value) => {
+    const { spacing } = get().customExtras;
+    set({ customExtras: { ...get().customExtras, spacing: { ...spacing, [key]: value } } });
+    get().apply();
+  },
+
+  setRadiusOverride: (key, value) => {
+    const { radii } = get().customExtras;
+    set({ customExtras: { ...get().customExtras, radii: { ...radii, [key]: value } } });
+    get().apply();
+  },
+
+  setTypographyOverride: (key, value) => {
+    const { typography } = get().customExtras;
+    set({ customExtras: { ...get().customExtras, typography: { ...typography, [key]: value } } });
+    get().apply();
+  },
+
   toggleLightRefined: () => {
     set({ lightRefined: !get().lightRefined });
   },
 
   saveTheme: async (name) => {
-    const { activeId, custom, themeFiles } = get();
+    const { activeId, custom, customExtras, themeFiles } = get();
     const pair = resolvedPair(activeId, themeFiles);
     const dark = {} as Palette;
     const light = {} as Palette;
@@ -355,7 +463,12 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       tags: [],
       capabilities: ["tokens"],
     };
-    const tokens = { schemaVersion: 1, dark, light };
+    const tokens = {
+      schemaVersion: 1,
+      dark,
+      light,
+      ...effectiveExtras(activeId, themeFiles, customExtras),
+    };
 
     try {
       // save_theme is create-only; re-saving under a name already used
@@ -387,7 +500,11 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   },
 
   resetToBase: () => {
-    set({ custom: { dark: {}, light: {} }, lightRefined: false });
+    set({
+      custom: { dark: {}, light: {} },
+      customExtras: { spacing: {}, radii: {}, typography: {} },
+      lightRefined: false,
+    });
     get().apply();
   },
 }));

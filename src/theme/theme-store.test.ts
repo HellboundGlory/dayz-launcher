@@ -1,8 +1,9 @@
 /** The one-time localStorage -> file-backed migration, focused on the
  * `custom:<name>` -> installed-id remap a pre-migration selection depends on. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Palette } from "./palette";
-import { useThemeStore } from "./theme-store";
+import { DEFAULT_RADII, DEFAULT_SPACING, DEFAULT_TYPOGRAPHY, type Palette } from "./palette";
+import { effectiveExtras, resolvedExtras, useThemeStore } from "./theme-store";
+import type { ThemeFile } from "@/types/theme";
 
 const backend = vi.hoisted(() => ({
   /** What `migrate_legacy_custom_themes` reports back, in input order. */
@@ -11,6 +12,8 @@ const backend = vi.hoisted(() => ({
   setActiveCalls: [] as (string | null)[],
   /** What `list_installed_themes` sees. */
   installed: [] as { id: string; name: string }[],
+  /** The `tokens` object each `save_theme` call received, in call order. */
+  savedTokens: [] as unknown[],
 }));
 
 vi.mock("@tauri-apps/api/event", () => ({
@@ -24,7 +27,7 @@ vi.mock("@/lib/tauri", () => ({
   setActiveThemeId: async (id: string | null) => void backend.setActiveCalls.push(id),
   migrateLegacyCustomThemes: async () => backend.migratedIds,
   armActivation: async () => {},
-  saveTheme: async () => "",
+  saveTheme: async (_manifest: unknown, tokens: unknown) => void backend.savedTokens.push(tokens),
   deleteTheme: async () => {},
 }));
 
@@ -45,6 +48,7 @@ beforeEach(() => {
   backend.migratedIds.length = 0;
   backend.setActiveCalls.length = 0;
   backend.installed = [];
+  backend.savedTokens.length = 0;
   useThemeStore.setState({ activeId: "neutral" });
 });
 
@@ -100,5 +104,94 @@ describe("hydrate legacy migration", () => {
     expect(useThemeStore.getState().scheme).toBe("light");
     expect(useThemeStore.getState().bloom).toBe(0.5);
     expect(backend.setActiveCalls).toEqual(["ember"]);
+  });
+});
+
+describe("theme extras", () => {
+  const files = (tokens: unknown): Record<string, ThemeFile> => ({
+    "local.partial": { id: "local.partial", name: "Partial", tokens } as ThemeFile,
+  });
+
+  it("fills the missing spacing keys of a partial theme from the defaults", () => {
+    const themeFiles = files({ spacing: { md: "12px" } });
+
+    const extras = resolvedExtras("local.partial", themeFiles);
+
+    expect(extras.spacing).toEqual({ ...DEFAULT_SPACING, md: "12px" });
+  });
+
+  it("keeps the defaults for a preset and for a theme with no extras", () => {
+    expect(resolvedExtras("ember", files({}))).toEqual({
+      spacing: DEFAULT_SPACING,
+      radii: DEFAULT_RADII,
+      typography: DEFAULT_TYPOGRAPHY,
+    });
+    expect(resolvedExtras("local.partial", files({}))).toEqual({
+      spacing: DEFAULT_SPACING,
+      radii: DEFAULT_RADII,
+      typography: DEFAULT_TYPOGRAPHY,
+    });
+  });
+
+  it("ignores non-string values in an untrusted tokens.json", () => {
+    const themeFiles = files({ spacing: { md: 12, lg: "20px" }, typography: null });
+
+    expect(resolvedExtras("local.partial", themeFiles).spacing).toEqual({
+      ...DEFAULT_SPACING,
+      lg: "20px",
+    });
+  });
+
+  it("lets a customExtras override beat both the theme's own value and the default", () => {
+    const themeFiles = files({ spacing: { md: "12px" }, radii: { row: "2px" } });
+
+    const extras = effectiveExtras("local.partial", themeFiles, {
+      spacing: { md: "6px" },
+      radii: {},
+      typography: { uiFont: "Comic Sans" },
+    });
+
+    expect(extras.spacing).toEqual({ ...DEFAULT_SPACING, md: "6px" });
+    expect(extras.radii).toEqual({ ...DEFAULT_RADII, row: "2px" });
+    expect(extras.typography.uiFont).toBe("Comic Sans");
+    expect(extras.typography.dataFont).toBe(DEFAULT_TYPOGRAPHY.dataFont);
+  });
+
+  it("passes the merged extras to applyTheme and clears them on reset", () => {
+    const setProperty = vi.fn();
+    vi.stubGlobal("document", { documentElement: { style: { setProperty } } });
+    useThemeStore.setState({
+      activeId: "local.partial",
+      themeFiles: files({ spacing: { md: "12px" } }),
+      customExtras: { spacing: { lg: "40px" }, radii: {}, typography: {} },
+    });
+
+    useThemeStore.getState().apply();
+    expect(setProperty).toHaveBeenCalledWith("--space-lg", "40px");
+    expect(setProperty).toHaveBeenCalledWith("--space-md", "12px");
+
+    useThemeStore.getState().resetToBase();
+    expect(setProperty).toHaveBeenCalledWith("--space-lg", DEFAULT_SPACING.lg);
+    expect(useThemeStore.getState().customExtras).toEqual({
+      spacing: {},
+      radii: {},
+      typography: {},
+    });
+  });
+
+  it("persists the merged extras into a saved theme's tokens", async () => {
+    useThemeStore.setState({
+      activeId: "local.partial",
+      themeFiles: files({ spacing: { md: "12px" } }),
+      customExtras: { spacing: {}, radii: { chip: "1px" }, typography: {} },
+    });
+
+    await useThemeStore.getState().saveTheme("Extras skin");
+
+    expect(backend.savedTokens).toHaveLength(1);
+    const tokens = backend.savedTokens[0] as Record<string, unknown>;
+    expect(tokens.spacing).toEqual({ ...DEFAULT_SPACING, md: "12px" });
+    expect(tokens.radii).toEqual({ ...DEFAULT_RADII, chip: "1px" });
+    expect(tokens.typography).toEqual(DEFAULT_TYPOGRAPHY);
   });
 });
