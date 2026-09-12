@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { CheckCircle2, FileArchive, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { confirmThemeInstall, importThemePreview } from "@/lib/tauri";
@@ -67,11 +68,14 @@ export function ImportThemeDialog({
   const [phase, setPhase] = useState<Phase>("idle");
   const [preview, setPreview] = useState<ThemeImportPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const chooseRef = useRef<HTMLButtonElement>(null);
   const installRef = useRef<HTMLButtonElement>(null);
 
   const busy = phase === "installing";
+  // Step 1 (the drop target) is only actually on screen in these phases.
+  const acceptsDrop = phase === "idle" || phase === "error";
 
   useEffect(() => {
     chooseRef.current?.focus();
@@ -115,6 +119,20 @@ export function ImportThemeDialog({
     }
   }
 
+  async function loadFile(path: string) {
+    setPreview(null);
+    setError(null);
+    setPhase("loading");
+    try {
+      const next = await importThemePreview(path);
+      setPreview(next);
+      setPhase("preview");
+    } catch (e) {
+      setError(rejectionText(e));
+      setPhase("error");
+    }
+  }
+
   async function chooseFile() {
     let selected: unknown;
     try {
@@ -124,19 +142,28 @@ export function ImportThemeDialog({
       return;
     }
     if (typeof selected !== "string") return;
-
-    setPreview(null);
-    setError(null);
-    setPhase("loading");
-    try {
-      const next = await importThemePreview(selected);
-      setPreview(next);
-      setPhase("preview");
-    } catch (e) {
-      setError(rejectionText(e));
-      setPhase("error");
-    }
+    await loadFile(selected);
   }
+
+  // Tauri's webview intercepts OS file drops, so plain HTML5 onDrop never
+  // fires — this is window-scoped, hence the acceptsDrop gate.
+  useEffect(() => {
+    const unlisten = getCurrentWebview().onDragDropEvent((event) => {
+      if (event.payload.type === "enter" || event.payload.type === "over") {
+        setDragOver(true);
+        return;
+      }
+      if (event.payload.type === "leave") {
+        setDragOver(false);
+        return;
+      }
+      setDragOver(false);
+      if (!acceptsDrop) return;
+      const zip = event.payload.paths.find((p) => p.toLowerCase().endsWith(".zip"));
+      if (zip) void loadFile(zip);
+    });
+    return () => void unlisten.then((f) => f());
+  }, [acceptsDrop]);
 
   async function install() {
     if (!preview) return;
@@ -206,9 +233,16 @@ export function ImportThemeDialog({
           {phase !== "error" && (
             <section className="flex flex-col gap-1.5">
               <h3 className="text-[9.5px] font-bold uppercase tracking-wider text-muted2">Step 1</h3>
-              <div className="flex flex-col items-center gap-2 rounded-[8px] border border-dashed border-line bg-surface2 px-4 py-5 text-center">
+              <div
+                className={cn(
+                  "flex flex-col items-center gap-2 rounded-[8px] border border-dashed border-line bg-surface2 px-4 py-5 text-center transition-colors duration-150",
+                  dragOver && "border-accent-line bg-accent-soft",
+                )}
+              >
                 <FileArchive className="size-5 text-muted" />
-                <p className="text-[10.5px] text-muted">Drag a .zip here</p>
+                <p className="text-[10.5px] text-muted">
+                  {dragOver ? "Drop to import" : "Drag a .zip here"}
+                </p>
                 <p className="text-[9.5px] uppercase tracking-wider text-muted-soft">or</p>
                 <button
                   ref={chooseRef}
