@@ -176,6 +176,10 @@ pub fn scan(themes_root: &Path) -> Scan {
         }
         let dir = entry.path();
         let dir_name = entry.file_name().to_string_lossy().into_owned();
+        // `.staging` and friends are the storage layer's own, never themes.
+        if dir_name.starts_with('.') {
+            continue;
+        }
         match read_manifest(&dir) {
             Ok(manifest) if manifest.id == dir_name => {
                 scan.themes.push(ThemeSummary::of(&manifest));

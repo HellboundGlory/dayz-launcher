@@ -165,6 +165,7 @@ pub fn run() {
             commands::theme::set_active_theme_id,
             commands::theme::migrate_legacy_custom_themes,
             commands::theme::import_theme_preview,
+            commands::theme::confirm_theme_install,
             commands::theme::arm_activation,
             commands::theme::confirm_activation,
             commands::theme::revert_activation,

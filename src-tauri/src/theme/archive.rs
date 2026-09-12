@@ -88,6 +88,61 @@ pub fn stage_for_preview(
     }
 }
 
+/// Move a staged import into place as `themes_root/<id>`. An already-installed
+/// theme with that id is renamed aside first and deleted only once the new
+/// directory is in place, so the live theme is never missing.
+pub fn confirm_theme_install(themes_root: &Path, staging_id: &str) -> Result<String, String> {
+    let staging_dir = themes_root.join(STAGING_DIR).join(staging_id);
+    if !staging_dir.is_dir() {
+        return Err(format!("No staged theme import `{staging_id}` to confirm."));
+    }
+
+    let manifest_path = staging_dir.join(MANIFEST_FILE);
+    let raw = std::fs::read_to_string(&manifest_path)
+        .map_err(|e| format!("Could not read {}: {e}", manifest_path.display()))?;
+    let manifest: ThemeManifest = serde_json::from_str(&raw)
+        .map_err(|e| format!("{} is not a valid manifest: {e}", manifest_path.display()))?;
+    // The id becomes a path component; `stage_for_preview` checks it, a
+    // hand-made staging directory would not.
+    if !crate::theme::is_usable_id(&manifest.id) {
+        return Err(format!(
+            "This import declares id `{}`, which is not a usable theme id.",
+            manifest.id
+        ));
+    }
+
+    let target_dir = themes_root.join(&manifest.id);
+    if !target_dir.exists() {
+        std::fs::rename(&staging_dir, &target_dir).map_err(|e| {
+            format!(
+                "Could not move {} into place at {}: {e}",
+                staging_dir.display(),
+                target_dir.display()
+            )
+        })?;
+        return Ok(manifest.id);
+    }
+
+    let aside = themes_root
+        .join(STAGING_DIR)
+        .join(format!("{}.replaced-{staging_id}", manifest.id));
+    std::fs::rename(&target_dir, &aside)
+        .map_err(|e| format!("Could not move {} aside: {e}", target_dir.display()))?;
+    if let Err(e) = std::fs::rename(&staging_dir, &target_dir) {
+        // Put the old install back before reporting; only the new theme landing
+        // in place makes deleting it safe.
+        let _ = std::fs::rename(&aside, &target_dir);
+        return Err(format!(
+            "Could not move {} into place at {}: {e}",
+            staging_dir.display(),
+            target_dir.display()
+        ));
+    }
+    let _ = std::fs::remove_dir_all(&aside);
+
+    Ok(manifest.id)
+}
+
 /// Split out so [`stage_for_preview`] owns the one cleanup path: every `Err`
 /// here discards the staging directory. Order is deliberate: limits and
 /// zip-slip are checked before extraction, the manifest only after its bytes exist.
@@ -831,13 +886,8 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["installed.theme"]
         );
-        // `.staging` itself is the one directory scan reports as skipped, not silently ignored.
-        assert_eq!(scan.skipped.len(), 1, "scan skipped: {:?}", scan.skipped);
-        assert!(
-            scan.skipped[0].contains(STAGING_DIR),
-            "scan skipped: {:?}",
-            scan.skipped
-        );
+        // `.staging` is dot-prefixed, so scan ignores it silently rather than logging a skip.
+        assert!(scan.skipped.is_empty(), "scan skipped: {:?}", scan.skipped);
     }
 
     #[test]
@@ -851,5 +901,79 @@ mod tests {
         assert_ne!(first.staging_id, second.staging_id);
         assert!(staging_dir(&root, &first).is_dir());
         assert!(staging_dir(&root, &second).is_dir());
+    }
+
+    #[test]
+    fn confirming_a_fresh_import_installs_it_and_clears_the_staging_directory() {
+        let root = scratch("confirm-new");
+        let zip_path = fixture(&root, "confirm-new", &[]);
+        let preview = stage_for_preview(&root, &zip_path, &[]).unwrap();
+
+        let id = confirm_theme_install(&root, &preview.staging_id).unwrap();
+
+        assert_eq!(id, "aurora.test");
+        assert!(!staging_dir(&root, &preview).exists());
+        let installed = crate::theme::get(&root, &id).expect("the theme must be readable");
+        assert_eq!(installed.manifest.id, "aurora.test");
+        assert_eq!(installed.manifest.version, "1.0.0");
+    }
+
+    #[test]
+    fn confirming_an_update_replaces_the_installed_theme_and_leaves_no_staging_leftovers() {
+        let root = scratch("confirm-update");
+        let installed = ThemeManifest {
+            version: "1.0.0".to_string(),
+            name: "Old Aurora".to_string(),
+            ..manifest()
+        };
+        crate::theme::save(
+            &root,
+            &installed,
+            &serde_json::json!({ "schemaVersion": manifest::SCHEMA_VERSION, "dark": { "bg": "#000000" } }),
+        )
+        .unwrap();
+
+        let replacement = ThemeManifest {
+            version: "2.0.0".to_string(),
+            name: "New Aurora".to_string(),
+            ..manifest()
+        };
+        let zip_path = fixture_with_manifest(&root, "confirm-update", &replacement);
+        let preview = stage_for_preview(&root, &zip_path, &[]).unwrap();
+
+        let id = confirm_theme_install(&root, &preview.staging_id).unwrap();
+
+        assert_eq!(id, "aurora.test");
+        let installed = crate::theme::get(&root, &id).expect("the replaced theme must be readable");
+        assert_eq!(installed.manifest.name, "New Aurora");
+        assert_eq!(installed.manifest.version, "2.0.0");
+        // The aside directory was the old install; nothing, old or new, is left
+        // under the staging root.
+        let leftovers: Vec<_> = std::fs::read_dir(root.join(STAGING_DIR))
+            .map(|entries| entries.flatten().map(|e| e.file_name()).collect())
+            .unwrap_or_default();
+        assert!(leftovers.is_empty(), "staging leftovers: {leftovers:?}");
+    }
+
+    #[test]
+    fn confirming_an_unknown_staging_id_errors_and_touches_nothing() {
+        let root = scratch("confirm-unknown");
+        crate::theme::save(
+            &root,
+            &ThemeManifest {
+                id: "installed.theme".to_string(),
+                ..manifest()
+            },
+            &serde_json::json!({ "schemaVersion": manifest::SCHEMA_VERSION }),
+        )
+        .unwrap();
+        let before = std::fs::read_dir(&root).unwrap().count();
+
+        let error = confirm_theme_install(&root, "no-such-staging-id").unwrap_err();
+
+        assert!(error.contains("no-such-staging-id"), "message was: {error}");
+        assert_eq!(std::fs::read_dir(&root).unwrap().count(), before);
+        assert!(crate::theme::get(&root, "installed.theme").is_ok());
+        assert!(!root.join("aurora.test").exists());
     }
 }
