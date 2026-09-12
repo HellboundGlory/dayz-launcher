@@ -68,3 +68,14 @@ export interface ThemeImportPreview {
   /** `new`, `update`, `same_version` or `downgrade`. */
   classification: string;
 }
+
+/** Manifest fields an export dialog may edit before packaging. Mirrors `theme::archive::ManifestOverrides` — every field `None`/omitted exports the installed value unchanged. */
+export interface ManifestOverrides {
+  name?: string;
+  author?: string;
+  version?: string;
+  description?: string;
+  tags?: string[];
+  license?: string;
+  homepage?: string;
+}
