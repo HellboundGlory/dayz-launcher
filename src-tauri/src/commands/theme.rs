@@ -206,18 +206,39 @@ fn take_any(subject: &mut Option<PendingActivation>) -> Option<PendingActivation
 }
 
 /// Arm (or re-arm) the pending activation. Re-arming replaces whatever was
-/// pending and restarts the clock — only the latest preview is on screen.
+/// pending and restarts the clock. Returns what was displaced, if anything,
+/// so the caller can clean up an abandoned duplicate.
 fn arm(
     subject: &mut Option<PendingActivation>,
     previous_id: Option<String>,
     new_id: Option<String>,
+    delete_on_revert: bool,
     at: Instant,
-) {
-    *subject = Some(PendingActivation {
+) -> Option<PendingActivation> {
+    subject.replace(PendingActivation {
         previous_id,
         new_id,
+        delete_on_revert,
         deadline: at + ACTIVATION_WINDOW,
-    });
+    })
+}
+
+/// Best-effort: never fails the caller — losing the cleanup is better than
+/// losing the activation outcome it rides along with.
+fn delete_orphaned_duplicate(app: &AppHandle, pending: &PendingActivation) {
+    if !pending.delete_on_revert {
+        return;
+    }
+    let Some(id) = &pending.new_id else { return };
+    let themes_root = crate::paths::themes_dir(app);
+    match theme::delete(&themes_root, id, None) {
+        Ok(()) => crate::log::log_line(app, "theme", &format!("Deleted abandoned theme `{id}`")),
+        Err(e) => crate::log::log_line(
+            app,
+            "theme",
+            &format!("Could not delete abandoned theme `{id}`: {e}"),
+        ),
+    }
 }
 
 fn guard_window(app: &AppHandle) -> Option<tauri::WebviewWindow> {
@@ -288,18 +309,29 @@ fn hide_guard_window(app: &AppHandle) {
 
 /// Begin a theme activation: remember the outgoing theme and show the guard
 /// window, writing nothing to disk — the frontend has already applied
-/// `new_id` live.
+/// `new_id` live. `delete_on_revert` is true for a theme this same action
+/// just created (duplicate, "New theme") and never kept — see
+/// [`delete_orphaned_duplicate`].
 #[tauri::command]
-pub fn arm_activation(app: AppHandle, new_id: Option<String>) -> Result<(), String> {
+pub fn arm_activation(
+    app: AppHandle,
+    new_id: Option<String>,
+    delete_on_revert: bool,
+) -> Result<(), String> {
     let previous_id = crate::commands::settings::current(&app).active_theme_id;
 
-    {
+    let displaced = {
         let state = app.state::<crate::state::AppState>();
         let mut slot = state
             .pending_theme
             .lock()
             .map_err(|_| "The pending theme activation lock is poisoned".to_string())?;
-        arm(&mut slot, previous_id, new_id, Instant::now());
+        arm(&mut slot, previous_id, new_id.clone(), delete_on_revert, Instant::now())
+    };
+    // A re-arm before the previous one was confirmed or reverted abandons it
+    // exactly like a revert would — clean it up the same way.
+    if let Some(displaced) = displaced.filter(|d| d.new_id != new_id) {
+        delete_orphaned_duplicate(&app, &displaced);
     }
 
     show_guard_window(&app)
@@ -353,6 +385,7 @@ pub fn revert_activation(app: AppHandle) -> Result<(), String> {
             "theme",
             &format!("Reverted theme activation to {:?}", pending.previous_id),
         );
+        delete_orphaned_duplicate(&app, &pending);
     }
 
     hide_guard_window(&app);
@@ -374,7 +407,7 @@ mod tests {
 
     fn armed_at(at: Instant) -> Option<PendingActivation> {
         let mut slot = None;
-        arm(&mut slot, None, Some("local.ember".into()), at);
+        arm(&mut slot, None, Some("local.ember".into()), false, at);
         slot
     }
 
@@ -384,6 +417,7 @@ mod tests {
         let pending = PendingActivation {
             previous_id: None,
             new_id: None,
+            delete_on_revert: false,
             deadline: Instant::now(),
         };
 
@@ -480,6 +514,7 @@ mod tests {
             &mut slot,
             Some("local.ember".into()),
             Some("dev.pack".into()),
+            false,
             later,
         );
 
@@ -488,6 +523,33 @@ mod tests {
         assert_eq!(pending.previous_id.as_deref(), Some("local.ember"));
         assert_eq!(pending.deadline, later + ACTIVATION_WINDOW);
         assert_eq!(pending.remaining_ms(later), 15_000);
+    }
+
+    /// `arm` hands back whatever it displaces, so a caller can tell a fresh
+    /// arm (nothing to clean up) from a re-arm (something was abandoned).
+    #[test]
+    fn arming_returns_the_previously_pending_activation_if_any() {
+        let mut slot = None;
+        let first = arm(
+            &mut slot,
+            None,
+            Some("local.first".into()),
+            true,
+            Instant::now(),
+        );
+        assert!(first.is_none(), "nothing was pending yet");
+
+        let second = arm(
+            &mut slot,
+            None,
+            Some("local.second".into()),
+            false,
+            Instant::now(),
+        );
+        let displaced = second.expect("the first arm was displaced");
+        assert_eq!(displaced.new_id.as_deref(), Some("local.first"));
+        assert!(displaced.delete_on_revert, "carried the flag it was armed with");
+        assert_eq!(slot.unwrap().new_id.as_deref(), Some("local.second"));
     }
 
     /// A stray confirm or revert after the flow settled must be a quiet no-op.

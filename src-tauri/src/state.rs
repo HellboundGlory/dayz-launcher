@@ -59,6 +59,10 @@ pub struct PendingActivation {
     pub previous_id: Option<String>,
     /// What `confirm_activation` persists.
     pub new_id: Option<String>,
+    /// `new_id`'s directory was just created by this same action (duplicate,
+    /// "New theme") and has never been kept — abandoning the activation
+    /// should delete it too, not leave an orphan in the library.
+    pub delete_on_revert: bool,
     pub deadline: Instant,
 }
 
