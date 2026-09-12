@@ -92,6 +92,13 @@ pub fn stage_for_preview(
 /// theme with that id is renamed aside first and deleted only once the new
 /// directory is in place, so the live theme is never missing.
 pub fn confirm_theme_install(themes_root: &Path, staging_id: &str) -> Result<String, String> {
+    // The id comes from the frontend and names one directory under `.staging`;
+    // anything else would let it resolve outside the themes root.
+    if !crate::theme::is_usable_id(staging_id) {
+        return Err(format!(
+            "`{staging_id}` is not a usable staging id — it must be a single directory name"
+        ));
+    }
     let staging_dir = themes_root.join(STAGING_DIR).join(staging_id);
     if !staging_dir.is_dir() {
         return Err(format!("No staged theme import `{staging_id}` to confirm."));
