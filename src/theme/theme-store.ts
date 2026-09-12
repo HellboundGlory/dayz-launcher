@@ -60,7 +60,9 @@ interface ThemeState {
   hydrate: () => Promise<void>;
   apply: () => void;
   setScheme: (scheme: "dark" | "light") => void;
-  pickTheme: (id: string) => Promise<void>;
+  /** `deleteOnRevert`: `id` was just created by this same action (duplicate,
+   * "New theme") — abandoning the activation deletes it too, not just the pick. */
+  pickTheme: (id: string, deleteOnRevert?: boolean) => Promise<void>;
   setBloom: (bloom: number) => void;
   setColorOverride: (token: Token, value: string) => void;
   setSpacingOverride: (key: keyof Spacing, value: string) => void;
@@ -362,7 +364,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     get().apply();
   },
 
-  pickTheme: async (id) => {
+  pickTheme: async (id, deleteOnRevert = false) => {
     if (activePreset(id) === undefined && get().themeFiles[id] === undefined) {
       try {
         const file = await getTheme(id);
@@ -381,7 +383,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     });
     get().apply();
     try {
-      await armActivation(id);
+      await armActivation(id, deleteOnRevert);
     } catch (e) {
       // The live preview stands either way.
       console.error("Could not arm the theme activation window:", e);
@@ -491,8 +493,9 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     }
 
     await refreshInstalledThemes();
-    // Same arm/confirm flow as any other activation — never a direct write.
-    await get().pickTheme(id);
+    // Same arm/confirm flow as any other activation; deleteOnRevert so an
+    // abandoned duplicate doesn't linger in the library.
+    await get().pickTheme(id, true);
   },
 
   deleteTheme: async (id) => {
@@ -523,6 +526,9 @@ export function watchThemeActivationReverted(): () => void {
     (event) => {
       useThemeStore.setState({ activeId: event.payload.previousId ?? "neutral" });
       useThemeStore.getState().apply();
+      // A reverted duplicate/"New theme" was just deleted on the backend —
+      // re-sync so the grid doesn't keep showing it.
+      void refreshInstalledThemes();
     },
   );
   return () => {

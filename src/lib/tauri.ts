@@ -610,9 +610,16 @@ export async function migrateLegacyCustomThemes(legacy: LegacyTheme[]): Promise<
   return invoke<string[]>("migrate_legacy_custom_themes", { legacy });
 }
 
-/** Open the guard window and arm the pending activation; writes nothing to disk. */
-export async function armActivation(newId: string | null): Promise<void> {
-  return invoke<void>("arm_activation", { newId });
+/**
+ * Open the guard window and arm the pending activation; writes nothing to disk.
+ * `deleteOnRevert` marks `newId` as a theme this same action just created
+ * (duplicate, "New theme") — abandoning the activation deletes it too.
+ */
+export async function armActivation(
+  newId: string | null,
+  deleteOnRevert = false,
+): Promise<void> {
+  return invoke<void>("arm_activation", { newId, deleteOnRevert });
 }
 
 export async function confirmActivation(): Promise<void> {
