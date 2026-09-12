@@ -22,6 +22,8 @@ export function WindowControls() {
 
   return (
     <div
+      data-tetra-slot="shell.header"
+      data-tetra-el="dragRegion"
       data-tauri-drag-region
       className="flex h-7 shrink-0 select-none items-center justify-end border-b border-line bg-surface"
     >
@@ -29,6 +31,7 @@ export function WindowControls() {
         onClick={minimizeWindow}
         title="Minimize"
         aria-label="Minimize"
+        data-tetra-el="windowControls"
         className="inline-flex h-7 w-[40px] items-center justify-center text-muted transition-colors hover:bg-surface2 hover:text-ink"
       >
         <Minus className="size-3.5" />

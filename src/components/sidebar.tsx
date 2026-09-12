@@ -56,6 +56,7 @@ export function Sidebar({
 
   return (
     <aside
+      data-tetra-slot="shell.sidebar"
       className="side relative flex shrink-0 flex-col overflow-hidden border-r border-line bg-surface transition-[width] duration-200"
       style={{ width: "var(--side-w, 176px)" }}
       data-collapsed={collapsed || undefined}
@@ -66,7 +67,10 @@ export function Sidebar({
           collapsed && "justify-center px-0 py-3.5",
         )}
       >
-        <div className={cn("flex min-w-0 items-center gap-2", collapsed && "gap-0")}>
+        <div
+          data-tetra-el="logo"
+          className={cn("flex min-w-0 items-center gap-2", collapsed && "gap-0")}
+        >
           <img
             src={tetraLogo}
             alt=""
@@ -81,7 +85,7 @@ export function Sidebar({
         </div>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-[3px] p-2" aria-label="Main">
+      <nav data-tetra-el="navList" className="flex flex-1 flex-col gap-[3px] p-2" aria-label="Main">
         {NAV.map(({ id, label, icon: Icon }, i) => {
           const active = activeView === id;
           return (
@@ -122,6 +126,7 @@ export function Sidebar({
           {!collapsed && <span>{steamConnected ? "Steam connected" : "Steam not connected"}</span>}
         </div>
         <button
+          data-tetra-el="settingsEntry"
           onClick={() => (settingsOpen ? onCloseSettings() : onOpenSettings())}
           aria-pressed={settingsOpen}
           className={cn(
@@ -139,6 +144,7 @@ export function Sidebar({
 
       {/* Edge tab pinned to the rail's right edge, just above the separator. */}
       <button
+        data-tetra-el="collapseToggle"
         onClick={() => {
           setCollapsed((c) => {
             const next = !c;
