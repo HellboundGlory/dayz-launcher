@@ -326,7 +326,13 @@ pub fn arm_activation(
             .pending_theme
             .lock()
             .map_err(|_| "The pending theme activation lock is poisoned".to_string())?;
-        arm(&mut slot, previous_id, new_id.clone(), delete_on_revert, Instant::now())
+        arm(
+            &mut slot,
+            previous_id,
+            new_id.clone(),
+            delete_on_revert,
+            Instant::now(),
+        )
     };
     // A re-arm before the previous one was confirmed or reverted abandons it
     // exactly like a revert would — clean it up the same way.
@@ -548,7 +554,10 @@ mod tests {
         );
         let displaced = second.expect("the first arm was displaced");
         assert_eq!(displaced.new_id.as_deref(), Some("local.first"));
-        assert!(displaced.delete_on_revert, "carried the flag it was armed with");
+        assert!(
+            displaced.delete_on_revert,
+            "carried the flag it was armed with"
+        );
         assert_eq!(slot.unwrap().new_id.as_deref(), Some("local.second"));
     }
 
