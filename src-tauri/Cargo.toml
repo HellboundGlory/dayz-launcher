@@ -42,6 +42,11 @@ tauri-plugin-updater = "2"
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
+# Reading a theme `.zip` for import — validation and staging only, never
+# extraction into the themes directory (see `theme::archive`).
+zip = { workspace = true }
+# Version gates on an imported theme's manifest.
+semver = { workspace = true }
 tetra-core = { path = "../crates/tetra-core" }
 tetra-net = { path = "../crates/tetra-net" }
 tetra-registry = { path = "../crates/tetra-registry" }

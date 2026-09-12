@@ -12,6 +12,7 @@
 //! Read errors are never fatal, matching `settings.rs`'s posture: an
 //! unreadable theme is one entry missing from the grid, not a failed launch.
 
+pub mod archive;
 pub mod manifest;
 
 use std::path::{Path, PathBuf};

@@ -164,6 +164,7 @@ pub fn run() {
             commands::theme::delete_theme,
             commands::theme::set_active_theme_id,
             commands::theme::migrate_legacy_custom_themes,
+            commands::theme::import_theme_preview,
             commands::update::is_installed_copy,
         ])
         .setup(|app| {
