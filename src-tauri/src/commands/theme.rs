@@ -174,18 +174,28 @@ fn read(pending: &Option<PendingActivation>, now: Instant) -> Option<ActivationS
     pending.as_ref().map(|p| ActivationStatus::of(p, now))
 }
 
-/// Take the pending activation, unless its window has already closed. Taking is
-/// the point: an activation is answerable once, so a second click — or a
-/// duplicate call from the guard window — finds nothing and no-ops rather than
-/// confirming or reverting twice.
-///
-/// An expired activation is left in place rather than discarded, so the
-/// frontend can still revert it after reading a `0` countdown.
-fn take(subject: &mut Option<PendingActivation>, now: Instant) -> Option<PendingActivation> {
+/// Take the pending activation only if it is still inside its confirmation
+/// window. For [`confirm_activation`]: keeping an activation whose deadline has
+/// already passed would race the automatic revert the frontend fires once it
+/// reads `remainingMs: 0`, so an expired one is left in place and refused here
+/// rather than confirmed.
+fn take_if_live(
+    subject: &mut Option<PendingActivation>,
+    now: Instant,
+) -> Option<PendingActivation> {
     match subject.as_ref() {
         Some(pending) if is_live(pending, now) => subject.take(),
         _ => None,
     }
+}
+
+/// Take the pending activation unconditionally, live or expired. For
+/// [`revert_activation`], which must succeed both for an explicit "Revert now"
+/// click and for the automatic revert once the countdown reaches zero — an
+/// expired activation is exactly the case that path exists to handle, so it
+/// cannot refuse one the way [`take_if_live`] does.
+fn take_any(subject: &mut Option<PendingActivation>) -> Option<PendingActivation> {
+    subject.take()
 }
 
 /// Arm (or re-arm) the pending activation. `previous_id` is what a revert goes
@@ -301,7 +311,7 @@ pub fn confirm_activation(app: AppHandle) -> Result<(), String> {
             .pending_theme
             .lock()
             .map_err(|_| "The pending theme activation lock is poisoned".to_string())?;
-        take(&mut slot, Instant::now())
+        take_if_live(&mut slot, Instant::now())
     };
 
     if let Some(pending) = armed {
@@ -321,9 +331,10 @@ pub fn confirm_activation(app: AppHandle) -> Result<(), String> {
 /// re-apply the one that was active before. The event carries `previousId` so
 /// the listener doesn't have to re-read settings to know what to go back to.
 ///
-/// Nothing pending is a no-op success, for the same double-click reason as
-/// [`confirm_activation`] — and because the expired-status path can fire this
-/// more than once.
+/// Uses [`take_any`], not [`take_if_live`]: this is also what the automatic
+/// revert calls once the countdown hits zero, so it must still succeed on an
+/// expired activation. Nothing pending is a no-op success, for the same
+/// double-click reason as [`confirm_activation`].
 #[tauri::command]
 pub fn revert_activation(app: AppHandle) -> Result<(), String> {
     let armed = {
@@ -332,7 +343,7 @@ pub fn revert_activation(app: AppHandle) -> Result<(), String> {
             .pending_theme
             .lock()
             .map_err(|_| "The pending theme activation lock is poisoned".to_string())?;
-        take(&mut slot, Instant::now())
+        take_any(&mut slot)
     };
 
     if let Some(pending) = armed {
@@ -438,7 +449,8 @@ mod tests {
         assert_eq!(second.remaining_ms, first.remaining_ms - 3_000);
 
         // Still answerable after all that polling, which is the point.
-        let taken = take(&mut slot, started + Duration::from_secs(4)).expect("still takeable");
+        let taken =
+            take_if_live(&mut slot, started + Duration::from_secs(4)).expect("still takeable");
         assert_eq!(taken.new_id.as_deref(), Some("local.ember"));
     }
 
@@ -450,27 +462,32 @@ mod tests {
         let started = Instant::now();
         let mut slot = armed_at(started);
 
-        let taken = take(&mut slot, started + Duration::from_secs(1)).expect("armed");
+        let taken = take_if_live(&mut slot, started + Duration::from_secs(1)).expect("armed");
 
         assert_eq!(taken.new_id.as_deref(), Some("local.ember"));
         assert_eq!(taken.previous_id, None);
         assert!(slot.is_none());
-        assert!(take(&mut slot, started + Duration::from_secs(2)).is_none());
+        assert!(take_if_live(&mut slot, started + Duration::from_secs(2)).is_none());
     }
 
-    /// An expired activation is not answerable — the deadline is what makes the
-    /// prompt stop accepting clicks.
+    /// An expired activation cannot be *confirmed* — the deadline is what makes
+    /// the Keep button stop accepting clicks — but it must still be answerable
+    /// by revert, since the automatic-expiry path is exactly a revert call
+    /// arriving after the deadline. `take_if_live` refuses it; `take_any` (what
+    /// `revert_activation` actually calls) must not.
     #[test]
-    fn an_expired_activation_cannot_be_confirmed() {
+    fn an_expired_activation_cannot_be_confirmed_but_can_still_be_reverted() {
         let started = Instant::now();
         let mut slot = armed_at(started);
 
         let expired_at = started + ACTIVATION_WINDOW + Duration::from_millis(1);
 
-        assert!(take(&mut slot, expired_at).is_none());
-        // Still armed, so the revert that follows the `0` countdown has
-        // something to act on.
-        assert!(slot.is_some());
+        assert!(take_if_live(&mut slot, expired_at).is_none());
+        assert!(slot.is_some(), "confirm must not have consumed it");
+
+        let taken = take_any(&mut slot).expect("revert must still take an expired activation");
+        assert_eq!(taken.new_id.as_deref(), Some("local.ember"));
+        assert!(slot.is_none(), "revert leaves nothing pending behind");
     }
 
     /// Re-arming mid-preview (the user tries a second theme before answering)
@@ -505,6 +522,7 @@ mod tests {
         let now = Instant::now();
 
         assert!(read(&slot, now).is_none());
-        assert!(take(&mut slot, now).is_none());
+        assert!(take_if_live(&mut slot, now).is_none());
+        assert!(take_any(&mut slot).is_none());
     }
 }
