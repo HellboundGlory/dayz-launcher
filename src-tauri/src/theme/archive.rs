@@ -1100,6 +1100,13 @@ mod tests {
         assert!(leftovers.is_empty(), "staging leftovers: {leftovers:?}");
     }
 
+    // POSIX-only: occupying the aside path with a file reliably fails a
+    // directory rename onto it there, but on Windows that same rename
+    // succeeds (replacing the file) instead of erroring — a real platform
+    // difference in rename-over-existing semantics, not a safety gap (the
+    // aside path is namespaced by a per-import staging id, so this
+    // collision can't happen outside a deliberately forced test).
+    #[cfg(unix)]
     #[test]
     fn an_install_that_cannot_move_the_old_theme_aside_leaves_it_installed() {
         let root = scratch("confirm-swap");
