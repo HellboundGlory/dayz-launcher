@@ -235,7 +235,6 @@ fn build_guard_window(app: &AppHandle) -> Result<tauri::WebviewWindow, String> {
     )
     .title("Tetra Launcher")
     .inner_size(GUARD_SIZE.0, GUARD_SIZE.1)
-    .center()
     .resizable(false)
     .maximizable(false)
     .minimizable(false)
@@ -249,6 +248,24 @@ fn build_guard_window(app: &AppHandle) -> Result<tauri::WebviewWindow, String> {
     .map_err(|e| format!("Could not open the theme guard window: {e}"))
 }
 
+/// Center the guard window over the main window, like every other modal.
+/// Recomputed on every show since the main window can have moved. Relies on
+/// `outer_position()`, which native Wayland can't expose (protocol
+/// limitation) — silently no-ops there.
+fn center_over_main(app: &AppHandle, guard: &tauri::WebviewWindow) {
+    let Some(main) = app.get_webview_window("main") else {
+        return;
+    };
+    let (Ok(main_pos), Ok(main_size), Ok(guard_size)) =
+        (main.outer_position(), main.outer_size(), guard.outer_size())
+    else {
+        return;
+    };
+    let x = main_pos.x + (main_size.width as i32 - guard_size.width as i32) / 2;
+    let y = main_pos.y + (main_size.height as i32 - guard_size.height as i32) / 2;
+    let _ = guard.set_position(tauri::PhysicalPosition::new(x, y));
+}
+
 /// Both the config and the lazy build start the window hidden, so this
 /// explicit `show` is required either way.
 fn show_guard_window(app: &AppHandle) -> Result<(), String> {
@@ -256,6 +273,7 @@ fn show_guard_window(app: &AppHandle) -> Result<(), String> {
         Some(window) => window,
         None => build_guard_window(app)?,
     };
+    center_over_main(app, &window);
     window
         .show()
         .map_err(|e| format!("Could not show the theme guard window: {e}"))
