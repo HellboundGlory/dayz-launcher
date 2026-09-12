@@ -72,6 +72,11 @@ pub struct AppSettings {
     pub discord_rich_presence: Option<bool>,
     /// The window's size, position and maximised state — see [`crate::window_state`].
     pub window: Option<crate::window_state::WindowState>,
+    /// Which installed theme is in force. `Option` so "absent" is distinguishable
+    /// from "chosen" — an existing file has never chosen, and that must mean the
+    /// built-in default (id `neutral`), not an empty id. Built-in vs. file-backed
+    /// is the frontend's distinction; the backend only stores the id.
+    pub active_theme_id: Option<String>,
 }
 
 impl Default for AppSettings {
@@ -101,6 +106,10 @@ impl Default for AppSettings {
             // `None`, not `Some(true)` — same reasoning as `close_to_tray`.
             discord_rich_presence: None,
             window: None,
+            // `None`, not `Some("neutral")` — the semantic default lives in
+            // the frontend, and storing it here would make "never chose"
+            // indistinguishable from "chose neutral" on a later rename.
+            active_theme_id: None,
         }
     }
 }
@@ -136,6 +145,20 @@ impl AppSettings {
         self.ui_scale = self.scale();
         self.discord_rich_presence = Some(self.discord_presence_enabled());
     }
+
+    /// Keep the on-disk theme selection when an incoming payload didn't carry
+    /// one — an omitted field deserialises to `None`, which for a frontend that
+    /// doesn't know the field yet would erase the user's choice on every save.
+    ///
+    /// A `None` that was *sent* (an explicit `null`) is indistinguishable from
+    /// an omitted one here, so it is treated the same way: the stored selection
+    /// stands. That is why clearing back to the built-in default is
+    /// [`set_active_theme_id`]'s job, not a side effect of an unrelated save.
+    fn absorb_unsent_theme_selection(&mut self, on_disk: &AppSettings) {
+        if self.active_theme_id.is_none() {
+            self.active_theme_id = on_disk.active_theme_id.clone();
+        }
+    }
 }
 
 /// The settings file's name, in one place because `paths::migrate` also has to know it.
@@ -164,6 +187,40 @@ fn read_from_disk(path: &std::path::Path) -> AppSettings {
     };
     settings.migrate();
     settings
+}
+
+/// The current on-disk settings, or defaults. Read-only, for callers that need
+/// one field without going through the frontend — same path and non-fatal
+/// fallback as [`load_at_startup`].
+pub fn current(app: &AppHandle) -> AppSettings {
+    match settings_path(app) {
+        Ok(path) => read_from_disk(&path),
+        Err(e) => {
+            eprintln!("[settings] {e}; using defaults");
+            AppSettings::default()
+        }
+    }
+}
+
+/// Set `active_theme_id` and write the file back, leaving every other setting
+/// as the file has it. Read-modify-write, like [`persist_window_state`] — the
+/// frontend owns the settings object and would otherwise be clobbered.
+///
+/// The id is not validated against installed themes: which ids exist (built-in
+/// presets included) is a frontend question, and a theme deleted out from under
+/// a running app must not make the selection unwritable.
+pub fn set_active_theme_id(app: &AppHandle, id: Option<String>) -> Result<(), String> {
+    let path = settings_path(app)?;
+    let mut settings = read_from_disk(&path);
+    if settings.active_theme_id == id {
+        return Ok(());
+    }
+    settings.active_theme_id = id;
+
+    let json = serde_json::to_string_pretty(&settings)
+        .map_err(|e| format!("Could not serialise settings: {e}"))?;
+    crate::atomic_write::write_atomically(&path, json.as_bytes())
+        .map_err(|e| format!("Could not save {}: {e}", path.display()))
 }
 
 /// Make the OS startup entry match `start_with_windows`. Reconciled on every
@@ -359,6 +416,13 @@ pub async fn save_settings(app: AppHandle, mut settings: AppSettings) -> Result<
     // omits `window`, which would otherwise erase the remembered geometry on every save.
     settings.window = crate::window_state::cached(&app).or(settings.window);
 
+    // Same hazard for the theme selection, until the Themes page sends it: a
+    // payload that omits `activeThemeId` reads as `None`, which would silently
+    // reset the active theme on any unrelated save (a profile-name keystroke,
+    // the scale slider). The file is the authority for what wasn't sent.
+    let on_disk = read_from_disk(&path);
+    settings.absorb_unsent_theme_selection(&on_disk);
+
     let json = serde_json::to_string_pretty(&settings)
         .map_err(|e| format!("Could not serialise settings: {e}"))?;
 
@@ -467,6 +531,52 @@ mod tests {
     fn an_out_of_range_scale_is_clamped() {
         assert_eq!(load(r#"{ "uiScale": 0 }"#).scale(), 1.0);
         assert_eq!(load(r#"{ "uiScale": 9 }"#).scale(), MAX_UI_SCALE);
+    }
+
+    /// A file from a build that predates the theme system has never chosen a
+    /// theme, which is what `None` means — the built-in default.
+    #[test]
+    fn a_file_predating_the_theme_system_reads_as_the_built_in_default() {
+        assert_eq!(load("{}").active_theme_id, None);
+    }
+
+    /// The regression: `save_settings` receives a frontend payload that has no
+    /// `activeThemeId` yet. Deserialising an absent field as `None` and writing
+    /// it back would reset the selection on any unrelated save.
+    #[test]
+    fn a_save_that_omits_the_theme_selection_keeps_the_stored_one() {
+        let on_disk = load(r#"{ "profileName": "James", "activeThemeId": "local.ember" }"#);
+        // What today's frontend sends: every field it knows, none for themes.
+        let mut incoming = load(r#"{ "profileName": "James II" }"#);
+
+        incoming.absorb_unsent_theme_selection(&on_disk);
+
+        assert_eq!(incoming.active_theme_id.as_deref(), Some("local.ember"));
+    }
+
+    /// Once the frontend sends a theme id, that value is the one that lands —
+    /// the stored one is only a fallback for a payload that carries none.
+    #[test]
+    fn a_sent_theme_selection_wins_over_the_stored_one() {
+        let on_disk = load(r#"{ "activeThemeId": "local.ember" }"#);
+
+        let mut switched = load(r#"{ "activeThemeId": "dev.pack" }"#);
+        switched.absorb_unsent_theme_selection(&on_disk);
+        assert_eq!(switched.active_theme_id.as_deref(), Some("dev.pack"));
+    }
+
+    /// An explicit `null` is indistinguishable from an omitted field once
+    /// deserialised, so it can't clear the selection here — and that's
+    /// deliberate: the alternative is an unrelated save silently resetting the
+    /// user's theme. `set_active_theme_id` is the way to go back to the default.
+    #[test]
+    fn clearing_the_selection_goes_through_its_own_command_not_a_settings_save() {
+        let on_disk = load(r#"{ "activeThemeId": "local.ember" }"#);
+
+        let mut nulled = load(r#"{ "activeThemeId": null }"#);
+        nulled.absorb_unsent_theme_selection(&on_disk);
+
+        assert_eq!(nulled.active_theme_id.as_deref(), Some("local.ember"));
     }
 
     /// A settings file written by an older build must pick up new fields at
