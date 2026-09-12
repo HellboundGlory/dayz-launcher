@@ -1,3 +1,4 @@
+import { Moon, Sun } from "lucide-react";
 import { useSettingsStore } from "@/stores/settings-store";
 import {
   setUiScale,
@@ -7,6 +8,7 @@ import {
   type ListSource,
 } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
+import { useThemeStore } from "@/theme/theme-store";
 
 interface FooterBarProps {
   servers: number;
@@ -27,6 +29,8 @@ export function FooterBar({
 }: FooterBarProps) {
   const uiScale = useSettingsStore((s) => s.uiScale);
   const setSetting = useSettingsStore((s) => s.setSetting);
+  const scheme = useThemeStore((s) => s.scheme);
+  const setScheme = useThemeStore((s) => s.setScheme);
 
   // Applies immediately (cheap); setSetting persists on its own debounce.
   function changeScale(next: number) {
@@ -135,6 +139,21 @@ export function FooterBar({
           {Math.round(uiScale * 100)}%
         </span>
       </label>
+
+      <button
+        type="button"
+        data-tetra-el="schemeToggle"
+        onClick={() => setScheme(scheme === "dark" ? "light" : "dark")}
+        aria-label={scheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+        title={scheme === "dark" ? "Lighten the launcher theme" : "Darken the launcher theme"}
+        className="f2-scheme flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full text-muted2 transition-colors hover:text-ink"
+      >
+        {scheme === "dark" ? (
+          <Sun className="h-[14px] w-[14px]" strokeWidth={1.6} />
+        ) : (
+          <Moon className="h-[14px] w-[14px]" strokeWidth={1.6} />
+        )}
+      </button>
     </div>
   );
 }
