@@ -92,46 +92,46 @@ export function SteamRequiredModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#0b0f17]/90 backdrop-blur-sm">
-      <div className="w-[440px] rounded-lg border border-[#1e293b] bg-[#111823] shadow-2xl">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-sm">
+      <div className="w-[440px] rounded-lg border border-line bg-surface shadow-2xl">
         <div className="flex items-start gap-3 px-5 pt-5">
           <div
             className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full ${
-              copy.patient ? "bg-[#38bdf8]/10" : "bg-[#f59e0b]/10"
+              copy.patient ? "bg-accent-soft" : "bg-warn-soft"
             }`}
           >
             {copy.patient ? (
-              <Loader2 className="size-4 animate-spin text-[#38bdf8]" />
+              <Loader2 className="size-4 animate-spin text-accent" />
             ) : (
-              <AlertTriangle className="size-4 text-[#f59e0b]" />
+              <AlertTriangle className="size-4 text-warn" />
             )}
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-[#f1f5f9]">{copy.title}</h2>
-            <p className="mt-1.5 text-[11px] leading-relaxed text-[#94a3b8]">{copy.body}</p>
+            <h2 className="text-sm font-semibold text-ink">{copy.title}</h2>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-muted2">{copy.body}</p>
           </div>
         </div>
 
         {error.message && (
-          <p className="mx-5 mt-4 truncate rounded bg-[#0b0f17] px-2 py-1.5 font-mono text-[10px] text-[#475569]">
+          <p className="mx-5 mt-4 truncate rounded bg-bg px-2 py-1.5 font-mono text-[10px] text-muted">
             {error.message}
           </p>
         )}
 
-        {startError && <p className="mx-5 mt-2 text-[10px] text-[#ef4444]">{startError}</p>}
+        {startError && <p className="mx-5 mt-2 text-[10px] text-danger">{startError}</p>}
 
-        <div className="mt-5 flex items-center gap-2 border-t border-[#1e293b] px-5 py-3">
+        <div className="mt-5 flex items-center gap-2 border-t border-line px-5 py-3">
           {offerStart && (
             <button
               onClick={handleStartSteam}
-              className="flex items-center gap-1.5 rounded bg-[#16202e] px-3 py-1.5 text-[11px] font-semibold text-[#f1f5f9] ring-1 ring-[#1e293b] hover:bg-[#1e293b]"
+              className="flex items-center gap-1.5 rounded bg-surface2 px-3 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-line hover:bg-line"
             >
               <ExternalLink className="size-3" />
               Start Steam
             </button>
           )}
 
-          <span className="ml-auto text-[10px] text-[#64748b]">
+          <span className="ml-auto text-[10px] text-muted">
             {checking
               ? "Connecting…"
               : polling
@@ -145,7 +145,7 @@ export function SteamRequiredModal({
             <button
               onClick={onRetry}
               disabled={checking}
-              className="flex items-center gap-1.5 rounded bg-[#38bdf8] px-3 py-1.5 text-[11px] font-semibold text-[#0b0f17] hover:bg-[#7dd3fc] disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-[11px] font-semibold text-bg hover:brightness-110 disabled:opacity-50"
             >
               {checking ? (
                 <Loader2 className="size-3 animate-spin" />

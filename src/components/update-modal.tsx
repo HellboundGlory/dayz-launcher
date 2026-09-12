@@ -48,17 +48,17 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
         role="dialog"
         aria-modal="true"
         aria-label="Update"
-        className="flex max-h-[82vh] w-[560px] flex-col overflow-hidden rounded-xl border border-[#1e293b] bg-[#111823] shadow-2xl shadow-black/50"
+        className="flex max-h-[82vh] w-[560px] flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-2xl shadow-black/50"
       >
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-[#1e293b] px-5 py-3.5">
-          <h2 className="text-sm font-semibold text-[#f1f5f9]">
+        <div className="flex shrink-0 items-center justify-between border-b border-line px-5 py-3.5">
+          <h2 className="text-sm font-semibold text-ink">
             {available ? "Update available" : "Updates"}
           </h2>
           <button
             onClick={onClose}
             aria-label="Close update dialog"
-            className="rounded-md p-1 text-[#64748b] transition-colors duration-150 hover:bg-[#16202e] hover:text-[#f1f5f9] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#38bdf8]"
+            className="rounded-md p-1 text-muted transition-colors duration-150 hover:bg-surface2 hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
           >
             <X className="size-4" />
           </button>
@@ -68,13 +68,13 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           {available ? (
             <>
-              <p className="text-xs text-[#94a3b8]">
+              <p className="text-xs text-muted2">
                 A newer version of Tetra Launcher is available.
               </p>
-              <p className="mt-1 text-sm font-semibold text-[#f1f5f9]">
+              <p className="mt-1 text-sm font-semibold text-ink">
                 v{available.version}
                 {available.date && (
-                  <span className="ml-2 text-[10px] font-normal text-[#64748b]">
+                  <span className="ml-2 text-[10px] font-normal text-muted">
                     {available.date}
                   </span>
                 )}
@@ -89,7 +89,7 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
                         <button
                           type="button"
                           onClick={() => href && void openLink(href)}
-                          className="text-[#38bdf8] underline decoration-dotted underline-offset-2 hover:text-[#7dd3fc]"
+                          className="text-accent underline decoration-dotted underline-offset-2 hover:brightness-110"
                         >
                           {children}
                         </button>
@@ -100,40 +100,40 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
                   </ReactMarkdown>
                 </div>
               ) : (
-                <p className="mt-3 text-[10px] text-[#64748b]">
+                <p className="mt-3 text-[10px] text-muted">
                   No changelog notes for this release. See the GitHub release for full notes.
                 </p>
               )}
 
               {progress && installing && (
-                <p className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-[#38bdf8]">
+                <p className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-accent">
                   {progress.total
                     ? `Downloading… ${Math.round((progress.downloaded / progress.total) * 100)}%`
                     : "Downloading…"}
                 </p>
               )}
-              {error && <p className="mt-3 text-[10px] text-[#ef4444]">{error}</p>}
+              {error && <p className="mt-3 text-[10px] text-danger">{error}</p>}
               {/* Portable copy: explain why there's no in-place button. The
                   Install & Restart would replace the installed copy in Program
                   Files, not this portable exe. */}
               {installed !== true && (
-                <p className="mt-3 text-[10px] leading-relaxed text-[#64748b]">
+                <p className="mt-3 text-[10px] leading-relaxed text-muted">
                   This is a portable copy, so it can't update itself in place.
                   Grab the latest installer from the GitHub release below.
                 </p>
               )}
             </>
           ) : (
-            <p className="text-xs text-[#94a3b8]">You're up to date.</p>
+            <p className="text-xs text-muted2">You're up to date.</p>
           )}
         </div>
 
         {/* Footer */}
-        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[#1e293b] px-5 py-3">
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
           <button
             onClick={onClose}
             disabled={installing}
-            className="rounded-md bg-[#16202e] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#94a3b8] ring-1 ring-[#1e293b] transition-colors duration-150 hover:text-[#f1f5f9] disabled:opacity-50"
+            className="rounded-md bg-surface2 px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted2 ring-1 ring-line transition-colors duration-150 hover:text-ink disabled:opacity-50"
           >
             {installing ? "Updating…" : "Later"}
           </button>
@@ -142,7 +142,7 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
             <button
               onClick={() => void install()}
               disabled={installing}
-              className="flex items-center gap-1.5 rounded-md bg-[#38bdf8] px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#0b0f17] transition-colors duration-150 hover:bg-[#7dd3fc] disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-md bg-accent px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-bg transition-colors duration-150 hover:brightness-110 disabled:opacity-50"
             >
               <Download className="size-3" />
               Update &amp; Restart
@@ -150,7 +150,7 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
           ) : (
             <button
               onClick={() => void openLink(DOWNLOAD_URL)}
-              className="flex items-center gap-1.5 rounded-md bg-[#16202e] px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#94a3b8] ring-1 ring-[#1e293b] transition-colors duration-150 hover:text-[#f1f5f9]"
+              className="flex items-center gap-1.5 rounded-md bg-surface2 px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted2 ring-1 ring-line transition-colors duration-150 hover:text-ink"
             >
               <ExternalLink className="size-3" />
               View Release
