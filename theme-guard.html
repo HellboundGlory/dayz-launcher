@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Theme Activation</title>
+    <style>
+      /* Deliberately self-contained: this window loads no stylesheet, so the
+         rules here are the whole look. No `main.css`, no token spine, no
+         `data-tetra-*` hooks — a theme has no reach into this document, and
+         that isolation is the point of this window.
+
+         Unlike `splash.html`, this stays an inline block: `splash.css` exists
+         only because `main.css`'s Tailwind base layer outranks the document
+         head, and nothing loads `main.css` here. */
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: #10151d;
+        color: #e8eef7;
+        font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+        font-size: 13px;
+        user-select: none;
+      }
+
+      #theme-guard-root {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .tg-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding: 16px 18px;
+        text-align: center;
+      }
+
+      .tg-prompt {
+        margin: 0;
+        line-height: 1.45;
+      }
+
+      .tg-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+      }
+
+      .tg-btn {
+        padding: 7px 18px;
+        border: 1px solid #3b4657;
+        border-radius: 6px;
+        background: transparent;
+        color: #e8eef7;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .tg-btn:hover {
+        background: #1c2531;
+      }
+
+      .tg-btn-keep {
+        border-color: #4f7fd0;
+        background: #2f5fad;
+        color: #ffffff;
+      }
+
+      .tg-btn-keep:hover {
+        background: #3a6ec2;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="theme-guard-root"></div>
+    <script type="module" src="/src/theme-guard.tsx"></script>
+  </body>
+</html>
