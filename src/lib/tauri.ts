@@ -3,6 +3,7 @@ import type { Server } from "@/types/server";
 import type {
   ActivationStatus,
   LegacyTheme,
+  ManifestOverrides,
   ThemeFile,
   ThemeImportPreview,
   ThemeManifest,
@@ -630,4 +631,18 @@ export async function getActivationStatus(): Promise<ActivationStatus | null> {
 /** Validate a theme `.zip` and stage it for confirmation; nothing is installed yet. */
 export async function importThemePreview(zipPath: string): Promise<ThemeImportPreview> {
   return invoke<ThemeImportPreview>("import_theme_preview", { zipPath });
+}
+
+/** Move a validated staging directory into the live themes tree. Resolves with the installed id. */
+export async function confirmThemeInstall(stagingId: string): Promise<string> {
+  return invoke<string>("confirm_theme_install", { stagingId });
+}
+
+/** Package an installed theme to `destPath`, applying the export dialog's manifest overrides. */
+export async function exportTheme(
+  id: string,
+  manifestOverrides: ManifestOverrides,
+  destPath: string,
+): Promise<void> {
+  return invoke<void>("export_theme", { id, manifestOverrides, destPath });
 }

@@ -68,6 +68,8 @@ interface ThemeState {
   setTypographyOverride: (key: keyof Typography, value: string) => void;
   toggleLightRefined: () => void;
   saveTheme: (name: string) => Promise<void>;
+  /** Save `sourceId` under a new name — the active theme's live edits apply only when `sourceId` is the active theme. */
+  duplicateTheme: (sourceId: string, name: string) => Promise<void>;
   deleteTheme: (id: string) => Promise<void>;
   resetToBase: () => void;
 }
@@ -436,13 +438,18 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   },
 
   saveTheme: async (name) => {
+    await get().duplicateTheme(get().activeId, name);
+  },
+
+  duplicateTheme: async (sourceId, name) => {
     const { activeId, custom, customExtras, themeFiles } = get();
-    const pair = resolvedPair(activeId, themeFiles);
+    const live = sourceId === activeId;
+    const pair = resolvedPair(sourceId, themeFiles);
     const dark = {} as Palette;
     const light = {} as Palette;
     TOKENS.forEach((t) => {
-      dark[t] = custom.dark[t] ?? pair.dark[t];
-      light[t] = custom.light[t] ?? pair.light[t];
+      dark[t] = (live ? custom.dark[t] : undefined) ?? pair.dark[t];
+      light[t] = (live ? custom.light[t] : undefined) ?? pair.light[t];
     });
 
     const id = `local.${slugify(name)}`;
@@ -467,7 +474,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       schemaVersion: 1,
       dark,
       light,
-      ...effectiveExtras(activeId, themeFiles, customExtras),
+      ...(live ? effectiveExtras(sourceId, themeFiles, customExtras) : resolvedExtras(sourceId, themeFiles)),
     };
 
     try {
