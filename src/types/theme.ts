@@ -50,3 +50,21 @@ export interface LegacyTheme {
   bloom?: number;
   scheme?: string;
 }
+
+/** The pending theme activation, as the backend reports it. */
+export interface ActivationStatus {
+  previousId: string | null;
+  newId: string | null;
+  remainingMs: number;
+}
+
+/** What a validated theme package would install. Mirrors `theme::archive::ThemeImportPreview`. */
+export interface ThemeImportPreview {
+  /** Directory under `themes/.staging/` that the install step consumes. */
+  stagingId: string;
+  manifest: ThemeManifest;
+  packageSizeBytes: number;
+  fileCount: number;
+  /** `new`, `update`, `same_version` or `downgrade`. */
+  classification: string;
+}
