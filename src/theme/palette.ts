@@ -24,15 +24,6 @@ export interface ThemePair {
   light: Palette;
 }
 
-/** One saved skin, persisted under {@link STORE_KEY}. */
-export interface SavedTheme {
-  name: string;
-  dark: Palette;
-  light: Palette;
-  bloom: number;
-  scheme: "dark" | "light";
-}
-
 // ── Colour math ───────────────────────────────────────────────────
 
 export function hexToRgb(h: string): [number, number, number] {

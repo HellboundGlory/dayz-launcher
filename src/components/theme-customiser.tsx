@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import {
   useThemeStore,
   activePreset,
-  activeSaved,
+  activeInstalled,
   effective,
   resolvedPair,
 } from "@/theme/theme-store";
@@ -18,7 +18,8 @@ export function ThemeCustomiser() {
   const custom = useThemeStore((s) => s.custom);
   const lightRefined = useThemeStore((s) => s.lightRefined);
   const bloom = useThemeStore((s) => s.bloom);
-  const myThemes = useThemeStore((s) => s.myThemes);
+  const myThemes = useThemeStore((s) => s.installedThemes);
+  const themeFiles = useThemeStore((s) => s.themeFiles);
   const setScheme = useThemeStore((s) => s.setScheme);
   const pickTheme = useThemeStore((s) => s.pickTheme);
   const setBloom = useThemeStore((s) => s.setBloom);
@@ -31,9 +32,9 @@ export function ThemeCustomiser() {
   const [name, setName] = useState("");
   const dropRef = useRef<HTMLDivElement>(null);
 
-  const pair = resolvedPair(activeId, myThemes);
-  const palette = effective(scheme, activeId, myThemes, custom);
-  const saved = activeSaved(activeId, myThemes);
+  const pair = resolvedPair(activeId, themeFiles);
+  const palette = effective(scheme, activeId, themeFiles, custom);
+  const saved = activeInstalled(activeId, myThemes);
   const displayName = saved?.name ?? activePreset(activeId)?.name ?? "Neutral";
 
   // Outside mousedown closes the theme dropdown (same pattern as the filter
@@ -120,7 +121,7 @@ export function ThemeCustomiser() {
                 role="menuitemradio"
                 aria-checked={activeId === p.id}
                 onClick={() => {
-                  pickTheme(p.id);
+                  void pickTheme(p.id);
                   setDropOpen(false);
                 }}
                 className={cn(
@@ -142,32 +143,38 @@ export function ThemeCustomiser() {
                 </div>
                 {myThemes.map((t) => (
                   <div
-                    key={t.name}
+                    key={t.id}
                     className={cn(
                       "theme-item flex w-full items-center gap-2 px-2.5 py-[7px] transition-colors hover:bg-surface",
-                      saved?.name === t.name && "bg-accent-soft",
+                      saved?.id === t.id && "bg-accent-soft",
                     )}
                   >
                   <button
                     type="button"
                     role="menuitemradio"
-                    aria-checked={saved?.name === t.name}
+                    aria-checked={saved?.id === t.id}
                     onClick={() => {
-                      pickTheme(`custom:${t.name}`);
+                      void pickTheme(t.id);
                       setDropOpen(false);
                       }}
                       className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left text-[11px] font-semibold text-muted2 hover:text-ink"
                     >
                     <span className="chips inline-flex shrink-0 gap-0.5">
-                      <i className="h-2 w-2 rounded-[2px]" style={{ background: t.dark.accent }} />
-                      <i className="h-2 w-2 rounded-[2px]" style={{ background: t.dark.accent2 }} />
+                      <i
+                        className="h-2 w-2 rounded-[2px]"
+                        style={{ background: resolvedPair(t.id, themeFiles).dark.accent }}
+                      />
+                      <i
+                        className="h-2 w-2 rounded-[2px]"
+                        style={{ background: resolvedPair(t.id, themeFiles).dark.accent2 }}
+                      />
                     </span>
                     <span className="nm min-w-0 flex-1 truncate">{t.name}</span>
                   </button>
                   <button
                     type="button"
                       aria-label={`Delete theme ${t.name}`}
-                      onClick={() => deleteTheme(t.name)}
+                      onClick={() => void deleteTheme(t.id)}
                       className="cd shrink-0 cursor-pointer px-1 text-[8px] text-muted transition-colors hover:text-danger"
                     >
                       ✕
@@ -257,7 +264,7 @@ export function ThemeCustomiser() {
           maxLength={28}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
-              saveTheme(name.trim() || "Untitled theme");
+              void saveTheme(name.trim() || "Untitled theme");
               setName("");
             }
           }}
@@ -266,7 +273,7 @@ export function ThemeCustomiser() {
         <button
           type="button"
           onClick={() => {
-            saveTheme(name.trim() || "Untitled theme");
+            void saveTheme(name.trim() || "Untitled theme");
             setName("");
           }}
           className="shrink-0 rounded-[6px] border-none bg-accent px-3 py-[7px] text-[10px] font-bold uppercase tracking-[0.05em] text-[#10131a] shadow-[var(--glow)] transition-[filter] hover:brightness-110"
