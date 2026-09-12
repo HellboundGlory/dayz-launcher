@@ -956,6 +956,43 @@ mod tests {
     }
 
     #[test]
+    fn an_install_that_cannot_move_the_old_theme_aside_leaves_it_installed() {
+        let root = scratch("confirm-swap");
+        crate::theme::save(
+            &root,
+            &ThemeManifest {
+                version: "1.0.0".to_string(),
+                name: "Old Aurora".to_string(),
+                ..manifest()
+            },
+            &serde_json::json!({ "schemaVersion": manifest::SCHEMA_VERSION }),
+        )
+        .unwrap();
+        let replacement = ThemeManifest {
+            version: "2.0.0".to_string(),
+            ..manifest()
+        };
+        let zip_path = fixture_with_manifest(&root, "confirm-swap", &replacement);
+        let preview = stage_for_preview(&root, &zip_path, &[]).unwrap();
+        // Occupy the aside path so the swap cannot even start.
+        std::fs::write(
+            root.join(STAGING_DIR)
+                .join(format!("aurora.test.replaced-{}", preview.staging_id)),
+            b"occupied",
+        )
+        .unwrap();
+
+        let error = confirm_theme_install(&root, &preview.staging_id).unwrap_err();
+
+        assert!(error.contains("aside"), "message was: {error}");
+        let installed =
+            crate::theme::get(&root, "aurora.test").expect("the old theme must survive");
+        assert_eq!(installed.manifest.name, "Old Aurora");
+        // The staged import is untouched too, so the same preview can be confirmed again.
+        assert!(staging_dir(&root, &preview).is_dir());
+    }
+
+    #[test]
     fn confirming_an_unknown_staging_id_errors_and_touches_nothing() {
         let root = scratch("confirm-unknown");
         crate::theme::save(
