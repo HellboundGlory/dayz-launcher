@@ -367,8 +367,9 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   pickTheme: async (id, deleteOnRevert = false) => {
     if (activePreset(id) === undefined && get().themeFiles[id] === undefined) {
       try {
-        const file = await getTheme(id);
-        set({ themeFiles: { ...get().themeFiles, [id]: file } });
+        // Not just this theme's file — an id missing from themeFiles is
+        // usually missing from installedThemes too (a fresh import).
+        await refreshInstalledThemes();
       } catch (e) {
         // Leave the previous theme active rather than half-switching.
         console.error(`Could not load theme "${id}":`, e);
