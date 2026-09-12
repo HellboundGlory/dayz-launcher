@@ -5,14 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Theme Activation</title>
     <style>
-      /* Deliberately self-contained: this window loads no stylesheet, so the
-         rules here are the whole look. No `main.css`, no token spine, no
-         `data-tetra-*` hooks — a theme has no reach into this document, and
-         that isolation is the point of this window.
-
-         Unlike `splash.html`, this stays an inline block: `splash.css` exists
-         only because `main.css`'s Tailwind base layer outranks the document
-         head, and nothing loads `main.css` here. */
+      /* Self-contained: no main.css, no token spine, no data-tetra-* — a theme has no reach here. */
       html,
       body {
         margin: 0;

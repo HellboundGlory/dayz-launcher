@@ -1,16 +1,8 @@
 //! File-backed theme storage: one directory per theme under
 //! [`crate::paths::themes_dir`], holding a [`manifest::ThemeManifest`] in
-//! `theme.json` and the palette in `tokens.json`.
-//!
-//! Everything here takes a plain `&Path` root rather than an `AppHandle`, so
-//! the storage rules are testable against a scratch directory and the commands
-//! layer owns path resolution and logging. Deliberately no archive handling
-//! and no knowledge of what a token means — `tokens.json` is an opaque
-//! [`serde_json::Value`] past its structure, and the palette semantics live in
-//! the frontend.
-//!
-//! Read errors are never fatal, matching `settings.rs`'s posture: an
-//! unreadable theme is one entry missing from the grid, not a failed launch.
+//! `theme.json` and the palette in `tokens.json`. Takes a plain `&Path` root
+//! (not an `AppHandle`) so it's testable against a scratch directory. A
+//! read error is never fatal — an unreadable theme is just missing from the grid.
 
 pub mod archive;
 pub mod manifest;
@@ -26,9 +18,8 @@ pub const MANIFEST_FILE: &str = "theme.json";
 /// The palette file's name, alongside the manifest.
 pub const TOKENS_FILE: &str = "tokens.json";
 
-/// A theme as the grid lists it: the manifest fields a card or a compatibility
-/// check can use, without reading `tokens.json` for every install. `license`,
-/// `homepage` and `schemaVersion` stay in the full manifest — [`get`] returns those.
+/// A theme as the grid lists it, without reading `tokens.json` for every
+/// install. `license`/`homepage`/`schemaVersion` stay in the full manifest — [`get`] returns those.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ThemeSummary {
@@ -65,9 +56,7 @@ impl ThemeSummary {
     }
 }
 
-/// One theme, fully: its manifest and its `tokens.json` verbatim. The manifest
-/// is flattened into the same object rather than nested, so this reads as a
-/// manifest that happens to carry a `tokens` key.
+/// One theme, fully: its manifest flattened with its raw `tokens.json`.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ThemeFile {
     #[serde(flatten)]
@@ -75,17 +64,15 @@ pub struct ThemeFile {
     pub tokens: serde_json::Value,
 }
 
-/// What a scan of the themes directory found: the themes it can list, and one
-/// message per directory it had to skip (for the caller to log).
+/// A scan's result: themes found, and one skip message per directory that failed.
 #[derive(Debug, Default)]
 pub struct Scan {
     pub themes: Vec<ThemeSummary>,
     pub skipped: Vec<String>,
 }
 
-/// What a legacy migration did. `migrated` is ids that now exist on disk —
-/// only those, so a caller remapping its selection can't be pointed at a
-/// theme that was never written.
+/// `migrated` is ids that now exist on disk — a caller remapping its
+/// selection can't be pointed at a theme that failed to write.
 #[derive(Debug, Default)]
 pub struct Migration {
     pub migrated: Vec<String>,
@@ -93,7 +80,7 @@ pub struct Migration {
 }
 
 /// A custom theme as the frontend's `localStorage` held it, before themes were
-/// files. Mirrors the frontend's `SavedTheme`; only read, never written.
+/// files. Mirrors the frontend's `SavedTheme`; read-only.
 #[derive(Debug, Clone, Default, serde::Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct LegacyTheme {
@@ -104,12 +91,9 @@ pub struct LegacyTheme {
     pub scheme: Option<String>,
 }
 
-/// Whether `id` can be one directory name under the themes root.
-///
-/// The manifest's `id` is author-controlled, and it becomes a path component —
-/// so `../../evil` must never be joined onto the themes directory — and the
-/// same layout travels from Windows to Linux, so the characters a Windows file
-/// name refuses are refused everywhere.
+/// Whether `id` can be one directory name under the themes root — author
+/// controlled and becomes a path component, so `../../evil` must be refused,
+/// and Windows-illegal characters are refused everywhere for one shared layout.
 pub fn is_usable_id(id: &str) -> bool {
     !id.trim().is_empty()
         && id != "."
@@ -158,9 +142,7 @@ pub fn get(themes_root: &Path, id: &str) -> Result<ThemeFile, String> {
     }
 
     let manifest = read_manifest(&dir)?;
-    // The directory name is the theme's identity — `save` derives one from the
-    // other — so a manifest whose `id` disagrees would be addressable under two
-    // names. Treat it as a broken install rather than guessing which wins.
+    // The directory name is the theme's identity; a disagreeing manifest.id is a broken install.
     if manifest.id != id {
         return Err(format!(
             "{} declares id `{}`, which does not match its directory",
@@ -179,9 +161,8 @@ pub fn get(themes_root: &Path, id: &str) -> Result<ThemeFile, String> {
     Ok(ThemeFile { manifest, tokens })
 }
 
-/// Every theme under `themes_root`, sorted by id so the grid's order is stable
-/// across runs. A directory with a missing, unreadable, corrupt or
-/// self-contradicting manifest is reported in [`Scan::skipped`] and left out.
+/// Every theme under `themes_root`, sorted by id. A directory with a missing,
+/// unreadable, or self-contradicting manifest is reported in [`Scan::skipped`] and left out.
 pub fn scan(themes_root: &Path) -> Scan {
     let mut scan = Scan::default();
     let Ok(entries) = std::fs::read_dir(themes_root) else {
@@ -231,8 +212,7 @@ pub fn save(
 
     std::fs::create_dir_all(themes_root)
         .map_err(|e| format!("Could not create {}: {e}", themes_root.display()))?;
-    // `create_dir`, not `create_dir_all`: an existing theme must fail here
-    // rather than be silently merged into.
+    // create_dir, not create_dir_all: an existing theme must fail, not merge.
     std::fs::create_dir(&dir).map_err(|e| match e.kind() {
         std::io::ErrorKind::AlreadyExists => format!(
             "A theme with id `{}` is already installed at {}",
@@ -242,8 +222,7 @@ pub fn save(
         _ => format!("Could not create {}: {e}", dir.display()),
     })?;
 
-    // A theme is its two files; a half-written directory would show up in the
-    // grid as a theme that can't be loaded, so it is removed rather than kept.
+    // A half-written directory would show up as a theme that can't load, so remove it instead.
     for (name, bytes) in [(MANIFEST_FILE, &manifest_json), (TOKENS_FILE, &tokens_json)] {
         let path = dir.join(name);
         if let Err(e) = crate::atomic_write::write_atomically(&path, bytes) {
@@ -255,12 +234,9 @@ pub fn save(
     Ok(manifest.id.clone())
 }
 
-/// Delete an installed theme. An id with no directory is refused rather than
-/// ignored — a built-in preset has nothing to delete, and this command is not
-/// the way to try. That check comes first: "switch away from it" is misleading
-/// advice for an id that was never installed. `active` is the currently
-/// selected theme id, which must be switched away from first — deleting it
-/// would leave the selection pointing at nothing.
+/// Delete an installed theme. Refuses an id with no directory (a built-in
+/// preset, checked first so the error isn't misleading) and refuses `active`,
+/// which would otherwise leave the selection pointing at nothing.
 pub fn delete(themes_root: &Path, id: &str, active: Option<&str>) -> Result<(), String> {
     let dir = theme_dir(themes_root, id)?;
     if !dir.is_dir() {
@@ -293,15 +269,12 @@ pub fn slugify(name: &str) -> String {
 }
 
 /// Bring themes saved in the frontend's `localStorage` into file-backed
-/// storage, one directory each. One-shot and best-effort: an entry that can't
-/// be written is reported and the rest still migrate.
+/// storage, one directory each. Best-effort: a bad entry is reported and the rest still migrate.
 pub fn migrate(themes_root: &Path, legacy: &[LegacyTheme]) -> Migration {
     let mut migration = Migration::default();
     for theme in legacy {
         let fallback = || format!("{:?}", theme.name);
-        // A palette the frontend saved is a pair of token maps. Anything else
-        // is a partial or corrupt entry, and writing it would install a theme
-        // that cannot load.
+        // A saved palette is a pair of token-map objects; anything else is corrupt.
         if !theme.dark.is_object() || !theme.light.is_object() {
             migration.skipped.push(format!(
                 "{}: dark/light are not token objects; not migrated",
@@ -311,9 +284,6 @@ pub fn migrate(themes_root: &Path, legacy: &[LegacyTheme]) -> Migration {
         }
 
         let id = format!("local.{}", slugify(&theme.name));
-        // Exactly the documented shape — `bloom` and `scheme` are the
-        // frontend's to interpret, and inventing extra token keys here would
-        // be guessing at a contract this backend deliberately doesn't own.
         let tokens = serde_json::json!({
             "schemaVersion": manifest::SCHEMA_VERSION,
             "dark": theme.dark,

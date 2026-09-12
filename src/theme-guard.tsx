@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { invoke } from "@tauri-apps/api/core";
-// The only import from `src/theme/` this window is allowed to have: `palette`
-// is plain data plus pure colour math with no side effects. Deliberately not
-// `theme-store` or `apply` — this window must have no path to the live theming
-// engine, since the thing it guards against is a theme that got past it.
+// The only import from src/theme/ this window may have: palette is pure data
+// with no side effects. Never theme-store or apply — no path to the live engine.
 import { PRESETS } from "@/theme/palette";
 
 /** Shape returned by the backend while an activation is pending. */
@@ -27,24 +25,17 @@ function nameFor(id: string | null, resolved: Record<string, string>): string {
   return PRESET_NAMES[id] ?? resolved[id] ?? id;
 }
 
-// Theme-guard window's root: polls the backend for the pending activation and
-// offers Keep / Revert. Mounted in its own window/bundle (`theme-guard.html`),
-// isolated from the launcher UI on purpose, so a hostile theme can't style or
-// script the prompt that asks about it.
+// Polls the backend for the pending activation and offers Keep/Revert. Its
+// own window/bundle, isolated so a hostile theme can't style or script it.
 function ThemeGuardRoot() {
   const [status, setStatus] = useState<ActivationStatus | null>(null);
   const [names, setNames] = useState<Record<string, string>>({});
-  // One shot per activation. Keep, an explicit Revert, and the countdown
-  // expiring are mutually exclusive, and the poll keeps returning a status for
-  // a few frames after whichever one fires (until the backend clears it), so
-  // without this a late expiry tick would revert a theme the user just kept.
-  // `null` clears it, but so does a countdown restarting upward — a second
-  // theme picked before the first window ever read `null` still gets its own
-  // guard, which a bare boolean reset on `null` would silently skip.
+  // Guards against a late poll tick (status not yet cleared to null) reverting
+  // a theme just kept. A restarting countdown also resets it, so a second
+  // activation before the window reads null still gets its own guard.
   const settled = useRef(false);
   const lastRemaining = useRef<number | null>(null);
-  // Custom-theme ids already looked up, so `get_theme` fires once per id and
-  // not once per 250ms tick.
+  // So get_theme fires once per id, not once per poll tick.
   const asked = useRef(new Set<string>());
 
   useEffect(() => {
@@ -73,8 +64,7 @@ function ThemeGuardRoot() {
     };
   }, []);
 
-  // Names for themes that aren't built-in presets arrive after the first paint;
-  // the countdown shows the raw id until then rather than waiting on the lookup.
+  // Non-preset names resolve after first paint; the countdown shows the raw id until then.
   useEffect(() => {
     if (status === null) return;
     for (const id of [status.previousId, status.newId]) {
@@ -111,8 +101,6 @@ function ThemeGuardRoot() {
     if (status !== null && status.remainingMs <= 0) revert();
   }, [status, revert]);
 
-  // Hidden state: the backend hides the window with no activation pending, so
-  // there is nothing to paint.
   if (status === null) return null;
 
   const seconds = Math.ceil(status.remainingMs / 1000);

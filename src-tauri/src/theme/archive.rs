@@ -1,88 +1,52 @@
-//! Importing a theme `.zip`: everything between "the user picked a file" and
-//! "a validated theme is waiting in a staging directory".
-//!
-//! [Staging](stage_for_preview) never writes into the themes directory itself.
-//! It unpacks a package into `themes/.staging/<id>` and reports what it found,
-//! so the confirmation step that follows can install from a layout it already
-//! trusts, and an importer that closes the dialog leaves nothing behind but a
-//! staging directory the next import overwrites.
-//!
-//! An accepted archive is still hostile input: every limit here is enforced
-//! while streaming, before the entry is written, and the checks run cheap-first
-//! — a truncated file is rejected before a single byte is extracted. Like
-//! [`crate::theme`], every failure is a message to show the user, never a panic.
+//! Importing a theme `.zip`: [`stage_for_preview`] unpacks into
+//! `themes/.staging/<id>` (never the live themes directory) and reports what
+//! it found. Every limit is enforced while streaming, cheapest checks first,
+//! before an entry is written — this is still hostile input.
 
 use std::io::{Read, Seek, Write};
 use std::path::{Path, PathBuf};
 
 use crate::theme::{ThemeManifest, ThemeSummary, MANIFEST_FILE, TOKENS_FILE};
 
-/// The token API this build understands. A package written against any other
-/// one is refused rather than guessed at.
-///
-/// Exact equality today because `"1.0"` is the only API version there has ever
-/// been. When a second one exists this becomes a range check (a package on
-/// `"1.1"` should still load on a launcher that speaks `"1.0"`), which is why
-/// the name says range rather than version.
+/// Exact match today since `"1.0"` is the only version so far; becomes a
+/// range check once a second one exists (hence the name).
 pub const SUPPORTED_THEME_API_RANGE: &str = "1.0";
 
-/// The only tier this build can honour. `full` and anything a later build
-/// invents name launcher features that are not here.
 const SUPPORTED_TIER: &str = "basic";
 
-/// Packages hold a manifest and a palette. The ceiling is headroom above that,
-/// not a target — it exists so a themed asset pack someone zipped by accident
-/// fails here with a size message instead of mid-extraction.
+/// Headroom above a manifest+palette, not a target — big enough for a real
+/// theme, small enough to reject an accidental asset pack cleanly.
 const MAX_FILES: usize = 20;
 
-/// Uncompressed, summed across entries. A theme's `tokens.json` is a few kB;
-/// this is generous for two JSON files and small enough that a zip bomb is
-/// refused before it can fill a disk.
+/// Uncompressed, summed across entries — generous for two JSON files, small
+/// enough to refuse a zip bomb before it fills a disk.
 const MAX_TOTAL_UNCOMPRESSED_BYTES: u64 = 2 * 1024 * 1024;
 
-/// Path separators an entry name may contain. Three levels is
-/// `preview/dark/…`, already more nesting than a theme ships.
+/// `preview/dark/…` is already deeper nesting than a theme ships.
 const MAX_PATH_DEPTH: usize = 3;
 
-/// The directory name imports are staged under, inside the themes root.
 const STAGING_DIR: &str = ".staging";
 
 /// What a validated package would install, for the confirmation dialog.
-///
-/// `staging_id` is the handle a later `confirm_theme_install` uses to find the
-/// extracted files: the directory [`stage_for_preview`] left at
-/// `themes/.staging/<staging_id>`. The rest is what the dialog shows and what
-/// the install step will write, already parsed here so neither has to reopen
-/// the archive.
+/// `staging_id` names the directory under `themes/.staging/` that
+/// `confirm_theme_install` will later consume.
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ThemeImportPreview {
-    /// Name of the staging directory holding the extracted package.
     pub staging_id: String,
-    /// The package's manifest, validated against this build.
     pub manifest: ThemeManifest,
-    /// Compressed size of the package the user picked.
     pub package_size_bytes: u64,
-    /// Files extracted from it — the manifest, the palette, and any artwork.
     pub file_count: usize,
-    /// What installing would do to the installed themes, so the dialog can say
-    /// "Update to 1.2.0" rather than "Install". One of `"new"`, `"update"`,
-    /// `"same_version"` or `"downgrade"`.
+    /// `"new"`, `"update"`, `"same_version"` or `"downgrade"`.
     pub classification: String,
 }
 
-/// What installing does when no installed theme shares the package's id.
 const CLASSIFICATION_NEW: &str = "new";
 
 /// Unpack `zip_path` into `themes/.staging/<id>` and report what it holds.
-///
-/// `installed` is the caller's [`crate::theme::scan`] result, passed in rather
-/// than re-scanned so this stays a pure function of its arguments and is
-/// testable with no installed-themes directory at all.
-///
-/// On success the staging directory stays put for the install step to consume.
-/// On the first failed check it is removed and the caller gets [`Err`] — the
-/// message is written to be shown to the user as-is.
+/// `installed` is the caller's [`crate::theme::scan`] result, passed in so
+/// this stays pure and testable. On success the staging dir stays for the
+/// install step; on the first failed check it's removed and the caller gets [`Err`].
 pub fn stage_for_preview(
     themes_root: &Path,
     zip_path: &Path,
@@ -93,8 +57,7 @@ pub fn stage_for_preview(
         .len();
     let file = std::fs::File::open(zip_path)
         .map_err(|e| format!("Could not open {}: {e}", zip_path.display()))?;
-    // (1) A file that isn't a zip at all, or is truncated, fails here — before
-    // any staging directory exists to clean up.
+    // A non-zip or truncated file fails here, before any staging directory exists.
     let mut archive = zip::ZipArchive::new(file).map_err(|e| {
         format!(
             "{} is not a readable theme package: {e}",
@@ -125,27 +88,21 @@ pub fn stage_for_preview(
     }
 }
 
-/// The checks themselves, split out so [`stage_for_preview`] owns exactly one
-/// cleanup path: every `Err` from here discards the staging directory.
-///
-/// The order is deliberate — limits and the zip-slip guard are answered from
-/// the central directory, so a malicious archive is refused before it can
-/// inflate; the manifest's semantics are only examined once its bytes exist.
+/// Split out so [`stage_for_preview`] owns the one cleanup path: every `Err`
+/// here discards the staging directory. Order is deliberate: limits and
+/// zip-slip are checked before extraction, the manifest only after its bytes exist.
 fn inspect<R: Read + Seek>(
     archive: &mut zip::ZipArchive<R>,
     staging_dir: &Path,
 ) -> Result<(ThemeManifest, usize), String> {
-    // Canonicalised once here: the zip-slip guard compares a resolved output
-    // path against it, and `staging_dir` was just created, so on Windows the
-    // resolved form (`\\?\C:\…`) is what the comparison needs.
+    // Canonicalised once: on Windows the zip-slip check needs `\\?\C:\…` form to compare against.
     let staging_root = staging_dir
         .canonicalize()
         .map_err(|e| format!("Could not resolve {}: {e}", staging_dir.display()))?;
 
     let mut extracted = 0usize;
-    // Actual bytes decompressed, never `ZipFile::size()` — that field is the
-    // archive's own claim. A crafted archive can declare a small size and then
-    // stream gigabytes, so the limit has to be enforced against what is read.
+    // Bytes actually decompressed, never the archive's own claimed `size()` —
+    // a crafted entry can declare small and stream gigabytes.
     let mut total_bytes = 0u64;
 
     for index in 0..archive.len() {
@@ -154,8 +111,6 @@ fn inspect<R: Read + Seek>(
             .map_err(|e| format!("Could not read entry {index} of the package: {e}"))?;
         let name = entry.name().to_string();
 
-        // (2) Limits, before an entry is written: one archive past any of
-        // these is refused whole, not partially unpacked.
         if extracted >= MAX_FILES {
             return Err(format!(
                 "This package holds more than {MAX_FILES} files — a theme is a manifest and a palette."
@@ -167,8 +122,7 @@ fn inspect<R: Read + Seek>(
                 "`{name}` is nested {depth} levels deep; a theme package may nest at most {MAX_PATH_DEPTH}."
             ));
         }
-        // Declared sizes are refused early too, but only as a cheap hint — the
-        // streaming sum below is what actually enforces the limit.
+        // A cheap early hint only — the streaming sum below is what actually enforces the limit.
         if let Some(claimed) = entry.size().checked_add(total_bytes) {
             if claimed > MAX_TOTAL_UNCOMPRESSED_BYTES {
                 return Err(format!(
@@ -180,25 +134,16 @@ fn inspect<R: Read + Seek>(
             return Err("This package's declared size overflows — refusing it.".to_string());
         }
 
-        // (3) Zip-slip, for *every* entry including directories: a name that
-        // would resolve outside the staging directory is refused without being
-        // written, symlinks included — an extracted symlink is a path out of
-        // the package by another route. This runs before the directory skip
-        // below so a `../` directory cannot create a directory outside staging
-        // and have the next entry "legitimately" write into it.
+        // Checked for every entry including directories, before the directory
+        // skip below — a `../` directory must not exist for a later entry to write into.
         let output = safe_output_path(&staging_root, &name, &entry)?;
 
-        // Directories carry no content and, importantly, no extension: they
-        // are skipped rather than run through the allow-list below, since a
-        // package may legitimately hold a `preview/` directory. The path was
-        // still vetted just above.
+        // No extension to check, and a legitimate `preview/` dir is fine — already path-checked above.
         if entry.is_dir() {
             continue;
         }
 
-        // (4) A package's files are JSON. Extension is checked against the
-        // full name on purpose: `tokens.json/…` and `tokens.json.exe` alike
-        // fail, and there is no "close enough" here to slip past.
+        // Checked against the full name: `tokens.json/…` and `tokens.json.exe` both fail.
         if !name.ends_with(".json") {
             return Err(format!(
                 "`{name}` is not a `.json` file — a theme package holds only `theme.json` and `tokens.json`."
@@ -209,16 +154,13 @@ fn inspect<R: Read + Seek>(
         extracted += 1;
     }
 
-    // (5) The manifest: present, JSON, and a manifest.
     let manifest_path = staging_dir.join(MANIFEST_FILE);
     let raw = std::fs::read_to_string(&manifest_path)
         .map_err(|_| format!("This package has no {MANIFEST_FILE} — it is not a Tetra theme."))?;
     let parsed: ThemeManifest = serde_json::from_str(&raw)
         .map_err(|e| format!("{MANIFEST_FILE} is not a valid manifest: {e}"))?;
 
-    // The three compatibility gates, cheapest first, all before `tokens.json`
-    // is even read. Each names what the user can do about it, since the fix is
-    // on the theme's side, not theirs.
+    // Three compatibility gates, cheapest first, before tokens.json is even read.
     if parsed.tier != SUPPORTED_TIER {
         return Err(format!(
             "`{}` is a `{}` theme, which this build cannot load — this theme needs a newer Tetra Launcher.",
@@ -233,7 +175,6 @@ fn inspect<R: Read + Seek>(
     }
     minimum_launcher_version_at_most(&parsed)?;
 
-    // (6) The palette, by the same rules an installed theme's is held to.
     let tokens_path = staging_dir.join(TOKENS_FILE);
     let raw = std::fs::read_to_string(&tokens_path)
         .map_err(|_| format!("This package has no {TOKENS_FILE} — it is not a Tetra theme."))?;
@@ -241,8 +182,7 @@ fn inspect<R: Read + Seek>(
         serde_json::from_str(&raw).map_err(|e| format!("{TOKENS_FILE} is not valid JSON: {e}"))?;
     crate::theme::validate_tokens(&tokens)?;
 
-    // Last, and after everything else has passed: an id only matters once the
-    // theme is acceptable, and it becomes a directory name on install.
+    // Checked last: the id becomes a directory name on install.
     if !crate::theme::is_usable_id(&parsed.id) {
         return Err(format!(
             "This package declares id `{}`, which is not a usable theme id.",
@@ -253,14 +193,11 @@ fn inspect<R: Read + Seek>(
     Ok((parsed, extracted))
 }
 
-/// Resolve one entry's output path inside `staging_root`, or refuse the entry.
-///
-/// The three refusals are the ways an entry name escapes: a literal `..`
-/// segment, an absolute path (which `Path::join` would discard the staging
-/// directory for), and a symlink (whose *content* is a path elsewhere, which
-/// the install step would then follow). After that, the canonicalised parent
-/// is checked to still be under `staging_root` — belt and braces against a
-/// name that is none of those but resolves out anyway.
+/// Resolve one entry's output path inside `staging_root`, refusing the three
+/// ways a name escapes it: a `..` segment, an absolute path (which
+/// `Path::join` would let override the staging root), or a symlink (whose
+/// target is a path elsewhere). Then the canonicalised parent is checked to
+/// still be under `staging_root`, belt and braces against any other escape.
 fn safe_output_path(
     staging_root: &Path,
     name: &str,
@@ -287,9 +224,7 @@ fn safe_output_path(
     }
 
     let output = staging_root.join(relative);
-    // The parent is created before the check because canonicalising it is what
-    // proves the join stayed inside — and a `None` here means the name's parent
-    // is not a directory, which the write below would fail on regardless.
+    // Created before canonicalising, since canonicalize needs the path to exist.
     if let Some(parent) = output.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| format!("Could not create {}: {e}", parent.display()))?;
@@ -315,8 +250,7 @@ fn write_entry(
 ) -> Result<(), String> {
     let mut file = std::fs::File::create(output)
         .map_err(|e| format!("Could not write {}: {e}", output.display()))?;
-    // Chunked rather than `io::copy` so the running total is checked as it
-    // grows: `io::copy` would happily stream the whole bomb before returning.
+    // Chunked, not io::copy, so the running total is checked as it grows rather than after the fact.
     let mut buffer = [0u8; 16 * 1024];
     let mut tail = [0u8; 1];
     loop {
@@ -336,8 +270,7 @@ fn write_entry(
         file.write_all(&buffer[..read])
             .map_err(|e| format!("Could not write {}: {e}", output.display()))?;
     }
-    // One byte past the buffer: an archive that lies about its size would
-    // otherwise leave a silently truncated file that still parses.
+    // One byte past what was declared, to catch a size that lied short.
     if entry
         .read(&mut tail)
         .map_err(|e| format!("Could not read {} from the package: {e}", output.display()))?
@@ -351,12 +284,9 @@ fn write_entry(
     Ok(())
 }
 
-/// Refuse a manifest that needs a launcher newer than this build.
-///
-/// Both sides are real versions rather than strings, because `"2.6.0" > "2.10.0"`
-/// lexically and the comparison here decides whether a theme loads at all. A
-/// manifest whose version does not parse is refused rather than skipped: it
-/// cannot be shown to be compatible, and installing it would fail at load.
+/// Refuse a manifest that needs a launcher newer than this build. Parsed as
+/// real versions, not compared as strings — `"2.6.0" > "2.10.0"` lexically.
+/// An unparseable version is refused, not skipped: it can't be shown compatible.
 fn minimum_launcher_version_at_most(manifest: &ThemeManifest) -> Result<(), String> {
     let minimum =
         semver::Version::parse(manifest.minimum_launcher_version.trim()).map_err(|e| {
@@ -376,13 +306,7 @@ fn minimum_launcher_version_at_most(manifest: &ThemeManifest) -> Result<(), Stri
     Ok(())
 }
 
-/// What installing `manifest` would do to `installed`.
-///
-/// Whichever installed theme shares the id decides the comparison — an update
-/// that skips a version is still an update, and a re-import of the same number
-/// is called out separately so the dialog can warn before replacing a theme
-/// the user already has. An installed theme whose version does not parse is
-/// treated as older: its `version` is not a fact anyone can act on.
+/// What installing `manifest` would do to `installed`, keyed on a shared id.
 fn classify(manifest: &ThemeManifest, installed: &[ThemeSummary]) -> String {
     let Some(existing) = installed.iter().find(|t| t.id == manifest.id) else {
         return CLASSIFICATION_NEW.to_string();
@@ -394,22 +318,15 @@ fn classify(manifest: &ThemeManifest, installed: &[ThemeSummary]) -> String {
             Ok(_) => "same_version",
             Err(_) => "update",
         },
-        // Unparseable incoming version: it cannot beat a real one, and
-        // "same_version" would be a claim about two things, neither of which
-        // is a version.
+        // An unparseable incoming version can't beat a real one.
         Err(_) => "downgrade",
     };
     classification.to_string()
 }
 
-/// A staging directory name, unique enough that two imports in the same
-/// process — or two launchers sharing a data root — cannot collide.
-///
-/// `paths.rs` and `theme`'s tests use the clock for the same reason: unique
-/// here means "never equal to a name already on disk", not globally random.
-/// The counter covers imports landing within one clock tick, which is the case
-/// a tests' loop hits, and carries the pid so a second process cannot reuse a
-/// tick this one already spent.
+/// Unique enough that two imports never collide: never equal to a name
+/// already on disk, not globally random. The pid guards against a second
+/// process reusing a clock tick this one already spent.
 fn staging_name() -> String {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -428,8 +345,7 @@ mod tests {
     use crate::theme::manifest;
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    /// A scratch directory unique to one test, the way `paths.rs` does it (no
-    /// `tempfile` dependency) — never the real themes root.
+    /// A scratch directory unique to one test — never the real themes root.
     fn scratch(tag: &str) -> PathBuf {
         static N: AtomicU64 = AtomicU64::new(0);
         let seq = N.fetch_add(1, Ordering::Relaxed);
@@ -442,8 +358,7 @@ mod tests {
         dir
     }
 
-    /// A manifest that passes every gate, so a test only varies the field it
-    /// is about.
+    /// Passes every gate, so a test only varies the field it's about.
     fn manifest() -> ThemeManifest {
         ThemeManifest {
             id: "aurora.test".to_string(),
@@ -468,9 +383,7 @@ mod tests {
         .to_string()
     }
 
-    /// One entry for the writer below. A symlink is not a file's business —
-    /// `add_symlink` writes it — so it is its own case rather than a
-    /// `ZipEntry` variant.
+    /// One entry for the writer below; a symlink needs `add_symlink`, so it's its own case.
     enum Entry {
         File(String, String),
         Symlink(String, String),
@@ -486,8 +399,7 @@ mod tests {
         }
     }
 
-    /// Build a package in-test with the `zip` crate's own writer, so a fixture
-    /// is never a checked-in binary that could rot or be edited by hand.
+    /// Built in-test with the `zip` crate's own writer — never a checked-in binary fixture.
     fn build_zip(path: &Path, entries: &[Entry]) {
         let file = std::fs::File::create(path).expect("could not create fixture zip");
         let mut writer = zip::ZipWriter::new(file);
@@ -586,11 +498,7 @@ mod tests {
         assert!(dir.join(MANIFEST_FILE).is_file());
         assert!(dir.join(TOKENS_FILE).is_file());
 
-        // The field names the frontend dialog will read. Checked here because
-        // `rename_all` is one attribute away from `staging_id`, which no other
-        // assertion would notice until the dialog saw `undefined`. Sorted,
-        // because `serde_json` without `preserve_order` emits keys in
-        // alphabetical order rather than declaration order.
+        // The wire field names, so a `rename_all` slip doesn't surface as `undefined` in the dialog.
         let json = serde_json::to_value(&preview).unwrap();
         let mut keys: Vec<&str> = json
             .as_object()
@@ -899,10 +807,8 @@ mod tests {
     #[test]
     fn staging_does_not_disturb_the_installed_themes_scan() {
         let root = scratch("scansafe");
-        // `.staging` lives inside the themes root (the layout this task
-        // specifies), so `theme::scan` walks into it — and a staged package
-        // carries a valid `theme.json`, so what must hold is that a
-        // previewed-but-unconfirmed theme is not *installed*.
+        // `.staging` lives inside the themes root, so `theme::scan` walks into
+        // it — a staged-but-unconfirmed theme must not show up as installed.
         crate::theme::save(
             &root,
             &ThemeManifest {
@@ -918,9 +824,6 @@ mod tests {
         let scan = crate::theme::scan(&root);
 
         assert!(staging_dir(&root, &preview).is_dir());
-        // Held because `staging_id` has no `theme.json` at the top level of
-        // `.staging`: were a later change to flatten the files up a level, this
-        // is what catches a staged theme leaking into the grid as installed.
         assert_eq!(
             scan.themes
                 .iter()
@@ -928,10 +831,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["installed.theme"]
         );
-        // The staging root itself is the one directory scan must report: it is
-        // not a theme, and `scan` deliberately reports rather than silently
-        // ignores a directory it cannot read (see `theme::scan`). Pinned so a
-        // second unknown directory in `skipped` is a failure, not new noise.
+        // `.staging` itself is the one directory scan reports as skipped, not silently ignored.
         assert_eq!(scan.skipped.len(), 1, "scan skipped: {:?}", scan.skipped);
         assert!(
             scan.skipped[0].contains(STAGING_DIR),

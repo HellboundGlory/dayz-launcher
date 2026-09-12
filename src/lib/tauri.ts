@@ -578,17 +578,16 @@ export async function listInstalledThemes(): Promise<ThemeSummary[]> {
   return invoke<ThemeSummary[]>("list_installed_themes");
 }
 
-/** One theme with its manifest and `tokens.json` flattened into a single object — the palette is `tokens`, not a nested `manifest` key. */
 export async function getTheme(id: string): Promise<ThemeFile> {
   return invoke<ThemeFile>("get_theme", { id });
 }
 
-/** Installs a new theme and resolves with its id. Create-only: an id that already exists is an error, so this never overwrites a theme. */
+/** Create-only — an id that already exists is an error, never an overwrite. */
 export async function saveTheme(manifest: ThemeManifest, tokens: unknown): Promise<string> {
   return invoke<string>("save_theme", { manifest, tokens });
 }
 
-/** Destructive. Refuses the active theme and any id with no directory on disk — switch away first, and built-in presets aren't deletable. */
+/** Destructive. Refuses the active theme, and any id with no directory (built-in presets). */
 export async function deleteTheme(id: string): Promise<void> {
   return invoke<void>("delete_theme", { id });
 }
@@ -597,7 +596,7 @@ export async function setActiveThemeId(id: string | null): Promise<void> {
   return invoke<void>("set_active_theme_id", { id });
 }
 
-/** Imports themes an older build saved in `localStorage`, and resolves with the ids created in input order — remap a saved selection against those, since a rejected theme is absent from the list. */
+/** Resolves with the ids created, in input order — remap a saved selection against those. */
 export async function migrateLegacyCustomThemes(legacy: LegacyTheme[]): Promise<string[]> {
   return invoke<string[]>("migrate_legacy_custom_themes", { legacy });
 }

@@ -77,9 +77,7 @@ export function applyTheme(
       `0 0 ${r(60)} ${rgba(palette.accent, A(0.16))}`,
   );
 
-  // Non-colour tokens (spacing / radii / typography). Same mechanism as the
-  // color tokens above: direct literal values, never calc() — the engines the
-  // app ships on drop computed custom-property math.
+  // Literal values, never calc() — same WebKitGTK constraint as the glow box-shadow above.
   p.setProperty("--space-xs", extras.spacing.xs);
   p.setProperty("--space-sm", extras.spacing.sm);
   p.setProperty("--space-md", extras.spacing.md);
