@@ -205,6 +205,7 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
             return (
               <div
                 key={rowKey}
+                data-tetra-slot="server.row"
                 data-index={virtualRow.index}
                 ref={rowVirtualizer.measureElement}
                 onClick={() => setSelectedServer(server)}
@@ -257,7 +258,7 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
 
                 <div className="l2-main min-w-0 flex-1">
                   <div className="flex items-center gap-1 whitespace-nowrap text-[12px] font-semibold">
-                    <div className="flex shrink-0 gap-1">
+                    <div data-tetra-el="tagsLine" className="flex shrink-0 gap-1">
                       {!server.online && <Tag tone="danger">OFFLINE</Tag>}
                       {server.official && <Tag tone="accent">VANILLA</Tag>}
                       {server.modded && <Tag tone="accent2">MODDED</Tag>}
@@ -266,13 +267,14 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                       {modPending[server.addr] && (
                         <Tag
                           tone="accent"
+                          data-tetra-el="modStatusBadge"
                           title="A declared mod has a Steam update pending"
                         >
                           UPDATE
                         </Tag>
                       )}
                     </div>
-                    <span className="min-w-0 truncate text-ink">
+                    <span data-tetra-el="name" className="min-w-0 truncate text-ink">
                       {server.name}
                     </span>
                   </div>
@@ -287,7 +289,7 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                       )}
                     </span>
                     <span>·</span>
-                    <span>{regionName(server.country_code)}</span>
+                    <span data-tetra-el="regionFlag">{regionName(server.country_code)}</span>
                     <span>·</span>
                     <span className="font-mono-data">{server.addr}</span>
                     {view === "recent" && server.last_played != null && (
@@ -304,6 +306,7 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                 <div className="l2-stats flex shrink-0 items-center gap-3.5">
                   <div className="l2-stat text-right">
                     <div
+                      data-tetra-el="playerCount"
                       className={cn(
                         "font-mono-data text-[13px] font-bold tabular-nums leading-none",
                         !server.online || server.players === 0
@@ -334,6 +337,7 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                   </div>
                   <div className="l2-stat text-right">
                     <div
+                      data-tetra-el="pingBadge"
                       className={cn(
                         "font-mono-data text-[13px] font-bold tabular-nums leading-none",
                         !server.online || server.ping === null
@@ -422,13 +426,16 @@ function Tag({
   tone,
   title,
   children,
+  "data-tetra-el": dataTetraEl,
 }: {
   tone: TagTone;
   title?: string;
   children: React.ReactNode;
+  "data-tetra-el"?: string;
 }) {
   return (
     <span
+      data-tetra-el={dataTetraEl}
       title={title}
       className={cn(
         "inline-block shrink-0 rounded-[4px] px-1 py-px text-[8px] font-bold uppercase leading-[1.3] tracking-[0.04em]",

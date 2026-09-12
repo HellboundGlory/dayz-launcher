@@ -97,7 +97,10 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="absolute inset-0 z-[90] flex items-center justify-center bg-[rgba(5,8,13,0.7)]">
-      <div className="w-[min(360px,calc(100%-40px))] overflow-hidden rounded-[10px] border border-line bg-surface shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
+      <div
+        data-tetra-slot="modal.onboarding"
+        className="w-[min(360px,calc(100%-40px))] overflow-hidden rounded-[10px] border border-line bg-surface shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
+      >
         <div className="flex items-start gap-2.5 border-b border-line p-4">
           <img src={tetraLogo} alt="" className="size-9 shrink-0 rounded-[7px] shadow-[var(--glow)]" />
           <div>
@@ -189,6 +192,7 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
                   className={cn(INPUT_CLASS, "font-mono-data text-[10px]")}
                 />
                 <button
+                  data-tetra-el="pathBrowser"
                   onClick={browseForFolder}
                   disabled={browsing}
                   title="Browse for your DayZ install folder"
@@ -216,6 +220,7 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
 
         <div className="flex flex-col gap-2 border-t border-line p-4 pt-3">
           <button
+            data-tetra-el="primaryAction"
             onClick={finish}
             disabled={!canContinue}
             className="flex w-full items-center justify-center gap-1.5 rounded-[6px] bg-accent py-2 text-[10.5px] font-bold uppercase tracking-wider text-[#10131a] shadow-[var(--glow)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none disabled:hover:brightness-100"
