@@ -343,3 +343,10 @@ export const DEFAULT_TYPOGRAPHY: Typography = {
   uiFont: '"Inter", "Segoe UI", system-ui, sans-serif',
   dataFont: '"JetBrains Mono", "Fira Code", "Consolas", monospace',
 };
+
+/** Editor overrides for the non-colour tokens. Plain, not per-scheme — none of these vary by mode. */
+export interface CustomExtrasOverrides {
+  spacing: Partial<Spacing>;
+  radii: Partial<Radii>;
+  typography: Partial<Typography>;
+}
