@@ -60,6 +60,20 @@ pub fn import_theme_preview(
     theme::archive::stage_for_preview(&themes_root, std::path::Path::new(&zip_path), &installed)
 }
 
+/// Move a validated staging directory into the live themes tree, replacing an
+/// installed theme with the same id. The only step that writes a theme in place.
+#[tauri::command]
+pub fn confirm_theme_install(app: AppHandle, staging_id: String) -> Result<String, String> {
+    let themes_root = crate::paths::themes_dir(&app);
+    let id = theme::archive::confirm_theme_install(&themes_root, &staging_id)?;
+    crate::log::log_line(
+        &app,
+        "theme",
+        &format!("Installed theme `{id}` from import"),
+    );
+    Ok(id)
+}
+
 /// Record which theme is active. Any id is accepted — built-in or file-backed;
 /// only the frontend knows which is which.
 #[tauri::command]
