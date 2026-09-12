@@ -51,6 +51,23 @@ pub fn delete_theme(app: AppHandle, id: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Validate a theme `.zip` the user picked and stage it for confirmation —
+/// nothing is installed and no installed theme is touched. The staging
+/// directory is left in place for `confirm_theme_install` to consume; a
+/// package that fails validation leaves nothing behind. See
+/// [`theme::archive`] for the checks and their order.
+#[tauri::command]
+pub fn import_theme_preview(
+    app: AppHandle,
+    zip_path: String,
+) -> Result<theme::archive::ThemeImportPreview, String> {
+    let themes_root = crate::paths::themes_dir(&app);
+    // Scanned once here and passed down, so the classification compares
+    // against the same list the dialog's "installed" grid is showing.
+    let installed = theme::scan(&themes_root).themes;
+    theme::archive::stage_for_preview(&themes_root, std::path::Path::new(&zip_path), &installed)
+}
+
 /// Record which theme is active. Any id is accepted — built-in or file-backed;
 /// only the frontend knows which is which.
 #[tauri::command]
