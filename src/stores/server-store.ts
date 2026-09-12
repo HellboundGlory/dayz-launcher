@@ -48,8 +48,9 @@ function sameRow(a: Server, b: Server): boolean {
 
 const SORT_KEY_STORAGE = "tetra.sort.v1";
 
-// What every launch starts from, and what "Reset filters" restores.
-// search/favourites_only/recent_only don't survive a restart — see persistFilter.
+// What every launch starts from, and the base "Reset filters" restores.
+// search/favourites_only/recent_only don't survive a restart — see persistFilter;
+// resetFilter still carries the latter two over so the active tab keeps its scope.
 const DEFAULT_FILTER: ServerFilter = {
   maps: [],
   countries: [],
@@ -180,10 +181,18 @@ export const useServerStore = create<ServerState>((set) => ({
     set({ sortKey, sortDir });
   },
   setLoading: (isLoading) => set({ isLoading }),
-  resetFilter: () => {
-    persistFilter(DEFAULT_FILTER);
-    set({ filter: DEFAULT_FILTER });
-  },
+  resetFilter: () =>
+    set((state) => {
+      // The sidebar tab owns these two, not the filter bar: resetting them
+      // here would silently widen a Favourites/Recent tab to every server.
+      const next: ServerFilter = {
+        ...DEFAULT_FILTER,
+        favourites_only: state.filter.favourites_only,
+        recent_only: state.filter.recent_only,
+      };
+      persistFilter(next);
+      return { filter: next };
+    }),
   setDownloadsActive: (downloadsActive) => set({ downloadsActive }),
   setTotalCount: (totalCount) => set({ totalCount }),
   setMaps: (maps) => set({ maps, mapsLoaded: true }),
