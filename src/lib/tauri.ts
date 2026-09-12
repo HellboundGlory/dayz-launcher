@@ -1,8 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Server } from "@/types/server";
 import type {
+  ActivationStatus,
   LegacyTheme,
   ThemeFile,
+  ThemeImportPreview,
   ThemeManifest,
   ThemeSummary,
 } from "@/types/theme";
@@ -258,6 +260,12 @@ export interface AppSettingsDto {
   onboardingDismissed: boolean;
   /** Show "Playing on {server}" / "Browsing servers" in Discord. */
   discordRichPresence: boolean;
+  /**
+   * Which theme is active; `null` is the built-in default. Read-only from the
+   * frontend — `save_settings` deliberately ignores an omitted/`null` value so
+   * a settings save can't clobber a confirmed theme activation.
+   */
+  activeThemeId?: string | null;
 }
 
 /** Matches the Rust `OnJoin` enum, which serialises lowercase. */
@@ -599,4 +607,27 @@ export async function setActiveThemeId(id: string | null): Promise<void> {
 /** Resolves with the ids created, in input order — remap a saved selection against those. */
 export async function migrateLegacyCustomThemes(legacy: LegacyTheme[]): Promise<string[]> {
   return invoke<string[]>("migrate_legacy_custom_themes", { legacy });
+}
+
+/** Open the guard window and arm the pending activation; writes nothing to disk. */
+export async function armActivation(newId: string | null): Promise<void> {
+  return invoke<void>("arm_activation", { newId });
+}
+
+export async function confirmActivation(): Promise<void> {
+  return invoke<void>("confirm_activation");
+}
+
+/** Works on an expired activation too — this is also what the timeout path calls. */
+export async function revertActivation(): Promise<void> {
+  return invoke<void>("revert_activation");
+}
+
+export async function getActivationStatus(): Promise<ActivationStatus | null> {
+  return invoke<ActivationStatus | null>("get_activation_status");
+}
+
+/** Validate a theme `.zip` and stage it for confirmation; nothing is installed yet. */
+export async function importThemePreview(zipPath: string): Promise<ThemeImportPreview> {
+  return invoke<ThemeImportPreview>("import_theme_preview", { zipPath });
 }
