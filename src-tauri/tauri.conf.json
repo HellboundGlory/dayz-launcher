@@ -46,7 +46,6 @@
     "url": "theme-guard.html",
     "width": 360,
     "height": 140,
-    "center": true,
     "resizable": false,
     "maximizable": false,
     "minimizable": false,
