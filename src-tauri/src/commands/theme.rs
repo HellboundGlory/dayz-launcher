@@ -74,6 +74,28 @@ pub fn confirm_theme_install(app: AppHandle, staging_id: String) -> Result<Strin
     Ok(id)
 }
 
+/// Package an installed theme to `dest_path`, applying the dialog's overrides.
+/// Nothing is written until every check passes.
+#[tauri::command]
+pub fn export_theme(
+    app: AppHandle,
+    id: String,
+    manifest_overrides: theme::archive::ManifestOverrides,
+    dest_path: String,
+) -> Result<(), String> {
+    let themes_root = crate::paths::themes_dir(&app);
+    let dest_path = std::path::Path::new(&dest_path);
+    theme::archive::export(
+        &themes_root,
+        &id,
+        &manifest_overrides,
+        &crate::paths::data_root(&app),
+        dest_path,
+    )?;
+    crate::log::log_line(&app, "theme", &format!("Exported theme `{id}`"));
+    Ok(())
+}
+
 /// Record which theme is active. Any id is accepted — built-in or file-backed;
 /// only the frontend knows which is which.
 #[tauri::command]

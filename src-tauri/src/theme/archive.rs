@@ -2,6 +2,9 @@
 //! `themes/.staging/<id>` (never the live themes directory) and reports what
 //! it found. Every limit is enforced while streaming, cheapest checks first,
 //! before an entry is written — this is still hostile input.
+//!
+//! [`export`] goes the other way: repackages an installed theme into the same
+//! two files, and refuses to ship one naming this machine's own data folder.
 
 use std::io::{Read, Seek, Write};
 use std::path::{Path, PathBuf};
@@ -399,6 +402,141 @@ fn staging_name() -> String {
         .unwrap_or(0);
     let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
     format!("{nanos:x}-{seq:x}-{:x}", std::process::id())
+}
+
+/// Manifest fields an export dialog may edit before packaging. Every field is
+/// optional and named as in [`ThemeManifest`]: `Some` overwrites the installed
+/// value, `None` exports it unchanged.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ManifestOverrides {
+    pub name: Option<String>,
+    pub author: Option<String>,
+    pub version: Option<String>,
+    pub description: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub license: Option<String>,
+    pub homepage: Option<String>,
+}
+
+impl ManifestOverrides {
+    fn apply_to(&self, manifest: &mut ThemeManifest) {
+        if let Some(v) = &self.name {
+            manifest.name = v.clone();
+        }
+        if let Some(v) = &self.author {
+            manifest.author = v.clone();
+        }
+        if let Some(v) = &self.version {
+            manifest.version = v.clone();
+        }
+        if let Some(v) = &self.description {
+            manifest.description = v.clone();
+        }
+        if let Some(v) = &self.tags {
+            manifest.tags = v.clone();
+        }
+        if let Some(v) = &self.license {
+            manifest.license = Some(v.clone());
+        }
+        if let Some(v) = &self.homepage {
+            manifest.homepage = Some(v.clone());
+        }
+    }
+}
+
+/// Package the installed theme `id` into `dest_path` as the same two files
+/// [`stage_for_preview`] accepts. `data_root` is this machine's own data folder;
+/// a package naming it is refused rather than shipped — a theme is shared, so
+/// anything carrying a local path would hand out someone's folder layout.
+pub fn export(
+    themes_root: &Path,
+    id: &str,
+    overrides: &ManifestOverrides,
+    data_root: &Path,
+    dest_path: &Path,
+) -> Result<(), String> {
+    let crate::theme::ThemeFile {
+        mut manifest,
+        tokens,
+    } = crate::theme::get(themes_root, id)?;
+    overrides.apply_to(&mut manifest);
+
+    let manifest_json = serde_json::to_vec_pretty(&manifest)
+        .map_err(|e| format!("Could not serialise the manifest: {e}"))?;
+    let tokens_json = serde_json::to_vec_pretty(&tokens)
+        .map_err(|e| format!("Could not serialise tokens: {e}"))?;
+
+    for (name, bytes) in [(MANIFEST_FILE, &manifest_json), (TOKENS_FILE, &tokens_json)] {
+        if leaks_path(bytes, data_root) {
+            return Err(format!(
+                "{name} names this Launcher's own data folder ({}); refusing to export a theme that would leak it.",
+                data_root.display()
+            ));
+        }
+    }
+
+    write_package(dest_path, &manifest_json, &tokens_json)
+}
+
+/// Whether `bytes` mention `path`, in raw form or as JSON escapes it — on
+/// Windows the serialised form doubles every backslash (`C:\\Users\\…`).
+fn leaks_path(bytes: &[u8], path: &Path) -> bool {
+    let path = path.to_string_lossy();
+    if path.trim().is_empty() {
+        return false;
+    }
+    if contains(bytes, path.as_bytes()) {
+        return true;
+    }
+    serde_json::to_string(&*path)
+        .map(|escaped| contains(bytes, escaped.trim_matches('"').as_bytes()))
+        .unwrap_or(false)
+}
+
+fn contains(haystack: &[u8], needle: &[u8]) -> bool {
+    !needle.is_empty() && haystack.windows(needle.len()).any(|w| w == needle)
+}
+
+/// Write `theme.json` then `tokens.json`, nothing else and no directory entries.
+fn write_package(dest_path: &Path, manifest_json: &[u8], tokens_json: &[u8]) -> Result<(), String> {
+    match write_package_inner(dest_path, manifest_json, tokens_json) {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            // A half-written package is not a package; leave nothing behind.
+            let _ = std::fs::remove_file(dest_path);
+            Err(e)
+        }
+    }
+}
+
+fn write_package_inner(
+    dest_path: &Path,
+    manifest_json: &[u8],
+    tokens_json: &[u8],
+) -> Result<(), String> {
+    let file = std::fs::File::create(dest_path)
+        .map_err(|e| format!("Could not create {}: {e}", dest_path.display()))?;
+    let mut writer = zip::ZipWriter::new(file);
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated)
+        // The DOS epoch, not "now": a real timestamp would make two exports of
+        // the same theme differ byte for byte.
+        .last_modified_time(zip::DateTime::default());
+
+    for (name, bytes) in [(MANIFEST_FILE, manifest_json), (TOKENS_FILE, tokens_json)] {
+        writer
+            .start_file(name, options)
+            .map_err(|e| format!("Could not add {name} to {}: {e}", dest_path.display()))?;
+        writer
+            .write_all(bytes)
+            .map_err(|e| format!("Could not write {name} into {}: {e}", dest_path.display()))?;
+    }
+
+    writer
+        .finish()
+        .map_err(|e| format!("Could not finish {}: {e}", dest_path.display()))?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -1019,5 +1157,183 @@ mod tests {
         assert_eq!(std::fs::read_dir(&root).unwrap().count(), before);
         assert!(crate::theme::get(&root, "installed.theme").is_ok());
         assert!(!root.join("aurora.test").exists());
+    }
+
+    /// Install one theme into `themes_root` so an export has something live to read.
+    fn install(root: &Path, manifest: &ThemeManifest, tokens: &str) {
+        let tokens: serde_json::Value = serde_json::from_str(tokens).unwrap();
+        crate::theme::save(root, manifest, &tokens).expect("could not install the fixture theme");
+    }
+
+    #[test]
+    fn an_exported_theme_round_trips_through_the_import_pipeline() {
+        let root = scratch("export-roundtrip");
+        install(&root, &manifest(), &tokens_json());
+        let dest = root.join("aurora.zip");
+
+        export(
+            &root,
+            "aurora.test",
+            &ManifestOverrides::default(),
+            &root,
+            &dest,
+        )
+        .expect("exporting an installed theme must work");
+
+        let preview = stage_for_preview(&root, &dest, &[]).expect("an export must re-import");
+        assert_eq!(preview.manifest.id, "aurora.test");
+        assert_eq!(preview.file_count, 2);
+
+        let staged = staging_dir(&root, &preview).join(TOKENS_FILE);
+        // Byte-identical, not merely equal-after-parsing: the palette a user
+        // exported is the palette whoever imports it gets.
+        assert_eq!(
+            std::fs::read(staged).unwrap(),
+            std::fs::read(root.join("aurora.test").join(TOKENS_FILE)).unwrap()
+        );
+    }
+
+    #[test]
+    fn exporting_the_same_theme_twice_writes_identical_bytes() {
+        let root = scratch("export-deterministic");
+        install(&root, &manifest(), &tokens_json());
+        let first = root.join("first.zip");
+        let second = root.join("second.zip");
+
+        for dest in [&first, &second] {
+            export(
+                &root,
+                "aurora.test",
+                &ManifestOverrides::default(),
+                &root,
+                dest,
+            )
+            .unwrap();
+        }
+
+        assert_eq!(
+            std::fs::read(&first).unwrap(),
+            std::fs::read(&second).unwrap()
+        );
+    }
+
+    #[test]
+    fn an_exported_package_holds_both_files_in_a_fixed_order_and_timestamp() {
+        let root = scratch("export-shape");
+        install(&root, &manifest(), &tokens_json());
+        let dest = root.join("shape.zip");
+        export(
+            &root,
+            "aurora.test",
+            &ManifestOverrides::default(),
+            &root,
+            &dest,
+        )
+        .unwrap();
+
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(&dest).unwrap()).unwrap();
+        let names: Vec<String> = (0..archive.len())
+            .map(|i| archive.by_index(i).unwrap().name().to_string())
+            .collect();
+        assert_eq!(names, vec![MANIFEST_FILE, TOKENS_FILE]);
+
+        // The DOS epoch, not the moment of export — a live clock here is what
+        // would make two exports of an unchanged theme differ.
+        for index in 0..archive.len() {
+            assert_eq!(
+                archive.by_index(index).unwrap().last_modified(),
+                Some(zip::DateTime::default()),
+                "entry {index} must carry the fixed export timestamp"
+            );
+        }
+    }
+
+    #[test]
+    fn overrides_replace_named_fields_and_leave_the_rest_installed() {
+        let root = scratch("export-overrides");
+        install(&root, &manifest(), &tokens_json());
+        let dest = root.join("overridden.zip");
+
+        let overrides = ManifestOverrides {
+            name: Some("Aurora Deluxe".to_string()),
+            version: Some("2.0.0".to_string()),
+            tags: Some(vec!["dark".to_string(), "blue".to_string()]),
+            ..ManifestOverrides::default()
+        };
+        export(&root, "aurora.test", &overrides, &root, &dest).unwrap();
+
+        let preview = stage_for_preview(&root, &dest, &[]).unwrap();
+        assert_eq!(preview.manifest.name, "Aurora Deluxe");
+        assert_eq!(preview.manifest.version, "2.0.0");
+        assert_eq!(
+            preview.manifest.tags,
+            vec!["dark".to_string(), "blue".to_string()]
+        );
+        // Omitted overrides: the installed manifest's own values survive intact.
+        assert_eq!(preview.manifest.author, "tester");
+        assert_eq!(preview.manifest.description, "A test theme.");
+        assert_eq!(preview.manifest.minimum_launcher_version, "1.0.0");
+    }
+
+    #[test]
+    fn an_export_is_refused_when_the_palette_names_this_machines_data_folder() {
+        let root = scratch("export-leak-tokens");
+        let leaker = serde_json::json!({
+            "schemaVersion": manifest::SCHEMA_VERSION,
+            "dark": { "bg": root.to_string_lossy() },
+            "light": { "bg": "#f5f5f7" },
+        })
+        .to_string();
+        install(&root, &manifest(), &leaker);
+        let dest = root.join("leaky.zip");
+
+        let error = export(
+            &root,
+            "aurora.test",
+            &ManifestOverrides::default(),
+            &root,
+            &dest,
+        )
+        .unwrap_err();
+
+        assert!(error.contains(TOKENS_FILE), "message was: {error}");
+        assert!(
+            error.contains(&root.to_string_lossy().to_string()),
+            "message was: {error}"
+        );
+        assert!(!dest.exists(), "a refused export must write no package");
+    }
+
+    #[test]
+    fn an_export_is_refused_when_the_manifest_names_this_machines_data_folder() {
+        let root = scratch("export-leak-manifest");
+        install(&root, &manifest(), &tokens_json());
+        let dest = root.join("leaky-manifest.zip");
+
+        let overrides = ManifestOverrides {
+            description: Some(format!("built in {}", root.display())),
+            ..ManifestOverrides::default()
+        };
+        let error = export(&root, "aurora.test", &overrides, &root, &dest).unwrap_err();
+
+        assert!(error.contains(MANIFEST_FILE), "message was: {error}");
+        assert!(!dest.exists(), "a refused export must write no package");
+    }
+
+    #[test]
+    fn an_export_of_a_missing_theme_is_refused() {
+        let root = scratch("export-missing");
+        let dest = root.join("nothing.zip");
+
+        let error = export(
+            &root,
+            "not.installed",
+            &ManifestOverrides::default(),
+            &root,
+            &dest,
+        )
+        .unwrap_err();
+
+        assert!(error.contains("not.installed"), "message was: {error}");
     }
 }
