@@ -49,16 +49,9 @@ interface HoverState {
 
 const BADGE_MAX_W = 336;
 
-// The gap between a highlighted element and its floating badge (see `margin`
-// below, which positions the badge this far past the element's edge). The
-// pointer crosses this gap on the way to "Copy selector"; `pointInRect`'s pad
-// bridges it so the badge doesn't vanish out from under a reaching cursor.
+// How far past a highlighted element's edge the badge sits (see `margin`
+// below, which positions it this far below or above).
 const BADGE_GAP = 8;
-
-function pointInRect(x: number, y: number, rect: DOMRect | null, pad: number): boolean {
-  if (rect === null) return false;
-  return x >= rect.left - pad && x <= rect.right + pad && y >= rect.top - pad && y <= rect.bottom + pad;
-}
 
 function rectsOverlap(a: DOMRect, b: DOMRect): boolean {
   return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
@@ -115,13 +108,6 @@ export function DevModeInspector() {
         rect !== null &&
         (isFooterItself || isOverlaySurface || footer === null || !rectsOverlap(rect, footer));
       if (!valid) {
-        // Nothing valid is directly under the pointer, but it may just be
-        // crossing the gap toward the badge itself — bridge that gap rather
-        // than dropping the badge before the pointer arrives.
-        const bridging =
-          pointInRect(e.clientX, e.clientY, hoverRef.current?.rect ?? null, BADGE_GAP) ||
-          pointInRect(e.clientX, e.clientY, badgeRef.current?.getBoundingClientRect() ?? null, BADGE_GAP);
-        if (bridging) return;
         if (lastKey.current === "") return;
         lastKey.current = "";
         setHover(null);
