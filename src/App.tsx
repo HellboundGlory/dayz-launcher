@@ -35,6 +35,7 @@ import { useUpdateStore } from "./stores/update-store";
 import { useModsStore } from "./stores/mods-store";
 import { watchDayz } from "./stores/launch-store";
 import { watchThemeActivationReverted } from "./theme/theme-store";
+import { useResolvedSlot } from "./theme/use-resolved-layout";
 import type { Server } from "./types/server";
 import {
   steamInit,
@@ -104,6 +105,22 @@ export function App() {
   const serverCount = useServerStore((s) => s.servers.length);
   const mapsLoaded = useServerStore((s) => s.mapsLoaded);
   const hasLoadedOnce = useServerStore((s) => s.hasLoadedOnce);
+
+  // shell.sidebar's resolved layout: `position: "right"` puts the rail after
+  // the main column; anything else keeps today's left placement.
+  const sidebarSlot = useResolvedSlot("shell.sidebar");
+  const sidebarRight = sidebarSlot.params.position === "right";
+  // `width`/`collapsedWidth` replace the two literals as defaults; a theme
+  // that sets neither leaves today's 176px/52px behaviour untouched.
+  const sideWidth = sidebarSlot.params.width;
+  const sideCollapsedWidth = sidebarSlot.params.collapsedWidth;
+  const sideWidthValue = sideCollapsed
+    ? typeof sideCollapsedWidth === "string"
+      ? sideCollapsedWidth
+      : "52px"
+    : typeof sideWidth === "string"
+      ? sideWidth
+      : "176px";
 
   // Each tab is a filter preset, not just a highlight toggle.
   const handleViewChange = useCallback(
@@ -736,23 +753,27 @@ export function App() {
     };
   }, []);
 
+  // Hoisted so `position: "right"` can place it after the main column.
+  const sidebar = (
+    <Sidebar
+      activeView={activeView}
+      onViewChange={handleViewChange}
+      settingsOpen={settingsOpen}
+      onOpenSettings={() => setSettingsOpen(true)}
+      onCloseSettings={() => setSettingsOpen(false)}
+      onCollapsedChange={setSideCollapsed}
+    />
+  );
+
   return (
     <div
       className="relative flex h-screen flex-col overflow-hidden rounded-[8px] border border-line bg-bg"
-      style={{ "--side-w": sideCollapsed ? "52px" : "176px" } as CSSProperties}
+      style={{ "--side-w": sideWidthValue } as CSSProperties}
     >
       <WindowResizeHandles />
 
       <div className="flex min-h-0 flex-1">
-        <Sidebar
-          activeView={activeView}
-          onViewChange={handleViewChange}
-          settingsOpen={settingsOpen}
-          onOpenSettings={() => setSettingsOpen(true)}
-          onCloseSettings={() => setSettingsOpen(false)}
-          onCollapsedChange={setSideCollapsed}
-        />
-
+        {!sidebarRight && sidebar}
         <div className="flex min-w-0 flex-1 flex-col">
           <WindowControls />
 
@@ -839,6 +860,7 @@ export function App() {
             listSource={listSource}
           />
         </div>
+        {sidebarRight && sidebar}
       </div>
 
       {settingsOpen && <SettingsView onClose={() => setSettingsOpen(false)} devMode={devMode} onDevModeChange={setDevMode} />}
