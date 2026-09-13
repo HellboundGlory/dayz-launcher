@@ -76,6 +76,7 @@ export const SLOTS: Slot[] = [
       { id: "steamStateChip", required: true, since: "1.0" },
       { id: "serverCounts", required: false, since: "1.0" },
       { id: "uiScaleSlider", required: false, since: "1.0" },
+      { id: "schemeToggle", required: false, since: "1.0" },
     ],
   },
   {
