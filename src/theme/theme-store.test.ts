@@ -28,15 +28,25 @@ const backend = vi.hoisted(() => ({
   settingsById: {} as Record<string, Record<string, unknown>>,
   /** Each theme's `settings.schema.json`, by id. */
   schemaById: {} as Record<string, unknown>,
+  /** `layout.json` contents `get_theme` returns, by id. */
+  layoutById: {} as Record<string, unknown>,
   /** Every `set_theme_settings_value` call, in order. */
   setSettingsCalls: [] as { id: string; fieldId: string; value: number | boolean }[],
   /** Ids `get_theme` was asked for, in call order. */
   themeCalls: [] as string[],
+  /** Every `save_theme_layout` call, in order. */
+  layoutWrites: [] as { id: string; layout: unknown }[],
+  /** Every `arm_layout_edit` call, in order. */
+  layoutArms: [] as { id: string; file: string; previousBytes: number[] | null }[],
+  /** When set, `save_theme_layout` rejects with it. */
+  layoutWriteError: null as unknown,
 }));
 
 const events = vi.hoisted(() => ({
   /** The handler `watchThemeActivationReverted` registered, if any. */
-  reverted: null as ((event: { payload: { previousId: string | null } }) => void) | null,
+  reverted: null as
+    | ((event: { payload: { previousId: string | null; restoredTheme: string | null } }) => void)
+    | null,
   /** The handler `watchHotReload` registered, if any. */
   hotReload: null as ((event: { payload: { id: string } }) => void) | null,
 }));
@@ -44,7 +54,9 @@ const events = vi.hoisted(() => ({
 vi.mock("@tauri-apps/api/event", () => ({
   listen: (
     name: string,
-    handler: (event: { payload: { previousId: string | null } }) => void,
+    handler: (event: {
+      payload: { previousId: string | null; restoredTheme: string | null };
+    }) => void,
   ) => {
     if (name === "theme-hot-reload") {
       events.hotReload = handler as unknown as (event: { payload: { id: string } }) => void;
@@ -63,6 +75,7 @@ vi.mock("@/lib/tauri", () => ({
       id,
       name: id,
       tokens: backend.tokensById[id] ?? {},
+      layout: backend.layoutById[id] ?? null,
       settingsSchema: backend.schemaById[id] ?? null,
     };
   },
@@ -75,6 +88,13 @@ vi.mock("@/lib/tauri", () => ({
   getThemeSettingsValues: async (id: string) => backend.settingsById[id] ?? {},
   setThemeSettingsValue: async (id: string, fieldId: string, value: number | boolean) => {
     backend.setSettingsCalls.push({ id, fieldId, value });
+  },
+  saveThemeLayout: async (id: string, layout: unknown) => {
+    if (backend.layoutWriteError !== null) throw backend.layoutWriteError;
+    backend.layoutWrites.push({ id, layout });
+  },
+  armLayoutEdit: async (id: string, file: string, previousBytes: number[] | null) => {
+    backend.layoutArms.push({ id, file, previousBytes });
   },
 }));
 
@@ -146,8 +166,12 @@ beforeEach(() => {
   backend.tokensById = {};
   backend.settingsById = {};
   backend.schemaById = {};
+  backend.layoutById = {};
   backend.setSettingsCalls.length = 0;
   backend.themeCalls.length = 0;
+  backend.layoutWrites.length = 0;
+  backend.layoutArms.length = 0;
+  backend.layoutWriteError = null;
   themeCssHead.length = 0;
   fontFaces.length = 0;
   addedFonts.length = 0;
@@ -510,11 +534,154 @@ describe("pickTheme bloom reset", () => {
     expect(useThemeStore.getState().bloom).toBe(0.4);
 
     watchThemeActivationReverted();
-    events.reverted?.({ payload: { previousId: "neutral" } });
+    events.reverted?.({ payload: { previousId: "neutral", restoredTheme: null } });
 
     expect(useThemeStore.getState().activeId).toBe("neutral");
     expect(useThemeStore.getState().bloom).toBe(DEFAULT_EXTRAS.shadows.glowIntensity);
     expect(writtenProps["--bloom"]).toBe(String(DEFAULT_EXTRAS.shadows.glowIntensity));
+  });
+
+  it("re-reads the restored theme's file and repaints from it before resetting the ids", async () => {
+    const id = "local.edited";
+    useThemeStore.setState({
+      activeId: id,
+      themeFiles: {
+        [id]: {
+          id,
+          name: id,
+          tokens: { dark: { bg: "#000000" } },
+          // The abandoned preview's layout; the file on disk no longer has it.
+          layout: { schemaVersion: 1, slots: { "shell.footer": { order: ["serverCounts"] } } },
+        } as ThemeFile,
+      },
+    });
+    // What revert put back on disk.
+    backend.layoutById[id] = { schemaVersion: 1, slots: {} };
+
+    watchThemeActivationReverted();
+    events.reverted?.({ payload: { previousId: id, restoredTheme: id } });
+    await settled();
+
+    expect(backend.themeCalls).toEqual([id]);
+    expect(useThemeStore.getState().themeFiles[id]?.layout).toEqual({ schemaVersion: 1, slots: {} });
+    expect(useThemeStore.getState().activeId).toBe(id);
+  });
+
+  it("never fetches for an ordinary id-switch revert", async () => {
+    useThemeStore.setState({ activeId: "local.dim", themeFiles: {} });
+
+    watchThemeActivationReverted();
+    events.reverted?.({ payload: { previousId: "neutral", restoredTheme: null } });
+    await settled();
+
+    expect(backend.themeCalls).toEqual([]);
+    expect(useThemeStore.getState().activeId).toBe("neutral");
+  });
+});
+
+describe("layout edits", () => {
+  const LAYOUT = {
+    schemaVersion: 1,
+    slots: {
+      "shell.footer": { order: ["steamStateChip", "schemeToggle"], hidden: ["uiScaleSlider"] },
+      "server.row": { order: ["name"], gap: "4px" },
+    },
+  };
+
+  /** A theme carrying a layout file and a palette, active. */
+  const active = (layout: unknown) => {
+    const id = "local.edited";
+    useThemeStore.setState({
+      activeId: id,
+      themeFiles: {
+        [id]: {
+          id,
+          name: id,
+          tokens: { dark: { bg: "#123456" }, light: { bg: "#123456" } },
+          layout,
+        } as ThemeFile,
+      },
+    });
+    return id;
+  };
+
+  const bytesOf = (value: unknown) =>
+    Array.from(new TextEncoder().encode(JSON.stringify(value)));
+
+  it("reorders one slot, persists the whole object, and arms the pre-edit bytes", async () => {
+    const id = active(LAYOUT);
+    // apply() is the only thing that writes the UI prefs; clearing it first
+    // makes the repaint observable even though nothing renders layouts yet.
+    storage.delete("tetra.themeActive");
+
+    await useThemeStore.getState().reorderSlotChildren("shell.footer", ["schemeToggle", "steamStateChip"]);
+
+    const next = {
+      schemaVersion: 1,
+      slots: {
+        "shell.footer": { order: ["schemeToggle", "steamStateChip"], hidden: ["uiScaleSlider"] },
+        // Every other slot — and every other key in this one — survives untouched.
+        "server.row": { order: ["name"], gap: "4px" },
+      },
+    };
+    expect(useThemeStore.getState().themeFiles[id]?.layout).toEqual(next);
+    expect(backend.layoutWrites).toEqual([{ id, layout: next }]);
+    expect(backend.layoutArms).toEqual([
+      { id, file: "layout.json", previousBytes: bytesOf(LAYOUT) },
+    ]);
+    expect(storage.has("tetra.themeActive")).toBe(true);
+  });
+
+  it("arms null previousBytes for a theme with no layout file yet", async () => {
+    const id = active(null);
+
+    await useThemeStore.getState().reorderSlotChildren("shell.footer", ["name"]);
+
+    expect(backend.layoutWrites).toEqual([
+      { id, layout: { schemaVersion: 1, slots: { "shell.footer": { order: ["name"] } } } },
+    ]);
+    expect(backend.layoutArms).toEqual([{ id, file: "layout.json", previousBytes: null }]);
+  });
+
+  it("adds a hidden child, then removes it and drops the emptied key", async () => {
+    const id = active({ schemaVersion: 1, slots: {} });
+
+    await useThemeStore.getState().toggleSlotChildVisibility("shell.footer", "serverCounts");
+    expect(useThemeStore.getState().themeFiles[id]?.layout).toEqual({
+      schemaVersion: 1,
+      slots: { "shell.footer": { hidden: ["serverCounts"] } },
+    });
+
+    await useThemeStore.getState().toggleSlotChildVisibility("shell.footer", "serverCounts");
+    expect(useThemeStore.getState().themeFiles[id]?.layout).toEqual({
+      schemaVersion: 1,
+      slots: { "shell.footer": {} },
+    });
+  });
+
+  it("writes a slot param verbatim, keeping the slot's order and hidden list", async () => {
+    const id = active(LAYOUT);
+
+    await useThemeStore.getState().setSlotParam("server.row", "gap", "10px");
+
+    expect(useThemeStore.getState().themeFiles[id]?.layout).toEqual({
+      schemaVersion: 1,
+      slots: {
+        "shell.footer": { order: ["steamStateChip", "schemeToggle"], hidden: ["uiScaleSlider"] },
+        "server.row": { order: ["name"], gap: "10px" },
+      },
+    });
+  });
+
+  it("rolls the preview back and arms nothing when the write fails", async () => {
+    const id = active(LAYOUT);
+    const before = useThemeStore.getState().themeFiles[id];
+    backend.layoutWriteError = new Error("disk full");
+
+    await useThemeStore.getState().reorderSlotChildren("shell.footer", ["schemeToggle"]);
+
+    expect(useThemeStore.getState().themeFiles[id]).toEqual(before);
+    expect(backend.layoutArms).toEqual([]);
   });
 });
 
