@@ -7,6 +7,7 @@
 // The backend validates the envelope and nothing else, so every node type,
 // every prop and every `ref` is untrusted here.
 
+import { LITERAL_CSS_VALUE } from "./layout-store";
 import type { LayoutIssue } from "./layout-store";
 import type { SlotChild } from "./slots";
 
@@ -49,13 +50,6 @@ const CONTAINER_TYPES = ["stack", "box", "grid"] as const;
 const DIRECTIONS: readonly Direction[] = ["row", "column"];
 const ALIGNS: readonly Align[] = ["start", "center", "end", "stretch"];
 const JUSTIFIES: readonly Justify[] = ["start", "center", "end", "space-between"];
-
-// layout-store.ts's literal-value rule, which stays private to that module: a
-// value that ends up in CSS has to be a length, a `var()` reference or a bare
-// keyword. A class name would ship with no CSS behind it — Tailwind's
-// build-time content scan never sees a runtime-chosen string.
-const LITERAL_CSS_VALUE =
-  /^(?:-?\d+(?:\.\d+)?(?:px|rem|em|%|vh|vw)|var\(--[a-z0-9-]+\)|[a-z0-9][a-z0-9-]*)$/i;
 
 /** `tree: null` means "fall back to the ordinary non-composed render", exactly
  * how a slot with no `layout.json` entry falls back to registry order. Every

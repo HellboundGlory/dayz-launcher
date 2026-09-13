@@ -32,7 +32,10 @@ export interface LayoutIssue {
 // keyword (`left`, `compact`). A class list would be pointless — Tailwind's
 // build-time content scan never sees a runtime-chosen class name, so the class
 // would ship with no CSS behind it.
-const LITERAL_CSS_VALUE =
+// Exported for component-tree.ts's `gap` check, which needs the same regex
+// but not `isLiteralCssValue`'s number/boolean allowance below — a bare `gap`
+// prop only ever makes sense as a string.
+export const LITERAL_CSS_VALUE =
   /^(?:-?\d+(?:\.\d+)?(?:px|rem|em|%|vh|vw)|var\(--[a-z0-9-]+\)|[a-z0-9][a-z0-9-]*)$/i;
 
 /** Every slot in `slots` gets an entry, whether or not `layoutJson` mentions it.
