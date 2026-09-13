@@ -9,7 +9,7 @@
 use std::io::{Read, Seek, Write};
 use std::path::{Path, PathBuf};
 
-use crate::theme::{ThemeManifest, ThemeSummary, MANIFEST_FILE, TOKENS_FILE};
+use crate::theme::{ThemeManifest, ThemeSummary, LAYOUT_FILE, MANIFEST_FILE, TOKENS_FILE};
 
 /// Exact match today since `"1.0"` is the only version so far; becomes a
 /// range check once a second one exists (hence the name).
@@ -247,6 +247,16 @@ fn inspect<R: Read + Seek>(
         serde_json::from_str(&raw).map_err(|e| format!("{TOKENS_FILE} is not valid JSON: {e}"))?;
     crate::theme::validate_tokens(&tokens)?;
 
+    // A layout is optional in a package just as it is in an installed theme.
+    let layout_path = staging_dir.join(LAYOUT_FILE);
+    if layout_path.exists() {
+        let raw = std::fs::read_to_string(&layout_path)
+            .map_err(|e| format!("Could not read {}: {e}", layout_path.display()))?;
+        let layout: serde_json::Value = serde_json::from_str(&raw)
+            .map_err(|e| format!("{LAYOUT_FILE} is not valid JSON: {e}"))?;
+        crate::theme::validate_layout(&layout)?;
+    }
+
     // Checked last: the id becomes a directory name on install.
     if !crate::theme::is_usable_id(&parsed.id) {
         return Err(format!(
@@ -459,6 +469,7 @@ pub fn export(
     let crate::theme::ThemeFile {
         mut manifest,
         tokens,
+        ..
     } = crate::theme::get(themes_root, id)?;
     overrides.apply_to(&mut manifest);
 
@@ -952,6 +963,45 @@ mod tests {
     }
 
     #[test]
+    fn a_package_with_a_layout_stages_and_keeps_it_in_the_staging_directory() {
+        let root = scratch("layout");
+        let zip_path = fixture(
+            &root,
+            "layout",
+            &[Entry::file(
+                LAYOUT_FILE,
+                serde_json::json!({ "schemaVersion": 1, "slots": { "sidebar": "aside" } })
+                    .to_string(),
+            )],
+        );
+
+        let preview = stage_for_preview(&root, &zip_path, &[]).expect("a layout is optional");
+
+        assert_eq!(preview.file_count, 3);
+        assert!(staging_dir(&root, &preview).join(LAYOUT_FILE).is_file());
+    }
+
+    /// Fail-closed like a malformed palette: the whole import is refused and
+    /// the staging directory goes with it.
+    #[test]
+    fn a_layout_that_is_not_a_layout_object_is_refused_at_inspect_time() {
+        let root = scratch("badlayout");
+        let zip_path = fixture(
+            &root,
+            "badlayout",
+            &[Entry::file(LAYOUT_FILE, r#"{"slots":{}}"#)],
+        );
+
+        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
+
+        assert!(error.contains("schemaVersion"), "message was: {error}");
+        assert!(
+            !root.join(STAGING_DIR).read_dir().unwrap().next().is_some(),
+            "a refused import must leave no staging directory"
+        );
+    }
+
+    #[test]
     fn a_manifest_that_is_not_json_is_refused() {
         let root = scratch("badmanifest");
         let zip_path = root.join("badmanifest.zip");
@@ -1016,6 +1066,7 @@ mod tests {
                 ..manifest()
             },
             &serde_json::json!({ "schemaVersion": manifest::SCHEMA_VERSION }),
+            None,
         )
         .unwrap();
         let zip_path = fixture_with_manifest(&root, "scansafe", &manifest());
@@ -1075,6 +1126,7 @@ mod tests {
             &root,
             &installed,
             &serde_json::json!({ "schemaVersion": manifest::SCHEMA_VERSION, "dark": { "bg": "#000000" } }),
+            None,
         )
         .unwrap();
 
@@ -1118,6 +1170,7 @@ mod tests {
                 ..manifest()
             },
             &serde_json::json!({ "schemaVersion": manifest::SCHEMA_VERSION }),
+            None,
         )
         .unwrap();
         let replacement = ThemeManifest {
@@ -1154,6 +1207,7 @@ mod tests {
                 ..manifest()
             },
             &serde_json::json!({ "schemaVersion": manifest::SCHEMA_VERSION }),
+            None,
         )
         .unwrap();
         let before = std::fs::read_dir(&root).unwrap().count();
@@ -1169,7 +1223,8 @@ mod tests {
     /// Install one theme into `themes_root` so an export has something live to read.
     fn install(root: &Path, manifest: &ThemeManifest, tokens: &str) {
         let tokens: serde_json::Value = serde_json::from_str(tokens).unwrap();
-        crate::theme::save(root, manifest, &tokens).expect("could not install the fixture theme");
+        crate::theme::save(root, manifest, &tokens, None)
+            .expect("could not install the fixture theme");
     }
 
     #[test]
