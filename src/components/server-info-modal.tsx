@@ -4,7 +4,7 @@ import type { Server } from "@/types/server";
 import { useServerStore } from "@/stores/server-store";
 import { cn, formatGameTime, regionName } from "@/lib/utils";
 import { useServerActions, NOTICES } from "@/hooks/use-server-actions";
-import { SlotChildren } from "@/theme/slot-children";
+import { SlotChildren } from "@/theme/slot-render";
 import { useResolvedSlot } from "@/theme/use-resolved-layout";
 import { resolveChildOrder } from "@/theme/slot-order";
 

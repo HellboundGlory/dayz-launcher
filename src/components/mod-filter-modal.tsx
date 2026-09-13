@@ -11,7 +11,7 @@ import {
   type WorkshopSearchResult,
 } from "@/lib/tauri";
 import { cn, formatBytes, formatLastPlayed } from "@/lib/utils";
-import { SlotChild } from "@/theme/slot-children";
+import { SlotChild } from "@/theme/slot-render";
 
 type Tab = "subscribed" | "seen" | "workshop";
 

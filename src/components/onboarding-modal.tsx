@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { cn } from "@/lib/utils";
-import { SlotChild } from "@/theme/slot-children";
+import { SlotChild } from "@/theme/slot-render";
 import { useSettingsStore } from "@/stores/settings-store";
 import { discoverSteamPaths, validateDayzPath } from "@/lib/tauri";
 import tetraLogo from "@/assets/tetra-logo.png";
