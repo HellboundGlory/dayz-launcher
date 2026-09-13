@@ -160,6 +160,7 @@ export const SLOTS: Slot[] = [
     id: "settings.game",
     themeable: "full",
     children: [
+      { id: "sectionToggle", required: true, since: "1.0" },
       { id: "profileNameInput", required: true, since: "1.0" },
       { id: "dayzPathInput", required: true, since: "1.0" },
       { id: "detectPathsAction", required: false, since: "1.0" },
@@ -171,6 +172,7 @@ export const SLOTS: Slot[] = [
     id: "settings.launcher",
     themeable: "full",
     children: [
+      { id: "sectionToggle", required: true, since: "1.0" },
       { id: "windowOptions", required: false, since: "1.0" },
       { id: "onJoinBehavior", required: false, since: "1.0" },
       { id: "startupOptions", required: false, since: "1.0" },
@@ -183,6 +185,7 @@ export const SLOTS: Slot[] = [
     id: "settings.theme",
     themeable: "full",
     children: [
+      { id: "sectionToggle", required: true, since: "1.0" },
       { id: "themeManagement", required: true, since: "1.0" },
     ],
   },
