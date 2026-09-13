@@ -972,6 +972,7 @@ pub fn export(
         mut manifest,
         tokens,
         layout,
+        ..
     } = crate::theme::get(themes_root, id)?;
     overrides.apply_to(&mut manifest);
 
