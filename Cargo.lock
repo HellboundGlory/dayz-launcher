@@ -4647,6 +4647,7 @@ name = "tetra-launcher"
 version = "2.6.0"
 dependencies = [
  "libc",
+ "percent-encoding",
  "semver",
  "serde",
  "serde_json",
