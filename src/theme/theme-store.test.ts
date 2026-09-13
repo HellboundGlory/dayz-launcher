@@ -3,7 +3,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_EXTRAS } from "./apply";
 import { DEFAULT_RADII, DEFAULT_SPACING, DEFAULT_TYPOGRAPHY, type Palette } from "./palette";
-import { effectiveExtras, resolvedExtras, useThemeStore, watchThemeActivationReverted } from "./theme-store";
+import {
+  effectiveExtras,
+  mergeSettingsValues,
+  resolvedExtras,
+  useThemeStore,
+  watchThemeActivationReverted,
+} from "./theme-store";
 import type { ThemeFile } from "@/types/theme";
 
 const backend = vi.hoisted(() => ({
@@ -17,6 +23,12 @@ const backend = vi.hoisted(() => ({
   savedTokens: [] as unknown[],
   /** `tokens.json` contents `get_theme` returns, by id. */
   tokensById: {} as Record<string, unknown>,
+  /** `settings.values.json` contents `get_theme_settings_values` returns, by id. */
+  settingsById: {} as Record<string, Record<string, unknown>>,
+  /** Each theme's `settings.schema.json`, by id. */
+  schemaById: {} as Record<string, unknown>,
+  /** Every `set_theme_settings_value` call, in order. */
+  setSettingsCalls: [] as { id: string; fieldId: string; value: number | boolean }[],
 }));
 
 const events = vi.hoisted(() => ({
@@ -36,13 +48,22 @@ vi.mock("@tauri-apps/api/event", () => ({
 
 vi.mock("@/lib/tauri", () => ({
   listInstalledThemes: async () => backend.installed,
-  getTheme: async (id: string) => ({ id, name: id, tokens: backend.tokensById[id] ?? {} }),
+  getTheme: async (id: string) => ({
+    id,
+    name: id,
+    tokens: backend.tokensById[id] ?? {},
+    settingsSchema: backend.schemaById[id] ?? null,
+  }),
   getSettings: async () => ({ activeThemeId: null }),
   setActiveThemeId: async (id: string | null) => void backend.setActiveCalls.push(id),
   migrateLegacyCustomThemes: async () => backend.migratedIds,
   armActivation: async () => {},
   saveTheme: async (_manifest: unknown, tokens: unknown) => void backend.savedTokens.push(tokens),
   deleteTheme: async () => {},
+  getThemeSettingsValues: async (id: string) => backend.settingsById[id] ?? {},
+  setThemeSettingsValue: async (id: string, fieldId: string, value: number | boolean) => {
+    backend.setSettingsCalls.push({ id, fieldId, value });
+  },
 }));
 
 const storage = new Map<string, string>();
@@ -111,11 +132,14 @@ beforeEach(() => {
   backend.installed = [];
   backend.savedTokens.length = 0;
   backend.tokensById = {};
+  backend.settingsById = {};
+  backend.schemaById = {};
+  backend.setSettingsCalls.length = 0;
   themeCssHead.length = 0;
   fontFaces.length = 0;
   addedFonts.length = 0;
   for (const name of Object.keys(writtenProps)) delete writtenProps[name];
-  useThemeStore.setState({ activeId: "neutral" });
+  useThemeStore.setState({ activeId: "neutral", themeFiles: {}, settingsValues: {} });
 });
 
 /** Two microtask turns: enough for an `applyThemeFonts` load chain to settle. */
@@ -338,6 +362,100 @@ describe("apply() asset wiring", () => {
     expect(fontFaces).toEqual([
       { family: "Good", source: "url(tetra-theme://local.partial/fonts/good.woff2)" },
     ]);
+  });
+});
+
+describe("settings values", () => {
+  const SCHEMA = {
+    schemaVersion: 1,
+    fields: [
+      { id: "accentHue", type: "number", label: "Accent hue", min: 0, max: 360, default: 210 },
+      { id: "compactRows", type: "boolean", label: "Compact rows", default: false },
+    ],
+  };
+
+  /** A theme whose palette is templated on the two schema fields above. Both
+   * schemes are templated so an assertion holds whichever one is active. */
+  const templated = (id: string) => {
+    backend.installed = [{ id, name: id }];
+    backend.schemaById[id] = SCHEMA;
+    backend.tokensById[id] = {
+      dark: { accent: "hsl({{accentHue}}, 45%, 60%)" },
+      light: { accent: "hsl({{accentHue}}, 45%, 60%)" },
+      spacing: { md: "{{accentHue}}px" },
+    };
+    return id;
+  };
+
+  it("fills every field from the schema's own default, letting a tuned value win", () => {
+    const fields = [
+      { id: "accentHue", type: "number" as const, label: "Accent hue", min: 0, max: 360, default: 210 },
+      { id: "compactRows", type: "boolean" as const, label: "Compact rows", default: false },
+    ];
+
+    expect(mergeSettingsValues(fields, { accentHue: 300 })).toEqual({
+      accentHue: 300,
+      compactRows: false,
+    });
+  });
+
+  it("treats a wrong-typed value and an unknown field id as untuned", () => {
+    const fields = [
+      { id: "accentHue", type: "number" as const, label: "Accent hue", min: 0, max: 360, default: 210 },
+      { id: "compactRows", type: "boolean" as const, label: "Compact rows", default: false },
+    ];
+
+    expect(
+      mergeSettingsValues(fields, { accentHue: "300", compactRows: true, gone: 1 }),
+    ).toEqual({ accentHue: 210, compactRows: true });
+  });
+
+  it("paints a picked theme's tuned values on the activation itself", async () => {
+    const id = templated("local.tuned");
+    backend.settingsById[id] = { accentHue: 300 };
+
+    await useThemeStore.getState().pickTheme(id);
+
+    expect(useThemeStore.getState().settingsValues[id]).toEqual({
+      accentHue: 300,
+      compactRows: false,
+    });
+    expect(writtenProps["--accent"]).toBe("hsl(300, 45%, 60%)");
+    expect(writtenProps["--space-md"]).toBe("300px");
+  });
+
+  it("renders a never-tuned field as its schema default, not literal or undefined", async () => {
+    const id = templated("local.untuned");
+
+    await useThemeStore.getState().pickTheme(id);
+
+    // A complete values object always reaches substitution: the untuned field
+    // carries its own default, which is what renders.
+    expect(writtenProps["--accent"]).toBe("hsl(210, 45%, 60%)");
+    expect(writtenProps["--space-md"]).toBe("210px");
+  });
+
+  it("leaves a placeholder no field names literal, per Package C's contract", async () => {
+    const id = templated("local.stale");
+    backend.tokensById[id] = {
+      dark: { accent: "hsl({{goneHue}}, 45%, 60%)" },
+      light: { accent: "hsl({{goneHue}}, 45%, 60%)" },
+    };
+
+    await useThemeStore.getState().pickTheme(id);
+
+    expect(writtenProps["--accent"]).toBe("hsl({{goneHue}}, 45%, 60%)");
+  });
+
+  it("writes a tuned value through and repaints from it without re-reading", async () => {
+    const id = templated("local.tuned");
+    backend.settingsById[id] = {};
+    await useThemeStore.getState().pickTheme(id);
+
+    await useThemeStore.getState().setSettingsValue(id, "accentHue", 42);
+
+    expect(backend.setSettingsCalls).toEqual([{ id, fieldId: "accentHue", value: 42 }]);
+    expect(writtenProps["--accent"]).toBe("hsl(42, 45%, 60%)");
   });
 });
 
