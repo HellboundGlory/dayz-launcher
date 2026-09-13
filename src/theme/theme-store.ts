@@ -24,6 +24,7 @@ import {
   type Typography,
 } from "./palette";
 import { applyTheme, DEFAULT_EXTRAS, type ThemeExtras } from "./apply";
+import { applyThemeFonts, applyThemeStylesheet } from "./css-loader";
 import {
   armActivation,
   deleteTheme as deleteThemeCmd,
@@ -205,6 +206,9 @@ export function resolvedExtras(
       uiFont: typography.uiFont ?? DEFAULT_TYPOGRAPHY.uiFont,
       dataFont: typography.dataFont ?? DEFAULT_TYPOGRAPHY.dataFont,
     },
+    shadows: {
+      glowIntensity: glowIntensityOf(root.shadows) ?? DEFAULT_EXTRAS.shadows.glowIntensity,
+    },
   };
 }
 
@@ -214,6 +218,31 @@ function stringEntries(raw: unknown): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(raw)) {
     if (typeof value === "string") out[key] = value;
+  }
+  return out;
+}
+
+/** The numeric `glowIntensity` of an untrusted `tokens.json` `shadows` group; anything else is dropped. */
+function glowIntensityOf(raw: unknown): number | undefined {
+  if (typeof raw !== "object" || raw === null || !("glowIntensity" in raw)) return undefined;
+  const { glowIntensity } = raw;
+  return typeof glowIntensity === "number" ? glowIntensity : undefined;
+}
+
+/** A theme's declared custom fonts out of its raw `tokens.json`; entries missing a string `family`/`file` are dropped. */
+function themeCustomFonts(file: ThemeFile | undefined): { family: string; file: string }[] {
+  const tokens: unknown = file?.tokens;
+  if (typeof tokens !== "object" || tokens === null) return [];
+  const typography = "typography" in tokens ? tokens.typography : undefined;
+  if (typeof typography !== "object" || typography === null) return [];
+  const customFonts = "customFonts" in typography ? typography.customFonts : undefined;
+  if (!Array.isArray(customFonts)) return [];
+  const out: { family: string; file: string }[] = [];
+  for (const entry of customFonts) {
+    if (typeof entry !== "object" || entry === null) continue;
+    if (!("family" in entry) || typeof entry.family !== "string") continue;
+    if (!("file" in entry) || typeof entry.file !== "string") continue;
+    out.push({ family: entry.family, file: entry.file });
   }
   return out;
 }
@@ -229,6 +258,9 @@ export function effectiveExtras(
     spacing: { ...base.spacing, ...customExtras.spacing },
     radii: { ...base.radii, ...customExtras.radii },
     typography: { ...base.typography, ...customExtras.typography },
+    // Bloom's live override lives in the store's own `bloom` field (the
+    // customiser's slider writes there), so nothing merges here.
+    shadows: base.shadows,
   };
 }
 
@@ -272,7 +304,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   custom: { dark: {}, light: {} },
   customExtras: { spacing: {}, radii: {}, typography: {} },
   lightRefined: false,
-  bloom: 0.9,
+  bloom: DEFAULT_EXTRAS.shadows.glowIntensity,
   installedThemes: [],
   themeFiles: {},
 
@@ -346,12 +378,15 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 
   apply: () => {
     const { scheme, activeId, custom, customExtras, bloom, themeFiles } = get();
-    applyTheme(
-      effective(scheme, activeId, themeFiles, custom),
-      scheme,
-      bloom,
-      effectiveExtras(activeId, themeFiles, customExtras),
-    );
+    applyTheme(effective(scheme, activeId, themeFiles, custom), scheme, {
+      ...effectiveExtras(activeId, themeFiles, customExtras),
+      shadows: { glowIntensity: bloom },
+    });
+    // CSS and fonts belong to an installed theme's own files; a preset or
+    // neutral has none, which unloads whatever the previous theme had.
+    const file = themeFiles[activeId];
+    applyThemeStylesheet(file ? activeId : null, file?.capabilities ?? []);
+    applyThemeFonts(file ? activeId : null, themeCustomFonts(file));
     // Every mutation funnels through apply() — persisting the UI prefs here
     // means a scheme flip or bloom drag survives a restart without each action
     // having to remember to save. The active id isn't stored locally: only a
@@ -381,6 +416,9 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       custom: { dark: {}, light: {} },
       customExtras: { spacing: {}, radii: {}, typography: {} },
       lightRefined: false,
+      // Bloom follows the same base-plus-override shape as the other extras:
+      // the picked theme supplies the base, the slider overrides it afterwards.
+      bloom: resolvedExtras(id, get().themeFiles).shadows.glowIntensity,
     });
     get().apply();
     try {
@@ -445,7 +483,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   },
 
   duplicateTheme: async (sourceId, name) => {
-    const { activeId, custom, customExtras, themeFiles } = get();
+    const { activeId, custom, customExtras, themeFiles, bloom } = get();
     const live = sourceId === activeId;
     const pair = resolvedPair(sourceId, themeFiles);
     const dark = {} as Palette;
@@ -478,6 +516,11 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       dark,
       light,
       ...(live ? effectiveExtras(sourceId, themeFiles, customExtras) : resolvedExtras(sourceId, themeFiles)),
+      // effectiveExtras never merges bloom in (apply() does that separately,
+      // straight from the store's own `bloom` field) — without this, saving
+      // the live theme would silently drop whatever the slider currently
+      // shows and keep the source theme's original glowIntensity instead.
+      ...(live && { shadows: { glowIntensity: bloom } }),
     };
 
     try {
@@ -525,8 +568,15 @@ export function watchThemeActivationReverted(): () => void {
   const pending = listen<{ previousId: string | null }>(
     "theme-activation-reverted",
     (event) => {
-      useThemeStore.setState({ activeId: event.payload.previousId ?? "neutral" });
-      useThemeStore.getState().apply();
+      const state = useThemeStore.getState();
+      const activeId = event.payload.previousId ?? "neutral";
+      // Bloom is theme-supplied now, so the revert has to re-seed it the same
+      // way pickTheme does — otherwise the abandoned preview's glow persists.
+      useThemeStore.setState({
+        activeId,
+        bloom: resolvedExtras(activeId, state.themeFiles).shadows.glowIntensity,
+      });
+      state.apply();
       // A reverted duplicate/"New theme" was just deleted on the backend —
       // re-sync so the grid doesn't keep showing it.
       void refreshInstalledThemes();
