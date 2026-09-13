@@ -24,15 +24,6 @@ export interface ThemePair {
   light: Palette;
 }
 
-/** One saved skin, persisted under {@link STORE_KEY}. */
-export interface SavedTheme {
-  name: string;
-  dark: Palette;
-  light: Palette;
-  bloom: number;
-  scheme: "dark" | "light";
-}
-
 // ── Colour math ───────────────────────────────────────────────────
 
 export function hexToRgb(h: string): [number, number, number] {
@@ -321,3 +312,41 @@ export const STORE_KEY = "tetra.customThemes";
 
 /** Editor overrides: a partial palette per scheme. */
 export type CustomOverrides = { dark: Partial<Palette>; light: Partial<Palette> };
+
+// ── Non-colour design tokens: spacing / radii / typography ─────────
+// Plain data, like the colour palette above. Defaults mirror main.css's
+// existing static values, so applying them is a no-op until overridden.
+
+export interface Spacing {
+  xs: string;
+  sm: string;
+  md: string;
+  lg: string;
+}
+
+export interface Radii {
+  control: string;
+  row: string;
+  chip: string;
+  pill: string;
+}
+
+export interface Typography {
+  /** CSS font-family value — a reference only, no bundled font files yet. */
+  uiFont: string;
+  dataFont: string;
+}
+
+export const DEFAULT_SPACING: Spacing = { xs: "2px", sm: "4px", md: "8px", lg: "16px" };
+export const DEFAULT_RADII: Radii = { control: "6px", row: "8px", chip: "3px", pill: "999px" };
+export const DEFAULT_TYPOGRAPHY: Typography = {
+  uiFont: '"Inter", "Segoe UI", system-ui, sans-serif',
+  dataFont: '"JetBrains Mono", "Fira Code", "Consolas", monospace',
+};
+
+/** Editor overrides for the non-colour tokens. Plain, not per-scheme — none of these vary by mode. */
+export interface CustomExtrasOverrides {
+  spacing: Partial<Spacing>;
+  radii: Partial<Radii>;
+  typography: Partial<Typography>;
+}

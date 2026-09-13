@@ -1,5 +1,6 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 use tetra_discord::{DiscordHandle, DiscordSession};
 use tetra_net::prober::Prober;
 use tetra_registry::Registry;
@@ -46,6 +47,23 @@ pub struct AppState {
     /// Backend-index session: conditional-GET tokens, health backoff, and
     /// which source last served the list. In memory only, per launch.
     pub index: Mutex<crate::commands::index::IndexSession>,
+    /// A theme activation awaiting confirm-or-revert. `None` when nothing is mid-preview.
+    pub pending_theme: Mutex<Option<PendingActivation>>,
+}
+
+/// A theme switch applied live but not yet written to `settings.json`; revert
+/// throws it away instead. [`Instant`], not a wall-clock timestamp or
+/// decrementing counter, so the deadline survives OS suspend correctly.
+pub struct PendingActivation {
+    /// The theme to revert to. `None` means the built-in default.
+    pub previous_id: Option<String>,
+    /// What `confirm_activation` persists.
+    pub new_id: Option<String>,
+    /// `new_id`'s directory was just created by this same action (duplicate,
+    /// "New theme") and has never been kept — abandoning the activation
+    /// should delete it too, not leave an orphan in the library.
+    pub delete_on_revert: bool,
+    pub deadline: Instant,
 }
 
 impl AppState {
@@ -73,6 +91,7 @@ impl AppState {
             log_file: Mutex::new(None),
             server_reader: Mutex::new(None),
             index: Mutex::new(crate::commands::index::IndexSession::default()),
+            pending_theme: Mutex::new(None),
         }
     }
 }

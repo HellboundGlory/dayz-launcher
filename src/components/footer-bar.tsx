@@ -1,3 +1,4 @@
+import { Moon, Sun } from "lucide-react";
 import { useSettingsStore } from "@/stores/settings-store";
 import {
   setUiScale,
@@ -7,6 +8,7 @@ import {
   type ListSource,
 } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
+import { useThemeStore } from "@/theme/theme-store";
 
 interface FooterBarProps {
   servers: number;
@@ -27,6 +29,8 @@ export function FooterBar({
 }: FooterBarProps) {
   const uiScale = useSettingsStore((s) => s.uiScale);
   const setSetting = useSettingsStore((s) => s.setSetting);
+  const scheme = useThemeStore((s) => s.scheme);
+  const setScheme = useThemeStore((s) => s.setScheme);
 
   // Applies immediately (cheap); setSetting persists on its own debounce.
   function changeScale(next: number) {
@@ -41,8 +45,12 @@ export function FooterBar({
     ((uiScale - UI_SCALE_MIN) / (UI_SCALE_MAX - UI_SCALE_MIN)) * (TRACK_PX - KNOB_PX);
 
   return (
-    <div className="footer-v2 flex shrink-0 items-center gap-3.5 border-t border-line bg-surface px-3.5 py-[7px]">
+    <div
+      data-tetra-slot="shell.footer"
+      className="footer-v2 flex shrink-0 items-center gap-3.5 border-t border-line bg-surface px-3.5 py-[7px]"
+    >
       <div
+        data-tetra-el="steamStateChip"
         className={cn(
           "f2-state flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-[3px] text-[9px] font-semibold",
           steamConnected
@@ -62,7 +70,10 @@ export function FooterBar({
       <div className="f2-vrule h-3.5 w-px shrink-0 bg-line" />
 
       {steamConnected && (
-        <div className="f2-stats flex min-w-0 flex-1 items-center gap-2 font-mono-data text-[10px] text-muted">
+        <div
+          data-tetra-el="serverCounts"
+          className="f2-stats flex min-w-0 flex-1 items-center gap-2 font-mono-data text-[10px] text-muted"
+        >
           <span>
             <em className="font-semibold not-italic text-muted2">{servers.toLocaleString()}</em>{" "}
             servers
@@ -102,7 +113,10 @@ export function FooterBar({
         </div>
       )}
 
-      <label className="f2-scale ml-auto flex shrink-0 items-center gap-2 text-[9px] uppercase tracking-[0.05em] text-muted2">
+      <label
+        data-tetra-el="uiScaleSlider"
+        className="f2-scale ml-auto flex shrink-0 items-center gap-2 text-[9px] uppercase tracking-[0.05em] text-muted2"
+      >
         <span className="lbl font-bold">Scale</span>
         <span className="track relative h-[3px] w-[120px] rounded-[2px] bg-line">
           <span
@@ -125,6 +139,21 @@ export function FooterBar({
           {Math.round(uiScale * 100)}%
         </span>
       </label>
+
+      <button
+        type="button"
+        data-tetra-el="schemeToggle"
+        onClick={() => setScheme(scheme === "dark" ? "light" : "dark")}
+        aria-label={scheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+        title={scheme === "dark" ? "Lighten the launcher theme" : "Darken the launcher theme"}
+        className="f2-scheme flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full text-muted2 transition-colors hover:text-ink"
+      >
+        {scheme === "dark" ? (
+          <Sun className="h-[14px] w-[14px]" strokeWidth={1.6} />
+        ) : (
+          <Moon className="h-[14px] w-[14px]" strokeWidth={1.6} />
+        )}
+      </button>
     </div>
   );
 }

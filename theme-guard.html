@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Theme Activation</title>
+    <style>
+      /* Self-contained: no main.css, no token spine, no data-tetra-* — a theme
+         has no reach here. Colors are src/main.css's :root defaults, hand-
+         copied rather than shared, so this always renders like the app's
+         own default chrome. */
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: transparent;
+        color: #e7ebf0;
+        font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+        font-size: 13px;
+        user-select: none;
+      }
+
+      #theme-guard-root {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px;
+      }
+
+      .tg-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        width: 100%;
+        padding: 16px 18px;
+        text-align: center;
+        border-radius: 10px;
+        border: 1px solid #262b34;
+        background: #12151b;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      }
+
+      .tg-prompt {
+        margin: 0;
+        line-height: 1.45;
+        color: #e7ebf0;
+      }
+
+      .tg-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+      }
+
+      .tg-btn {
+        padding: 7px 18px;
+        border: 1px solid #262b34;
+        border-radius: 6px;
+        background: #1a1e26;
+        color: #98a2b2;
+        font: inherit;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+      }
+
+      .tg-btn:hover {
+        color: #e7ebf0;
+      }
+
+      .tg-btn-keep {
+        border-color: transparent;
+        background: #8fa3bd;
+        color: #10131a;
+        box-shadow:
+          0 0 2.7px rgba(143, 163, 189, 0.95),
+          0 0 7.2px rgba(143, 163, 189, 0.75),
+          0 0 16.2px rgba(143, 163, 189, 0.5);
+      }
+
+      .tg-btn-keep:hover {
+        filter: brightness(1.1);
+        color: #10131a;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="theme-guard-root"></div>
+    <script type="module" src="/src/theme-guard.tsx"></script>
+  </body>
+</html>
