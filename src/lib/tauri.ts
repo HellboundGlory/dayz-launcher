@@ -606,6 +606,11 @@ export async function setThemeSettingsValue(
   return invoke<void>("set_theme_settings_value", { id, fieldId, value });
 }
 
+/** Replace an installed theme's whole `layout.json` with the editor's object. Committed to disk immediately — the store arms the revert window around it. */
+export async function saveThemeLayout(id: string, layout: unknown): Promise<void> {
+  return invoke<void>("save_theme_layout", { id, layout });
+}
+
 /** Create-only — an id that already exists is an error, never an overwrite. */
 export async function saveTheme(manifest: ThemeManifest, tokens: unknown): Promise<string> {
   return invoke<string>("save_theme", { manifest, tokens });
@@ -639,6 +644,20 @@ export async function armActivation(
 
 export async function confirmActivation(): Promise<void> {
   return invoke<void>("confirm_activation");
+}
+
+/**
+ * Open the guard window over an edit to the *active* theme's own `layout.json`
+ * — the id never changes, so revert restores the file instead of switching
+ * themes. `previousBytes` is that file's content before `saveThemeLayout`
+ * wrote it, or `null` when it did not exist, which revert honours by deleting.
+ */
+export async function armLayoutEdit(
+  id: string,
+  file: string,
+  previousBytes: number[] | null,
+): Promise<void> {
+  return invoke<void>("arm_layout_edit", { id, file, previousBytes });
 }
 
 /** Works on an expired activation too — this is also what the timeout path calls. */

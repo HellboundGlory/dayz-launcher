@@ -32,6 +32,7 @@ import {
 } from "./settings-schema";
 import {
   armActivation,
+  armLayoutEdit,
   deleteTheme as deleteThemeCmd,
   getSettings,
   getTheme,
@@ -39,10 +40,12 @@ import {
   listInstalledThemes,
   migrateLegacyCustomThemes,
   saveTheme as saveThemeCmd,
+  saveThemeLayout,
   setActiveThemeId,
   setThemeSettingsValue,
 } from "@/lib/tauri";
 import type {
+  LayoutManifest,
   LegacyTheme,
   ThemeFile,
   ThemeManifest,
@@ -74,6 +77,14 @@ interface ThemeState {
   /** Tune one field: writes it through the backend, mirrors it into
    * `settingsValues` immediately, then repaints. */
   setSettingsValue: (id: string, fieldId: string, value: number | boolean) => Promise<void>;
+  /** Set one slot's child order in the active theme's own `layout.json`. The
+   * caller owns producing a complete ordering; `resolveLayout` drops an
+   * unknown id and the backend's validation tolerates one, so neither checks. */
+  reorderSlotChildren: (slotId: string, order: string[]) => Promise<void>;
+  /** Flip one child's visibility in the active theme's own `layout.json`. */
+  toggleSlotChildVisibility: (slotId: string, childId: string) => Promise<void>;
+  /** Set one slot param — a literal CSS value or `var()` reference, verbatim. */
+  setSlotParam: (slotId: string, key: string, value: string) => Promise<void>;
   setScheme: (scheme: "dark" | "light") => void;
   /** `deleteOnRevert`: `id` was just created by this same action (duplicate,
    * "New theme") — abandoning the activation deletes it too, not just the pick. */
@@ -353,6 +364,56 @@ function loadLegacyThemes(): LegacyTheme[] | null {
   }
 }
 
+/** A theme's raw, unresolved `layout.json` — the object every mutation below
+ * edits, never `resolveLayout`'s output. A theme with no readable layout file
+ * gets the empty envelope, so a first edit writes a whole file. */
+function rawLayout(file: ThemeFile | undefined): LayoutManifest {
+  const layout = file?.layout;
+  if (layout === null || typeof layout !== "object") return { schemaVersion: 1, slots: {} };
+  const { schemaVersion, slots } = layout as { schemaVersion?: unknown; slots?: unknown };
+  return {
+    schemaVersion: typeof schemaVersion === "number" ? schemaVersion : 1,
+    slots:
+      typeof slots === "object" && slots !== null && !Array.isArray(slots)
+        ? (slots as Record<string, Record<string, unknown>>)
+        : {},
+  };
+}
+
+/** Patch one theme's raw layout into `themeFiles`, repaint from it, commit the
+ * same object to disk, then arm the revert window over the bytes it replaced. */
+async function persistLayoutEdit(id: string, nextLayout: LayoutManifest): Promise<void> {
+  const store = useThemeStore.getState();
+  const previousFile = store.themeFiles[id];
+  const previous = previousFile?.layout;
+  const previousBytes =
+    previous === undefined || previous === null
+      ? null
+      : Array.from(new TextEncoder().encode(JSON.stringify(previous)));
+
+  useThemeStore.setState({
+    themeFiles: { ...store.themeFiles, [id]: { ...previousFile, layout: nextLayout } },
+  });
+  store.apply();
+
+  try {
+    await saveThemeLayout(id, nextLayout);
+  } catch (e) {
+    console.error(`Could not save layout.json for theme "${id}":`, e);
+    // Roll the optimistic patch back: nothing reached disk, so the preview must
+    // not keep rendering an edit no revert window is guarding.
+    useThemeStore.setState((state) => {
+      const themeFiles = { ...state.themeFiles };
+      if (previousFile === undefined) delete themeFiles[id];
+      else themeFiles[id] = previousFile;
+      return { themeFiles };
+    });
+    useThemeStore.getState().apply();
+    return;
+  }
+  await armLayoutEdit(id, "layout.json", previousBytes);
+}
+
 export const useThemeStore = create<ThemeState>((set, get) => ({
   scheme: "dark",
   activeId: "neutral",
@@ -490,6 +551,50 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       return { settingsValues: { ...state.settingsValues, [id]: { ...base, [fieldId]: value } } };
     });
     get().apply();
+  },
+
+  // Layout mutations edit the *active* theme's own raw file — the visual editor
+  // only ever drags elements in the theme currently rendering. Each rebuilds
+  // the slot map so every untouched slot survives the write verbatim.
+  reorderSlotChildren: async (slotId, order) => {
+    const id = get().activeId;
+    const layout = rawLayout(get().themeFiles[id]);
+    const slot = layout.slots[slotId] ?? {};
+    await persistLayoutEdit(id, {
+      ...layout,
+      slots: { ...layout.slots, [slotId]: { ...slot, order } },
+    });
+  },
+
+  // Whether a child may be hidden is the registry's `required` flag, which this
+  // store deliberately doesn't import: the popover that calls this disables the
+  // control for a required child, and one owner beats two copies drifting.
+  toggleSlotChildVisibility: async (slotId, childId) => {
+    const id = get().activeId;
+    const layout = rawLayout(get().themeFiles[id]);
+    const slot = layout.slots[slotId] ?? {};
+    const hidden = Array.isArray(slot.hidden)
+      ? slot.hidden.filter((child): child is string => typeof child === "string")
+      : [];
+    const next = hidden.includes(childId)
+      ? hidden.filter((child) => child !== childId)
+      : [...hidden, childId];
+    const entry: Record<string, unknown> = { ...slot };
+    // An emptied hide list drops the key rather than writing `"hidden": []` —
+    // the same shape a hand-authored layout.json uses.
+    if (next.length === 0) delete entry.hidden;
+    else entry.hidden = next;
+    await persistLayoutEdit(id, { ...layout, slots: { ...layout.slots, [slotId]: entry } });
+  },
+
+  setSlotParam: async (slotId, key, value) => {
+    const id = get().activeId;
+    const layout = rawLayout(get().themeFiles[id]);
+    const slot = layout.slots[slotId] ?? {};
+    await persistLayoutEdit(id, {
+      ...layout,
+      slots: { ...layout.slots, [slotId]: { ...slot, [key]: value } },
+    });
   },
 
   setScheme: (scheme) => {
@@ -666,21 +771,42 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 
 /** Reverts the live preview when the guard window times out or the user reverts. */
 export function watchThemeActivationReverted(): () => void {
-  const pending = listen<{ previousId: string | null }>(
+  const pending = listen<{ previousId: string | null; restoredTheme: string | null }>(
     "theme-activation-reverted",
     (event) => {
-      const state = useThemeStore.getState();
-      const activeId = event.payload.previousId ?? "neutral";
-      // Bloom is theme-supplied now, so the revert has to re-seed it the same
-      // way pickTheme does — otherwise the abandoned preview's glow persists.
-      useThemeStore.setState({
-        activeId,
-        bloom: resolvedExtras(activeId, state.themeFiles).shadows.glowIntensity,
-      });
-      state.apply();
-      // A reverted duplicate/"New theme" was just deleted on the backend —
-      // re-sync so the grid doesn't keep showing it.
-      void refreshInstalledThemes();
+      const { previousId, restoredTheme } = event.payload;
+
+      // Today's body, unchanged: re-seed the id and the theme-supplied bloom,
+      // repaint, then re-sync the grid (a reverted duplicate was just deleted).
+      const applyRevert = () => {
+        const state = useThemeStore.getState();
+        const activeId = previousId ?? "neutral";
+        useThemeStore.setState({
+          activeId,
+          bloom: resolvedExtras(activeId, state.themeFiles).shadows.glowIntensity,
+        });
+        state.apply();
+        void refreshInstalledThemes();
+      };
+
+      // Only a layout-edit revert wrote a file back; an ordinary id switch has
+      // nothing on disk to re-read, so it takes the synchronous path untouched.
+      if (restoredTheme === null) {
+        applyRevert();
+        return;
+      }
+      // Re-read the theme whose layout.json was just put back — the hot-reload
+      // listener's patch shape — before reverting, so apply() repaints from the
+      // file rather than the abandoned preview. A failed re-read still reverts.
+      void getTheme(restoredTheme)
+        .then((file) => {
+          const store = useThemeStore.getState();
+          useThemeStore.setState({ themeFiles: { ...store.themeFiles, [restoredTheme]: file } });
+        })
+        .catch((e) => {
+          console.error(`Could not re-read reverted theme "${restoredTheme}":`, e);
+        })
+        .then(applyRevert);
     },
   );
   return () => {
