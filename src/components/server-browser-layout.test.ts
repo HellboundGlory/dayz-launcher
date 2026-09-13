@@ -5,7 +5,8 @@
  * rather than silently reordering the default row. */
 import { describe, expect, it } from "vitest";
 import { SLOTS } from "@/theme/slots";
-import { SERVER_ROW_GROUPS } from "./server-list";
+import { SERVER_ROW_GROUPS, nameLineSequence } from "./server-list";
+import { MENU_ITEM_IDS } from "./server-row-actions";
 
 function registryOrder(slotId: string): string[] {
   const slot = SLOTS.find((candidate) => candidate.id === slotId);
@@ -28,12 +29,9 @@ describe("registry order matches render order", () => {
   });
 
   it("server.rowActions: joinAction first (it renders outside the menu), then the menu", () => {
-    expect(registryOrder("server.rowActions")).toEqual([
-      "joinAction",
-      "moreInfoItem",
-      "loadToMenuItem",
-      "downloadModsItem",
-    ]);
+    // The menu's own ids come from the component, so an item added there
+    // without a registry entry fails here rather than vanishing from the menu.
+    expect(registryOrder("server.rowActions")).toEqual(["joinAction", ...MENU_ITEM_IDS]);
   });
 
   it("server.row: the four groups in DOM order spell out the registry, minus the two that render elsewhere", () => {
@@ -51,5 +49,21 @@ describe("registry order matches render order", () => {
     expect(registryOrder("server.row").filter((id) => !grouped.includes(id))).toEqual([
       "modStatusBadge",
     ]);
+  });
+});
+
+describe("nameLineSequence", () => {
+  it("leaves the resolved order alone when tagsLine renders", () => {
+    expect(nameLineSequence(["tagsLine", "name"], true)).toEqual(["tagsLine", "name"]);
+    expect(nameLineSequence(["name", "tagsLine"], true)).toEqual(["name", "tagsLine"]);
+  });
+
+  it("leaves it alone when no badge is pending", () => {
+    expect(nameLineSequence(["name"], false)).toEqual(["name"]);
+  });
+
+  it("promotes the required badge when a theme hid tagsLine's div", () => {
+    expect(nameLineSequence(["name"], true)).toEqual(["modStatusBadge", "name"]);
+    expect(nameLineSequence(["tagsLine"], true)).toEqual(["tagsLine"]);
   });
 });

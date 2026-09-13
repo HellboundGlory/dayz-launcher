@@ -24,16 +24,25 @@ interface ServerListProps {
 
 /** The row's four DOM groups. A theme reorders within one of these, never
  * across them — they are separate containers in the markup, and moving a child
- * between them would mean restructuring it. `modStatusBadge` has no group: it
- * renders inside `tagsLine`'s own div, on a data condition (a declared mod has
- * an update pending), so it has no position of its own to take. `joinAction` is
- * rendered by `server.rowActions` instead. */
+ * between them would mean restructuring it. `modStatusBadge` has no group of its
+ * own: it renders inside `tagsLine`'s div, on a data condition (a declared mod
+ * has an update pending). `joinAction` is rendered by `server.rowActions`
+ * instead. */
 export const SERVER_ROW_GROUPS = {
   favourite: ["favouriteAction"],
   nameLine: ["tagsLine", "name"],
   details: ["mapLabel", "gameTimeLabel", "regionFlag", "addressLabel", "lastPlayedLabel"],
   stats: ["playerCount", "pingBadge", "modCountLabel"],
 } as const;
+
+/** The name line's render sequence: the resolved ids, plus the required
+ * `modStatusBadge` promoted to its own element when a theme hid the optional
+ * `tagsLine` whose div it normally rides inside. Required content must survive
+ * that hide; the resolver refusing to hide required children isn't enough. */
+export function nameLineSequence(ids: readonly string[], badgeVisible: boolean): string[] {
+  if (!badgeVisible || ids.includes("tagsLine")) return [...ids];
+  return ["modStatusBadge", ...ids];
+}
 
 /** How often the distinct-maps dropdown is refetched — decoupled from the row-reload cadence. */
 const MAP_LIST_REFRESH_MS = 10_000;
@@ -198,21 +207,26 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
 
   // A row's four DOM groups, in resolved order. Same for every row — only the
   // data differs — so this is resolved once here, not per virtual item.
-  // nameLine passes its own ids as required: the required `modStatusBadge`
-  // renders inside `tagsLine`'s div, so a theme hiding `tagsLine` must not take
-  // required content with it.
+  // Only `name` is required here; `tagsLine` is optional and may be hidden.
   const slot = useResolvedSlot("server.row");
   const favouriteIds = slotChildrenToRender(slot, [], SERVER_ROW_GROUPS.favourite);
-  const nameLineIds = slotChildrenToRender(
-    slot,
-    SERVER_ROW_GROUPS.nameLine,
-    SERVER_ROW_GROUPS.nameLine,
-  );
+  const nameLineIds = slotChildrenToRender(slot, ["name"], SERVER_ROW_GROUPS.nameLine);
   const detailIds = slotChildrenToRender(slot, [], SERVER_ROW_GROUPS.details);
   const statIds = slotChildrenToRender(slot, [], SERVER_ROW_GROUPS.stats);
 
-  const renderNameLine = (server: Server) =>
-    nameLineIds.map((id) => {
+  const renderNameLine = (server: Server) => {
+    const pending = !!modPending[server.addr];
+    const pendingBadge = pending ? (
+      <Tag
+        tone="accent"
+        data-tetra-el="modStatusBadge"
+        title="A declared mod has a Steam update pending"
+      >
+        UPDATE
+      </Tag>
+    ) : null;
+
+    return nameLineSequence(nameLineIds, pending).map((id) => {
       if (id === "tagsLine") {
         return (
           <div key={id} data-tetra-el="tagsLine" className="flex shrink-0 gap-1">
@@ -221,15 +235,14 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
             {server.modded && <Tag tone="accent2">MODDED</Tag>}
             {server.first_person && <Tag tone="muted">1PP</Tag>}
             {server.locked && <Tag tone="danger">LOCKED</Tag>}
-            {modPending[server.addr] && (
-              <Tag
-                tone="accent"
-                data-tetra-el="modStatusBadge"
-                title="A declared mod has a Steam update pending"
-              >
-                UPDATE
-              </Tag>
-            )}
+            {pendingBadge}
+          </div>
+        );
+      }
+      if (id === "modStatusBadge") {
+        return (
+          <div key={id} className="flex shrink-0 gap-1">
+            {pendingBadge}
           </div>
         );
       }
@@ -239,6 +252,7 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
         </span>
       );
     });
+  };
 
   // `lastPlayedLabel` is itself conditional on the view and the row's data, so
   // the separators are inserted between whatever actually renders.
