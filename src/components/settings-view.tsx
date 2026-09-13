@@ -117,7 +117,10 @@ export function SettingsView({
   }
 
   return (
-    <div className="settings absolute bottom-0 right-0 top-7 left-[var(--side-w,176px)] z-40 flex flex-col bg-bg transition-[left] duration-200">
+    <div
+      data-tetra-slot="settings.background"
+      className="settings absolute bottom-0 right-0 top-7 left-[var(--side-w,176px)] z-40 flex flex-col bg-bg transition-[left] duration-200"
+    >
       <div
         data-tetra-slot="settings.shell"
         className="s-head flex shrink-0 items-center justify-between border-b border-line bg-surface px-[18px] py-[13px]"
