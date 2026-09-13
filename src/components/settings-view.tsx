@@ -37,7 +37,15 @@ const BUTTON_CLASS =
   "flex shrink-0 items-center gap-1.5 rounded-[6px] border border-line bg-surface2 px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted2 transition-colors duration-150 hover:text-ink disabled:opacity-50";
 
 // Full-page overlay; the sidebar stays interactive. Four accordions, one open at a time.
-export function SettingsView({ onClose }: { onClose: () => void }) {
+export function SettingsView({
+  onClose,
+  devMode,
+  onDevModeChange,
+}: {
+  onClose: () => void;
+  devMode: boolean;
+  onDevModeChange: (on: boolean) => void;
+}) {
   const profileName = useSettingsStore((s) => s.profileName);
   const dayzPath = useSettingsStore((s) => s.dayzPath);
   const workshopPath = useSettingsStore((s) => s.workshopPath);
@@ -346,7 +354,7 @@ export function SettingsView({ onClose }: { onClose: () => void }) {
           onToggle={() => toggle("theme")}
           onKeyDown={(e) => rove(e, 2)}
         >
-          <ThemesSection />
+          <ThemesSection devMode={devMode} onDevModeChange={onDevModeChange} />
         </SettingsAccordion>
       </div>
     </div>
