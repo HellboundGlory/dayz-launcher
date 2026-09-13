@@ -149,4 +149,41 @@ export const SLOTS: Slot[] = [
       { id: "pathBrowser", required: false, since: "1.0" },
     ],
   },
+  {
+    id: "settings.shell",
+    themeable: "full",
+    children: [
+      { id: "backAction", required: true, since: "1.0" },
+    ],
+  },
+  {
+    id: "settings.game",
+    themeable: "full",
+    children: [
+      { id: "profileNameInput", required: true, since: "1.0" },
+      { id: "dayzPathInput", required: true, since: "1.0" },
+      { id: "detectPathsAction", required: false, since: "1.0" },
+      { id: "workshopPathInput", required: false, since: "1.0" },
+      { id: "launchParamsInput", required: false, since: "1.0" },
+    ],
+  },
+  {
+    id: "settings.launcher",
+    themeable: "full",
+    children: [
+      { id: "windowOptions", required: false, since: "1.0" },
+      { id: "onJoinBehavior", required: false, since: "1.0" },
+      { id: "startupOptions", required: false, since: "1.0" },
+      { id: "discordOption", required: false, since: "1.0" },
+      { id: "dataFolderControl", required: false, since: "1.0" },
+      { id: "autoRefreshControl", required: false, since: "1.0" },
+    ],
+  },
+  {
+    id: "settings.theme",
+    themeable: "full",
+    children: [
+      { id: "themeManagement", required: true, since: "1.0" },
+    ],
+  },
 ];
