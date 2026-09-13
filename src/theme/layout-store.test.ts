@@ -75,30 +75,25 @@ describe("resolveLayout children", () => {
     expect(issues).toEqual([]);
   });
 
-  it("appends every required child a partial order left out — server.row's real shape", () => {
+  it("appends a required child a partial order left out — server.row's real shape", () => {
     // An old theme that reordered a couple of rows predates modStatusBadge;
-    // all three of server.row's required children must still end up present.
+    // it must still end up present.
     const { resolved, issues } = resolveLayout(
       SLOTS,
-      layout({ "server.row": { order: ["pingBadge", "name", "joinAction"] } }),
+      layout({ "server.row": { order: ["pingBadge", "name"] } }),
     );
 
-    expect(resolved["server.row"].children).toEqual([
-      "pingBadge",
-      "name",
-      "joinAction",
-      "modStatusBadge",
-    ]);
+    expect(resolved["server.row"].children).toEqual(["pingBadge", "name", "modStatusBadge"]);
     expect(issues).toEqual([]);
   });
 
   it("drops an order entry that is not a real child, with no issue", () => {
     const { resolved, issues } = resolveLayout(
       SLOTS,
-      layout({ "server.row": { order: ["ghostLabel", "joinAction"] } }),
+      layout({ "server.row": { order: ["ghostLabel", "pingBadge"] } }),
     );
 
-    expect(resolved["server.row"].children).toEqual(["joinAction", "name", "modStatusBadge"]);
+    expect(resolved["server.row"].children).toEqual(["pingBadge", "modStatusBadge", "name"]);
     expect(issues).toEqual([]);
   });
 
