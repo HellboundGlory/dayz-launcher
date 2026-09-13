@@ -18,7 +18,10 @@ pub struct ThemeManifest {
     /// The token API `tokens.json` is written against.
     pub theme_api: String,
     pub minimum_launcher_version: String,
-    /// `basic` (tokens only) or `full`.
+    /// What the theme may ship beyond its mandatory `tokens.json`: `basic`
+    /// (tokens only), `advanced` (adds `layout.json`, `styles.css`, bundled
+    /// fonts and images), or `expert` (adds `components/` and
+    /// `settings.schema.json` — not loadable by this build, rejected on import).
     pub tier: String,
     pub description: String,
     pub preview: Option<String>,
