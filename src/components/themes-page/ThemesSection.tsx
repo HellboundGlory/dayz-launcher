@@ -21,8 +21,18 @@ const ACTION_BTN =
 
 /** The "Theme" accordion body: the installed-themes grid, the active theme's
  * detail strip, and the existing token customiser tucked behind "Customize
- * tokens" so the section doesn't open with every control visible at once. */
-export function ThemesSection() {
+ * tokens" so the section doesn't open with every control visible at once.
+ *
+ * Dev Mode is owned by the shell rather than this section: the inspector has
+ * to survive closing Settings to reach the slots outside it, and it is
+ * deliberately session-only. */
+export function ThemesSection({
+  devMode,
+  onDevModeChange,
+}: {
+  devMode: boolean;
+  onDevModeChange: (on: boolean) => void;
+}) {
   const activeId = useThemeStore((s) => s.activeId);
   const installedThemes = useThemeStore((s) => s.installedThemes);
   const themeFiles = useThemeStore((s) => s.themeFiles);
@@ -97,8 +107,14 @@ export function ThemesSection() {
           <button type="button" disabled title="Coming in a later release" className={ACTION_BTN}>
             Theme settings
           </button>
-          <button type="button" disabled title="Coming in a later release" className={ACTION_BTN}>
-            Dev Mode: Off
+          <button
+            type="button"
+            onClick={() => onDevModeChange(!devMode)}
+            aria-pressed={devMode}
+            title="Outline the slots and elements a theme can reach"
+            className={cn(ACTION_BTN, devMode && "border-accent-line text-accent")}
+          >
+            Dev Mode: {devMode ? "On" : "Off"}
           </button>
           <button
             type="button"

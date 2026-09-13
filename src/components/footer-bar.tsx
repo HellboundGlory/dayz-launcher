@@ -1,3 +1,4 @@
+import { Fragment, type ReactNode } from "react";
 import { Moon, Sun } from "lucide-react";
 import { useSettingsStore } from "@/stores/settings-store";
 import {
@@ -9,6 +10,7 @@ import {
 } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { useThemeStore } from "@/theme/theme-store";
+import { useResolvedSlot } from "@/theme/use-resolved-layout";
 
 interface FooterBarProps {
   servers: number;
@@ -19,7 +21,12 @@ interface FooterBarProps {
   listSource: ListSource | null;
 }
 
-// Segmented footer: Steam state chip, mono stats, and the interface-scale track/knob.
+/** The slot's children, in the footer's own flex row. `steamStateChip` is
+ * required, so it renders even if a broken layout claims to hide it. */
+export const FOOTER_IDS = ["steamStateChip", "serverCounts", "uiScaleSlider", "schemeToggle"];
+const REQUIRED_IDS: Record<string, true> = { steamStateChip: true };
+
+/** Segmented footer: Steam state chip, mono stats, and the interface-scale track/knob. */
 export function FooterBar({
   servers,
   populated,
@@ -31,6 +38,8 @@ export function FooterBar({
   const setSetting = useSettingsStore((s) => s.setSetting);
   const scheme = useThemeStore((s) => s.scheme);
   const setScheme = useThemeStore((s) => s.setScheme);
+  const slot = useResolvedSlot("shell.footer");
+  const hidden = new Set(slot.hidden);
 
   // Applies immediately (cheap); setSetting persists on its own debounce.
   function changeScale(next: number) {
@@ -44,11 +53,8 @@ export function FooterBar({
   const knobLeft =
     ((uiScale - UI_SCALE_MIN) / (UI_SCALE_MAX - UI_SCALE_MIN)) * (TRACK_PX - KNOB_PX);
 
-  return (
-    <div
-      data-tetra-slot="shell.footer"
-      className="footer-v2 flex shrink-0 items-center gap-3.5 border-t border-line bg-surface px-3.5 py-[7px]"
-    >
+  const children: Record<string, ReactNode> = {
+    steamStateChip: (
       <div
         data-tetra-el="steamStateChip"
         className={cn(
@@ -66,53 +72,55 @@ export function FooterBar({
         />
         {steamConnected ? "Steam connected" : "Steam not connected"}
       </div>
+    ),
 
-      <div className="f2-vrule h-3.5 w-px shrink-0 bg-line" />
+    // Still gated on the data condition; a layout's `hidden` is a second,
+    // independent reason to skip it, not a replacement for this check.
+    serverCounts: steamConnected && (
+      <div
+        data-tetra-el="serverCounts"
+        className="f2-stats flex min-w-0 flex-1 items-center gap-2 font-mono-data text-[10px] text-muted"
+      >
+        <span>
+          <em className="font-semibold not-italic text-muted2">{servers.toLocaleString()}</em>{" "}
+          servers
+        </span>
+        <span className="sep text-line">·</span>
+        <span>
+          <em className="font-semibold not-italic text-muted2">
+            {populated.toLocaleString()}
+          </em>{" "}
+          populated
+        </span>
+        {listSource && (
+          <>
+            <span className="sep text-line">·</span>
+            <span
+              title={
+                listSource === "index"
+                  ? "Served by Tetra's server index in one request"
+                  : "Asked Steam directly — the index was off, unreachable or stale"
+              }
+            >
+              via{" "}
+              <em className="font-semibold not-italic text-muted2">
+                {listSource === "index" ? "index" : "Steam"}
+              </em>
+            </span>
+          </>
+        )}
+        {refreshedAt && (
+          <>
+            <span className="sep text-line">·</span>
+            <span>
+              refreshed <em className="font-semibold not-italic text-muted2">{refreshedAt}</em>
+            </span>
+          </>
+        )}
+      </div>
+    ),
 
-      {steamConnected && (
-        <div
-          data-tetra-el="serverCounts"
-          className="f2-stats flex min-w-0 flex-1 items-center gap-2 font-mono-data text-[10px] text-muted"
-        >
-          <span>
-            <em className="font-semibold not-italic text-muted2">{servers.toLocaleString()}</em>{" "}
-            servers
-          </span>
-          <span className="sep text-line">·</span>
-          <span>
-            <em className="font-semibold not-italic text-muted2">
-              {populated.toLocaleString()}
-            </em>{" "}
-            populated
-          </span>
-          {listSource && (
-            <>
-              <span className="sep text-line">·</span>
-              <span
-                title={
-                  listSource === "index"
-                    ? "Served by Tetra's server index in one request"
-                    : "Asked Steam directly — the index was off, unreachable or stale"
-                }
-              >
-                via{" "}
-                <em className="font-semibold not-italic text-muted2">
-                  {listSource === "index" ? "index" : "Steam"}
-                </em>
-              </span>
-            </>
-          )}
-          {refreshedAt && (
-            <>
-              <span className="sep text-line">·</span>
-              <span>
-                refreshed <em className="font-semibold not-italic text-muted2">{refreshedAt}</em>
-              </span>
-            </>
-          )}
-        </div>
-      )}
-
+    uiScaleSlider: (
       <label
         data-tetra-el="uiScaleSlider"
         className="f2-scale ml-auto flex shrink-0 items-center gap-2 text-[9px] uppercase tracking-[0.05em] text-muted2"
@@ -139,7 +147,9 @@ export function FooterBar({
           {Math.round(uiScale * 100)}%
         </span>
       </label>
+    ),
 
+    schemeToggle: (
       <button
         type="button"
         data-tetra-el="schemeToggle"
@@ -154,6 +164,29 @@ export function FooterBar({
           <Moon className="h-[14px] w-[14px]" strokeWidth={1.6} />
         )}
       </button>
+    ),
+  };
+
+  const order = [
+    ...slot.children.filter((id) => FOOTER_IDS.includes(id)),
+    ...FOOTER_IDS.filter((id) => !slot.children.includes(id)),
+  ];
+
+  return (
+    <div
+      data-tetra-slot="shell.footer"
+      className="footer-v2 flex shrink-0 items-center gap-3.5 border-t border-line bg-surface px-3.5 py-[7px]"
+    >
+      {order.map((id) => {
+        if (hidden.has(id) && !REQUIRED_IDS[id]) return null;
+        return (
+          <Fragment key={id}>
+            {children[id]}
+            {/* Decorative rule, not a registered child: it stays beside the chip. */}
+            {id === "steamStateChip" && <div className="f2-vrule h-3.5 w-px shrink-0 bg-line" />}
+          </Fragment>
+        );
+      })}
     </div>
   );
 }

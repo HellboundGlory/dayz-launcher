@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { Search, ChevronDown, RefreshCw, RotateCcw, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useServerStore } from "@/stores/server-store";
+import { useResolvedSlot } from "@/theme/use-resolved-layout";
+import { slotChildrenToRender } from "@/theme/slot-children";
 import type { SortKey } from "@/types/filters";
 
 interface FilterBarProps {
@@ -61,58 +63,50 @@ export function FilterBar({ onRefresh, refreshing, onOpenModFilter, modFilterOpe
   const sortKey = useServerStore((s) => s.sortKey);
   const sortDir = useServerStore((s) => s.sortDir);
   const setSort = useServerStore((s) => s.setSort);
+  const slot = useResolvedSlot("filterBar");
 
-  return (
-    // At 1.5x scale the viewport is ~975 CSS px and the fixed-width controls
-    // alone exceed it, so the row wraps — a second row beats clipping the
-    // Refresh button off the right edge.
-    <div
-      data-tetra-slot="filterBar"
-      className="filterbar flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-2 border-b border-line bg-surface px-2.5 py-2"
-    >
+  const controls: Record<string, React.ReactNode> = {
+    searchInput: (
       <SearchInput value={filter.search} onChange={(search) => setFilter({ search })} />
-
+    ),
+    mapFilter: (
       <MapDropdown selectedMaps={filter.maps ?? []} onChange={(maps) => setFilter({ maps })} />
-
+    ),
+    tagsFilter: (
       <TagsDropdown
         official={filter.official}
         modded={filter.modded}
         firstPerson={filter.first_person}
         onChange={(field, value) => setFilter({ [field]: value })}
       />
-
+    ),
+    modsFilter: (
       <ModsFilterTrigger
         modIds={filter.mod_ids}
         modIdsExclude={filter.mod_ids_exclude}
         onOpen={onOpenModFilter}
         open={modFilterOpen}
       />
-
+    ),
+    countryFilter: (
       <CountryDropdown
         selectedCountries={filter.countries ?? []}
         onChange={(countries) => setFilter({ countries })}
       />
-
+    ),
+    sortControl: (
       <SortDropdown
         sortKey={sortKey}
         sortDir={sortDir}
         onSort={(key) => setSort(key, sortKey === key && sortDir === "desc" ? "asc" : "desc")}
       />
-
+    ),
+    pingSlider: (
       <PingSlider maxPing={filter.max_ping ?? 500} onChange={(max_ping) => setFilter({ max_ping })} />
-
-      {/* Filters persist between sessions, so this is the explicit way back to defaults. */}
-      <button
-        onClick={resetFilter}
-        className="fbtn flex shrink-0 items-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-ink"
-        title="Reset all filters to defaults"
-      >
-        <RotateCcw className="size-3" />
-        Reset
-      </button>
-
-      {/* Gated on `refreshing` alone, not `discovering` — rows can already
-          be on screen worth re-probing before discovery finishes. */}
+    ),
+    // Gated on `refreshing` alone, not `discovering` — rows can already
+    // be on screen worth re-probing before discovery finishes.
+    refreshAction: (
       <button
         data-tetra-el="refreshAction"
         onClick={onRefresh}
@@ -128,6 +122,35 @@ export function FilterBar({ onRefresh, refreshing, onOpenModFilter, modFilterOpe
         <RefreshCw className={cn("size-3", refreshing && "animate-spin")} />
         {refreshing ? "Refreshing…" : "Refresh"}
       </button>
+    ),
+  };
+
+  return (
+    // At 1.5x scale the viewport is ~975 CSS px and the fixed-width controls
+    // alone exceed it, so the row wraps — a second row beats clipping the
+    // Refresh button off the right edge.
+    <div
+      data-tetra-slot="filterBar"
+      className="filterbar flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-2 border-b border-line bg-surface px-2.5 py-2"
+    >
+      {slotChildrenToRender(slot, ["searchInput", "refreshAction"]).map((id) => (
+        <Fragment key={id}>
+          {/* Filters persist between sessions, so this is the explicit way back
+              to defaults. Not in the slot registry, so it has no order of its
+              own — it keeps the position it has today, next to Refresh. */}
+          {id === "refreshAction" && (
+            <button
+              onClick={resetFilter}
+              className="fbtn flex shrink-0 items-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-ink"
+              title="Reset all filters to defaults"
+            >
+              <RotateCcw className="size-3" />
+              Reset
+            </button>
+          )}
+          {controls[id]}
+        </Fragment>
+      ))}
     </div>
   );
 }
@@ -240,6 +263,7 @@ function FdropTrigger({
   onClick,
   title,
   haspopup = "listbox",
+  dataTetraEl,
 }: {
   label: string;
   on?: boolean;
@@ -248,6 +272,9 @@ function FdropTrigger({
   onClick: () => void;
   title?: string;
   haspopup?: "listbox" | "dialog";
+  // Only ModsFilterTrigger needs this: it has no wrapping "fdrop relative"
+  // div of its own to carry the attribute, unlike the others.
+  dataTetraEl?: string;
 }) {
   return (
     <button
@@ -255,6 +282,7 @@ function FdropTrigger({
       title={title}
       aria-haspopup={haspopup}
       aria-expanded={open ?? false}
+      data-tetra-el={dataTetraEl}
       className={cn(
         "fdrop-trigger flex items-center gap-1.5 whitespace-nowrap rounded-[6px] border border-line bg-surface2 px-2 py-[5px] text-[10px] font-bold text-muted transition-colors hover:border-accent-line hover:text-ink",
         on && "border-accent-line bg-accent-soft text-accent shadow-[var(--glow)]",
@@ -297,7 +325,14 @@ function ModsFilterTrigger({
           : `${included} in, ${excluded} out`;
 
   return (
-    <FdropTrigger label="MODS" on={included + excluded > 0} open={open} haspopup="dialog" onClick={onOpen}>
+    <FdropTrigger
+      dataTetraEl="modsFilter"
+      label="MODS"
+      on={included + excluded > 0}
+      open={open}
+      haspopup="dialog"
+      onClick={onOpen}
+    >
       {label}
     </FdropTrigger>
   );
@@ -465,7 +500,7 @@ function CountryDropdown({
   };
 
   return (
-    <div ref={ref} className={cn("fdrop relative", open && "open")}>
+    <div data-tetra-el="countryFilter" ref={ref} className={cn("fdrop relative", open && "open")}>
       <FdropTrigger
         label="REGION"
         on={selectedCountries.length > 0}
