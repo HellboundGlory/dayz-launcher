@@ -432,14 +432,11 @@ fn sniff_raster_image(name: &str, extension: &str, bytes: &[u8]) -> Result<(), S
     Ok(())
 }
 
-/// CSS is the one asset this file cannot vet by itself: Package C adds
-/// `theme::css::validate_css`, and until it lands the only safe answer is to
-/// refuse. Replace the body with `theme::css::validate_css(name, bytes)` as
-/// soon as it exists — nothing else here has to change.
-fn sniff_css(name: &str, _bytes: &[u8]) -> Result<(), String> {
-    Err(format!(
-        "`{name}` is CSS and this build has no CSS sanitiser to check it with — refusing the import rather than staging CSS unchecked."
-    ))
+/// Package C's gate: a reject-list plus a `url()` check (see `theme::css`).
+fn sniff_css(name: &str, bytes: &[u8]) -> Result<(), String> {
+    let text =
+        std::str::from_utf8(bytes).map_err(|e| format!("`{name}` is not valid UTF-8: {e}"))?;
+    crate::theme::css::validate_css(text)
 }
 
 /// SVG is XML that can carry script, so it is parsed rather than pattern-matched.
@@ -1840,20 +1837,36 @@ mod tests {
         assert!(error.contains("not `<svg>`"), "message was: {error}");
     }
 
-    /// Package C's `theme::css::validate_css` has not landed, so CSS cannot be
-    /// vetted yet and must not be staged unchecked.
+    /// A stylesheet with nothing `theme::css::validate_css` bans stages fine.
     #[test]
-    fn css_is_refused_while_no_sanitiser_exists() {
-        let root = scratch("css");
+    fn a_clean_stylesheet_is_staged() {
+        let root = scratch("css-clean");
         let zip_path = fixture(
             &root,
-            "css",
-            &[Entry::file("style/theme.css", "body { color: red; }")],
+            "css-clean",
+            &[Entry::file(
+                "style/theme.css",
+                r#"[data-tetra-slot="server.row"] { border-radius: 2px; }"#,
+            )],
+        );
+
+        stage_for_preview(&root, &zip_path, &[]).expect("a clean stylesheet must stage");
+    }
+
+    /// The same gate Package C ships runs here too — a theme cannot smuggle
+    /// through what `validate_css` would otherwise refuse.
+    #[test]
+    fn a_stylesheet_validate_css_would_refuse_is_refused_here_too() {
+        let root = scratch("css-banned");
+        let zip_path = fixture(
+            &root,
+            "css-banned",
+            &[Entry::file("style/theme.css", r#"@import "other.css";"#)],
         );
 
         let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
 
-        assert!(error.contains("no CSS sanitiser"), "message was: {error}");
+        assert!(error.contains("@import"), "message was: {error}");
     }
 
     /// The sniff runs before the entry is written, so a package that trips it
