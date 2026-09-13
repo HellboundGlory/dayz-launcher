@@ -894,9 +894,17 @@ export function App() {
         {sidebarRight && sidebar}
       </div>
 
-      {settingsOpen && <SettingsView onClose={() => setSettingsOpen(false)} devMode={devMode} onDevModeChange={setDevMode} />}
+      {settingsOpen && (
+        <SettingsView
+          onClose={() => setSettingsOpen(false)}
+          devMode={devMode}
+          onDevModeChange={setDevMode}
+          layoutEditMode={layoutEditMode}
+          onLayoutEditModeChange={setLayoutEditMode}
+        />
+      )}
 
-      {devMode && <DevModeInspector />}
+      {devMode && <DevModeInspector editMode={layoutEditMode} />}
 
       {showOnboarding && steamConnected && (
         <OnboardingModal onDone={() => setShowOnboarding(false)} />
