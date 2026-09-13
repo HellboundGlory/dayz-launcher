@@ -103,8 +103,17 @@ export function DevModeInspector() {
       const rect = node?.element.getBoundingClientRect() ?? null;
       const footer = footerRect();
       const isFooterItself = node !== null && node.element.closest(`[${SLOT_ATTR}="shell.footer"]`) !== null;
+      // Settings is a full-screen overlay that legitimately sits above the
+      // footer while open — the footer stays mounted underneath it (just
+      // visually covered), so its rect still geometrically overlaps
+      // Settings' own bottom edge. Only the ordinary in-flow content behind
+      // the footer (the server/mods lists) needs the exclusion below.
+      const isOverlaySurface =
+        node !== null && node.element.closest(`[${SLOT_ATTR}="settings.background"]`) !== null;
       const valid =
-        node !== null && rect !== null && (isFooterItself || footer === null || !rectsOverlap(rect, footer));
+        node !== null &&
+        rect !== null &&
+        (isFooterItself || isOverlaySurface || footer === null || !rectsOverlap(rect, footer));
       if (!valid) {
         // Nothing valid is directly under the pointer, but it may just be
         // crossing the gap toward the badge itself — bridge that gap rather
