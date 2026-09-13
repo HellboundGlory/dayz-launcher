@@ -8,6 +8,7 @@
 pub mod archive;
 pub mod css;
 pub mod manifest;
+pub mod protocol;
 
 use std::path::{Path, PathBuf};
 
