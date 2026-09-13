@@ -301,6 +301,68 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    /// A chain of two links (one to another link, the last to a file outside
+    /// the theme) must not resolve any further than a single hop does.
+    #[cfg(unix)]
+    #[test]
+    fn a_chained_symlink_cannot_smuggle_a_path_out_of_the_theme() {
+        let root = installed("symlink-chain");
+        let theme = root.join("aurora.theme");
+        let outside = root.join("outside");
+        std::fs::create_dir_all(&outside).unwrap();
+        std::fs::write(outside.join("stolen.css"), b"body{}").unwrap();
+        std::os::unix::fs::symlink(&outside, root.join("hop1")).unwrap();
+        std::os::unix::fs::symlink(root.join("hop1"), theme.join("hop2")).unwrap();
+
+        let reason =
+            resolve_asset(&root, "aurora.theme", "hop2/stolen.css").expect_err("must refuse");
+
+        assert!(reason.contains("outside theme"), "{reason}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A symlink loop must fail closed (an unresolvable path), not panic or
+    /// hang.
+    #[cfg(unix)]
+    #[test]
+    fn a_symlink_loop_is_refused_rather_than_panicking() {
+        let root = installed("symlink-loop");
+        let theme = root.join("aurora.theme");
+        std::os::unix::fs::symlink(theme.join("loop-b"), theme.join("loop-a")).unwrap();
+        std::os::unix::fs::symlink(theme.join("loop-a"), theme.join("loop-b")).unwrap();
+
+        let reason = resolve_asset(&root, "aurora.theme", "loop-a").expect_err("must refuse");
+
+        assert!(!reason.is_empty());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A request path carrying a raw NUL byte cannot slip past the `..`/
+    /// absolute-path checks by confusing something into truncating the string.
+    #[test]
+    fn a_null_byte_in_the_path_is_refused_not_silently_truncated() {
+        let root = installed("nul");
+
+        let reason = resolve_asset(&root, "aurora.theme", "main.css\0/../../settings.json")
+            .expect_err("must refuse");
+
+        assert!(!reason.is_empty());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// An overlong UTF-8 encoding of `/` (`%c0%af`) must not decode into a
+    /// path separator the traversal check would otherwise have caught as `..`.
+    #[test]
+    fn an_overlong_utf8_slash_is_refused_as_invalid_encoding() {
+        let root = installed("overlong");
+        let uri = request("aurora.theme", "..%c0%afsettings.json");
+
+        let reason = read_asset(&root, &uri).expect_err("must refuse");
+
+        assert!(!reason.is_empty());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     #[test]
     fn a_request_url_splits_into_theme_id_and_asset_path() {
         let uri: Uri = "tetra-theme://aurora.theme/preview/dark/bg%20one.png"
