@@ -54,6 +54,26 @@ pub fn delete_theme(app: AppHandle, id: String) -> Result<(), String> {
     Ok(())
 }
 
+/// The end user's tuned `settings.schema.json` values for one installed theme.
+/// `{}` when nothing has been tuned yet — absence is not an error.
+#[tauri::command]
+pub fn get_theme_settings_values(app: AppHandle, id: String) -> Result<serde_json::Value, String> {
+    theme::settings_values::get_values(&crate::paths::themes_dir(&app), &id)
+}
+
+/// Tune one field of one installed theme, keeping every other tuned value.
+#[tauri::command]
+pub fn set_theme_settings_value(
+    app: AppHandle,
+    id: String,
+    field_id: String,
+    value: serde_json::Value,
+) -> Result<(), String> {
+    theme::settings_values::set_value(&crate::paths::themes_dir(&app), &id, &field_id, &value)?;
+    crate::log::log_line(&app, "theme", &format!("Set `{field_id}` for theme `{id}`"));
+    Ok(())
+}
+
 /// Validate a theme `.zip` and stage it for confirmation. Nothing is
 /// installed yet; see [`theme::archive`] for the checks and their order.
 #[tauri::command]
