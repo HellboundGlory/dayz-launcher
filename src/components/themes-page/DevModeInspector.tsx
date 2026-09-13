@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { cn } from "@/lib/utils";
 import { SLOTS } from "@/theme/slots";
 
 const SLOT_ATTR = "data-tetra-slot";
@@ -48,6 +49,17 @@ interface HoverState {
 
 const BADGE_MAX_W = 336;
 
+// The gap between a highlighted element and its floating badge (see `margin`
+// below, which positions the badge this far past the element's edge). The
+// pointer crosses this gap on the way to "Copy selector"; `pointInRect`'s pad
+// bridges it so the badge doesn't vanish out from under a reaching cursor.
+const BADGE_GAP = 8;
+
+function pointInRect(x: number, y: number, rect: DOMRect | null, pad: number): boolean {
+  if (rect === null) return false;
+  return x >= rect.left - pad && x <= rect.right + pad && y >= rect.top - pad && y <= rect.bottom + pad;
+}
+
 /** Read-only slot inspector: outlines whatever slot/element the pointer is over
  * and reports the registry's children for it. Mounted only while Dev Mode is
  * on, so the listener and the overlay exist for exactly that long. */
@@ -57,6 +69,11 @@ export function DevModeInspector() {
   // Keyed on the rounded rect too, so a layout shift under a stationary pointer
   // re-positions the outline while an unchanged hover skips the re-render.
   const lastKey = useRef<string | null>(null);
+  // Mirrors `hover` for the mousemove listener below, which is attached once
+  // and would otherwise only ever see the hover value from its first render.
+  const hoverRef = useRef<HoverState | null>(null);
+  hoverRef.current = hover;
+  const badgeRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     function onMove(e: MouseEvent) {
@@ -66,14 +83,25 @@ export function DevModeInspector() {
       // blank the readout it is about to copy.
       if (target.closest("[data-dev-inspector]")) return;
       const node = findTetraNode(target);
-      const rect = node?.element.getBoundingClientRect() ?? null;
-      const key =
-        node === null || rect === null
-          ? ""
-          : `${node.kind}:${node.id}:${Math.round(rect.top)},${Math.round(rect.left)},${Math.round(rect.width)},${Math.round(rect.height)}`;
+      if (node === null) {
+        // Nothing tagged is directly under the pointer, but it may just be
+        // crossing the gap toward the badge itself — bridge that gap rather
+        // than dropping the badge before the pointer arrives.
+        const bridging =
+          pointInRect(e.clientX, e.clientY, hoverRef.current?.rect ?? null, BADGE_GAP) ||
+          pointInRect(e.clientX, e.clientY, badgeRef.current?.getBoundingClientRect() ?? null, BADGE_GAP);
+        if (bridging) return;
+        if (lastKey.current === "") return;
+        lastKey.current = "";
+        setHover(null);
+        setCopyState("idle");
+        return;
+      }
+      const rect = node.element.getBoundingClientRect();
+      const key = `${node.kind}:${node.id}:${Math.round(rect.top)},${Math.round(rect.left)},${Math.round(rect.width)},${Math.round(rect.height)}`;
       if (key === lastKey.current) return;
       lastKey.current = key;
-      setHover(node === null || rect === null ? null : { node, rect });
+      setHover({ node, rect });
       setCopyState("idle");
     }
     function onOut(e: MouseEvent) {
@@ -82,22 +110,59 @@ export function DevModeInspector() {
       setHover(null);
       setCopyState("idle");
     }
+    // Scrolling (the server list, a modal's body, ...) moves whatever is
+    // under a stationary pointer without firing mousemove — and a virtualised
+    // list reuses the same DOM node for a different row. Clearing on any
+    // scroll (capture: true, since scroll doesn't bubble) means the badge
+    // never keeps pointing at content that has moved or changed underneath
+    // it; the next mousemove picks up wherever the pointer actually lands.
+    function onScroll() {
+      if (lastKey.current === null) return;
+      lastKey.current = null;
+      setHover(null);
+      setCopyState("idle");
+    }
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseout", onOut);
+    document.addEventListener("scroll", onScroll, true);
     return () => {
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseout", onOut);
+      document.removeEventListener("scroll", onScroll, true);
+    };
+  }, []);
+
+  const copyResetTimer = useRef<number | null>(null);
+  useEffect(() => {
+    return () => {
+      if (copyResetTimer.current !== null) window.clearTimeout(copyResetTimer.current);
     };
   }, []);
 
   async function copySelector(node: TetraNode) {
+    if (copyResetTimer.current !== null) window.clearTimeout(copyResetTimer.current);
     try {
       await navigator.clipboard.writeText(selectorFor(node));
       setCopyState("copied");
     } catch {
       setCopyState("failed");
     }
+    copyResetTimer.current = window.setTimeout(() => setCopyState("idle"), 1800);
   }
+
+  // Ctrl/Cmd+C copies the hovered selector — a floating badge that must be
+  // clicked is a target chasing the pointer around; a key needs no reach.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "c") return;
+      const node = hoverRef.current?.node;
+      if (!node) return;
+      e.preventDefault();
+      void copySelector(node);
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const slot =
     hover !== null && hover.node.kind === "slot"
@@ -109,7 +174,6 @@ export function DevModeInspector() {
 
   // The badge is measured rather than guessed: a full-height slot (the sidebar)
   // has no room below it, and a tall element's badge must not land off-screen.
-  const badgeRef = useRef<HTMLDivElement | null>(null);
   const [badge, setBadge] = useState({ w: BADGE_MAX_W, h: 0 });
   useLayoutEffect(() => {
     const el = badgeRef.current;
@@ -117,7 +181,7 @@ export function DevModeInspector() {
     setBadge({ w: el.offsetWidth, h: el.offsetHeight });
   }, [hover, copyState]);
 
-  const margin = 8;
+  const margin = BADGE_GAP;
   let top = 0;
   let left = margin;
   if (rect) {
@@ -144,7 +208,7 @@ export function DevModeInspector() {
           <div
             ref={badgeRef}
             data-dev-inspector
-            className="pointer-events-auto absolute overflow-auto rounded-[6px] border border-[#ff4fd8] bg-[rgba(12,10,16,0.95)] px-2.5 py-2 font-mono-data text-[10px] leading-[1.5] text-[#e9e6f2] shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
+            className="absolute overflow-auto rounded-[6px] border border-[#ff4fd8] bg-[rgba(12,10,16,0.95)] px-2.5 py-2 font-mono-data text-[10px] leading-[1.5] text-[#e9e6f2] shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
             style={{
               top,
               left,
@@ -175,17 +239,18 @@ export function DevModeInspector() {
             )}
 
             <div className="mt-2 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void copySelector(hover.node)}
-                className="rounded-[4px] border border-[#ff4fd8] px-1.5 py-px text-[9.5px] font-semibold uppercase tracking-[0.04em] text-[#ff9ae8] transition-colors hover:bg-[rgba(255,79,216,0.2)]"
+              <span
+                className={cn(
+                  "shrink-0 rounded-[4px] border px-1.5 py-px text-[9.5px] font-semibold uppercase tracking-[0.04em]",
+                  copyState === "failed"
+                    ? "border-danger text-danger"
+                    : copyState === "copied"
+                      ? "border-[#ff4fd8] bg-[rgba(255,79,216,0.2)] text-[#ff9ae8]"
+                      : "border-[#ff4fd8] text-[#ff9ae8]",
+                )}
               >
-                {copyState === "copied"
-                  ? "Copied"
-                  : copyState === "failed"
-                    ? "Copy failed"
-                    : "Copy selector"}
-              </button>
+                {copyState === "copied" ? "Copied!" : copyState === "failed" ? "Copy failed" : "Ctrl+C to copy"}
+              </span>
               <span className="break-all text-[#9c93ad]">{selectorFor(hover.node)}</span>
             </div>
           </div>

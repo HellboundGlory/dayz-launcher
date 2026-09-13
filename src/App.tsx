@@ -738,7 +738,6 @@ export function App() {
         <Sidebar
           activeView={activeView}
           onViewChange={handleViewChange}
-          steamConnected={steamConnected}
           settingsOpen={settingsOpen}
           onOpenSettings={() => setSettingsOpen(true)}
           onCloseSettings={() => setSettingsOpen(false)}
