@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { cn } from "@/lib/utils";
+import { SlotChild } from "@/theme/slot-render";
 import { useSettingsStore } from "@/stores/settings-store";
 import { discoverSteamPaths, validateDayzPath } from "@/lib/tauri";
 import tetraLogo from "@/assets/tetra-logo.png";
@@ -191,16 +192,18 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
                   placeholder="C:\Program Files (x86)\Steam\steamapps\common\DayZ"
                   className={cn(INPUT_CLASS, "font-mono-data text-[10px]")}
                 />
-                <button
-                  data-tetra-el="pathBrowser"
-                  onClick={browseForFolder}
-                  disabled={browsing}
-                  title="Browse for your DayZ install folder"
-                  className={cn(GHOST_BUTTON_CLASS, "py-2")}
-                >
-                  <FolderOpen className="size-3" />
-                  Browse
-                </button>
+                <SlotChild slotId="modal.onboarding" id="pathBrowser">
+                  <button
+                    data-tetra-el="pathBrowser"
+                    onClick={browseForFolder}
+                    disabled={browsing}
+                    title="Browse for your DayZ install folder"
+                    className={cn(GHOST_BUTTON_CLASS, "py-2")}
+                  >
+                    <FolderOpen className="size-3" />
+                    Browse
+                  </button>
+                </SlotChild>
                 <button
                   onClick={() => void scan()}
                   title="Scan the Steam registry again"

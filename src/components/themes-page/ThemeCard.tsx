@@ -9,6 +9,8 @@ interface ThemeCardProps {
   version?: string;
   active: boolean;
   swatches: [string, string, string, string];
+  /** A resolved `tetra-theme://` URL (see `resolveThemeAsset`); absent when the theme declares no preview. */
+  previewUrl?: string;
   onActivate: () => void;
   onDuplicate: () => void;
   /** Absent for a built-in theme — the menu item is omitted, not disabled. */
@@ -33,12 +35,17 @@ export function ThemeCard({
   version,
   active,
   swatches,
+  previewUrl,
   onActivate,
   onDuplicate,
   onExport,
   onRequestDelete,
 }: ThemeCardProps): JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false);
+  // A preview that fails (missing/stale file) falls back to the swatch strip,
+  // which is why `swatches` stays required either way. Keyed by URL so a later
+  // preview for the same card gets its own chance to load.
+  const [failedPreview, setFailedPreview] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
@@ -70,9 +77,18 @@ export function ThemeCard({
           Rounded + clipped on its own, not the card root, so the upward-opening
           overflow menu below isn't clipped by it too. */}
       <div className="flex h-9 overflow-hidden rounded-t-[7px]">
-        {swatches.map((color, i) => (
-          <div key={i} className="flex-1" style={{ background: color }} />
-        ))}
+        {previewUrl && failedPreview !== previewUrl ? (
+          <img
+            src={previewUrl}
+            alt=""
+            onError={() => setFailedPreview(previewUrl)}
+            className="h-9 w-full rounded-t-[7px] object-cover"
+          />
+        ) : (
+          swatches.map((color, i) => (
+            <div key={i} className="flex-1" style={{ background: color }} />
+          ))
+        )}
       </div>
 
       <div className="flex flex-1 flex-col p-2.5">

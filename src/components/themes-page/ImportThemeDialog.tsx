@@ -33,6 +33,55 @@ function rejectionText(e: unknown): string {
   return "The import failed.";
 }
 
+/** The order both dialogs list capabilities in, whatever order a manifest uses. */
+const CAPABILITY_ORDER = ["tokens", "layout", "css", "fonts", "assets"] as const;
+
+export type Capability = (typeof CAPABILITY_ORDER)[number];
+
+/** What a raw `capabilities` string reads as. The backend rejects a package whose
+ * contents outrun what it declares, so these are a validated fact, read rather
+ * than re-derived from the package's files. */
+const CAPABILITY_LABELS: Record<Capability, string> = {
+  tokens: "Tokens",
+  layout: "Layout",
+  css: "Custom CSS",
+  fonts: "Fonts",
+  assets: "Assets",
+};
+
+/** Labels for whichever of `capabilities` are present; an unknown string is
+ * dropped rather than echoed raw. `only` narrows to a subset for callers that
+ * describe some of these as files instead. */
+export function capabilityLabels(
+  capabilities: readonly string[],
+  only: readonly Capability[] = CAPABILITY_ORDER,
+): string[] {
+  const declared = new Set(capabilities);
+  return only.filter((raw) => declared.has(raw)).map((raw) => CAPABILITY_LABELS[raw]);
+}
+
+/** Tier badge tones: `basic` muted, `advanced` accent. The backend rejects every
+ * other tier before a preview exists, so anything unrecognised gets the muted
+ * treatment rather than a crash. */
+const TIER_TONE: Record<string, string> = {
+  basic: "border-line text-muted2",
+  advanced: "border-accent-line bg-accent-soft text-accent",
+};
+
+/** Compact pill, the same language as mods-tab's status pills. */
+function TierBadge({ tier }: { tier: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center whitespace-nowrap rounded-full border px-1.5 py-[3px] text-[8px] font-bold uppercase tracking-wider",
+        TIER_TONE[tier] ?? TIER_TONE.basic,
+      )}
+    >
+      {tier}
+    </span>
+  );
+}
+
 /** The Step 2 sentence and button label, both keyed on what installing would do. */
 function installCopy(
   classification: Classification,
@@ -187,6 +236,7 @@ export function ImportThemeDialog({
           installedThemes.find((t) => t.id === manifest.id)?.version,
         )
       : null;
+  const capabilityList = manifest ? capabilityLabels(manifest.capabilities) : [];
   const showPreview =
     preview !== null &&
     manifest !== null &&
@@ -324,15 +374,23 @@ export function ImportThemeDialog({
                   </ul>
                 </div>
 
-                <p className="text-[10px] text-muted">
-                  Tier <span className="font-mono-data text-muted2">{manifest.tier}</span>
-                  {" · "}
-                  <span className="font-mono-data text-muted2">
-                    {(preview.packageSizeBytes / 1_048_576).toFixed(1)} MB
-                  </span>
-                  {" · "}
-                  <span className="font-mono-data text-muted2">{preview.fileCount} files</span>
-                </p>
+                <div className="flex flex-col gap-1">
+                  <p className="flex items-center gap-1.5 text-[10px] text-muted">
+                    <TierBadge tier={manifest.tier} />
+                    <span aria-hidden="true">·</span>
+                    <span className="font-mono-data text-muted2">
+                      {(preview.packageSizeBytes / 1_048_576).toFixed(1)} MB
+                    </span>
+                    <span aria-hidden="true">·</span>
+                    <span className="font-mono-data text-muted2">{preview.fileCount} files</span>
+                  </p>
+
+                  {capabilityList.length > 0 && (
+                    <p className="text-[10px] text-muted">
+                      Includes: <span className="text-muted2">{capabilityList.join(", ")}</span>
+                    </p>
+                  )}
+                </div>
 
                 <p className="text-[10.5px] leading-relaxed text-ink">{copy.line}</p>
 

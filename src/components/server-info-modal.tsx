@@ -4,6 +4,9 @@ import type { Server } from "@/types/server";
 import { useServerStore } from "@/stores/server-store";
 import { cn, formatGameTime, regionName } from "@/lib/utils";
 import { useServerActions, NOTICES } from "@/hooks/use-server-actions";
+import { SlotChildren } from "@/theme/slot-render";
+import { useResolvedSlot } from "@/theme/use-resolved-layout";
+import { resolveChildOrder } from "@/theme/slot-order";
 
 interface ServerInfoModalProps {
   server: Server;
@@ -84,6 +87,12 @@ export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
       ? actions.launchResult
       : null;
 
+  const bodyOrder = resolveChildOrder(
+    "modal.serverInfo",
+    ["statGrid", "readinessStrip", "propsList"],
+    useResolvedSlot("modal.serverInfo").children,
+  );
+
   function closeIfOutside(e: React.MouseEvent) {
     if (e.target === e.currentTarget) onClose();
   }
@@ -133,44 +142,57 @@ export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
             </div>
           </div>
 
-          <div
-            data-tetra-el="statGrid"
-            className="m-band grid grid-cols-3 gap-px border-b border-line bg-line"
-          >
-            <Stat label="Players" value={`${server.players}/${server.max_players}`} className="text-accent2" />
-            <Stat
-              label="Ping ms"
-              value={server.online && ping !== null ? String(ping) : "—"}
-              className={server.online ? pingColor : "text-muted"}
-            />
-            <Stat
-              label="Time"
-              value={formatGameTime(server.in_game_time, server.day_multiplier, server.night_multiplier)}
-              className="text-accent"
-            />
-          </div>
-
-          <div
-            data-tetra-el="readinessStrip"
-            className="flex items-center gap-1.5 border-b border-line px-3.5 py-2 text-[10px] text-muted"
-          >
-            <span
-              className={cn(
-                "inline-block h-[7px] w-[7px] rounded-full",
-                readiness.tone === "warn"
-                  ? "bg-warn shadow-[0_0_5px_rgba(193,154,85,0.6)]"
-                  : "bg-success shadow-[0_0_5px_rgba(77,154,117,0.6)]",
-              )}
-            />
-            {readiness.text}
-          </div>
-
-          <div data-tetra-el="propsList" className="m-props px-3.5 py-2">
-            <Prop label="Map" value={server.map_display || "—"} />
-            <Prop label="Version" value={server.version || "unknown"} />
-            <Prop label="Region" value={regionName(server.country_code)} />
-            <Prop label="Mods" value={server.mod_count != null ? String(server.mod_count) : server.modded ? "?" : "0"} />
-          </div>
+          {/* closeAction is absolutely positioned in the corner and joinAction
+              sits in .m-actions beside its notice and result lines — neither has
+              a themeable sibling to move against, and both are required, so both
+              render unconditionally. Only the body's three bands reorder. */}
+          <SlotChildren
+            order={bodyOrder}
+            nodes={{
+              statGrid: (
+                <div
+                  data-tetra-el="statGrid"
+                  className="m-band grid grid-cols-3 gap-px border-b border-line bg-line"
+                >
+                  <Stat label="Players" value={`${server.players}/${server.max_players}`} className="text-accent2" />
+                  <Stat
+                    label="Ping ms"
+                    value={server.online && ping !== null ? String(ping) : "—"}
+                    className={server.online ? pingColor : "text-muted"}
+                  />
+                  <Stat
+                    label="Time"
+                    value={formatGameTime(server.in_game_time, server.day_multiplier, server.night_multiplier)}
+                    className="text-accent"
+                  />
+                </div>
+              ),
+              readinessStrip: (
+                <div
+                  data-tetra-el="readinessStrip"
+                  className="flex items-center gap-1.5 border-b border-line px-3.5 py-2 text-[10px] text-muted"
+                >
+                  <span
+                    className={cn(
+                      "inline-block h-[7px] w-[7px] rounded-full",
+                      readiness.tone === "warn"
+                        ? "bg-warn shadow-[0_0_5px_rgba(193,154,85,0.6)]"
+                        : "bg-success shadow-[0_0_5px_rgba(77,154,117,0.6)]",
+                    )}
+                  />
+                  {readiness.text}
+                </div>
+              ),
+              propsList: (
+                <div data-tetra-el="propsList" className="m-props px-3.5 py-2">
+                  <Prop label="Map" value={server.map_display || "—"} />
+                  <Prop label="Version" value={server.version || "unknown"} />
+                  <Prop label="Region" value={regionName(server.country_code)} />
+                  <Prop label="Mods" value={server.mod_count != null ? String(server.mod_count) : server.modded ? "?" : "0"} />
+                </div>
+              ),
+            }}
+          />
 
           <div className="m-actions border-t border-line px-3.5 pb-3.5 pt-2.5">
             {actions.notice && (

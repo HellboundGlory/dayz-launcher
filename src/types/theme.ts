@@ -14,7 +14,10 @@ export interface ThemeManifest {
   version: string;
   themeApi: string;
   minimumLauncherVersion: string;
-  /** `basic` (tokens only) or `full`. */
+  /** `basic` (design tokens only), `advanced` (tokens + layout.json, custom CSS,
+   * fonts and images) or `expert` (adds declarative component composition).
+   * Expert archives are rejected by the backend, which is why no preview ever
+   * carries one. */
   tier: string;
   description: string;
   preview: string | null;
@@ -40,7 +43,14 @@ export interface ThemeSummary {
 }
 
 /** One theme, fully. The backend flattens the manifest, so this isn't nested at the wire level. */
-export type ThemeFile = ThemeManifest & { tokens: unknown };
+export type ThemeFile = ThemeManifest & { tokens: unknown; layout: unknown | null };
+
+/** A theme's `layout.json`. The backend checks the envelope and nothing else —
+ * slot ids, child ids and the per-slot value shapes are the resolver's business. */
+export interface LayoutManifest {
+  schemaVersion: number;
+  slots: Record<string, Record<string, unknown>>;
+}
 
 /** A custom theme as an older build kept it in `localStorage`, for the one-time import. */
 export interface LegacyTheme {

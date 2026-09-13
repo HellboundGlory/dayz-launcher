@@ -32,8 +32,14 @@ pub fn save_theme(
     app: AppHandle,
     manifest: ThemeManifest,
     tokens: serde_json::Value,
+    layout: Option<serde_json::Value>,
 ) -> Result<String, String> {
-    let id = theme::save(&crate::paths::themes_dir(&app), &manifest, &tokens)?;
+    let id = theme::save(
+        &crate::paths::themes_dir(&app),
+        &manifest,
+        &tokens,
+        layout.as_ref(),
+    )?;
     crate::log::log_line(&app, "theme", &format!("Installed theme `{id}`"));
     Ok(id)
 }

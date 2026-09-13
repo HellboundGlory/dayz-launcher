@@ -29,11 +29,37 @@ export const SLOTS: Slot[] = [
     id: "shell.sidebar",
     themeable: "full",
     children: [
+      { id: "logo", required: false, since: "1.0" },
       { id: "navList", required: true, since: "1.0" },
+      { id: "navServers", required: true, since: "1.0" },
+      { id: "navFavourites", required: false, since: "1.0" },
+      { id: "navRecent", required: false, since: "1.0" },
+      { id: "navMods", required: false, since: "1.0" },
       { id: "settingsEntry", required: true, since: "1.0" },
       { id: "collapseToggle", required: false, since: "1.0" },
-      { id: "logo", required: false, since: "1.0" },
     ],
+  },
+  {
+    id: "view.servers",
+    themeable: "full",
+    // Pure backdrop, like settings.background — filterBar/server.row/etc.
+    // are already independently addressable, not children of this one.
+    children: [],
+  },
+  {
+    id: "view.favourites",
+    themeable: "full",
+    children: [],
+  },
+  {
+    id: "view.recent",
+    themeable: "full",
+    children: [],
+  },
+  {
+    id: "view.mods",
+    themeable: "full",
+    children: [],
   },
   {
     id: "shell.header",
@@ -50,6 +76,7 @@ export const SLOTS: Slot[] = [
       { id: "steamStateChip", required: true, since: "1.0" },
       { id: "serverCounts", required: false, since: "1.0" },
       { id: "uiScaleSlider", required: false, since: "1.0" },
+      { id: "schemeToggle", required: false, since: "1.0" },
     ],
   },
   {
@@ -57,24 +84,31 @@ export const SLOTS: Slot[] = [
     themeable: "full",
     children: [
       { id: "searchInput", required: true, since: "1.0" },
-      { id: "refreshAction", required: true, since: "1.0" },
       { id: "mapFilter", required: false, since: "1.0" },
       { id: "tagsFilter", required: false, since: "1.0" },
+      { id: "modsFilter", required: false, since: "1.0" },
+      { id: "countryFilter", required: false, since: "1.0" },
       { id: "sortControl", required: false, since: "1.0" },
       { id: "pingSlider", required: false, since: "1.0" },
+      { id: "refreshAction", required: true, since: "1.0" },
     ],
   },
   {
     id: "server.row",
     themeable: "full",
     children: [
-      { id: "name", required: true, since: "1.0" },
-      { id: "joinAction", required: true, since: "1.0" },
-      { id: "modStatusBadge", required: true, since: "1.0" },
-      { id: "pingBadge", required: false, since: "1.0" },
-      { id: "playerCount", required: false, since: "1.0" },
+      { id: "favouriteAction", required: false, since: "1.0" },
       { id: "tagsLine", required: false, since: "1.0" },
+      { id: "modStatusBadge", required: true, since: "1.0" },
+      { id: "name", required: true, since: "1.0" },
+      { id: "mapLabel", required: false, since: "1.0" },
+      { id: "gameTimeLabel", required: false, since: "1.0" },
       { id: "regionFlag", required: false, since: "1.0" },
+      { id: "addressLabel", required: false, since: "1.0" },
+      { id: "lastPlayedLabel", required: false, since: "1.0" },
+      { id: "playerCount", required: false, since: "1.0" },
+      { id: "pingBadge", required: false, since: "1.0" },
+      { id: "modCountLabel", required: false, since: "1.0" },
     ],
   },
   {
@@ -92,10 +126,10 @@ export const SLOTS: Slot[] = [
     themeable: "full",
     children: [
       { id: "closeAction", required: true, since: "1.0" },
-      { id: "joinAction", required: true, since: "1.0" },
       { id: "statGrid", required: false, since: "1.0" },
       { id: "readinessStrip", required: false, since: "1.0" },
       { id: "propsList", required: false, since: "1.0" },
+      { id: "joinAction", required: true, since: "1.0" },
     ],
   },
   {
@@ -103,9 +137,9 @@ export const SLOTS: Slot[] = [
     themeable: "full",
     children: [
       { id: "closeAction", required: true, since: "1.0" },
-      { id: "applyAction", required: true, since: "1.0" },
       { id: "tabStrip", required: false, since: "1.0" },
       { id: "previewPane", required: false, since: "1.0" },
+      { id: "applyAction", required: true, since: "1.0" },
     ],
   },
   {
@@ -113,18 +147,21 @@ export const SLOTS: Slot[] = [
     themeable: "full",
     children: [
       { id: "searchInput", required: true, since: "1.0" },
-      { id: "refreshAction", required: true, since: "1.0" },
       { id: "statusFilter", required: false, since: "1.0" },
+      { id: "refreshAction", required: true, since: "1.0" },
     ],
   },
   {
     id: "mods.row",
     themeable: "full",
     children: [
+      { id: "selectCheckbox", required: true, since: "1.0" },
+      { id: "modIcon", required: false, since: "1.0" },
       { id: "modName", required: true, since: "1.0" },
+      { id: "modTags", required: false, since: "1.0" },
       { id: "modStatusBadge", required: true, since: "1.0" },
       { id: "sizeLabel", required: false, since: "1.0" },
-      { id: "usageCount", required: false, since: "1.0" },
+      { id: "updatedLabel", required: false, since: "1.0" },
     ],
   },
   {
@@ -132,15 +169,85 @@ export const SLOTS: Slot[] = [
     themeable: "full",
     children: [
       { id: "closeAction", required: true, since: "1.0" },
+      { id: "previewImage", required: false, since: "1.0" },
+      { id: "name", required: true, since: "1.0" },
+      { id: "status", required: true, since: "1.0" },
+      { id: "tags", required: false, since: "1.0" },
+      { id: "description", required: false, since: "1.0" },
       { id: "detailFields", required: false, since: "1.0" },
+      { id: "updateAction", required: false, since: "1.0" },
+      { id: "openInSteamAction", required: false, since: "1.0" },
+      { id: "openFolderAction", required: false, since: "1.0" },
+      { id: "reinstallAction", required: false, since: "1.0" },
+    ],
+  },
+  {
+    id: "mods.actionBar",
+    themeable: "full",
+    children: [
+      { id: "totalCount", required: false, since: "1.0" },
+      { id: "selectAllAction", required: false, since: "1.0" },
+      { id: "clearSelectionAction", required: false, since: "1.0" },
+      { id: "uniqueToServerAction", required: false, since: "1.0" },
+      { id: "cleanupRemovedAction", required: false, since: "1.0" },
+      { id: "unsubscribeAction", required: false, since: "1.0" },
+      { id: "updateOutdatedAction", required: false, since: "1.0" },
+      { id: "verifyAction", required: false, since: "1.0" },
     ],
   },
   {
     id: "modal.onboarding",
     themeable: "full",
     children: [
-      { id: "primaryAction", required: true, since: "1.0" },
       { id: "pathBrowser", required: false, since: "1.0" },
+      { id: "primaryAction", required: true, since: "1.0" },
+    ],
+  },
+  {
+    id: "settings.background",
+    themeable: "full",
+    // Pure backdrop: nothing here is individually addressable, only
+    // restylable as a whole (`[data-tetra-slot="settings.background"] {...}`).
+    children: [],
+  },
+  {
+    id: "settings.shell",
+    themeable: "full",
+    children: [
+      { id: "backAction", required: true, since: "1.0" },
+    ],
+  },
+  {
+    id: "settings.game",
+    themeable: "full",
+    children: [
+      { id: "sectionToggle", required: true, since: "1.0" },
+      { id: "profileNameInput", required: true, since: "1.0" },
+      { id: "dayzPathInput", required: true, since: "1.0" },
+      { id: "detectPathsAction", required: false, since: "1.0" },
+      { id: "workshopPathInput", required: false, since: "1.0" },
+      { id: "launchParamsInput", required: false, since: "1.0" },
+    ],
+  },
+  {
+    id: "settings.launcher",
+    themeable: "full",
+    children: [
+      { id: "sectionToggle", required: true, since: "1.0" },
+      { id: "windowOptions", required: false, since: "1.0" },
+      { id: "onJoinBehavior", required: false, since: "1.0" },
+      { id: "startupOptions", required: false, since: "1.0" },
+      { id: "discordOption", required: false, since: "1.0" },
+      { id: "dataFolderControl", required: false, since: "1.0" },
+      { id: "autoRefreshControl", required: false, since: "1.0" },
+    ],
+  },
+  {
+    id: "settings.theme",
+    themeable: "full",
+    children: [
+      { id: "sectionToggle", required: true, since: "1.0" },
+      { id: "themeManagement", required: true, since: "1.0" },
     ],
   },
 ];

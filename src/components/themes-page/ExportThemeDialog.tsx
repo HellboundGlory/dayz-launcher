@@ -3,8 +3,10 @@ import { Loader2, X } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { cn } from "@/lib/utils";
 import { exportTheme, getTheme } from "@/lib/tauri";
+import { resolveThemeAsset } from "@/theme/asset-resolver";
 import { resolvedPair } from "@/theme/theme-store";
 import type { ManifestOverrides, ThemeFile } from "@/types/theme";
+import { capabilityLabels, type Capability } from "./ImportThemeDialog";
 
 interface ExportThemeDialogProps {
   id: string;
@@ -12,6 +14,42 @@ interface ExportThemeDialogProps {
   onExported: () => void;
   /** Cancel, Escape, or backdrop click. */
   onClose: () => void;
+}
+
+/** The capabilities `export()` ships as extra files, named by their label rather
+ * than one file each — `tokens`/`layout` are already named in the same list. */
+const EXTRA_FILE_CAPABILITIES: readonly Capability[] = ["css", "fonts", "assets"];
+
+/** What `export()` actually packages for a theme, sourced from the same manifest
+ * fields the backend gates on: `theme.json` and `tokens.json` always, `layout.json`
+ * when there is one, then the labelled extras. */
+export function packagedFiles(theme: Pick<ThemeFile, "layout" | "capabilities">): string[] {
+  return [
+    "theme.json",
+    "tokens.json",
+    ...(theme.layout !== null ? ["layout.json"] : []),
+    ...capabilityLabels(theme.capabilities, EXTRA_FILE_CAPABILITIES),
+  ];
+}
+
+/** Tier tones, matching ImportThemeDialog's badge. Anything the backend would
+ * reject never reaches this dialog, so an unrecognised tier reads muted. */
+const TIER_TONE: Record<string, string> = {
+  basic: "border-line text-muted2",
+  advanced: "border-accent-line bg-accent-soft text-accent",
+};
+
+function TierBadge({ tier }: { tier: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center whitespace-nowrap rounded-full border px-1.5 py-[3px] text-[8px] font-bold uppercase tracking-wider",
+        TIER_TONE[tier] ?? TIER_TONE.basic,
+      )}
+    >
+      {tier}
+    </span>
+  );
 }
 
 /** Shared text-input styling (board `.field input`). */
@@ -32,6 +70,7 @@ export function ExportThemeDialog({
   const [theme, setTheme] = useState<ThemeFile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [previewFailed, setPreviewFailed] = useState(false);
 
   const [name, setName] = useState("");
   const [author, setAuthor] = useState("");
@@ -51,6 +90,7 @@ export function ExportThemeDialog({
       .then((file) => {
         if (cancelled) return;
         setTheme(file);
+        setPreviewFailed(false);
         setName(file.name);
         setAuthor(file.author);
         setVersion(file.version);
@@ -153,6 +193,8 @@ export function ExportThemeDialog({
 
   const loaded = theme !== null;
   const palette = theme ? resolvedPair(id, { [id]: theme }).dark : null;
+  const previewUrl = theme?.preview ? resolveThemeAsset(id, theme.preview) : null;
+  const includedFiles = theme ? packagedFiles(theme) : [];
 
   return (
     <div
@@ -172,10 +214,22 @@ export function ExportThemeDialog({
             <h3 className="truncate text-[13px] font-extrabold tracking-tight text-ink">
               {loaded ? `Export Theme: ${name.trim() || id}` : "Export Theme"}
             </h3>
-            <p className="mt-0.5 truncate font-mono-data text-[10px] text-muted">{id}</p>
-            {/* Phase 1 packages no images, so the theme's own tokens are the only preview there is. */}
+            <p className="mt-0.5 flex items-center gap-1.5 truncate font-mono-data text-[10px] text-muted">
+              <span className="truncate">{id}</span>
+              {theme && <TierBadge tier={theme.tier} />}
+            </p>
+            {/* The theme's own preview image when it declares one and it loads;
+                otherwise its tokens are the only preview there is. */}
             {palette && (
-              <div className="mt-1.5 flex gap-1" aria-hidden="true">
+              <div className="mt-1.5 flex items-center gap-1" aria-hidden="true">
+                {previewUrl && !previewFailed && (
+                  <img
+                    src={previewUrl}
+                    alt=""
+                    onError={() => setPreviewFailed(true)}
+                    className="h-[14px] w-16 rounded-[3px] object-cover ring-1 ring-line"
+                  />
+                )}
                 {SWATCH_TOKENS.map((t) => (
                   <span
                     key={t}
@@ -300,7 +354,9 @@ export function ExportThemeDialog({
                 <p className="text-[9.5px] font-bold uppercase tracking-wider text-muted2">
                   Will include
                 </p>
-                <p className="mt-1 font-mono-data text-[10px] text-ink">theme.json, tokens.json</p>
+                <p className="mt-1 font-mono-data text-[10px] text-ink">
+                  {includedFiles.join(", ")}
+                </p>
                 <p className="mt-1.5 text-[10px] leading-relaxed text-muted">
                   Will NOT include: settings, favourites, or any personal data.
                 </p>

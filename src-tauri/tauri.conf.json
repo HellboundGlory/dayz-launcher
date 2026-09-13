@@ -59,7 +59,7 @@
    }
   ],
   "security": {
-   "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost https://api.github.com; img-src 'self' data: https://images.steamusercontent.com; object-src 'none'"
+   "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost https://api.github.com; img-src 'self' data: https://images.steamusercontent.com tetra-theme:; style-src 'self' tetra-theme:; font-src 'self' tetra-theme:; object-src 'none'"
   }
  },
  "bundle": {

@@ -17,18 +17,20 @@ export interface ThemeExtras {
   spacing: Spacing;
   radii: Radii;
   typography: Typography;
+  /** Glow strength, 0–1 — what the customiser's "Bloom" slider edits. */
+  shadows: { glowIntensity: number };
 }
 
 export const DEFAULT_EXTRAS: ThemeExtras = {
   spacing: DEFAULT_SPACING,
   radii: DEFAULT_RADII,
   typography: DEFAULT_TYPOGRAPHY,
+  shadows: { glowIntensity: 0.9 },
 };
 
 export function applyTheme(
   palette: Palette,
   scheme: "dark" | "light",
-  bloom: number,
   extras: ThemeExtras = DEFAULT_EXTRAS,
 ): void {
   const p = document.documentElement.style;
@@ -62,12 +64,13 @@ export function applyTheme(
 
   // Bloom + the 5-layer glow. Softer glow in light mode so neon doesn't blow
   // out pale surfaces.
-  p.setProperty("--bloom", String(bloom));
+  p.setProperty("--bloom", String(extras.shadows.glowIntensity));
   const isLight = scheme === "light";
   const A = (a: number) => (isLight ? a * 0.6 : a);
   // Resolved in JS, not calc() — WebKitGTK drops that multiplication and
   // silently kills every glow shadow.
-  const r = (px: number) => `${Math.round(px * bloom * 100) / 100}px`;
+  const r = (px: number) =>
+    `${Math.round(px * extras.shadows.glowIntensity * 100) / 100}px`;
   p.setProperty(
     "--glow",
     `0 0 ${r(3)} ${rgba(palette.accent, A(0.95))},` +

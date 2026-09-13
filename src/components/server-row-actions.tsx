@@ -3,6 +3,8 @@ import { ChevronDown, Info, Play, ListTree, Download, Loader2 } from "lucide-rea
 import { cn } from "@/lib/utils";
 import type { Server } from "@/types/server";
 import { useServerActions, NOTICES } from "@/hooks/use-server-actions";
+import { useResolvedSlot } from "@/theme/use-resolved-layout";
+import { slotChildrenToRender } from "@/theme/slot-children";
 
 interface RowActionsProps {
   server: Server;
@@ -11,6 +13,29 @@ interface RowActionsProps {
   onOpenChange?: (open: boolean) => void;
 }
 
+/** The three themeable menu entries — same order as the slot registry, whose
+ * resolved order decides where they actually render. */
+const MENU_ITEMS: Record<
+  string,
+  { icon: React.ReactNode; label: string; disabled: (joinDisabled: boolean, busy: boolean) => boolean }
+> = {
+  moreInfoItem: { icon: <Info className="size-3.5" />, label: "More info", disabled: () => false },
+  loadToMenuItem: {
+    icon: <ListTree className="size-3.5" />,
+    label: "Load to menu",
+    disabled: (joinDisabled) => joinDisabled,
+  },
+  downloadModsItem: {
+    icon: <Download className="size-3.5" />,
+    label: "Download mods",
+    disabled: (_joinDisabled, busy) => busy,
+  },
+};
+
+/** The themeable menu entries, keyed by their `data-tetra-el`. Shared with the
+ * registry-order test so adding an item here without registering it fails. */
+export const MENU_ITEM_IDS = Object.keys(MENU_ITEMS);
+
 // Row-level Join button plus a chevron menu for the rest: More info, Load to
 // menu, Download mods — same split shape as the More Info modal's Join button.
 export function ServerRowActions({ server, onMoreInfo, onOpenChange }: RowActionsProps) {
@@ -18,6 +43,9 @@ export function ServerRowActions({ server, onMoreInfo, onOpenChange }: RowAction
   const ref = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const actions = useServerActions();
+  // Only the dropdown's three entries are themeable; joinAction and the chevron
+  // keep their own fixed positions.
+  const slot = useResolvedSlot("server.rowActions");
 
   // Ref-fed so an inline parent callback can't retrigger the effect.
   const onOpenChangeRef = useRef(onOpenChange);
@@ -127,26 +155,27 @@ export function ServerRowActions({ server, onMoreInfo, onOpenChange }: RowAction
           onKeyDown={onMenuKeyDown}
           className="menu absolute right-0 top-[calc(100%+4px)] z-[6] w-[174px] rounded-[7px] border border-line bg-surface2 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
         >
-          <MenuItem
-            icon={<Info className="size-3.5" />}
-            label="More info"
-            data-tetra-el="moreInfoItem"
-            onClick={() => run(() => onMoreInfo(server))}
-          />
-          <MenuItem
-            icon={<ListTree className="size-3.5" />}
-            label="Load to menu"
-            data-tetra-el="loadToMenuItem"
-            disabled={joinDisabled}
-            onClick={() => run(() => void actions.verifyAndJoin(server, true))}
-          />
-          <MenuItem
-            icon={<Download className="size-3.5" />}
-            label="Download mods"
-            data-tetra-el="downloadModsItem"
-            disabled={!!actions.op}
-            onClick={() => run(() => void actions.subscribeOnly(server))}
-          />
+          {slotChildrenToRender(slot, [], MENU_ITEM_IDS).map((id) => {
+            const item = MENU_ITEMS[id];
+            return (
+              <MenuItem
+                key={id}
+                icon={item.icon}
+                label={item.label}
+                data-tetra-el={id}
+                disabled={item.disabled(joinDisabled, !!actions.op)}
+                onClick={() =>
+                  run(() =>
+                    id === "moreInfoItem"
+                      ? onMoreInfo(server)
+                      : id === "loadToMenuItem"
+                        ? void actions.verifyAndJoin(server, true)
+                        : void actions.subscribeOnly(server),
+                  )
+                }
+              />
+            );
+          })}
           {actions.notice && (
             <div className="mt-1 border-t border-line-weak px-2.5 pb-1 pt-1.5">
               <p

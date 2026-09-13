@@ -40,6 +40,7 @@ export function WindowControls() {
         onClick={maximizeWindow}
         title="Maximize"
         aria-label="Maximize"
+        data-tetra-el="windowControls"
         className="inline-flex h-7 w-[40px] items-center justify-center text-muted transition-colors hover:bg-surface2 hover:text-ink"
       >
         <Square className="size-3" />
@@ -48,6 +49,7 @@ export function WindowControls() {
         onClick={closeWindow}
         title="Close"
         aria-label="Close"
+        data-tetra-el="windowControls"
         className="inline-flex h-7 w-[40px] items-center justify-center text-muted transition-colors hover:bg-danger hover:text-ink"
       >
         <X className="size-3.5" />
