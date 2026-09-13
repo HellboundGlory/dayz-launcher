@@ -7,6 +7,15 @@ import {
 } from "react";
 import { WindowResizeHandles } from "./components/window-resize-handles";
 import { Sidebar, type ViewId } from "./components/sidebar";
+
+// Servers/Favourites/Recent share one component tree (just a different
+// server-list filter), so this is what gives each its own themeable
+// background despite being the same DOM structure underneath.
+const VIEW_TETRA_SLOT: Record<Exclude<ViewId, "mods">, string> = {
+  servers: "view.servers",
+  fav: "view.favourites",
+  recent: "view.recent",
+};
 import { WindowControls } from "./components/window-controls";
 import { FilterBar } from "./components/filter-bar";
 import { ServerList } from "./components/server-list";
@@ -778,7 +787,10 @@ export function App() {
             /* Mods tab replaces the whole server-browser stack while active. */
             <ModsTab />
           ) : (
-            <>
+            <div
+              data-tetra-slot={VIEW_TETRA_SLOT[activeView]}
+              className="flex min-h-0 flex-1 flex-col"
+            >
               <FilterBar
                 onRefresh={handleRefresh}
                 refreshing={refreshing}
@@ -816,7 +828,7 @@ export function App() {
               )}
 
               <ServerList view={activeView} onMoreInfo={setInfoServer} />
-            </>
+            </div>
           )}
 
           <FooterBar
