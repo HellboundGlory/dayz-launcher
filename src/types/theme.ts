@@ -15,7 +15,8 @@ export interface ThemeManifest {
   themeApi: string;
   minimumLauncherVersion: string;
   /** `basic` (design tokens only), `advanced` (tokens + layout.json, custom CSS,
-   * fonts and images) or `expert` (adds declarative component composition).
+   * fonts and images) or `expert` (adds `components/` and `settings.schema.json`
+   * — declarative component composition and theme-defined settings).
    * Expert archives are rejected by the backend, which is why no preview ever
    * carries one. */
   tier: string;
@@ -43,7 +44,13 @@ export interface ThemeSummary {
 }
 
 /** One theme, fully. The backend flattens the manifest, so this isn't nested at the wire level. */
-export type ThemeFile = ThemeManifest & { tokens: unknown; layout: unknown | null };
+export type ThemeFile = ThemeManifest & {
+  tokens: unknown;
+  layout: unknown | null;
+  settingsSchema: unknown | null;
+  /** Keyed by slot id — `"server.row"` and/or `"mods.row"`; a missing key means the theme ships no such tree. */
+  components: Record<string, unknown>;
+};
 
 /** A theme's `layout.json`. The backend checks the envelope and nothing else —
  * slot ids, child ids and the per-slot value shapes are the resolver's business. */
