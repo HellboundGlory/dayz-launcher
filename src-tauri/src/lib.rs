@@ -72,6 +72,14 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec![AUTOSTART_FLAG]),
         ))
+        // An installed theme's own assets, read straight off disk by the
+        // webview (`theme::protocol` for what is servable).
+        .register_asynchronous_uri_scheme_protocol(
+            theme::protocol::SCHEME,
+            |ctx, request, responder| {
+                theme::protocol::handle(ctx.app_handle(), request, responder);
+            },
+        )
         // Explicit quit, not "last window closed": Steamworks' overlay hook
         // creates untracked native windows that can keep that count from
         // ever reaching zero. Scoped to `main` (see .ai-notes/src-tauri/src/lib.rs.md).

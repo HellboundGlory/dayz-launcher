@@ -4714,6 +4714,7 @@ version = "2.6.0"
 dependencies = [
  "cssparser 0.38.0",
  "libc",
+ "percent-encoding",
  "semver",
  "serde",
  "serde_json",

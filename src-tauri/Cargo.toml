@@ -52,6 +52,8 @@ semver = { workspace = true }
 # is all it needs; `lightningcss` has no stable release and ships the minifier
 # and transformer this project has no use for.
 cssparser = "0.38"
+# Decoding a `tetra-theme://` request's asset path (see `theme::protocol`).
+percent-encoding = { workspace = true }
 tetra-core = { path = "../crates/tetra-core" }
 tetra-net = { path = "../crates/tetra-net" }
 tetra-registry = { path = "../crates/tetra-registry" }
