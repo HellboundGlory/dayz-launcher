@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { PRESETS } from "@/theme/palette";
+import { resolveThemeAsset } from "@/theme/asset-resolver";
 import { resolvedPair } from "@/theme/theme-store";
 import type { ThemeFile, ThemeSummary } from "@/types/theme";
 import { ThemeCard } from "./ThemeCard";
@@ -11,6 +12,8 @@ export interface GridEntry {
   builtin: boolean;
   author?: string;
   version?: string;
+  /** The manifest's own relative preview path; absent for built-ins. */
+  preview?: string;
 }
 
 interface ThemeGridProps {
@@ -64,6 +67,7 @@ export function ThemeGrid({
       builtin: false,
       author: t.author,
       version: t.version,
+      preview: t.preview ?? undefined,
     })),
   ];
 
@@ -117,6 +121,7 @@ export function ThemeGrid({
               version={entry.version}
               active={entry.id === activeId}
               swatches={[dark.bg, dark.surface, dark.accent, dark.text]}
+              previewUrl={entry.preview ? resolveThemeAsset(entry.id, entry.preview) : undefined}
               onActivate={() => onActivate(entry.id)}
               onDuplicate={() =>
                 onDuplicate(

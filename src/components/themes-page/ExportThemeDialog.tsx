@@ -3,6 +3,7 @@ import { Loader2, X } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { cn } from "@/lib/utils";
 import { exportTheme, getTheme } from "@/lib/tauri";
+import { resolveThemeAsset } from "@/theme/asset-resolver";
 import { resolvedPair } from "@/theme/theme-store";
 import type { ManifestOverrides, ThemeFile } from "@/types/theme";
 
@@ -32,6 +33,7 @@ export function ExportThemeDialog({
   const [theme, setTheme] = useState<ThemeFile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [previewFailed, setPreviewFailed] = useState(false);
 
   const [name, setName] = useState("");
   const [author, setAuthor] = useState("");
@@ -51,6 +53,7 @@ export function ExportThemeDialog({
       .then((file) => {
         if (cancelled) return;
         setTheme(file);
+        setPreviewFailed(false);
         setName(file.name);
         setAuthor(file.author);
         setVersion(file.version);
@@ -153,6 +156,7 @@ export function ExportThemeDialog({
 
   const loaded = theme !== null;
   const palette = theme ? resolvedPair(id, { [id]: theme }).dark : null;
+  const previewUrl = theme?.preview ? resolveThemeAsset(id, theme.preview) : null;
 
   return (
     <div
@@ -173,9 +177,18 @@ export function ExportThemeDialog({
               {loaded ? `Export Theme: ${name.trim() || id}` : "Export Theme"}
             </h3>
             <p className="mt-0.5 truncate font-mono-data text-[10px] text-muted">{id}</p>
-            {/* Phase 1 packages no images, so the theme's own tokens are the only preview there is. */}
+            {/* The theme's own preview image when it declares one and it loads;
+                otherwise its tokens are the only preview there is. */}
             {palette && (
-              <div className="mt-1.5 flex gap-1" aria-hidden="true">
+              <div className="mt-1.5 flex items-center gap-1" aria-hidden="true">
+                {previewUrl && !previewFailed && (
+                  <img
+                    src={previewUrl}
+                    alt=""
+                    onError={() => setPreviewFailed(true)}
+                    className="h-[14px] w-16 rounded-[3px] object-cover ring-1 ring-line"
+                  />
+                )}
                 {SWATCH_TOKENS.map((t) => (
                   <span
                     key={t}
