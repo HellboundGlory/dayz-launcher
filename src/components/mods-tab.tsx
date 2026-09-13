@@ -32,7 +32,7 @@ import {
   type SubscribedMod,
 } from "@/lib/tauri";
 import { cn, formatBytes, formatLastPlayed } from "@/lib/utils";
-import { SlotChildren } from "@/theme/slot-children";
+import { SlotChildren } from "@/theme/slot-render";
 import { useResolvedSlot } from "@/theme/use-resolved-layout";
 import { resolveChildOrder } from "@/theme/slot-order";
 
