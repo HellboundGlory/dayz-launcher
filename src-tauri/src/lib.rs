@@ -179,6 +179,8 @@ pub fn run() {
             commands::theme::confirm_activation,
             commands::theme::revert_activation,
             commands::theme::get_activation_status,
+            commands::theme::watch_active_theme,
+            commands::theme::stop_watching_theme,
             commands::update::is_installed_copy,
         ])
         .setup(|app| {
