@@ -240,6 +240,7 @@ function FdropTrigger({
   onClick,
   title,
   haspopup = "listbox",
+  dataTetraEl,
 }: {
   label: string;
   on?: boolean;
@@ -248,6 +249,9 @@ function FdropTrigger({
   onClick: () => void;
   title?: string;
   haspopup?: "listbox" | "dialog";
+  // Only ModsFilterTrigger needs this: it has no wrapping "fdrop relative"
+  // div of its own to carry the attribute, unlike the others.
+  dataTetraEl?: string;
 }) {
   return (
     <button
@@ -255,6 +259,7 @@ function FdropTrigger({
       title={title}
       aria-haspopup={haspopup}
       aria-expanded={open ?? false}
+      data-tetra-el={dataTetraEl}
       className={cn(
         "fdrop-trigger flex items-center gap-1.5 whitespace-nowrap rounded-[6px] border border-line bg-surface2 px-2 py-[5px] text-[10px] font-bold text-muted transition-colors hover:border-accent-line hover:text-ink",
         on && "border-accent-line bg-accent-soft text-accent shadow-[var(--glow)]",
@@ -297,7 +302,14 @@ function ModsFilterTrigger({
           : `${included} in, ${excluded} out`;
 
   return (
-    <FdropTrigger label="MODS" on={included + excluded > 0} open={open} haspopup="dialog" onClick={onOpen}>
+    <FdropTrigger
+      dataTetraEl="modsFilter"
+      label="MODS"
+      on={included + excluded > 0}
+      open={open}
+      haspopup="dialog"
+      onClick={onOpen}
+    >
       {label}
     </FdropTrigger>
   );
@@ -465,7 +477,7 @@ function CountryDropdown({
   };
 
   return (
-    <div ref={ref} className={cn("fdrop relative", open && "open")}>
+    <div data-tetra-el="countryFilter" ref={ref} className={cn("fdrop relative", open && "open")}>
       <FdropTrigger
         label="REGION"
         on={selectedCountries.length > 0}

@@ -8,7 +8,6 @@ export type ViewId = "servers" | "fav" | "recent" | "mods";
 interface SidebarProps {
   activeView: ViewId;
   onViewChange: (view: ViewId) => void;
-  steamConnected: boolean;
   settingsOpen: boolean;
   onOpenSettings: () => void;
   onCloseSettings: () => void;
@@ -30,7 +29,6 @@ const NAV: { id: ViewId; label: string; icon: typeof Globe }[] = [
 export function Sidebar({
   activeView,
   onViewChange,
-  steamConnected,
   settingsOpen,
   onOpenSettings,
   onCloseSettings,
@@ -116,15 +114,6 @@ export function Sidebar({
           collapsed && "items-center",
         )}
       >
-        <div className="flex items-center gap-1.5 text-[10px] text-muted">
-          <span
-            className={cn(
-              "h-[7px] w-[7px] shrink-0 rounded-full",
-              steamConnected ? "bg-success shadow-[0_0_4px_rgba(77,154,117,0.5)]" : "bg-warn",
-            )}
-          />
-          {!collapsed && <span>{steamConnected ? "Steam connected" : "Steam not connected"}</span>}
-        </div>
         <button
           data-tetra-el="settingsEntry"
           onClick={() => (settingsOpen ? onCloseSettings() : onOpenSettings())}

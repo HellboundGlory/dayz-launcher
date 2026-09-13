@@ -60,6 +60,8 @@ export const SLOTS: Slot[] = [
       { id: "refreshAction", required: true, since: "1.0" },
       { id: "mapFilter", required: false, since: "1.0" },
       { id: "tagsFilter", required: false, since: "1.0" },
+      { id: "countryFilter", required: false, since: "1.0" },
+      { id: "modsFilter", required: false, since: "1.0" },
       { id: "sortControl", required: false, since: "1.0" },
       { id: "pingSlider", required: false, since: "1.0" },
     ],
