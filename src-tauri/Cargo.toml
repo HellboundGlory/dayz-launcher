@@ -47,6 +47,23 @@ tokio = { workspace = true }
 zip = { workspace = true }
 # Version gates on an imported theme's manifest.
 semver = { workspace = true }
+# Sniffing an imported theme's raster assets: the first package that carries
+# images, so nothing before this needed a decoder. Only the three formats the
+# allow-list accepts — the default features would add a dozen more formats and
+# rayon on top.
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp"] }
+# Sniffing an imported theme's fonts by parsing their real tables (`image`
+# does not read fonts). The first package with fonts, hence first use. WOFF2
+# is Brotli inside, WOFF is zlib inside, so both need unpacking before
+# ttf-parser — which reads sfnt only — can see the tables.
+ttf-parser = "0.25.1"
+# Only for the WOFF 1.0 container above (zlib per table); already in the tree
+# via tetra-indexer.
+flate2 = { workspace = true }
+# Brotli comes in through tauri-utils, but that is not a promise we can use.
+brotli = { version = "8", default-features = false, features = ["std"] }
+# Well-formedness and element/attribute inspection for the SVG sniff.
+quick-xml = "0.41"
 tetra-core = { path = "../crates/tetra-core" }
 tetra-net = { path = "../crates/tetra-net" }
 tetra-registry = { path = "../crates/tetra-registry" }
