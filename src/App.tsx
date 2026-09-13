@@ -15,6 +15,7 @@ import { ModFilterModal } from "./components/mod-filter-modal";
 import { ModsTab } from "./components/mods-tab";
 import { FooterBar } from "./components/footer-bar";
 import { SettingsView } from "./components/settings-view";
+import { DevModeInspector } from "./components/themes-page/DevModeInspector";
 import { OnboardingModal } from "./components/onboarding-modal";
 import { UpdateModal } from "./components/update-modal";
 import { SteamRequiredModal } from "./components/steam-required-modal";
@@ -158,6 +159,10 @@ export function App() {
   const [counts, setCounts] = useState({ total: 0, populated: 0 });
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Session-only dev aid: the inspector must outlive the Settings overlay
+  // (and a sidebar nav click) to reach the shell slots it inspects, and a
+  // reload deliberately puts it back off. Not persisted anywhere.
+  const [devMode, setDevMode] = useState(false);
   const [updateOpen, setUpdateOpen] = useState(false);
   // Dismissed for this session only; returns next launch if still pending.
   const [updateBannerDismissed, setUpdateBannerDismissed] = useState(false);
@@ -825,7 +830,9 @@ export function App() {
         </div>
       </div>
 
-      {settingsOpen && <SettingsView onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsView onClose={() => setSettingsOpen(false)} devMode={devMode} onDevModeChange={setDevMode} />}
+
+      {devMode && <DevModeInspector />}
 
       {showOnboarding && steamConnected && (
         <OnboardingModal onDone={() => setShowOnboarding(false)} />
