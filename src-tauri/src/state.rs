@@ -49,6 +49,9 @@ pub struct AppState {
     pub index: Mutex<crate::commands::index::IndexSession>,
     /// A theme activation awaiting confirm-or-revert. `None` when nothing is mid-preview.
     pub pending_theme: Mutex<Option<PendingActivation>>,
+    /// The active theme's live change watch, if the frontend asked for one.
+    /// At most one: arming another replaces it. See [`crate::theme::watch`].
+    pub theme_watch: Mutex<Option<crate::theme::watch::ThemeWatch>>,
 }
 
 /// A theme switch applied live but not yet written to `settings.json`; revert
@@ -92,6 +95,7 @@ impl AppState {
             server_reader: Mutex::new(None),
             index: Mutex::new(crate::commands::index::IndexSession::default()),
             pending_theme: Mutex::new(None),
+            theme_watch: Mutex::new(None),
         }
     }
 }

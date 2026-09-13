@@ -64,6 +64,14 @@ image = { version = "0.25.10", default-features = false, features = ["png", "jpe
 # is Brotli inside, WOFF is zlib inside, so both need unpacking before
 # ttf-parser — which reads sfnt only — can see the tables.
 ttf-parser = "0.25.1"
+# Dev Mode hot reload: one watch on the active theme's directory
+# (`theme::watch`). On `notify` directly rather than `notify-debouncer-mini`,
+# whose debounce is a fixed window measured from a burst's *first* event — an
+# editor's autosave spanning several windows fires once per window, which is
+# exactly the wake-up the frontend is being debounced against. Default features
+# only select the macOS backend; inotify and ReadDirectoryChanges are not
+# feature-gated.
+notify = "8"
 # Only for the WOFF 1.0 container above (zlib per table); already in the tree
 # via tetra-indexer.
 flate2 = { workspace = true }
