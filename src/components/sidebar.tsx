@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { Globe, Star, Clock, Package, Settings, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import tetraLogo from "@/assets/tetra-logo.png";
+import { useResolvedSlot } from "@/theme/use-resolved-layout";
 
 export type ViewId = "servers" | "fav" | "recent" | "mods";
 
@@ -23,9 +24,29 @@ const NAV: { id: ViewId; label: string; icon: typeof Globe; tetraEl: string }[] 
   { id: "mods", label: "Mods", icon: Package, tetraEl: "navMods" },
 ];
 
-// 220px icon+label rail that collapses to 52px icon-only. Width is driven
-// 176px icon+label rail that collapses to 52px icon-only. Width is driven
-// by --side-w on the shell so other surfaces track it without subscribing.
+/** shell.sidebar nests two levels: these four groups in the rail's own column,
+ * and the nav items inside `navList`. A layout orders each set within itself. */
+export const TOP_GROUPS = ["logo", "navList", "settingsEntry", "collapseToggle"];
+export const NAV_IDS = NAV.map((item) => item.tetraEl);
+
+/** Required by the registry; rendered even if a broken layout claims to hide
+ * them, rather than trusting the resolver's refusal to reach this component. */
+const REQUIRED_IDS: Record<string, true> = {
+  navList: true,
+  settingsEntry: true,
+  navServers: true,
+};
+
+/** `ids` in the order `children` places them, then any of `ids` no layout
+ * mentioned. Hiding is `hidden`'s job, checked at render. */
+export function orderedByLayout(children: string[], ids: readonly string[]): string[] {
+  const present = new Set(children);
+  return [...children.filter((id) => ids.includes(id)), ...ids.filter((id) => !present.has(id))];
+}
+
+// 176px icon+label rail collapsing to 52px icon-only, both themeable through
+// shell.sidebar's `width`/`collapsedWidth`. Width is driven by --side-w on the
+// shell so other surfaces track it without subscribing.
 export function Sidebar({
   activeView,
   onViewChange,
@@ -34,7 +55,16 @@ export function Sidebar({
   onCloseSettings,
   onCollapsedChange,
 }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const slot = useResolvedSlot("shell.sidebar");
+  const hidden = new Set(slot.hidden);
+  const [collapsed, setCollapsed] = useState(() => slot.params.defaultCollapsed === true);
+  const width = typeof slot.params.width === "string" ? slot.params.width : "176px";
+  const right = slot.params.position === "right";
+
+  const navItems = orderedByLayout(slot.children, NAV_IDS)
+    .map((tetraEl) => NAV.find((item) => item.tetraEl === tetraEl))
+    .filter((item): item is (typeof NAV)[number] => item !== undefined)
+    .filter((item) => !hidden.has(item.tetraEl) || REQUIRED_IDS[item.tetraEl]);
 
   /** Arrow-key roving across the nav buttons, same pattern as the settings tabs. */
   function onNavKeyDown(e: React.KeyboardEvent, index: number) {
@@ -52,13 +82,8 @@ export function Sidebar({
     buttons[next]?.focus();
   }
 
-  return (
-    <aside
-      data-tetra-slot="shell.sidebar"
-      className="side relative flex shrink-0 flex-col overflow-hidden border-r border-line bg-surface transition-[width] duration-200"
-      style={{ width: "var(--side-w, 176px)" }}
-      data-collapsed={collapsed || undefined}
-    >
+  const groups: Record<string, ReactNode> = {
+    logo: (
       <div
         className={cn(
           "flex shrink-0 items-center border-b border-line px-3 py-3.5",
@@ -82,9 +107,11 @@ export function Sidebar({
           )}
         </div>
       </div>
+    ),
 
+    navList: (
       <nav data-tetra-el="navList" className="flex flex-1 flex-col gap-[3px] p-2" aria-label="Main">
-        {NAV.map(({ id, label, icon: Icon, tetraEl }, i) => {
+        {navItems.map(({ id, label, icon: Icon, tetraEl }, i) => {
           const active = activeView === id;
           return (
             <button
@@ -108,7 +135,9 @@ export function Sidebar({
           );
         })}
       </nav>
+    ),
 
+    settingsEntry: (
       <div
         className={cn(
           "flex shrink-0 flex-col gap-1.5 border-t border-line p-2.5",
@@ -131,8 +160,10 @@ export function Sidebar({
           {!collapsed && <span>Settings</span>}
         </button>
       </div>
+    ),
 
-      {/* Edge tab pinned to the rail's right edge, just above the separator. */}
+    // Edge tab pinned to the rail's right edge, just above the separator.
+    collapseToggle: (
       <button
         data-tetra-el="collapseToggle"
         onClick={() => {
@@ -145,7 +176,11 @@ export function Sidebar({
         aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         aria-expanded={!collapsed}
         title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        className="absolute bottom-24 right-0 z-[5] flex h-[46px] w-[18px] items-center justify-center rounded-l-[4px] border border-line border-r-0 bg-surface2 text-muted transition-colors hover:bg-accent-soft hover:text-accent"
+        className={
+          right
+            ? "absolute bottom-24 left-0 z-[5] flex h-[46px] w-[18px] items-center justify-center rounded-r-[4px] border border-line border-l-0 bg-surface2 text-muted transition-colors hover:bg-accent-soft hover:text-accent"
+            : "absolute bottom-24 right-0 z-[5] flex h-[46px] w-[18px] items-center justify-center rounded-l-[4px] border border-line border-r-0 bg-surface2 text-muted transition-colors hover:bg-accent-soft hover:text-accent"
+        }
       >
         {collapsed ? (
           <ChevronsRight className="h-[13px] w-[13px]" />
@@ -153,6 +188,23 @@ export function Sidebar({
           <ChevronsLeft className="h-[13px] w-[13px]" />
         )}
       </button>
+    ),
+  };
+
+  return (
+    <aside
+      data-tetra-slot="shell.sidebar"
+      className={
+        right
+          ? "side relative flex shrink-0 flex-col overflow-hidden border-l border-line bg-surface transition-[width] duration-200"
+          : "side relative flex shrink-0 flex-col overflow-hidden border-r border-line bg-surface transition-[width] duration-200"
+      }
+      style={{ width: `var(--side-w, ${width})` }}
+      data-collapsed={collapsed || undefined}
+    >
+      {orderedByLayout(slot.children, TOP_GROUPS).map((id) =>
+        hidden.has(id) && !REQUIRED_IDS[id] ? null : <Fragment key={id}>{groups[id]}</Fragment>,
+      )}
     </aside>
   );
 }
