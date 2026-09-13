@@ -26,14 +26,21 @@ import {
 import { applyTheme, DEFAULT_EXTRAS, type ThemeExtras } from "./apply";
 import { applyThemeFonts, applyThemeStylesheet } from "./css-loader";
 import {
+  resolveSettingsSchema,
+  substitutePlaceholders,
+  type SettingsField,
+} from "./settings-schema";
+import {
   armActivation,
   deleteTheme as deleteThemeCmd,
   getSettings,
   getTheme,
+  getThemeSettingsValues,
   listInstalledThemes,
   migrateLegacyCustomThemes,
   saveTheme as saveThemeCmd,
   setActiveThemeId,
+  setThemeSettingsValue,
 } from "@/lib/tauri";
 import type {
   LegacyTheme,
@@ -57,9 +64,16 @@ interface ThemeState {
   installedThemes: ThemeSummary[];
   /** Full theme files, keyed by id. Lazily filled, then reused as the palette source. */
   themeFiles: Record<string, ThemeFile>;
+  /** Each theme's tuned settings-schema values, keyed by id — merged over that
+   * theme's own schema defaults when written, so `apply()` only ever reads a
+   * complete set and never has to know about defaults itself. */
+  settingsValues: Record<string, Record<string, number | boolean>>;
 
   hydrate: () => Promise<void>;
   apply: () => void;
+  /** Tune one field: writes it through the backend, mirrors it into
+   * `settingsValues` immediately, then repaints. */
+  setSettingsValue: (id: string, fieldId: string, value: number | boolean) => Promise<void>;
   setScheme: (scheme: "dark" | "light") => void;
   /** `deleteOnRevert`: `id` was just created by this same action (duplicate,
    * "New theme") — abandoning the activation deletes it too, not just the pick. */
@@ -288,6 +302,47 @@ async function refreshInstalledThemes(): Promise<void> {
   useThemeStore.setState({ installedThemes, themeFiles });
 }
 
+/**
+ * The values that actually render for a theme: one entry per resolved field,
+ * every field present. Whatever the user tuned wins, the field's own schema
+ * default fills the rest — a never-tuned field reads as its default rather
+ * than `undefined`. The stored sidecar is untrusted in type, so anything that
+ * isn't a matching number/boolean counts as untuned. Exported for its own
+ * tests; `apply()` only ever reads the result.
+ */
+export function mergeSettingsValues(
+  fields: SettingsField[],
+  stored: Record<string, unknown>,
+): Record<string, number | boolean> {
+  const values: Record<string, number | boolean> = {};
+  for (const field of fields) {
+    const raw = stored[field.id];
+    if (field.type === "number") values[field.id] = typeof raw === "number" ? raw : field.default;
+    else values[field.id] = typeof raw === "boolean" ? raw : field.default;
+  }
+  return values;
+}
+
+/** Read one theme's tuned values into the cache, merged over its own schema
+ * defaults. Keyed off the theme's schema for the fields it declares — a value
+ * for a field the schema no longer has is dropped, as it renders nowhere. */
+async function refreshSettingsValues(id: string): Promise<void> {
+  const file = useThemeStore.getState().themeFiles[id];
+  if (file === undefined) return;
+  let stored: Record<string, unknown> = {};
+  try {
+    stored = await getThemeSettingsValues(id);
+  } catch (e) {
+    // No sidecar yet is the ordinary case; a real failure still renders the
+    // schema's own defaults rather than nothing.
+    console.error(`Could not read settings values for theme "${id}":`, e);
+  }
+  const values = mergeSettingsValues(resolveSettingsSchema(file.settingsSchema).fields, stored);
+  useThemeStore.setState((state) => ({
+    settingsValues: { ...state.settingsValues, [id]: values },
+  }));
+}
+
 /** The pre-migration saved skins, or `null` when that key holds nothing usable. */
 function loadLegacyThemes(): LegacyTheme[] | null {
   try {
@@ -307,6 +362,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   bloom: DEFAULT_EXTRAS.shadows.glowIntensity,
   installedThemes: [],
   themeFiles: {},
+  settingsValues: {},
 
   /** Load installed themes and paint the active one. Called once before render. */
   hydrate: async () => {
@@ -373,18 +429,39 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       ...(stored.scheme !== undefined && { scheme: stored.scheme }),
       ...(stored.bloom !== undefined && { bloom: stored.bloom }),
     });
+    // Before the first paint, so a theme the user already tuned renders its
+    // tuned values immediately rather than one tick later.
+    await refreshSettingsValues(activeId);
     get().apply();
   },
 
   apply: () => {
-    const { scheme, activeId, custom, customExtras, bloom, themeFiles } = get();
-    applyTheme(effective(scheme, activeId, themeFiles, custom), scheme, {
-      ...effectiveExtras(activeId, themeFiles, customExtras),
+    const { scheme, activeId, custom, customExtras, bloom, themeFiles, settingsValues } = get();
+    // Substituting templates is every apply()'s business, not just the settings
+    // form's: a scheme flip, a bloom drag or a revert all repaint the same
+    // tuned tokens. A theme with no cached values (a preset, or an installed
+    // theme nothing has tuned) is left alone — substituting nothing would only
+    // leave the placeholders literal, which already fails whatever gated them.
+    const values = settingsValues[activeId];
+    const raw = themeFiles[activeId];
+    const files =
+      values === undefined || raw === undefined
+        ? themeFiles
+        : {
+            ...themeFiles,
+            [activeId]: {
+              ...raw,
+              tokens: substitutePlaceholders(raw.tokens, values),
+              layout: substitutePlaceholders(raw.layout, values),
+            },
+          };
+    applyTheme(effective(scheme, activeId, files, custom), scheme, {
+      ...effectiveExtras(activeId, files, customExtras),
       shadows: { glowIntensity: bloom },
     });
     // CSS and fonts belong to an installed theme's own files; a preset or
     // neutral has none, which unloads whatever the previous theme had.
-    const file = themeFiles[activeId];
+    const file = files[activeId];
     applyThemeStylesheet(file ? activeId : null, file?.capabilities ?? []);
     applyThemeFonts(file ? activeId : null, themeCustomFonts(file));
     // Every mutation funnels through apply() — persisting the UI prefs here
@@ -392,6 +469,27 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     // having to remember to save. The active id isn't stored locally: only a
     // confirmed activation may change the backend's active theme.
     saveActive({ scheme, bloom });
+  },
+
+  setSettingsValue: async (id, fieldId, value) => {
+    try {
+      await setThemeSettingsValue(id, fieldId, value);
+    } catch (e) {
+      console.error(`Could not save setting "${fieldId}" for theme "${id}":`, e);
+      return;
+    }
+    // Mirror the write into the cache so the running app repaints from the
+    // value just persisted, rather than waiting on a re-read of the sidecar.
+    // A theme whose values were never read falls back to its schema defaults
+    // for the fields not being written here.
+    set((state) => {
+      const file = state.themeFiles[id];
+      const base =
+        state.settingsValues[id] ??
+        mergeSettingsValues(resolveSettingsSchema(file?.settingsSchema).fields, {});
+      return { settingsValues: { ...state.settingsValues, [id]: { ...base, [fieldId]: value } } };
+    });
+    get().apply();
   },
 
   setScheme: (scheme) => {
@@ -420,6 +518,9 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       // the picked theme supplies the base, the slider overrides it afterwards.
       bloom: resolvedExtras(id, get().themeFiles).shadows.glowIntensity,
     });
+    // Before apply(), so a theme with tuned values renders tuned the moment it
+    // becomes active — not one tick later.
+    await refreshSettingsValues(id);
     get().apply();
     try {
       await armActivation(id, deleteOnRevert);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Upload, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { listStarterTemplates, scaffoldThemeFromTemplate } from "@/lib/tauri";
@@ -9,9 +9,11 @@ import {
   activeInstalled,
   resolvedPair,
 } from "@/theme/theme-store";
+import { resolveSettingsSchema } from "@/theme/settings-schema";
 import { PRESETS } from "@/theme/palette";
 import { ThemeCustomiser } from "../theme-customiser";
 import { ThemeGrid, nextDuplicateName } from "./ThemeGrid";
+import { ThemeSettingsForm } from "./ThemeSettingsForm";
 import { newThemeRequest, byTier } from "./new-theme";
 import { ImportThemeDialog } from "./ImportThemeDialog";
 import { ExportThemeDialog } from "./ExportThemeDialog";
@@ -46,6 +48,7 @@ export function ThemesSection({
   const [importOpen, setImportOpen] = useState(false);
   const [exportId, setExportId] = useState<string | null>(null);
   const [customiserOpen, setCustomiserOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   /** `null` while the picker is closed. Its list starts empty and fills on open. */
   const [templates, setTemplates] = useState<ThemeSummary[] | null>(null);
 
@@ -53,6 +56,12 @@ export function ThemesSection({
   const preset = activePreset(activeId);
   const activeName = installed?.name ?? preset?.name ?? "Neutral";
   const dark = resolvedPair(activeId, themeFiles).dark;
+  // Only an installed theme can ship a schema; a preset or neutral resolves to
+  // an empty list, which is exactly what leaves the button disabled.
+  const settingsFields = useMemo(
+    () => resolveSettingsSchema(themeFiles[activeId]?.settingsSchema).fields,
+    [themeFiles, activeId],
+  );
 
   /** Names a new theme must avoid: the built-in presets and everything installed. */
   function takenNames(): string[] {
@@ -191,8 +200,14 @@ export function ThemesSection({
           <button type="button" disabled title="Coming in a later release" className={ACTION_BTN}>
             Edit layout
           </button>
-          <button type="button" disabled title="Coming in a later release" className={ACTION_BTN}>
-            Theme settings
+          <button
+            type="button"
+            onClick={() => setSettingsOpen((open) => !open)}
+            disabled={settingsFields.length === 0}
+            title={settingsFields.length === 0 ? "Coming in a later release" : undefined}
+            className={cn(ACTION_BTN, settingsOpen && "border-accent-line text-accent")}
+          >
+            {settingsOpen ? "Hide settings" : "Theme settings"}
           </button>
           <button
             type="button"
@@ -229,6 +244,10 @@ export function ThemesSection({
       </div>
 
       {customiserOpen && <ThemeCustomiser />}
+
+      {settingsOpen && settingsFields.length > 0 && (
+        <ThemeSettingsForm id={activeId} fields={settingsFields} />
+      )}
 
       {importOpen && (
         <ImportThemeDialog
