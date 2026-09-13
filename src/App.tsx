@@ -191,6 +191,10 @@ export function App() {
   // (and a sidebar nav click) to reach the shell slots it inspects, and a
   // reload deliberately puts it back off. Not persisted anywhere.
   const [devMode, setDevMode] = useState(false);
+  // Session-only too, and pointless without Dev Mode: it decides whether the
+  // inspector's badges offer the layout popover, and whether the sidebar's
+  // resize handle renders.
+  const [layoutEditMode, setLayoutEditMode] = useState(false);
   const [updateOpen, setUpdateOpen] = useState(false);
   // Dismissed for this session only; returns next launch if still pending.
   const [updateBannerDismissed, setUpdateBannerDismissed] = useState(false);
@@ -292,6 +296,12 @@ export function App() {
       void stopWatchingTheme();
     };
   }, [devMode, activeId]);
+
+  // Leaving Dev Mode leaves the layout editor with it — an editing mode whose
+  // affordance is no longer rendered cannot be exited by its own button.
+  useEffect(() => {
+    if (!devMode) setLayoutEditMode(false);
+  }, [devMode]);
 
   // A pending debounced write would otherwise be lost when the window closes.
   useEffect(() => {
@@ -781,6 +791,8 @@ export function App() {
       onOpenSettings={() => setSettingsOpen(true)}
       onCloseSettings={() => setSettingsOpen(false)}
       onCollapsedChange={setSideCollapsed}
+      devMode={devMode}
+      layoutEditMode={layoutEditMode}
     />
   );
 
