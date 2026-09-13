@@ -34,7 +34,7 @@ import { useSettingsStore } from "./stores/settings-store";
 import { useUpdateStore } from "./stores/update-store";
 import { useModsStore } from "./stores/mods-store";
 import { watchDayz } from "./stores/launch-store";
-import { watchThemeActivationReverted } from "./theme/theme-store";
+import { useThemeStore, watchHotReload, watchThemeActivationReverted } from "./theme/theme-store";
 import { useResolvedSlot } from "./theme/use-resolved-layout";
 import type { Server } from "./types/server";
 import {
@@ -53,6 +53,8 @@ import {
   type ModsPendingEntry,
   type ListSource,
   logClient,
+  watchActiveTheme,
+  stopWatchingTheme,
 } from "./lib/tauri";
 import { listen, emit } from "@tauri-apps/api/event";
 // Static import: window-resize-handles already pulls this in statically anyway.
@@ -273,6 +275,23 @@ export function App() {
 
   // Puts the palette back when the activation guard window reverts or times out.
   useEffect(() => watchThemeActivationReverted(), []);
+
+  // Re-reads the active theme's files whenever the Dev Mode watch reports a change.
+  useEffect(() => watchHotReload(), []);
+
+  const activeId = useThemeStore((s) => s.activeId);
+
+  // Dev Mode's watch: the cleanup stops the previous one, so turning Dev Mode
+  // off or switching theme replaces rather than accumulates.
+  useEffect(() => {
+    if (!devMode) return;
+    void watchActiveTheme(activeId).catch((e) => {
+      console.error(`Could not watch theme "${activeId}" for changes:`, e);
+    });
+    return () => {
+      void stopWatchingTheme();
+    };
+  }, [devMode, activeId]);
 
   // A pending debounced write would otherwise be lost when the window closes.
   useEffect(() => {
