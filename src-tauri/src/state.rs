@@ -54,9 +54,11 @@ pub struct AppState {
     pub theme_watch: Mutex<Option<crate::theme::watch::ThemeWatch>>,
 }
 
-/// A theme switch applied live but not yet written to `settings.json`; revert
-/// throws it away instead. [`Instant`], not a wall-clock timestamp or
-/// decrementing counter, so the deadline survives OS suspend correctly.
+/// A theme change applied live but not yet written to `settings.json`; revert
+/// throws it away instead. Either a switch to another theme, or — with
+/// [`RestoreSnapshot`] set — an edit to the active theme's own files.
+/// [`Instant`], not a wall-clock timestamp or decrementing counter, so the
+/// deadline survives OS suspend correctly.
 pub struct PendingActivation {
     /// The theme to revert to. `None` means the built-in default.
     pub previous_id: Option<String>,
@@ -66,7 +68,21 @@ pub struct PendingActivation {
     /// "New theme") and has never been kept — abandoning the activation
     /// should delete it too, not leave an orphan in the library.
     pub delete_on_revert: bool,
+    /// Set when the activation is an in-place edit of the active theme rather
+    /// than a switch; revert puts this file back instead of changing the id.
+    pub restore: Option<RestoreSnapshot>,
     pub deadline: Instant,
+}
+
+/// A file inside an installed theme's directory, snapshotted before an
+/// edit so `revert_activation` can put it back exactly. `previous_bytes:
+/// None` means the file did not exist before the edit — revert deletes
+/// it rather than writing empty content.
+#[derive(Debug)]
+pub struct RestoreSnapshot {
+    pub theme_id: String,
+    pub file: String,
+    pub previous_bytes: Option<Vec<u8>>,
 }
 
 impl AppState {
