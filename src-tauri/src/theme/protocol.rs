@@ -79,14 +79,10 @@ pub fn resolve_asset(
     }
 
     let relative = Path::new(rel_path);
-    if relative
-        .components()
-        .any(|c| matches!(c, Component::ParentDir))
-    {
-        return Err(format!(
-            "`{rel_path}` points outside the theme (`..` in its path); refusing it."
-        ));
-    }
+    // Checked before the `..` scan below: on Windows a leading `\` makes the
+    // parser emit `RootDir` then `ParentDir` for something like `\..\x`, so
+    // checking rootedness first is what keeps the rejection reason consistent
+    // between platforms for a path that is both rooted and walks upward.
     // `Path::join` discards the theme directory rather than nesting under it
     // for any of these: a root or a Windows drive prefix in the parsed path, or
     // a leading separator — a backslash is an ordinary character off Windows,
@@ -99,6 +95,14 @@ pub fn resolve_asset(
     {
         return Err(format!(
             "`{rel_path}` is an absolute path (which `Path::join` would let override the theme directory); refusing it."
+        ));
+    }
+    if relative
+        .components()
+        .any(|c| matches!(c, Component::ParentDir))
+    {
+        return Err(format!(
+            "`{rel_path}` points outside the theme (`..` in its path); refusing it."
         ));
     }
 
