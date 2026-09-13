@@ -30,6 +30,10 @@ export const SLOTS: Slot[] = [
     themeable: "full",
     children: [
       { id: "navList", required: true, since: "1.0" },
+      { id: "navServers", required: true, since: "1.0" },
+      { id: "navFavourites", required: false, since: "1.0" },
+      { id: "navRecent", required: false, since: "1.0" },
+      { id: "navMods", required: false, since: "1.0" },
       { id: "settingsEntry", required: true, since: "1.0" },
       { id: "collapseToggle", required: false, since: "1.0" },
       { id: "logo", required: false, since: "1.0" },

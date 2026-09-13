@@ -16,11 +16,11 @@ interface SidebarProps {
   onCollapsedChange?: (collapsed: boolean) => void;
 }
 
-const NAV: { id: ViewId; label: string; icon: typeof Globe }[] = [
-  { id: "servers", label: "Servers", icon: Globe },
-  { id: "fav", label: "Favourites", icon: Star },
-  { id: "recent", label: "Recent", icon: Clock },
-  { id: "mods", label: "Mods", icon: Package },
+const NAV: { id: ViewId; label: string; icon: typeof Globe; tetraEl: string }[] = [
+  { id: "servers", label: "Servers", icon: Globe, tetraEl: "navServers" },
+  { id: "fav", label: "Favourites", icon: Star, tetraEl: "navFavourites" },
+  { id: "recent", label: "Recent", icon: Clock, tetraEl: "navRecent" },
+  { id: "mods", label: "Mods", icon: Package, tetraEl: "navMods" },
 ];
 
 // 220px icon+label rail that collapses to 52px icon-only. Width is driven
@@ -84,12 +84,13 @@ export function Sidebar({
       </div>
 
       <nav data-tetra-el="navList" className="flex flex-1 flex-col gap-[3px] p-2" aria-label="Main">
-        {NAV.map(({ id, label, icon: Icon }, i) => {
+        {NAV.map(({ id, label, icon: Icon, tetraEl }, i) => {
           const active = activeView === id;
           return (
             <button
               key={id}
               data-nav-item
+              data-tetra-el={tetraEl}
               onClick={() => onViewChange(id)}
               onKeyDown={(e) => onNavKeyDown(e, i)}
               aria-current={active ? "page" : undefined}
