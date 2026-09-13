@@ -99,14 +99,29 @@ export function DevModeInspector() {
       // Settings is a full-screen overlay that legitimately sits above the
       // footer while open — the footer stays mounted underneath it (just
       // visually covered), so its rect still geometrically overlaps
-      // Settings' own bottom edge. Only the ordinary in-flow content behind
-      // the footer (the server/mods lists) needs the exclusion below.
+      // Settings' own bottom edge. Anything nested inside it is exempt: there
+      // is no equivalent to a stray server row hiding behind the footer here.
       const isOverlaySurface =
         node !== null && node.element.closest(`[${SLOT_ATTR}="settings.background"]`) !== null;
+      // The main-view containers share the exact same oversized rect as the
+      // rows/content inside them (that IS the underlying bug) — their own
+      // background must stay selectable regardless, but only the container
+      // itself: a server.row or mods.row nested inside one of these still
+      // needs the real exclusion below.
+      const isViewContainerItself =
+        node !== null &&
+        (node.id === "view.servers" ||
+          node.id === "view.favourites" ||
+          node.id === "view.recent" ||
+          node.id === "view.mods");
       const valid =
         node !== null &&
         rect !== null &&
-        (isFooterItself || isOverlaySurface || footer === null || !rectsOverlap(rect, footer));
+        (isFooterItself ||
+          isOverlaySurface ||
+          isViewContainerItself ||
+          footer === null ||
+          !rectsOverlap(rect, footer));
       if (!valid) {
         if (lastKey.current === "") return;
         lastKey.current = "";
