@@ -60,6 +60,18 @@ function pointInRect(x: number, y: number, rect: DOMRect | null, pad: number): b
   return x >= rect.left - pad && x <= rect.right + pad && y >= rect.top - pad && y <= rect.bottom + pad;
 }
 
+function rectsOverlap(a: DOMRect, b: DOMRect): boolean {
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+
+/** `shell.footer`'s current rect, fresh each call — it never moves, but the
+ * list underneath it does not actually clip against it (see the mousemove
+ * handler below), so anything reaching into this area is refused outright
+ * rather than trusted. */
+function footerRect(): DOMRect | null {
+  return document.querySelector(`[${SLOT_ATTR}="shell.footer"]`)?.getBoundingClientRect() ?? null;
+}
+
 /** Read-only slot inspector: outlines whatever slot/element the pointer is over
  * and reports the registry's children for it. Mounted only while Dev Mode is
  * on, so the listener and the overlay exist for exactly that long. */
@@ -82,9 +94,19 @@ export function DevModeInspector() {
       // Its own badge and outline, so reaching for "Copy selector" doesn't
       // blank the readout it is about to copy.
       if (target.closest("[data-dev-inspector]")) return;
+      // The footer sits over the tail end of the (taller, unclipped) list
+      // beneath it rather than actually cropping it — real content back
+      // there can still be what the pointer hits. Refuse anything that
+      // reaches into the footer's own area, even partially, unless the
+      // match is the footer (or one of its own children) legitimately.
       const node = findTetraNode(target);
-      if (node === null) {
-        // Nothing tagged is directly under the pointer, but it may just be
+      const rect = node?.element.getBoundingClientRect() ?? null;
+      const footer = footerRect();
+      const isFooterItself = node !== null && node.element.closest(`[${SLOT_ATTR}="shell.footer"]`) !== null;
+      const valid =
+        node !== null && rect !== null && (isFooterItself || footer === null || !rectsOverlap(rect, footer));
+      if (!valid) {
+        // Nothing valid is directly under the pointer, but it may just be
         // crossing the gap toward the badge itself — bridge that gap rather
         // than dropping the badge before the pointer arrives.
         const bridging =
@@ -97,7 +119,6 @@ export function DevModeInspector() {
         setCopyState("idle");
         return;
       }
-      const rect = node.element.getBoundingClientRect();
       const key = `${node.kind}:${node.id}:${Math.round(rect.top)},${Math.round(rect.left)},${Math.round(rect.width)},${Math.round(rect.height)}`;
       if (key === lastKey.current) return;
       lastKey.current = key;
