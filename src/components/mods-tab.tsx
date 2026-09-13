@@ -1,4 +1,12 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -22,6 +30,7 @@ import {
   visibleRows,
   type ModStatusFilter,
 } from "@/stores/mods-store";
+import { useThemeStore } from "@/theme/theme-store";
 import {
   steamModStates,
   steamDownloadProgress,
@@ -35,6 +44,8 @@ import { cn, formatBytes, formatLastPlayed } from "@/lib/utils";
 import { SlotChildren } from "@/theme/slot-render";
 import { useResolvedSlot } from "@/theme/use-resolved-layout";
 import { resolveChildOrder } from "@/theme/slot-order";
+import { resolveComponentTree, type ResolvedNode } from "@/theme/component-tree";
+import { SLOTS } from "@/theme/slots";
 
 // One DOM group of a slot's children per list: the markup's order, plus the
 // wrapper elements that hold several registry children between them.
@@ -56,6 +67,78 @@ const ACTION_BAR_POSITIONS = [
 ];
 const ACTION_BAR_CLUSTER = ["uniqueToServerAction", "cleanupRemovedAction"];
 const ACTION_BAR_WRAPPERS = { actionBarCluster: ACTION_BAR_CLUSTER };
+
+// A component tree's containers are a closed vocabulary of layout props, so
+// every class they can produce is written out literally here — Tailwind's
+// content scan never sees a name this file builds at runtime.
+type ContainerNode = Extract<ResolvedNode, { type: "stack" | "box" | "grid" }>;
+
+/** The registry's own `mods.row` children — what a `core.ref` may name. */
+const MODS_ROW_CHILDREN = SLOTS.find((slot) => slot.id === "mods.row")?.children ?? [];
+
+// Fixed lookups of literal class names: Tailwind's content scan only sees
+// strings written in this file, so a synthesized `flex-${direction}` would ship
+// with no CSS behind it.
+const FLEX_DIRECTION: Record<"row" | "column", string> = { row: "flex-row", column: "flex-col" };
+const FLEX_ALIGN: Record<"start" | "center" | "end" | "stretch", string> = {
+  start: "items-start",
+  center: "items-center",
+  end: "items-end",
+  stretch: "items-stretch",
+};
+const FLEX_JUSTIFY: Record<"start" | "center" | "end" | "space-between", string> = {
+  start: "justify-start",
+  center: "justify-center",
+  end: "justify-end",
+  "space-between": "justify-between",
+};
+
+/** A container's own props. `stack` lays out with literal flex classes; `grid`
+ * and every `gap` use inline styles; `box` groups and pads only, so
+ * direction/align/justify/wrap — and `gap`, which does nothing outside flex or
+ * grid — are ignored there. */
+export function containerProps(node: ContainerNode): {
+  className?: string;
+  style?: CSSProperties;
+} {
+  if (node.type === "box") return {};
+  if (node.type === "grid") {
+    return {
+      style: {
+        display: "grid",
+        ...(node.gap !== undefined && { gap: node.gap }),
+        ...(node.direction !== undefined && { gridAutoFlow: node.direction }),
+        ...(node.align !== undefined && { alignItems: node.align }),
+        ...(node.justify !== undefined && { justifyContent: node.justify }),
+      },
+    };
+  }
+  const className = cn(
+    "flex",
+    FLEX_DIRECTION[node.direction ?? "row"],
+    node.wrap === true && "flex-wrap",
+    node.align !== undefined && FLEX_ALIGN[node.align],
+    node.justify !== undefined && FLEX_JUSTIFY[node.justify],
+  );
+  return node.gap === undefined ? { className } : { className, style: { gap: node.gap } };
+}
+
+/** A theme's composition tree, rendered from the same flat map the grouped
+ * fallback filters. */
+function ModRowTree({
+  node,
+  nodes,
+}: {
+  node: ResolvedNode;
+  nodes: Record<string, ReactNode>;
+}) {
+  if (node.type === "core") return <>{nodes[node.ref] ?? null}</>;
+  const children = node.children.map((child, index) => (
+    <ModRowTree key={index} node={child} nodes={nodes} />
+  ));
+  if (node.type === "box") return <div>{children}</div>;
+  return <div {...containerProps(node)}>{children}</div>;
+}
 
 // Mods tab: rich rows with a slide-in inspector, status filter, and action bar.
 
@@ -272,6 +355,22 @@ export function ModsTab() {
     [rowChildren],
   );
 
+  const activeId = useThemeStore((s) => s.activeId);
+  const themeFiles = useThemeStore((s) => s.themeFiles);
+  // Resolved once for the whole list rather than per row, so the tree's object
+  // identity stays stable and each memoized row keeps its own memo.
+  const rowComposition = useMemo(() => {
+    const file = themeFiles[activeId];
+    if (file?.tier !== "expert") return null;
+    const treeJson = file.components["mods.row"];
+    if (treeJson === undefined) return null;
+    const { tree, issues } = resolveComponentTree("mods.row", treeJson, MODS_ROW_CHILDREN);
+    for (const issue of issues) {
+      console.warn(`[theme components] ${issue.slotId}: ${issue.message}`);
+    }
+    return tree;
+  }, [activeId, themeFiles]);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
     count: mods.length,
@@ -401,6 +500,7 @@ export function ModsTab() {
                         selected={selectedModId === mod.workshop_id}
                         order={rowOrder}
                         mainOrder={rowMainOrder}
+                        composition={rowComposition}
                       />
                     </div>
                   );
@@ -426,11 +526,13 @@ const ModRow = memo(function ModRow({
   selected,
   order,
   mainOrder,
+  composition,
 }: {
   mod: SubscribedMod;
   selected: boolean;
   order: string[];
   mainOrder: string[];
+  composition: ResolvedNode | null;
 }) {
   const checked = useModsStore((s) => s.selectedIds.has(mod.workshop_id));
   const rawLive = useModsStore((s) => s.states[mod.workshop_id]);
@@ -438,7 +540,8 @@ const ModRow = memo(function ModRow({
   const progress = useModsStore((s) => s.progress[mod.workshop_id]);
   const toggleSelected = useModsStore((s) => s.toggleSelected);
   const openMod = useModsStore((s) => s.openMod);
-  const ui = STATUS_UI[state];
+
+  const nodes = modRowNodes(mod, { checked, state, progress, toggleSelected });
 
   return (
     <div
@@ -450,129 +553,154 @@ const ModRow = memo(function ModRow({
         mod.locally_disabled && "opacity-50",
       )}
     >
-      <SlotChildren
-        order={order}
-        nodes={{
-          selectCheckbox: (
-            <div
-              data-tetra-el="selectCheckbox"
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleSelected(mod.workshop_id);
-              }}
-              className="mx-check flex items-center justify-center"
-              role="checkbox"
-              aria-checked={checked}
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  toggleSelected(mod.workshop_id);
-                }
-              }}
-            >
-              <span
-                className={cn(
-                  "box flex h-[13px] w-[13px] items-center justify-center rounded-[3px] border border-line transition-colors",
-                  checked
-                    ? "border-accent bg-accent text-[#10131a] shadow-[var(--glow)]"
-                    : "bg-surface2 hover:border-accent-line",
-                )}
-              >
-                {checked && <Check className="size-2.5 stroke-[3]" />}
-              </span>
-            </div>
-          ),
-          modIcon: (
-            <div data-tetra-el="modIcon" className="mx-thumb h-[30px] w-[30px] shrink-0 overflow-hidden rounded-[7px] bg-surface2">
-              {mod.preview_url ? (
-                <img
-                  src={mod.preview_url}
-                  alt=""
-                  loading="lazy"
-                  draggable={false}
-                  className="h-full w-full object-cover"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).style.display = "none";
-                  }}
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-[9px] text-muted">
-                  {mod.locally_disabled ? "⏸" : "—"}
-                </div>
-              )}
-            </div>
-          ),
-          mxMain: (
-            <div className="mx-main min-w-0 flex-1">
-              <SlotChildren
-                order={mainOrder}
-                nodes={{
-                  modName: (
-                    <div className="mx-title flex min-w-0 items-center gap-1.5 text-[11px] font-semibold">
-                      <span data-tetra-el="modName" className="truncate text-ink">{mod.title ?? mod.workshop_id}</span>
-                      {mod.locally_disabled && (
-                        <span className="shrink-0 rounded-[4px] border border-muted/50 px-1 text-[8px] font-bold uppercase tracking-wider text-muted2">
-                          Disabled
-                        </span>
-                      )}
-                    </div>
-                  ),
-                  modTags: (
-                    <div data-tetra-el="modTags" className="mx-meta truncate text-[8px] text-muted">
-                      {(mod.tags ?? []).slice(0, 3).join(" · ") || mod.workshop_id}
-                    </div>
-                  ),
-                }}
-              />
-            </div>
-          ),
-          modStatusBadge: (
-            <div className="mx-state flex w-[104px] shrink-0 flex-col justify-center gap-[3px]">
-              <span
-                data-tetra-el="modStatusBadge"
-                className={cn(
-                  "st inline-flex w-fit items-center gap-1.5 rounded-full border px-1.5 py-[3px]",
-                  PILL_TONE[ui.tone],
-                )}
-              >
-                <span className={cn("d h-[5px] w-[5px] shrink-0 rounded-full bg-current", PILL_DOT_GLOW[ui.tone])} />
-                <span className="l text-[8px] font-bold uppercase tracking-wider whitespace-nowrap">{ui.label}</span>
-              </span>
-              {state === "downloading" && progress && progress.total && Number(progress.total) > 0 && (
-                <div className="mx-prog h-[3px] overflow-hidden rounded-full bg-line">
-                  <i
-                    className="block h-full rounded-full bg-accent shadow-[var(--glow)]"
-                    style={{
-                      width: `${Math.min(100, (Number(progress.downloaded) / Number(progress.total)) * 100)}%`,
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-          ),
-          sizeLabel: (
-            <span
-              data-tetra-el="sizeLabel"
-              className="mx-num sz w-[64px] shrink-0 truncate text-right font-mono-data text-[9px] text-accent2"
-            >
-              {mod.size_on_disk ? formatBytes(Number(mod.size_on_disk), 1) : "—"}
-            </span>
-          ),
-          updatedLabel: (
-            <span
-              data-tetra-el="updatedLabel"
-              className="mx-num upd w-[76px] shrink-0 truncate text-right font-mono-data text-[9px] text-muted2"
-            >
-              {mod.time_updated ? formatLastPlayed(mod.time_updated) : "—"}
-            </span>
-          ),
-        }}
-      />
+      {composition ? (
+        <ModRowTree node={composition} nodes={nodes} />
+      ) : (
+        <SlotChildren
+          order={order}
+          nodes={{
+            ...nodes,
+            // The `.mx-main` block is not a registry id — no component tree can
+            // name it — so only the grouped render carries it, holding the same
+            // two children it always held.
+            mxMain: (
+              <div className="mx-main min-w-0 flex-1">
+                <SlotChildren order={mainOrder} nodes={nodes} />
+              </div>
+            ),
+          }}
+        />
+      )}
     </div>
   );
 });
+
+/** Every `mods.row` child this file renders, keyed by its registry id: one
+ * flat map both the grouped render and a component tree read from. */
+function modRowNodes(
+  mod: SubscribedMod,
+  {
+    checked,
+    state,
+    progress,
+    toggleSelected,
+  }: {
+    checked: boolean;
+    state: ModState;
+    progress: { downloaded: string; total: string } | undefined;
+    toggleSelected: (id: string) => void;
+  },
+): Record<string, ReactNode> {
+  const ui = STATUS_UI[state];
+  return {
+    selectCheckbox: (
+      <div
+        data-tetra-el="selectCheckbox"
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleSelected(mod.workshop_id);
+        }}
+        className="mx-check flex items-center justify-center"
+        role="checkbox"
+        aria-checked={checked}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleSelected(mod.workshop_id);
+          }
+        }}
+      >
+        <span
+          className={cn(
+            "box flex h-[13px] w-[13px] items-center justify-center rounded-[3px] border border-line transition-colors",
+            checked
+              ? "border-accent bg-accent text-[#10131a] shadow-[var(--glow)]"
+              : "bg-surface2 hover:border-accent-line",
+          )}
+        >
+          {checked && <Check className="size-2.5 stroke-[3]" />}
+        </span>
+      </div>
+    ),
+    modIcon: (
+      <div data-tetra-el="modIcon" className="mx-thumb h-[30px] w-[30px] shrink-0 overflow-hidden rounded-[7px] bg-surface2">
+        {mod.preview_url ? (
+          <img
+            src={mod.preview_url}
+            alt=""
+            loading="lazy"
+            draggable={false}
+            className="h-full w-full object-cover"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = "none";
+            }}
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-[9px] text-muted">
+            {mod.locally_disabled ? "⏸" : "—"}
+          </div>
+        )}
+      </div>
+    ),
+    modName: (
+      <div className="mx-title flex min-w-0 items-center gap-1.5 text-[11px] font-semibold">
+        <span data-tetra-el="modName" className="truncate text-ink">{mod.title ?? mod.workshop_id}</span>
+        {mod.locally_disabled && (
+          <span className="shrink-0 rounded-[4px] border border-muted/50 px-1 text-[8px] font-bold uppercase tracking-wider text-muted2">
+            Disabled
+          </span>
+        )}
+      </div>
+    ),
+    modTags: (
+      <div data-tetra-el="modTags" className="mx-meta truncate text-[8px] text-muted">
+        {(mod.tags ?? []).slice(0, 3).join(" · ") || mod.workshop_id}
+      </div>
+    ),
+    modStatusBadge: (
+      <div className="mx-state flex w-[104px] shrink-0 flex-col justify-center gap-[3px]">
+        <span
+          data-tetra-el="modStatusBadge"
+          className={cn(
+            "st inline-flex w-fit items-center gap-1.5 rounded-full border px-1.5 py-[3px]",
+            PILL_TONE[ui.tone],
+          )}
+        >
+          <span className={cn("d h-[5px] w-[5px] shrink-0 rounded-full bg-current", PILL_DOT_GLOW[ui.tone])} />
+          <span className="l text-[8px] font-bold uppercase tracking-wider whitespace-nowrap">{ui.label}</span>
+        </span>
+        {state === "downloading" && progress && progress.total && Number(progress.total) > 0 && (
+          <div className="mx-prog h-[3px] overflow-hidden rounded-full bg-line">
+            <i
+              className="block h-full rounded-full bg-accent shadow-[var(--glow)]"
+              style={{
+                width: `${Math.min(100, (Number(progress.downloaded) / Number(progress.total)) * 100)}%`,
+              }}
+            />
+          </div>
+        )}
+      </div>
+    ),
+    sizeLabel: (
+      <span
+        data-tetra-el="sizeLabel"
+        className="mx-num sz w-[64px] shrink-0 truncate text-right font-mono-data text-[9px] text-accent2"
+      >
+        {mod.size_on_disk ? formatBytes(Number(mod.size_on_disk), 1) : "—"}
+      </span>
+    ),
+    updatedLabel: (
+      <span
+        data-tetra-el="updatedLabel"
+        className="mx-num upd w-[76px] shrink-0 truncate text-right font-mono-data text-[9px] text-muted2"
+      >
+        {mod.time_updated ? formatLastPlayed(mod.time_updated) : "—"}
+      </span>
+    ),
+  };
+}
 
 function ModInspector({ mod }: { mod: SubscribedMod }) {
   const rawLive = useModsStore((s) => s.states[mod.workshop_id]);
