@@ -1,8 +1,9 @@
 /** The one-time localStorage -> file-backed migration, focused on the
  * `custom:<name>` -> installed-id remap a pre-migration selection depends on. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_EXTRAS } from "./apply";
 import { DEFAULT_RADII, DEFAULT_SPACING, DEFAULT_TYPOGRAPHY, type Palette } from "./palette";
-import { effectiveExtras, resolvedExtras, useThemeStore } from "./theme-store";
+import { effectiveExtras, resolvedExtras, useThemeStore, watchThemeActivationReverted } from "./theme-store";
 import type { ThemeFile } from "@/types/theme";
 
 const backend = vi.hoisted(() => ({
@@ -14,15 +15,28 @@ const backend = vi.hoisted(() => ({
   installed: [] as { id: string; name: string }[],
   /** The `tokens` object each `save_theme` call received, in call order. */
   savedTokens: [] as unknown[],
+  /** `tokens.json` contents `get_theme` returns, by id. */
+  tokensById: {} as Record<string, unknown>,
+}));
+
+const events = vi.hoisted(() => ({
+  /** The handler `watchThemeActivationReverted` registered, if any. */
+  reverted: null as ((event: { payload: { previousId: string | null } }) => void) | null,
 }));
 
 vi.mock("@tauri-apps/api/event", () => ({
-  listen: () => Promise.resolve(() => {}),
+  listen: (
+    _name: string,
+    handler: (event: { payload: { previousId: string | null } }) => void,
+  ) => {
+    events.reverted = handler;
+    return Promise.resolve(() => {});
+  },
 }));
 
 vi.mock("@/lib/tauri", () => ({
   listInstalledThemes: async () => backend.installed,
-  getTheme: async (id: string) => ({ id, name: id, tokens: {} }),
+  getTheme: async (id: string) => ({ id, name: id, tokens: backend.tokensById[id] ?? {} }),
   getSettings: async () => ({ activeThemeId: null }),
   setActiveThemeId: async (id: string | null) => void backend.setActiveCalls.push(id),
   migrateLegacyCustomThemes: async () => backend.migratedIds,
@@ -38,8 +52,55 @@ vi.stubGlobal("localStorage", {
   removeItem: (key: string) => void storage.delete(key),
 });
 
-// applyTheme writes straight onto the document element's style.
-vi.stubGlobal("document", { documentElement: { style: { setProperty: () => {} } } });
+// applyTheme writes straight onto the document element's style; applyThemeStylesheet
+// and applyThemeFonts touch head/fonts, so the stub covers those too.
+interface StubLink {
+  attributes: Record<string, string>;
+  getAttribute: (name: string) => string | null;
+  setAttribute: (name: string, value: string) => void;
+  remove: () => void;
+}
+/** Every `--token` applyTheme wrote, most recent write per token. */
+const writtenProps: Record<string, string> = {};
+const themeCssHead: StubLink[] = [];
+const addedFonts: unknown[] = [];
+const fontFaces: { family: string; source: string }[] = [];
+vi.stubGlobal("document", {
+  documentElement: {
+    style: {
+      setProperty: (name: string, value: string) => void (writtenProps[name] = value),
+    },
+  },
+  head: { appendChild: (el: StubLink) => void themeCssHead.push(el) },
+  getElementById: (id: string) => themeCssHead.find((el) => el.getAttribute("id") === id) ?? null,
+  createElement: (): StubLink => {
+    const el: StubLink = {
+      attributes: {},
+      getAttribute: (name) => el.attributes[name] ?? null,
+      setAttribute: (name, value) => void (el.attributes[name] = value),
+      remove: () => void themeCssHead.splice(themeCssHead.indexOf(el), 1),
+    };
+    return el;
+  },
+  fonts: {
+    add: (face: unknown) => void addedFonts.push(face),
+    delete: () => {},
+  },
+});
+vi.stubGlobal(
+  "FontFace",
+  class {
+    constructor(
+      public family: string,
+      public source: string,
+    ) {
+      fontFaces.push(this);
+    }
+    load() {
+      return Promise.resolve(this);
+    }
+  },
+);
 
 const PALETTE = { bg: "#101010" } as Palette;
 
@@ -49,8 +110,19 @@ beforeEach(() => {
   backend.setActiveCalls.length = 0;
   backend.installed = [];
   backend.savedTokens.length = 0;
+  backend.tokensById = {};
+  themeCssHead.length = 0;
+  fontFaces.length = 0;
+  addedFonts.length = 0;
+  for (const name of Object.keys(writtenProps)) delete writtenProps[name];
   useThemeStore.setState({ activeId: "neutral" });
 });
+
+/** Two microtask turns: enough for an `applyThemeFonts` load chain to settle. */
+async function settled(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
 
 describe("hydrate legacy migration", () => {
   it("remaps a stored custom:<name> selection onto the id the migration created", async () => {
@@ -121,16 +193,8 @@ describe("theme extras", () => {
   });
 
   it("keeps the defaults for a preset and for a theme with no extras", () => {
-    expect(resolvedExtras("ember", files({}))).toEqual({
-      spacing: DEFAULT_SPACING,
-      radii: DEFAULT_RADII,
-      typography: DEFAULT_TYPOGRAPHY,
-    });
-    expect(resolvedExtras("local.partial", files({}))).toEqual({
-      spacing: DEFAULT_SPACING,
-      radii: DEFAULT_RADII,
-      typography: DEFAULT_TYPOGRAPHY,
-    });
+    expect(resolvedExtras("ember", files({}))).toEqual(DEFAULT_EXTRAS);
+    expect(resolvedExtras("local.partial", files({}))).toEqual(DEFAULT_EXTRAS);
   });
 
   it("ignores non-string values in an untrusted tokens.json", () => {
@@ -139,6 +203,18 @@ describe("theme extras", () => {
     expect(resolvedExtras("local.partial", themeFiles).spacing).toEqual({
       ...DEFAULT_SPACING,
       lg: "20px",
+    });
+  });
+
+  it("reads a numeric glowIntensity and drops a non-numeric one", () => {
+    expect(
+      resolvedExtras("local.partial", files({ shadows: { glowIntensity: 0.4 } })).shadows,
+    ).toEqual({ glowIntensity: 0.4 });
+    expect(
+      resolvedExtras("local.partial", files({ shadows: { glowIntensity: "0.4" } })).shadows,
+    ).toEqual({ glowIntensity: DEFAULT_EXTRAS.shadows.glowIntensity });
+    expect(resolvedExtras("local.partial", files({ shadows: null })).shadows).toEqual({
+      glowIntensity: DEFAULT_EXTRAS.shadows.glowIntensity,
     });
   });
 
@@ -157,21 +233,23 @@ describe("theme extras", () => {
     expect(extras.typography.dataFont).toBe(DEFAULT_TYPOGRAPHY.dataFont);
   });
 
-  it("passes the merged extras to applyTheme and clears them on reset", () => {
-    const setProperty = vi.fn();
-    vi.stubGlobal("document", { documentElement: { style: { setProperty } } });
+  it("passes the merged extras and the live bloom to applyTheme, and clears them on reset", () => {
     useThemeStore.setState({
       activeId: "local.partial",
       themeFiles: files({ spacing: { md: "12px" } }),
       customExtras: { spacing: { lg: "40px" }, radii: {}, typography: {} },
+      bloom: 0.35,
     });
 
     useThemeStore.getState().apply();
-    expect(setProperty).toHaveBeenCalledWith("--space-lg", "40px");
-    expect(setProperty).toHaveBeenCalledWith("--space-md", "12px");
+    expect(writtenProps["--space-lg"]).toBe("40px");
+    expect(writtenProps["--space-md"]).toBe("12px");
+    // The slider's live value renders; the theme's own glowIntensity only
+    // seeds it at pick time.
+    expect(writtenProps["--bloom"]).toBe("0.35");
 
     useThemeStore.getState().resetToBase();
-    expect(setProperty).toHaveBeenCalledWith("--space-lg", DEFAULT_SPACING.lg);
+    expect(writtenProps["--space-lg"]).toBe(DEFAULT_SPACING.lg);
     expect(useThemeStore.getState().customExtras).toEqual({
       spacing: {},
       radii: {},
@@ -184,6 +262,7 @@ describe("theme extras", () => {
       activeId: "local.partial",
       themeFiles: files({ spacing: { md: "12px" } }),
       customExtras: { spacing: {}, radii: { chip: "1px" }, typography: {} },
+      bloom: 0.42,
     });
 
     await useThemeStore.getState().saveTheme("Extras skin");
@@ -193,5 +272,117 @@ describe("theme extras", () => {
     expect(tokens.spacing).toEqual({ ...DEFAULT_SPACING, md: "12px" });
     expect(tokens.radii).toEqual({ ...DEFAULT_RADII, chip: "1px" });
     expect(tokens.typography).toEqual(DEFAULT_TYPOGRAPHY);
+    // effectiveExtras never merges bloom in — saving the live theme must
+    // still capture whatever the slider currently shows, same as every
+    // other extras field, not silently keep the source theme's own value.
+    expect(tokens.shadows).toEqual({ glowIntensity: 0.42 });
+  });
+});
+
+describe("apply() asset wiring", () => {
+  const installed = (id: string, capabilities: string[]) => {
+    backend.installed = [{ id, name: id }];
+    return {
+      id,
+      name: id,
+      capabilities,
+      tokens: { typography: { customFonts: [{ family: "Aurora Sans", file: "fonts/a.woff2" }] } },
+    } as ThemeFile;
+  };
+
+  it("applies the active theme's stylesheet and fonts, then unloads them on a theme without them", async () => {
+    const loaded = installed("local.aurora", ["tokens", "css", "fonts"]);
+    useThemeStore.setState({ activeId: "local.aurora", themeFiles: { "local.aurora": loaded } });
+
+    useThemeStore.getState().apply();
+    await settled();
+    expect(themeCssHead.map((el) => el.attributes.href)).toEqual([
+      "tetra-theme://local.aurora/styles.css",
+    ]);
+    expect(fontFaces.map((f) => f.source)).toEqual([
+      "url(tetra-theme://local.aurora/fonts/a.woff2)",
+    ]);
+
+    useThemeStore.getState().setScheme("light");
+    expect(themeCssHead).toHaveLength(1);
+
+    // Neutral has no ThemeFile at all: nothing may stay applied.
+    useThemeStore.setState({ activeId: "neutral", themeFiles: {} });
+    useThemeStore.getState().apply();
+    await settled();
+    expect(themeCssHead).toHaveLength(0);
+    expect(addedFonts).toHaveLength(1);
+  });
+
+  it("drops customFonts entries missing a string family or file", async () => {
+    const theme = {
+      id: "local.partial",
+      name: "Partial",
+      capabilities: ["fonts"],
+      tokens: {
+        typography: {
+          customFonts: [
+            { family: "Good", file: "fonts/good.woff2" },
+            { family: "NoFile" },
+            { file: "fonts/no-family.woff2" },
+            "nonsense",
+          ],
+        },
+      },
+    } as ThemeFile;
+    useThemeStore.setState({ activeId: "local.partial", themeFiles: { "local.partial": theme } });
+
+    useThemeStore.getState().apply();
+    await settled();
+
+    expect(fontFaces).toEqual([
+      { family: "Good", source: "url(tetra-theme://local.partial/fonts/good.woff2)" },
+    ]);
+  });
+});
+
+describe("pickTheme bloom reset", () => {
+  it("adopts the picked theme's own glowIntensity as the live bloom", async () => {
+    backend.tokensById["local.dim"] = { shadows: { glowIntensity: 0.4 } };
+    backend.installed = [{ id: "local.dim", name: "Dim" }];
+    useThemeStore.setState({ bloom: 0.9 });
+
+    await useThemeStore.getState().pickTheme("local.dim");
+
+    expect(useThemeStore.getState().bloom).toBe(0.4);
+    expect(writtenProps["--bloom"]).toBe("0.4");
+  });
+
+  it("falls back to the default bloom when the picked theme declares none", async () => {
+    backend.tokensById["local.plain"] = {};
+    backend.installed = [{ id: "local.plain", name: "Plain" }];
+    useThemeStore.setState({ bloom: 0.1 });
+
+    await useThemeStore.getState().pickTheme("local.plain");
+
+    expect(useThemeStore.getState().bloom).toBe(DEFAULT_EXTRAS.shadows.glowIntensity);
+  });
+
+  it("resets bloom to the default for a preset", async () => {
+    useThemeStore.setState({ bloom: 0.1 });
+
+    await useThemeStore.getState().pickTheme("ember");
+
+    expect(useThemeStore.getState().bloom).toBe(DEFAULT_EXTRAS.shadows.glowIntensity);
+  });
+
+  it("restores the reverted theme's own glowIntensity, discarding the preview's", async () => {
+    backend.tokensById["local.dim"] = { shadows: { glowIntensity: 0.4 } };
+    backend.installed = [{ id: "local.dim", name: "Dim" }];
+    await useThemeStore.getState().hydrate();
+    await useThemeStore.getState().pickTheme("local.dim");
+    expect(useThemeStore.getState().bloom).toBe(0.4);
+
+    watchThemeActivationReverted();
+    events.reverted?.({ payload: { previousId: "neutral" } });
+
+    expect(useThemeStore.getState().activeId).toBe("neutral");
+    expect(useThemeStore.getState().bloom).toBe(DEFAULT_EXTRAS.shadows.glowIntensity);
+    expect(writtenProps["--bloom"]).toBe(String(DEFAULT_EXTRAS.shadows.glowIntensity));
   });
 });
