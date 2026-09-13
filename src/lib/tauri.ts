@@ -591,6 +591,21 @@ export async function getTheme(id: string): Promise<ThemeFile> {
   return invoke<ThemeFile>("get_theme", { id });
 }
 
+/** This user's tuned settings-schema values for one installed theme; `{}` when nothing is tuned yet. */
+export async function getThemeSettingsValues(id: string): Promise<Record<string, unknown>> {
+  return invoke<Record<string, unknown>>("get_theme_settings_values", { id });
+}
+
+/** Tune one field of one installed theme. The backend merges the one key, so a second
+ * call never clobbers a field a first call already set. */
+export async function setThemeSettingsValue(
+  id: string,
+  fieldId: string,
+  value: number | boolean,
+): Promise<void> {
+  return invoke<void>("set_theme_settings_value", { id, fieldId, value });
+}
+
 /** Create-only — an id that already exists is an error, never an overwrite. */
 export async function saveTheme(manifest: ThemeManifest, tokens: unknown): Promise<string> {
   return invoke<string>("save_theme", { manifest, tokens });

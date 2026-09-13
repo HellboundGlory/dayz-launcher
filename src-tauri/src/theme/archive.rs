@@ -1023,9 +1023,18 @@ pub fn export(
     write_package(dest_path, &files)
 }
 
-/// The four files an export writes from named sources rather than by walking
-/// the install directory; the walk skips them so nothing is packaged twice.
-const EXPORTED_FILES: [&str; 4] = [MANIFEST_FILE, TOKENS_FILE, LAYOUT_FILE, STYLES_FILE];
+/// The files an export writes from named sources rather than by walking the
+/// install directory; the walk skips them so nothing is packaged twice.
+/// `settings.values.json` is listed although no named source writes it: it is
+/// this user's own tuning of their installed copy, not the theme's portable
+/// content (Phase 3 §0 decision 4).
+const EXPORTED_FILES: [&str; 5] = [
+    MANIFEST_FILE,
+    TOKENS_FILE,
+    LAYOUT_FILE,
+    STYLES_FILE,
+    crate::theme::settings_values::SETTINGS_VALUES_FILE,
+];
 
 /// Append every other file an installed theme ships, at its own relative path.
 ///
@@ -2881,6 +2890,37 @@ mod tests {
         let staged = staging_dir(&root, &preview).join("assets/icon.ttf");
         // The real relative path, with `/` as the separator, is the entry name.
         assert_eq!(std::fs::read(staged).unwrap(), font);
+    }
+
+    /// The settings-values sidecar is this user's own tuning of their installed
+    /// copy, not the theme's portable content — an export must leave it behind
+    /// even though `append_assets`' extension walk would otherwise accept it.
+    #[test]
+    fn an_export_leaves_the_settings_values_sidecar_behind() {
+        let root = scratch("export-values");
+        install(&root, &manifest(), &tokens_json());
+        let installed = root.join("aurora.test");
+        std::fs::write(
+            installed.join(crate::theme::settings_values::SETTINGS_VALUES_FILE),
+            br#"{ "accentHue": 40 }"#,
+        )
+        .unwrap();
+
+        let dest = root.join("values.zip");
+        export(
+            &root,
+            "aurora.test",
+            &ManifestOverrides::default(),
+            &root,
+            &dest,
+        )
+        .unwrap();
+
+        let preview = stage_for_preview(&root, &dest, &[]).expect("the export must re-import");
+        assert_eq!(preview.file_count, 2);
+        assert!(!staging_dir(&root, &preview)
+            .join(crate::theme::settings_values::SETTINGS_VALUES_FILE)
+            .exists());
     }
 
     /// The ceilings an import enforces apply on the way out too, so an export
