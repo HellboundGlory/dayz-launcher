@@ -118,9 +118,13 @@ export function SettingsView({
 
   return (
     <div className="settings absolute bottom-0 right-0 top-7 left-[var(--side-w,176px)] z-40 flex flex-col bg-bg transition-[left] duration-200">
-      <div className="s-head flex shrink-0 items-center justify-between border-b border-line bg-surface px-[18px] py-[13px]">
+      <div
+        data-tetra-slot="settings.shell"
+        className="s-head flex shrink-0 items-center justify-between border-b border-line bg-surface px-[18px] py-[13px]"
+      >
         <div className="lt flex items-center gap-2.5">
           <button
+            data-tetra-el="backAction"
             onClick={onClose}
             aria-label="Back to the launcher"
             className="s-back flex items-center gap-1.5 rounded-[6px] border border-line bg-surface2 px-2.5 py-1.5 text-[10px] font-semibold text-muted2 transition-colors hover:border-accent-line hover:text-ink"
@@ -142,67 +146,78 @@ export function SettingsView({
           onToggle={() => toggle("game")}
           onKeyDown={(e) => rove(e, 0)}
         >
-          <Field label="In-Game Name" hint={'Sets -name= at launch, so you are not "Survivor".'}>
-            <input
-              type="text"
-              value={profileName}
-              onChange={(e) => setSetting("profileName", e.target.value)}
-              placeholder="Set your DayZ profile name"
-              className={INPUT_CLASS}
-            />
-          </Field>
-
-          <Field
-            label="DayZ Install Path"
-            hint="Manual override, for when Steam registry detection fails."
-          >
-            <div className="flex gap-2">
+          <div data-tetra-slot="settings.game">
+            <Field label="In-Game Name" hint={'Sets -name= at launch, so you are not "Survivor".'}>
               <input
+                data-tetra-el="profileNameInput"
                 type="text"
-                value={dayzPath ?? ""}
-                onChange={(e) => setSetting("dayzPath", e.target.value || null)}
-                placeholder="C:\Program Files (x86)\Steam\steamapps\common\DayZ"
+                value={profileName}
+                onChange={(e) => setSetting("profileName", e.target.value)}
+                placeholder="Set your DayZ profile name"
                 className={INPUT_CLASS}
               />
-              <button onClick={detectPaths} disabled={detecting} className={BUTTON_CLASS}>
-                <Folder className="size-3" />
-                {detecting ? "…" : "Detect"}
-              </button>
-            </div>
-          </Field>
+            </Field>
 
-          {/* Always rendered, so the accordion does not jump the first time a
-              path is detected. */}
-          <Field label="Workshop Content" hint="Detected from Steam. Read-only.">
-            <input
-              type="text"
-              value={workshopPath ?? ""}
-              readOnly
-              placeholder="Not detected yet"
-              className={cn(INPUT_CLASS, "cursor-default text-muted2")}
-            />
-          </Field>
+            <Field
+              label="DayZ Install Path"
+              hint="Manual override, for when Steam registry detection fails."
+            >
+              <div className="flex gap-2">
+                <input
+                  data-tetra-el="dayzPathInput"
+                  type="text"
+                  value={dayzPath ?? ""}
+                  onChange={(e) => setSetting("dayzPath", e.target.value || null)}
+                  placeholder="C:\Program Files (x86)\Steam\steamapps\common\DayZ"
+                  className={INPUT_CLASS}
+                />
+                <button
+                  data-tetra-el="detectPathsAction"
+                  onClick={detectPaths}
+                  disabled={detecting}
+                  className={BUTTON_CLASS}
+                >
+                  <Folder className="size-3" />
+                  {detecting ? "…" : "Detect"}
+                </button>
+              </div>
+            </Field>
 
-          <Field
-            label="Custom Launch Parameters"
-            hint="Passed to DayZ ahead of the mod list. One per line — e.g. -noPause and -profiles=C:\My Documents\DayZ each on their own line."
-          >
-            {/* One parameter per line, not space-joined — unambiguous
-                without a shell-quoting parser (a path can contain spaces). */}
-            <textarea
-              value={launchParams.join("\n")}
-              onChange={(e) =>
-                setSetting(
-                  "launchParams",
-                  e.target.value.split("\n").map((p) => p.trim()).filter(Boolean),
-                )
-              }
-              placeholder={"-noPause\n-cpuCount=4"}
-              spellCheck={false}
-              rows={3}
-              className={cn(INPUT_CLASS, "resize-y font-mono text-[11px]")}
-            />
-          </Field>
+            {/* Always rendered, so the accordion does not jump the first time a
+                path is detected. */}
+            <Field label="Workshop Content" hint="Detected from Steam. Read-only.">
+              <input
+                data-tetra-el="workshopPathInput"
+                type="text"
+                value={workshopPath ?? ""}
+                readOnly
+                placeholder="Not detected yet"
+                className={cn(INPUT_CLASS, "cursor-default text-muted2")}
+              />
+            </Field>
+
+            <Field
+              label="Custom Launch Parameters"
+              hint="Passed to DayZ ahead of the mod list. One per line — e.g. -noPause and -profiles=C:\My Documents\DayZ each on their own line."
+            >
+              {/* One parameter per line, not space-joined — unambiguous
+                  without a shell-quoting parser (a path can contain spaces). */}
+              <textarea
+                data-tetra-el="launchParamsInput"
+                value={launchParams.join("\n")}
+                onChange={(e) =>
+                  setSetting(
+                    "launchParams",
+                    e.target.value.split("\n").map((p) => p.trim()).filter(Boolean),
+                  )
+                }
+                placeholder={"-noPause\n-cpuCount=4"}
+                spellCheck={false}
+                rows={3}
+                className={cn(INPUT_CLASS, "resize-y font-mono text-[11px]")}
+              />
+            </Field>
+          </div>
         </SettingsAccordion>
 
         <SettingsAccordion
@@ -214,134 +229,136 @@ export function SettingsView({
           onToggle={() => toggle("launcher")}
           onKeyDown={(e) => rove(e, 1)}
         >
-          <div>
-            <h3 className="mb-1 text-xs font-medium text-ink">Window</h3>
-            {/* Two independent switches, not one list. Each names the button it
-                changes — the question is never "tray or taskbar?" in the
-                abstract, it is "what should *this* button do?". */}
-            <CheckboxRow
-              checked={minimiseToTray}
-              onChange={(v) => setSetting("minimiseToTray", v)}
-              label="Minimise to the system tray"
-              hint="The minimise button hides the launcher instead of leaving it on the taskbar."
-            />
-            <CheckboxRow
-              checked={closeToTray}
-              onChange={(v) => setSetting("closeToTray", v)}
-              label="Close to the system tray"
-              hint="The close button hides the launcher instead of quitting. Quit from the tray icon's menu."
-            />
-          </div>
-
-          <div className="mt-2 border-t border-line pt-3">
-            <Field
-              label="When you join a server"
-              hint="DayZ takes a few seconds to appear, so the launcher waits before getting out of the way."
-            >
-              <select
-                value={onJoin}
-                onChange={(e) => setSetting("onJoin", e.target.value as typeof onJoin)}
-                className={cn(INPUT_CLASS, "cursor-pointer")}
-              >
-                <option value="stay">Leave the launcher open</option>
-                <option value="tray">Hide the launcher to the tray</option>
-                <option value="close">Close the launcher</option>
-              </select>
-            </Field>
-          </div>
-
-          <div className="mt-2 border-t border-line pt-3">
-            <h3 className="mb-1 text-xs font-medium text-ink">Startup</h3>
-            <CheckboxRow
-              checked={startWithWindows}
-              onChange={(v) => setSetting("startWithWindows", v)}
-              label="Start with Windows"
-              hint="Runs the launcher when you sign in."
-            />
-            {/* Meaningless on its own: nobody opens an app by hand in order for
-                it not to appear. Disabled rather than hidden so the dependency
-                is visible instead of the row vanishing. */}
-            <div className={cn(!startWithWindows && "opacity-40")}>
-              <label
-                className={cn(
-                  "flex items-start gap-2 py-1",
-                  startWithWindows ? "cursor-pointer" : "cursor-not-allowed",
-                )}
-              >
-                <input
-                  type="checkbox"
-                  checked={startMinimised}
-                  disabled={!startWithWindows}
-                  onChange={(e) => setSetting("startMinimised", e.target.checked)}
-                  className="mt-0.5 size-3.5 shrink-0 accent-accent disabled:cursor-not-allowed"
-                />
-                <span>
-                  <span className="block text-[11px] text-ink">Start minimised</span>
-                  <span className="mt-0.5 block text-[9px] leading-[1.4] text-muted">
-                    Start hidden in the tray. Opening the launcher yourself always shows the window.
-                  </span>
-                </span>
-              </label>
+          <div data-tetra-slot="settings.launcher">
+            <div data-tetra-el="windowOptions">
+              <h3 className="mb-1 text-xs font-medium text-ink">Window</h3>
+              {/* Two independent switches, not one list. Each names the button it
+                  changes — the question is never "tray or taskbar?" in the
+                  abstract, it is "what should *this* button do?". */}
+              <CheckboxRow
+                checked={minimiseToTray}
+                onChange={(v) => setSetting("minimiseToTray", v)}
+                label="Minimise to the system tray"
+                hint="The minimise button hides the launcher instead of leaving it on the taskbar."
+              />
+              <CheckboxRow
+                checked={closeToTray}
+                onChange={(v) => setSetting("closeToTray", v)}
+                label="Close to the system tray"
+                hint="The close button hides the launcher instead of quitting. Quit from the tray icon's menu."
+              />
             </div>
-            <p className="mt-1.5 text-[10px] leading-relaxed text-muted">
-              Start with Windows does nothing in a debug build — the entry would point at the
-              build folder and replace your installed copy&apos;s.
-            </p>
-          </div>
 
-          <div className="mt-2 border-t border-line pt-3">
-            <h3 className="mb-1 text-xs font-medium text-ink">Discord</h3>
-            <CheckboxRow
-              checked={discordRichPresence}
-              onChange={(v) => setSetting("discordRichPresence", v)}
-              label="Show Rich Presence in Discord"
-              hint="Shows a server you're playing on (or 'Browsing servers') on your Discord profile. Off means the launcher never talks to Discord at all."
-            />
-          </div>
-
-          <div className="mt-2 border-t border-line pt-3">
-            <Field
-              label="Data folder"
-              hint="Your favourites, server list and settings. Back this folder up to keep them; deleting it resets the launcher."
-            >
-              <div className="flex items-center gap-2">
-                <input
-                  readOnly
-                  value={dataFolder ?? "Locating…"}
-                  // Selectable so the path can be copied, but not a control
-                  // that pretends to be editable.
-                  onFocus={(e) => e.currentTarget.select()}
-                  className={cn(INPUT_CLASS, "cursor-text font-mono text-[10px]")}
-                />
-                <button
-                  onClick={() => void openDataFolder()}
-                  disabled={!dataFolder}
-                  className={BUTTON_CLASS}
-                >
-                  <Folder className="size-3" />
-                  Open
-                </button>
-              </div>
-            </Field>
-          </div>
-
-          <div className="mt-2 border-t border-line pt-3">
-            <Field
-              label="Auto-refresh"
-              hint="Re-queries the servers on screen, not the whole list. Defaults to a minute — ping is measured from your connection, so rows get their numbers shortly after every load."
-            >
-              <select
-                value={autoRefreshIntervalSecs}
-                onChange={(e) => setSetting("autoRefreshIntervalSecs", Number(e.target.value))}
-                className={cn(INPUT_CLASS, "cursor-pointer")}
+            <div data-tetra-el="onJoinBehavior" className="mt-2 border-t border-line pt-3">
+              <Field
+                label="When you join a server"
+                hint="DayZ takes a few seconds to appear, so the launcher waits before getting out of the way."
               >
-                {REFRESH_INTERVALS.map(({ value, label }) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </Field>
+                <select
+                  value={onJoin}
+                  onChange={(e) => setSetting("onJoin", e.target.value as typeof onJoin)}
+                  className={cn(INPUT_CLASS, "cursor-pointer")}
+                >
+                  <option value="stay">Leave the launcher open</option>
+                  <option value="tray">Hide the launcher to the tray</option>
+                  <option value="close">Close the launcher</option>
+                </select>
+              </Field>
+            </div>
+
+            <div data-tetra-el="startupOptions" className="mt-2 border-t border-line pt-3">
+              <h3 className="mb-1 text-xs font-medium text-ink">Startup</h3>
+              <CheckboxRow
+                checked={startWithWindows}
+                onChange={(v) => setSetting("startWithWindows", v)}
+                label="Start with Windows"
+                hint="Runs the launcher when you sign in."
+              />
+              {/* Meaningless on its own: nobody opens an app by hand in order for
+                  it not to appear. Disabled rather than hidden so the dependency
+                  is visible instead of the row vanishing. */}
+              <div className={cn(!startWithWindows && "opacity-40")}>
+                <label
+                  className={cn(
+                    "flex items-start gap-2 py-1",
+                    startWithWindows ? "cursor-pointer" : "cursor-not-allowed",
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={startMinimised}
+                    disabled={!startWithWindows}
+                    onChange={(e) => setSetting("startMinimised", e.target.checked)}
+                    className="mt-0.5 size-3.5 shrink-0 accent-accent disabled:cursor-not-allowed"
+                  />
+                  <span>
+                    <span className="block text-[11px] text-ink">Start minimised</span>
+                    <span className="mt-0.5 block text-[9px] leading-[1.4] text-muted">
+                      Start hidden in the tray. Opening the launcher yourself always shows the window.
+                    </span>
+                  </span>
+                </label>
+              </div>
+              <p className="mt-1.5 text-[10px] leading-relaxed text-muted">
+                Start with Windows does nothing in a debug build — the entry would point at the
+                build folder and replace your installed copy&apos;s.
+              </p>
+            </div>
+
+            <div data-tetra-el="discordOption" className="mt-2 border-t border-line pt-3">
+              <h3 className="mb-1 text-xs font-medium text-ink">Discord</h3>
+              <CheckboxRow
+                checked={discordRichPresence}
+                onChange={(v) => setSetting("discordRichPresence", v)}
+                label="Show Rich Presence in Discord"
+                hint="Shows a server you're playing on (or 'Browsing servers') on your Discord profile. Off means the launcher never talks to Discord at all."
+              />
+            </div>
+
+            <div data-tetra-el="dataFolderControl" className="mt-2 border-t border-line pt-3">
+              <Field
+                label="Data folder"
+                hint="Your favourites, server list and settings. Back this folder up to keep them; deleting it resets the launcher."
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    readOnly
+                    value={dataFolder ?? "Locating…"}
+                    // Selectable so the path can be copied, but not a control
+                    // that pretends to be editable.
+                    onFocus={(e) => e.currentTarget.select()}
+                    className={cn(INPUT_CLASS, "cursor-text font-mono text-[10px]")}
+                  />
+                  <button
+                    onClick={() => void openDataFolder()}
+                    disabled={!dataFolder}
+                    className={BUTTON_CLASS}
+                  >
+                    <Folder className="size-3" />
+                    Open
+                  </button>
+                </div>
+              </Field>
+            </div>
+
+            <div data-tetra-el="autoRefreshControl" className="mt-2 border-t border-line pt-3">
+              <Field
+                label="Auto-refresh"
+                hint="Re-queries the servers on screen, not the whole list. Defaults to a minute — ping is measured from your connection, so rows get their numbers shortly after every load."
+              >
+                <select
+                  value={autoRefreshIntervalSecs}
+                  onChange={(e) => setSetting("autoRefreshIntervalSecs", Number(e.target.value))}
+                  className={cn(INPUT_CLASS, "cursor-pointer")}
+                >
+                  {REFRESH_INTERVALS.map(({ value, label }) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
           </div>
         </SettingsAccordion>
 
@@ -354,7 +371,11 @@ export function SettingsView({
           onToggle={() => toggle("theme")}
           onKeyDown={(e) => rove(e, 2)}
         >
-          <ThemesSection devMode={devMode} onDevModeChange={onDevModeChange} />
+          <div data-tetra-slot="settings.theme">
+            <div data-tetra-el="themeManagement">
+              <ThemesSection devMode={devMode} onDevModeChange={onDevModeChange} />
+            </div>
+          </div>
         </SettingsAccordion>
       </div>
     </div>
