@@ -1,0 +1,22 @@
+{
+  "slot": "server.row",
+  "root": {
+    "type": "stack",
+    "direction": "row",
+    "gap": "sm",
+    "align": "center",
+    "children": [
+      { "type": "core", "ref": "name", "grow": true },
+      {
+        "type": "stack",
+        "direction": "row",
+        "gap": "xs",
+        "children": [
+          { "type": "core", "ref": "pingBadge" },
+          { "type": "core", "ref": "playerCount" }
+        ]
+      },
+      { "type": "core", "ref": "modStatusBadge" }
+    ]
+  }
+}

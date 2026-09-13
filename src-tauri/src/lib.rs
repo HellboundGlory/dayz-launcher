@@ -179,6 +179,8 @@ pub fn run() {
             commands::theme::confirm_activation,
             commands::theme::revert_activation,
             commands::theme::get_activation_status,
+            commands::theme::list_starter_templates,
+            commands::theme::scaffold_theme_from_template,
             commands::update::is_installed_copy,
         ])
         .setup(|app| {

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "starter.expert",
+  "name": "Starter Expert",
+  "author": "Tetra Launcher",
+  "version": "1.0.0",
+  "themeApi": "1.0",
+  "minimumLauncherVersion": "2.6.0",
+  "tier": "expert",
+  "description": "The full package: palette, layout, CSS, a declarative server-row composition and a two-field settings schema. Read it to see how every tier's files fit together; it is the reference for authoring an Expert theme.",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "homepage": "https://tetralauncher.com/",
+  "tags": ["starter", "expert", "components", "settings"],
+  "capabilities": ["tokens", "layout", "css", "components", "settings"]
+}

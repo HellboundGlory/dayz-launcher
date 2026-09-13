@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "slots": {
+    "shell.sidebar": {
+      "position": "left",
+      "width": "208px",
+      "collapsedWidth": "52px",
+      "defaultCollapsed": false
+    },
+    "shell.footer": {
+      "hidden": ["uiScaleSlider"]
+    },
+    "server.row": {
+      "density": "compact",
+      "order": [
+        "favouriteAction",
+        "name",
+        "tagsLine",
+        "modStatusBadge",
+        "mapLabel",
+        "gameTimeLabel",
+        "regionFlag",
+        "addressLabel",
+        "lastPlayedLabel",
+        "pingBadge",
+        "playerCount",
+        "modCountLabel"
+      ]
+    },
+    "mods.row": {
+      "density": "compact",
+      "hidden": ["updatedLabel"]
+    }
+  }
+}
