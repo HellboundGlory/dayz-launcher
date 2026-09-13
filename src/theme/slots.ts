@@ -40,6 +40,28 @@ export const SLOTS: Slot[] = [
     ],
   },
   {
+    id: "view.servers",
+    themeable: "full",
+    // Pure backdrop, like settings.background — filterBar/server.row/etc.
+    // are already independently addressable, not children of this one.
+    children: [],
+  },
+  {
+    id: "view.favourites",
+    themeable: "full",
+    children: [],
+  },
+  {
+    id: "view.recent",
+    themeable: "full",
+    children: [],
+  },
+  {
+    id: "view.mods",
+    themeable: "full",
+    children: [],
+  },
+  {
     id: "shell.header",
     themeable: "full",
     children: [

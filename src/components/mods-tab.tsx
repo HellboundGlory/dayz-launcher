@@ -242,7 +242,7 @@ export function ModsTab() {
   const virtualItems = rowVirtualizer.getVirtualItems();
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div data-tetra-slot="view.mods" className="flex min-h-0 flex-1 flex-col">
       {/* ── Filter / toolbar strip ── */}
       <div
         data-tetra-slot="mods.toolbar"
