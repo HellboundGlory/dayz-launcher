@@ -563,8 +563,15 @@ export function watchThemeActivationReverted(): () => void {
   const pending = listen<{ previousId: string | null }>(
     "theme-activation-reverted",
     (event) => {
-      useThemeStore.setState({ activeId: event.payload.previousId ?? "neutral" });
-      useThemeStore.getState().apply();
+      const state = useThemeStore.getState();
+      const activeId = event.payload.previousId ?? "neutral";
+      // Bloom is theme-supplied now, so the revert has to re-seed it the same
+      // way pickTheme does — otherwise the abandoned preview's glow persists.
+      useThemeStore.setState({
+        activeId,
+        bloom: resolvedExtras(activeId, state.themeFiles).shadows.glowIntensity,
+      });
+      state.apply();
       // A reverted duplicate/"New theme" was just deleted on the backend —
       // re-sync so the grid doesn't keep showing it.
       void refreshInstalledThemes();

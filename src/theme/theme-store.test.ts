@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_EXTRAS } from "./apply";
 import { DEFAULT_RADII, DEFAULT_SPACING, DEFAULT_TYPOGRAPHY, type Palette } from "./palette";
-import { effectiveExtras, resolvedExtras, useThemeStore } from "./theme-store";
+import { effectiveExtras, resolvedExtras, useThemeStore, watchThemeActivationReverted } from "./theme-store";
 import type { ThemeFile } from "@/types/theme";
 
 const backend = vi.hoisted(() => ({
@@ -19,8 +19,19 @@ const backend = vi.hoisted(() => ({
   tokensById: {} as Record<string, unknown>,
 }));
 
+const events = vi.hoisted(() => ({
+  /** The handler `watchThemeActivationReverted` registered, if any. */
+  reverted: null as ((event: { payload: { previousId: string | null } }) => void) | null,
+}));
+
 vi.mock("@tauri-apps/api/event", () => ({
-  listen: () => Promise.resolve(() => {}),
+  listen: (
+    _name: string,
+    handler: (event: { payload: { previousId: string | null } }) => void,
+  ) => {
+    events.reverted = handler;
+    return Promise.resolve(() => {});
+  },
 }));
 
 vi.mock("@/lib/tauri", () => ({
@@ -353,5 +364,20 @@ describe("pickTheme bloom reset", () => {
     await useThemeStore.getState().pickTheme("ember");
 
     expect(useThemeStore.getState().bloom).toBe(DEFAULT_EXTRAS.shadows.glowIntensity);
+  });
+
+  it("restores the reverted theme's own glowIntensity, discarding the preview's", async () => {
+    backend.tokensById["local.dim"] = { shadows: { glowIntensity: 0.4 } };
+    backend.installed = [{ id: "local.dim", name: "Dim" }];
+    await useThemeStore.getState().hydrate();
+    await useThemeStore.getState().pickTheme("local.dim");
+    expect(useThemeStore.getState().bloom).toBe(0.4);
+
+    watchThemeActivationReverted();
+    events.reverted?.({ payload: { previousId: "neutral" } });
+
+    expect(useThemeStore.getState().activeId).toBe("neutral");
+    expect(useThemeStore.getState().bloom).toBe(DEFAULT_EXTRAS.shadows.glowIntensity);
+    expect(writtenProps["--bloom"]).toBe(String(DEFAULT_EXTRAS.shadows.glowIntensity));
   });
 });
