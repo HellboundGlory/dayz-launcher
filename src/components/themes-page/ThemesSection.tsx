@@ -34,9 +34,13 @@ const ACTION_BTN =
 export function ThemesSection({
   devMode,
   onDevModeChange,
+  layoutEditMode,
+  onLayoutEditModeChange,
 }: {
   devMode: boolean;
   onDevModeChange: (on: boolean) => void;
+  layoutEditMode: boolean;
+  onLayoutEditModeChange: (on: boolean) => void;
 }) {
   const activeId = useThemeStore((s) => s.activeId);
   const installedThemes = useThemeStore((s) => s.installedThemes);
@@ -197,8 +201,14 @@ export function ThemesSection({
           <button type="button" onClick={() => setCustomiserOpen((o) => !o)} className={ACTION_BTN}>
             {customiserOpen ? "Hide customiser" : "Customize tokens"}
           </button>
-          <button type="button" disabled title="Coming in a later release" className={ACTION_BTN}>
-            Edit layout
+          <button
+            type="button"
+            onClick={() => onLayoutEditModeChange(!layoutEditMode)}
+            disabled={!devMode}
+            title={devMode ? "Reorder and hide the active theme's slot children" : "Turn on Dev Mode to edit layout"}
+            className={cn(ACTION_BTN, layoutEditMode && "border-accent-line text-accent")}
+          >
+            {layoutEditMode ? "Hide layout editor" : "Edit layout"}
           </button>
           <button
             type="button"
