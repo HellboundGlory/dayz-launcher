@@ -8,6 +8,7 @@ import {
   mergeSettingsValues,
   resolvedExtras,
   useThemeStore,
+  watchHotReload,
   watchThemeActivationReverted,
 } from "./theme-store";
 import type { ThemeFile } from "@/types/theme";
@@ -29,31 +30,42 @@ const backend = vi.hoisted(() => ({
   schemaById: {} as Record<string, unknown>,
   /** Every `set_theme_settings_value` call, in order. */
   setSettingsCalls: [] as { id: string; fieldId: string; value: number | boolean }[],
+  /** Ids `get_theme` was asked for, in call order. */
+  themeCalls: [] as string[],
 }));
 
 const events = vi.hoisted(() => ({
   /** The handler `watchThemeActivationReverted` registered, if any. */
   reverted: null as ((event: { payload: { previousId: string | null } }) => void) | null,
+  /** The handler `watchHotReload` registered, if any. */
+  hotReload: null as ((event: { payload: { id: string } }) => void) | null,
 }));
 
 vi.mock("@tauri-apps/api/event", () => ({
   listen: (
-    _name: string,
+    name: string,
     handler: (event: { payload: { previousId: string | null } }) => void,
   ) => {
-    events.reverted = handler;
+    if (name === "theme-hot-reload") {
+      events.hotReload = handler as unknown as (event: { payload: { id: string } }) => void;
+    } else {
+      events.reverted = handler;
+    }
     return Promise.resolve(() => {});
   },
 }));
 
 vi.mock("@/lib/tauri", () => ({
   listInstalledThemes: async () => backend.installed,
-  getTheme: async (id: string) => ({
-    id,
-    name: id,
-    tokens: backend.tokensById[id] ?? {},
-    settingsSchema: backend.schemaById[id] ?? null,
-  }),
+  getTheme: async (id: string) => {
+    backend.themeCalls.push(id);
+    return {
+      id,
+      name: id,
+      tokens: backend.tokensById[id] ?? {},
+      settingsSchema: backend.schemaById[id] ?? null,
+    };
+  },
   getSettings: async () => ({ activeThemeId: null }),
   setActiveThemeId: async (id: string | null) => void backend.setActiveCalls.push(id),
   migrateLegacyCustomThemes: async () => backend.migratedIds,
@@ -135,6 +147,7 @@ beforeEach(() => {
   backend.settingsById = {};
   backend.schemaById = {};
   backend.setSettingsCalls.length = 0;
+  backend.themeCalls.length = 0;
   themeCssHead.length = 0;
   fontFaces.length = 0;
   addedFonts.length = 0;
@@ -502,5 +515,46 @@ describe("pickTheme bloom reset", () => {
     expect(useThemeStore.getState().activeId).toBe("neutral");
     expect(useThemeStore.getState().bloom).toBe(DEFAULT_EXTRAS.shadows.glowIntensity);
     expect(writtenProps["--bloom"]).toBe(String(DEFAULT_EXTRAS.shadows.glowIntensity));
+  });
+});
+
+describe("hot reload listener", () => {
+  it("re-reads and re-applies the active theme on a matching event", async () => {
+    useThemeStore.setState({ activeId: "local.aurora", scheme: "dark" });
+    backend.tokensById["local.aurora"] = { dark: { bg: "#123456" } };
+
+    watchHotReload();
+    events.hotReload?.({ payload: { id: "local.aurora" } });
+    await settled();
+
+    expect(useThemeStore.getState().themeFiles["local.aurora"]?.tokens).toEqual({
+      dark: { bg: "#123456" },
+    });
+    expect(writtenProps["--bg"]).toBe("#123456");
+  });
+
+  it("ignores an event for an id that is no longer active", async () => {
+    useThemeStore.setState({ activeId: "local.aurora" });
+    backend.tokensById["local.stale"] = { dark: { bg: "#123456" } };
+
+    watchHotReload();
+    events.hotReload?.({ payload: { id: "local.stale" } });
+    await settled();
+
+    expect(backend.themeCalls).toEqual([]);
+    expect(useThemeStore.getState().themeFiles["local.stale"]).toBeUndefined();
+  });
+
+  it("matches the id live, not the one active when the listener was registered", async () => {
+    useThemeStore.setState({ activeId: "local.first", scheme: "dark" });
+    watchHotReload();
+    backend.tokensById["local.second"] = { dark: { bg: "#654321" } };
+    useThemeStore.setState({ activeId: "local.second" });
+
+    events.hotReload?.({ payload: { id: "local.second" } });
+    await settled();
+
+    expect(backend.themeCalls).toEqual(["local.second"]);
+    expect(writtenProps["--bg"]).toBe("#654321");
   });
 });
