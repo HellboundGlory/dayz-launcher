@@ -483,7 +483,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   },
 
   duplicateTheme: async (sourceId, name) => {
-    const { activeId, custom, customExtras, themeFiles } = get();
+    const { activeId, custom, customExtras, themeFiles, bloom } = get();
     const live = sourceId === activeId;
     const pair = resolvedPair(sourceId, themeFiles);
     const dark = {} as Palette;
@@ -516,6 +516,11 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       dark,
       light,
       ...(live ? effectiveExtras(sourceId, themeFiles, customExtras) : resolvedExtras(sourceId, themeFiles)),
+      // effectiveExtras never merges bloom in (apply() does that separately,
+      // straight from the store's own `bloom` field) — without this, saving
+      // the live theme would silently drop whatever the slider currently
+      // shows and keep the source theme's original glowIntensity instead.
+      ...(live && { shadows: { glowIntensity: bloom } }),
     };
 
     try {

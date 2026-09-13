@@ -262,6 +262,7 @@ describe("theme extras", () => {
       activeId: "local.partial",
       themeFiles: files({ spacing: { md: "12px" } }),
       customExtras: { spacing: {}, radii: { chip: "1px" }, typography: {} },
+      bloom: 0.42,
     });
 
     await useThemeStore.getState().saveTheme("Extras skin");
@@ -271,6 +272,10 @@ describe("theme extras", () => {
     expect(tokens.spacing).toEqual({ ...DEFAULT_SPACING, md: "12px" });
     expect(tokens.radii).toEqual({ ...DEFAULT_RADII, chip: "1px" });
     expect(tokens.typography).toEqual(DEFAULT_TYPOGRAPHY);
+    // effectiveExtras never merges bloom in — saving the live theme must
+    // still capture whatever the slider currently shows, same as every
+    // other extras field, not silently keep the source theme's own value.
+    expect(tokens.shadows).toEqual({ glowIntensity: 0.42 });
   });
 });
 
