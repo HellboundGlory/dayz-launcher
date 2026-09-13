@@ -47,6 +47,8 @@ tokio = { workspace = true }
 zip = { workspace = true }
 # Version gates on an imported theme's manifest.
 semver = { workspace = true }
+# Decoding a `tetra-theme://` request's asset path (see `theme::protocol`).
+percent-encoding = { workspace = true }
 tetra-core = { path = "../crates/tetra-core" }
 tetra-net = { path = "../crates/tetra-net" }
 tetra-registry = { path = "../crates/tetra-registry" }
