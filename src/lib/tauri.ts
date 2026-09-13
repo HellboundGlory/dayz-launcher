@@ -688,3 +688,13 @@ export async function scaffoldThemeFromTemplate(
 ): Promise<string> {
   return invoke<string>("scaffold_theme_from_template", { templateId, newId, name });
 }
+
+/** Watch one theme's directory for changes (Dev Mode), replacing whatever was watched before. An id with nothing on disk is a no-op, not an error. */
+export async function watchActiveTheme(id: string): Promise<void> {
+  return invoke<void>("watch_active_theme", { id });
+}
+
+/** Stop the watch, if one is running; a no-op when none is. */
+export async function stopWatchingTheme(): Promise<void> {
+  return invoke<void>("stop_watching_theme");
+}
