@@ -32,7 +32,9 @@ const MENU_ITEMS: Record<
   },
 };
 
-const MENU_ITEM_IDS = ["moreInfoItem", "loadToMenuItem", "downloadModsItem"];
+/** The themeable menu entries, keyed by their `data-tetra-el`. Shared with the
+ * registry-order test so adding an item here without registering it fails. */
+export const MENU_ITEM_IDS = Object.keys(MENU_ITEMS);
 
 // Row-level Join button plus a chevron menu for the rest: More info, Load to
 // menu, Download mods — same split shape as the More Info modal's Join button.
