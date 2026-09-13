@@ -10,6 +10,7 @@ pub mod archive;
 pub mod css;
 pub mod manifest;
 pub mod protocol;
+pub mod watch;
 
 use std::path::{Path, PathBuf};
 

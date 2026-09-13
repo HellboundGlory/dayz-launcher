@@ -413,6 +413,26 @@ pub fn get_activation_status(app: AppHandle) -> Option<ActivationStatus> {
     read(&armed, Instant::now())
 }
 
+// ── Theme Hot Reload ────────────────────────────────────────────────────────
+//
+// While Dev Mode is on, the active theme's directory is watched so a saved
+// edit reaches the frontend without a manual reload. Which theme to watch is
+// the caller's decision, made on every Dev Mode toggle and active-theme
+// change; watching is at most one directory at a time, and a theme with
+// nothing on disk is a silent no-op rather than an error to handle.
+
+/// Watch the theme `id` for edits, replacing any theme already being watched.
+#[tauri::command]
+pub fn watch_active_theme(app: AppHandle, id: String) -> Result<(), String> {
+    theme::watch::watch(&app, &id)
+}
+
+/// Stop watching the active theme, if one is being watched.
+#[tauri::command]
+pub fn stop_watching_theme(app: AppHandle) -> Result<(), String> {
+    theme::watch::stop(&app)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
