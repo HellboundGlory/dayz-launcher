@@ -105,8 +105,8 @@ function saveActive(active: { scheme: "dark" | "light"; bloom: number }): void {
   localStorage.setItem(ACTIVE_KEY, JSON.stringify(active));
 }
 
-/** Lowercase, runs of non-alphanumerics collapsed to one `-`, ends trimmed — mirrors Rust `theme::slugify`. */
-function slugify(name: string): string {
+/** Lowercase, runs of non-alphanumerics collapsed to one `-`, ends trimmed — mirrors Rust `theme::slugify`. Exported so the "New theme" picker derives a scaffolded theme's id the same way `duplicateTheme` derives a duplicate's. */
+export function slugify(name: string): string {
   let slug = "";
   for (const c of name) {
     if (/[\p{L}\p{N}]/u.test(c)) slug += c.toLowerCase();

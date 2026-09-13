@@ -68,7 +68,8 @@
    "nsis"
   ],
   "resources": [
-   "steam_api64.dll"
+   "steam_api64.dll",
+   "resources/starter-themes/**/*"
   ],
   "icon": [
    "icons/icon.png",
