@@ -11,6 +11,7 @@ import {
   type WorkshopSearchResult,
 } from "@/lib/tauri";
 import { cn, formatBytes, formatLastPlayed } from "@/lib/utils";
+import { SlotChild } from "@/theme/slot-children";
 
 type Tab = "subscribed" | "seen" | "workshop";
 
@@ -383,22 +384,28 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
           </button>
         </div>
 
-        <div data-tetra-el="tabStrip" className="flex shrink-0 gap-0.5 px-4 pt-2.5">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              role="tab"
-              aria-selected={tab === t.key}
-              className={cn(
-                "rounded-t-[6px] px-2.5 py-1.5 text-[10px] font-bold text-muted transition-colors",
-                tab === t.key && "bg-accent-soft text-accent",
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        {/* Each of this slot's children sits in a different row of the modal —
+            ✕ and Apply in the header/footer, the tab strip under the header, the
+            preview beside the list — so none has a sibling to reorder against.
+            Only the two optional ones are wired, to hide them. */}
+        <SlotChild slotId="modal.modFilter" id="tabStrip">
+          <div data-tetra-el="tabStrip" className="flex shrink-0 gap-0.5 px-4 pt-2.5">
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                role="tab"
+                aria-selected={tab === t.key}
+                className={cn(
+                  "rounded-t-[6px] px-2.5 py-1.5 text-[10px] font-bold text-muted transition-colors",
+                  tab === t.key && "bg-accent-soft text-accent",
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </SlotChild>
 
         <div className="mx-4 mt-2.5 flex shrink-0 items-center gap-1.5 rounded-[7px] border border-line bg-surface2 px-2.5 py-[7px]">
           <Search className="size-[13px] shrink-0 text-muted" />
@@ -504,10 +511,11 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
             ))}
           </div>
 
-          <div
-            data-tetra-el="previewPane"
-            className="flex min-w-0 max-w-[300px] flex-1 flex-col overflow-y-auto px-4 pb-3 pt-1"
-          >
+          <SlotChild slotId="modal.modFilter" id="previewPane">
+            <div
+              data-tetra-el="previewPane"
+              className="flex min-w-0 max-w-[300px] flex-1 flex-col overflow-y-auto px-4 pb-3 pt-1"
+            >
             {!preview && (
               <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-muted">
                 <Inbox className="size-6 opacity-50" />
@@ -622,7 +630,8 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
                 </div>
               </>
             )}
-          </div>
+            </div>
+          </SlotChild>
         </div>
 
         <div className="flex shrink-0 items-center gap-2.5 border-t border-line px-4 py-2.5">
