@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useServerStore } from "@/stores/server-store";
 import { Star } from "lucide-react";
@@ -13,12 +13,27 @@ import {
 import type { Server } from "@/types/server";
 import type { ViewId } from "./sidebar";
 import { cn, formatGameTime, formatLastPlayed, regionName } from "@/lib/utils";
+import { useResolvedSlot } from "@/theme/use-resolved-layout";
+import { slotChildrenToRender } from "@/theme/slot-children";
 import { ServerRowActions } from "./server-row-actions";
 
 interface ServerListProps {
   view: ViewId;
   onMoreInfo: (server: Server) => void;
 }
+
+/** The row's four DOM groups. A theme reorders within one of these, never
+ * across them — they are separate containers in the markup, and moving a child
+ * between them would mean restructuring it. `modStatusBadge` has no group: it
+ * renders inside `tagsLine`'s own div, on a data condition (a declared mod has
+ * an update pending), so it has no position of its own to take. `joinAction` is
+ * rendered by `server.rowActions` instead. */
+export const SERVER_ROW_GROUPS = {
+  favourite: ["favouriteAction"],
+  nameLine: ["tagsLine", "name"],
+  details: ["mapLabel", "gameTimeLabel", "regionFlag", "addressLabel", "lastPlayedLabel"],
+  stats: ["playerCount", "pingBadge", "modCountLabel"],
+} as const;
 
 /** How often the distinct-maps dropdown is refetched — decoupled from the row-reload cadence. */
 const MAP_LIST_REFRESH_MS = 10_000;
@@ -181,6 +196,164 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
   });
   const virtualItems = rowVirtualizer.getVirtualItems();
 
+  // A row's four DOM groups, in resolved order. Same for every row — only the
+  // data differs — so this is resolved once here, not per virtual item.
+  // nameLine passes its own ids as required: the required `modStatusBadge`
+  // renders inside `tagsLine`'s div, so a theme hiding `tagsLine` must not take
+  // required content with it.
+  const slot = useResolvedSlot("server.row");
+  const favouriteIds = slotChildrenToRender(slot, [], SERVER_ROW_GROUPS.favourite);
+  const nameLineIds = slotChildrenToRender(
+    slot,
+    SERVER_ROW_GROUPS.nameLine,
+    SERVER_ROW_GROUPS.nameLine,
+  );
+  const detailIds = slotChildrenToRender(slot, [], SERVER_ROW_GROUPS.details);
+  const statIds = slotChildrenToRender(slot, [], SERVER_ROW_GROUPS.stats);
+
+  const renderNameLine = (server: Server) =>
+    nameLineIds.map((id) => {
+      if (id === "tagsLine") {
+        return (
+          <div key={id} data-tetra-el="tagsLine" className="flex shrink-0 gap-1">
+            {!server.online && <Tag tone="danger">OFFLINE</Tag>}
+            {server.official && <Tag tone="accent">VANILLA</Tag>}
+            {server.modded && <Tag tone="accent2">MODDED</Tag>}
+            {server.first_person && <Tag tone="muted">1PP</Tag>}
+            {server.locked && <Tag tone="danger">LOCKED</Tag>}
+            {modPending[server.addr] && (
+              <Tag
+                tone="accent"
+                data-tetra-el="modStatusBadge"
+                title="A declared mod has a Steam update pending"
+              >
+                UPDATE
+              </Tag>
+            )}
+          </div>
+        );
+      }
+      return (
+        <span key={id} data-tetra-el="name" className="min-w-0 truncate text-ink">
+          {server.name}
+        </span>
+      );
+    });
+
+  // `lastPlayedLabel` is itself conditional on the view and the row's data, so
+  // the separators are inserted between whatever actually renders.
+  const renderDetails = (server: Server) => {
+    const nodes: Record<string, React.ReactNode> = {
+      mapLabel: (
+        <span key="mapLabel" data-tetra-el="mapLabel" className="font-mono-data">
+          {server.map_display}
+        </span>
+      ),
+      gameTimeLabel: (
+        <span key="gameTimeLabel" data-tetra-el="gameTimeLabel">
+          {formatGameTime(server.in_game_time, server.day_multiplier, server.night_multiplier)}
+        </span>
+      ),
+      regionFlag: (
+        <span key="regionFlag" data-tetra-el="regionFlag">
+          {regionName(server.country_code)}
+        </span>
+      ),
+      addressLabel: (
+        <span key="addressLabel" data-tetra-el="addressLabel" className="font-mono-data">
+          {server.addr}
+        </span>
+      ),
+      lastPlayedLabel:
+        view === "recent" && server.last_played != null ? (
+          <span key="lastPlayedLabel" data-tetra-el="lastPlayedLabel">
+            played {formatLastPlayed(server.last_played)}
+          </span>
+        ) : null,
+    };
+
+    const rendered = detailIds
+      .map((id) => [id, nodes[id]] as const)
+      .filter(([, node]) => node != null);
+    return rendered.map(([id, node], i) => (
+      <Fragment key={id}>
+        {i > 0 && <span>·</span>}
+        {node}
+      </Fragment>
+    ));
+  };
+
+  const renderStat = (server: Server, id: string) => {
+    if (id === "playerCount") {
+      return (
+        <div key={id} className="l2-stat text-right">
+          <div
+            data-tetra-el="playerCount"
+            className={cn(
+              "font-mono-data text-[13px] font-bold tabular-nums leading-none",
+              !server.online || server.players === 0
+                ? "text-muted"
+                : server.players >= server.max_players
+                  ? "text-warn"
+                  : "text-accent2",
+            )}
+            title={
+              !server.online ? "Last known player count — server did not respond" : undefined
+            }
+          >
+            {server.players}/{server.max_players}
+            {server.queue != null && server.queue > 0 && (
+              <span
+                className="text-[10px] text-warn"
+                title={`${server.queue} waiting in the join queue`}
+              >
+                +{server.queue}
+              </span>
+            )}
+          </div>
+          <div className="mt-0.5 text-[7px] font-bold uppercase tracking-[0.07em] text-muted">
+            Players
+          </div>
+        </div>
+      );
+    }
+    if (id === "pingBadge") {
+      return (
+        <div key={id} className="l2-stat text-right">
+          <div
+            data-tetra-el="pingBadge"
+            className={cn(
+              "font-mono-data text-[13px] font-bold tabular-nums leading-none",
+              !server.online || server.ping === null
+                ? "text-muted"
+                : server.ping > 120
+                  ? "text-danger"
+                  : server.ping > 80
+                    ? "text-warn"
+                    : "text-success",
+            )}
+            title={
+              !server.online ? "Server did not respond to the last refresh" : undefined
+            }
+          >
+            {server.online ? (server.ping ?? "—") : "—"}
+          </div>
+          <div className="mt-0.5 text-[7px] font-bold uppercase tracking-[0.07em] text-muted">
+            Ping
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div key={id} data-tetra-el="modCountLabel" className="l2-stat text-right">
+        <ModCount server={server} />
+        <div className="mt-0.5 text-[7px] font-bold uppercase tracking-[0.07em] text-muted">
+          Mods
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div ref={scrollRef} className="l2-body min-h-0 flex-1 overflow-y-auto p-2">
       {servers.length === 0 ? (
@@ -225,148 +398,52 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                   zIndex: menuOpenKey === rowKey ? 10 : undefined,
                 }}
               >
-                <button
-                  data-tetra-el="favouriteAction"
-                  onClick={(e) => {
-                    // Without this the click also selects the row.
-                    e.stopPropagation();
-                    void handleToggleFavourite(server);
-                  }}
-                  title={
-                    server.favourite
-                      ? "Remove from favourites"
-                      : "Add to favourites"
-                  }
-                  aria-label={
-                    server.favourite
-                      ? "Remove from favourites"
-                      : "Add to favourites"
-                  }
-                  aria-pressed={server.favourite}
-                  className={cn(
-                    "star flex shrink-0 items-center justify-center transition-colors",
-                    server.favourite
-                      ? "text-warn"
-                      : "text-muted hover:text-muted2",
-                  )}
-                >
-                  <Star
-                    className="h-[14px] w-[14px]"
-                    strokeWidth={1.6}
-                    fill={server.favourite ? "currentColor" : "none"}
-                  />
-                </button>
+                {favouriteIds.map((id) => (
+                  <button
+                    key={id}
+                    data-tetra-el="favouriteAction"
+                    onClick={(e) => {
+                      // Without this the click also selects the row.
+                      e.stopPropagation();
+                      void handleToggleFavourite(server);
+                    }}
+                    title={
+                      server.favourite
+                        ? "Remove from favourites"
+                        : "Add to favourites"
+                    }
+                    aria-label={
+                      server.favourite
+                        ? "Remove from favourites"
+                        : "Add to favourites"
+                    }
+                    aria-pressed={server.favourite}
+                    className={cn(
+                      "star flex shrink-0 items-center justify-center transition-colors",
+                      server.favourite
+                        ? "text-warn"
+                        : "text-muted hover:text-muted2",
+                    )}
+                  >
+                    <Star
+                      className="h-[14px] w-[14px]"
+                      strokeWidth={1.6}
+                      fill={server.favourite ? "currentColor" : "none"}
+                    />
+                  </button>
+                ))}
 
                 <div className="l2-main min-w-0 flex-1">
                   <div className="flex items-center gap-1 whitespace-nowrap text-[12px] font-semibold">
-                    <div data-tetra-el="tagsLine" className="flex shrink-0 gap-1">
-                      {!server.online && <Tag tone="danger">OFFLINE</Tag>}
-                      {server.official && <Tag tone="accent">VANILLA</Tag>}
-                      {server.modded && <Tag tone="accent2">MODDED</Tag>}
-                      {server.first_person && <Tag tone="muted">1PP</Tag>}
-                      {server.locked && <Tag tone="danger">LOCKED</Tag>}
-                      {modPending[server.addr] && (
-                        <Tag
-                          tone="accent"
-                          data-tetra-el="modStatusBadge"
-                          title="A declared mod has a Steam update pending"
-                        >
-                          UPDATE
-                        </Tag>
-                      )}
-                    </div>
-                    <span data-tetra-el="name" className="min-w-0 truncate text-ink">
-                      {server.name}
-                    </span>
+                    {renderNameLine(server)}
                   </div>
                   <div className="mt-0.5 flex items-center gap-2.5 whitespace-nowrap text-[9px] text-muted">
-                    <span data-tetra-el="mapLabel" className="font-mono-data">{server.map_display}</span>
-                    <span>·</span>
-                    <span data-tetra-el="gameTimeLabel">
-                      {formatGameTime(
-                        server.in_game_time,
-                        server.day_multiplier,
-                        server.night_multiplier,
-                      )}
-                    </span>
-                    <span>·</span>
-                    <span data-tetra-el="regionFlag">{regionName(server.country_code)}</span>
-                    <span>·</span>
-                    <span data-tetra-el="addressLabel" className="font-mono-data">{server.addr}</span>
-                    {view === "recent" && server.last_played != null && (
-                      <>
-                        <span>·</span>
-                        <span data-tetra-el="lastPlayedLabel">
-                          played {formatLastPlayed(server.last_played)}
-                        </span>
-                      </>
-                    )}
+                    {renderDetails(server)}
                   </div>
                 </div>
 
                 <div className="l2-stats flex shrink-0 items-center gap-3.5">
-                  <div className="l2-stat text-right">
-                    <div
-                      data-tetra-el="playerCount"
-                      className={cn(
-                        "font-mono-data text-[13px] font-bold tabular-nums leading-none",
-                        !server.online || server.players === 0
-                          ? "text-muted"
-                          : server.players >= server.max_players
-                            ? "text-warn"
-                            : "text-accent2",
-                      )}
-                      title={
-                        !server.online
-                          ? "Last known player count — server did not respond"
-                          : undefined
-                      }
-                    >
-                      {server.players}/{server.max_players}
-                      {server.queue != null && server.queue > 0 && (
-                        <span
-                          className="text-[10px] text-warn"
-                          title={`${server.queue} waiting in the join queue`}
-                        >
-                          +{server.queue}
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-0.5 text-[7px] font-bold uppercase tracking-[0.07em] text-muted">
-                      Players
-                    </div>
-                  </div>
-                  <div className="l2-stat text-right">
-                    <div
-                      data-tetra-el="pingBadge"
-                      className={cn(
-                        "font-mono-data text-[13px] font-bold tabular-nums leading-none",
-                        !server.online || server.ping === null
-                          ? "text-muted"
-                          : server.ping > 120
-                            ? "text-danger"
-                            : server.ping > 80
-                              ? "text-warn"
-                              : "text-success",
-                      )}
-                      title={
-                        !server.online
-                          ? "Server did not respond to the last refresh"
-                          : undefined
-                      }
-                    >
-                      {server.online ? (server.ping ?? "—") : "—"}
-                    </div>
-                    <div className="mt-0.5 text-[7px] font-bold uppercase tracking-[0.07em] text-muted">
-                      Ping
-                    </div>
-                  </div>
-                  <div data-tetra-el="modCountLabel" className="l2-stat text-right">
-                    <ModCount server={server} />
-                    <div className="mt-0.5 text-[7px] font-bold uppercase tracking-[0.07em] text-muted">
-                      Mods
-                    </div>
-                  </div>
+                  {statIds.map((id) => renderStat(server, id))}
                 </div>
 
                 <ServerRowActions
