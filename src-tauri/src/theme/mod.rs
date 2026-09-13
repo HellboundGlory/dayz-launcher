@@ -1,6 +1,7 @@
 //! File-backed theme storage: one directory per theme under
 //! [`crate::paths::themes_dir`], holding a [`manifest::ThemeManifest`] in
-//! `theme.json`, the palette in `tokens.json`, and optionally a `layout.json`.
+//! `theme.json`, the palette in `tokens.json`, and whatever else an advanced
+//! theme ships — `layout.json`, `styles.css`, fonts and images.
 //! Takes a plain `&Path` root (not an `AppHandle`) so it's testable against a
 //! scratch directory. A read error is never fatal — an unreadable theme is just
 //! missing from the grid.
@@ -23,6 +24,10 @@ pub const TOKENS_FILE: &str = "tokens.json";
 
 /// The optional layout file's name, alongside the palette.
 pub const LAYOUT_FILE: &str = "layout.json";
+
+/// The optional advanced-tier stylesheet's name — the one path
+/// `src/theme/css-loader.ts` fetches, so it is gated by exactly this name.
+pub const STYLES_FILE: &str = "styles.css";
 
 /// A theme as the grid lists it, without reading `tokens.json` for every
 /// install. `license`/`homepage`/`schemaVersion` stay in the full manifest — [`get`] returns those.
@@ -390,7 +395,7 @@ mod tests {
             version: "2.1.0".to_string(),
             theme_api: "1".to_string(),
             minimum_launcher_version: "2.6.0".to_string(),
-            tier: "full".to_string(),
+            tier: "basic".to_string(),
             description: "A theme for a test.".to_string(),
             capabilities: vec!["tokens".to_string()],
             ..ThemeManifest::default()
