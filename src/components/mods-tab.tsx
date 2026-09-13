@@ -56,6 +56,10 @@ const ROW_MAIN = ["modName", "modTags"];
 const INSPECTOR_BODY = ["previewImage", "name", "status", "tags", "description", "detailFields", "inspectorActions"];
 const INSPECTOR_ACTIONS = ["updateAction", "openInSteamAction", "openFolderAction", "reinstallAction"];
 const INSPECTOR_WRAPPERS = { inspectorActions: INSPECTOR_ACTIONS };
+// Shared with the list's own right padding below: the inspector overlays the
+// list rather than sitting in normal flow, so nothing shrinks the list's rows
+// for it automatically — the list has to reserve the same width itself.
+const INSPECTOR_WIDTH = 340;
 const ACTION_BAR_POSITIONS = [
   "totalCount",
   "selectAllAction",
@@ -467,7 +471,11 @@ export function ModsTab() {
       {/* ── Body: list + slide-in inspector ── */}
       <div className="mods-content relative min-h-0 flex-1 overflow-hidden">
         <div className="mx-wrap relative h-full overflow-hidden">
-          <div ref={scrollRef} className="mx-list h-full overflow-y-auto p-2">
+          <div
+            ref={scrollRef}
+            className="mx-list h-full overflow-y-auto p-2 transition-[padding-right] duration-200"
+            style={{ paddingRight: selectedMod ? INSPECTOR_WIDTH : undefined }}
+          >
             {loading && mods.length === 0 ? (
               <div className="flex h-full items-center justify-center gap-2 text-[11px] text-muted">
                 <Loader2 className="size-3.5 animate-spin" /> Loading subscribed mods…
@@ -740,7 +748,8 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
   return (
     <div
       data-tetra-slot="mods.inspector"
-      className="mx-inspector absolute bottom-0 right-0 top-0 z-[8] flex w-[340px] flex-col overflow-hidden border-l border-line bg-surface shadow-[-10px_0_26px_rgba(0,0,0,0.4)]"
+      className="mx-inspector absolute bottom-0 right-0 top-0 z-[8] flex flex-col overflow-hidden border-l border-line bg-surface shadow-[-10px_0_26px_rgba(0,0,0,0.4)]"
+      style={{ width: INSPECTOR_WIDTH }}
     >
       <button
         data-tetra-el="closeAction"
