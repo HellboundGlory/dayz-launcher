@@ -244,8 +244,14 @@ export function ModsTab() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* ── Filter / toolbar strip ── */}
-      <div className="filterbar flex shrink-0 items-center gap-1.5 border-b border-line bg-surface px-2.5 py-2">
-        <div className="search flex min-w-0 flex-1 items-center gap-1.5 rounded-[6px] border border-line bg-surface2 px-2.5 py-[5px]">
+      <div
+        data-tetra-slot="mods.toolbar"
+        className="filterbar flex shrink-0 items-center gap-1.5 border-b border-line bg-surface px-2.5 py-2"
+      >
+        <div
+          data-tetra-el="searchInput"
+          className="search flex min-w-0 flex-1 items-center gap-1.5 rounded-[6px] border border-line bg-surface2 px-2.5 py-[5px]"
+        >
           <Search className="size-3 shrink-0 text-muted" />
           <input
             value={search}
@@ -256,7 +262,7 @@ export function ModsTab() {
           />
         </div>
 
-        <div className="flex items-center gap-0.5">
+        <div data-tetra-el="statusFilter" className="flex items-center gap-0.5">
           {STATUS_FILTERS.map((f) => (
             <button
               key={f.key}
@@ -274,6 +280,7 @@ export function ModsTab() {
         </div>
 
         <button
+          data-tetra-el="refreshAction"
           onClick={() => void load(true)}
           disabled={loading || !!op}
           title="Re-read the list and refresh details from the Workshop"
@@ -376,6 +383,7 @@ const ModRow = memo(function ModRow({
 
   return (
     <div
+      data-tetra-slot="mods.row"
       onClick={() => openMod(selected ? null : mod.workshop_id)}
       className={cn(
         "mx-row flex cursor-pointer items-center gap-2.5 rounded-[8px] border border-line bg-surface px-2.5 py-2 transition-[border-color,background,box-shadow] duration-150 hover:border-accent-line",
@@ -433,7 +441,7 @@ const ModRow = memo(function ModRow({
 
       <div className="mx-main min-w-0 flex-1">
         <div className="mx-title flex min-w-0 items-center gap-1.5 text-[11px] font-semibold">
-          <span className="truncate text-ink">{mod.title ?? mod.workshop_id}</span>
+          <span data-tetra-el="modName" className="truncate text-ink">{mod.title ?? mod.workshop_id}</span>
           {mod.locally_disabled && (
             <span className="shrink-0 rounded-[4px] border border-muted/50 px-1 text-[8px] font-bold uppercase tracking-wider text-muted2">
               Disabled
@@ -447,6 +455,7 @@ const ModRow = memo(function ModRow({
 
       <div className="mx-state flex w-[104px] shrink-0 flex-col justify-center gap-[3px]">
         <span
+          data-tetra-el="modStatusBadge"
           className={cn(
             "st inline-flex w-fit items-center gap-1.5 rounded-full border px-1.5 py-[3px]",
             PILL_TONE[ui.tone],
@@ -467,7 +476,10 @@ const ModRow = memo(function ModRow({
         )}
       </div>
 
-      <span className="mx-num sz w-[64px] shrink-0 truncate text-right font-mono-data text-[9px] text-accent2">
+      <span
+        data-tetra-el="sizeLabel"
+        className="mx-num sz w-[64px] shrink-0 truncate text-right font-mono-data text-[9px] text-accent2"
+      >
         {mod.size_on_disk ? formatBytes(Number(mod.size_on_disk), 1) : "—"}
       </span>
       <span className="mx-num upd w-[76px] shrink-0 truncate text-right font-mono-data text-[9px] text-muted2">
@@ -504,8 +516,12 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
   }
 
   return (
-    <div className="mx-inspector absolute bottom-0 right-0 top-0 z-[8] flex w-[340px] flex-col overflow-hidden border-l border-line bg-surface shadow-[-10px_0_26px_rgba(0,0,0,0.4)]">
+    <div
+      data-tetra-slot="mods.inspector"
+      className="mx-inspector absolute bottom-0 right-0 top-0 z-[8] flex w-[340px] flex-col overflow-hidden border-l border-line bg-surface shadow-[-10px_0_26px_rgba(0,0,0,0.4)]"
+    >
       <button
+        data-tetra-el="closeAction"
         onClick={() => openMod(null)}
         aria-label="Close details"
         className="mxi-close absolute right-2 top-2 z-[3] flex h-[22px] w-[22px] items-center justify-center rounded-[6px] border border-line bg-[rgba(10,12,16,0.7)] text-muted2 transition-colors hover:border-accent-line hover:text-ink"
@@ -559,7 +575,7 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
           </p>
         )}
 
-        <div className="m2-rows2 mt-1 flex flex-col gap-1">
+        <div data-tetra-el="detailFields" className="m2-rows2 mt-1 flex flex-col gap-1">
           <InspectorRow label="Subscribed" value={modSubscribed(mod) ? formatLastPlayed(modSubscribed(mod)) : "—"} />
           <InspectorRow label="Updated" value={mod.time_updated ? formatLastPlayed(mod.time_updated) : "—"} />
           <InspectorRow label="Size" value={mod.size_on_disk ? formatBytes(Number(mod.size_on_disk), 1) : "—"} />

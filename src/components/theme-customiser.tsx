@@ -4,11 +4,41 @@ import { cn } from "@/lib/utils";
 import {
   useThemeStore,
   activePreset,
-  activeSaved,
+  activeInstalled,
   effective,
+  effectiveExtras,
   resolvedPair,
 } from "@/theme/theme-store";
-import { GROUP_DEF, PRESETS } from "@/theme/palette";
+import {
+  GROUP_DEF,
+  PRESETS,
+  type Radii,
+  type Spacing,
+  type Typography,
+} from "@/theme/palette";
+
+const SPACING_ROWS: { key: keyof Spacing; label: string }[] = [
+  { key: "xs", label: "Extra small" },
+  { key: "sm", label: "Small" },
+  { key: "md", label: "Medium" },
+  { key: "lg", label: "Large" },
+];
+
+const RADII_ROWS: { key: keyof Radii; label: string }[] = [
+  { key: "control", label: "Control" },
+  { key: "row", label: "Row" },
+  { key: "chip", label: "Chip" },
+  { key: "pill", label: "Pill" },
+];
+
+const TYPOGRAPHY_ROWS: { key: keyof Typography; label: string }[] = [
+  { key: "uiFont", label: "UI font" },
+  { key: "dataFont", label: "Data font" },
+];
+
+/** Raw CSS length/font-family value, same posture as the colour hex readout. */
+const EXTRAS_INPUT_CLASS =
+  "min-w-0 flex-1 rounded-[5px] border border-line bg-surface px-1.5 py-[3px] text-right font-mono-data text-[9px] text-ink outline-none transition-colors focus:border-accent-line";
 
 // Theme accordion body. Owns only local dropdown/save-input state — every
 // colour decision writes straight to the theme store.
@@ -16,13 +46,18 @@ export function ThemeCustomiser() {
   const scheme = useThemeStore((s) => s.scheme);
   const activeId = useThemeStore((s) => s.activeId);
   const custom = useThemeStore((s) => s.custom);
+  const customExtras = useThemeStore((s) => s.customExtras);
   const lightRefined = useThemeStore((s) => s.lightRefined);
   const bloom = useThemeStore((s) => s.bloom);
-  const myThemes = useThemeStore((s) => s.myThemes);
+  const myThemes = useThemeStore((s) => s.installedThemes);
+  const themeFiles = useThemeStore((s) => s.themeFiles);
   const setScheme = useThemeStore((s) => s.setScheme);
   const pickTheme = useThemeStore((s) => s.pickTheme);
   const setBloom = useThemeStore((s) => s.setBloom);
   const setColorOverride = useThemeStore((s) => s.setColorOverride);
+  const setSpacingOverride = useThemeStore((s) => s.setSpacingOverride);
+  const setRadiusOverride = useThemeStore((s) => s.setRadiusOverride);
+  const setTypographyOverride = useThemeStore((s) => s.setTypographyOverride);
   const saveTheme = useThemeStore((s) => s.saveTheme);
   const deleteTheme = useThemeStore((s) => s.deleteTheme);
   const resetToBase = useThemeStore((s) => s.resetToBase);
@@ -31,9 +66,10 @@ export function ThemeCustomiser() {
   const [name, setName] = useState("");
   const dropRef = useRef<HTMLDivElement>(null);
 
-  const pair = resolvedPair(activeId, myThemes);
-  const palette = effective(scheme, activeId, myThemes, custom);
-  const saved = activeSaved(activeId, myThemes);
+  const pair = resolvedPair(activeId, themeFiles);
+  const palette = effective(scheme, activeId, themeFiles, custom);
+  const extras = effectiveExtras(activeId, themeFiles, customExtras);
+  const saved = activeInstalled(activeId, myThemes);
   const displayName = saved?.name ?? activePreset(activeId)?.name ?? "Neutral";
 
   // Outside mousedown closes the theme dropdown (same pattern as the filter
@@ -120,7 +156,7 @@ export function ThemeCustomiser() {
                 role="menuitemradio"
                 aria-checked={activeId === p.id}
                 onClick={() => {
-                  pickTheme(p.id);
+                  void pickTheme(p.id);
                   setDropOpen(false);
                 }}
                 className={cn(
@@ -142,32 +178,38 @@ export function ThemeCustomiser() {
                 </div>
                 {myThemes.map((t) => (
                   <div
-                    key={t.name}
+                    key={t.id}
                     className={cn(
                       "theme-item flex w-full items-center gap-2 px-2.5 py-[7px] transition-colors hover:bg-surface",
-                      saved?.name === t.name && "bg-accent-soft",
+                      saved?.id === t.id && "bg-accent-soft",
                     )}
                   >
                   <button
                     type="button"
                     role="menuitemradio"
-                    aria-checked={saved?.name === t.name}
+                    aria-checked={saved?.id === t.id}
                     onClick={() => {
-                      pickTheme(`custom:${t.name}`);
+                      void pickTheme(t.id);
                       setDropOpen(false);
                       }}
                       className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left text-[11px] font-semibold text-muted2 hover:text-ink"
                     >
                     <span className="chips inline-flex shrink-0 gap-0.5">
-                      <i className="h-2 w-2 rounded-[2px]" style={{ background: t.dark.accent }} />
-                      <i className="h-2 w-2 rounded-[2px]" style={{ background: t.dark.accent2 }} />
+                      <i
+                        className="h-2 w-2 rounded-[2px]"
+                        style={{ background: resolvedPair(t.id, themeFiles).dark.accent }}
+                      />
+                      <i
+                        className="h-2 w-2 rounded-[2px]"
+                        style={{ background: resolvedPair(t.id, themeFiles).dark.accent2 }}
+                      />
                     </span>
                     <span className="nm min-w-0 flex-1 truncate">{t.name}</span>
                   </button>
                   <button
                     type="button"
                       aria-label={`Delete theme ${t.name}`}
-                      onClick={() => deleteTheme(t.name)}
+                      onClick={() => void deleteTheme(t.id)}
                       className="cd shrink-0 cursor-pointer px-1 text-[8px] text-muted transition-colors hover:text-danger"
                     >
                       ✕
@@ -248,6 +290,40 @@ export function ThemeCustomiser() {
           : "Editing light directly — it overrides the auto-derived pair."}
       </div>
 
+      <div className="sec-h-sub mt-3.5 flex items-baseline gap-2">
+        <h3 className="m-0 text-[9px] font-bold uppercase tracking-[0.07em] text-ink">
+          Layout &amp; type
+        </h3>
+        <span className="text-[8px] text-muted">
+          Raw CSS values · presets keep the defaults
+        </span>
+      </div>
+
+      {/* Spacing and radii sit together; font stacks are long, so typography
+          gets the full width beneath them. */}
+      <div className="extras mt-2 grid grid-cols-2 gap-2">
+        <ExtrasCard
+          name="Spacing"
+          rows={SPACING_ROWS}
+          values={extras.spacing}
+          onChange={setSpacingOverride}
+        />
+        <ExtrasCard
+          name="Radii"
+          rows={RADII_ROWS}
+          values={extras.radii}
+          onChange={setRadiusOverride}
+        />
+        <div className="col-span-2">
+          <ExtrasCard
+            name="Typography"
+            rows={TYPOGRAPHY_ROWS}
+            values={extras.typography}
+            onChange={setTypographyOverride}
+          />
+        </div>
+      </div>
+
       <div className="save-row mt-2 flex gap-[7px]">
         <input
           type="text"
@@ -257,7 +333,7 @@ export function ThemeCustomiser() {
           maxLength={28}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
-              saveTheme(name.trim() || "Untitled theme");
+              void saveTheme(name.trim() || "Untitled theme");
               setName("");
             }
           }}
@@ -266,7 +342,7 @@ export function ThemeCustomiser() {
         <button
           type="button"
           onClick={() => {
-            saveTheme(name.trim() || "Untitled theme");
+            void saveTheme(name.trim() || "Untitled theme");
             setName("");
           }}
           className="shrink-0 rounded-[6px] border-none bg-accent px-3 py-[7px] text-[10px] font-bold uppercase tracking-[0.05em] text-[#10131a] shadow-[var(--glow)] transition-[filter] hover:brightness-110"
@@ -284,10 +360,50 @@ export function ThemeCustomiser() {
           Reset to base
         </button>
         <span className="text-[8px] leading-[1.4] text-muted">
-          Clears colour overrides back to the active mode&apos;s default.
+          Clears colour, spacing, radius and font overrides back to the active theme&apos;s
+          defaults.
         </span>
       </div>
     </>
+  );
+}
+
+/**
+ * One extras group: a heading and label/input rows, mirroring the colour
+ * group cards. Values are raw CSS strings, written straight back to the store.
+ */
+function ExtrasCard<K extends string>({
+  name,
+  rows,
+  values,
+  onChange,
+}: {
+  name: string;
+  rows: { key: K; label: string }[];
+  values: Record<K, string>;
+  onChange: (key: K, value: string) => void;
+}) {
+  return (
+    <div className="group rounded-[7px] border border-line bg-bg px-2.5 py-2">
+      <h4 className="m-0 mb-[7px] text-[8px] font-bold uppercase tracking-[0.06em] text-muted">
+        {name}
+      </h4>
+      {rows.map(({ key, label }) => (
+        <div key={key} className="flex items-center justify-between gap-1.5 py-[3px]">
+          <label htmlFor={`extras-${name}-${key}`} className="shrink-0 text-[9px] text-muted2">
+            {label}
+          </label>
+          <input
+            id={`extras-${name}-${key}`}
+            type="text"
+            value={values[key]}
+            onChange={(e) => onChange(key, e.target.value)}
+            spellCheck={false}
+            className={EXTRAS_INPUT_CLASS}
+          />
+        </div>
+      ))}
+    </div>
   );
 }
 

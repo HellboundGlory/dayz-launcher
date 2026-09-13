@@ -66,7 +66,10 @@ export function FilterBar({ onRefresh, refreshing, onOpenModFilter, modFilterOpe
     // At 1.5x scale the viewport is ~975 CSS px and the fixed-width controls
     // alone exceed it, so the row wraps — a second row beats clipping the
     // Refresh button off the right edge.
-    <div className="filterbar flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-2 border-b border-line bg-surface px-2.5 py-2">
+    <div
+      data-tetra-slot="filterBar"
+      className="filterbar flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-2 border-b border-line bg-surface px-2.5 py-2"
+    >
       <SearchInput value={filter.search} onChange={(search) => setFilter({ search })} />
 
       <MapDropdown selectedMaps={filter.maps ?? []} onChange={(maps) => setFilter({ maps })} />
@@ -111,6 +114,7 @@ export function FilterBar({ onRefresh, refreshing, onOpenModFilter, modFilterOpe
       {/* Gated on `refreshing` alone, not `discovering` — rows can already
           be on screen worth re-probing before discovery finishes. */}
       <button
+        data-tetra-el="refreshAction"
         onClick={onRefresh}
         disabled={refreshing}
         className={cn(
@@ -157,7 +161,10 @@ function SearchInput({
   }, [text]);
 
   return (
-    <div className="search flex min-w-[140px] flex-1 items-center gap-1.5 rounded-[6px] border border-line bg-surface2 px-2.5 py-[5px]">
+    <div
+      data-tetra-el="searchInput"
+      className="search flex min-w-[140px] flex-1 items-center gap-1.5 rounded-[6px] border border-line bg-surface2 px-2.5 py-[5px]"
+    >
       <Search className="size-3 shrink-0 text-muted" />
       <input
         type="text"
@@ -325,7 +332,7 @@ function MapDropdown({
   };
 
   return (
-    <div ref={ref} className={cn("fdrop relative", open && "open")}>
+    <div data-tetra-el="mapFilter" ref={ref} className={cn("fdrop relative", open && "open")}>
       <FdropTrigger label="MAP" on={selectedMaps.length > 0} open={open} onClick={() => setOpen(!open)}>
         {label}
       </FdropTrigger>
@@ -397,7 +404,7 @@ function TagsDropdown({
   };
 
   return (
-    <div ref={ref} className={cn("fdrop relative", open && "open")}>
+    <div data-tetra-el="tagsFilter" ref={ref} className={cn("fdrop relative", open && "open")}>
       <FdropTrigger label="TAGS" on={activeCount > 0} open={open} onClick={() => setOpen(!open)}>
         {label}
       </FdropTrigger>
@@ -509,7 +516,7 @@ function SortDropdown({
   const label = `${current?.label ?? "Players"} ${sortDir === "desc" ? "↓" : "↑"}`;
 
   return (
-    <div ref={ref} className={cn("fdrop relative", open && "open")}>
+    <div data-tetra-el="sortControl" ref={ref} className={cn("fdrop relative", open && "open")}>
       <FdropTrigger
         label="SORT"
         on={!(sortKey === "players" && sortDir === "desc")}
@@ -551,7 +558,10 @@ function PingSlider({
   const isUnlimited = maxPing >= SLIDER_MAX;
 
   return (
-    <div className="ping-row flex shrink-0 items-center gap-1.5 px-0.5 text-[10px] text-muted">
+    <div
+      data-tetra-el="pingSlider"
+      className="ping-row flex shrink-0 items-center gap-1.5 px-0.5 text-[10px] text-muted"
+    >
       <span className="font-bold uppercase tracking-[0.05em] text-muted2">PING</span>
       <input
         type="range"

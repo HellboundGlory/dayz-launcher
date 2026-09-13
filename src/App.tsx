@@ -24,6 +24,7 @@ import { useSettingsStore } from "./stores/settings-store";
 import { useUpdateStore } from "./stores/update-store";
 import { useModsStore } from "./stores/mods-store";
 import { watchDayz } from "./stores/launch-store";
+import { watchThemeActivationReverted } from "./theme/theme-store";
 import type { Server } from "./types/server";
 import {
   steamInit,
@@ -238,6 +239,9 @@ export function App() {
 
   // App-level so "is DayZ running" survives the details panel unmounting.
   useEffect(() => watchDayz(), []);
+
+  // Puts the palette back when the activation guard window reverts or times out.
+  useEffect(() => watchThemeActivationReverted(), []);
 
   // A pending debounced write would otherwise be lost when the window closes.
   useEffect(() => {

@@ -45,3 +45,11 @@ reqwest = { version = "0.13", default-features = false, features = [
 axum = "0.8"
 flate2 = "1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# Theme `.zip` packages. Imported packages are ones a launcher build authored
+# itself, so deflate is the only method that ever legitimately appears in one —
+# no zstd/bzip2/AES, and no default features (which would pull all of them in,
+# plus `time`).
+zip = { version = "2", default-features = false, features = ["deflate"] }
+# Compares a theme's `version` and `minimumLauncherVersion` against a real
+# version; plain string ordering would rank "1.10.0" below "1.9.0".
+semver = "1"

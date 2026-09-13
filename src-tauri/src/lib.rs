@@ -16,6 +16,7 @@ mod log;
 mod paths;
 mod protocol;
 mod state;
+mod theme;
 mod window_state;
 
 /// Added to the command line registered with the OS startup entry, so
@@ -157,6 +158,19 @@ pub fn run() {
             commands::settings::set_ui_scale,
             commands::settings::open_data_folder,
             commands::settings::data_folder_path,
+            commands::theme::list_installed_themes,
+            commands::theme::get_theme,
+            commands::theme::save_theme,
+            commands::theme::delete_theme,
+            commands::theme::set_active_theme_id,
+            commands::theme::migrate_legacy_custom_themes,
+            commands::theme::import_theme_preview,
+            commands::theme::confirm_theme_install,
+            commands::theme::export_theme,
+            commands::theme::arm_activation,
+            commands::theme::confirm_activation,
+            commands::theme::revert_activation,
+            commands::theme::get_activation_status,
             commands::update::is_installed_copy,
         ])
         .setup(|app| {

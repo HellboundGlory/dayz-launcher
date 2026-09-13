@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { useSettingsStore } from "@/stores/settings-store";
 import { discoverSteamPaths, dataFolderPath, openDataFolder } from "@/lib/tauri";
 import { SettingsAccordion } from "./settings-accordion";
-import { ThemeCustomiser } from "./theme-customiser";
+import { ThemesSection } from "./themes-page/ThemesSection";
 
 type SecId = "game" | "launcher" | "theme";
 
@@ -346,7 +346,7 @@ export function SettingsView({ onClose }: { onClose: () => void }) {
           onToggle={() => toggle("theme")}
           onKeyDown={(e) => rove(e, 2)}
         >
-          <ThemeCustomiser />
+          <ThemesSection />
         </SettingsAccordion>
       </div>
     </div>

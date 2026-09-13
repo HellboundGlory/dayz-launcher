@@ -361,6 +361,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
     >
       <div
         ref={wrapRef}
+        data-tetra-slot="modal.modFilter"
         role="dialog"
         aria-modal="true"
         aria-label="Filter by mod"
@@ -372,12 +373,17 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
             <h3 className="text-[13px] font-extrabold tracking-tight text-ink">Filter by mod</h3>
             <p className="mt-0.5 text-[10px] text-muted">Require or exclude servers by the mods they run</p>
           </div>
-          <button onClick={onClose} aria-label="Close" className="text-muted transition-colors hover:text-ink">
+          <button
+            data-tetra-el="closeAction"
+            onClick={onClose}
+            aria-label="Close"
+            className="text-muted transition-colors hover:text-ink"
+          >
             <X className="size-[15px]" />
           </button>
         </div>
 
-        <div className="flex shrink-0 gap-0.5 px-4 pt-2.5">
+        <div data-tetra-el="tabStrip" className="flex shrink-0 gap-0.5 px-4 pt-2.5">
           {TABS.map((t) => (
             <button
               key={t.key}
@@ -498,7 +504,10 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
             ))}
           </div>
 
-          <div className="flex min-w-0 max-w-[300px] flex-1 flex-col overflow-y-auto px-4 pb-3 pt-1">
+          <div
+            data-tetra-el="previewPane"
+            className="flex min-w-0 max-w-[300px] flex-1 flex-col overflow-y-auto px-4 pb-3 pt-1"
+          >
             {!preview && (
               <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-muted">
                 <Inbox className="size-6 opacity-50" />
@@ -687,6 +696,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
             Cancel
           </button>
           <button
+            data-tetra-el="applyAction"
             onClick={apply}
             className="rounded-[6px] border border-accent-line bg-accent-soft px-3.5 py-[7px] text-[10.5px] font-bold text-accent shadow-[var(--glow)] transition-[filter] hover:brightness-110"
           >

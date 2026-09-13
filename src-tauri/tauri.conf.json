@@ -39,6 +39,23 @@
     "skipTaskbar": true,
     "visible": false,
     "focus": false
+   },
+   {
+    "label": "theme-guard",
+    "title": "Tetra Launcher",
+    "url": "theme-guard.html",
+    "width": 360,
+    "height": 140,
+    "resizable": false,
+    "maximizable": false,
+    "minimizable": false,
+    "fullscreen": false,
+    "decorations": false,
+    "transparent": true,
+    "alwaysOnTop": true,
+    "skipTaskbar": true,
+    "visible": false,
+    "focus": false
    }
   ],
   "security": {

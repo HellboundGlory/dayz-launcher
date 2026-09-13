@@ -1,5 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Server } from "@/types/server";
+import type {
+  ActivationStatus,
+  LegacyTheme,
+  ManifestOverrides,
+  ThemeFile,
+  ThemeImportPreview,
+  ThemeManifest,
+  ThemeSummary,
+} from "@/types/theme";
 
 // ── Server Commands ──
 
@@ -252,6 +261,12 @@ export interface AppSettingsDto {
   onboardingDismissed: boolean;
   /** Show "Playing on {server}" / "Browsing servers" in Discord. */
   discordRichPresence: boolean;
+  /**
+   * Which theme is active; `null` is the built-in default. Read-only from the
+   * frontend — `save_settings` deliberately ignores an omitted/`null` value so
+   * a settings save can't clobber a confirmed theme activation.
+   */
+  activeThemeId?: string | null;
 }
 
 /** Matches the Rust `OnJoin` enum, which serialises lowercase. */
@@ -564,4 +579,77 @@ export async function logClient(
   } catch {
     // Logging must never break the launcher.
   }
+}
+
+// ── Theme Commands ──
+
+export async function listInstalledThemes(): Promise<ThemeSummary[]> {
+  return invoke<ThemeSummary[]>("list_installed_themes");
+}
+
+export async function getTheme(id: string): Promise<ThemeFile> {
+  return invoke<ThemeFile>("get_theme", { id });
+}
+
+/** Create-only — an id that already exists is an error, never an overwrite. */
+export async function saveTheme(manifest: ThemeManifest, tokens: unknown): Promise<string> {
+  return invoke<string>("save_theme", { manifest, tokens });
+}
+
+/** Destructive. Refuses the active theme, and any id with no directory (built-in presets). */
+export async function deleteTheme(id: string): Promise<void> {
+  return invoke<void>("delete_theme", { id });
+}
+
+export async function setActiveThemeId(id: string | null): Promise<void> {
+  return invoke<void>("set_active_theme_id", { id });
+}
+
+/** Resolves with the ids created, in input order — remap a saved selection against those. */
+export async function migrateLegacyCustomThemes(legacy: LegacyTheme[]): Promise<string[]> {
+  return invoke<string[]>("migrate_legacy_custom_themes", { legacy });
+}
+
+/**
+ * Open the guard window and arm the pending activation; writes nothing to disk.
+ * `deleteOnRevert` marks `newId` as a theme this same action just created
+ * (duplicate, "New theme") — abandoning the activation deletes it too.
+ */
+export async function armActivation(
+  newId: string | null,
+  deleteOnRevert = false,
+): Promise<void> {
+  return invoke<void>("arm_activation", { newId, deleteOnRevert });
+}
+
+export async function confirmActivation(): Promise<void> {
+  return invoke<void>("confirm_activation");
+}
+
+/** Works on an expired activation too — this is also what the timeout path calls. */
+export async function revertActivation(): Promise<void> {
+  return invoke<void>("revert_activation");
+}
+
+export async function getActivationStatus(): Promise<ActivationStatus | null> {
+  return invoke<ActivationStatus | null>("get_activation_status");
+}
+
+/** Validate a theme `.zip` and stage it for confirmation; nothing is installed yet. */
+export async function importThemePreview(zipPath: string): Promise<ThemeImportPreview> {
+  return invoke<ThemeImportPreview>("import_theme_preview", { zipPath });
+}
+
+/** Move a validated staging directory into the live themes tree. Resolves with the installed id. */
+export async function confirmThemeInstall(stagingId: string): Promise<string> {
+  return invoke<string>("confirm_theme_install", { stagingId });
+}
+
+/** Package an installed theme to `destPath`, applying the export dialog's manifest overrides. */
+export async function exportTheme(
+  id: string,
+  manifestOverrides: ManifestOverrides,
+  destPath: string,
+): Promise<void> {
+  return invoke<void>("export_theme", { id, manifestOverrides, destPath });
 }

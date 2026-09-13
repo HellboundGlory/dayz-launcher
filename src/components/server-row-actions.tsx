@@ -70,8 +70,13 @@ export function ServerRowActions({ server, onMoreInfo, onOpenChange }: RowAction
   const joinDisabled = !!actions.op || actions.dayzUp;
 
   return (
-    <div ref={ref} className="row-act relative flex shrink-0 items-center gap-[5px]">
+    <div
+      ref={ref}
+      data-tetra-slot="server.rowActions"
+      className="row-act relative flex shrink-0 items-center gap-[5px]"
+    >
       <button
+        data-tetra-el="joinAction"
         onClick={(e) => {
           e.stopPropagation();
           if (joinDisabled) return;
@@ -125,17 +130,20 @@ export function ServerRowActions({ server, onMoreInfo, onOpenChange }: RowAction
           <MenuItem
             icon={<Info className="size-3.5" />}
             label="More info"
+            data-tetra-el="moreInfoItem"
             onClick={() => run(() => onMoreInfo(server))}
           />
           <MenuItem
             icon={<ListTree className="size-3.5" />}
             label="Load to menu"
+            data-tetra-el="loadToMenuItem"
             disabled={joinDisabled}
             onClick={() => run(() => void actions.verifyAndJoin(server, true))}
           />
           <MenuItem
             icon={<Download className="size-3.5" />}
             label="Download mods"
+            data-tetra-el="downloadModsItem"
             disabled={!!actions.op}
             onClick={() => run(() => void actions.subscribeOnly(server))}
           />
@@ -172,15 +180,18 @@ function MenuItem({
   label,
   onClick,
   disabled,
+  "data-tetra-el": dataTetraEl,
 }: {
   icon: React.ReactNode;
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  "data-tetra-el"?: string;
 }) {
   return (
     <button
       role="menuitem"
+      data-tetra-el={dataTetraEl}
       onClick={onClick}
       disabled={disabled}
       className="flex w-full items-center gap-2 rounded-[5px] px-2.5 py-[7px] text-left text-[11px] font-semibold text-ink transition-colors hover:bg-accent-soft hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
