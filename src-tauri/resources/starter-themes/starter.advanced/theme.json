@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "starter.advanced",
+  "name": "Starter Advanced",
+  "author": "Tetra Launcher",
+  "version": "1.0.0",
+  "themeApi": "1.0",
+  "minimumLauncherVersion": "2.6.0",
+  "tier": "advanced",
+  "description": "Adds a layout.json and a styles.css to the Basic palette: the footer's controls are reordered with the interface-scale slider dropped, server-row stats swap order, and rows are squared off. Compare it against the default to see what layout and CSS can reach.",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "homepage": "https://tetralauncher.com/",
+  "tags": ["starter", "advanced", "layout", "css"],
+  "capabilities": ["tokens", "layout", "css"]
+}

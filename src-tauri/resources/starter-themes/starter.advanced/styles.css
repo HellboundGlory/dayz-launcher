@@ -1,0 +1,10 @@
+/* Advanced tier: one selector, one visible change.
+   Every slot and child is addressable by the attributes the launcher tags it
+   with — `data-tetra-slot` on a container, `data-tetra-el` on a child. These
+   ids are the same ones `layout.json` uses, so a rule and an order entry can
+   be read together. Tailwind classes are no use here: the build-time content
+   scan never sees a class name a theme chooses at runtime. */
+
+[data-tetra-slot="server.row"] {
+  border-radius: 2px;
+}

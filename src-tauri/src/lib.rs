@@ -183,6 +183,8 @@ pub fn run() {
             commands::theme::get_activation_status,
             commands::theme::watch_active_theme,
             commands::theme::stop_watching_theme,
+            commands::theme::list_starter_templates,
+            commands::theme::scaffold_theme_from_template,
             commands::update::is_installed_copy,
         ])
         .setup(|app| {
