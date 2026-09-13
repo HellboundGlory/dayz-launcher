@@ -356,6 +356,23 @@ pub fn save(
     Ok(manifest.id.clone())
 }
 
+/// Replace an *already-installed* theme's layout.json wholesale — always a
+/// full replace, never a merge, since the caller (the frontend) always holds
+/// and resends the complete object. Refuses a theme with no installed
+/// directory, the same way [`settings_values::values_path`] does.
+pub fn update_layout(themes_root: &Path, id: &str, layout: &Value) -> Result<(), String> {
+    validate_layout(layout)?;
+    let dir = theme_dir(themes_root, id)?;
+    if !dir.is_dir() {
+        return Err(format!("No installed theme `{id}` at {}", dir.display()));
+    }
+    let json = serde_json::to_vec_pretty(layout)
+        .map_err(|e| format!("Could not serialise {LAYOUT_FILE}: {e}"))?;
+    let path = dir.join(LAYOUT_FILE);
+    crate::atomic_write::write_atomically(&path, &json)
+        .map_err(|e| format!("Could not write {}: {e}", path.display()))
+}
+
 /// Delete an installed theme. Refuses an id with no directory (a built-in
 /// preset, checked first so the error isn't misleading) and refuses `active`,
 /// which would otherwise leave the selection pointing at nothing.
@@ -649,6 +666,79 @@ mod tests {
 
         assert!(err.contains("JSON object"), "{err}");
         assert!(!root.join("dev.bad").exists());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// The editor's write: whichever complete object arrives is what lands on
+    /// disk, with no trace of what was there before. A theme that shipped no
+    /// `layout.json` gains one.
+    #[test]
+    fn updating_a_layout_is_a_full_replace_not_a_merge() {
+        let root = scratch("updatelayout");
+        let original = layout();
+        save(&root, &manifest("dev.edited"), &tokens(), Some(&original)).expect("save");
+
+        let edited = serde_json::json!({ "schemaVersion": 1, "slots": { "toolbar": "hidden" } });
+        update_layout(&root, "dev.edited", &edited).expect("update");
+
+        let loaded = get(&root, "dev.edited").expect("get");
+        assert_eq!(loaded.layout.as_ref(), Some(&edited));
+        assert!(
+            loaded.manifest.name == "Test Theme" && loaded.tokens == tokens(),
+            "only layout.json is touched"
+        );
+
+        // Absent before: the full replace creates it rather than refusing.
+        save(&root, &manifest("dev.fresh"), &tokens(), None).expect("save");
+        assert!(!root.join("dev.fresh").join(LAYOUT_FILE).exists());
+        update_layout(&root, "dev.fresh", &edited).expect("update");
+        assert_eq!(
+            get(&root, "dev.fresh").expect("get").layout.as_ref(),
+            Some(&edited)
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Same rule `save` applies, checked before the write: a bad object must
+    /// never cost the theme its working layout.
+    #[test]
+    fn an_invalid_layout_update_is_refused_and_leaves_the_file_untouched() {
+        let root = scratch("updatebadlayout");
+        let original = layout();
+        save(&root, &manifest("dev.edited"), &tokens(), Some(&original)).expect("save");
+        let path = root.join("dev.edited").join(LAYOUT_FILE);
+        let before = std::fs::read(&path).unwrap();
+
+        for invalid in [
+            serde_json::json!([1, 2]),
+            serde_json::json!({ "slots": {} }),
+            serde_json::json!("a string"),
+        ] {
+            let err = update_layout(&root, "dev.edited", &invalid).expect_err("must refuse");
+            assert!(
+                err.contains("schemaVersion") || err.contains("JSON object"),
+                "{err}"
+            );
+        }
+
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        assert_eq!(
+            get(&root, "dev.edited").expect("get").layout.as_ref(),
+            Some(&original)
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Only an installed theme's own layout.json is reachable, exactly as
+    /// `set_value` requires: no directory means nothing to update.
+    #[test]
+    fn updating_a_layout_of_an_uninstalled_theme_is_refused() {
+        let root = scratch("updatemissing");
+
+        assert!(update_layout(&root, "dev.other", &layout()).is_err());
+        assert!(update_layout(&root, "../../escape", &layout()).is_err());
+        assert!(!root.join("dev.other").exists());
+        assert!(!root.join("..").join("escape").exists());
         let _ = std::fs::remove_dir_all(&root);
     }
 
