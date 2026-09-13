@@ -469,7 +469,7 @@ pub fn export(
     let crate::theme::ThemeFile {
         mut manifest,
         tokens,
-        ..
+        layout,
     } = crate::theme::get(themes_root, id)?;
     overrides.apply_to(&mut manifest);
 
@@ -477,8 +477,17 @@ pub fn export(
         .map_err(|e| format!("Could not serialise the manifest: {e}"))?;
     let tokens_json = serde_json::to_vec_pretty(&tokens)
         .map_err(|e| format!("Could not serialise tokens: {e}"))?;
+    let layout_json = layout
+        .as_ref()
+        .map(serde_json::to_vec_pretty)
+        .transpose()
+        .map_err(|e| format!("Could not serialise layout: {e}"))?;
 
-    for (name, bytes) in [(MANIFEST_FILE, &manifest_json), (TOKENS_FILE, &tokens_json)] {
+    let mut files = vec![(MANIFEST_FILE, &manifest_json), (TOKENS_FILE, &tokens_json)];
+    if let Some(layout_json) = &layout_json {
+        files.push((LAYOUT_FILE, layout_json));
+    }
+    for (name, bytes) in &files {
         if leaks_path(bytes, data_root) {
             return Err(format!(
                 "{name} names this Launcher's own data folder ({}); refusing to export a theme that would leak it.",
@@ -487,7 +496,7 @@ pub fn export(
         }
     }
 
-    write_package(dest_path, &manifest_json, &tokens_json)
+    write_package(dest_path, &files)
 }
 
 /// Whether `bytes` mention `path`, in raw form or as JSON escapes it — on
@@ -509,9 +518,10 @@ fn contains(haystack: &[u8], needle: &[u8]) -> bool {
     !needle.is_empty() && haystack.windows(needle.len()).any(|w| w == needle)
 }
 
-/// Write `theme.json` then `tokens.json`, nothing else and no directory entries.
-fn write_package(dest_path: &Path, manifest_json: &[u8], tokens_json: &[u8]) -> Result<(), String> {
-    match write_package_inner(dest_path, manifest_json, tokens_json) {
+/// Write `theme.json`, `tokens.json`, and `layout.json` when present, in
+/// that fixed order, nothing else and no directory entries.
+fn write_package(dest_path: &Path, files: &[(&str, &Vec<u8>)]) -> Result<(), String> {
+    match write_package_inner(dest_path, files) {
         Ok(()) => Ok(()),
         Err(e) => {
             // A half-written package is not a package; leave nothing behind.
@@ -521,11 +531,7 @@ fn write_package(dest_path: &Path, manifest_json: &[u8], tokens_json: &[u8]) -> 
     }
 }
 
-fn write_package_inner(
-    dest_path: &Path,
-    manifest_json: &[u8],
-    tokens_json: &[u8],
-) -> Result<(), String> {
+fn write_package_inner(dest_path: &Path, files: &[(&str, &Vec<u8>)]) -> Result<(), String> {
     let file = std::fs::File::create(dest_path)
         .map_err(|e| format!("Could not create {}: {e}", dest_path.display()))?;
     let mut writer = zip::ZipWriter::new(file);
@@ -535,9 +541,9 @@ fn write_package_inner(
         // the same theme differ byte for byte.
         .last_modified_time(zip::DateTime::default());
 
-    for (name, bytes) in [(MANIFEST_FILE, manifest_json), (TOKENS_FILE, tokens_json)] {
+    for (name, bytes) in files {
         writer
-            .start_file(name, options)
+            .start_file(*name, options)
             .map_err(|e| format!("Could not add {name} to {}: {e}", dest_path.display()))?;
         writer
             .write_all(bytes)
@@ -1308,6 +1314,36 @@ mod tests {
                 "entry {index} must carry the fixed export timestamp"
             );
         }
+    }
+
+    /// A theme installed with a layout.json must not lose it on export —
+    /// the portable package mirrors the live install directory.
+    #[test]
+    fn an_exported_theme_carries_its_layout_json_when_it_has_one() {
+        let root = scratch("export-layout");
+        let tokens: serde_json::Value = serde_json::from_str(&tokens_json()).unwrap();
+        let layout = serde_json::json!({ "schemaVersion": 1, "slots": {} });
+        crate::theme::save(&root, &manifest(), &tokens, Some(&layout))
+            .expect("could not install the fixture theme");
+        let dest = root.join("layout.zip");
+
+        export(
+            &root,
+            "aurora.test",
+            &ManifestOverrides::default(),
+            &root,
+            &dest,
+        )
+        .unwrap();
+
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(&dest).unwrap()).unwrap();
+        let names: Vec<String> = (0..archive.len())
+            .map(|i| archive.by_index(i).unwrap().name().to_string())
+            .collect();
+        assert_eq!(names, vec![MANIFEST_FILE, TOKENS_FILE, LAYOUT_FILE]);
+
+        let preview = stage_for_preview(&root, &dest, &[]).expect("an export must re-import");
+        assert_eq!(preview.file_count, 3);
     }
 
     #[test]
