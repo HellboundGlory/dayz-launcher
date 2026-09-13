@@ -239,6 +239,18 @@ describe("applyThemeFonts", () => {
     error.mockRestore();
   });
 
+  it("does not reload an unchanged font set", async () => {
+    applyThemeFonts("aurora", FONTS);
+    await settled();
+    const constructed = FakeFontFace.instances.length;
+
+    applyThemeFonts("aurora", FONTS);
+    await settled();
+
+    expect(FakeFontFace.instances).toHaveLength(constructed);
+    expect(fonts.deleted).toHaveLength(0);
+  });
+
   it("does not register a font whose load settles after a newer call superseded it", async () => {
     FakeFontFace.deferred.add("Slow");
 

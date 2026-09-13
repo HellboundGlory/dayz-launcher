@@ -10,6 +10,10 @@ const LINK_ID = "tetra-theme-css";
 let loadedFonts: FontFace[] = [];
 /** Bumped per call: a font whose `load()` settles after a newer call must not come back. */
 let fontGeneration = 0;
+/** The arguments the current set was loaded for — `apply()` re-runs on every
+ * mutation, and re-loading an unchanged set on each slider tick would drop and
+ * re-fetch the fonts mid-drag. */
+let loadedFor: string | null = null;
 
 export function applyThemeStylesheet(themeId: string | null, capabilities: string[]): void {
   const existing = document.getElementById(LINK_ID);
@@ -33,6 +37,10 @@ export function applyThemeFonts(
   themeId: string | null,
   customFonts: { family: string; file: string }[],
 ): void {
+  const key = `${themeId ?? ""}\n${customFonts.map((f) => `${f.family}\n${f.file}`).join("\n")}`;
+  if (key === loadedFor) return;
+  loadedFor = key;
+
   const generation = ++fontGeneration;
   for (const face of loadedFonts) document.fonts.delete(face);
   loadedFonts = [];
