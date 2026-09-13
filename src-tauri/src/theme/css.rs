@@ -35,9 +35,6 @@ const UNREADABLE_URL: &str =
 /// Cheap checks first, the way `theme::archive` orders its gates: the banned
 /// constructs are found by substring before the file is tokenized, and then
 /// every `url(...)` in it is classified.
-// Nothing calls this yet — wiring it into import and serve is a later
-// package's work — so the lib target would otherwise warn that it is unused.
-#[allow(dead_code)]
 pub fn validate_css(source: &str) -> Result<(), String> {
     if let Some(construct) = BANNED
         .iter()
