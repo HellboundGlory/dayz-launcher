@@ -47,6 +47,11 @@ tokio = { workspace = true }
 zip = { workspace = true }
 # Version gates on an imported theme's manifest.
 semver = { workspace = true }
+# Scans a theme's `styles.css` before it is served (see `theme::css`). The gate
+# is a reject-list plus a `url()` check, so tokenizer-level CSS Syntax Level 3
+# is all it needs; `lightningcss` has no stable release and ships the minifier
+# and transformer this project has no use for.
+cssparser = "0.38"
 tetra-core = { path = "../crates/tetra-core" }
 tetra-net = { path = "../crates/tetra-net" }
 tetra-registry = { path = "../crates/tetra-registry" }

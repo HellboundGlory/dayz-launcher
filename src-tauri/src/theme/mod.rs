@@ -6,6 +6,7 @@
 //! missing from the grid.
 
 pub mod archive;
+pub mod css;
 pub mod manifest;
 
 use std::path::{Path, PathBuf};
