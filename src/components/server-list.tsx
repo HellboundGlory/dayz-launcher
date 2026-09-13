@@ -226,6 +226,7 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                 }}
               >
                 <button
+                  data-tetra-el="favouriteAction"
                   onClick={(e) => {
                     // Without this the click also selects the row.
                     e.stopPropagation();
@@ -279,9 +280,9 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                     </span>
                   </div>
                   <div className="mt-0.5 flex items-center gap-2.5 whitespace-nowrap text-[9px] text-muted">
-                    <span className="font-mono-data">{server.map_display}</span>
+                    <span data-tetra-el="mapLabel" className="font-mono-data">{server.map_display}</span>
                     <span>·</span>
-                    <span>
+                    <span data-tetra-el="gameTimeLabel">
                       {formatGameTime(
                         server.in_game_time,
                         server.day_multiplier,
@@ -291,11 +292,11 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                     <span>·</span>
                     <span data-tetra-el="regionFlag">{regionName(server.country_code)}</span>
                     <span>·</span>
-                    <span className="font-mono-data">{server.addr}</span>
+                    <span data-tetra-el="addressLabel" className="font-mono-data">{server.addr}</span>
                     {view === "recent" && server.last_played != null && (
                       <>
                         <span>·</span>
-                        <span>
+                        <span data-tetra-el="lastPlayedLabel">
                           played {formatLastPlayed(server.last_played)}
                         </span>
                       </>
@@ -360,7 +361,7 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                       Ping
                     </div>
                   </div>
-                  <div className="l2-stat text-right">
+                  <div data-tetra-el="modCountLabel" className="l2-stat text-right">
                     <ModCount server={server} />
                     <div className="mt-0.5 text-[7px] font-bold uppercase tracking-[0.07em] text-muted">
                       Mods

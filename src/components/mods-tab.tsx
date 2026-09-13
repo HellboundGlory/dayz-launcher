@@ -392,6 +392,7 @@ const ModRow = memo(function ModRow({
       )}
     >
       <div
+        data-tetra-el="selectCheckbox"
         onClick={(e) => {
           e.stopPropagation();
           toggleSelected(mod.workshop_id);
@@ -420,7 +421,7 @@ const ModRow = memo(function ModRow({
         </span>
       </div>
 
-      <div className="mx-thumb h-[30px] w-[30px] shrink-0 overflow-hidden rounded-[7px] bg-surface2">
+      <div data-tetra-el="modIcon" className="mx-thumb h-[30px] w-[30px] shrink-0 overflow-hidden rounded-[7px] bg-surface2">
         {mod.preview_url ? (
           <img
             src={mod.preview_url}
@@ -448,7 +449,7 @@ const ModRow = memo(function ModRow({
             </span>
           )}
         </div>
-        <div className="mx-meta truncate text-[8px] text-muted">
+        <div data-tetra-el="modTags" className="mx-meta truncate text-[8px] text-muted">
           {(mod.tags ?? []).slice(0, 3).join(" · ") || mod.workshop_id}
         </div>
       </div>
@@ -482,7 +483,10 @@ const ModRow = memo(function ModRow({
       >
         {mod.size_on_disk ? formatBytes(Number(mod.size_on_disk), 1) : "—"}
       </span>
-      <span className="mx-num upd w-[76px] shrink-0 truncate text-right font-mono-data text-[9px] text-muted2">
+      <span
+        data-tetra-el="updatedLabel"
+        className="mx-num upd w-[76px] shrink-0 truncate text-right font-mono-data text-[9px] text-muted2"
+      >
         {mod.time_updated ? formatLastPlayed(mod.time_updated) : "—"}
       </span>
     </div>
@@ -530,7 +534,7 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
       </button>
 
       <div className="body flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2.5">
-        <div className="m2-preview relative h-[118px] shrink-0 overflow-hidden rounded-[7px] bg-surface2">
+        <div data-tetra-el="previewImage" className="m2-preview relative h-[118px] shrink-0 overflow-hidden rounded-[7px] bg-surface2">
           {mod.preview_url ? (
             <img src={mod.preview_url} alt="" draggable={false} className="h-full w-full object-cover" />
           ) : (
@@ -545,10 +549,11 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
           )}
         </div>
 
-        <h2 className="m2-title text-[13px] font-bold leading-snug text-ink">
+        <h2 data-tetra-el="name" className="m2-title text-[13px] font-bold leading-snug text-ink">
           {mod.title ?? mod.workshop_id}
         </h2>
         <span
+          data-tetra-el="status"
           className={cn(
             "inline-flex w-fit items-center gap-1.5 rounded-full border px-2 py-[3px]",
             PILL_TONE[ui.tone],
@@ -558,7 +563,7 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
           <span className="truncate text-[9px] font-bold uppercase tracking-wider">{ui.label}</span>
         </span>
 
-        <div className="m2-tags flex flex-wrap gap-1">
+        <div data-tetra-el="tags" className="m2-tags flex flex-wrap gap-1">
           {(mod.tags ?? []).slice(0, 6).map((t: string) => (
             <span
               key={t}
@@ -570,7 +575,7 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
         </div>
 
         {mod.description && (
-          <p className="m2-desc line-clamp-6 text-[10px] leading-relaxed text-muted">
+          <p data-tetra-el="description" className="m2-desc line-clamp-6 text-[10px] leading-relaxed text-muted">
             {mod.description}
           </p>
         )}
@@ -589,6 +594,7 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
         <div className="m2-actions mt-0.5 flex gap-1.5">
           {state === "needs_update" && (
             <button
+              data-tetra-el="updateAction"
               onClick={() => void updateMods([mod.workshop_id])}
               disabled={updating}
               title="Download the newer Workshop copy"
@@ -599,6 +605,7 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
             </button>
           )}
           <button
+            data-tetra-el="openInSteamAction"
             onClick={openInSteam}
             className="m2-btn flex flex-1 items-center justify-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-1.5 text-[9px] font-bold uppercase tracking-[0.03em] text-muted2 transition-colors hover:text-ink"
           >
@@ -606,6 +613,7 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
           </button>
           {mod.folder && (
             <button
+              data-tetra-el="openFolderAction"
               onClick={() => void openModFolder(mod.folder!)}
               className="m2-btn flex flex-1 items-center justify-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-1.5 text-[9px] font-bold uppercase tracking-[0.03em] text-muted2 transition-colors hover:text-ink"
             >
@@ -613,6 +621,7 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
             </button>
           )}
           <button
+            data-tetra-el="reinstallAction"
             onClick={() => void reinstall()}
             disabled={reinstalling}
             className="m2-btn flex flex-1 items-center justify-center gap-1 rounded-[6px] border border-accent-line bg-accent-soft px-2 py-1.5 text-[9px] font-bold uppercase tracking-[0.03em] text-accent shadow-[var(--glow)] transition-colors disabled:opacity-50"
@@ -726,7 +735,11 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
   }
 
   return (
-    <div ref={barRef} className="mods-actionbar relative shrink-0 border-t border-line bg-surface">
+    <div
+      ref={barRef}
+      data-tetra-slot="mods.actionBar"
+      className="mods-actionbar relative shrink-0 border-t border-line bg-surface"
+    >
       {/* Last VERIFY / unsubscribe / unique-select outcome, if there is one. */}
       {(store.verifyResult || store.mutationFailures || store.uniqueResult) && (
         <div className="flex items-center gap-2 border-b border-line bg-surface2 px-3 py-1">
@@ -788,7 +801,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
       )}
 
       <div className="flex items-center gap-2 px-2.5 py-[7px]">
-        <span className="ab-count shrink-0 text-[10px] tabular-nums text-muted">
+        <span data-tetra-el="totalCount" className="ab-count shrink-0 text-[10px] tabular-nums text-muted">
           {selectedCount > 0 ? (
             <>
               <span className="font-semibold text-ink">{selectedCount}</span> of {allCount} selected
@@ -799,6 +812,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
         </span>
         {selectedCount < allCount && (
           <button
+            data-tetra-el="selectAllAction"
             onClick={() => store.setAllSelected(true)}
             disabled={allCount === 0}
             className="ab-link shrink-0 text-[9px] font-bold uppercase tracking-[0.06em] text-muted transition-colors hover:text-ink disabled:opacity-40"
@@ -808,6 +822,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
         )}
         {selectedCount > 0 && (
           <button
+            data-tetra-el="clearSelectionAction"
             onClick={() => store.clearSelection()}
             className="ab-link shrink-0 text-[9px] font-bold uppercase tracking-[0.06em] text-muted transition-colors hover:text-ink"
           >
@@ -822,6 +837,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
           {/* Clean up removed */}
           {removedCount > 0 && (
             <button
+              data-tetra-el="cleanupRemovedAction"
               onClick={() =>
                 askConfirm(
                   "Clean up removed mods",
@@ -841,7 +857,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
         </div>
 
         {/* Unsubscribe group */}
-        <div className="relative flex">
+        <div data-tetra-el="unsubscribeAction" className="relative flex">
           <button
             onClick={() => {
               if (selectedCount === 0) return;
@@ -912,6 +928,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
         {/* Update outdated */}
         {outdatedCount > 0 && (
           <button
+            data-tetra-el="updateOutdatedAction"
             onClick={() => void store.updateAllOutdated()}
             disabled={busy}
             title={`Download the newer Workshop copy of ${outdatedCount} mod${outdatedCount === 1 ? "" : "s"}`}
@@ -930,7 +947,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
         )}
 
         {/* Verify group */}
-        <div className="relative flex">
+        <div data-tetra-el="verifyAction" className="relative flex">
           <button
             onClick={() => {
               setMenu(null);
@@ -1065,7 +1082,7 @@ function ServerPicker() {
   }, [open]);
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} data-tetra-el="uniqueToServerAction" className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
         disabled={store.caredServers.length === 0}
