@@ -145,6 +145,8 @@ export function SettingsView({
           open={openSec === "game"}
           onToggle={() => toggle("game")}
           onKeyDown={(e) => rove(e, 0)}
+          tetraSlot="settings.game"
+          tetraToggleEl="sectionToggle"
         >
           <div data-tetra-slot="settings.game">
             <Field label="In-Game Name" hint={'Sets -name= at launch, so you are not "Survivor".'}>
@@ -228,6 +230,8 @@ export function SettingsView({
           open={openSec === "launcher"}
           onToggle={() => toggle("launcher")}
           onKeyDown={(e) => rove(e, 1)}
+          tetraSlot="settings.launcher"
+          tetraToggleEl="sectionToggle"
         >
           <div data-tetra-slot="settings.launcher">
             <div data-tetra-el="windowOptions">
@@ -370,6 +374,8 @@ export function SettingsView({
           open={openSec === "theme"}
           onToggle={() => toggle("theme")}
           onKeyDown={(e) => rove(e, 2)}
+          tetraSlot="settings.theme"
+          tetraToggleEl="sectionToggle"
         >
           <div data-tetra-slot="settings.theme">
             <div data-tetra-el="themeManagement">
