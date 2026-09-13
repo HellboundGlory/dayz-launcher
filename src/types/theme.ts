@@ -14,7 +14,10 @@ export interface ThemeManifest {
   version: string;
   themeApi: string;
   minimumLauncherVersion: string;
-  /** `basic` (tokens only) or `full`. */
+  /** `basic` (design tokens only), `advanced` (tokens + layout.json, custom CSS,
+   * fonts and images) or `expert` (adds declarative component composition).
+   * Expert archives are rejected by the backend, which is why no preview ever
+   * carries one. */
   tier: string;
   description: string;
   preview: string | null;
