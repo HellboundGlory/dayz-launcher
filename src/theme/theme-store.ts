@@ -586,3 +586,25 @@ export function watchThemeActivationReverted(): () => void {
     void pending.then((unlisten) => unlisten());
   };
 }
+
+/** Re-reads the active theme's own files on the Dev Mode watch's change event. */
+export function watchHotReload(): () => void {
+  const pending = listen<{ id: string }>("theme-hot-reload", (event) => {
+    const id = event.payload.id;
+    // Read the id live, not captured at registration: the active theme can
+    // change while an earlier theme's watch is still in flight.
+    if (id !== useThemeStore.getState().activeId) return;
+    void getTheme(id)
+      .then((file) => {
+        const store = useThemeStore.getState();
+        useThemeStore.setState({ themeFiles: { ...store.themeFiles, [id]: file } });
+        store.apply();
+      })
+      .catch((e) => {
+        console.error(`Could not hot-reload theme "${id}":`, e);
+      });
+  });
+  return () => {
+    void pending.then((unlisten) => unlisten());
+  };
+}
