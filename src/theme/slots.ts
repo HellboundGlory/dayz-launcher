@@ -150,6 +150,13 @@ export const SLOTS: Slot[] = [
     ],
   },
   {
+    id: "settings.background",
+    themeable: "full",
+    // Pure backdrop: nothing here is individually addressable, only
+    // restylable as a whole (`[data-tetra-slot="settings.background"] {...}`).
+    children: [],
+  },
+  {
     id: "settings.shell",
     themeable: "full",
     children: [
