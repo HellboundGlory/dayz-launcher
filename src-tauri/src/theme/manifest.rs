@@ -21,7 +21,7 @@ pub struct ThemeManifest {
     /// What the theme may ship beyond its mandatory `tokens.json`: `basic`
     /// (tokens only), `advanced` (adds `layout.json`, `styles.css`, bundled
     /// fonts and images), or `expert` (adds `components/` and
-    /// `settings.schema.json` — not loadable by this build, rejected on import).
+    /// `settings.schema.json`). All three import and export the same way.
     pub tier: String,
     pub description: String,
     pub preview: Option<String>,
