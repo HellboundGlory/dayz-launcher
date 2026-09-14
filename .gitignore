@@ -15,6 +15,12 @@ tetra.db-wal
 # Design-rationale notes mirroring the source tree
 .ai-notes/
 
+# Theme-system design docs — working documents for an unshipped feature,
+# disposable once it's fully built; not published
+THEME_SYSTEM_PROPOSAL.md
+CONTEXT.md
+docs/adr/
+
 # Editor / tooling
 .claude/
 *.log
