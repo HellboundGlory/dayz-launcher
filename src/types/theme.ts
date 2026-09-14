@@ -16,9 +16,8 @@ export interface ThemeManifest {
   minimumLauncherVersion: string;
   /** `basic` (design tokens only), `advanced` (tokens + layout.json, custom CSS,
    * fonts and images) or `expert` (adds `components/` and `settings.schema.json`
-   * — declarative component composition and theme-defined settings).
-   * Expert archives are rejected by the backend, which is why no preview ever
-   * carries one. */
+   * — declarative component composition and theme-defined settings). Every tier
+   * imports and exports; a preview carries one too. */
   tier: string;
   description: string;
   preview: string | null;
@@ -48,7 +47,7 @@ export type ThemeFile = ThemeManifest & {
   tokens: unknown;
   layout: unknown | null;
   settingsSchema: unknown | null;
-  /** Keyed by slot id — `"server.row"` and/or `"mods.row"`; a missing key means the theme ships no such tree. */
+  /** Keyed by slot id — any slot may be a key; a missing key means the theme ships no such tree. */
   components: Record<string, unknown>;
 };
 
