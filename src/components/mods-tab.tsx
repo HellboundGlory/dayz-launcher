@@ -4,7 +4,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type ReactNode,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -45,6 +44,7 @@ import { SlotChildren } from "@/theme/slot-render";
 import { useResolvedSlot } from "@/theme/use-resolved-layout";
 import { resolveChildOrder } from "@/theme/slot-order";
 import { resolveComponentTree, type ResolvedNode } from "@/theme/component-tree";
+import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
 import { SLOTS } from "@/theme/slots";
 
 // One DOM group of a slot's children per list: the markup's order, plus the
@@ -72,77 +72,8 @@ const ACTION_BAR_POSITIONS = [
 const ACTION_BAR_CLUSTER = ["uniqueToServerAction", "cleanupRemovedAction"];
 const ACTION_BAR_WRAPPERS = { actionBarCluster: ACTION_BAR_CLUSTER };
 
-// A component tree's containers are a closed vocabulary of layout props, so
-// every class they can produce is written out literally here — Tailwind's
-// content scan never sees a name this file builds at runtime.
-type ContainerNode = Extract<ResolvedNode, { type: "stack" | "box" | "grid" }>;
-
 /** The registry's own `mods.row` children — what a `core.ref` may name. */
 const MODS_ROW_CHILDREN = SLOTS.find((slot) => slot.id === "mods.row")?.children ?? [];
-
-// Fixed lookups of literal class names: Tailwind's content scan only sees
-// strings written in this file, so a synthesized `flex-${direction}` would ship
-// with no CSS behind it.
-const FLEX_DIRECTION: Record<"row" | "column", string> = { row: "flex-row", column: "flex-col" };
-const FLEX_ALIGN: Record<"start" | "center" | "end" | "stretch", string> = {
-  start: "items-start",
-  center: "items-center",
-  end: "items-end",
-  stretch: "items-stretch",
-};
-const FLEX_JUSTIFY: Record<"start" | "center" | "end" | "space-between", string> = {
-  start: "justify-start",
-  center: "justify-center",
-  end: "justify-end",
-  "space-between": "justify-between",
-};
-
-/** A container's own props. `stack` lays out with literal flex classes; `grid`
- * and every `gap` use inline styles; `box` groups and pads only, so
- * direction/align/justify/wrap — and `gap`, which does nothing outside flex or
- * grid — are ignored there. */
-export function containerProps(node: ContainerNode): {
-  className?: string;
-  style?: CSSProperties;
-} {
-  if (node.type === "box") return {};
-  if (node.type === "grid") {
-    return {
-      style: {
-        display: "grid",
-        ...(node.gap !== undefined && { gap: node.gap }),
-        ...(node.direction !== undefined && { gridAutoFlow: node.direction }),
-        ...(node.align !== undefined && { alignItems: node.align }),
-        ...(node.justify !== undefined && { justifyContent: node.justify }),
-      },
-    };
-  }
-  const className = cn(
-    "flex",
-    FLEX_DIRECTION[node.direction ?? "row"],
-    node.wrap === true && "flex-wrap",
-    node.align !== undefined && FLEX_ALIGN[node.align],
-    node.justify !== undefined && FLEX_JUSTIFY[node.justify],
-  );
-  return node.gap === undefined ? { className } : { className, style: { gap: node.gap } };
-}
-
-/** A theme's composition tree, rendered from the same flat map the grouped
- * fallback filters. */
-function ModRowTree({
-  node,
-  nodes,
-}: {
-  node: ResolvedNode;
-  nodes: Record<string, ReactNode>;
-}) {
-  if (node.type === "core") return <>{nodes[node.ref] ?? null}</>;
-  const children = node.children.map((child, index) => (
-    <ModRowTree key={index} node={child} nodes={nodes} />
-  ));
-  if (node.type === "box") return <div>{children}</div>;
-  return <div {...containerProps(node)}>{children}</div>;
-}
 
 // Mods tab: rich rows with a slide-in inspector, status filter, and action bar.
 
@@ -509,6 +440,7 @@ export function ModsTab() {
                         order={rowOrder}
                         mainOrder={rowMainOrder}
                         composition={rowComposition}
+                        themeId={activeId}
                       />
                     </div>
                   );
@@ -535,12 +467,14 @@ const ModRow = memo(function ModRow({
   order,
   mainOrder,
   composition,
+  themeId,
 }: {
   mod: SubscribedMod;
   selected: boolean;
   order: string[];
   mainOrder: string[];
   composition: ResolvedNode | null;
+  themeId: string;
 }) {
   const checked = useModsStore((s) => s.selectedIds.has(mod.workshop_id));
   const rawLive = useModsStore((s) => s.states[mod.workshop_id]);
@@ -562,7 +496,7 @@ const ModRow = memo(function ModRow({
       )}
     >
       {composition ? (
-        <ModRowTree node={composition} nodes={nodes} />
+        <ComponentTreeRenderer node={composition} nodes={nodes} themeId={themeId} />
       ) : (
         <SlotChildren
           order={order}
