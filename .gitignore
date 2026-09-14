@@ -12,6 +12,10 @@ tetra.db-shm
 tetra.db-wal
 
 
+# Theme-system design docs — working documents for an unshipped feature,
+# disposable once it's fully built; not published
+docs/adr/
+
 # Editor / tooling
 *.log
 
