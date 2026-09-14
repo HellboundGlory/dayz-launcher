@@ -3,7 +3,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_EXTRAS } from "./apply";
 import { DEFAULT_RADII, DEFAULT_SPACING, DEFAULT_TYPOGRAPHY, type Palette } from "./palette";
-import { effectiveExtras, resolvedExtras, useThemeStore, watchThemeActivationReverted } from "./theme-store";
+import {
+  effectiveExtras,
+  mergeSettingsValues,
+  resolvedExtras,
+  useThemeStore,
+  watchHotReload,
+  watchThemeActivationReverted,
+} from "./theme-store";
 import type { ThemeFile } from "@/types/theme";
 
 const backend = vi.hoisted(() => ({
@@ -17,32 +24,78 @@ const backend = vi.hoisted(() => ({
   savedTokens: [] as unknown[],
   /** `tokens.json` contents `get_theme` returns, by id. */
   tokensById: {} as Record<string, unknown>,
+  /** `settings.values.json` contents `get_theme_settings_values` returns, by id. */
+  settingsById: {} as Record<string, Record<string, unknown>>,
+  /** Each theme's `settings.schema.json`, by id. */
+  schemaById: {} as Record<string, unknown>,
+  /** `layout.json` contents `get_theme` returns, by id. */
+  layoutById: {} as Record<string, unknown>,
+  /** Every `set_theme_settings_value` call, in order. */
+  setSettingsCalls: [] as { id: string; fieldId: string; value: number | boolean }[],
+  /** Ids `get_theme` was asked for, in call order. */
+  themeCalls: [] as string[],
+  /** Every `save_theme_layout` call, in order. */
+  layoutWrites: [] as { id: string; layout: unknown }[],
+  /** Every `arm_layout_edit` call, in order. */
+  layoutArms: [] as { id: string; file: string; previousBytes: number[] | null }[],
+  /** When set, `save_theme_layout` rejects with it. */
+  layoutWriteError: null as unknown,
 }));
 
 const events = vi.hoisted(() => ({
   /** The handler `watchThemeActivationReverted` registered, if any. */
-  reverted: null as ((event: { payload: { previousId: string | null } }) => void) | null,
+  reverted: null as
+    | ((event: { payload: { previousId: string | null; restoredTheme: string | null } }) => void)
+    | null,
+  /** The handler `watchHotReload` registered, if any. */
+  hotReload: null as ((event: { payload: { id: string } }) => void) | null,
 }));
 
 vi.mock("@tauri-apps/api/event", () => ({
   listen: (
-    _name: string,
-    handler: (event: { payload: { previousId: string | null } }) => void,
+    name: string,
+    handler: (event: {
+      payload: { previousId: string | null; restoredTheme: string | null };
+    }) => void,
   ) => {
-    events.reverted = handler;
+    if (name === "theme-hot-reload") {
+      events.hotReload = handler as unknown as (event: { payload: { id: string } }) => void;
+    } else {
+      events.reverted = handler;
+    }
     return Promise.resolve(() => {});
   },
 }));
 
 vi.mock("@/lib/tauri", () => ({
   listInstalledThemes: async () => backend.installed,
-  getTheme: async (id: string) => ({ id, name: id, tokens: backend.tokensById[id] ?? {} }),
+  getTheme: async (id: string) => {
+    backend.themeCalls.push(id);
+    return {
+      id,
+      name: id,
+      tokens: backend.tokensById[id] ?? {},
+      layout: backend.layoutById[id] ?? null,
+      settingsSchema: backend.schemaById[id] ?? null,
+    };
+  },
   getSettings: async () => ({ activeThemeId: null }),
   setActiveThemeId: async (id: string | null) => void backend.setActiveCalls.push(id),
   migrateLegacyCustomThemes: async () => backend.migratedIds,
   armActivation: async () => {},
   saveTheme: async (_manifest: unknown, tokens: unknown) => void backend.savedTokens.push(tokens),
   deleteTheme: async () => {},
+  getThemeSettingsValues: async (id: string) => backend.settingsById[id] ?? {},
+  setThemeSettingsValue: async (id: string, fieldId: string, value: number | boolean) => {
+    backend.setSettingsCalls.push({ id, fieldId, value });
+  },
+  saveThemeLayout: async (id: string, layout: unknown) => {
+    if (backend.layoutWriteError !== null) throw backend.layoutWriteError;
+    backend.layoutWrites.push({ id, layout });
+  },
+  armLayoutEdit: async (id: string, file: string, previousBytes: number[] | null) => {
+    backend.layoutArms.push({ id, file, previousBytes });
+  },
 }));
 
 const storage = new Map<string, string>();
@@ -111,11 +164,19 @@ beforeEach(() => {
   backend.installed = [];
   backend.savedTokens.length = 0;
   backend.tokensById = {};
+  backend.settingsById = {};
+  backend.schemaById = {};
+  backend.layoutById = {};
+  backend.setSettingsCalls.length = 0;
+  backend.themeCalls.length = 0;
+  backend.layoutWrites.length = 0;
+  backend.layoutArms.length = 0;
+  backend.layoutWriteError = null;
   themeCssHead.length = 0;
   fontFaces.length = 0;
   addedFonts.length = 0;
   for (const name of Object.keys(writtenProps)) delete writtenProps[name];
-  useThemeStore.setState({ activeId: "neutral" });
+  useThemeStore.setState({ activeId: "neutral", themeFiles: {}, settingsValues: {} });
 });
 
 /** Two microtask turns: enough for an `applyThemeFonts` load chain to settle. */
@@ -341,6 +402,100 @@ describe("apply() asset wiring", () => {
   });
 });
 
+describe("settings values", () => {
+  const SCHEMA = {
+    schemaVersion: 1,
+    fields: [
+      { id: "accentHue", type: "number", label: "Accent hue", min: 0, max: 360, default: 210 },
+      { id: "compactRows", type: "boolean", label: "Compact rows", default: false },
+    ],
+  };
+
+  /** A theme whose palette is templated on the two schema fields above. Both
+   * schemes are templated so an assertion holds whichever one is active. */
+  const templated = (id: string) => {
+    backend.installed = [{ id, name: id }];
+    backend.schemaById[id] = SCHEMA;
+    backend.tokensById[id] = {
+      dark: { accent: "hsl({{accentHue}}, 45%, 60%)" },
+      light: { accent: "hsl({{accentHue}}, 45%, 60%)" },
+      spacing: { md: "{{accentHue}}px" },
+    };
+    return id;
+  };
+
+  it("fills every field from the schema's own default, letting a tuned value win", () => {
+    const fields = [
+      { id: "accentHue", type: "number" as const, label: "Accent hue", min: 0, max: 360, default: 210 },
+      { id: "compactRows", type: "boolean" as const, label: "Compact rows", default: false },
+    ];
+
+    expect(mergeSettingsValues(fields, { accentHue: 300 })).toEqual({
+      accentHue: 300,
+      compactRows: false,
+    });
+  });
+
+  it("treats a wrong-typed value and an unknown field id as untuned", () => {
+    const fields = [
+      { id: "accentHue", type: "number" as const, label: "Accent hue", min: 0, max: 360, default: 210 },
+      { id: "compactRows", type: "boolean" as const, label: "Compact rows", default: false },
+    ];
+
+    expect(
+      mergeSettingsValues(fields, { accentHue: "300", compactRows: true, gone: 1 }),
+    ).toEqual({ accentHue: 210, compactRows: true });
+  });
+
+  it("paints a picked theme's tuned values on the activation itself", async () => {
+    const id = templated("local.tuned");
+    backend.settingsById[id] = { accentHue: 300 };
+
+    await useThemeStore.getState().pickTheme(id);
+
+    expect(useThemeStore.getState().settingsValues[id]).toEqual({
+      accentHue: 300,
+      compactRows: false,
+    });
+    expect(writtenProps["--accent"]).toBe("hsl(300, 45%, 60%)");
+    expect(writtenProps["--space-md"]).toBe("300px");
+  });
+
+  it("renders a never-tuned field as its schema default, not literal or undefined", async () => {
+    const id = templated("local.untuned");
+
+    await useThemeStore.getState().pickTheme(id);
+
+    // A complete values object always reaches substitution: the untuned field
+    // carries its own default, which is what renders.
+    expect(writtenProps["--accent"]).toBe("hsl(210, 45%, 60%)");
+    expect(writtenProps["--space-md"]).toBe("210px");
+  });
+
+  it("leaves a placeholder no field names literal, per Package C's contract", async () => {
+    const id = templated("local.stale");
+    backend.tokensById[id] = {
+      dark: { accent: "hsl({{goneHue}}, 45%, 60%)" },
+      light: { accent: "hsl({{goneHue}}, 45%, 60%)" },
+    };
+
+    await useThemeStore.getState().pickTheme(id);
+
+    expect(writtenProps["--accent"]).toBe("hsl({{goneHue}}, 45%, 60%)");
+  });
+
+  it("writes a tuned value through and repaints from it without re-reading", async () => {
+    const id = templated("local.tuned");
+    backend.settingsById[id] = {};
+    await useThemeStore.getState().pickTheme(id);
+
+    await useThemeStore.getState().setSettingsValue(id, "accentHue", 42);
+
+    expect(backend.setSettingsCalls).toEqual([{ id, fieldId: "accentHue", value: 42 }]);
+    expect(writtenProps["--accent"]).toBe("hsl(42, 45%, 60%)");
+  });
+});
+
 describe("pickTheme bloom reset", () => {
   it("adopts the picked theme's own glowIntensity as the live bloom", async () => {
     backend.tokensById["local.dim"] = { shadows: { glowIntensity: 0.4 } };
@@ -379,10 +534,194 @@ describe("pickTheme bloom reset", () => {
     expect(useThemeStore.getState().bloom).toBe(0.4);
 
     watchThemeActivationReverted();
-    events.reverted?.({ payload: { previousId: "neutral" } });
+    events.reverted?.({ payload: { previousId: "neutral", restoredTheme: null } });
 
     expect(useThemeStore.getState().activeId).toBe("neutral");
     expect(useThemeStore.getState().bloom).toBe(DEFAULT_EXTRAS.shadows.glowIntensity);
     expect(writtenProps["--bloom"]).toBe(String(DEFAULT_EXTRAS.shadows.glowIntensity));
+  });
+
+  it("re-reads the restored theme's file and repaints from it before resetting the ids", async () => {
+    const id = "local.edited";
+    useThemeStore.setState({
+      activeId: id,
+      themeFiles: {
+        [id]: {
+          id,
+          name: id,
+          tokens: { dark: { bg: "#000000" } },
+          // The abandoned preview's layout; the file on disk no longer has it.
+          layout: { schemaVersion: 1, slots: { "shell.footer": { order: ["serverCounts"] } } },
+        } as ThemeFile,
+      },
+    });
+    // What revert put back on disk.
+    backend.layoutById[id] = { schemaVersion: 1, slots: {} };
+
+    watchThemeActivationReverted();
+    events.reverted?.({ payload: { previousId: id, restoredTheme: id } });
+    await settled();
+
+    expect(backend.themeCalls).toEqual([id]);
+    expect(useThemeStore.getState().themeFiles[id]?.layout).toEqual({ schemaVersion: 1, slots: {} });
+    expect(useThemeStore.getState().activeId).toBe(id);
+  });
+
+  it("never fetches for an ordinary id-switch revert", async () => {
+    useThemeStore.setState({ activeId: "local.dim", themeFiles: {} });
+
+    watchThemeActivationReverted();
+    events.reverted?.({ payload: { previousId: "neutral", restoredTheme: null } });
+    await settled();
+
+    expect(backend.themeCalls).toEqual([]);
+    expect(useThemeStore.getState().activeId).toBe("neutral");
+  });
+});
+
+describe("layout edits", () => {
+  const LAYOUT = {
+    schemaVersion: 1,
+    slots: {
+      "shell.footer": { order: ["steamStateChip", "schemeToggle"], hidden: ["uiScaleSlider"] },
+      "server.row": { order: ["name"], gap: "4px" },
+    },
+  };
+
+  /** A theme carrying a layout file and a palette, active. */
+  const active = (layout: unknown) => {
+    const id = "local.edited";
+    useThemeStore.setState({
+      activeId: id,
+      themeFiles: {
+        [id]: {
+          id,
+          name: id,
+          tokens: { dark: { bg: "#123456" }, light: { bg: "#123456" } },
+          layout,
+        } as ThemeFile,
+      },
+    });
+    return id;
+  };
+
+  const bytesOf = (value: unknown) =>
+    Array.from(new TextEncoder().encode(JSON.stringify(value)));
+
+  it("reorders one slot, persists the whole object, and arms the pre-edit bytes", async () => {
+    const id = active(LAYOUT);
+    // apply() is the only thing that writes the UI prefs; clearing it first
+    // makes the repaint observable even though nothing renders layouts yet.
+    storage.delete("tetra.themeActive");
+
+    await useThemeStore.getState().reorderSlotChildren("shell.footer", ["schemeToggle", "steamStateChip"]);
+
+    const next = {
+      schemaVersion: 1,
+      slots: {
+        "shell.footer": { order: ["schemeToggle", "steamStateChip"], hidden: ["uiScaleSlider"] },
+        // Every other slot — and every other key in this one — survives untouched.
+        "server.row": { order: ["name"], gap: "4px" },
+      },
+    };
+    expect(useThemeStore.getState().themeFiles[id]?.layout).toEqual(next);
+    expect(backend.layoutWrites).toEqual([{ id, layout: next }]);
+    expect(backend.layoutArms).toEqual([
+      { id, file: "layout.json", previousBytes: bytesOf(LAYOUT) },
+    ]);
+    expect(storage.has("tetra.themeActive")).toBe(true);
+  });
+
+  it("arms null previousBytes for a theme with no layout file yet", async () => {
+    const id = active(null);
+
+    await useThemeStore.getState().reorderSlotChildren("shell.footer", ["name"]);
+
+    expect(backend.layoutWrites).toEqual([
+      { id, layout: { schemaVersion: 1, slots: { "shell.footer": { order: ["name"] } } } },
+    ]);
+    expect(backend.layoutArms).toEqual([{ id, file: "layout.json", previousBytes: null }]);
+  });
+
+  it("adds a hidden child, then removes it and drops the emptied key", async () => {
+    const id = active({ schemaVersion: 1, slots: {} });
+
+    await useThemeStore.getState().toggleSlotChildVisibility("shell.footer", "serverCounts");
+    expect(useThemeStore.getState().themeFiles[id]?.layout).toEqual({
+      schemaVersion: 1,
+      slots: { "shell.footer": { hidden: ["serverCounts"] } },
+    });
+
+    await useThemeStore.getState().toggleSlotChildVisibility("shell.footer", "serverCounts");
+    expect(useThemeStore.getState().themeFiles[id]?.layout).toEqual({
+      schemaVersion: 1,
+      slots: { "shell.footer": {} },
+    });
+  });
+
+  it("writes a slot param verbatim, keeping the slot's order and hidden list", async () => {
+    const id = active(LAYOUT);
+
+    await useThemeStore.getState().setSlotParam("server.row", "gap", "10px");
+
+    expect(useThemeStore.getState().themeFiles[id]?.layout).toEqual({
+      schemaVersion: 1,
+      slots: {
+        "shell.footer": { order: ["steamStateChip", "schemeToggle"], hidden: ["uiScaleSlider"] },
+        "server.row": { order: ["name"], gap: "10px" },
+      },
+    });
+  });
+
+  it("rolls the preview back and arms nothing when the write fails", async () => {
+    const id = active(LAYOUT);
+    const before = useThemeStore.getState().themeFiles[id];
+    backend.layoutWriteError = new Error("disk full");
+
+    await useThemeStore.getState().reorderSlotChildren("shell.footer", ["schemeToggle"]);
+
+    expect(useThemeStore.getState().themeFiles[id]).toEqual(before);
+    expect(backend.layoutArms).toEqual([]);
+  });
+});
+
+describe("hot reload listener", () => {
+  it("re-reads and re-applies the active theme on a matching event", async () => {
+    useThemeStore.setState({ activeId: "local.aurora", scheme: "dark" });
+    backend.tokensById["local.aurora"] = { dark: { bg: "#123456" } };
+
+    watchHotReload();
+    events.hotReload?.({ payload: { id: "local.aurora" } });
+    await settled();
+
+    expect(useThemeStore.getState().themeFiles["local.aurora"]?.tokens).toEqual({
+      dark: { bg: "#123456" },
+    });
+    expect(writtenProps["--bg"]).toBe("#123456");
+  });
+
+  it("ignores an event for an id that is no longer active", async () => {
+    useThemeStore.setState({ activeId: "local.aurora" });
+    backend.tokensById["local.stale"] = { dark: { bg: "#123456" } };
+
+    watchHotReload();
+    events.hotReload?.({ payload: { id: "local.stale" } });
+    await settled();
+
+    expect(backend.themeCalls).toEqual([]);
+    expect(useThemeStore.getState().themeFiles["local.stale"]).toBeUndefined();
+  });
+
+  it("matches the id live, not the one active when the listener was registered", async () => {
+    useThemeStore.setState({ activeId: "local.first", scheme: "dark" });
+    watchHotReload();
+    backend.tokensById["local.second"] = { dark: { bg: "#654321" } };
+    useThemeStore.setState({ activeId: "local.second" });
+
+    events.hotReload?.({ payload: { id: "local.second" } });
+    await settled();
+
+    expect(backend.themeCalls).toEqual(["local.second"]);
+    expect(writtenProps["--bg"]).toBe("#654321");
   });
 });

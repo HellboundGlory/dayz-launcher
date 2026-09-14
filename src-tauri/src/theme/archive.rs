@@ -13,7 +13,8 @@ use std::io::{Read, Seek, Write};
 use std::path::{Path, PathBuf};
 
 use crate::theme::{
-    ThemeManifest, ThemeSummary, LAYOUT_FILE, MANIFEST_FILE, STYLES_FILE, TOKENS_FILE,
+    ThemeManifest, ThemeSummary, LAYOUT_FILE, MANIFEST_FILE, MODS_ROW_COMPONENTS_FILE,
+    SERVER_ROW_COMPONENTS_FILE, SETTINGS_SCHEMA_FILE, STYLES_FILE, TOKENS_FILE,
 };
 use quick_xml::events::Event;
 
@@ -21,9 +22,8 @@ use quick_xml::events::Event;
 /// range check once a second one exists (hence the name).
 pub const SUPPORTED_THEME_API_RANGE: &str = "1.0";
 
-/// The tiers this build can load. `expert` is deliberately absent — its
-/// `components/` and `settings.schema.json` are unimplemented everywhere.
-const SUPPORTED_TIERS: [&str; 2] = ["basic", "advanced"];
+/// The tiers this build can load.
+const SUPPORTED_TIERS: [&str; 3] = ["basic", "advanced", "expert"];
 
 /// Headroom above a manifest+palette, not a target — big enough for a real
 /// theme, small enough to reject an accidental asset pack cleanly.
@@ -780,22 +780,25 @@ fn be_u32(bytes: &[u8], at: usize) -> Option<u32> {
     Some(u32::from_be_bytes([slice[0], slice[1], slice[2], slice[3]]))
 }
 
-/// Refuse an `advanced` package whose content needs a capability its manifest
-/// does not declare. `basic` is exempt: a basic theme may carry stray assets
-/// nothing reads, and every theme installed before this gate existed is basic.
-/// Every missing capability is reported at once, not one per attempt.
+/// Refuse an `advanced` or `expert` package whose content needs a capability
+/// its manifest does not declare. `basic` is exempt: a basic theme may carry
+/// stray assets nothing reads, and every theme installed before this gate
+/// existed is basic. Every missing capability is reported at once, not one
+/// per attempt.
 fn missing_capabilities(manifest: &ThemeManifest, staging_dir: &Path) -> Result<(), String> {
-    if manifest.tier != "advanced" {
+    if manifest.tier != "advanced" && manifest.tier != "expert" {
         return Ok(());
     }
     let declares = |capability: &str| manifest.capabilities.iter().any(|d| d == capability);
 
     // One trigger file per capability, in a fixed order so the message is stable.
-    let mut triggers: [(&str, Option<String>); 4] = [
+    let mut triggers: [(&str, Option<String>); 6] = [
         ("layout", None),
         ("css", None),
         ("fonts", None),
         ("assets", None),
+        ("components", None),
+        ("settings", None),
     ];
     let mut stack = vec![(staging_dir.to_path_buf(), String::new())];
     while let Some((dir, prefix)) = stack.pop() {
@@ -833,6 +836,11 @@ fn missing_capabilities(manifest: &ThemeManifest, staging_dir: &Path) -> Result<
                 .any(|i| i.eq_ignore_ascii_case(extension))
             {
                 3
+            } else if relative == SERVER_ROW_COMPONENTS_FILE || relative == MODS_ROW_COMPONENTS_FILE
+            {
+                4
+            } else if prefix.is_empty() && name == SETTINGS_SCHEMA_FILE {
+                5
             } else {
                 continue;
             };
@@ -972,6 +980,7 @@ pub fn export(
         mut manifest,
         tokens,
         layout,
+        ..
     } = crate::theme::get(themes_root, id)?;
     overrides.apply_to(&mut manifest);
 
@@ -1023,9 +1032,18 @@ pub fn export(
     write_package(dest_path, &files)
 }
 
-/// The four files an export writes from named sources rather than by walking
-/// the install directory; the walk skips them so nothing is packaged twice.
-const EXPORTED_FILES: [&str; 4] = [MANIFEST_FILE, TOKENS_FILE, LAYOUT_FILE, STYLES_FILE];
+/// The files an export writes from named sources rather than by walking the
+/// install directory; the walk skips them so nothing is packaged twice.
+/// `settings.values.json` is listed although no named source writes it: it is
+/// this user's own tuning of their installed copy, not the theme's portable
+/// content (Phase 3 §0 decision 4).
+const EXPORTED_FILES: [&str; 5] = [
+    MANIFEST_FILE,
+    TOKENS_FILE,
+    LAYOUT_FILE,
+    STYLES_FILE,
+    crate::theme::settings_values::SETTINGS_VALUES_FILE,
+];
 
 /// Append every other file an installed theme ships, at its own relative path.
 ///
@@ -2320,21 +2338,20 @@ mod tests {
         assert_eq!(preview.file_count, 3);
     }
 
-    /// `expert` is not in `SUPPORTED_TIERS`: `components/` and
-    /// `settings.schema.json` are unimplemented.
+    /// `expert` is in `SUPPORTED_TIERS`: the tier gate itself no longer
+    /// refuses it (the capability cross-check is separate and covered by its
+    /// own tests).
     #[test]
-    fn an_expert_tier_theme_is_refused_with_the_newer_launcher_message() {
+    fn an_expert_tier_theme_clears_the_tier_gate() {
         let root = scratch("tier");
         let mut expert = manifest();
         expert.tier = "expert".to_string();
         let zip_path = fixture_with_manifest(&root, "tier", &expert);
 
-        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
+        let preview =
+            stage_for_preview(&root, &zip_path, &[]).expect("expert is a supported tier now");
 
-        assert!(
-            error.contains("newer Tetra Launcher"),
-            "message was: {error}"
-        );
+        assert_eq!(preview.manifest.tier, "expert");
     }
 
     #[test]
@@ -2852,6 +2869,87 @@ mod tests {
         }
     }
 
+    /// Phase 3's own acceptance test: an installed expert theme carrying
+    /// every file kind this phase added — a palette, a layout, a stylesheet,
+    /// a font, both component trees and a settings schema — must survive
+    /// export -> reimport on a clean profile with every byte intact, now
+    /// that the tier gate lets `expert` through.
+    #[test]
+    fn an_expert_theme_round_trips_through_export_and_reimport() {
+        let root = scratch("export-expert");
+        let clean = scratch("export-expert-clean");
+        let tokens: serde_json::Value = serde_json::from_str(&tokens_json()).unwrap();
+        let layout = serde_json::json!({ "schemaVersion": 1, "slots": { "sidebar": "aside" } });
+        let expert = ThemeManifest {
+            tier: "expert".to_string(),
+            capabilities: ["tokens", "layout", "css", "fonts", "components", "settings"]
+                .iter()
+                .map(|c| c.to_string())
+                .collect(),
+            ..manifest()
+        };
+        crate::theme::save(&root, &expert, &tokens, Some(&layout)).unwrap();
+
+        // Hand-placed local files, which `save` does not write.
+        let styles = br#"[data-tetra-slot="shell.sidebar"] { opacity: 0.9; }"#.to_vec();
+        let font = minimal_ttf();
+        let server_row =
+            br#"{"schemaVersion":1,"slot":"server.row","root":{"type":"core","ref":"name"}}"#
+                .to_vec();
+        let mods_row =
+            br#"{"schemaVersion":1,"slot":"mods.row","root":{"type":"core","ref":"modName"}}"#
+                .to_vec();
+        let settings_schema = br#"{"schemaVersion":1,"fields":[{"id":"accentHue","type":"number","label":"Accent hue","min":0,"max":360,"default":210}]}"#.to_vec();
+        let installed = root.join("aurora.test");
+        std::fs::create_dir_all(installed.join("assets/fonts")).unwrap();
+        std::fs::create_dir_all(installed.join("components")).unwrap();
+        std::fs::write(installed.join(STYLES_FILE), &styles).unwrap();
+        std::fs::write(installed.join("assets/fonts/body.ttf"), &font).unwrap();
+        std::fs::write(installed.join(SERVER_ROW_COMPONENTS_FILE), &server_row).unwrap();
+        std::fs::write(installed.join(MODS_ROW_COMPONENTS_FILE), &mods_row).unwrap();
+        std::fs::write(installed.join(SETTINGS_SCHEMA_FILE), &settings_schema).unwrap();
+
+        let dest = root.join("expert.zip");
+        export(
+            &root,
+            "aurora.test",
+            &ManifestOverrides::default(),
+            &root,
+            &dest,
+        )
+        .expect("exporting an expert theme must work");
+
+        let preview = stage_for_preview(&clean, &dest, &[])
+            .expect("the export must re-import cleanly now that expert is supported");
+        assert_eq!(preview.manifest.tier, "expert");
+        assert_eq!(preview.file_count, 8);
+
+        let staged = staging_dir(&clean, &preview);
+        assert_eq!(preview.manifest.id, expert.id);
+        assert_eq!(preview.manifest.capabilities, expert.capabilities);
+        for (name, original) in [
+            (
+                TOKENS_FILE,
+                std::fs::read(installed.join(TOKENS_FILE)).unwrap(),
+            ),
+            (
+                LAYOUT_FILE,
+                std::fs::read(installed.join(LAYOUT_FILE)).unwrap(),
+            ),
+            (STYLES_FILE, styles),
+            ("assets/fonts/body.ttf", font),
+            (SERVER_ROW_COMPONENTS_FILE, server_row),
+            (MODS_ROW_COMPONENTS_FILE, mods_row),
+            (SETTINGS_SCHEMA_FILE, settings_schema),
+        ] {
+            assert_eq!(
+                std::fs::read(staged.join(name)).unwrap(),
+                original,
+                "{name} must survive the round trip byte for byte"
+            );
+        }
+    }
+
     /// Export is the allow-list's second enforcement point: a file the import
     /// side would refuse is left out of the package rather than failing the
     /// export, and one that fails the content sniff goes with it.
@@ -2881,6 +2979,37 @@ mod tests {
         let staged = staging_dir(&root, &preview).join("assets/icon.ttf");
         // The real relative path, with `/` as the separator, is the entry name.
         assert_eq!(std::fs::read(staged).unwrap(), font);
+    }
+
+    /// The settings-values sidecar is this user's own tuning of their installed
+    /// copy, not the theme's portable content — an export must leave it behind
+    /// even though `append_assets`' extension walk would otherwise accept it.
+    #[test]
+    fn an_export_leaves_the_settings_values_sidecar_behind() {
+        let root = scratch("export-values");
+        install(&root, &manifest(), &tokens_json());
+        let installed = root.join("aurora.test");
+        std::fs::write(
+            installed.join(crate::theme::settings_values::SETTINGS_VALUES_FILE),
+            br#"{ "accentHue": 40 }"#,
+        )
+        .unwrap();
+
+        let dest = root.join("values.zip");
+        export(
+            &root,
+            "aurora.test",
+            &ManifestOverrides::default(),
+            &root,
+            &dest,
+        )
+        .unwrap();
+
+        let preview = stage_for_preview(&root, &dest, &[]).expect("the export must re-import");
+        assert_eq!(preview.file_count, 2);
+        assert!(!staging_dir(&root, &preview)
+            .join(crate::theme::settings_values::SETTINGS_VALUES_FILE)
+            .exists());
     }
 
     /// The ceilings an import enforces apply on the way out too, so an export

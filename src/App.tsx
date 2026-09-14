@@ -34,7 +34,7 @@ import { useSettingsStore } from "./stores/settings-store";
 import { useUpdateStore } from "./stores/update-store";
 import { useModsStore } from "./stores/mods-store";
 import { watchDayz } from "./stores/launch-store";
-import { watchThemeActivationReverted } from "./theme/theme-store";
+import { useThemeStore, watchHotReload, watchThemeActivationReverted } from "./theme/theme-store";
 import { useResolvedSlot } from "./theme/use-resolved-layout";
 import type { Server } from "./types/server";
 import {
@@ -53,6 +53,8 @@ import {
   type ModsPendingEntry,
   type ListSource,
   logClient,
+  watchActiveTheme,
+  stopWatchingTheme,
 } from "./lib/tauri";
 import { listen, emit } from "@tauri-apps/api/event";
 // Static import: window-resize-handles already pulls this in statically anyway.
@@ -189,6 +191,10 @@ export function App() {
   // (and a sidebar nav click) to reach the shell slots it inspects, and a
   // reload deliberately puts it back off. Not persisted anywhere.
   const [devMode, setDevMode] = useState(false);
+  // Session-only too, and pointless without Dev Mode: it decides whether the
+  // inspector's badges offer the layout popover, and whether the sidebar's
+  // resize handle renders.
+  const [layoutEditMode, setLayoutEditMode] = useState(false);
   const [updateOpen, setUpdateOpen] = useState(false);
   // Dismissed for this session only; returns next launch if still pending.
   const [updateBannerDismissed, setUpdateBannerDismissed] = useState(false);
@@ -273,6 +279,29 @@ export function App() {
 
   // Puts the palette back when the activation guard window reverts or times out.
   useEffect(() => watchThemeActivationReverted(), []);
+
+  // Re-reads the active theme's files whenever the Dev Mode watch reports a change.
+  useEffect(() => watchHotReload(), []);
+
+  const activeId = useThemeStore((s) => s.activeId);
+
+  // Dev Mode's watch: the cleanup stops the previous one, so turning Dev Mode
+  // off or switching theme replaces rather than accumulates.
+  useEffect(() => {
+    if (!devMode) return;
+    void watchActiveTheme(activeId).catch((e) => {
+      console.error(`Could not watch theme "${activeId}" for changes:`, e);
+    });
+    return () => {
+      void stopWatchingTheme();
+    };
+  }, [devMode, activeId]);
+
+  // Leaving Dev Mode leaves the layout editor with it — an editing mode whose
+  // affordance is no longer rendered cannot be exited by its own button.
+  useEffect(() => {
+    if (!devMode) setLayoutEditMode(false);
+  }, [devMode]);
 
   // A pending debounced write would otherwise be lost when the window closes.
   useEffect(() => {
@@ -762,6 +791,8 @@ export function App() {
       onOpenSettings={() => setSettingsOpen(true)}
       onCloseSettings={() => setSettingsOpen(false)}
       onCollapsedChange={setSideCollapsed}
+      devMode={devMode}
+      layoutEditMode={layoutEditMode}
     />
   );
 
@@ -863,9 +894,17 @@ export function App() {
         {sidebarRight && sidebar}
       </div>
 
-      {settingsOpen && <SettingsView onClose={() => setSettingsOpen(false)} devMode={devMode} onDevModeChange={setDevMode} />}
+      {settingsOpen && (
+        <SettingsView
+          onClose={() => setSettingsOpen(false)}
+          devMode={devMode}
+          onDevModeChange={setDevMode}
+          layoutEditMode={layoutEditMode}
+          onLayoutEditModeChange={setLayoutEditMode}
+        />
+      )}
 
-      {devMode && <DevModeInspector />}
+      {devMode && <DevModeInspector editMode={layoutEditMode} />}
 
       {showOnboarding && steamConnected && (
         <OnboardingModal onDone={() => setShowOnboarding(false)} />

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "slots": {
+    "shell.footer": {
+      "order": ["steamStateChip", "schemeToggle", "serverCounts"],
+      "hidden": ["uiScaleSlider"]
+    },
+    "server.row": {
+      "order": [
+        "favouriteAction",
+        "name",
+        "tagsLine",
+        "modStatusBadge",
+        "mapLabel",
+        "gameTimeLabel",
+        "regionFlag",
+        "addressLabel",
+        "lastPlayedLabel",
+        "pingBadge",
+        "playerCount",
+        "modCountLabel"
+      ]
+    }
+  }
+}

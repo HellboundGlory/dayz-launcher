@@ -104,12 +104,17 @@ function ThemeGuardRoot() {
   if (status === null) return null;
 
   const seconds = Math.ceil(status.remainingMs / 1000);
+  // A layout edit arms both ids the same, where the switch wording would read
+  // "Keep X? Reverting to X".
+  const name = nameFor(status.newId, names);
+  const prompt =
+    status.previousId === status.newId
+      ? `Keep this layout change to "${name}"? Reverting in ${seconds}s.`
+      : `Keep "${name}"? Reverting to "${nameFor(status.previousId, names)}" in ${seconds}s.`;
 
   return (
     <div className="tg-panel">
-      <p className="tg-prompt">
-        {`Keep "${nameFor(status.newId, names)}"? Reverting to "${nameFor(status.previousId, names)}" in ${seconds}s.`}
-      </p>
+      <p className="tg-prompt">{prompt}</p>
       <div className="tg-actions">
         <button type="button" className="tg-btn tg-btn-keep" onClick={keep}>
           Keep
