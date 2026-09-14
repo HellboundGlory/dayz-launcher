@@ -34,10 +34,15 @@ pub const STYLES_FILE: &str = "styles.css";
 /// The optional expert-tier settings-schema file's name.
 pub const SETTINGS_SCHEMA_FILE: &str = "settings.schema.json";
 
-/// The two optional component files. Exactly these two fixed names, not a
-/// directory scan: only `server.row` and `mods.row` take composition.
-pub const SERVER_ROW_COMPONENTS_FILE: &str = "components/server-row.json";
-pub const MODS_ROW_COMPONENTS_FILE: &str = "components/mods-row.json";
+/// The optional expert-tier component-composition directory's name: one file
+/// per composed slot, named after the slot id verbatim.
+pub const COMPONENTS_DIR: &str = "components";
+
+/// The slot id a `components/` file name composes, or `None` if it is not one
+/// — the one definition of "a components file", shared with the import gate.
+pub fn components_slot(name: &str) -> Option<&str> {
+    name.strip_suffix(".json").filter(|slot| !slot.is_empty())
+}
 
 /// A theme as the grid lists it, without reading `tokens.json` for every
 /// install. `license`/`homepage`/`schemaVersion` stay in the full manifest — [`get`] returns those.
@@ -88,8 +93,8 @@ pub struct ThemeFile {
     /// `rename` because `ThemeFile` has no struct-level `rename_all`.
     #[serde(rename = "settingsSchema")]
     pub settings_schema: Option<serde_json::Value>,
-    /// Keyed by slot id — `"server.row"` and/or `"mods.row"`, whichever this
-    /// theme ships. Absent from the map is "this theme has none", not an error.
+    /// Keyed by slot id, one entry per `components/<slot id>.json` the theme
+    /// ships. Absent from the map is "this theme ships none", not an error.
     pub components: std::collections::BTreeMap<String, serde_json::Value>,
 }
 
@@ -219,6 +224,34 @@ fn read_optional_json(
     Ok(Some(value))
 }
 
+/// Every composition a theme ships, one `components/<slot id>.json` each,
+/// keyed by the slot id its own filename names. No `components/` directory at
+/// all is the ordinary "this theme composes nothing" case, not an error; a
+/// file that is neither `.json` nor directly inside is not a composition.
+fn read_components(dir: &Path) -> Result<std::collections::BTreeMap<String, Value>, String> {
+    let components_dir = dir.join(COMPONENTS_DIR);
+    if !components_dir.is_dir() {
+        return Ok(std::collections::BTreeMap::new());
+    }
+    let entries = std::fs::read_dir(&components_dir)
+        .map_err(|e| format!("Could not read {}: {e}", components_dir.display()))?;
+
+    let mut components = std::collections::BTreeMap::new();
+    for entry in entries.flatten() {
+        if !entry.path().is_file() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let Some(slot) = components_slot(&name) else {
+            continue;
+        };
+        if let Some(tree) = read_optional_json(&components_dir, &name, validate_components)? {
+            components.insert(slot.to_string(), tree);
+        }
+    }
+    Ok(components)
+}
+
 /// One theme's manifest, tokens, and whichever optional content files it ships.
 pub fn get(themes_root: &Path, id: &str) -> Result<ThemeFile, String> {
     let dir = theme_dir(themes_root, id)?;
@@ -245,16 +278,7 @@ pub fn get(themes_root: &Path, id: &str) -> Result<ThemeFile, String> {
 
     let layout = read_optional_json(&dir, LAYOUT_FILE, validate_layout)?;
     let settings_schema = read_optional_json(&dir, SETTINGS_SCHEMA_FILE, validate_settings_schema)?;
-
-    let mut components = std::collections::BTreeMap::new();
-    for (slot, name) in [
-        ("server.row", SERVER_ROW_COMPONENTS_FILE),
-        ("mods.row", MODS_ROW_COMPONENTS_FILE),
-    ] {
-        if let Some(tree) = read_optional_json(&dir, name, validate_components)? {
-            components.insert(slot.to_string(), tree);
-        }
-    }
+    let components = read_components(&dir)?;
 
     Ok(ThemeFile {
         manifest,
@@ -519,7 +543,7 @@ mod tests {
         );
         assert!(
             loaded.components.is_empty(),
-            "neither component file was written"
+            "no components directory was written"
         );
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -541,14 +565,14 @@ mod tests {
             serde_json::to_vec_pretty(&written_schema).unwrap(),
         )
         .unwrap();
-        std::fs::create_dir_all(dir.join("components")).unwrap();
+        std::fs::create_dir_all(dir.join(COMPONENTS_DIR)).unwrap();
         std::fs::write(
-            dir.join(SERVER_ROW_COMPONENTS_FILE),
+            dir.join(COMPONENTS_DIR).join("server.row.json"),
             serde_json::to_vec_pretty(&written_server_row).unwrap(),
         )
         .unwrap();
         std::fs::write(
-            dir.join(MODS_ROW_COMPONENTS_FILE),
+            dir.join(COMPONENTS_DIR).join("mods.row.json"),
             serde_json::to_vec_pretty(&written_mods_row).unwrap(),
         )
         .unwrap();
@@ -566,7 +590,7 @@ mod tests {
         assert!(wire.get("settings_schema").is_none());
 
         // Only one of the two component files present: one key, no error.
-        std::fs::remove_file(dir.join(MODS_ROW_COMPONENTS_FILE)).unwrap();
+        std::fs::remove_file(dir.join(COMPONENTS_DIR).join("mods.row.json")).unwrap();
         let loaded = get(&root, "dev.expert").expect("get");
         assert_eq!(loaded.components.len(), 1, "{:?}", loaded.components);
         assert!(loaded.components.contains_key("server.row"));
@@ -576,6 +600,61 @@ mod tests {
         let loaded = get(&root, "dev.expert").expect("get");
         assert!(loaded.settings_schema.is_none());
         assert_eq!(loaded.components.len(), 1);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// The generalization itself: the directory scan finds one slot per
+    /// `components/<slot id>.json`, whatever the slot id is — not the two the
+    /// backend used to hardcode.
+    #[test]
+    fn every_slot_id_under_components_is_read_back_under_its_own_name() {
+        let root = scratch("anyslot");
+        let dir = root.join("dev.anyslot");
+        save(&root, &manifest("dev.anyslot"), &tokens(), None).expect("save");
+        let components = dir.join(COMPONENTS_DIR);
+        std::fs::create_dir_all(&components).unwrap();
+
+        let written =
+            |kind: &str| serde_json::json!({ "schemaVersion": 1, "root": { "type": kind } });
+        for (slot, kind) in [
+            ("server.row", "stack"),
+            ("mods.row", "grid"),
+            ("shell.sidebar", "box"),
+        ] {
+            std::fs::write(
+                components.join(format!("{slot}.json")),
+                serde_json::to_vec_pretty(&written(kind)).unwrap(),
+            )
+            .unwrap();
+        }
+        // Neither of these is a composition: the extension is not `.json`, and
+        // a subdirectory is not a file, however it is named.
+        std::fs::write(components.join("notes.txt"), b"not a composition").unwrap();
+        std::fs::create_dir_all(components.join("nested")).unwrap();
+
+        let loaded = get(&root, "dev.anyslot").expect("get");
+        assert_eq!(
+            loaded.components.keys().collect::<Vec<_>>(),
+            ["mods.row", "server.row", "shell.sidebar"],
+            "one entry per `.json` file, keyed by its own slot id"
+        );
+        assert_eq!(loaded.components["shell.sidebar"], written("box"));
+        assert!(
+            !loaded.components.contains_key("notes") && !loaded.components.contains_key("nested"),
+            "only `.json` files are compositions: {:?}",
+            loaded.components.keys().collect::<Vec<_>>()
+        );
+
+        // The write half: a third slot added later reads back too, so the map
+        // is not a fixed pair that only grows at save time.
+        std::fs::write(
+            components.join("filterBar.json"),
+            serde_json::to_vec_pretty(&written("stack")).unwrap(),
+        )
+        .unwrap();
+        let loaded = get(&root, "dev.anyslot").expect("get");
+        assert_eq!(loaded.components.len(), 4, "{:?}", loaded.components);
+        assert_eq!(loaded.components["filterBar"], written("stack"));
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -625,25 +704,26 @@ mod tests {
         let root = scratch("badexpert");
         let dir = root.join("dev.bad");
         save(&root, &manifest("dev.bad"), &tokens(), None).expect("save");
-        std::fs::create_dir_all(dir.join("components")).unwrap();
+        let components = dir.join(COMPONENTS_DIR);
+        std::fs::create_dir_all(&components).unwrap();
 
         for name in [
-            SETTINGS_SCHEMA_FILE,
-            SERVER_ROW_COMPONENTS_FILE,
-            MODS_ROW_COMPONENTS_FILE,
+            SETTINGS_SCHEMA_FILE.to_string(),
+            format!("{COMPONENTS_DIR}/server.row.json"),
+            format!("{COMPONENTS_DIR}/mods.row.json"),
         ] {
-            std::fs::write(dir.join(name), "{ not json").unwrap();
+            std::fs::write(dir.join(&name), "{ not json").unwrap();
             assert!(
                 get(&root, "dev.bad").is_err(),
                 "{name} should fail the read"
             );
 
-            std::fs::write(dir.join(name), r#"{"root":{}}"#).unwrap();
+            std::fs::write(dir.join(&name), r#"{"root":{}}"#).unwrap();
             let err =
                 get(&root, "dev.bad").expect_err("a file with no schemaVersion must fail the read");
             assert!(err.contains("schemaVersion"), "{name}: {err}");
 
-            std::fs::remove_file(dir.join(name)).unwrap();
+            std::fs::remove_file(dir.join(&name)).unwrap();
         }
         // With every one of them gone, the theme reads again — the failures
         // above were the files, not the theme.
