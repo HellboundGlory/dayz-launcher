@@ -13,8 +13,8 @@ use std::io::{Read, Seek, Write};
 use std::path::{Path, PathBuf};
 
 use crate::theme::{
-    ThemeManifest, ThemeSummary, LAYOUT_FILE, MANIFEST_FILE, MODS_ROW_COMPONENTS_FILE,
-    SERVER_ROW_COMPONENTS_FILE, SETTINGS_SCHEMA_FILE, STYLES_FILE, TOKENS_FILE,
+    components_slot, ThemeManifest, ThemeSummary, COMPONENTS_DIR, LAYOUT_FILE, MANIFEST_FILE,
+    SETTINGS_SCHEMA_FILE, STYLES_FILE, TOKENS_FILE,
 };
 use quick_xml::events::Event;
 
@@ -780,6 +780,17 @@ fn be_u32(bytes: &[u8], at: usize) -> Option<u32> {
     Some(u32::from_be_bytes([slice[0], slice[1], slice[2], slice[3]]))
 }
 
+/// Whether `relative` is a slot composition: exactly `components/<slot id>.json`,
+/// one level deep. A nested `assets/components/x.json` is an inert data file,
+/// and so is anything under `components/` that is not a `.json`.
+fn is_components_file(relative: &str) -> bool {
+    let mut segments = relative.split('/');
+    let (Some(dir), Some(name), None) = (segments.next(), segments.next(), segments.next()) else {
+        return false;
+    };
+    dir == COMPONENTS_DIR && components_slot(name).is_some()
+}
+
 /// Refuse an `advanced` or `expert` package whose content needs a capability
 /// its manifest does not declare. `basic` is exempt: a basic theme may carry
 /// stray assets nothing reads, and every theme installed before this gate
@@ -836,8 +847,7 @@ fn missing_capabilities(manifest: &ThemeManifest, staging_dir: &Path) -> Result<
                 .any(|i| i.eq_ignore_ascii_case(extension))
             {
                 3
-            } else if relative == SERVER_ROW_COMPONENTS_FILE || relative == MODS_ROW_COMPONENTS_FILE
-            {
+            } else if is_components_file(&relative) {
                 4
             } else if prefix.is_empty() && name == SETTINGS_SCHEMA_FILE {
                 5
@@ -2899,14 +2909,26 @@ mod tests {
         let mods_row =
             br#"{"schemaVersion":1,"slot":"mods.row","root":{"type":"core","ref":"modName"}}"#
                 .to_vec();
+        let sidebar =
+            br#"{"schemaVersion":1,"slot":"shell.sidebar","root":{"type":"core","ref":"navList"}}"#
+                .to_vec();
         let settings_schema = br#"{"schemaVersion":1,"fields":[{"id":"accentHue","type":"number","label":"Accent hue","min":0,"max":360,"default":210}]}"#.to_vec();
         let installed = root.join("aurora.test");
         std::fs::create_dir_all(installed.join("assets/fonts")).unwrap();
-        std::fs::create_dir_all(installed.join("components")).unwrap();
+        std::fs::create_dir_all(installed.join(COMPONENTS_DIR)).unwrap();
         std::fs::write(installed.join(STYLES_FILE), &styles).unwrap();
         std::fs::write(installed.join("assets/fonts/body.ttf"), &font).unwrap();
-        std::fs::write(installed.join(SERVER_ROW_COMPONENTS_FILE), &server_row).unwrap();
-        std::fs::write(installed.join(MODS_ROW_COMPONENTS_FILE), &mods_row).unwrap();
+        for (slot, tree) in [
+            ("server.row", &server_row),
+            ("mods.row", &mods_row),
+            ("shell.sidebar", &sidebar),
+        ] {
+            std::fs::write(
+                installed.join(COMPONENTS_DIR).join(format!("{slot}.json")),
+                tree,
+            )
+            .unwrap();
+        }
         std::fs::write(installed.join(SETTINGS_SCHEMA_FILE), &settings_schema).unwrap();
 
         let dest = root.join("expert.zip");
@@ -2922,7 +2944,7 @@ mod tests {
         let preview = stage_for_preview(&clean, &dest, &[])
             .expect("the export must re-import cleanly now that expert is supported");
         assert_eq!(preview.manifest.tier, "expert");
-        assert_eq!(preview.file_count, 8);
+        assert_eq!(preview.file_count, 9);
 
         let staged = staging_dir(&clean, &preview);
         assert_eq!(preview.manifest.id, expert.id);
@@ -2938,14 +2960,42 @@ mod tests {
             ),
             (STYLES_FILE, styles),
             ("assets/fonts/body.ttf", font),
-            (SERVER_ROW_COMPONENTS_FILE, server_row),
-            (MODS_ROW_COMPONENTS_FILE, mods_row),
-            (SETTINGS_SCHEMA_FILE, settings_schema),
+            (
+                "components/server.row.json",
+                std::fs::read(installed.join("components/server.row.json")).unwrap(),
+            ),
+            (
+                "components/mods.row.json",
+                std::fs::read(installed.join("components/mods.row.json")).unwrap(),
+            ),
+            (
+                "components/shell.sidebar.json",
+                std::fs::read(installed.join("components/shell.sidebar.json")).unwrap(),
+            ),
+            (
+                SETTINGS_SCHEMA_FILE,
+                std::fs::read(installed.join(SETTINGS_SCHEMA_FILE)).unwrap(),
+            ),
         ] {
             assert_eq!(
                 std::fs::read(staged.join(name)).unwrap(),
                 original,
                 "{name} must survive the round trip byte for byte"
+            );
+        }
+
+        // The generalized names are read back as the slot ids they name, not
+        // just carried as opaque bytes through the zip: install the staged
+        // import and read the theme the launcher would actually serve.
+        let installed_id =
+            confirm_theme_install(&clean, &preview.staging_id).expect("the staged import confirms");
+        let reinstalled =
+            crate::theme::get(&clean, &installed_id).expect("the installed theme reads back");
+        for slot in ["server.row", "mods.row", "shell.sidebar"] {
+            assert!(
+                reinstalled.components.contains_key(slot),
+                "{slot} should have been discovered under components/: {:?}",
+                reinstalled.components.keys().collect::<Vec<_>>()
             );
         }
     }
