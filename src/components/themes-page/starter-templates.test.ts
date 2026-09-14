@@ -1,4 +1,4 @@
-/** The Expert starter's `components/server-row.json` and `layout.json` name
+/** The Expert starter's `components/server.row.json` and `layout.json` name
  * slot and child ids — and those ids are only real if `slots.ts` has them. The
  * backend holds the two files to their own shape (§4.3/§4.4); this is the other
  * half, the part that needs the registry, which lives here. A template that
@@ -14,7 +14,7 @@ import { SLOTS } from "@/theme/slots";
 import { resolveLayout } from "@/theme/layout-store";
 import advancedLayout from "../../../src-tauri/resources/starter-themes/starter.advanced/layout.json";
 import expertLayout from "../../../src-tauri/resources/starter-themes/starter.expert/layout.json";
-import expertRow from "../../../src-tauri/resources/starter-themes/starter.expert/components/server-row.json";
+import expertRow from "../../../src-tauri/resources/starter-themes/starter.expert/components/server.row.json";
 import basicManifest from "../../../src-tauri/resources/starter-themes/starter.basic/theme.json";
 
 const childIds = (slotId: string) =>
