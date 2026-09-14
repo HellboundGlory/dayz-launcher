@@ -1051,7 +1051,7 @@ mod tests {
             "theme.json",
             "tokens.json",
             "../layout.json",
-            "components/server-row.json",
+            "components/server.row.json",
             "",
         ] {
             let err = layout_edit_restore("local.edited", file, None).expect_err("must refuse");
