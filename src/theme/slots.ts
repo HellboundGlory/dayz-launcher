@@ -1,11 +1,13 @@
 // Slot registry for the theming system — the single source of truth for the
 // `data-tetra-slot` (container) and `data-tetra-el` (child) attributes tagged
-// onto the launcher's JSX. Nothing reads these attributes yet: Phase 0 is
-// additive markup only, so tagging a slot has no runtime effect.
+// onto the launcher's JSX, and for what layout/composition a theme may do to
+// each slot. Live runtime registry, consumed by layout-store.ts,
+// component-tree.ts, and the Dev Mode inspector.
 //
 // `themeable: "full"` means a theme may restyle the slot wholesale;
 // `"tokensOnly"` would restrict it to the CSS custom properties in
-// `palette.ts`. Every slot in this phase is "full".
+// `palette.ts`. Every slot in this registry is "full". `compositionCeiling`
+// is a separate, narrower restriction — see its own doc comment below.
 
 export interface SlotChild {
   /** Matches `data-tetra-el` on the element rendering this child. */
@@ -21,6 +23,16 @@ export interface Slot {
   id: string;
   children: SlotChild[];
   themeable: "full" | "tokensOnly";
+  /**
+   * Expert-tier composition ceiling (Phase 3.6, ADR-0001). Absent (default)
+   * means a `components/<id>.json` composition file is legal for this slot,
+   * same as ordinary layout theming. `"advanced"` caps it below Expert —
+   * layout.json (visibility/order/size) still applies, but no composition
+   * file, no free positioning, no decorative images — for slots where a
+   * plausible-but-misleading layout causes real harm (recovery/config
+   * surfaces) rather than just looking bad.
+   */
+  compositionCeiling?: "advanced";
 }
 
 /** Every themable slot, in shell render order. */
@@ -198,6 +210,9 @@ export const SLOTS: Slot[] = [
   {
     id: "modal.onboarding",
     themeable: "full",
+    // Restricted (Phase 3.6, ADR-0001): first-run path setup is a recovery
+    // surface, not an ordinary content view — capped at Advanced tier.
+    compositionCeiling: "advanced",
     children: [
       { id: "pathBrowser", required: false, since: "1.0" },
       { id: "primaryAction", required: true, since: "1.0" },
@@ -206,6 +221,7 @@ export const SLOTS: Slot[] = [
   {
     id: "settings.background",
     themeable: "full",
+    compositionCeiling: "advanced",
     // Pure backdrop: nothing here is individually addressable, only
     // restylable as a whole (`[data-tetra-slot="settings.background"] {...}`).
     children: [],
@@ -213,6 +229,7 @@ export const SLOTS: Slot[] = [
   {
     id: "settings.shell",
     themeable: "full",
+    compositionCeiling: "advanced",
     children: [
       { id: "backAction", required: true, since: "1.0" },
     ],
@@ -220,6 +237,7 @@ export const SLOTS: Slot[] = [
   {
     id: "settings.game",
     themeable: "full",
+    compositionCeiling: "advanced",
     children: [
       { id: "sectionToggle", required: true, since: "1.0" },
       { id: "profileNameInput", required: true, since: "1.0" },
@@ -232,6 +250,7 @@ export const SLOTS: Slot[] = [
   {
     id: "settings.launcher",
     themeable: "full",
+    compositionCeiling: "advanced",
     children: [
       { id: "sectionToggle", required: true, since: "1.0" },
       { id: "windowOptions", required: false, since: "1.0" },
@@ -245,9 +264,18 @@ export const SLOTS: Slot[] = [
   {
     id: "settings.theme",
     themeable: "full",
+    compositionCeiling: "advanced",
     children: [
       { id: "sectionToggle", required: true, since: "1.0" },
       { id: "themeManagement", required: true, since: "1.0" },
     ],
   },
 ];
+
+// `modal.steamRequired`, named as a restricted slot in the original theme
+// proposal (§3.2) and ADR-0001, has no entry in this registry at all —
+// steam-required-modal.tsx was never given `data-tetra-slot` tagging or
+// token-based colors (see THEME_SYSTEM_PROPOSAL.md §13.1's note on its
+// literal hex colors). It's un-themeable today regardless of tier, which
+// already satisfies the restriction by omission. Tagging it is separate,
+// unscoped prerequisite work, not part of Phase 3.6.
