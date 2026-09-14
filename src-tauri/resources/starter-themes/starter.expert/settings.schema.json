@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "fields": [
+    {
+      "id": "accentHue",
+      "type": "number",
+      "label": "Accent hue",
+      "min": 0,
+      "max": 360,
+      "default": 210
+    },
+    {
+      "id": "compactRows",
+      "type": "boolean",
+      "label": "Compact server rows",
+      "default": false
+    }
+  ]
+}

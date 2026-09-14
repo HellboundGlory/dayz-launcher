@@ -1,4 +1,13 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useServerStore } from "@/stores/server-store";
 import { Star } from "lucide-react";
@@ -15,6 +24,9 @@ import type { ViewId } from "./sidebar";
 import { cn, formatGameTime, formatLastPlayed, regionName } from "@/lib/utils";
 import { useResolvedSlot } from "@/theme/use-resolved-layout";
 import { slotChildrenToRender } from "@/theme/slot-children";
+import { resolveComponentTree, type ResolvedNode } from "@/theme/component-tree";
+import { SLOTS } from "@/theme/slots";
+import { useThemeStore } from "@/theme/theme-store";
 import { ServerRowActions } from "./server-row-actions";
 
 interface ServerListProps {
@@ -42,6 +54,297 @@ export const SERVER_ROW_GROUPS = {
 export function nameLineSequence(ids: readonly string[], badgeVisible: boolean): string[] {
   if (!badgeVisible || ids.includes("tagsLine")) return [...ids];
   return ["modStatusBadge", ...ids];
+}
+
+/** `server.row`'s registry entry — the children a theme's tree resolves against. */
+const SERVER_ROW_CHILDREN = SLOTS.find((slot) => slot.id === "server.row")?.children ?? [];
+
+/** One entry per `server.row` child this file renders, addressed by id — the
+ * single description both the grouped fallback and a theme's composition tree
+ * read, so neither re-describes a child's markup. `modStatusBadge` is nested in
+ * `tagsLine`'s row *and* present on its own, so a tree naming both renders the
+ * badge twice — the theme author's own redundant construction to avoid. */
+export function serverRowNodes(
+  server: Server,
+  view: ViewId,
+  pending: boolean,
+  onToggleFavourite: (server: Server) => void,
+): Partial<Record<string, ReactNode>> {
+  const pendingBadge = pending ? (
+    <Tag
+      tone="accent"
+      data-tetra-el="modStatusBadge"
+      title="A declared mod has a Steam update pending"
+    >
+      UPDATE
+    </Tag>
+  ) : null;
+
+  return {
+    favouriteAction: (
+      <button
+        data-tetra-el="favouriteAction"
+        onClick={(e) => {
+          // Without this the click also selects the row.
+          e.stopPropagation();
+          void onToggleFavourite(server);
+        }}
+        title={server.favourite ? "Remove from favourites" : "Add to favourites"}
+        aria-label={server.favourite ? "Remove from favourites" : "Add to favourites"}
+        aria-pressed={server.favourite}
+        className={cn(
+          "star flex shrink-0 items-center justify-center transition-colors",
+          server.favourite ? "text-warn" : "text-muted hover:text-muted2",
+        )}
+      >
+        <Star
+          className="h-[14px] w-[14px]"
+          strokeWidth={1.6}
+          fill={server.favourite ? "currentColor" : "none"}
+        />
+      </button>
+    ),
+    tagsLine: (
+      <div data-tetra-el="tagsLine" className="flex shrink-0 gap-1">
+        {!server.online && <Tag tone="danger">OFFLINE</Tag>}
+        {server.official && <Tag tone="accent">VANILLA</Tag>}
+        {server.modded && <Tag tone="accent2">MODDED</Tag>}
+        {server.first_person && <Tag tone="muted">1PP</Tag>}
+        {server.locked && <Tag tone="danger">LOCKED</Tag>}
+        {pendingBadge}
+      </div>
+    ),
+    modStatusBadge:
+      pendingBadge === null ? null : (
+        <div className="flex shrink-0 gap-1">{pendingBadge}</div>
+      ),
+    name: (
+      <span data-tetra-el="name" className="min-w-0 truncate text-ink">
+        {server.name}
+      </span>
+    ),
+    mapLabel: (
+      <span data-tetra-el="mapLabel" className="font-mono-data">
+        {server.map_display}
+      </span>
+    ),
+    gameTimeLabel: (
+      <span data-tetra-el="gameTimeLabel">
+        {formatGameTime(server.in_game_time, server.day_multiplier, server.night_multiplier)}
+      </span>
+    ),
+    regionFlag: (
+      <span data-tetra-el="regionFlag">
+        {regionName(server.country_code)}
+      </span>
+    ),
+    addressLabel: (
+      <span data-tetra-el="addressLabel" className="font-mono-data">
+        {server.addr}
+      </span>
+    ),
+    lastPlayedLabel:
+      view === "recent" && server.last_played != null ? (
+        <span data-tetra-el="lastPlayedLabel">
+          played {formatLastPlayed(server.last_played)}
+        </span>
+      ) : null,
+    playerCount: (
+      <div className="l2-stat text-right">
+        <div
+          data-tetra-el="playerCount"
+          className={cn(
+            "font-mono-data text-[13px] font-bold tabular-nums leading-none",
+            !server.online || server.players === 0
+              ? "text-muted"
+              : server.players >= server.max_players
+                ? "text-warn"
+                : "text-accent2",
+          )}
+          title={
+            !server.online ? "Last known player count — server did not respond" : undefined
+          }
+        >
+          {server.players}/{server.max_players}
+          {server.queue != null && server.queue > 0 && (
+            <span
+              className="text-[10px] text-warn"
+              title={`${server.queue} waiting in the join queue`}
+            >
+              +{server.queue}
+            </span>
+          )}
+        </div>
+        <div className="mt-0.5 text-[7px] font-bold uppercase tracking-[0.07em] text-muted">
+          Players
+        </div>
+      </div>
+    ),
+    pingBadge: (
+      <div className="l2-stat text-right">
+        <div
+          data-tetra-el="pingBadge"
+          className={cn(
+            "font-mono-data text-[13px] font-bold tabular-nums leading-none",
+            !server.online || server.ping === null
+              ? "text-muted"
+              : server.ping > 120
+                ? "text-danger"
+                : server.ping > 80
+                  ? "text-warn"
+                  : "text-success",
+          )}
+          title={!server.online ? "Server did not respond to the last refresh" : undefined}
+        >
+          {server.online ? (server.ping ?? "—") : "—"}
+        </div>
+        <div className="mt-0.5 text-[7px] font-bold uppercase tracking-[0.07em] text-muted">
+          Ping
+        </div>
+      </div>
+    ),
+    modCountLabel: (
+      <div data-tetra-el="modCountLabel" className="l2-stat text-right">
+        <ModCount server={server} />
+        <div className="mt-0.5 text-[7px] font-bold uppercase tracking-[0.07em] text-muted">
+          Mods
+        </div>
+      </div>
+    ),
+  };
+}
+
+/** One group's rendered nodes, in resolved order. A `null` entry is a child
+ * whose own data condition isn't met, so it takes no position — which is what
+ * keeps the detail line's separators between only what actually renders. */
+function groupedNodes(
+  ids: readonly string[],
+  nodes: Partial<Record<string, ReactNode>>,
+): { id: string; node: ReactNode }[] {
+  const out: { id: string; node: ReactNode }[] = [];
+  for (const id of ids) {
+    const node = nodes[id];
+    if (node != null) out.push({ id, node });
+  }
+  return out;
+}
+
+/** The name line: the badge promoted to its own element when a theme hid
+ * `tagsLine`'s div, per `nameLineSequence`. */
+function renderNameLine(
+  ids: readonly string[],
+  nodes: Partial<Record<string, ReactNode>>,
+  pending: boolean,
+): ReactNode {
+  return groupedNodes(nameLineSequence(ids, pending), nodes).map(({ id, node }) => (
+    <Fragment key={id}>{node}</Fragment>
+  ));
+}
+
+/** The details line: separator-joined, like every row before it. */
+function renderDetails(
+  ids: readonly string[],
+  nodes: Partial<Record<string, ReactNode>>,
+): ReactNode {
+  return groupedNodes(ids, nodes).map(({ id, node }, i) => (
+    <Fragment key={id}>
+      {i > 0 && <span>·</span>}
+      {node}
+    </Fragment>
+  ));
+}
+
+/** The right-hand stats column. */
+function renderStats(
+  ids: readonly string[],
+  nodes: Partial<Record<string, ReactNode>>,
+): ReactNode {
+  return groupedNodes(ids, nodes).map(({ id, node }) => <Fragment key={id}>{node}</Fragment>);
+}
+
+export type ContainerNode = Extract<ResolvedNode, { type: "stack" | "box" | "grid" }>;
+type Direction = NonNullable<ContainerNode["direction"]>;
+type Align = NonNullable<ContainerNode["align"]>;
+type Justify = NonNullable<ContainerNode["justify"]>;
+
+// Fixed lookups of literal class names: Tailwind's content scan only sees
+// strings written in this file, so a synthesized `flex-${direction}` would ship
+// with no CSS behind it.
+const FLEX_DIRECTION: Record<Direction, string> = { row: "flex-row", column: "flex-col" };
+const FLEX_ALIGN: Record<Align, string> = {
+  start: "items-start",
+  center: "items-center",
+  end: "items-end",
+  stretch: "items-stretch",
+};
+const FLEX_JUSTIFY: Record<Justify, string> = {
+  start: "justify-start",
+  center: "justify-center",
+  end: "justify-end",
+  "space-between": "justify-between",
+};
+
+// Grid properties are inline styles rather than classes: this vocabulary fixes
+// no grid template, and a runtime CSS property *value* carries none of the
+// class-name hazard above.
+const GRID_ALIGN: Record<Align, CSSProperties["alignItems"]> = {
+  start: "start",
+  center: "center",
+  end: "end",
+  stretch: "stretch",
+};
+const GRID_JUSTIFY: Record<Justify, CSSProperties["justifyContent"]> = {
+  start: "start",
+  center: "center",
+  end: "end",
+  "space-between": "space-between",
+};
+
+/** A container's own props. `stack` lays out with literal flex classes; `grid`
+ * and every `gap` use inline styles; `box` groups and pads only, so
+ * direction/align/justify/wrap — and `gap`, which does nothing outside flex or
+ * grid — are ignored there. */
+export function containerProps(node: ContainerNode): {
+  className?: string;
+  style?: CSSProperties;
+} {
+  if (node.type === "box") return {};
+  if (node.type === "grid") {
+    return {
+      style: {
+        display: "grid",
+        ...(node.gap !== undefined && { gap: node.gap }),
+        ...(node.direction !== undefined && { gridAutoFlow: node.direction }),
+        ...(node.align !== undefined && { alignItems: GRID_ALIGN[node.align] }),
+        ...(node.justify !== undefined && { justifyContent: GRID_JUSTIFY[node.justify] }),
+      },
+    };
+  }
+  const className = cn(
+    "flex",
+    FLEX_DIRECTION[node.direction ?? "row"],
+    node.wrap === true && "flex-wrap",
+    node.align !== undefined && FLEX_ALIGN[node.align],
+    node.justify !== undefined && FLEX_JUSTIFY[node.justify],
+  );
+  return node.gap === undefined ? { className } : { className, style: { gap: node.gap } };
+}
+
+/** A theme's composition tree, rendered from the same flat map the grouped
+ * fallback filters. */
+function ServerRowTree({
+  node,
+  nodes,
+}: {
+  node: ResolvedNode;
+  nodes: Partial<Record<string, ReactNode>>;
+}) {
+  if (node.type === "core") return <>{nodes[node.ref] ?? null}</>;
+  const children = node.children.map((child, index) => (
+    <ServerRowTree key={index} node={child} nodes={nodes} />
+  ));
+  if (node.type === "box") return <div>{children}</div>;
+  return <div {...containerProps(node)}>{children}</div>;
 }
 
 /** How often the distinct-maps dropdown is refetched — decoupled from the row-reload cadence. */
@@ -214,159 +517,22 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
   const detailIds = slotChildrenToRender(slot, [], SERVER_ROW_GROUPS.details);
   const statIds = slotChildrenToRender(slot, [], SERVER_ROW_GROUPS.stats);
 
-  const renderNameLine = (server: Server) => {
-    const pending = !!modPending[server.addr];
-    const pendingBadge = pending ? (
-      <Tag
-        tone="accent"
-        data-tetra-el="modStatusBadge"
-        title="A declared mod has a Steam update pending"
-      >
-        UPDATE
-      </Tag>
-    ) : null;
-
-    return nameLineSequence(nameLineIds, pending).map((id) => {
-      if (id === "tagsLine") {
-        return (
-          <div key={id} data-tetra-el="tagsLine" className="flex shrink-0 gap-1">
-            {!server.online && <Tag tone="danger">OFFLINE</Tag>}
-            {server.official && <Tag tone="accent">VANILLA</Tag>}
-            {server.modded && <Tag tone="accent2">MODDED</Tag>}
-            {server.first_person && <Tag tone="muted">1PP</Tag>}
-            {server.locked && <Tag tone="danger">LOCKED</Tag>}
-            {pendingBadge}
-          </div>
-        );
-      }
-      if (id === "modStatusBadge") {
-        return (
-          <div key={id} className="flex shrink-0 gap-1">
-            {pendingBadge}
-          </div>
-        );
-      }
-      return (
-        <span key={id} data-tetra-el="name" className="min-w-0 truncate text-ink">
-          {server.name}
-        </span>
-      );
-    });
-  };
-
-  // `lastPlayedLabel` is itself conditional on the view and the row's data, so
-  // the separators are inserted between whatever actually renders.
-  const renderDetails = (server: Server) => {
-    const nodes: Record<string, React.ReactNode> = {
-      mapLabel: (
-        <span key="mapLabel" data-tetra-el="mapLabel" className="font-mono-data">
-          {server.map_display}
-        </span>
-      ),
-      gameTimeLabel: (
-        <span key="gameTimeLabel" data-tetra-el="gameTimeLabel">
-          {formatGameTime(server.in_game_time, server.day_multiplier, server.night_multiplier)}
-        </span>
-      ),
-      regionFlag: (
-        <span key="regionFlag" data-tetra-el="regionFlag">
-          {regionName(server.country_code)}
-        </span>
-      ),
-      addressLabel: (
-        <span key="addressLabel" data-tetra-el="addressLabel" className="font-mono-data">
-          {server.addr}
-        </span>
-      ),
-      lastPlayedLabel:
-        view === "recent" && server.last_played != null ? (
-          <span key="lastPlayedLabel" data-tetra-el="lastPlayedLabel">
-            played {formatLastPlayed(server.last_played)}
-          </span>
-        ) : null,
-    };
-
-    const rendered = detailIds
-      .map((id) => [id, nodes[id]] as const)
-      .filter(([, node]) => node != null);
-    return rendered.map(([id, node], i) => (
-      <Fragment key={id}>
-        {i > 0 && <span>·</span>}
-        {node}
-      </Fragment>
-    ));
-  };
-
-  const renderStat = (server: Server, id: string) => {
-    if (id === "playerCount") {
-      return (
-        <div key={id} className="l2-stat text-right">
-          <div
-            data-tetra-el="playerCount"
-            className={cn(
-              "font-mono-data text-[13px] font-bold tabular-nums leading-none",
-              !server.online || server.players === 0
-                ? "text-muted"
-                : server.players >= server.max_players
-                  ? "text-warn"
-                  : "text-accent2",
-            )}
-            title={
-              !server.online ? "Last known player count — server did not respond" : undefined
-            }
-          >
-            {server.players}/{server.max_players}
-            {server.queue != null && server.queue > 0 && (
-              <span
-                className="text-[10px] text-warn"
-                title={`${server.queue} waiting in the join queue`}
-              >
-                +{server.queue}
-              </span>
-            )}
-          </div>
-          <div className="mt-0.5 text-[7px] font-bold uppercase tracking-[0.07em] text-muted">
-            Players
-          </div>
-        </div>
-      );
+  // An expert theme's own composition for this slot, when it ships one. A
+  // theme with no tree — every other tier — renders the grouped fallback
+  // exactly as it always has.
+  const activeId = useThemeStore((s) => s.activeId);
+  const themeFiles = useThemeStore((s) => s.themeFiles);
+  const composition = useMemo(() => {
+    const theme = themeFiles[activeId];
+    if (theme === undefined || theme.tier !== "expert") return null;
+    const treeJson = theme.components["server.row"];
+    if (treeJson === undefined) return null;
+    const { tree, issues } = resolveComponentTree("server.row", treeJson, SERVER_ROW_CHILDREN);
+    for (const issue of issues) {
+      console.warn(`[theme components] ${issue.slotId}: ${issue.message}`);
     }
-    if (id === "pingBadge") {
-      return (
-        <div key={id} className="l2-stat text-right">
-          <div
-            data-tetra-el="pingBadge"
-            className={cn(
-              "font-mono-data text-[13px] font-bold tabular-nums leading-none",
-              !server.online || server.ping === null
-                ? "text-muted"
-                : server.ping > 120
-                  ? "text-danger"
-                  : server.ping > 80
-                    ? "text-warn"
-                    : "text-success",
-            )}
-            title={
-              !server.online ? "Server did not respond to the last refresh" : undefined
-            }
-          >
-            {server.online ? (server.ping ?? "—") : "—"}
-          </div>
-          <div className="mt-0.5 text-[7px] font-bold uppercase tracking-[0.07em] text-muted">
-            Ping
-          </div>
-        </div>
-      );
-    }
-    return (
-      <div key={id} data-tetra-el="modCountLabel" className="l2-stat text-right">
-        <ModCount server={server} />
-        <div className="mt-0.5 text-[7px] font-bold uppercase tracking-[0.07em] text-muted">
-          Mods
-        </div>
-      </div>
-    );
-  };
+    return tree;
+  }, [activeId, themeFiles]);
 
   return (
     <div ref={scrollRef} className="l2-body min-h-0 flex-1 overflow-y-auto p-2">
@@ -389,6 +555,8 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
             const server = servers[virtualRow.index];
             const isSelected = selectedServer?.addr === server.addr;
             const rowKey = `${server.addr}:${server.query_port}`;
+            const pending = !!modPending[server.addr];
+            const nodes = serverRowNodes(server, view, pending, handleToggleFavourite);
             return (
               <div
                 key={rowKey}
@@ -412,53 +580,28 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                   zIndex: menuOpenKey === rowKey ? 10 : undefined,
                 }}
               >
-                {favouriteIds.map((id) => (
-                  <button
-                    key={id}
-                    data-tetra-el="favouriteAction"
-                    onClick={(e) => {
-                      // Without this the click also selects the row.
-                      e.stopPropagation();
-                      void handleToggleFavourite(server);
-                    }}
-                    title={
-                      server.favourite
-                        ? "Remove from favourites"
-                        : "Add to favourites"
-                    }
-                    aria-label={
-                      server.favourite
-                        ? "Remove from favourites"
-                        : "Add to favourites"
-                    }
-                    aria-pressed={server.favourite}
-                    className={cn(
-                      "star flex shrink-0 items-center justify-center transition-colors",
-                      server.favourite
-                        ? "text-warn"
-                        : "text-muted hover:text-muted2",
-                    )}
-                  >
-                    <Star
-                      className="h-[14px] w-[14px]"
-                      strokeWidth={1.6}
-                      fill={server.favourite ? "currentColor" : "none"}
-                    />
-                  </button>
-                ))}
+                {composition !== null ? (
+                  <ServerRowTree node={composition} nodes={nodes} />
+                ) : (
+                  <>
+                    {favouriteIds.map((id) => (
+                      <Fragment key={id}>{nodes[id]}</Fragment>
+                    ))}
 
-                <div className="l2-main min-w-0 flex-1">
-                  <div className="flex items-center gap-1 whitespace-nowrap text-[12px] font-semibold">
-                    {renderNameLine(server)}
-                  </div>
-                  <div className="mt-0.5 flex items-center gap-2.5 whitespace-nowrap text-[9px] text-muted">
-                    {renderDetails(server)}
-                  </div>
-                </div>
+                    <div className="l2-main min-w-0 flex-1">
+                      <div className="flex items-center gap-1 whitespace-nowrap text-[12px] font-semibold">
+                        {renderNameLine(nameLineIds, nodes, pending)}
+                      </div>
+                      <div className="mt-0.5 flex items-center gap-2.5 whitespace-nowrap text-[9px] text-muted">
+                        {renderDetails(detailIds, nodes)}
+                      </div>
+                    </div>
 
-                <div className="l2-stats flex shrink-0 items-center gap-3.5">
-                  {statIds.map((id) => renderStat(server, id))}
-                </div>
+                    <div className="l2-stats flex shrink-0 items-center gap-3.5">
+                      {renderStats(statIds, nodes)}
+                    </div>
+                  </>
+                )}
 
                 <ServerRowActions
                   server={server}

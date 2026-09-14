@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "starter.basic",
+  "name": "Starter Basic",
+  "author": "Tetra Launcher",
+  "version": "1.0.0",
+  "themeApi": "1.0",
+  "minimumLauncherVersion": "2.6.0",
+  "tier": "basic",
+  "description": "A complete dark and light palette and nothing else — the smallest theme that still restyles the whole launcher. Copy this one to change colour alone.",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "homepage": "https://tetralauncher.com/",
+  "tags": ["starter", "basic", "dark", "light"],
+  "capabilities": ["tokens"]
+}

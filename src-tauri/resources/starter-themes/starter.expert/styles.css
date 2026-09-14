@@ -1,0 +1,13 @@
+/* Expert tier: layout.json covers structure, so the stylesheet stays small.
+   `data-tetra-slot` names a container, `data-tetra-el` a child; both are the
+   ids layout.json and components/*.json reference. Nothing here loads a remote
+   `url()` — a theme may only reach inside its own package. */
+
+[data-tetra-slot="server.row"] {
+  letter-spacing: 0.01em;
+}
+
+/* The stat block's own labels ride inside this group's children. */
+[data-tetra-slot="mods.row"] {
+  letter-spacing: 0.01em;
+}

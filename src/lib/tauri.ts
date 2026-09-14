@@ -591,6 +591,26 @@ export async function getTheme(id: string): Promise<ThemeFile> {
   return invoke<ThemeFile>("get_theme", { id });
 }
 
+/** This user's tuned settings-schema values for one installed theme; `{}` when nothing is tuned yet. */
+export async function getThemeSettingsValues(id: string): Promise<Record<string, unknown>> {
+  return invoke<Record<string, unknown>>("get_theme_settings_values", { id });
+}
+
+/** Tune one field of one installed theme. The backend merges the one key, so a second
+ * call never clobbers a field a first call already set. */
+export async function setThemeSettingsValue(
+  id: string,
+  fieldId: string,
+  value: number | boolean,
+): Promise<void> {
+  return invoke<void>("set_theme_settings_value", { id, fieldId, value });
+}
+
+/** Replace an installed theme's whole `layout.json` with the editor's object. Committed to disk immediately — the store arms the revert window around it. */
+export async function saveThemeLayout(id: string, layout: unknown): Promise<void> {
+  return invoke<void>("save_theme_layout", { id, layout });
+}
+
 /** Create-only — an id that already exists is an error, never an overwrite. */
 export async function saveTheme(manifest: ThemeManifest, tokens: unknown): Promise<string> {
   return invoke<string>("save_theme", { manifest, tokens });
@@ -626,6 +646,20 @@ export async function confirmActivation(): Promise<void> {
   return invoke<void>("confirm_activation");
 }
 
+/**
+ * Open the guard window over an edit to the *active* theme's own `layout.json`
+ * — the id never changes, so revert restores the file instead of switching
+ * themes. `previousBytes` is that file's content before `saveThemeLayout`
+ * wrote it, or `null` when it did not exist, which revert honours by deleting.
+ */
+export async function armLayoutEdit(
+  id: string,
+  file: string,
+  previousBytes: number[] | null,
+): Promise<void> {
+  return invoke<void>("arm_layout_edit", { id, file, previousBytes });
+}
+
 /** Works on an expired activation too — this is also what the timeout path calls. */
 export async function revertActivation(): Promise<void> {
   return invoke<void>("revert_activation");
@@ -652,4 +686,34 @@ export async function exportTheme(
   destPath: string,
 ): Promise<void> {
   return invoke<void>("export_theme", { id, manifestOverrides, destPath });
+}
+
+/** The theme packages this build ships as worked examples of each tier, for the
+    "New theme" picker. Read from the app's own resources — never the installed
+    themes on disk, so an installed theme cannot appear among them. */
+export async function listStarterTemplates(): Promise<ThemeSummary[]> {
+  return invoke<ThemeSummary[]>("list_starter_templates");
+}
+
+/**
+ * Create a new theme as a copy of the bundled `templateId`, with its manifest's
+ * id and name rewritten. Create-only, like {@link saveTheme}: an id that already
+ * exists is an error, never an overwrite.
+ */
+export async function scaffoldThemeFromTemplate(
+  templateId: string,
+  newId: string,
+  name: string,
+): Promise<string> {
+  return invoke<string>("scaffold_theme_from_template", { templateId, newId, name });
+}
+
+/** Watch one theme's directory for changes (Dev Mode), replacing whatever was watched before. An id with nothing on disk is a no-op, not an error. */
+export async function watchActiveTheme(id: string): Promise<void> {
+  return invoke<void>("watch_active_theme", { id });
+}
+
+/** Stop the watch, if one is running; a no-op when none is. */
+export async function stopWatchingTheme(): Promise<void> {
+  return invoke<void>("stop_watching_theme");
 }
