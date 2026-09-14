@@ -1525,7 +1525,7 @@ mod starter_templates {
                     "tokens.json",
                     "layout.json",
                     "styles.css",
-                    "components/server-row.json",
+                    "components/server.row.json",
                     "settings.schema.json",
                 ],
             ),
@@ -1554,7 +1554,7 @@ mod starter_templates {
     fn the_expert_template_uses_only_the_documented_components_and_settings_shapes() {
         let dir = bundled().join("starter.expert");
 
-        let component = json_file(&dir, "components/server-row.json");
+        let component = json_file(&dir, "components/server.row.json");
         assert_eq!(component["slot"], "server.row");
         let mut core_refs = Vec::new();
         walk_component(&component["root"], &mut core_refs);
