@@ -12,9 +12,11 @@ const childrenOf = (slotId: string) => {
 };
 
 /** Children of a resolved tree's root. Every case below composes a container
- * root, so a null tree or a core leaf here is a test bug, not a case. */
+ * root, so a null tree or a leaf here is a test bug, not a case. */
 const rootChildren = (node: ResolvedNode | null) => {
-  if (node === null || node.type === "core") throw new Error("expected a resolved container root");
+  if (node === null || node.type === "core" || node.type === "image") {
+    throw new Error("expected a resolved container root");
+  }
   return node.children;
 };
 
@@ -105,11 +107,11 @@ describe("resolveComponentTree", () => {
     expect(issues).toEqual([
       {
         slotId: "server.row",
-        message: "node type 'iframe' is not one of stack, box, grid, core — node dropped",
+        message: "node type 'iframe' is not one of stack, box, grid, core, image — node dropped",
       },
       {
         slotId: "server.row",
-        message: "node type 'script' is not one of stack, box, grid, core — node dropped",
+        message: "node type 'script' is not one of stack, box, grid, core, image — node dropped",
       },
     ]);
   });
@@ -384,8 +386,306 @@ describe("resolveComponentTree envelope", () => {
     expect(issues).toEqual([
       {
         slotId: "server.row",
-        message: "node type 'iframe' is not one of stack, box, grid, core — node dropped",
+        message: "node type 'iframe' is not one of stack, box, grid, core, image — node dropped",
       },
     ]);
+  });
+
+  it("returns tree: null for a root that is an image leaf", () => {
+    const { tree: resolved, issues } = resolveComponentTree(
+      "server.row",
+      tree({ type: "image", asset: "assets/logo.svg" }),
+      childrenOf("server.row"),
+    );
+
+    expect(resolved).toBeNull();
+    expect(issues).toEqual([
+      {
+        slotId: "server.row",
+        message: "component tree root is a 'image' leaf, not a container — tree ignored",
+      },
+    ]);
+  });
+});
+
+describe("resolveComponentTree image leaves", () => {
+  const optional = [{ id: "name", required: false, since: "1.0" }];
+
+  const imageOf = (leaf: unknown) =>
+    resolveComponentTree("server.row", tree({ type: "stack", children: [leaf] }), optional);
+
+  it("keeps a theme-relative asset path, including a nested one", () => {
+    for (const asset of ["assets/logo.svg", "assets/icons/rank-star.png", "./assets/a.webp"]) {
+      const { tree: resolved, issues } = imageOf({ type: "image", asset, grow: true });
+      expect(issues).toEqual([]);
+      expect(resolved).toEqual({
+        type: "stack",
+        children: [{ type: "image", asset, grow: true }],
+      });
+    }
+  });
+
+  it.each([
+    ["an absolute path", "/etc/passwd"],
+    ["a scheme-qualified path", "https://example.com/logo.svg"],
+    ["a path walking upward", "../../secret.png"],
+    ["a path walking upward from inside", "assets/../../secret.png"],
+    ["a Windows-rooted path", "\\assets\\logo.svg"],
+    ["an empty string", ""],
+    ["a number", 4],
+    ["null", null],
+    ["a missing asset key", undefined],
+  ])("drops a leaf whose asset is %s", (_label, asset) => {
+    const { tree: resolved, issues } = imageOf({ type: "image", asset });
+
+    expect(resolved).toEqual({ type: "stack", children: [] });
+    expect(issues).toHaveLength(1);
+    expect(issues[0].message).toContain("image 'asset' must be a path inside the theme");
+  });
+
+  it("rejects a non-boolean grow on an image leaf, keeping the leaf", () => {
+    const { tree: resolved, issues } = imageOf({
+      type: "image",
+      asset: "assets/logo.svg",
+      grow: "yes",
+    });
+
+    expect(resolved).toEqual({
+      type: "stack",
+      children: [{ type: "image", asset: "assets/logo.svg" }],
+    });
+    expect(issues).toEqual([
+      { slotId: "server.row", message: "'grow' must be a boolean ('yes') — prop dropped" },
+    ]);
+  });
+});
+
+describe("resolveComponentTree position", () => {
+  const optional = [{ id: "name", required: false, since: "1.0" }];
+
+  const positioned = (position: unknown, node: Record<string, unknown> = {}) =>
+    resolveComponentTree(
+      "server.row",
+      tree({ type: "stack", children: [{ type: "core", ref: "name", position, ...node }] }),
+      optional,
+    );
+
+  it("keeps an anchor, with and without literal offsets, on any node type", () => {
+    for (const anchor of [
+      "top-left",
+      "top",
+      "top-right",
+      "left",
+      "center",
+      "right",
+      "bottom-left",
+      "bottom",
+      "bottom-right",
+    ]) {
+      const { tree: resolved, issues } = positioned({ anchor, x: "-4px", y: "var(--space-xs)" });
+      expect(issues).toEqual([]);
+      expect(resolved).toEqual({
+        type: "stack",
+        children: [
+          { type: "core", ref: "name", position: { anchor, x: "-4px", y: "var(--space-xs)" } },
+        ],
+      });
+    }
+
+    const { tree: bare, issues } = positioned({ anchor: "center" });
+    expect(issues).toEqual([]);
+    expect(rootChildren(bare)).toEqual([
+      { type: "core", ref: "name", position: { anchor: "center" } },
+    ]);
+  });
+
+  it("keeps a position on a container's own root node", () => {
+    const { tree: resolved, issues } = resolveComponentTree(
+      "server.row",
+      tree({ type: "stack", position: { anchor: "bottom-right" }, children: [] }),
+      optional,
+    );
+
+    expect(issues).toEqual([]);
+    expect(resolved).toEqual({
+      type: "stack",
+      position: { anchor: "bottom-right" },
+      children: [],
+    });
+  });
+
+  it("drops the whole position for an anchor outside the nine", () => {
+    const { tree: resolved, issues } = positioned({ anchor: "middle", x: "4px" });
+
+    expect(resolved).toEqual({ type: "stack", children: [{ type: "core", ref: "name" }] });
+    expect(issues).toEqual([
+      {
+        slotId: "server.row",
+        message:
+          "'anchor' must be one of top-left, top, top-right, left, center, right, bottom-left, bottom, bottom-right ('middle') — prop dropped",
+      },
+    ]);
+  });
+
+  it("drops a non-object position, keeping the node", () => {
+    for (const value of ["center", 4, null]) {
+      const { tree: resolved, issues } = positioned(value);
+      expect(rootChildren(resolved)).toEqual([{ type: "core", ref: "name" }]);
+      expect(issues).toHaveLength(1);
+      expect(issues[0].message).toContain("'position' must be an object");
+    }
+  });
+
+  it.each([
+    ["a spaced class list", "gap-2 px-4"],
+    ["a bare number", 4],
+    ["a trailing semicolon", "4px;"],
+  ])("drops only the offset when position x is %s", (_label, x) => {
+    const { tree: resolved, issues } = positioned({ anchor: "center", x, y: "8px" });
+
+    expect(rootChildren(resolved)).toEqual([
+      { type: "core", ref: "name", position: { anchor: "center", y: "8px" } },
+    ]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].message).toContain("position 'x' is not a literal value");
+  });
+});
+
+describe("resolveComponentTree occlusion", () => {
+  it("flags two siblings on the identical anchor and offsets when one is a required ref", () => {
+    const { issues } = resolveComponentTree(
+      "server.row",
+      tree({
+        type: "stack",
+        children: [
+          { type: "image", asset: "assets/logo.svg", position: { anchor: "top-right" } },
+          { type: "core", ref: "modStatusBadge", position: { anchor: "top-right" } },
+        ],
+      }),
+      childrenOf("server.row"),
+    );
+
+    expect(issues).toEqual([
+      {
+        slotId: "server.row",
+        message:
+          "image 'assets/logo.svg' and core 'modStatusBadge' sit at anchor 'top-right' with the same offsets, occluding required core ref 'modStatusBadge'",
+      },
+    ]);
+  });
+
+  it("flags two siblings whose explicit offsets match exactly", () => {
+    const { issues } = resolveComponentTree(
+      "mods.row",
+      tree(
+        {
+          type: "stack",
+          children: [
+            { type: "core", ref: "modName", position: { anchor: "center", x: "2px", y: "2px" } },
+            { type: "image", asset: "assets/frame.png", position: { anchor: "center", x: "2px", y: "2px" } },
+          ],
+        },
+        "mods.row",
+      ),
+      childrenOf("mods.row"),
+    );
+
+    expect(issues).toEqual([
+      {
+        slotId: "mods.row",
+        message:
+          "core 'modName' and image 'assets/frame.png' sit at anchor 'center' with the same offsets, occluding required core ref 'modName'",
+      },
+    ]);
+  });
+
+  it.each([
+    [
+      "different anchors",
+      { anchor: "top-left" },
+      { anchor: "bottom-right" },
+    ],
+    [
+      "the same anchor with a 1px offset difference",
+      { anchor: "top-right", x: "-4px" },
+      { anchor: "top-right", x: "-5px" },
+    ],
+    [
+      "the same anchor with only one side offset at all",
+      { anchor: "top-right", y: "-4px" },
+      { anchor: "top-right" },
+    ],
+  ])("does not flag %s", (_label, first, second) => {
+    const { issues } = resolveComponentTree(
+      "server.row",
+      tree({
+        type: "stack",
+        children: [
+          { type: "image", asset: "assets/logo.svg", position: first },
+          { type: "core", ref: "modStatusBadge", position: second },
+        ],
+      }),
+      childrenOf("server.row"),
+    );
+
+    expect(issues).toEqual([]);
+  });
+
+  it("does not flag two optional refs stacked on the same point", () => {
+    const { issues } = resolveComponentTree(
+      "server.row",
+      tree({
+        type: "stack",
+        children: [
+          { type: "core", ref: "pingBadge", position: { anchor: "center" } },
+          { type: "core", ref: "playerCount", position: { anchor: "center" } },
+        ],
+      }),
+      childrenOf("server.row"),
+    );
+
+    expect(issues).toEqual([]);
+  });
+
+  it("does not flag siblings that share a point under different parents", () => {
+    const { issues } = resolveComponentTree(
+      "server.row",
+      tree({
+        type: "stack",
+        children: [
+          {
+            type: "box",
+            children: [
+              { type: "image", asset: "assets/logo.svg", position: { anchor: "top" } },
+            ],
+          },
+          {
+            type: "box",
+            children: [
+              { type: "core", ref: "name", position: { anchor: "top" } },
+            ],
+          },
+        ],
+      }),
+      childrenOf("server.row"),
+    );
+
+    expect(issues).toEqual([]);
+  });
+
+  it("does not require a position on the flow-placed siblings it leaves alone", () => {
+    const { issues } = resolveComponentTree(
+      "server.row",
+      tree({
+        type: "stack",
+        children: [
+          { type: "image", asset: "assets/logo.svg" },
+          { type: "core", ref: "modStatusBadge" },
+        ],
+      }),
+      childrenOf("server.row"),
+    );
+
+    expect(issues).toEqual([]);
   });
 });

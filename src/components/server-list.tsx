@@ -5,7 +5,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type ReactNode,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -24,7 +23,8 @@ import type { ViewId } from "./sidebar";
 import { cn, formatGameTime, formatLastPlayed, regionName } from "@/lib/utils";
 import { useResolvedSlot } from "@/theme/use-resolved-layout";
 import { slotChildrenToRender } from "@/theme/slot-children";
-import { resolveComponentTree, type ResolvedNode } from "@/theme/component-tree";
+import { resolveComponentTree } from "@/theme/component-tree";
+import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
 import { SLOTS } from "@/theme/slots";
 import { useThemeStore } from "@/theme/theme-store";
 import { ServerRowActions } from "./server-row-actions";
@@ -262,91 +262,6 @@ function renderStats(
   return groupedNodes(ids, nodes).map(({ id, node }) => <Fragment key={id}>{node}</Fragment>);
 }
 
-export type ContainerNode = Extract<ResolvedNode, { type: "stack" | "box" | "grid" }>;
-type Direction = NonNullable<ContainerNode["direction"]>;
-type Align = NonNullable<ContainerNode["align"]>;
-type Justify = NonNullable<ContainerNode["justify"]>;
-
-// Fixed lookups of literal class names: Tailwind's content scan only sees
-// strings written in this file, so a synthesized `flex-${direction}` would ship
-// with no CSS behind it.
-const FLEX_DIRECTION: Record<Direction, string> = { row: "flex-row", column: "flex-col" };
-const FLEX_ALIGN: Record<Align, string> = {
-  start: "items-start",
-  center: "items-center",
-  end: "items-end",
-  stretch: "items-stretch",
-};
-const FLEX_JUSTIFY: Record<Justify, string> = {
-  start: "justify-start",
-  center: "justify-center",
-  end: "justify-end",
-  "space-between": "justify-between",
-};
-
-// Grid properties are inline styles rather than classes: this vocabulary fixes
-// no grid template, and a runtime CSS property *value* carries none of the
-// class-name hazard above.
-const GRID_ALIGN: Record<Align, CSSProperties["alignItems"]> = {
-  start: "start",
-  center: "center",
-  end: "end",
-  stretch: "stretch",
-};
-const GRID_JUSTIFY: Record<Justify, CSSProperties["justifyContent"]> = {
-  start: "start",
-  center: "center",
-  end: "end",
-  "space-between": "space-between",
-};
-
-/** A container's own props. `stack` lays out with literal flex classes; `grid`
- * and every `gap` use inline styles; `box` groups and pads only, so
- * direction/align/justify/wrap — and `gap`, which does nothing outside flex or
- * grid — are ignored there. */
-export function containerProps(node: ContainerNode): {
-  className?: string;
-  style?: CSSProperties;
-} {
-  if (node.type === "box") return {};
-  if (node.type === "grid") {
-    return {
-      style: {
-        display: "grid",
-        ...(node.gap !== undefined && { gap: node.gap }),
-        ...(node.direction !== undefined && { gridAutoFlow: node.direction }),
-        ...(node.align !== undefined && { alignItems: GRID_ALIGN[node.align] }),
-        ...(node.justify !== undefined && { justifyContent: GRID_JUSTIFY[node.justify] }),
-      },
-    };
-  }
-  const className = cn(
-    "flex",
-    FLEX_DIRECTION[node.direction ?? "row"],
-    node.wrap === true && "flex-wrap",
-    node.align !== undefined && FLEX_ALIGN[node.align],
-    node.justify !== undefined && FLEX_JUSTIFY[node.justify],
-  );
-  return node.gap === undefined ? { className } : { className, style: { gap: node.gap } };
-}
-
-/** A theme's composition tree, rendered from the same flat map the grouped
- * fallback filters. */
-function ServerRowTree({
-  node,
-  nodes,
-}: {
-  node: ResolvedNode;
-  nodes: Partial<Record<string, ReactNode>>;
-}) {
-  if (node.type === "core") return <>{nodes[node.ref] ?? null}</>;
-  const children = node.children.map((child, index) => (
-    <ServerRowTree key={index} node={child} nodes={nodes} />
-  ));
-  if (node.type === "box") return <div>{children}</div>;
-  return <div {...containerProps(node)}>{children}</div>;
-}
-
 /** How often the distinct-maps dropdown is refetched — decoupled from the row-reload cadence. */
 const MAP_LIST_REFRESH_MS = 10_000;
 
@@ -581,7 +496,7 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                 }}
               >
                 {composition !== null ? (
-                  <ServerRowTree node={composition} nodes={nodes} />
+                  <ComponentTreeRenderer node={composition} nodes={nodes} themeId={activeId} />
                 ) : (
                   <>
                     {favouriteIds.map((id) => (
