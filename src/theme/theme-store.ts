@@ -32,7 +32,6 @@ import {
 } from "./settings-schema";
 import {
   armActivation,
-  armLayoutEdit,
   deleteTheme as deleteThemeCmd,
   getSettings,
   getTheme,
@@ -40,17 +39,10 @@ import {
   listInstalledThemes,
   migrateLegacyCustomThemes,
   saveTheme as saveThemeCmd,
-  saveThemeLayout,
   setActiveThemeId,
   setThemeSettingsValue,
 } from "@/lib/tauri";
-import type {
-  LayoutManifest,
-  LegacyTheme,
-  ThemeFile,
-  ThemeManifest,
-  ThemeSummary,
-} from "@/types/theme";
+import type { LegacyTheme, ThemeFile, ThemeManifest, ThemeSummary } from "@/types/theme";
 
 interface ThemeState {
   scheme: "dark" | "light";
@@ -77,14 +69,6 @@ interface ThemeState {
   /** Tune one field: writes it through the backend, mirrors it into
    * `settingsValues` immediately, then repaints. */
   setSettingsValue: (id: string, fieldId: string, value: number | boolean) => Promise<void>;
-  /** Set one slot's child order in the active theme's own `layout.json`. The
-   * caller owns producing a complete ordering; `resolveLayout` drops an
-   * unknown id and the backend's validation tolerates one, so neither checks. */
-  reorderSlotChildren: (slotId: string, order: string[]) => Promise<void>;
-  /** Flip one child's visibility in the active theme's own `layout.json`. */
-  toggleSlotChildVisibility: (slotId: string, childId: string) => Promise<void>;
-  /** Set one slot param — a literal CSS value or `var()` reference, verbatim. */
-  setSlotParam: (slotId: string, key: string, value: string) => Promise<void>;
   setScheme: (scheme: "dark" | "light") => void;
   /** `deleteOnRevert`: `id` was just created by this same action (duplicate,
    * "New theme") — abandoning the activation deletes it too, not just the pick. */
@@ -364,56 +348,6 @@ function loadLegacyThemes(): LegacyTheme[] | null {
   }
 }
 
-/** A theme's raw, unresolved `layout.json` — the object every mutation below
- * edits, never `resolveLayout`'s output. A theme with no readable layout file
- * gets the empty envelope, so a first edit writes a whole file. */
-function rawLayout(file: ThemeFile | undefined): LayoutManifest {
-  const layout = file?.layout;
-  if (layout === null || typeof layout !== "object") return { schemaVersion: 1, slots: {} };
-  const { schemaVersion, slots } = layout as { schemaVersion?: unknown; slots?: unknown };
-  return {
-    schemaVersion: typeof schemaVersion === "number" ? schemaVersion : 1,
-    slots:
-      typeof slots === "object" && slots !== null && !Array.isArray(slots)
-        ? (slots as Record<string, Record<string, unknown>>)
-        : {},
-  };
-}
-
-/** Patch one theme's raw layout into `themeFiles`, repaint from it, commit the
- * same object to disk, then arm the revert window over the bytes it replaced. */
-async function persistLayoutEdit(id: string, nextLayout: LayoutManifest): Promise<void> {
-  const store = useThemeStore.getState();
-  const previousFile = store.themeFiles[id];
-  const previous = previousFile?.layout;
-  const previousBytes =
-    previous === undefined || previous === null
-      ? null
-      : Array.from(new TextEncoder().encode(JSON.stringify(previous)));
-
-  useThemeStore.setState({
-    themeFiles: { ...store.themeFiles, [id]: { ...previousFile, layout: nextLayout } },
-  });
-  store.apply();
-
-  try {
-    await saveThemeLayout(id, nextLayout);
-  } catch (e) {
-    console.error(`Could not save layout.json for theme "${id}":`, e);
-    // Roll the optimistic patch back: nothing reached disk, so the preview must
-    // not keep rendering an edit no revert window is guarding.
-    useThemeStore.setState((state) => {
-      const themeFiles = { ...state.themeFiles };
-      if (previousFile === undefined) delete themeFiles[id];
-      else themeFiles[id] = previousFile;
-      return { themeFiles };
-    });
-    useThemeStore.getState().apply();
-    return;
-  }
-  await armLayoutEdit(id, "layout.json", previousBytes);
-}
-
 export const useThemeStore = create<ThemeState>((set, get) => ({
   scheme: "dark",
   activeId: "neutral",
@@ -551,50 +485,6 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       return { settingsValues: { ...state.settingsValues, [id]: { ...base, [fieldId]: value } } };
     });
     get().apply();
-  },
-
-  // Layout mutations edit the *active* theme's own raw file — the visual editor
-  // only ever drags elements in the theme currently rendering. Each rebuilds
-  // the slot map so every untouched slot survives the write verbatim.
-  reorderSlotChildren: async (slotId, order) => {
-    const id = get().activeId;
-    const layout = rawLayout(get().themeFiles[id]);
-    const slot = layout.slots[slotId] ?? {};
-    await persistLayoutEdit(id, {
-      ...layout,
-      slots: { ...layout.slots, [slotId]: { ...slot, order } },
-    });
-  },
-
-  // Whether a child may be hidden is the registry's `required` flag, which this
-  // store deliberately doesn't import: the popover that calls this disables the
-  // control for a required child, and one owner beats two copies drifting.
-  toggleSlotChildVisibility: async (slotId, childId) => {
-    const id = get().activeId;
-    const layout = rawLayout(get().themeFiles[id]);
-    const slot = layout.slots[slotId] ?? {};
-    const hidden = Array.isArray(slot.hidden)
-      ? slot.hidden.filter((child): child is string => typeof child === "string")
-      : [];
-    const next = hidden.includes(childId)
-      ? hidden.filter((child) => child !== childId)
-      : [...hidden, childId];
-    const entry: Record<string, unknown> = { ...slot };
-    // An emptied hide list drops the key rather than writing `"hidden": []` —
-    // the same shape a hand-authored layout.json uses.
-    if (next.length === 0) delete entry.hidden;
-    else entry.hidden = next;
-    await persistLayoutEdit(id, { ...layout, slots: { ...layout.slots, [slotId]: entry } });
-  },
-
-  setSlotParam: async (slotId, key, value) => {
-    const id = get().activeId;
-    const layout = rawLayout(get().themeFiles[id]);
-    const slot = layout.slots[slotId] ?? {};
-    await persistLayoutEdit(id, {
-      ...layout,
-      slots: { ...layout.slots, [slotId]: { ...slot, [key]: value } },
-    });
   },
 
   setScheme: (scheme) => {

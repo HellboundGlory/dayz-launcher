@@ -41,14 +41,10 @@ export function SettingsView({
   onClose,
   devMode,
   onDevModeChange,
-  layoutEditMode,
-  onLayoutEditModeChange,
 }: {
   onClose: () => void;
   devMode: boolean;
   onDevModeChange: (on: boolean) => void;
-  layoutEditMode: boolean;
-  onLayoutEditModeChange: (on: boolean) => void;
 }) {
   const profileName = useSettingsStore((s) => s.profileName);
   const dayzPath = useSettingsStore((s) => s.dayzPath);
@@ -386,12 +382,7 @@ export function SettingsView({
         >
           <div data-tetra-slot="settings.theme">
             <div data-tetra-el="themeManagement">
-              <ThemesSection
-                devMode={devMode}
-                onDevModeChange={onDevModeChange}
-                layoutEditMode={layoutEditMode}
-                onLayoutEditModeChange={onLayoutEditModeChange}
-              />
+              <ThemesSection devMode={devMode} onDevModeChange={onDevModeChange} />
             </div>
           </div>
         </SettingsAccordion>

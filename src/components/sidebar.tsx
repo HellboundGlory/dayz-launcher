@@ -1,9 +1,8 @@
-import { Fragment, useRef, useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { Globe, Star, Clock, Package, Settings, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import tetraLogo from "@/assets/tetra-logo.png";
 import { useResolvedSlot } from "@/theme/use-resolved-layout";
-import { useThemeStore } from "@/theme/theme-store";
 
 export type ViewId = "servers" | "fav" | "recent" | "mods";
 
@@ -16,10 +15,6 @@ interface SidebarProps {
   /** Lift the collapsed state so the shell can set `--side-w` (the settings
       overlay's left edge tracks the rail width without subscribing). */
   onCollapsedChange?: (collapsed: boolean) => void;
-  /** Dev Mode, and Dev Mode's layout editor specifically — the resize handle
-      is an authoring affordance and must not exist in ordinary use. */
-  devMode: boolean;
-  layoutEditMode: boolean;
 }
 
 const NAV: { id: ViewId; label: string; icon: typeof Globe; tetraEl: string }[] = [
@@ -49,14 +44,6 @@ export function orderedByLayout(children: string[], ids: readonly string[]): str
   return [...children.filter((id) => ids.includes(id)), ...ids.filter((id) => !present.has(id))];
 }
 
-/** Bounds the drag handle and any future numeric width control share. */
-export const SIDEBAR_MIN_WIDTH = 140;
-export const SIDEBAR_MAX_WIDTH = 320;
-
-export function clampSidebarWidth(px: number): number {
-  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(px)));
-}
-
 // 176px icon+label rail collapsing to 52px icon-only, both themeable through
 // shell.sidebar's `width`/`collapsedWidth`. Width is driven by --side-w on the
 // shell so other surfaces track it without subscribing.
@@ -67,58 +54,12 @@ export function Sidebar({
   onOpenSettings,
   onCloseSettings,
   onCollapsedChange,
-  devMode,
-  layoutEditMode,
 }: SidebarProps) {
   const slot = useResolvedSlot("shell.sidebar");
   const hidden = new Set(slot.hidden);
   const [collapsed, setCollapsed] = useState(() => slot.params.defaultCollapsed === true);
   const width = typeof slot.params.width === "string" ? slot.params.width : "176px";
   const right = slot.params.position === "right";
-
-  const setSlotParam = useThemeStore((s) => s.setSlotParam);
-  const asideRef = useRef<HTMLElement>(null);
-  /** Live preview width while dragging; `null` means the rail reads --side-w. */
-  const [dragWidthPx, setDragWidthPx] = useState<number | null>(null);
-  /** Pointer X and rendered width at pointerdown — the drag's fixed origin —
-      plus the latest preview, which pointerup reads here rather than from the
-      state above: the render after the final pointermove may not have landed. */
-  const dragStart = useRef<{ x: number; width: number; next: number | null } | null>(null);
-
-  // The preview writes the <aside>'s own width instead of calling setSlotParam
-  // per pointermove: that call rewrites layout.json and arms the activation
-  // window, which belongs on release, not sixty times a second mid-drag.
-  function onHandlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    const origin = asideRef.current?.getBoundingClientRect().width;
-    if (origin === undefined) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    dragStart.current = { x: e.clientX, width: origin, next: null };
-  }
-
-  function onHandlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    const start = dragStart.current;
-    if (start === null) return;
-    const next = clampSidebarWidth(start.width + (right ? -1 : 1) * (e.clientX - start.x));
-    start.next = next;
-    setDragWidthPx(next);
-  }
-
-  function onHandlePointerUp() {
-    const start = dragStart.current;
-    if (start === null) return;
-    dragStart.current = null;
-    setDragWidthPx(null);
-    // Cleared to null means the gesture never moved — a click on the handle
-    // must not rewrite the layout.
-    if (start.next !== null) void setSlotParam("shell.sidebar", "width", `${start.next}px`);
-  }
-
-  /** Capture lost — a cancelled gesture, not a release: drop the preview
-      without writing a width the pointer never settled on. */
-  function onHandlePointerCancel() {
-    dragStart.current = null;
-    setDragWidthPx(null);
-  }
 
   const navItems = orderedByLayout(slot.children, NAV_IDS)
     .map((tetraEl) => NAV.find((item) => item.tetraEl === tetraEl))
@@ -252,45 +193,17 @@ export function Sidebar({
 
   return (
     <aside
-      ref={asideRef}
       data-tetra-slot="shell.sidebar"
       className={cn(
         right
           ? "side relative flex shrink-0 flex-col overflow-hidden border-l border-line bg-surface transition-[width] duration-200"
           : "side relative flex shrink-0 flex-col overflow-hidden border-r border-line bg-surface transition-[width] duration-200",
-        // The 200ms width transition is for the collapse toggle; mid-drag it
-        // would trail the pointer, so the live preview drops it.
-        dragWidthPx !== null && "transition-none",
       )}
-      style={{ width: dragWidthPx === null ? `var(--side-w, ${width})` : `${dragWidthPx}px` }}
+      style={{ width: `var(--side-w, ${width})` }}
       data-collapsed={collapsed || undefined}
     >
       {orderedByLayout(slot.children, TOP_GROUPS).map((id) =>
         hidden.has(id) && !REQUIRED_IDS[id] ? null : <Fragment key={id}>{groups[id]}</Fragment>,
-      )}
-
-      {devMode && layoutEditMode && !collapsed && (
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize sidebar"
-          onPointerDown={onHandlePointerDown}
-          onPointerMove={onHandlePointerMove}
-          onPointerUp={onHandlePointerUp}
-          onPointerCancel={onHandlePointerCancel}
-          className={cn(
-            // Below the collapse toggle's z-[5]: that edge tab sits on the same
-            // edge at bottom-24 and must stay clickable while editing.
-            // The dev-mode pink (matching the inspector badge/popover), not
-            // the theme's own hairline color: this is an authoring affordance
-            // that must read as a tool overlay, not as this theme's own
-            // chrome — a resting hairline is easy to miss entirely.
-            "group absolute inset-y-0 z-[4] w-2 cursor-col-resize touch-none select-none hover:bg-[rgba(255,79,216,0.15)]",
-            right ? "left-0" : "right-0",
-          )}
-        >
-          <span className="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 bg-[#ff4fd8]/60 group-hover:bg-[#ff4fd8]" />
-        </div>
       )}
     </aside>
   );

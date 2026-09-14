@@ -2,7 +2,6 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { SLOTS } from "@/theme/slots";
-import { LayoutEditPopover } from "./LayoutEditPopover";
 
 const SLOT_ATTR = "data-tetra-slot";
 const EL_ATTR = "data-tetra-el";
@@ -58,31 +57,8 @@ function rectsOverlap(a: DOMRect, b: DOMRect): boolean {
   return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 }
 
-/** Whether `(x, y)` sits in the corridor between a hovered element and its
- * floating badge, so crossing that gap doesn't hand the hover to whatever's
- * actually behind it. Horizontally uses the overlap between the two rects,
- * not their union — a full-width row paired with a much narrower badge would
- * otherwise protect the entire row instead of just the doorway to the badge. */
-export function inHoverBridge(
-  x: number,
-  y: number,
-  anchor: { top: number; bottom: number; left: number; right: number },
-  badge: { top: number; bottom: number; left: number; right: number },
-): boolean {
-  const overlapLeft = Math.max(anchor.left, badge.left);
-  const overlapRight = Math.min(anchor.right, badge.right);
-  const left = overlapLeft < overlapRight ? overlapLeft : badge.left;
-  const right = overlapLeft < overlapRight ? overlapRight : badge.right;
-  if (x < left || x > right) return false;
-  const top = Math.min(anchor.top, anchor.bottom, badge.top, badge.bottom);
-  const bottom = Math.max(anchor.top, anchor.bottom, badge.top, badge.bottom);
-  return y >= top && y <= bottom;
-}
-
 /** Top/left for a floating panel measured at `size`, sitting just past
- * `anchor`'s bottom edge when there is room and just above it otherwise. The
- * badge and the layout popover both hang off the highlighted element, so they
- * share this rather than clamping twice. */
+ * `anchor`'s bottom edge when there is room and just above it otherwise. */
 export function placeOverlay(
   anchor: { top: number; bottom: number; left: number },
   size: { w: number; h: number },
@@ -130,19 +106,14 @@ function resolveDevTarget(target: Element): { node: TetraNode; rect: DOMRect } |
 }
 
 /** Slot inspector: outlines whatever slot/element the pointer is over and
- * reports the registry's children for it. With `editMode`, a slot's badge
- * also offers the reorder/hide popover. Mounted only while Dev Mode is on, so
+ * reports the registry's children for it. Mounted only while Dev Mode is on, so
  * the listeners and the overlay exist for exactly that long. */
-export function DevModeInspector({ editMode }: { editMode: boolean }) {
+export function DevModeInspector() {
   const [hover, setHover] = useState<HoverState | null>(null);
   // Freezes the badge on a clicked target regardless of subsequent mouse
   // movement; another click, empty space, Escape, or scroll releases it.
   const [pinned, setPinned] = useState<HoverState | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
-  // The slot the layout popover is open for; anchored to the badge rather
-  // than the highlighted element so it doesn't land on the button that
-  // opened it. Hover tracking pauses while set (see `onMove`).
-  const [editSlot, setEditSlot] = useState<{ id: string; anchor: DOMRect } | null>(null);
   // Keyed on the rounded rect too, so a layout shift under a stationary pointer
   // re-positions the outline while an unchanged hover skips the re-render.
   const lastKey = useRef<string | null>(null);
@@ -153,10 +124,6 @@ export function DevModeInspector({ editMode }: { editMode: boolean }) {
   hoverRef.current = hover;
   const pinnedRef = useRef<HoverState | null>(null);
   pinnedRef.current = pinned;
-  const editModeRef = useRef(editMode);
-  editModeRef.current = editMode;
-  const editSlotRef = useRef<string | null>(null);
-  editSlotRef.current = editSlot?.id ?? null;
   const badgeRef = useRef<HTMLDivElement | null>(null);
 
   // What's actually shown: a pin overrides live hover entirely, so the badge
@@ -175,7 +142,7 @@ export function DevModeInspector({ editMode }: { editMode: boolean }) {
   // Re-measures the pinned element every frame rather than trusting the rect
   // captured at click time, so it tracks a resize or reflow underneath it.
   // Only runs while pinned, and unpins on its own if the element leaves the
-  // document (e.g. hidden via the layout popover).
+  // document.
   useEffect(() => {
     if (pinned === null) return;
     let raf = 0;
@@ -216,11 +183,9 @@ export function DevModeInspector({ editMode }: { editMode: boolean }) {
     function onClick(e: MouseEvent) {
       const target = e.target;
       if (!(target instanceof Element)) return;
-      // Clicks inside the badge or the layout popover manage pin/edit state
-      // themselves (Copy, Edit order, its own outside-click handler) — must
-      // not also be reinterpreted as "click elsewhere" here.
+      // Clicks inside the badge manage pin state themselves (Copy) — must not
+      // also be reinterpreted as "click elsewhere" here.
       if (target.closest("[data-dev-inspector]")) return;
-      if (editSlotRef.current !== null) return;
       const resolved = resolveDevTarget(target);
       setCopyState("idle");
       if (resolved === null) {
@@ -241,7 +206,6 @@ export function DevModeInspector({ editMode }: { editMode: boolean }) {
     function onMove(e: MouseEvent) {
       const target = e.target;
       if (!(target instanceof Element)) return;
-      if (editSlotRef.current !== null) return;
       // A pin freezes the badge on its own target; live hover no longer has
       // any say in what's displayed until it's released.
       if (pinnedRef.current !== null) return;
@@ -265,25 +229,6 @@ export function DevModeInspector({ editMode }: { editMode: boolean }) {
       if (target.closest("[data-dev-inspector]")) return;
       const resolved = resolveDevTarget(target);
       if (resolved === null) {
-        // Genuinely blank space on the way to the current hover's own badge
-        // (see `inHoverBridge`) still holds it open — gated to the case an
-        // "Edit order" button exists, since that's the only thing worth
-        // reaching by mouse (Ctrl+C already covers Copy).
-        const currentHover = hoverRef.current;
-        const currentSlotEligible =
-          editModeRef.current &&
-          currentHover !== null &&
-          currentHover.node.kind === "slot" &&
-          (SLOTS.find((s) => s.id === currentHover.node.id)?.children.length ?? 0) > 1;
-        const badgeRect = badgeRef.current?.getBoundingClientRect();
-        if (
-          currentSlotEligible &&
-          currentHover !== null &&
-          badgeRect !== undefined &&
-          inHoverBridge(e.clientX, e.clientY, currentHover.rect, badgeRect)
-        ) {
-          return;
-        }
         if (lastKey.current === "") return;
         lastKey.current = "";
         setHover(null);
@@ -299,7 +244,6 @@ export function DevModeInspector({ editMode }: { editMode: boolean }) {
     }
     function onOut(e: MouseEvent) {
       if (e.relatedTarget !== null) return;
-      if (editSlotRef.current !== null) return;
       lastKey.current = null;
       setHover(null);
       setCopyState("idle");
@@ -309,7 +253,6 @@ export function DevModeInspector({ editMode }: { editMode: boolean }) {
     // different row — clear on any scroll (capture: true, scroll doesn't
     // bubble) so the next mousemove picks up wherever the pointer lands.
     function onScroll() {
-      if (editSlotRef.current !== null) return;
       // A pin re-measures every frame regardless of scroll, but can't detect
       // a virtualised list reusing its DOM node for a different row — drop
       // it too rather than risk labeling the wrong one.
@@ -331,13 +274,6 @@ export function DevModeInspector({ editMode }: { editMode: boolean }) {
       document.removeEventListener("scroll", onScroll, true);
     };
   }, [releasePin]);
-
-  // Leaving edit mode leaves any open popover with it — it doesn't render
-  // while off, and turning it back on should start from a clean slate rather
-  // than an old target reappearing.
-  useEffect(() => {
-    if (!editMode) setEditSlot(null);
-  }, [editMode]);
 
   const copyResetTimer = useRef<number | null>(null);
   useEffect(() => {
@@ -362,7 +298,7 @@ export function DevModeInspector({ editMode }: { editMode: boolean }) {
   // way clicking empty space would.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape" && editSlotRef.current === null) {
+      if (e.key === "Escape") {
         releasePin();
         return;
       }
@@ -461,36 +397,9 @@ export function DevModeInspector({ editMode }: { editMode: boolean }) {
                 {copyState === "copied" ? "Copied!" : copyState === "failed" ? "Copy failed" : "Ctrl+C to copy"}
               </button>
               <span className="break-all text-[#9c93ad]">{selectorFor(active.node)}</span>
-              {editMode && slot !== undefined && slot.children.length > 1 && (
-                <button
-                  type="button"
-                  // Without this, closing the popover here reopens it: its
-                  // outside-mousedown handler (mousedown fires before click)
-                  // would clear `editSlot` first, so `open` already reads
-                  // null by the time the onClick below runs.
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={() =>
-                    setEditSlot((open) =>
-                      open?.id === active.node.id
-                        ? null
-                        : { id: active.node.id, anchor: badgeRef.current?.getBoundingClientRect() ?? rect },
-                    )
-                  }
-                  className="pointer-events-auto ml-auto shrink-0 rounded-[4px] border border-[#ff4fd8] px-1.5 py-px text-[9.5px] font-semibold uppercase tracking-[0.04em] text-[#ff9ae8] hover:bg-[rgba(255,79,216,0.2)]"
-                >
-                  Edit order
-                </button>
-              )}
             </div>
           </div>
         </>
-      )}
-      {editMode && editSlot && (
-        <LayoutEditPopover
-          slotId={editSlot.id}
-          anchorRect={editSlot.anchor}
-          onClose={() => setEditSlot(null)}
-        />
       )}
     </div>,
     document.body,
