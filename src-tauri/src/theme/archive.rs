@@ -13,8 +13,8 @@ use std::io::{Read, Seek, Write};
 use std::path::{Path, PathBuf};
 
 use crate::theme::{
-    components_slot, ThemeManifest, ThemeSummary, COMPONENTS_DIR, LAYOUT_FILE, MANIFEST_FILE,
-    SETTINGS_SCHEMA_FILE, STYLES_FILE, TOKENS_FILE,
+    composition_gate, composition_refused, ThemeManifest, ThemeSummary, COMPONENTS_DIR,
+    LAYOUT_FILE, MANIFEST_FILE, SETTINGS_SCHEMA_FILE, STYLES_FILE, TOKENS_FILE,
 };
 use quick_xml::events::Event;
 
@@ -239,6 +239,17 @@ fn inspect<R: Read + Seek>(
                 "`{name}` is not a file a theme package may hold — allowed are {ALLOWED_EXTENSIONS:?}."
             ));
         };
+
+        // The slot registry gates compositions on import exactly as the read
+        // path does: an unknown or restricted slot's file is not a theme file.
+        if let Some(named) = components_file_slot(&name) {
+            let Some((slot, composable)) = composition_gate(named) else {
+                return Err(format!("`{name}` names no slot in the slot registry."));
+            };
+            if !composable {
+                return Err(composition_refused(&name, slot));
+            }
+        }
 
         // Read into memory rather than straight to disk: an asset has to be
         // sniffed before it is staged, and a theme asset is bounded by the
@@ -780,15 +791,20 @@ fn be_u32(bytes: &[u8], at: usize) -> Option<u32> {
     Some(u32::from_be_bytes([slice[0], slice[1], slice[2], slice[3]]))
 }
 
-/// Whether `relative` is a slot composition: exactly `components/<slot id>.json`,
-/// one level deep. A nested `assets/components/x.json` is an inert data file,
-/// and so is anything under `components/` that is not a `.json`.
-fn is_components_file(relative: &str) -> bool {
+/// Whether `relative` is a components-file-shaped path: exactly
+/// `components/<anything>.json`, one level deep — the shape a composition
+/// file must have before the slot registry has a say. A nested
+/// `assets/components/x.json` is not one, and neither is anything under
+/// `components/` that is not a `.json`. `Some` is the would-be slot id.
+fn components_file_slot(relative: &str) -> Option<&str> {
     let mut segments = relative.split('/');
     let (Some(dir), Some(name), None) = (segments.next(), segments.next(), segments.next()) else {
-        return false;
+        return None;
     };
-    dir == COMPONENTS_DIR && components_slot(name).is_some()
+    if dir != COMPONENTS_DIR {
+        return None;
+    }
+    name.strip_suffix(".json").filter(|slot| !slot.is_empty())
 }
 
 /// Refuse an `advanced` or `expert` package whose content needs a capability
@@ -847,7 +863,7 @@ fn missing_capabilities(manifest: &ThemeManifest, staging_dir: &Path) -> Result<
                 .any(|i| i.eq_ignore_ascii_case(extension))
             {
                 3
-            } else if is_components_file(&relative) {
+            } else if components_file_slot(&relative).is_some() {
                 4
             } else if prefix.is_empty() && name == SETTINGS_SCHEMA_FILE {
                 5
@@ -1096,6 +1112,17 @@ fn append_assets(theme_dir: &Path, files: &mut Vec<(String, Vec<u8>)>) -> Result
             let Some(extension) = allowed_extension(&relative) else {
                 continue;
             };
+            // The slot registry gates compositions on export exactly as the
+            // import side does: an export must never produce a package this
+            // build would refuse to re-import.
+            if let Some(named) = components_file_slot(&relative) {
+                let Some((slot, composable)) = composition_gate(named) else {
+                    return Err(format!("`{relative}` names no slot in the slot registry."));
+                };
+                if !composable {
+                    return Err(composition_refused(&relative, slot));
+                }
+            }
             let depth = relative.matches('/').count();
             if depth > MAX_PATH_DEPTH {
                 return Err(format!(
@@ -1647,6 +1674,72 @@ mod tests {
         assert!(error.contains("../../escaped.json"), "message was: {error}");
         assert!(!root.join(STAGING_DIR).read_dir().unwrap().next().is_some());
         assert!(!root.parent().unwrap().join("escaped.json").exists());
+    }
+
+    /// The slot registry gates compositions at import, exactly as the read
+    /// path does: a file for a slot capped at `compositionCeiling: "advanced"`
+    /// fails the whole package, not just that file.
+    #[test]
+    fn a_composition_file_for_a_restricted_slot_is_refused() {
+        let root = scratch("import-restricted-slot");
+        let zip_path = fixture(
+            &root,
+            "import-restricted-slot",
+            &[Entry::file(
+                "components/modal.steamRequired.json",
+                r#"{"schemaVersion":1,"root":{"type":"stack"}}"#,
+            )],
+        );
+
+        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
+
+        assert!(
+            error.contains("modal.steamRequired.json")
+                && error.contains("not a slot a theme may compose"),
+            "message was: {error}"
+        );
+        assert!(!root.join(STAGING_DIR).read_dir().unwrap().next().is_some());
+    }
+
+    /// A composition file naming no slot in the registry fails the whole
+    /// package, so a typo cannot ship as a silently-ignored theme file.
+    #[test]
+    fn a_composition_file_for_an_unknown_slot_is_refused() {
+        let root = scratch("import-unknown-slot");
+        let zip_path = fixture(
+            &root,
+            "import-unknown-slot",
+            &[Entry::file(
+                "components/server.rows.json",
+                r#"{"schemaVersion":1,"root":{"type":"stack"}}"#,
+            )],
+        );
+
+        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
+
+        assert!(
+            error.contains("server.rows.json") && error.contains("no slot in the slot registry"),
+            "message was: {error}"
+        );
+        assert!(!root.join(STAGING_DIR).read_dir().unwrap().next().is_some());
+    }
+
+    /// An unrestricted slot's composition file stages exactly as before.
+    #[test]
+    fn a_composition_file_for_an_unrestricted_slot_is_staged() {
+        let root = scratch("import-ok-slot");
+        let tree = r#"{"schemaVersion":1,"slot":"server.row","root":{"type":"core","ref":"name"}}"#;
+        let zip_path = fixture(
+            &root,
+            "import-ok-slot",
+            &[Entry::file("components/server.row.json", tree)],
+        );
+
+        let preview = stage_for_preview(&root, &zip_path, &[]).expect("must stage");
+
+        assert_eq!(preview.file_count, 3);
+        let staged = staging_dir(&root, &preview).join("components/server.row.json");
+        assert_eq!(std::fs::read(staged).unwrap(), tree.as_bytes());
     }
 
     #[test]
