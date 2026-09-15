@@ -1,10 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Info, Play, ListTree, Download, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Server } from "@/types/server";
 import { useServerActions, NOTICES } from "@/hooks/use-server-actions";
 import { useResolvedSlot } from "@/theme/use-resolved-layout";
 import { slotChildrenToRender } from "@/theme/slot-children";
+import { resolveComponentTree } from "@/theme/component-tree";
+import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
+import { SLOTS } from "@/theme/slots";
+import { useThemeStore } from "@/theme/theme-store";
 
 interface RowActionsProps {
   server: Server;
@@ -42,6 +46,24 @@ export function ServerRowActions({ server, onMoreInfo, onOpenChange }: RowAction
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const activeId = useThemeStore((s) => s.activeId);
+  const themeFiles = useThemeStore((s) => s.themeFiles);
+  const composition = useMemo(() => {
+    const theme = themeFiles[activeId];
+    if (theme === undefined || theme.tier !== "expert") return null;
+    const treeJson = theme.components["server.rowActions"];
+    if (treeJson === undefined) return null;
+    const { tree, issues } = resolveComponentTree(
+      "server.rowActions",
+      treeJson,
+      SLOTS.find((slot) => slot.id === "server.rowActions")?.children ?? [],
+    );
+    for (const issue of issues) {
+      console.warn(`[theme components] ${issue.slotId}: ${issue.message}`);
+    }
+    return tree;
+  }, [activeId, themeFiles]);
+
   const actions = useServerActions();
   // Only the dropdown's three entries are themeable; joinAction and the chevron
   // keep their own fixed positions.
@@ -97,12 +119,31 @@ export function ServerRowActions({ server, onMoreInfo, onOpenChange }: RowAction
   const busyForThis = actions.op && actions.op.addr === server.addr;
   const joinDisabled = !!actions.op || actions.dayzUp;
 
+  // The composed slot has no disclosure primitive, so the three menu items
+  // become always-visible standalone buttons there; the chevron dropdown and
+  // actions.notice stay fallback-only.
+  const nodes = composeNodes();
+
   return (
     <div
       ref={ref}
       data-tetra-slot="server.rowActions"
       className="row-act relative flex shrink-0 items-center gap-[5px]"
     >
+      {composition !== null ? (
+        <ComponentTreeRenderer node={composition} nodes={nodes} themeId={activeId} />
+      ) : (
+        <>
+          {joinButton()}
+          {chevronButton()}
+          {open && dropdownMenu()}
+        </>
+      )}
+    </div>
+  );
+
+  function joinButton(): React.ReactNode {
+    return (
       <button
         data-tetra-el="joinAction"
         onClick={(e) => {
@@ -131,7 +172,11 @@ export function ServerRowActions({ server, onMoreInfo, onOpenChange }: RowAction
           </>
         )}
       </button>
+    );
+  }
 
+  function chevronButton(): React.ReactNode {
+    return (
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -147,61 +192,87 @@ export function ServerRowActions({ server, onMoreInfo, onOpenChange }: RowAction
       >
         <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} />
       </button>
+    );
+  }
 
-      {open && (
-        <div
-          ref={menuRef}
-          role="menu"
-          onKeyDown={onMenuKeyDown}
-          className="menu absolute right-0 top-[calc(100%+4px)] z-[6] w-[174px] rounded-[7px] border border-line bg-surface2 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
-        >
-          {slotChildrenToRender(slot, [], MENU_ITEM_IDS).map((id) => {
-            const item = MENU_ITEMS[id];
-            return (
-              <MenuItem
-                key={id}
-                icon={item.icon}
-                label={item.label}
-                data-tetra-el={id}
-                disabled={item.disabled(joinDisabled, !!actions.op)}
-                onClick={() =>
-                  run(() =>
-                    id === "moreInfoItem"
-                      ? onMoreInfo(server)
-                      : id === "loadToMenuItem"
-                        ? void actions.verifyAndJoin(server, true)
-                        : void actions.subscribeOnly(server),
-                  )
-                }
-              />
-            );
-          })}
-          {actions.notice && (
-            <div className="mt-1 border-t border-line-weak px-2.5 pb-1 pt-1.5">
-              <p
-                title={
-                  actions.notice.kind === "code"
-                    ? NOTICES[actions.notice.code].detail
-                    : undefined
-                }
-                className={cn(
-                  "truncate text-[9px] leading-snug",
-                  actions.notice.kind === "code" &&
-                    NOTICES[actions.notice.code].text.startsWith("E")
-                    ? "text-danger"
-                    : "text-warn",
-                )}
-              >
-                {actions.notice.kind === "code"
-                  ? NOTICES[actions.notice.code].text
-                  : actions.notice.text}
-              </p>
-            </div>
+  function dropdownMenu(): React.ReactNode {
+    return (
+      <div
+        ref={menuRef}
+        role="menu"
+        onKeyDown={onMenuKeyDown}
+        className="menu absolute right-0 top-[calc(100%+4px)] z-[6] w-[174px] rounded-[7px] border border-line bg-surface2 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
+      >
+        {slotChildrenToRender(slot, [], MENU_ITEM_IDS).map((id) => (
+          <MenuItem
+            key={id}
+            icon={MENU_ITEMS[id].icon}
+            label={MENU_ITEMS[id].label}
+            data-tetra-el={id}
+            disabled={MENU_ITEMS[id].disabled(joinDisabled, !!actions.op)}
+            onClick={() => runItem(id)}
+          />
+        ))}
+        {actions.notice && noticeBlock()}
+      </div>
+    );
+  }
+
+  function runItem(id: string) {
+    run(() =>
+      id === "moreInfoItem"
+        ? onMoreInfo(server)
+        : id === "loadToMenuItem"
+          ? void actions.verifyAndJoin(server, true)
+          : void actions.subscribeOnly(server),
+    );
+  }
+
+  function noticeBlock(): React.ReactNode {
+    return (
+      <div className="mt-1 border-t border-line-weak px-2.5 pb-1 pt-1.5">
+        <p
+          title={
+            actions.notice!.kind === "code" ? NOTICES[actions.notice!.code].detail : undefined
+          }
+          className={cn(
+            "truncate text-[9px] leading-snug",
+            actions.notice!.kind === "code" && NOTICES[actions.notice!.code].text.startsWith("E")
+              ? "text-danger"
+              : "text-warn",
           )}
-        </div>
-      )}
-    </div>
-  );
+        >
+          {actions.notice!.kind === "code" ? NOTICES[actions.notice!.code].text : actions.notice!.text}
+        </p>
+      </div>
+    );
+  }
+
+  function composeNodes(): Partial<Record<string, React.ReactNode>> {
+    const itemNode = (id: string): React.ReactNode => (
+      <MenuItem
+        data-tetra-el={id}
+        icon={MENU_ITEMS[id].icon}
+        label={MENU_ITEMS[id].label}
+        disabled={MENU_ITEMS[id].disabled(joinDisabled, !!actions.op)}
+        onClick={() => {
+          if (id === "moreInfoItem") {
+            onMoreInfo(server);
+          } else if (id === "loadToMenuItem") {
+            void actions.verifyAndJoin(server, true);
+          } else {
+            void actions.subscribeOnly(server);
+          }
+        }}
+      />
+    );
+    return {
+      joinAction: joinButton(),
+      moreInfoItem: itemNode("moreInfoItem"),
+      loadToMenuItem: itemNode("loadToMenuItem"),
+      downloadModsItem: itemNode("downloadModsItem"),
+    };
+  }
 }
 
 function MenuItem({
