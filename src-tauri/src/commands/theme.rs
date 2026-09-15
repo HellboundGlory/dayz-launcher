@@ -190,7 +190,7 @@ const ACTIVATION_WINDOW: Duration = Duration::from_secs(15);
 const GUARD_WINDOW: &str = "theme-guard";
 
 /// Mirrors `tauri.conf.json`'s `width`/`height`; used only by the first-use lazy build.
-const GUARD_SIZE: (f64, f64) = (360.0, 140.0);
+const GUARD_SIZE: (f64, f64) = (336.0, 116.0);
 
 impl PendingActivation {
     /// `saturating_` so a poll landing after the deadline reads `0` instead of underflowing.
@@ -309,7 +309,7 @@ fn build_guard_window(app: &AppHandle) -> Result<tauri::WebviewWindow, String> {
     .maximizable(false)
     .minimizable(false)
     .decorations(false)
-    .transparent(true)
+    .transparent(false)
     .always_on_top(true)
     .skip_taskbar(true)
     .visible(false)
