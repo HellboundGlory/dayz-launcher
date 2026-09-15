@@ -69,7 +69,8 @@
   ],
   "resources": [
    "steam_api64.dll",
-   "resources/starter-themes/**/*"
+   "resources/starter-themes/**/*",
+   "resources/builtin-themes/**/*"
   ],
   "icon": [
    "icons/icon.png",
