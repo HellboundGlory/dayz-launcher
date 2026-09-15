@@ -12,6 +12,10 @@ import {
 } from "@/lib/tauri";
 import { cn, formatBytes, formatLastPlayed } from "@/lib/utils";
 import { SlotChild } from "@/theme/slot-render";
+import { resolveComponentTree } from "@/theme/component-tree";
+import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
+import { SLOTS } from "@/theme/slots";
+import { useThemeStore } from "@/theme/theme-store";
 
 type Tab = "subscribed" | "seen" | "workshop";
 
@@ -355,6 +359,26 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
     { key: "workshop", label: "Search Workshop" },
   ];
 
+  // An expert theme's composition overlays the modal; every other tier renders
+  // the fallback exactly as before.
+  const activeId = useThemeStore((s) => s.activeId);
+  const themeFiles = useThemeStore((s) => s.themeFiles);
+  const composition = useMemo(() => {
+    const theme = themeFiles[activeId];
+    if (theme === undefined || theme.tier !== "expert") return null;
+    const treeJson = theme.components["modal.modFilter"];
+    if (treeJson === undefined) return null;
+    const { tree, issues } = resolveComponentTree(
+      "modal.modFilter",
+      treeJson,
+      SLOTS.find((slot) => slot.id === "modal.modFilter")?.children ?? [],
+    );
+    for (const issue of issues) {
+      console.warn(`[theme components] ${issue.slotId}: ${issue.message}`);
+    }
+    return tree;
+  }, [activeId, themeFiles]);
+
   return (
     <div
       className="ovl absolute inset-0 z-[60] flex items-center justify-center bg-[rgba(5,8,13,0.7)]"
@@ -367,45 +391,25 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
         aria-modal="true"
         aria-label="Filter by mod"
         onKeyDown={trapTab}
-        className="mod-filter-modal flex h-[540px] w-[min(700px,calc(100%-40px))] flex-col overflow-hidden rounded-[12px] border border-line bg-surface shadow-[0_24px_60px_rgba(0,0,0,0.6)]"
+        className="mod-filter-modal relative flex h-[540px] w-[min(700px,calc(100%-40px))] flex-col overflow-hidden rounded-[12px] border border-line bg-surface shadow-[0_24px_60px_rgba(0,0,0,0.6)]"
       >
         <div className="flex shrink-0 items-center justify-between border-b border-line px-4 py-3">
           <div>
             <h3 className="text-[13px] font-extrabold tracking-tight text-ink">Filter by mod</h3>
             <p className="mt-0.5 text-[10px] text-muted">Require or exclude servers by the mods they run</p>
           </div>
-          <button
-            data-tetra-el="closeAction"
-            onClick={onClose}
-            aria-label="Close"
-            className="text-muted transition-colors hover:text-ink"
-          >
-            <X className="size-[15px]" />
-          </button>
+          {composition === null && closeAction()}
         </div>
 
         {/* Each of this slot's children sits in a different row of the modal —
             ✕ and Apply in the header/footer, the tab strip under the header, the
             preview beside the list — so none has a sibling to reorder against.
             Only the two optional ones are wired, to hide them. */}
-        <SlotChild slotId="modal.modFilter" id="tabStrip">
-          <div data-tetra-el="tabStrip" className="flex shrink-0 gap-0.5 px-4 pt-2.5">
-            {TABS.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                role="tab"
-                aria-selected={tab === t.key}
-                className={cn(
-                  "rounded-t-[6px] px-2.5 py-1.5 text-[10px] font-bold text-muted transition-colors",
-                  tab === t.key && "bg-accent-soft text-accent",
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </SlotChild>
+        {composition === null && (
+          <SlotChild slotId="modal.modFilter" id="tabStrip">
+            {tabStrip()}
+          </SlotChild>
+        )}
 
         <div className="mx-4 mt-2.5 flex shrink-0 items-center gap-1.5 rounded-[7px] border border-line bg-surface2 px-2.5 py-[7px]">
           <Search className="size-[13px] shrink-0 text-muted" />
@@ -425,7 +429,12 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
         </div>
 
         <div className="mt-2.5 flex min-h-0 flex-1">
-          <div className="flex w-[380px] shrink-0 flex-col overflow-y-auto border-r border-line px-2.5 pb-2.5">
+          <div
+            className={cn(
+              "flex min-w-0 flex-col overflow-y-auto px-2.5 pb-2.5",
+              composition === null ? "w-[380px] shrink-0 border-r border-line" : "flex-1",
+            )}
+          >
             {tab === "subscribed" && modsLoading && subscribedForDayz.length === 0 && <ListSpinner />}
             {tab === "seen" && knownLoading && <ListSpinner />}
             {tab === "workshop" && searchLoading && <ListSpinner />}
@@ -511,127 +520,11 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
             ))}
           </div>
 
-          <SlotChild slotId="modal.modFilter" id="previewPane">
-            <div
-              data-tetra-el="previewPane"
-              className="flex min-w-0 max-w-[300px] flex-1 flex-col overflow-y-auto px-4 pb-3 pt-1"
-            >
-            {!preview && (
-              <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-muted">
-                <Inbox className="size-6 opacity-50" />
-                <p className="max-w-[20ch] text-[10.5px] leading-relaxed">
-                  Click a mod on the left to see its details here.
-                </p>
-              </div>
-            )}
-            {preview && (
-              <>
-                <span className="mb-2.5 block h-[84px] w-full shrink-0 overflow-hidden rounded-[9px]">
-                  <ModThumb id={preview.id} title={preview.title} previewUrl={preview.previewUrl} />
-                </span>
-                <div className="flex items-start justify-between gap-2">
-                  <h4 className="flex items-center gap-1.5 text-[13.5px] font-extrabold leading-tight tracking-tight text-ink">
-                    {preview.title}
-                    {preview.subscribed && <Star className="size-3 shrink-0 fill-warn text-warn" />}
-                  </h4>
-                  {preview.workshopUrl && (
-                    <a
-                      href={preview.workshopUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex shrink-0 items-center gap-1 pt-0.5 text-[9.5px] font-bold text-muted transition-colors hover:text-accent"
-                    >
-                      <ExternalLink className="size-[10px]" />
-                      View on Steam
-                    </a>
-                  )}
-                </div>
-                {(preview.score !== null || preview.numSubscriptions || preview.fileSize) && (
-                  <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-muted2">
-                    {preview.score !== null && (
-                      <span className="flex items-center gap-1">
-                        <ThumbsUp className="size-[10px] text-muted" />
-                        {Math.round(preview.score * 100)}%
-                      </span>
-                    )}
-                    {preview.numSubscriptions && (
-                      <>
-                        <span className="text-muted">·</span>
-                        <span className="flex items-center gap-1">
-                          <Users className="size-[10px] text-muted" />
-                          {Number(preview.numSubscriptions).toLocaleString()} subscribers
-                        </span>
-                      </>
-                    )}
-                    {preview.fileSize !== null && (
-                      <>
-                        <span className="text-muted">·</span>
-                        <span>{formatBytes(preview.fileSize)}</span>
-                      </>
-                    )}
-                    {preview.timeUpdated !== null && (
-                      <>
-                        <span className="text-muted">·</span>
-                        <span>Updated {formatLastPlayed(preview.timeUpdated)}</span>
-                      </>
-                    )}
-                  </div>
-                )}
-                {preview.description && (
-                  <p className="mt-2.5 line-clamp-2 text-[11px] leading-relaxed text-muted2">{preview.description}</p>
-                )}
-                {preview.tags.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {preview.tags.map((t) => (
-                      <span
-                        key={t}
-                        className="rounded-[3px] border border-line bg-surface2 px-1.5 py-0.5 text-[8.5px] font-bold text-muted2"
-                      >
-                        {t}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <div className="mt-2.5 rounded-[8px] border border-line bg-surface2 px-2.5 py-2 text-[10.5px] leading-relaxed text-muted2">
-                  {preview.serverCount ? (
-                    <>
-                      <span className="font-mono-data font-bold text-accent2">{preview.serverCount}</span> of the
-                      servers currently listed run this mod
-                    </>
-                  ) : (
-                    "Not seen on any currently listed server yet — you can still filter for it"
-                  )}
-                </div>
-                <div className="mt-auto flex gap-2 pt-4">
-                  <button
-                    onClick={() => setPick(preview, "include")}
-                    className={cn(
-                      "flex flex-1 items-center justify-center gap-1.5 rounded-[6px] border px-3 py-2 text-[10.5px] font-bold",
-                      selection[preview.id] === "include"
-                        ? "border-accent-line bg-accent-soft text-accent shadow-[var(--glow)]"
-                        : "border-line text-muted hover:text-ink",
-                    )}
-                  >
-                    <Check className="size-[13px]" />
-                    {selection[preview.id] === "include" ? "Included" : "Include"}
-                  </button>
-                  <button
-                    onClick={() => setPick(preview, "exclude")}
-                    className={cn(
-                      "flex flex-1 items-center justify-center gap-1.5 rounded-[6px] border px-3 py-2 text-[10.5px] font-bold",
-                      selection[preview.id] === "exclude"
-                        ? "border-danger-line bg-danger-soft text-danger"
-                        : "border-line text-muted hover:text-ink",
-                    )}
-                  >
-                    <Ban className="size-[13px]" />
-                    {selection[preview.id] === "exclude" ? "Excluded" : "Exclude"}
-                  </button>
-                </div>
-              </>
-            )}
-            </div>
-          </SlotChild>
+          {composition === null && (
+            <SlotChild slotId="modal.modFilter" id="previewPane">
+              {previewPane()}
+            </SlotChild>
+          )}
         </div>
 
         <div className="flex shrink-0 items-center gap-2.5 border-t border-line px-4 py-2.5">
@@ -704,17 +597,198 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
           >
             Cancel
           </button>
-          <button
-            data-tetra-el="applyAction"
-            onClick={apply}
-            className="rounded-[6px] border border-accent-line bg-accent-soft px-3.5 py-[7px] text-[10.5px] font-bold text-accent shadow-[var(--glow)] transition-[filter] hover:brightness-110"
-          >
-            Apply
-          </button>
+          {composition === null && applyAction()}
         </div>
+        {composition !== null && (
+          // The overlay is pointer-events-none so clicks reach the search input
+          // and list beneath wherever the composition doesn't cover them; each
+          // themed child re-enables its own.
+          <div className="pointer-events-none absolute inset-0">
+            <ComponentTreeRenderer
+              node={composition}
+              nodes={{
+                closeAction: <div className="pointer-events-auto">{closeAction()}</div>,
+                tabStrip: <div className="pointer-events-auto">{tabStrip()}</div>,
+                previewPane: <div className="pointer-events-auto">{previewPane()}</div>,
+                applyAction: <div className="pointer-events-auto">{applyAction()}</div>,
+              }}
+              themeId={activeId}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
+
+  function closeAction(): React.ReactNode {
+    return (
+      <button
+        data-tetra-el="closeAction"
+        onClick={onClose}
+        aria-label="Close"
+        className="text-muted transition-colors hover:text-ink"
+      >
+        <X className="size-[15px]" />
+      </button>
+    );
+  }
+
+  function tabStrip(): React.ReactNode {
+    return (
+      <div data-tetra-el="tabStrip" className="flex shrink-0 gap-0.5 px-4 pt-2.5">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            role="tab"
+            aria-selected={tab === t.key}
+            className={cn(
+              "rounded-t-[6px] px-2.5 py-1.5 text-[10px] font-bold text-muted transition-colors",
+              tab === t.key && "bg-accent-soft text-accent",
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  function previewPane(): React.ReactNode {
+    return (
+      <div
+        data-tetra-el="previewPane"
+        className="flex min-w-0 max-w-[300px] flex-1 flex-col overflow-y-auto px-4 pb-3 pt-1"
+      >
+        {!preview && (
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-muted">
+            <Inbox className="size-6 opacity-50" />
+            <p className="max-w-[20ch] text-[10.5px] leading-relaxed">
+              Click a mod on the left to see its details here.
+            </p>
+          </div>
+        )}
+        {preview && (
+          <>
+            <span className="mb-2.5 block h-[84px] w-full shrink-0 overflow-hidden rounded-[9px]">
+              <ModThumb id={preview.id} title={preview.title} previewUrl={preview.previewUrl} />
+            </span>
+            <div className="flex items-start justify-between gap-2">
+              <h4 className="flex items-center gap-1.5 text-[13.5px] font-extrabold leading-tight tracking-tight text-ink">
+                {preview.title}
+                {preview.subscribed && <Star className="size-3 shrink-0 fill-warn text-warn" />}
+              </h4>
+              {preview.workshopUrl && (
+                <a
+                  href={preview.workshopUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex shrink-0 items-center gap-1 pt-0.5 text-[9.5px] font-bold text-muted transition-colors hover:text-accent"
+                >
+                  <ExternalLink className="size-[10px]" />
+                  View on Steam
+                </a>
+              )}
+            </div>
+            {(preview.score !== null || preview.numSubscriptions || preview.fileSize) && (
+              <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-muted2">
+                {preview.score !== null && (
+                  <span className="flex items-center gap-1">
+                    <ThumbsUp className="size-[10px] text-muted" />
+                    {Math.round(preview.score * 100)}%
+                  </span>
+                )}
+                {preview.numSubscriptions && (
+                  <>
+                    <span className="text-muted">·</span>
+                    <span className="flex items-center gap-1">
+                      <Users className="size-[10px] text-muted" />
+                      {Number(preview.numSubscriptions).toLocaleString()} subscribers
+                    </span>
+                  </>
+                )}
+                {preview.fileSize !== null && (
+                  <>
+                    <span className="text-muted">·</span>
+                    <span>{formatBytes(preview.fileSize)}</span>
+                  </>
+                )}
+                {preview.timeUpdated !== null && (
+                  <>
+                    <span className="text-muted">·</span>
+                    <span>Updated {formatLastPlayed(preview.timeUpdated)}</span>
+                  </>
+                )}
+              </div>
+            )}
+            {preview.description && (
+              <p className="mt-2.5 line-clamp-2 text-[11px] leading-relaxed text-muted2">{preview.description}</p>
+            )}
+            {preview.tags.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {preview.tags.map((t) => (
+                  <span
+                    key={t}
+                    className="rounded-[3px] border border-line bg-surface2 px-1.5 py-0.5 text-[8.5px] font-bold text-muted2"
+                  >
+                    {t}
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="mt-2.5 rounded-[8px] border border-line bg-surface2 px-2.5 py-2 text-[10.5px] leading-relaxed text-muted2">
+              {preview.serverCount ? (
+                <>
+                  <span className="font-mono-data font-bold text-accent2">{preview.serverCount}</span> of the
+                  servers currently listed run this mod
+                </>
+              ) : (
+                "Not seen on any currently listed server yet — you can still filter for it"
+              )}
+            </div>
+            <div className="mt-auto flex gap-2 pt-4">
+              <button
+                onClick={() => setPick(preview, "include")}
+                className={cn(
+                  "flex flex-1 items-center justify-center gap-1.5 rounded-[6px] border px-3 py-2 text-[10.5px] font-bold",
+                  selection[preview.id] === "include"
+                    ? "border-accent-line bg-accent-soft text-accent shadow-[var(--glow)]"
+                    : "border-line text-muted hover:text-ink",
+                )}
+              >
+                <Check className="size-[13px]" />
+                {selection[preview.id] === "include" ? "Included" : "Include"}
+              </button>
+              <button
+                onClick={() => setPick(preview, "exclude")}
+                className={cn(
+                  "flex flex-1 items-center justify-center gap-1.5 rounded-[6px] border px-3 py-2 text-[10.5px] font-bold",
+                  selection[preview.id] === "exclude"
+                    ? "border-danger-line bg-danger-soft text-danger"
+                    : "border-line text-muted hover:text-ink",
+                )}
+              >
+                <Ban className="size-[13px]" />
+                {selection[preview.id] === "exclude" ? "Excluded" : "Exclude"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  function applyAction(): React.ReactNode {
+    return (
+      <button
+        data-tetra-el="applyAction"
+        onClick={apply}
+        className="rounded-[6px] border border-accent-line bg-accent-soft px-3.5 py-[7px] text-[10.5px] font-bold text-accent shadow-[var(--glow)] transition-[filter] hover:brightness-110"
+      >
+        Apply
+      </button>
+    );
+  }
 }
 
 function ListSpinner() {
