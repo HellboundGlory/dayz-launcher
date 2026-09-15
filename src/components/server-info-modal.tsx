@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X, Play, Download, ChevronDown, Loader2, Check, ListTree } from "lucide-react";
 import type { Server } from "@/types/server";
 import { useServerStore } from "@/stores/server-store";
@@ -7,9 +7,8 @@ import { useServerActions, NOTICES } from "@/hooks/use-server-actions";
 import { SlotChildren } from "@/theme/slot-render";
 import { useResolvedSlot } from "@/theme/use-resolved-layout";
 import { resolveChildOrder } from "@/theme/slot-order";
-import { resolveComponentTree } from "@/theme/component-tree";
+import { useComponentComposition } from "@/theme/use-component-composition";
 import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
-import { SLOTS } from "@/theme/slots";
 import { useThemeStore } from "@/theme/theme-store";
 
 interface ServerInfoModalProps {
@@ -97,25 +96,8 @@ export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
     useResolvedSlot("modal.serverInfo").children,
   );
 
-  // An expert theme's composition replaces everything below the identity
-  // block; every other tier renders the fallback exactly as before.
   const activeId = useThemeStore((s) => s.activeId);
-  const themeFiles = useThemeStore((s) => s.themeFiles);
-  const composition = useMemo(() => {
-    const theme = themeFiles[activeId];
-    if (theme === undefined || theme.tier !== "expert") return null;
-    const treeJson = theme.components["modal.serverInfo"];
-    if (treeJson === undefined) return null;
-    const { tree, issues } = resolveComponentTree(
-      "modal.serverInfo",
-      treeJson,
-      SLOTS.find((slot) => slot.id === "modal.serverInfo")?.children ?? [],
-    );
-    for (const issue of issues) {
-      console.warn(`[theme components] ${issue.slotId}: ${issue.message}`);
-    }
-    return tree;
-  }, [activeId, themeFiles]);
+  const composition = useComponentComposition("modal.serverInfo");
 
   function closeIfOutside(e: React.MouseEvent) {
     if (e.target === e.currentTarget) onClose();

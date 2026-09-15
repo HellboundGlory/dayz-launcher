@@ -12,9 +12,8 @@ import {
 } from "@/lib/tauri";
 import { cn, formatBytes, formatLastPlayed } from "@/lib/utils";
 import { SlotChild } from "@/theme/slot-render";
-import { resolveComponentTree } from "@/theme/component-tree";
+import { useComponentComposition } from "@/theme/use-component-composition";
 import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
-import { SLOTS } from "@/theme/slots";
 import { useThemeStore } from "@/theme/theme-store";
 
 type Tab = "subscribed" | "seen" | "workshop";
@@ -359,25 +358,8 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
     { key: "workshop", label: "Search Workshop" },
   ];
 
-  // An expert theme's composition overlays the modal; every other tier renders
-  // the fallback exactly as before.
   const activeId = useThemeStore((s) => s.activeId);
-  const themeFiles = useThemeStore((s) => s.themeFiles);
-  const composition = useMemo(() => {
-    const theme = themeFiles[activeId];
-    if (theme === undefined || theme.tier !== "expert") return null;
-    const treeJson = theme.components["modal.modFilter"];
-    if (treeJson === undefined) return null;
-    const { tree, issues } = resolveComponentTree(
-      "modal.modFilter",
-      treeJson,
-      SLOTS.find((slot) => slot.id === "modal.modFilter")?.children ?? [],
-    );
-    for (const issue of issues) {
-      console.warn(`[theme components] ${issue.slotId}: ${issue.message}`);
-    }
-    return tree;
-  }, [activeId, themeFiles]);
+  const composition = useComponentComposition("modal.modFilter");
 
   return (
     <div

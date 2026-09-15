@@ -1,12 +1,11 @@
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { SlotChild } from "@/theme/slot-render";
 import { X, Download, ExternalLink } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { open as openLink } from "@tauri-apps/plugin-shell";
 import { useUpdateStore } from "@/stores/update-store";
-import { resolveComponentTree } from "@/theme/component-tree";
+import { useComponentComposition } from "@/theme/use-component-composition";
 import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
-import { SLOTS } from "@/theme/slots";
 import { useThemeStore } from "@/theme/theme-store";
 
 /** Where the "View Release" link sends a portable user for a manual download —
@@ -30,25 +29,8 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
   const progress = useUpdateStore((s) => s.progress);
   const install = useUpdateStore((s) => s.install);
 
-  // An expert theme's composition overlays the modal; every other tier renders
-  // the fallback exactly as before.
   const activeId = useThemeStore((s) => s.activeId);
-  const themeFiles = useThemeStore((s) => s.themeFiles);
-  const composition = useMemo(() => {
-    const theme = themeFiles[activeId];
-    if (theme === undefined || theme.tier !== "expert") return null;
-    const treeJson = theme.components["modal.update"];
-    if (treeJson === undefined) return null;
-    const { tree, issues } = resolveComponentTree(
-      "modal.update",
-      treeJson,
-      SLOTS.find((slot) => slot.id === "modal.update")?.children ?? [],
-    );
-    for (const issue of issues) {
-      console.warn(`[theme components] ${issue.slotId}: ${issue.message}`);
-    }
-    return tree;
-  }, [activeId, themeFiles]);
+  const composition = useComponentComposition("modal.update");
 
   // Escape closes. Bound only while open, so a closed modal keeps no
   // document-level listener alive — the same rule the other popovers use.
