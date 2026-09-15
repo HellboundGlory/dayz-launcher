@@ -29,6 +29,35 @@ interface ThemeGridProps {
 
 const PER_PAGE = 4;
 
+// Bundled by the backend at every launch; page-1 display order is this order.
+const BUILTIN_SHOWCASE_IDS = ["builtin.tactical"] as const;
+const IS_SHOWCASE = Object.fromEntries(
+  BUILTIN_SHOWCASE_IDS.map((id) => [id, true as const]),
+) as Record<string, true>;
+
+/** Neutral, then the showcase themes in fixed order, then installed themes. */
+export function buildGridEntries(installedThemes: ThemeSummary[]): GridEntry[] {
+  const showcase = BUILTIN_SHOWCASE_IDS.flatMap((id) => {
+    const t = installedThemes.find((theme) => theme.id === id);
+    return t
+      ? [{ id: t.id, name: t.name, builtin: true, author: t.author, version: t.version, preview: t.preview ?? undefined }]
+      : [];
+  });
+  const rest = installedThemes.filter((t) => !(t.id in IS_SHOWCASE));
+  return [
+    ...PRESETS.map((p) => ({ id: p.id, name: p.name, builtin: true })),
+    ...showcase,
+    ...rest.map((t) => ({
+      id: t.id,
+      name: t.name,
+      builtin: false,
+      author: t.author,
+      version: t.version,
+      preview: t.preview ?? undefined,
+    })),
+  ];
+}
+
 /**
  * `${baseName} copy`, then `… copy 2`, `… copy 3`, … — the first candidate not
  * already taken. Also used by the Settings "New theme" flow, so it's exported.
@@ -59,18 +88,7 @@ export function ThemeGrid({
   const confirmWrapRef = useRef<HTMLDivElement>(null);
   const confirmCancelRef = useRef<HTMLButtonElement>(null);
 
-  const entries: GridEntry[] = [
-    ...PRESETS.map((p) => ({ id: p.id, name: p.name, builtin: true })),
-    ...installedThemes.map((t) => ({
-      id: t.id,
-      name: t.name,
-      builtin: false,
-      author: t.author,
-      version: t.version,
-      preview: t.preview ?? undefined,
-    })),
-  ];
-
+  const entries = buildGridEntries(installedThemes);
   const totalPages = Math.max(1, Math.ceil(entries.length / PER_PAGE));
   const clamped = Math.min(page, totalPages - 1);
   const visible = entries.slice(clamped * PER_PAGE, clamped * PER_PAGE + PER_PAGE);
