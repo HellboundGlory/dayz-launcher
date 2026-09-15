@@ -43,9 +43,9 @@ import { cn, formatBytes, formatLastPlayed } from "@/lib/utils";
 import { SlotChildren } from "@/theme/slot-render";
 import { useResolvedSlot } from "@/theme/use-resolved-layout";
 import { resolveChildOrder } from "@/theme/slot-order";
-import { resolveComponentTree, type ResolvedNode } from "@/theme/component-tree";
+import { type ResolvedNode } from "@/theme/component-tree";
 import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
-import { SLOTS } from "@/theme/slots";
+import { useComponentComposition } from "@/theme/use-component-composition";
 
 // One DOM group of a slot's children per list: the markup's order, plus the
 // wrapper elements that hold several registry children between them.
@@ -71,12 +71,6 @@ const ACTION_BAR_POSITIONS = [
 ];
 const ACTION_BAR_CLUSTER = ["uniqueToServerAction", "cleanupRemovedAction"];
 const ACTION_BAR_WRAPPERS = { actionBarCluster: ACTION_BAR_CLUSTER };
-
-/** The registry's own `mods.row` children — what a `core.ref` may name. */
-const MODS_ROW_CHILDREN = SLOTS.find((slot) => slot.id === "mods.row")?.children ?? [];
-const MODS_TOOLBAR_CHILDREN = SLOTS.find((slot) => slot.id === "mods.toolbar")?.children ?? [];
-const MODS_INSPECTOR_CHILDREN = SLOTS.find((slot) => slot.id === "mods.inspector")?.children ?? [];
-const MODS_ACTION_BAR_CHILDREN = SLOTS.find((slot) => slot.id === "mods.actionBar")?.children ?? [];
 
 // Mods tab: rich rows with a slide-in inspector, status filter, and action bar.
 
@@ -294,31 +288,10 @@ export function ModsTab() {
   );
 
   const activeId = useThemeStore((s) => s.activeId);
-  const themeFiles = useThemeStore((s) => s.themeFiles);
   // Resolved once for the whole list rather than per row, so the tree's object
   // identity stays stable and each memoized row keeps its own memo.
-  const rowComposition = useMemo(() => {
-    const file = themeFiles[activeId];
-    if (file?.tier !== "expert") return null;
-    const treeJson = file.components["mods.row"];
-    if (treeJson === undefined) return null;
-    const { tree, issues } = resolveComponentTree("mods.row", treeJson, MODS_ROW_CHILDREN);
-    for (const issue of issues) {
-      console.warn(`[theme components] ${issue.slotId}: ${issue.message}`);
-    }
-    return tree;
-  }, [activeId, themeFiles]);
-  const toolbarComposition = useMemo(() => {
-    const file = themeFiles[activeId];
-    if (file?.tier !== "expert") return null;
-    const treeJson = file.components["mods.toolbar"];
-    if (treeJson === undefined) return null;
-    const { tree, issues } = resolveComponentTree("mods.toolbar", treeJson, MODS_TOOLBAR_CHILDREN);
-    for (const issue of issues) {
-      console.warn(`[theme components] ${issue.slotId}: ${issue.message}`);
-    }
-    return tree;
-  }, [activeId, themeFiles]);
+  const rowComposition = useComponentComposition("mods.row");
+  const toolbarComposition = useComponentComposition("mods.toolbar");
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
@@ -673,7 +646,6 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
 
   const inspectorChildren = useResolvedSlot("mods.inspector").children;
   const activeId = useThemeStore((s) => s.activeId);
-  const themeFiles = useThemeStore((s) => s.themeFiles);
   const bodyOrder = resolveChildOrder(
     "mods.inspector",
     INSPECTOR_BODY,
@@ -697,17 +669,7 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
     void load(true);
   }
 
-  const composition = useMemo(() => {
-    const file = themeFiles[activeId];
-    if (file?.tier !== "expert") return null;
-    const treeJson = file.components["mods.inspector"];
-    if (treeJson === undefined) return null;
-    const { tree, issues } = resolveComponentTree("mods.inspector", treeJson, MODS_INSPECTOR_CHILDREN);
-    for (const issue of issues) {
-      console.warn(`[theme components] ${issue.slotId}: ${issue.message}`);
-    }
-    return tree;
-  }, [activeId, themeFiles]);
+  const composition = useComponentComposition("mods.inspector");
 
   const closeAction = (
     <button
@@ -917,18 +879,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
   const clusterOrder = resolveChildOrder("mods.actionBar", ACTION_BAR_CLUSTER, barChildren);
 
   const activeId = useThemeStore((s) => s.activeId);
-  const themeFiles = useThemeStore((s) => s.themeFiles);
-  const composition = useMemo(() => {
-    const file = themeFiles[activeId];
-    if (file?.tier !== "expert") return null;
-    const treeJson = file.components["mods.actionBar"];
-    if (treeJson === undefined) return null;
-    const { tree, issues } = resolveComponentTree("mods.actionBar", treeJson, MODS_ACTION_BAR_CHILDREN);
-    for (const issue of issues) {
-      console.warn(`[theme components] ${issue.slotId}: ${issue.message}`);
-    }
-    return tree;
-  }, [activeId, themeFiles]);
+  const composition = useComponentComposition("mods.actionBar");
 
   useEffect(() => {
     if (!menu) return;
