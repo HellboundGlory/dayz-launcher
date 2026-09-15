@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "slot": "server.row",
+  "root": {
+    "type": "grid",
+    "align": "center",
+    "children": [
+      { "type": "core", "ref": "favouriteAction" },
+      {
+        "type": "stack",
+        "direction": "row",
+        "gap": "var(--space-sm)",
+        "align": "center",
+        "children": [
+          { "type": "core", "ref": "name", "grow": true },
+          { "type": "core", "ref": "tagsLine" }
+        ]
+      },
+      { "type": "core", "ref": "addressLabel" },
+      { "type": "core", "ref": "gameTimeLabel" },
+      { "type": "core", "ref": "lastPlayedLabel" },
+      { "type": "core", "ref": "mapLabel" },
+      { "type": "core", "ref": "playerCount" },
+      { "type": "core", "ref": "modCountLabel" },
+      { "type": "core", "ref": "modStatusBadge" },
+      { "type": "core", "ref": "regionFlag" },
+      { "type": "core", "ref": "pingBadge" }
+    ]
+  }
+}

@@ -1,0 +1,55 @@
+/* The composed grid is the server.row wrapper's first child, so columns target
+   that child. Base chrome radii are hardcoded Tailwind values, hence !important. */
+
+[data-tetra-slot="server.row"] {
+  border-radius: 0 !important;
+  border-bottom: 1px solid var(--border);
+  letter-spacing: 0.01em;
+}
+
+[data-tetra-slot="server.row"] > div:first-child {
+  grid-template-columns:
+    20px minmax(160px, 1fr) 120px 60px 70px 90px 56px 48px 24px 36px 48px;
+  column-gap: var(--space-md);
+  width: 100%;
+}
+
+[data-tetra-slot="server.row"] [data-tetra-el="addressLabel"],
+[data-tetra-slot="server.row"] [data-tetra-el="gameTimeLabel"],
+[data-tetra-slot="server.row"] [data-tetra-el="lastPlayedLabel"],
+[data-tetra-slot="server.row"] [data-tetra-el="mapLabel"] {
+  color: var(--muted2);
+  font-family: var(--font-data);
+  font-size: 10px;
+}
+
+[data-tetra-slot="server.row"] [data-tetra-el="playerCount"],
+[data-tetra-slot="server.row"] [data-tetra-el="modCountLabel"],
+[data-tetra-slot="server.row"] [data-tetra-el="pingBadge"] {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  justify-self: end;
+}
+
+[data-tetra-slot="server.row"] *,
+[data-tetra-slot="server.rowActions"],
+[data-tetra-slot="server.rowActions"] * {
+  border-radius: 0 !important;
+}
+
+[data-tetra-slot="filterBar"],
+[data-tetra-slot="filterBar"] * {
+  border-radius: 0 !important;
+  letter-spacing: 0.02em;
+}
+
+[data-tetra-slot="shell.footer"] {
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+[data-tetra-slot="shell.footer"] *,
+[data-tetra-slot="shell.sidebar"] * {
+  border-radius: 0 !important;
+}

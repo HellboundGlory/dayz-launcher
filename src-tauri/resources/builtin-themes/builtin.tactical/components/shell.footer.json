@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "slot": "shell.footer",
+  "root": {
+    "type": "stack",
+    "direction": "row",
+    "gap": "var(--space-lg)",
+    "align": "center",
+    "justify": "space-between",
+    "children": [
+      { "type": "core", "ref": "steamStateChip" },
+      {
+        "type": "stack",
+        "direction": "row",
+        "gap": "var(--space-md)",
+        "align": "center",
+        "children": [
+          { "type": "core", "ref": "serverCounts" },
+          { "type": "core", "ref": "schemeToggle" }
+        ]
+      }
+    ]
+  }
+}
