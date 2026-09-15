@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Info, Play, ListTree, Download, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Server } from "@/types/server";
 import { useServerActions, NOTICES } from "@/hooks/use-server-actions";
 import { useResolvedSlot } from "@/theme/use-resolved-layout";
 import { slotChildrenToRender } from "@/theme/slot-children";
-import { resolveComponentTree } from "@/theme/component-tree";
 import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
-import { SLOTS } from "@/theme/slots";
 import { useThemeStore } from "@/theme/theme-store";
+import { useComponentComposition } from "@/theme/use-component-composition";
 
 interface RowActionsProps {
   server: Server;
@@ -47,22 +46,7 @@ export function ServerRowActions({ server, onMoreInfo, onOpenChange }: RowAction
   const ref = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const activeId = useThemeStore((s) => s.activeId);
-  const themeFiles = useThemeStore((s) => s.themeFiles);
-  const composition = useMemo(() => {
-    const theme = themeFiles[activeId];
-    if (theme === undefined || theme.tier !== "expert") return null;
-    const treeJson = theme.components["server.rowActions"];
-    if (treeJson === undefined) return null;
-    const { tree, issues } = resolveComponentTree(
-      "server.rowActions",
-      treeJson,
-      SLOTS.find((slot) => slot.id === "server.rowActions")?.children ?? [],
-    );
-    for (const issue of issues) {
-      console.warn(`[theme components] ${issue.slotId}: ${issue.message}`);
-    }
-    return tree;
-  }, [activeId, themeFiles]);
+  const composition = useComponentComposition("server.rowActions");
 
   const actions = useServerActions();
   // Only the dropdown's three entries are themeable; joinAction and the chevron
@@ -122,8 +106,6 @@ export function ServerRowActions({ server, onMoreInfo, onOpenChange }: RowAction
   // The composed slot has no disclosure primitive, so the three menu items
   // become always-visible standalone buttons there; the chevron dropdown and
   // actions.notice stay fallback-only.
-  const nodes = composeNodes();
-
   return (
     <div
       ref={ref}
@@ -131,7 +113,7 @@ export function ServerRowActions({ server, onMoreInfo, onOpenChange }: RowAction
       className="row-act relative flex shrink-0 items-center gap-[5px]"
     >
       {composition !== null ? (
-        <ComponentTreeRenderer node={composition} nodes={nodes} themeId={activeId} />
+        <ComponentTreeRenderer node={composition} nodes={composeNodes()} themeId={activeId} />
       ) : (
         <>
           {joinButton()}
