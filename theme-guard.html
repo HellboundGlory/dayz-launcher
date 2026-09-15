@@ -14,33 +14,33 @@
         margin: 0;
         padding: 0;
         overflow: hidden;
-        background: transparent;
+        background: #12151b;
         color: #e7ebf0;
         font-family: "Inter", "Segoe UI", system-ui, sans-serif;
         font-size: 13px;
         user-select: none;
       }
 
+      /* The window is opaque and exactly panel-sized: a transparent WebKitGTK
+         surface on Wayland keeps stale pixels wherever a re-render stops covering. */
       #theme-guard-root {
         position: fixed;
         inset: 0;
         display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 12px;
       }
 
       .tg-panel {
+        box-sizing: border-box;
         display: flex;
         flex-direction: column;
+        justify-content: center;
         gap: 14px;
         width: 100%;
+        height: 100%;
         padding: 16px 18px;
         text-align: center;
-        border-radius: 10px;
         border: 1px solid #262b34;
         background: #12151b;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
       }
 
       .tg-prompt {

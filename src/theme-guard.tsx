@@ -64,7 +64,8 @@ function ThemeGuardRoot() {
     };
   }, []);
 
-  // Non-preset names resolve after first paint; the countdown shows the raw id until then.
+  // A lookup that fails or finds nothing settles on the raw id, so the panel
+  // below never waits forever.
   useEffect(() => {
     if (status === null) return;
     for (const id of [status.previousId, status.newId]) {
@@ -72,10 +73,11 @@ function ThemeGuardRoot() {
       if (PRESET_NAMES[id] !== undefined) continue;
       asked.current.add(id);
       void invoke<{ name: string } | null>("get_theme", { id }).then(
-        (theme) => {
-          if (theme?.name) setNames((prev) => ({ ...prev, [id]: theme.name }));
+        (theme) => setNames((prev) => ({ ...prev, [id]: theme?.name || id })),
+        (e) => {
+          console.error(`theme-guard could not resolve theme "${id}":`, e);
+          setNames((prev) => ({ ...prev, [id]: id }));
         },
-        (e) => console.error(`theme-guard could not resolve theme "${id}":`, e),
       );
     }
   }, [status]);
@@ -102,6 +104,12 @@ function ThemeGuardRoot() {
   }, [status, revert]);
 
   if (status === null) return null;
+  // The first painted frame has to be the final one: showing a raw id first
+  // makes the prompt re-flow once the name arrives.
+  const unresolved = [status.previousId, status.newId].some(
+    (id) => id !== null && PRESET_NAMES[id] === undefined && names[id] === undefined,
+  );
+  if (unresolved) return null;
 
   const seconds = Math.ceil(status.remainingMs / 1000);
   // A layout edit arms both ids the same, where the switch wording would read
