@@ -175,78 +175,6 @@ export const NEUTRAL_LIGHT: Palette = {
   danger: "#a94a42",
 };
 
-const PRESET_DARK: Record<string, Palette> = {
-  emerald: {
-    bg: "#0b140e",
-    surface: "#121c13",
-    surface2: "#1a2a1c",
-    border: "#2c4531",
-    text: "#eef8f0",
-    muted: "#74907c",
-    muted2: "#96b09d",
-    accent: "#3ce06f",
-    accent2: "#ffc24d",
-    success: "#3ce06f",
-    warn: "#ffc24d",
-    danger: "#ff5d6e",
-  },
-  orange: {
-    bg: "#0e1220",
-    surface: "#141a2e",
-    surface2: "#1b2440",
-    border: "#2c3a63",
-    text: "#f2f6fd",
-    muted: "#8494b0",
-    muted2: "#a5b5cf",
-    accent: "#ff7a3c",
-    accent2: "#2fb0ff",
-    success: "#2fb0ff",
-    warn: "#ff7a3c",
-    danger: "#ff5d6e",
-  },
-  magenta: {
-    bg: "#140c18",
-    surface: "#1b1021",
-    surface2: "#271630",
-    border: "#4a2358",
-    text: "#fbeaff",
-    muted: "#a174a8",
-    muted2: "#c08ac8",
-    accent: "#e35df0",
-    accent2: "#3ce8b0",
-    success: "#3ce8b0",
-    warn: "#e35df0",
-    danger: "#ff5d8e",
-  },
-  esports: {
-    bg: "#0a1019",
-    surface: "#0f1826",
-    surface2: "#16233a",
-    border: "#1e3150",
-    text: "#eaf2fa",
-    muted: "#64778f",
-    muted2: "#8396ad",
-    accent: "#2bd4ff",
-    accent2: "#a06bff",
-    success: "#2bd4ff",
-    warn: "#a06bff",
-    danger: "#ff5d7e",
-  },
-  ember: {
-    bg: "#150b0c",
-    surface: "#1c1011",
-    surface2: "#2a1718",
-    border: "#4a1f25",
-    text: "#fdeeec",
-    muted: "#a47770",
-    muted2: "#c79188",
-    accent: "#ff5a4a",
-    accent2: "#ffb020",
-    success: "#ffb020",
-    warn: "#ff8fa3",
-    danger: "#ff3d5e",
-  },
-};
 
 export interface Preset {
   id: string;
@@ -257,11 +185,6 @@ export interface Preset {
 
 export const PRESETS: Preset[] = [
   { id: "neutral", name: "Neutral", dark: NEUTRAL_DARK, light: NEUTRAL_LIGHT },
-  { id: "emerald", name: "Emerald", dark: PRESET_DARK.emerald, light: deriveLight(PRESET_DARK.emerald) },
-  { id: "orange", name: "Blaze Orange", dark: PRESET_DARK.orange, light: deriveLight(PRESET_DARK.orange) },
-  { id: "magenta", name: "Magenta Pulse", dark: PRESET_DARK.magenta, light: deriveLight(PRESET_DARK.magenta) },
-  { id: "esports", name: "Esports Blue", dark: PRESET_DARK.esports, light: deriveLight(PRESET_DARK.esports) },
-  { id: "ember", name: "Ember Red", dark: PRESET_DARK.ember, light: deriveLight(PRESET_DARK.ember) },
 ];
 
 export const TOKENS: Token[] = [
@@ -332,7 +255,6 @@ export interface Radii {
 }
 
 export interface Typography {
-  /** CSS font-family value — a reference only, no bundled font files yet. */
   uiFont: string;
   dataFont: string;
 }

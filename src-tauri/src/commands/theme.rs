@@ -766,6 +766,93 @@ pub fn scaffold_theme_from_template(
     Ok(id)
 }
 
+// ── Builtin Showcase Themes ─────────────────────────────────────────────────
+//
+// Launcher-bundled packages seeded into the themes directory from `setup`.
+// They are not user input, so they skip `stage_for_preview`.
+
+/// Must match `BUILTIN_SHOWCASE_IDS` in the frontend's ThemeGrid.
+const BUILTIN_THEME_IDS: [&str; 1] = ["builtin.tactical"];
+
+const BUILTIN_THEMES: &str = "resources/builtin-themes";
+
+fn builtin_themes_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .resolve(BUILTIN_THEMES, BaseDirectory::Resource)
+        .map_err(|e| format!("Could not locate the bundled builtin themes: {e}"))
+}
+
+/// Copies the bundled theme `id` into `themes_root/<id>` with its manifest
+/// unchanged, unlike [`scaffold_from_template`].
+fn install_builtin_theme(
+    source_root: &Path,
+    themes_root: &Path,
+    id: &str,
+) -> Result<String, String> {
+    if !theme::is_usable_id(id) {
+        return Err(format!(
+            "`{id}` is not a usable builtin theme id — it must be a single directory name"
+        ));
+    }
+    let source = source_root.join(id);
+    if !source.is_dir() {
+        return Err(format!("No bundled builtin theme `{id}`."));
+    }
+
+    let manifest_json = std::fs::read(source.join(theme::MANIFEST_FILE))
+        .map_err(|e| format!("Could not read the bundled builtin theme `{id}`: {e}"))?;
+
+    std::fs::create_dir_all(themes_root)
+        .map_err(|e| format!("Could not create {}: {e}", themes_root.display()))?;
+    // create_dir, not create_dir_all: a concurrent install must fail, not merge.
+    let target = themes_root.join(id);
+    std::fs::create_dir(&target).map_err(|e| match e.kind() {
+        std::io::ErrorKind::AlreadyExists => format!(
+            "A theme with id `{id}` is already installed at {}",
+            target.display()
+        ),
+        _ => format!("Could not create {}: {e}", target.display()),
+    })?;
+
+    match copy_template(&source, &target, &manifest_json) {
+        Ok(()) => Ok(id.to_string()),
+        Err(e) => {
+            // A half-copied theme would list as one that can't load.
+            let _ = std::fs::remove_dir_all(&target);
+            Err(e)
+        }
+    }
+}
+
+/// Never fatal: every outcome is logged and startup carries on.
+pub fn seed_builtin_themes(app: &AppHandle) {
+    let Ok(source_root) = builtin_themes_dir(app) else {
+        return;
+    };
+    let themes_root = crate::paths::themes_dir(app);
+    for result in seed_from(&source_root, &themes_root) {
+        match result {
+            Ok(id) => crate::log::log_line(app, "theme", &format!("Seeded builtin theme `{id}`")),
+            Err(e) => crate::log::log_line(app, "theme", &format!("Could not seed: {e}")),
+        }
+    }
+}
+
+/// Installs every builtin id that doesn't already load. An existing copy is
+/// never overwritten, even if edited; a deleted one comes back next launch.
+fn seed_from(source_root: &Path, themes_root: &Path) -> Vec<Result<String, String>> {
+    let mut results = Vec::with_capacity(BUILTIN_THEME_IDS.len());
+    for id in BUILTIN_THEME_IDS {
+        if theme::get(themes_root, id).is_ok() {
+            continue;
+        }
+        results.push(
+            install_builtin_theme(source_root, themes_root, id).map_err(|e| format!("{id}: {e}")),
+        );
+    }
+    results
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1608,5 +1695,258 @@ mod starter_templates {
             }
             other => panic!("`{other}` is not in the primitive vocabulary"),
         }
+    }
+}
+
+/// The bundled builtin themes are real, shipped content: these hold them to
+/// the codebase's own validators rather than to a description of them, so a
+/// package that would not load for a user fails here instead.
+#[cfg(test)]
+mod builtin_themes {
+    use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    /// A scratch directory unique to one test (no `tempfile` dependency), the
+    /// way the rest of `theme` does it — never a real themes root.
+    fn scratch(tag: &str) -> PathBuf {
+        static N: AtomicU64 = AtomicU64::new(0);
+        let seq = N.fetch_add(1, Ordering::Relaxed);
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let dir = std::env::temp_dir().join(format!("tetra-builtin-{tag}-{nanos}-{seq}"));
+        std::fs::create_dir_all(&dir).expect("could not create scratch dir");
+        dir
+    }
+
+    /// The packages' own directory in `resources/`, unchanged from the disk —
+    /// directory name is id, exactly like the starter templates.
+    fn shipped() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/builtin-themes")
+    }
+
+    fn files_under(dir: &Path) -> Vec<(String, Vec<u8>)> {
+        let mut files = Vec::new();
+        let mut stack = vec![(dir.to_path_buf(), String::new())];
+        while let Some((current, prefix)) = stack.pop() {
+            for entry in std::fs::read_dir(&current).unwrap().flatten() {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                let relative = if prefix.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{prefix}/{name}")
+                };
+                if entry.path().is_dir() {
+                    stack.push((entry.path(), relative));
+                } else {
+                    files.push((relative, std::fs::read(entry.path()).unwrap()));
+                }
+            }
+        }
+        files.sort();
+        files
+    }
+
+    #[test]
+    fn every_bundled_builtin_theme_is_listed_with_its_declared_tier() {
+        let scan = theme::scan(&shipped());
+
+        assert!(scan.skipped.is_empty(), "{:?}", scan.skipped);
+        let ids: Vec<&str> = scan.themes.iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(ids, BUILTIN_THEME_IDS, "the shipped set, sorted by id");
+        let tiers: Vec<&str> = scan.themes.iter().map(|t| t.tier.as_str()).collect();
+        assert_eq!(tiers, ["expert"]);
+    }
+
+    /// Each builtin theme's own files, through the validators the rest of the
+    /// codebase would run them through.
+    #[test]
+    fn every_bundled_builtin_theme_validates_as_an_installed_theme() {
+        for id in BUILTIN_THEME_IDS {
+            let dir = shipped().join(id);
+
+            let file = theme::get(&shipped(), id).unwrap_or_else(|e| panic!("{id}: {e}"));
+            assert_eq!(file.manifest.id, id, "{id}: directory name is its id");
+            assert_eq!(file.manifest.tier, "expert", "{id}: is an Expert package");
+            assert_eq!(
+                file.manifest.theme_api, "1.0",
+                "{id}: speaks this build's theme API"
+            );
+
+            // A palette must be complete: every token the frontend reads, in
+            // both schemes, as a hex string — an absent one silently falls
+            // back to neutral, which would make the theme barely a theme.
+            for scheme in ["dark", "light"] {
+                for token in [
+                    "bg", "surface", "surface2", "border", "text", "muted", "muted2", "accent",
+                    "accent2", "success", "warn", "danger",
+                ] {
+                    let value = &file.tokens[scheme][token];
+                    let hex = value.as_str().unwrap_or_else(|| {
+                        panic!("{id}: {scheme}.{token} is not a string ({value})")
+                    });
+                    assert!(
+                        hex.len() == 7
+                            && hex.starts_with('#')
+                            && hex[1..].chars().all(|c| c.is_ascii_hexdigit()),
+                        "{id}: {scheme}.{token} `{hex}` is not a #rrggbb colour"
+                    );
+                }
+            }
+
+            if let Some(layout) = &file.layout {
+                theme::validate_layout(layout).unwrap_or_else(|e| panic!("{id}: {e}"));
+            }
+            if dir.join(theme::STYLES_FILE).is_file() {
+                let css = std::fs::read_to_string(dir.join(theme::STYLES_FILE)).unwrap();
+                crate::theme::css::validate_css(&css)
+                    .unwrap_or_else(|e| panic!("{id} styles.css: {e}"));
+            }
+        }
+    }
+
+    /// Composition is the whole point of the Expert tier: a builtin with an
+    /// empty `components/` would be a showcase of nothing.
+    #[test]
+    fn each_builtin_theme_ships_a_components_directory() {
+        for id in BUILTIN_THEME_IDS {
+            let components = shipped().join(id).join(theme::COMPONENTS_DIR);
+            assert!(components.is_dir(), "{id}: ships a components directory");
+            let count = std::fs::read_dir(&components)
+                .unwrap()
+                .filter_map(|e| e.ok())
+                .filter(|e| e.path().is_file())
+                .count();
+            assert!(count > 0, "{id}: its components directory is not empty");
+        }
+    }
+
+    /// The permanent built-ins a user counts on: seeding an empty root
+    /// installs the set, and each loads as itself, complete palette included.
+    #[test]
+    fn seeding_an_empty_root_installs_every_builtin_theme() {
+        let source_root = shipped();
+        let themes_root = scratch("empty");
+
+        let results = seed_from(&source_root, &themes_root);
+
+        assert_eq!(
+            results
+                .iter()
+                .map(|r| r.as_ref().map(String::as_str))
+                .collect::<Vec<_>>(),
+            BUILTIN_THEME_IDS.map(Ok),
+            "every id seeded, in order"
+        );
+        for id in BUILTIN_THEME_IDS {
+            let file = theme::get(&themes_root, id).unwrap_or_else(|e| panic!("{id}: {e}"));
+            assert_eq!(file.manifest.id, id);
+            for scheme in ["dark", "light"] {
+                for token in [
+                    "bg", "surface", "surface2", "border", "text", "muted", "muted2", "accent",
+                    "accent2", "success", "warn", "danger",
+                ] {
+                    assert!(
+                        file.tokens[scheme][token]
+                            .as_str()
+                            .is_some_and(|h| h.len() == 7),
+                        "{id}: {scheme}.{token} is missing from the seeded palette"
+                    );
+                }
+            }
+        }
+        // The copy is a full one: every file, `components/` included, travels
+        // byte for byte.
+        for (name, bytes) in files_under(&source_root.join("builtin.tactical")) {
+            assert_eq!(
+                std::fs::read(themes_root.join("builtin.tactical").join(&name)).unwrap(),
+                bytes,
+                "`{name}` should have been copied unchanged"
+            );
+        }
+        let _ = std::fs::remove_dir_all(&themes_root);
+    }
+
+    /// The user-editability guarantee behind seeding: an already-installed
+    /// builtin is never overwritten — not even a hand-edited manifest — and
+    /// its files are left exactly as the user's copy has them.
+    #[test]
+    fn seeding_twice_leaves_an_installed_builtin_theme_untouched() {
+        let source_root = shipped();
+        let themes_root = scratch("twice");
+
+        let first = seed_from(&source_root, &themes_root);
+        assert!(first.iter().all(Result::is_ok), "{first:?}");
+
+        // Simulate the user's own tweak: a renamed Tactical.
+        let manifest_path = themes_root
+            .join("builtin.tactical")
+            .join(theme::MANIFEST_FILE);
+        let mut manifest: ThemeManifest =
+            serde_json::from_slice(&std::fs::read(&manifest_path).unwrap()).unwrap();
+        manifest.name = "My Tactical".to_string();
+        std::fs::write(
+            &manifest_path,
+            serde_json::to_vec_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+        let before = files_under(&themes_root.join("builtin.tactical"));
+
+        let second = seed_from(&source_root, &themes_root);
+
+        assert!(
+            second.is_empty(),
+            "an installed builtin is skipped, not re-seeded: {second:?}"
+        );
+        let reloaded = theme::get(&themes_root, "builtin.tactical").unwrap();
+        assert_eq!(reloaded.manifest.name, "My Tactical", "the edit survives");
+        assert_eq!(
+            files_under(&themes_root.join("builtin.tactical")),
+            before,
+            "every file is exactly as the user's copy left it"
+        );
+        let _ = std::fs::remove_dir_all(&themes_root);
+    }
+
+    /// A deleted builtin is filled back in on the next seed.
+    #[test]
+    fn seeding_after_a_delete_restores_the_deleted_builtin() {
+        let source_root = shipped();
+        let themes_root = scratch("gap");
+
+        let results = seed_from(&source_root, &themes_root);
+        assert!(results.iter().all(Result::is_ok), "{results:?}");
+        std::fs::remove_dir_all(themes_root.join("builtin.tactical")).unwrap();
+        assert!(theme::get(&themes_root, "builtin.tactical").is_err());
+
+        let refilled = seed_from(&source_root, &themes_root);
+
+        assert_eq!(
+            refilled
+                .iter()
+                .map(|r| r.as_ref().map(String::as_str))
+                .collect::<Vec<_>>(),
+            vec![Ok("builtin.tactical")],
+            "the missing id is reseeded"
+        );
+        for id in BUILTIN_THEME_IDS {
+            theme::get(&themes_root, id).unwrap_or_else(|e| panic!("{id}: {e}"));
+        }
+        let _ = std::fs::remove_dir_all(&themes_root);
+    }
+
+    /// A missing source directory must surface as an `Err`, never a panic —
+    /// `seed_builtin_themes` logs whatever this hands back.
+    #[test]
+    fn a_missing_builtin_package_is_an_error_not_a_panic() {
+        let themes_root = scratch("no-source");
+
+        let error = install_builtin_theme(&shipped(), &themes_root, "builtin.no-such")
+            .expect_err("a package this build does not ship must be refused");
+
+        assert!(error.contains("builtin.no-such"), "{error}");
+        assert!(!themes_root.join("builtin.no-such").exists());
+        let _ = std::fs::remove_dir_all(&themes_root);
     }
 }

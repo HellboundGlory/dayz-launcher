@@ -59,10 +59,12 @@ declaration): `--border-weak --muted-soft --accent-soft --accent-line
 --accent2-soft --accent2-line --warn-soft --danger-soft --danger-line
 --row-hover --row-selected --glow`.
 
-Default: **dark, Neutral** (`#0d0f13` bg). Six presets: Neutral, Emerald,
-Blaze Orange, Magenta Pulse, Esports Blue, Ember Red — each with authored dark
-+ derived light. Users can save custom skins (`localStorage["tetra.customThemes"]`)
-and edit any token live.
+Default: **dark, Neutral** (`#0d0f13` bg). Neutral is the only colour-only
+preset (authored dark + derived light). One further built-in default ships
+as a bundled Expert-tier theme package — Tactical (`builtin.tactical`;
+tokens + layout + CSS + component composition) — not a colour-only preset.
+More may join it later. Users can save custom skins
+(`localStorage["tetra.customThemes"]`) and edit any token live.
 
 ```css
 /* Neutral dark (canonical base, main.css :root) */
@@ -244,3 +246,11 @@ Append-only. Each entry: date, what was decided, why, and what it overrides.
   palette. Motion is CSS-only, slow, and fully gated behind
   `prefers-reduced-motion`; hit targets are ≥24px (nav full-height, 25px
   carousel dots).
+- [2026-09-15]: **A built-in default is now a bundled showcase theme** — the
+  five colour-only presets (Emerald, Blaze Orange, Magenta Pulse, Esports Blue,
+  Ember Red) were removed, leaving Neutral as the only preset, and
+  `builtin.tactical` is seeded by the backend on every launch as an
+  Expert-tier package rendered as a built-in on page 1 of the theme grid.
+  Overrides the old six-preset set. Started as three showcase themes
+  (Tactical/Phosphor/Campfire); Phosphor and Campfire were pulled back out
+  the same day after review — ship one theme well before adding more.

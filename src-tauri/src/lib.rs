@@ -198,6 +198,10 @@ pub fn run() {
             let data_root = paths::data_root(app.handle());
             let _ = std::fs::create_dir_all(&data_root);
 
+            // The builtin showcase themes install themselves into the real
+            // themes directory — never fatal, logged on failure.
+            commands::theme::seed_builtin_themes(app.handle());
+
             // Must run before anything opens a file in data_root, or the
             // migration would move a database out from under a live connection.
             let migration = paths::migrate_from_legacy(app.handle(), &data_root);

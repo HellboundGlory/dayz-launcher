@@ -212,15 +212,19 @@ describe("hydrate legacy migration", () => {
     expect(backend.setActiveCalls).toEqual([]);
   });
 
-  it("keeps a stored preset selection and persists it once", async () => {
-    storage.set("tetra.themeActive", JSON.stringify({ activeId: "ember", scheme: "light", bloom: 0.5 }));
+  it("keeps a stored installed-theme selection and persists it once", async () => {
+    storage.set(
+      "tetra.themeActive",
+      JSON.stringify({ activeId: "local.foo", scheme: "light", bloom: 0.5 }),
+    );
+    backend.installed = [{ id: "local.foo", name: "Foo" }];
 
     await useThemeStore.getState().hydrate();
 
-    expect(useThemeStore.getState().activeId).toBe("ember");
+    expect(useThemeStore.getState().activeId).toBe("local.foo");
     expect(useThemeStore.getState().scheme).toBe("light");
     expect(useThemeStore.getState().bloom).toBe(0.5);
-    expect(backend.setActiveCalls).toEqual(["ember"]);
+    expect(backend.setActiveCalls).toEqual(["local.foo"]);
   });
 });
 
@@ -238,7 +242,7 @@ describe("theme extras", () => {
   });
 
   it("keeps the defaults for a preset and for a theme with no extras", () => {
-    expect(resolvedExtras("ember", files({}))).toEqual(DEFAULT_EXTRAS);
+    expect(resolvedExtras("neutral", files({}))).toEqual(DEFAULT_EXTRAS);
     expect(resolvedExtras("local.partial", files({}))).toEqual(DEFAULT_EXTRAS);
   });
 
@@ -505,7 +509,7 @@ describe("pickTheme bloom reset", () => {
   it("resets bloom to the default for a preset", async () => {
     useThemeStore.setState({ bloom: 0.1 });
 
-    await useThemeStore.getState().pickTheme("ember");
+    await useThemeStore.getState().pickTheme("neutral");
 
     expect(useThemeStore.getState().bloom).toBe(DEFAULT_EXTRAS.shadows.glowIntensity);
   });
