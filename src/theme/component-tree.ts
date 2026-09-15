@@ -329,13 +329,17 @@ function appendMissingRequired(root: ResolvedContainer, registryChildren: SlotCh
   }
 }
 
+/** Visits every node in a resolved tree: containers, core and image leaves
+ * alike — a leaf's children don't exist, so this simply ends there. */
+function walkTree(node: ResolvedNode, visit: (node: ResolvedNode) => void): void {
+  visit(node);
+  if (isContainerNode(node)) for (const child of node.children) walkTree(child, visit);
+}
+
 function collectRefs(node: ResolvedNode, into: Set<string>): void {
-  if (node.type === "core") {
-    into.add(node.ref);
-    return;
-  }
-  if (node.type === "image") return;
-  for (const child of node.children) collectRefs(child, into);
+  walkTree(node, (visited) => {
+    if (visited.type === "core") into.add(visited.ref);
+  });
 }
 
 /** Only the statically decidable sliver of §4.3's occlusion rule: two siblings
@@ -349,7 +353,8 @@ function reportOcclusions(
   slotId: string,
   issues: LayoutIssue[],
 ): void {
-  eachContainer(root, (parent) => {
+  walkTree(root, (parent) => {
+    if (!isContainerNode(parent)) return;
     for (let i = 0; i < parent.children.length; i++) {
       for (let j = i + 1; j < parent.children.length; j++) {
         const a = parent.children[i];
@@ -383,12 +388,6 @@ function describeNode(node: ResolvedNode): string {
   if (node.type === "core") return `core '${node.ref}'`;
   if (node.type === "image") return `image '${node.asset}'`;
   return `'${node.type}' container`;
-}
-
-function eachContainer(node: ResolvedNode, visit: (container: ResolvedContainer) => void): void {
-  if (node.type === "core" || node.type === "image") return;
-  visit(node);
-  for (const child of node.children) eachContainer(child, visit);
 }
 
 /** One optional enum prop: a value from the list is kept, anything else is an

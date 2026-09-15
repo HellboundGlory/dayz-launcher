@@ -4,7 +4,7 @@
 // Stacking order is declaration order, since the recursive walk emits children
 // in order: there is no z-index primitive, by design.
 
-import type { CSSProperties, ReactNode } from "react";
+import { memo, type CSSProperties, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { resolveThemeAsset } from "./asset-resolver";
 import type { Position, ResolvedNode } from "./component-tree";
@@ -93,7 +93,11 @@ export interface ComponentTreeRendererProps {
   themeId: string;
 }
 
-export function ComponentTreeRenderer({ node, nodes, themeId }: ComponentTreeRendererProps) {
+export const ComponentTreeRenderer = memo(function ComponentTreeRenderer({
+  node,
+  nodes,
+  themeId,
+}: ComponentTreeRendererProps) {
   if (node.type === "core") {
     const content = nodes[node.ref] ?? null;
     // The slot's own content is already-built JSX, so a positioned child needs
@@ -133,4 +137,4 @@ export function ComponentTreeRenderer({ node, nodes, themeId }: ComponentTreeRen
       ))}
     </div>
   );
-}
+});
