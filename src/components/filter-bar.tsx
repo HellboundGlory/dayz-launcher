@@ -1,9 +1,13 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, ChevronDown, RefreshCw, RotateCcw, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useServerStore } from "@/stores/server-store";
 import { useResolvedSlot } from "@/theme/use-resolved-layout";
 import { slotChildrenToRender } from "@/theme/slot-children";
+import { resolveComponentTree } from "@/theme/component-tree";
+import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
+import { SLOTS } from "@/theme/slots";
+import { useThemeStore } from "@/theme/theme-store";
 import type { SortKey } from "@/types/filters";
 
 interface FilterBarProps {
@@ -61,6 +65,24 @@ export function FilterBar({ onRefresh, refreshing, onOpenModFilter, modFilterOpe
   const setFilter = useServerStore((s) => s.setFilter);
   const resetFilter = useServerStore((s) => s.resetFilter);
   const sortKey = useServerStore((s) => s.sortKey);
+  const activeId = useThemeStore((s) => s.activeId);
+  const themeFiles = useThemeStore((s) => s.themeFiles);
+  const composition = useMemo(() => {
+    const theme = themeFiles[activeId];
+    if (theme === undefined || theme.tier !== "expert") return null;
+    const treeJson = theme.components["filterBar"];
+    if (treeJson === undefined) return null;
+    const { tree, issues } = resolveComponentTree(
+      "filterBar",
+      treeJson,
+      SLOTS.find((slot) => slot.id === "filterBar")?.children ?? [],
+    );
+    for (const issue of issues) {
+      console.warn(`[theme components] ${issue.slotId}: ${issue.message}`);
+    }
+    return tree;
+  }, [activeId, themeFiles]);
+
   const sortDir = useServerStore((s) => s.sortDir);
   const setSort = useServerStore((s) => s.setSort);
   const slot = useResolvedSlot("filterBar");
@@ -124,7 +146,6 @@ export function FilterBar({ onRefresh, refreshing, onOpenModFilter, modFilterOpe
       </button>
     ),
   };
-
   return (
     // At 1.5x scale the viewport is ~975 CSS px and the fixed-width controls
     // alone exceed it, so the row wraps — a second row beats clipping the
@@ -133,24 +154,27 @@ export function FilterBar({ onRefresh, refreshing, onOpenModFilter, modFilterOpe
       data-tetra-slot="filterBar"
       className="filterbar flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-2 border-b border-line bg-surface px-2.5 py-2"
     >
-      {slotChildrenToRender(slot, ["searchInput", "refreshAction"]).map((id) => (
-        <Fragment key={id}>
-          {/* Filters persist between sessions, so this is the explicit way back
-              to defaults. Not in the slot registry, so it has no order of its
-              own — it keeps the position it has today, next to Refresh. */}
-          {id === "refreshAction" && (
-            <button
-              onClick={resetFilter}
-              className="fbtn flex shrink-0 items-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-ink"
-              title="Reset all filters to defaults"
-            >
-              <RotateCcw className="size-3" />
-              Reset
-            </button>
-          )}
-          {controls[id]}
-        </Fragment>
-      ))}
+      {composition !== null ? (
+        <ComponentTreeRenderer node={composition} nodes={controls} themeId={activeId} />
+      ) : (
+        <>
+          {slotChildrenToRender(slot, ["searchInput", "refreshAction"]).map((id) => (
+            <Fragment key={id}>
+              {id === "refreshAction" && (
+                <button
+                  onClick={resetFilter}
+                  className="fbtn flex shrink-0 items-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-ink"
+                  title="Reset all filters to defaults"
+                >
+                  <RotateCcw className="size-3" />
+                  Reset
+                </button>
+              )}
+              {controls[id]}
+            </Fragment>
+          ))}
+        </>
+      )}
     </div>
   );
 }
