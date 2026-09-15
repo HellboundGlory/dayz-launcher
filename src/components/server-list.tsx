@@ -2,7 +2,6 @@ import {
   Fragment,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -23,10 +22,9 @@ import type { ViewId } from "./sidebar";
 import { cn, formatGameTime, formatLastPlayed, regionName } from "@/lib/utils";
 import { useResolvedSlot } from "@/theme/use-resolved-layout";
 import { slotChildrenToRender } from "@/theme/slot-children";
-import { resolveComponentTree } from "@/theme/component-tree";
 import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
-import { SLOTS } from "@/theme/slots";
 import { useThemeStore } from "@/theme/theme-store";
+import { useComponentComposition } from "@/theme/use-component-composition";
 import { ServerRowActions } from "./server-row-actions";
 
 interface ServerListProps {
@@ -55,9 +53,6 @@ export function nameLineSequence(ids: readonly string[], badgeVisible: boolean):
   if (!badgeVisible || ids.includes("tagsLine")) return [...ids];
   return ["modStatusBadge", ...ids];
 }
-
-/** `server.row`'s registry entry — the children a theme's tree resolves against. */
-const SERVER_ROW_CHILDREN = SLOTS.find((slot) => slot.id === "server.row")?.children ?? [];
 
 /** One entry per `server.row` child this file renders, addressed by id — the
  * single description both the grouped fallback and a theme's composition tree
@@ -432,22 +427,8 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
   const detailIds = slotChildrenToRender(slot, [], SERVER_ROW_GROUPS.details);
   const statIds = slotChildrenToRender(slot, [], SERVER_ROW_GROUPS.stats);
 
-  // An expert theme's own composition for this slot, when it ships one. A
-  // theme with no tree — every other tier — renders the grouped fallback
-  // exactly as it always has.
   const activeId = useThemeStore((s) => s.activeId);
-  const themeFiles = useThemeStore((s) => s.themeFiles);
-  const composition = useMemo(() => {
-    const theme = themeFiles[activeId];
-    if (theme === undefined || theme.tier !== "expert") return null;
-    const treeJson = theme.components["server.row"];
-    if (treeJson === undefined) return null;
-    const { tree, issues } = resolveComponentTree("server.row", treeJson, SERVER_ROW_CHILDREN);
-    for (const issue of issues) {
-      console.warn(`[theme components] ${issue.slotId}: ${issue.message}`);
-    }
-    return tree;
-  }, [activeId, themeFiles]);
+  const composition = useComponentComposition("server.row");
 
   return (
     <div ref={scrollRef} className="l2-body min-h-0 flex-1 overflow-y-auto p-2">

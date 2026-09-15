@@ -1,12 +1,11 @@
-import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { Globe, Star, Clock, Package, Settings, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import tetraLogo from "@/assets/tetra-logo.png";
 import { useResolvedSlot } from "@/theme/use-resolved-layout";
-import { resolveComponentTree } from "@/theme/component-tree";
 import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
-import { SLOTS } from "@/theme/slots";
 import { useThemeStore } from "@/theme/theme-store";
+import { useComponentComposition } from "@/theme/use-component-composition";
 
 export type ViewId = "servers" | "fav" | "recent" | "mods";
 
@@ -28,8 +27,6 @@ const NAV: { id: ViewId; label: string; icon: typeof Globe; tetraEl: string }[] 
   { id: "mods", label: "Mods", icon: Package, tetraEl: "navMods" },
 ];
 
-/** `shell.sidebar`'s registry entry — the children a theme's tree resolves against. */
-const SIDEBAR_CHILDREN = SLOTS.find((slot) => slot.id === "shell.sidebar")?.children ?? [];
 /** shell.sidebar nests two levels: these four groups in the rail's own column,
  * and the nav items inside `navList`. A layout orders each set within itself. */
 export const TOP_GROUPS = ["logo", "navList", "settingsEntry", "collapseToggle"];
@@ -72,21 +69,8 @@ export function Sidebar({
     .filter((item): item is (typeof NAV)[number] => item !== undefined)
     .filter((item) => !hidden.has(item.tetraEl) || REQUIRED_IDS[item.tetraEl]);
 
-  // An expert theme's own composition for this slot, when it ships one. A
-  // theme with no tree renders the grouped fallback exactly as it always has.
   const activeId = useThemeStore((s) => s.activeId);
-  const themeFiles = useThemeStore((s) => s.themeFiles);
-  const composition = useMemo(() => {
-    const theme = themeFiles[activeId];
-    if (theme === undefined || theme.tier !== "expert") return null;
-    const treeJson = theme.components["shell.sidebar"];
-    if (treeJson === undefined) return null;
-    const { tree, issues } = resolveComponentTree("shell.sidebar", treeJson, SIDEBAR_CHILDREN);
-    for (const issue of issues) {
-      console.warn(`[theme components] ${issue.slotId}: ${issue.message}`);
-    }
-    return tree;
-  }, [activeId, themeFiles]);
+  const composition = useComponentComposition("shell.sidebar");
 
   /** Arrow-key roving across the nav buttons, same pattern as the settings tabs.
    * Reads the pressed button's own position rather than a passed-in index, so
@@ -94,7 +78,11 @@ export function Sidebar({
    * buttons away from the default `navItems` sequence. */
   function onNavKeyDown(e: React.KeyboardEvent<HTMLButtonElement>) {
     const buttons = Array.from(
-      e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("[data-nav-item]") ?? [],
+      // Scoped to the slot container: composed themes wrap each nav item in
+      // its own div, so parentElement would only ever see one button.
+      e.currentTarget
+        .closest('[data-tetra-slot="shell.sidebar"]')
+        ?.querySelectorAll<HTMLButtonElement>("[data-nav-item]") ?? [],
     );
     const index = buttons.indexOf(e.currentTarget);
     if (index === -1) return;
