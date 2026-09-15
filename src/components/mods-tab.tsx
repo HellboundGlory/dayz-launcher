@@ -74,6 +74,9 @@ const ACTION_BAR_WRAPPERS = { actionBarCluster: ACTION_BAR_CLUSTER };
 
 /** The registry's own `mods.row` children — what a `core.ref` may name. */
 const MODS_ROW_CHILDREN = SLOTS.find((slot) => slot.id === "mods.row")?.children ?? [];
+const MODS_TOOLBAR_CHILDREN = SLOTS.find((slot) => slot.id === "mods.toolbar")?.children ?? [];
+const MODS_INSPECTOR_CHILDREN = SLOTS.find((slot) => slot.id === "mods.inspector")?.children ?? [];
+const MODS_ACTION_BAR_CHILDREN = SLOTS.find((slot) => slot.id === "mods.actionBar")?.children ?? [];
 
 // Mods tab: rich rows with a slide-in inspector, status filter, and action bar.
 
@@ -305,6 +308,17 @@ export function ModsTab() {
     }
     return tree;
   }, [activeId, themeFiles]);
+  const toolbarComposition = useMemo(() => {
+    const file = themeFiles[activeId];
+    if (file?.tier !== "expert") return null;
+    const treeJson = file.components["mods.toolbar"];
+    if (treeJson === undefined) return null;
+    const { tree, issues } = resolveComponentTree("mods.toolbar", treeJson, MODS_TOOLBAR_CHILDREN);
+    for (const issue of issues) {
+      console.warn(`[theme components] ${issue.slotId}: ${issue.message}`);
+    }
+    return tree;
+  }, [activeId, themeFiles]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
@@ -315,6 +329,53 @@ export function ModsTab() {
     overscan: 8,
   });
   const virtualItems = rowVirtualizer.getVirtualItems();
+  const toolbarNodes = {
+    searchInput: (
+      <div
+        data-tetra-el="searchInput"
+        className="search flex min-w-0 flex-1 items-center gap-1.5 rounded-[6px] border border-line bg-surface2 px-2.5 py-[5px]"
+      >
+        <Search className="size-3 shrink-0 text-muted" />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search mods by name, tag or id…"
+          aria-label="Search mods"
+          className="min-w-0 flex-1 bg-transparent py-0.5 text-[11px] text-ink outline-none placeholder:text-muted"
+        />
+      </div>
+    ),
+    statusFilter: (
+      <div data-tetra-el="statusFilter" className="flex items-center gap-0.5">
+        {STATUS_FILTERS.map((f) => (
+          <button
+            key={f.key}
+            onClick={() => setStatusFilter(f.key)}
+            className={cn(
+              "fbtn flex items-center justify-center rounded-[6px] border border-line bg-surface2 px-2.5 py-[5px] text-[10px] font-bold uppercase tracking-wider transition-colors",
+              statusFilter === f.key
+                ? "border-accent-line bg-accent-soft text-accent shadow-[var(--glow)]"
+                : "text-muted hover:text-ink",
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+    ),
+    refreshAction: (
+      <button
+        data-tetra-el="refreshAction"
+        onClick={() => void load(true)}
+        disabled={loading || !!op}
+        title="Re-read the list and refresh details from the Workshop"
+        className="fbtn flex shrink-0 items-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <RefreshCw className={cn("size-3", loading && "animate-spin")} />
+        Refresh
+      </button>
+    ),
+  };
 
   return (
     <div data-tetra-slot="view.mods" className="flex min-h-0 flex-1 flex-col">
@@ -323,56 +384,11 @@ export function ModsTab() {
         data-tetra-slot="mods.toolbar"
         className="filterbar flex shrink-0 items-center gap-1.5 border-b border-line bg-surface px-2.5 py-2"
       >
-        <SlotChildren
-          order={toolbarOrder}
-          nodes={{
-            searchInput: (
-              <div
-                data-tetra-el="searchInput"
-                className="search flex min-w-0 flex-1 items-center gap-1.5 rounded-[6px] border border-line bg-surface2 px-2.5 py-[5px]"
-              >
-                <Search className="size-3 shrink-0 text-muted" />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search mods by name, tag or id…"
-                  aria-label="Search mods"
-                  className="min-w-0 flex-1 bg-transparent py-0.5 text-[11px] text-ink outline-none placeholder:text-muted"
-                />
-              </div>
-            ),
-            statusFilter: (
-              <div data-tetra-el="statusFilter" className="flex items-center gap-0.5">
-                {STATUS_FILTERS.map((f) => (
-                  <button
-                    key={f.key}
-                    onClick={() => setStatusFilter(f.key)}
-                    className={cn(
-                      "fbtn flex items-center justify-center rounded-[6px] border border-line bg-surface2 px-2.5 py-[5px] text-[10px] font-bold uppercase tracking-wider transition-colors",
-                      statusFilter === f.key
-                        ? "border-accent-line bg-accent-soft text-accent shadow-[var(--glow)]"
-                        : "text-muted hover:text-ink",
-                    )}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-            ),
-            refreshAction: (
-              <button
-                data-tetra-el="refreshAction"
-                onClick={() => void load(true)}
-                disabled={loading || !!op}
-                title="Re-read the list and refresh details from the Workshop"
-                className="fbtn flex shrink-0 items-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <RefreshCw className={cn("size-3", loading && "animate-spin")} />
-                Refresh
-              </button>
-            ),
-          }}
-        />
+        {toolbarComposition ? (
+          <ComponentTreeRenderer node={toolbarComposition} nodes={toolbarNodes} themeId={activeId} />
+        ) : (
+          <SlotChildren order={toolbarOrder} nodes={toolbarNodes} />
+        )}
       </div>
 
       {error && (
@@ -656,6 +672,8 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
   const ui = STATUS_UI[state];
 
   const inspectorChildren = useResolvedSlot("mods.inspector").children;
+  const activeId = useThemeStore((s) => s.activeId);
+  const themeFiles = useThemeStore((s) => s.themeFiles);
   const bodyOrder = resolveChildOrder(
     "mods.inspector",
     INSPECTOR_BODY,
@@ -679,141 +697,169 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
     void load(true);
   }
 
+  const composition = useMemo(() => {
+    const file = themeFiles[activeId];
+    if (file?.tier !== "expert") return null;
+    const treeJson = file.components["mods.inspector"];
+    if (treeJson === undefined) return null;
+    const { tree, issues } = resolveComponentTree("mods.inspector", treeJson, MODS_INSPECTOR_CHILDREN);
+    for (const issue of issues) {
+      console.warn(`[theme components] ${issue.slotId}: ${issue.message}`);
+    }
+    return tree;
+  }, [activeId, themeFiles]);
+
+  const closeAction = (
+    <button
+      data-tetra-el="closeAction"
+      onClick={() => openMod(null)}
+      aria-label="Close details"
+      className="mxi-close absolute right-2 top-2 z-[3] flex h-[22px] w-[22px] items-center justify-center rounded-[6px] border border-line bg-[rgba(10,12,16,0.7)] text-muted2 transition-colors hover:border-accent-line hover:text-ink"
+    >
+      <X className="size-3" />
+    </button>
+  );
+
+  const bodyFields = {
+    previewImage: (
+      <div data-tetra-el="previewImage" className="m2-preview relative h-[118px] shrink-0 overflow-hidden rounded-[7px] bg-surface2">
+        {mod.preview_url ? (
+          <img src={mod.preview_url} alt="" draggable={false} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full items-center justify-center text-[10px] text-muted">
+            No preview image
+          </div>
+        )}
+        {mod.locally_disabled && (
+          <span className="absolute left-2 top-2 rounded border border-muted/60 bg-black/60 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-ink">
+            Disabled
+          </span>
+        )}
+      </div>
+    ),
+    name: (
+      <h2 data-tetra-el="name" className="m2-title text-[13px] font-bold leading-snug text-ink">
+        {mod.title ?? mod.workshop_id}
+      </h2>
+    ),
+    status: (
+      <span
+        data-tetra-el="status"
+        className={cn(
+          "inline-flex w-fit items-center gap-1.5 rounded-full border px-2 py-[3px]",
+          PILL_TONE[ui.tone],
+        )}
+      >
+        <span className={cn("h-[6px] w-[6px] shrink-0 rounded-full bg-current", PILL_DOT_GLOW[ui.tone])} />
+        <span className="truncate text-[9px] font-bold uppercase tracking-wider">{ui.label}</span>
+      </span>
+    ),
+    tags: (
+      <div data-tetra-el="tags" className="m2-tags flex flex-wrap gap-1">
+        {(mod.tags ?? []).slice(0, 6).map((t: string) => (
+          <span
+            key={t}
+            className="tag rounded-[4px] bg-surface2 px-1.5 py-0.5 text-[8px] text-muted2"
+          >
+            {t}
+          </span>
+        ))}
+      </div>
+    ),
+    description: mod.description ? (
+      <p data-tetra-el="description" className="m2-desc line-clamp-6 text-[10px] leading-relaxed text-muted">
+        {mod.description}
+      </p>
+    ) : null,
+    detailFields: (
+      <div data-tetra-el="detailFields" className="m2-rows2 mt-1 flex flex-col gap-1">
+        <InspectorRow label="Subscribed" value={modSubscribed(mod) ? formatLastPlayed(modSubscribed(mod)) : "—"} />
+        <InspectorRow label="Updated" value={mod.time_updated ? formatLastPlayed(mod.time_updated) : "—"} />
+        <InspectorRow label="Size" value={mod.size_on_disk ? formatBytes(Number(mod.size_on_disk), 1) : "—"} />
+        <InspectorRow
+          label="Rating"
+          value={mod.num_upvotes + mod.num_downvotes ? `${mod.num_upvotes}▲ / ${mod.num_downvotes}▼` : "—"}
+        />
+        <InspectorRow label="Workshop id" value={mod.workshop_id} />
+      </div>
+    ),
+  };
+
+  const actionNodes = {
+    updateAction:
+      state === "needs_update" ? (
+        <button
+          data-tetra-el="updateAction"
+          onClick={() => void updateMods([mod.workshop_id])}
+          disabled={updating}
+          title="Download the newer Workshop copy"
+          className="m2-btn flex flex-1 items-center justify-center gap-1 rounded-[6px] border border-warn-line bg-warn-soft px-2 py-1.5 text-[9px] font-bold uppercase tracking-[0.03em] text-warn transition-colors disabled:opacity-50"
+        >
+          <Download className={cn("size-3", updating && "animate-pulse")} />
+          {updating ? "…" : "Update"}
+        </button>
+      ) : null,
+    openInSteamAction: (
+      <button
+        data-tetra-el="openInSteamAction"
+        onClick={openInSteam}
+        className="m2-btn flex flex-1 items-center justify-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-1.5 text-[9px] font-bold uppercase tracking-[0.03em] text-muted2 transition-colors hover:text-ink"
+      >
+        <ExternalLink className="size-3" /> Open in Steam
+      </button>
+    ),
+    openFolderAction: mod.folder ? (
+      <button
+        data-tetra-el="openFolderAction"
+        onClick={() => void openModFolder(mod.folder!)}
+        className="m2-btn flex flex-1 items-center justify-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-1.5 text-[9px] font-bold uppercase tracking-[0.03em] text-muted2 transition-colors hover:text-ink"
+      >
+        <FolderOpen className="size-3" /> Open folder
+      </button>
+    ) : null,
+    reinstallAction: (
+      <button
+        data-tetra-el="reinstallAction"
+        onClick={() => void reinstall()}
+        disabled={reinstalling}
+        className="m2-btn flex flex-1 items-center justify-center gap-1 rounded-[6px] border border-accent-line bg-accent-soft px-2 py-1.5 text-[9px] font-bold uppercase tracking-[0.03em] text-accent shadow-[var(--glow)] transition-colors disabled:opacity-50"
+      >
+        <RefreshCw className={cn("size-3", reinstalling && "animate-spin")} />
+        {reinstalling ? "…" : "Reinstall"}
+      </button>
+    ),
+  };
+
   return (
     <div
       data-tetra-slot="mods.inspector"
       className="mx-inspector absolute bottom-0 right-0 top-0 z-[8] flex flex-col overflow-hidden border-l border-line bg-surface shadow-[-10px_0_26px_rgba(0,0,0,0.4)]"
       style={{ width: INSPECTOR_WIDTH }}
     >
-      <button
-        data-tetra-el="closeAction"
-        onClick={() => openMod(null)}
-        aria-label="Close details"
-        className="mxi-close absolute right-2 top-2 z-[3] flex h-[22px] w-[22px] items-center justify-center rounded-[6px] border border-line bg-[rgba(10,12,16,0.7)] text-muted2 transition-colors hover:border-accent-line hover:text-ink"
-      >
-        <X className="size-3" />
-      </button>
-
-      <div className="body flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2.5">
-        <SlotChildren
-          order={bodyOrder}
-          nodes={{
-            previewImage: (
-              <div data-tetra-el="previewImage" className="m2-preview relative h-[118px] shrink-0 overflow-hidden rounded-[7px] bg-surface2">
-                {mod.preview_url ? (
-                  <img src={mod.preview_url} alt="" draggable={false} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-[10px] text-muted">
-                    No preview image
-                  </div>
-                )}
-                {mod.locally_disabled && (
-                  <span className="absolute left-2 top-2 rounded border border-muted/60 bg-black/60 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-ink">
-                    Disabled
-                  </span>
-                )}
-              </div>
-            ),
-            name: (
-              <h2 data-tetra-el="name" className="m2-title text-[13px] font-bold leading-snug text-ink">
-                {mod.title ?? mod.workshop_id}
-              </h2>
-            ),
-            status: (
-              <span
-                data-tetra-el="status"
-                className={cn(
-                  "inline-flex w-fit items-center gap-1.5 rounded-full border px-2 py-[3px]",
-                  PILL_TONE[ui.tone],
-                )}
-              >
-                <span className={cn("h-[6px] w-[6px] shrink-0 rounded-full bg-current", PILL_DOT_GLOW[ui.tone])} />
-                <span className="truncate text-[9px] font-bold uppercase tracking-wider">{ui.label}</span>
-              </span>
-            ),
-            tags: (
-              <div data-tetra-el="tags" className="m2-tags flex flex-wrap gap-1">
-                {(mod.tags ?? []).slice(0, 6).map((t: string) => (
-                  <span
-                    key={t}
-                    className="tag rounded-[4px] bg-surface2 px-1.5 py-0.5 text-[8px] text-muted2"
-                  >
-                    {t}
-                  </span>
-                ))}
-              </div>
-            ),
-            description: mod.description ? (
-              <p data-tetra-el="description" className="m2-desc line-clamp-6 text-[10px] leading-relaxed text-muted">
-                {mod.description}
-              </p>
-            ) : null,
-            detailFields: (
-              <div data-tetra-el="detailFields" className="m2-rows2 mt-1 flex flex-col gap-1">
-                <InspectorRow label="Subscribed" value={modSubscribed(mod) ? formatLastPlayed(modSubscribed(mod)) : "—"} />
-                <InspectorRow label="Updated" value={mod.time_updated ? formatLastPlayed(mod.time_updated) : "—"} />
-                <InspectorRow label="Size" value={mod.size_on_disk ? formatBytes(Number(mod.size_on_disk), 1) : "—"} />
-                <InspectorRow
-                  label="Rating"
-                  value={mod.num_upvotes + mod.num_downvotes ? `${mod.num_upvotes}▲ / ${mod.num_downvotes}▼` : "—"}
-                />
-                <InspectorRow label="Workshop id" value={mod.workshop_id} />
-              </div>
-            ),
-            inspectorActions: (
-              <div className="m2-actions mt-0.5 flex gap-1.5">
-                <SlotChildren
-                  order={actionsOrder}
-                  nodes={{
-                    updateAction:
-                      state === "needs_update" ? (
-                        <button
-                          data-tetra-el="updateAction"
-                          onClick={() => void updateMods([mod.workshop_id])}
-                          disabled={updating}
-                          title="Download the newer Workshop copy"
-                          className="m2-btn flex flex-1 items-center justify-center gap-1 rounded-[6px] border border-warn-line bg-warn-soft px-2 py-1.5 text-[9px] font-bold uppercase tracking-[0.03em] text-warn transition-colors disabled:opacity-50"
-                        >
-                          <Download className={cn("size-3", updating && "animate-pulse")} />
-                          {updating ? "…" : "Update"}
-                        </button>
-                      ) : null,
-                    openInSteamAction: (
-                      <button
-                        data-tetra-el="openInSteamAction"
-                        onClick={openInSteam}
-                        className="m2-btn flex flex-1 items-center justify-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-1.5 text-[9px] font-bold uppercase tracking-[0.03em] text-muted2 transition-colors hover:text-ink"
-                      >
-                        <ExternalLink className="size-3" /> Open in Steam
-                      </button>
-                    ),
-                    openFolderAction: mod.folder ? (
-                      <button
-                        data-tetra-el="openFolderAction"
-                        onClick={() => void openModFolder(mod.folder!)}
-                        className="m2-btn flex flex-1 items-center justify-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-1.5 text-[9px] font-bold uppercase tracking-[0.03em] text-muted2 transition-colors hover:text-ink"
-                      >
-                        <FolderOpen className="size-3" /> Open folder
-                      </button>
-                    ) : null,
-                    reinstallAction: (
-                      <button
-                        data-tetra-el="reinstallAction"
-                        onClick={() => void reinstall()}
-                        disabled={reinstalling}
-                        className="m2-btn flex flex-1 items-center justify-center gap-1 rounded-[6px] border border-accent-line bg-accent-soft px-2 py-1.5 text-[9px] font-bold uppercase tracking-[0.03em] text-accent shadow-[var(--glow)] transition-colors disabled:opacity-50"
-                      >
-                        <RefreshCw className={cn("size-3", reinstalling && "animate-spin")} />
-                        {reinstalling ? "…" : "Reinstall"}
-                      </button>
-                    ),
-                  }}
-                />
-              </div>
-            ),
-          }}
+      {composition ? (
+        <ComponentTreeRenderer
+          node={composition}
+          nodes={{ closeAction, ...bodyFields, ...actionNodes }}
+          themeId={activeId}
         />
-      </div>
+      ) : (
+        <>
+          {closeAction}
+          <div className="body flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2.5">
+            <SlotChildren
+              order={bodyOrder}
+              nodes={{
+                ...bodyFields,
+                inspectorActions: (
+                  <div className="m2-actions mt-0.5 flex gap-1.5">
+                    <SlotChildren order={actionsOrder} nodes={actionNodes} />
+                  </div>
+                ),
+              }}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -870,6 +916,20 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
   );
   const clusterOrder = resolveChildOrder("mods.actionBar", ACTION_BAR_CLUSTER, barChildren);
 
+  const activeId = useThemeStore((s) => s.activeId);
+  const themeFiles = useThemeStore((s) => s.themeFiles);
+  const composition = useMemo(() => {
+    const file = themeFiles[activeId];
+    if (file?.tier !== "expert") return null;
+    const treeJson = file.components["mods.actionBar"];
+    if (treeJson === undefined) return null;
+    const { tree, issues } = resolveComponentTree("mods.actionBar", treeJson, MODS_ACTION_BAR_CHILDREN);
+    for (const issue of issues) {
+      console.warn(`[theme components] ${issue.slotId}: ${issue.message}`);
+    }
+    return tree;
+  }, [activeId, themeFiles]);
+
   useEffect(() => {
     if (!menu) return;
     function onDown(e: MouseEvent) {
@@ -925,6 +985,200 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
       first.focus();
     }
   }
+  const barNodes = {
+    totalCount: (
+      <span data-tetra-el="totalCount" className="ab-count shrink-0 text-[10px] tabular-nums text-muted">
+        {selectedCount > 0 ? (
+          <>
+            <span className="font-semibold text-ink">{selectedCount}</span> of {allCount} selected
+          </>
+        ) : (
+          `${allCount} mod${allCount === 1 ? "" : "s"}`
+        )}
+      </span>
+    ),
+    selectAllAction:
+      selectedCount < allCount ? (
+        <button
+          data-tetra-el="selectAllAction"
+          onClick={() => store.setAllSelected(true)}
+          disabled={allCount === 0}
+          className="ab-link shrink-0 text-[9px] font-bold uppercase tracking-[0.06em] text-muted transition-colors hover:text-ink disabled:opacity-40"
+        >
+          Select all
+        </button>
+      ) : null,
+    clearSelectionAction:
+      selectedCount > 0 ? (
+        <button
+          data-tetra-el="clearSelectionAction"
+          onClick={() => store.clearSelection()}
+          className="ab-link shrink-0 text-[9px] font-bold uppercase tracking-[0.06em] text-muted transition-colors hover:text-ink"
+        >
+          Clear
+        </button>
+      ) : null,
+    uniqueToServerAction: <ServerPicker />,
+    cleanupRemovedAction:
+      removedCount > 0 ? (
+        <button
+          data-tetra-el="cleanupRemovedAction"
+          onClick={() =>
+            askConfirm(
+              "Clean up removed mods",
+              `${removedCount} subscribed item${removedCount === 1 ? " is" : "s are"} no longer on the Workshop. ` +
+                "Steam will remove them from your subscriptions and delete their folders from disk.",
+              () => void store.cleanupRemoved(),
+            )
+          }
+          disabled={busy}
+          title={`${removedCount} subscribed item${removedCount === 1 ? " is" : "s are"} no longer on the Workshop`}
+          className="ab-btn ab-ghost flex items-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-[5px] text-[8px] font-bold uppercase tracking-[0.04em] text-warn transition-[filter] hover:brightness-110 disabled:opacity-50"
+        >
+          <Trash2 className="size-3" />
+          Clean up {removedCount}
+        </button>
+      ) : null,
+    unsubscribeAction: (
+      <div data-tetra-el="unsubscribeAction" className="relative flex">
+        <button
+          onClick={() => {
+            if (selectedCount === 0) return;
+            askConfirm(
+              `Unsubscribe from ${selectedCount} mod${selectedCount === 1 ? "" : "s"}`,
+              "Steam deletes the mod files from disk, and Workshop mods are shared — " +
+                "every server that uses them will have to download them again when you join.",
+              () => void store.unsubscribeSelected(),
+            );
+          }}
+          disabled={busy || selectedCount === 0}
+          title="Unsubscribe from the selected mods (Steam deletes them from disk)"
+          className={cn(
+            "flex items-center justify-center gap-1.5 rounded-l-[6px] border border-danger-line bg-danger-soft px-3 py-[7px] text-[10px] font-bold uppercase tracking-wider text-danger transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40",
+            store.op?.kind === "unsubscribe" && "animate-pulse",
+          )}
+        >
+          {store.op?.kind === "unsubscribe" ? (
+            <Loader2 className="size-3 animate-spin" />
+          ) : (
+            <Trash2 className="size-3" />
+          )}
+          {store.op?.kind === "unsubscribe"
+            ? store.op.note ?? "Removing…"
+            : selectedCount > 0
+              ? `Unsubscribe ${selectedCount}`
+              : "Unsubscribe"}
+        </button>
+        <button
+          onClick={() => setMenu(menu === "unsub" ? null : "unsub")}
+          disabled={busy}
+          className="flex items-center justify-center rounded-r-[6px] border border-l-0 border-danger-line bg-danger-soft px-1.5 text-danger transition-colors hover:brightness-110 disabled:opacity-40"
+          aria-haspopup="menu"
+          aria-expanded={menu === "unsub"}
+        >
+          <ChevronDown className={cn("size-3 transition-transform", menu === "unsub" && "rotate-180")} />
+        </button>
+        {menu === "unsub" && (
+          <div className="absolute bottom-full right-0 mb-1 w-56 rounded-[7px] border border-line bg-surface2 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
+            <MenuButton
+              disabled={selectedCount === 0}
+              label={selectedCount > 0 ? `Unsubscribe selected (${selectedCount})` : "Unsubscribe selected"}
+              onClick={() =>
+                askConfirm(
+                  `Unsubscribe from ${selectedCount} mod${selectedCount === 1 ? "" : "s"}`,
+                  "Steam deletes the mod files from disk, and Workshop mods are shared — " +
+                    "every server that uses them will have to download them again when you join.",
+                  () => void store.unsubscribeSelected(),
+                )
+              }
+            />
+            <MenuButton
+              disabled={allCount === 0}
+              label={`Unsubscribe from all ${allCount} (destructive)`}
+              onClick={() =>
+                askConfirm(
+                  `Unsubscribe from all ${allCount} mods`,
+                  "Every subscribed mod will be removed and its files deleted from disk. " +
+                    "Servers that need them will re-download them when you join.",
+                  () => void store.unsubscribeAll(),
+                )
+              }
+            />
+          </div>
+        )}
+      </div>
+    ),
+    updateOutdatedAction:
+      outdatedCount > 0 ? (
+        <button
+          data-tetra-el="updateOutdatedAction"
+          onClick={() => void store.updateAllOutdated()}
+          disabled={busy}
+          title={`Download the newer Workshop copy of ${outdatedCount} mod${outdatedCount === 1 ? "" : "s"}`}
+          className={cn(
+            "flex shrink-0 items-center gap-1.5 rounded-[6px] border border-warn-line bg-warn-soft px-2.5 py-[7px] text-[10px] font-bold uppercase tracking-wider text-warn transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50",
+            store.op?.kind === "update" && "animate-pulse",
+          )}
+        >
+          {store.op?.kind === "update" ? (
+            <Loader2 className="size-3 animate-spin" />
+          ) : (
+            <Download className="size-3" />
+          )}
+          {store.op?.kind === "update" ? store.op.note ?? "Updating…" : `Update ${outdatedCount}`}
+        </button>
+      ) : null,
+    verifyAction: (
+      <div data-tetra-el="verifyAction" className="relative flex">
+        <button
+          onClick={() => {
+            setMenu(null);
+            void store.verifyAll();
+          }}
+          disabled={busy || allCount === 0}
+          title="Verify every mod against the Workshop and re-download anything outdated"
+          className="ab-verify flex items-center justify-center gap-1.5 rounded-l-[6px] bg-accent px-3 py-[7px] text-[10px] font-bold uppercase tracking-wider text-[#10131a] shadow-[var(--glow)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {store.op?.kind === "verify" ? (
+            <Loader2 className="size-3 animate-spin" />
+          ) : (
+            <Globe className="size-3" />
+          )}
+          {store.op?.kind === "verify" ? store.op.note ?? "Verifying…" : "Verify mods"}
+        </button>
+        <button
+          onClick={() => setMenu(menu === "verify" ? null : "verify")}
+          disabled={busy}
+          className="flex items-center justify-center rounded-r-[6px] bg-accent px-1.5 text-[#10131a] shadow-[var(--glow)] transition-colors hover:brightness-110 disabled:opacity-50"
+          aria-haspopup="menu"
+          aria-expanded={menu === "verify"}
+        >
+          <ChevronDown className={cn("size-3 transition-transform", menu === "verify" && "rotate-180")} />
+        </button>
+        {menu === "verify" && (
+          <div className="absolute bottom-full right-0 mb-1 w-56 rounded-[7px] border border-line bg-surface2 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
+            <MenuButton
+              disabled={selectedCount === 0}
+              label={selectedCount > 0 ? `Verify selected (${selectedCount})` : "Verify selected"}
+              onClick={() => {
+                if (selectedCount === 0) return;
+                setMenu(null);
+                void store.verifySelected();
+              }}
+            />
+            <MenuButton
+              disabled={allCount === 0}
+              label={`Verify all (${allCount})`}
+              onClick={() => {
+                setMenu(null);
+                void store.verifyAll();
+              }}
+            />
+          </div>
+        )}
+      </div>
+    ),
+  };
 
   return (
     <div
@@ -993,213 +1247,28 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
       )}
 
       <div className="flex items-center gap-2 px-2.5 py-[7px]">
-        <SlotChildren
-          order={barOrder}
-          nodes={{
-            totalCount: (
-              <span data-tetra-el="totalCount" className="ab-count shrink-0 text-[10px] tabular-nums text-muted">
-                {selectedCount > 0 ? (
-                  <>
-                    <span className="font-semibold text-ink">{selectedCount}</span> of {allCount} selected
-                  </>
-                ) : (
-                  `${allCount} mod${allCount === 1 ? "" : "s"}`
-                )}
-              </span>
-            ),
-            selectAllAction:
-              selectedCount < allCount ? (
-                <button
-                  data-tetra-el="selectAllAction"
-                  onClick={() => store.setAllSelected(true)}
-                  disabled={allCount === 0}
-                  className="ab-link shrink-0 text-[9px] font-bold uppercase tracking-[0.06em] text-muted transition-colors hover:text-ink disabled:opacity-40"
-                >
-                  Select all
-                </button>
-              ) : null,
-            clearSelectionAction:
-              selectedCount > 0 ? (
-                <button
-                  data-tetra-el="clearSelectionAction"
-                  onClick={() => store.clearSelection()}
-                  className="ab-link shrink-0 text-[9px] font-bold uppercase tracking-[0.06em] text-muted transition-colors hover:text-ink"
-                >
-                  Clear
-                </button>
-              ) : null,
-            /* Right-pushed: unique-to-a-server and clean-up share one cluster. */
-            actionBarCluster: (
-              <div className="ml-auto flex items-center gap-1.5">
-                <SlotChildren
-                  order={clusterOrder}
-                  nodes={{
-                    uniqueToServerAction: <ServerPicker />,
-                    cleanupRemovedAction:
-                      removedCount > 0 ? (
-                        <button
-                          data-tetra-el="cleanupRemovedAction"
-                          onClick={() =>
-                            askConfirm(
-                              "Clean up removed mods",
-                              `${removedCount} subscribed item${removedCount === 1 ? " is" : "s are"} no longer on the Workshop. ` +
-                                "Steam will remove them from your subscriptions and delete their folders from disk.",
-                              () => void store.cleanupRemoved(),
-                            )
-                          }
-                          disabled={busy}
-                          title={`${removedCount} subscribed item${removedCount === 1 ? " is" : "s are"} no longer on the Workshop`}
-                          className="ab-btn ab-ghost flex items-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-[5px] text-[8px] font-bold uppercase tracking-[0.04em] text-warn transition-[filter] hover:brightness-110 disabled:opacity-50"
-                        >
-                          <Trash2 className="size-3" />
-                          Clean up {removedCount}
-                        </button>
-                      ) : null,
-                  }}
-                />
-              </div>
-            ),
-            unsubscribeAction: (
-              <div data-tetra-el="unsubscribeAction" className="relative flex">
-                <button
-                  onClick={() => {
-                    if (selectedCount === 0) return;
-                    askConfirm(
-                      `Unsubscribe from ${selectedCount} mod${selectedCount === 1 ? "" : "s"}`,
-                      "Steam deletes the mod files from disk, and Workshop mods are shared — " +
-                        "every server that uses them will have to download them again when you join.",
-                      () => void store.unsubscribeSelected(),
-                    );
-                  }}
-                  disabled={busy || selectedCount === 0}
-                  title="Unsubscribe from the selected mods (Steam deletes them from disk)"
-                  className={cn(
-                    "flex items-center justify-center gap-1.5 rounded-l-[6px] border border-danger-line bg-danger-soft px-3 py-[7px] text-[10px] font-bold uppercase tracking-wider text-danger transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40",
-                    store.op?.kind === "unsubscribe" && "animate-pulse",
-                  )}
-                >
-                  {store.op?.kind === "unsubscribe" ? (
-                    <Loader2 className="size-3 animate-spin" />
-                  ) : (
-                    <Trash2 className="size-3" />
-                  )}
-                  {store.op?.kind === "unsubscribe"
-                    ? store.op.note ?? "Removing…"
-                    : selectedCount > 0
-                      ? `Unsubscribe ${selectedCount}`
-                      : "Unsubscribe"}
-                </button>
-                <button
-                  onClick={() => setMenu(menu === "unsub" ? null : "unsub")}
-                  disabled={busy}
-                  className="flex items-center justify-center rounded-r-[6px] border border-l-0 border-danger-line bg-danger-soft px-1.5 text-danger transition-colors hover:brightness-110 disabled:opacity-40"
-                  aria-haspopup="menu"
-                  aria-expanded={menu === "unsub"}
-                >
-                  <ChevronDown className={cn("size-3 transition-transform", menu === "unsub" && "rotate-180")} />
-                </button>
-                {menu === "unsub" && (
-                  <div className="absolute bottom-full right-0 mb-1 w-56 rounded-[7px] border border-line bg-surface2 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
-                    <MenuButton
-                      disabled={selectedCount === 0}
-                      label={selectedCount > 0 ? `Unsubscribe selected (${selectedCount})` : "Unsubscribe selected"}
-                      onClick={() =>
-                        askConfirm(
-                          `Unsubscribe from ${selectedCount} mod${selectedCount === 1 ? "" : "s"}`,
-                          "Steam deletes the mod files from disk, and Workshop mods are shared — " +
-                            "every server that uses them will have to download them again when you join.",
-                          () => void store.unsubscribeSelected(),
-                        )
-                      }
-                    />
-                    <MenuButton
-                      disabled={allCount === 0}
-                      label={`Unsubscribe from all ${allCount} (destructive)`}
-                      onClick={() =>
-                        askConfirm(
-                          `Unsubscribe from all ${allCount} mods`,
-                          "Every subscribed mod will be removed and its files deleted from disk. " +
-                            "Servers that need them will re-download them when you join.",
-                          () => void store.unsubscribeAll(),
-                        )
-                      }
-                    />
-                  </div>
-                )}
-              </div>
-            ),
-            updateOutdatedAction:
-              outdatedCount > 0 ? (
-                <button
-                  data-tetra-el="updateOutdatedAction"
-                  onClick={() => void store.updateAllOutdated()}
-                  disabled={busy}
-                  title={`Download the newer Workshop copy of ${outdatedCount} mod${outdatedCount === 1 ? "" : "s"}`}
-                  className={cn(
-                    "flex shrink-0 items-center gap-1.5 rounded-[6px] border border-warn-line bg-warn-soft px-2.5 py-[7px] text-[10px] font-bold uppercase tracking-wider text-warn transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50",
-                    store.op?.kind === "update" && "animate-pulse",
-                  )}
-                >
-                  {store.op?.kind === "update" ? (
-                    <Loader2 className="size-3 animate-spin" />
-                  ) : (
-                    <Download className="size-3" />
-                  )}
-                  {store.op?.kind === "update" ? store.op.note ?? "Updating…" : `Update ${outdatedCount}`}
-                </button>
-              ) : null,
-            verifyAction: (
-              <div data-tetra-el="verifyAction" className="relative flex">
-                <button
-                  onClick={() => {
-                    setMenu(null);
-                    void store.verifyAll();
-                  }}
-                  disabled={busy || allCount === 0}
-                  title="Verify every mod against the Workshop and re-download anything outdated"
-                  className="ab-verify flex items-center justify-center gap-1.5 rounded-l-[6px] bg-accent px-3 py-[7px] text-[10px] font-bold uppercase tracking-wider text-[#10131a] shadow-[var(--glow)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {store.op?.kind === "verify" ? (
-                    <Loader2 className="size-3 animate-spin" />
-                  ) : (
-                    <Globe className="size-3" />
-                  )}
-                  {store.op?.kind === "verify" ? store.op.note ?? "Verifying…" : "Verify mods"}
-                </button>
-                <button
-                  onClick={() => setMenu(menu === "verify" ? null : "verify")}
-                  disabled={busy}
-                  className="flex items-center justify-center rounded-r-[6px] bg-accent px-1.5 text-[#10131a] shadow-[var(--glow)] transition-colors hover:brightness-110 disabled:opacity-50"
-                  aria-haspopup="menu"
-                  aria-expanded={menu === "verify"}
-                >
-                  <ChevronDown className={cn("size-3 transition-transform", menu === "verify" && "rotate-180")} />
-                </button>
-                {menu === "verify" && (
-                  <div className="absolute bottom-full right-0 mb-1 w-56 rounded-[7px] border border-line bg-surface2 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
-                    <MenuButton
-                      disabled={selectedCount === 0}
-                      label={selectedCount > 0 ? `Verify selected (${selectedCount})` : "Verify selected"}
-                      onClick={() => {
-                        if (selectedCount === 0) return;
-                        setMenu(null);
-                        void store.verifySelected();
-                      }}
-                    />
-                    <MenuButton
-                      disabled={allCount === 0}
-                      label={`Verify all (${allCount})`}
-                      onClick={() => {
-                        setMenu(null);
-                        void store.verifyAll();
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-            ),
-          }}
-        />
+        {composition ? (
+          <ComponentTreeRenderer node={composition} nodes={barNodes} themeId={activeId} />
+        ) : (
+          <SlotChildren
+            order={barOrder}
+            nodes={{
+              ...barNodes,
+              /* Right-pushed: unique-to-a-server and clean-up share one cluster. */
+              actionBarCluster: (
+                <div className="ml-auto flex items-center gap-1.5">
+                  <SlotChildren
+                    order={clusterOrder}
+                    nodes={{
+                      uniqueToServerAction: barNodes.uniqueToServerAction,
+                      cleanupRemovedAction: barNodes.cleanupRemovedAction,
+                    }}
+                  />
+                </div>
+              ),
+            }}
+          />
+        )}
       </div>
 
       {confirm && (
