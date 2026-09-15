@@ -165,6 +165,18 @@ export const SLOTS: Slot[] = [
     ],
   },
   {
+    id: "modal.steamRequired",
+    themeable: "full",
+    // Restricted (Phase 3.6, ADR-0001): a blocking recovery surface — capped
+    // at Advanced tier.
+    compositionCeiling: "advanced",
+    children: [
+      { id: "errorCopy", required: false, since: "1.0" },
+      { id: "startSteamAction", required: false, since: "1.0" },
+      { id: "retryAction", required: false, since: "1.0" },
+    ],
+  },
+  {
     id: "mods.toolbar",
     themeable: "full",
     children: [
@@ -282,10 +294,3 @@ export const SLOTS: Slot[] = [
   },
 ];
 
-// `modal.steamRequired`, named as a restricted slot in the original theme
-// proposal (§3.2) and ADR-0001, has no entry in this registry at all —
-// steam-required-modal.tsx was never given `data-tetra-slot` tagging or
-// token-based colors (see THEME_SYSTEM_PROPOSAL.md §13.1's note on its
-// literal hex colors). It's un-themeable today regardless of tier, which
-// already satisfies the restriction by omission. Tagging it is separate,
-// unscoped prerequisite work, not part of Phase 3.6.

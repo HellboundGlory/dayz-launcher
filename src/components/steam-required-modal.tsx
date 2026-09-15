@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SlotChild } from "@/theme/slot-render";
 import { AlertTriangle, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { openSteam, type SteamInitError, type SteamInitFailure } from "@/lib/tauri";
 
@@ -93,7 +94,10 @@ export function SteamRequiredModal({
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-sm">
-      <div className="w-[440px] rounded-lg border border-line bg-surface shadow-2xl">
+      <div
+        data-tetra-slot="modal.steamRequired"
+        className="w-[440px] rounded-lg border border-line bg-surface shadow-2xl"
+      >
         <div className="flex items-start gap-3 px-5 pt-5">
           <div
             className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full ${
@@ -106,10 +110,12 @@ export function SteamRequiredModal({
               <AlertTriangle className="size-4 text-warn" />
             )}
           </div>
-          <div>
-            <h2 className="text-sm font-semibold text-ink">{copy.title}</h2>
-            <p className="mt-1.5 text-[11px] leading-relaxed text-muted2">{copy.body}</p>
-          </div>
+          <SlotChild slotId="modal.steamRequired" id="errorCopy">
+            <div data-tetra-el="errorCopy">
+              <h2 className="text-sm font-semibold text-ink">{copy.title}</h2>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-muted2">{copy.body}</p>
+            </div>
+          </SlotChild>
         </div>
 
         {error.message && (
@@ -122,13 +128,16 @@ export function SteamRequiredModal({
 
         <div className="mt-5 flex items-center gap-2 border-t border-line px-5 py-3">
           {offerStart && (
-            <button
-              onClick={handleStartSteam}
-              className="flex items-center gap-1.5 rounded bg-surface2 px-3 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-line hover:bg-line"
-            >
-              <ExternalLink className="size-3" />
-              Start Steam
-            </button>
+            <SlotChild slotId="modal.steamRequired" id="startSteamAction">
+              <button
+                data-tetra-el="startSteamAction"
+                onClick={handleStartSteam}
+                className="flex items-center gap-1.5 rounded bg-surface2 px-3 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-line hover:bg-line"
+              >
+                <ExternalLink className="size-3" />
+                Start Steam
+              </button>
+            </SlotChild>
           )}
 
           <span className="ml-auto text-[10px] text-muted">
@@ -142,18 +151,21 @@ export function SteamRequiredModal({
           </span>
 
           {!retryDisconnected && (
-            <button
-              onClick={onRetry}
-              disabled={checking}
-              className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-[11px] font-semibold text-bg hover:brightness-110 disabled:opacity-50"
-            >
-              {checking ? (
-                <Loader2 className="size-3 animate-spin" />
-              ) : (
-                <RefreshCw className="size-3" />
-              )}
-              Retry
-            </button>
+            <SlotChild slotId="modal.steamRequired" id="retryAction">
+              <button
+                data-tetra-el="retryAction"
+                onClick={onRetry}
+                disabled={checking}
+                className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-[11px] font-semibold text-bg hover:brightness-110 disabled:opacity-50"
+              >
+                {checking ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <RefreshCw className="size-3" />
+                )}
+                Retry
+              </button>
+            </SlotChild>
           )}
         </div>
       </div>
