@@ -1,8 +1,12 @@
-import { Fragment, useState, type ReactNode } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { Globe, Star, Clock, Package, Settings, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import tetraLogo from "@/assets/tetra-logo.png";
 import { useResolvedSlot } from "@/theme/use-resolved-layout";
+import { resolveComponentTree } from "@/theme/component-tree";
+import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
+import { SLOTS } from "@/theme/slots";
+import { useThemeStore } from "@/theme/theme-store";
 
 export type ViewId = "servers" | "fav" | "recent" | "mods";
 
@@ -24,6 +28,8 @@ const NAV: { id: ViewId; label: string; icon: typeof Globe; tetraEl: string }[] 
   { id: "mods", label: "Mods", icon: Package, tetraEl: "navMods" },
 ];
 
+/** `shell.sidebar`'s registry entry — the children a theme's tree resolves against. */
+const SIDEBAR_CHILDREN = SLOTS.find((slot) => slot.id === "shell.sidebar")?.children ?? [];
 /** shell.sidebar nests two levels: these four groups in the rail's own column,
  * and the nav items inside `navList`. A layout orders each set within itself. */
 export const TOP_GROUPS = ["logo", "navList", "settingsEntry", "collapseToggle"];
@@ -66,12 +72,32 @@ export function Sidebar({
     .filter((item): item is (typeof NAV)[number] => item !== undefined)
     .filter((item) => !hidden.has(item.tetraEl) || REQUIRED_IDS[item.tetraEl]);
 
-  /** Arrow-key roving across the nav buttons, same pattern as the settings tabs. */
-  function onNavKeyDown(e: React.KeyboardEvent, index: number) {
+  // An expert theme's own composition for this slot, when it ships one. A
+  // theme with no tree renders the grouped fallback exactly as it always has.
+  const activeId = useThemeStore((s) => s.activeId);
+  const themeFiles = useThemeStore((s) => s.themeFiles);
+  const composition = useMemo(() => {
+    const theme = themeFiles[activeId];
+    if (theme === undefined || theme.tier !== "expert") return null;
+    const treeJson = theme.components["shell.sidebar"];
+    if (treeJson === undefined) return null;
+    const { tree, issues } = resolveComponentTree("shell.sidebar", treeJson, SIDEBAR_CHILDREN);
+    for (const issue of issues) {
+      console.warn(`[theme components] ${issue.slotId}: ${issue.message}`);
+    }
+    return tree;
+  }, [activeId, themeFiles]);
+
+  /** Arrow-key roving across the nav buttons, same pattern as the settings tabs.
+   * Reads the pressed button's own position rather than a passed-in index, so
+   * it stays correct when a theme's composition reorders or reparents these
+   * buttons away from the default `navItems` sequence. */
+  function onNavKeyDown(e: React.KeyboardEvent<HTMLButtonElement>) {
     const buttons = Array.from(
       e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("[data-nav-item]") ?? [],
     );
-    if (buttons.length === 0) return;
+    const index = buttons.indexOf(e.currentTarget);
+    if (index === -1) return;
     let next = index;
     if (e.key === "ArrowDown") next = (index + 1) % buttons.length;
     else if (e.key === "ArrowUp") next = (index - 1 + buttons.length) % buttons.length;
@@ -80,6 +106,30 @@ export function Sidebar({
     else return;
     e.preventDefault();
     buttons[next]?.focus();
+  }
+
+  function renderNavItem({ id, label, icon: Icon, tetraEl }: (typeof NAV)[number]): ReactNode {
+    const active = activeView === id;
+    return (
+      <button
+        key={id}
+        data-nav-item
+        data-tetra-el={tetraEl}
+        onClick={() => onViewChange(id)}
+        onKeyDown={onNavKeyDown}
+        aria-current={active ? "page" : undefined}
+        className={cn(
+          "flex items-center gap-2.5 rounded-[7px] px-2.5 py-2 text-[12px] font-semibold text-muted transition-colors hover:bg-surface2 hover:text-ink",
+          active && "bg-accent-soft text-accent shadow-[var(--glow)]",
+          collapsed && "justify-center px-0",
+        )}
+      >
+        <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center">
+          <Icon className="h-[18px] w-[18px]" strokeWidth={1.6} />
+        </span>
+        {!collapsed && <span className="truncate">{label}</span>}
+      </button>
+    );
   }
 
   const groups: Record<string, ReactNode> = {
@@ -111,29 +161,7 @@ export function Sidebar({
 
     navList: (
       <nav data-tetra-el="navList" className="flex flex-1 flex-col gap-[3px] p-2" aria-label="Main">
-        {navItems.map(({ id, label, icon: Icon, tetraEl }, i) => {
-          const active = activeView === id;
-          return (
-            <button
-              key={id}
-              data-nav-item
-              data-tetra-el={tetraEl}
-              onClick={() => onViewChange(id)}
-              onKeyDown={(e) => onNavKeyDown(e, i)}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "flex items-center gap-2.5 rounded-[7px] px-2.5 py-2 text-[12px] font-semibold text-muted transition-colors hover:bg-surface2 hover:text-ink",
-                active && "bg-accent-soft text-accent shadow-[var(--glow)]",
-                collapsed && "justify-center px-0",
-              )}
-            >
-              <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center">
-                <Icon className="h-[18px] w-[18px]" strokeWidth={1.6} />
-              </span>
-              {!collapsed && <span className="truncate">{label}</span>}
-            </button>
-          );
-        })}
+        {navItems.map((item) => renderNavItem(item))}
       </nav>
     ),
 
@@ -191,6 +219,17 @@ export function Sidebar({
     ),
   };
 
+  const navNodes = Object.fromEntries(
+    NAV.map((item) => [item.tetraEl, renderNavItem(item)] as const),
+  );
+  const sidebarNodes: Record<string, ReactNode> = {
+    logo: groups.logo,
+    navList: groups.navList,
+    ...navNodes,
+    settingsEntry: groups.settingsEntry,
+    collapseToggle: groups.collapseToggle,
+  };
+
   return (
     <aside
       data-tetra-slot="shell.sidebar"
@@ -202,8 +241,12 @@ export function Sidebar({
       style={{ width: `var(--side-w, ${width})` }}
       data-collapsed={collapsed || undefined}
     >
-      {orderedByLayout(slot.children, TOP_GROUPS).map((id) =>
-        hidden.has(id) && !REQUIRED_IDS[id] ? null : <Fragment key={id}>{groups[id]}</Fragment>,
+      {composition !== null ? (
+        <ComponentTreeRenderer node={composition} nodes={sidebarNodes} themeId={activeId} />
+      ) : (
+        orderedByLayout(slot.children, TOP_GROUPS).map((id) =>
+          hidden.has(id) && !REQUIRED_IDS[id] ? null : <Fragment key={id}>{groups[id]}</Fragment>,
+        )
       )}
     </aside>
   );
