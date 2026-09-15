@@ -155,6 +155,16 @@ export const SLOTS: Slot[] = [
     ],
   },
   {
+    id: "modal.update",
+    themeable: "full",
+    children: [
+      { id: "closeAction", required: true, since: "1.0" },
+      { id: "laterAction", required: true, since: "1.0" },
+      { id: "installAction", required: false, since: "1.0" },
+      { id: "viewReleaseAction", required: false, since: "1.0" },
+    ],
+  },
+  {
     id: "mods.toolbar",
     themeable: "full",
     children: [

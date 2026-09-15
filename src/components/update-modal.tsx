@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { SlotChild } from "@/theme/slot-render";
 import { X, Download, ExternalLink } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { open as openLink } from "@tauri-apps/plugin-shell";
@@ -45,6 +46,7 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
       }}
     >
       <div
+        data-tetra-slot="modal.update"
         role="dialog"
         aria-modal="true"
         aria-label="Update"
@@ -56,6 +58,7 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
             {available ? "Update available" : "Updates"}
           </h2>
           <button
+            data-tetra-el="closeAction"
             onClick={onClose}
             aria-label="Close update dialog"
             className="rounded-md p-1 text-muted transition-colors duration-150 hover:bg-surface2 hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
@@ -131,30 +134,36 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
         {/* Footer */}
         <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
           <button
+            data-tetra-el="laterAction"
             onClick={onClose}
             disabled={installing}
             className="rounded-md bg-surface2 px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted2 ring-1 ring-line transition-colors duration-150 hover:text-ink disabled:opacity-50"
           >
             {installing ? "Updating…" : "Later"}
           </button>
-
           {installed === true ? (
-            <button
-              onClick={() => void install()}
-              disabled={installing}
-              className="flex items-center gap-1.5 rounded-md bg-accent px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-bg transition-colors duration-150 hover:brightness-110 disabled:opacity-50"
-            >
-              <Download className="size-3" />
-              Update &amp; Restart
-            </button>
+            <SlotChild slotId="modal.update" id="installAction">
+              <button
+                data-tetra-el="installAction"
+                onClick={() => void install()}
+                disabled={installing}
+                className="flex items-center gap-1.5 rounded-md bg-accent px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-bg transition-colors duration-150 hover:brightness-110 disabled:opacity-50"
+              >
+                <Download className="size-3" />
+                Update &amp; Restart
+              </button>
+            </SlotChild>
           ) : (
-            <button
-              onClick={() => void openLink(DOWNLOAD_URL)}
-              className="flex items-center gap-1.5 rounded-md bg-surface2 px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted2 ring-1 ring-line transition-colors duration-150 hover:text-ink"
-            >
-              <ExternalLink className="size-3" />
-              View Release
-            </button>
+            <SlotChild slotId="modal.update" id="viewReleaseAction">
+              <button
+                data-tetra-el="viewReleaseAction"
+                onClick={() => void openLink(DOWNLOAD_URL)}
+                className="flex items-center gap-1.5 rounded-md bg-surface2 px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted2 ring-1 ring-line transition-colors duration-150 hover:text-ink"
+              >
+                <ExternalLink className="size-3" />
+                View Release
+              </button>
+            </SlotChild>
           )}
         </div>
       </div>
