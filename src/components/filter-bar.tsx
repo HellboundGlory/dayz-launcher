@@ -1,12 +1,11 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { Search, ChevronDown, RefreshCw, RotateCcw, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useServerStore } from "@/stores/server-store";
 import { useResolvedSlot } from "@/theme/use-resolved-layout";
 import { slotChildrenToRender } from "@/theme/slot-children";
-import { resolveComponentTree } from "@/theme/component-tree";
 import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
-import { SLOTS } from "@/theme/slots";
+import { useComponentComposition } from "@/theme/use-component-composition";
 import { useThemeStore } from "@/theme/theme-store";
 import type { SortKey } from "@/types/filters";
 
@@ -66,22 +65,7 @@ export function FilterBar({ onRefresh, refreshing, onOpenModFilter, modFilterOpe
   const resetFilter = useServerStore((s) => s.resetFilter);
   const sortKey = useServerStore((s) => s.sortKey);
   const activeId = useThemeStore((s) => s.activeId);
-  const themeFiles = useThemeStore((s) => s.themeFiles);
-  const composition = useMemo(() => {
-    const theme = themeFiles[activeId];
-    if (theme === undefined || theme.tier !== "expert") return null;
-    const treeJson = theme.components["filterBar"];
-    if (treeJson === undefined) return null;
-    const { tree, issues } = resolveComponentTree(
-      "filterBar",
-      treeJson,
-      SLOTS.find((slot) => slot.id === "filterBar")?.children ?? [],
-    );
-    for (const issue of issues) {
-      console.warn(`[theme components] ${issue.slotId}: ${issue.message}`);
-    }
-    return tree;
-  }, [activeId, themeFiles]);
+  const composition = useComponentComposition("filterBar");
 
   const sortDir = useServerStore((s) => s.sortDir);
   const setSort = useServerStore((s) => s.setSort);

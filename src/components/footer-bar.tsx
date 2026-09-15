@@ -1,4 +1,4 @@
-import { Fragment, useMemo, type ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { Moon, Sun } from "lucide-react";
 import { useSettingsStore } from "@/stores/settings-store";
 import {
@@ -10,10 +10,9 @@ import {
 } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 import { useThemeStore } from "@/theme/theme-store";
-import { useResolvedSlot } from "@/theme/use-resolved-layout";
-import { resolveComponentTree } from "@/theme/component-tree";
+import { useComponentComposition } from "@/theme/use-component-composition";
 import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
-import { SLOTS } from "@/theme/slots";
+import { useResolvedSlot } from "@/theme/use-resolved-layout";
 
 interface FooterBarProps {
   servers: number;
@@ -27,9 +26,6 @@ interface FooterBarProps {
 /** The slot's children, in the footer's own flex row. `steamStateChip` is
  * required, so it renders even if a broken layout claims to hide it. */
 export const FOOTER_IDS = ["steamStateChip", "serverCounts", "uiScaleSlider", "schemeToggle"];
-
-/** `shell.footer`'s registry entry — the children a theme's tree resolves against. */
-const FOOTER_CHILDREN = SLOTS.find((slot) => slot.id === "shell.footer")?.children ?? [];
 
 const REQUIRED_IDS: Record<string, true> = { steamStateChip: true };
 
@@ -46,23 +42,11 @@ export function FooterBar({
   const scheme = useThemeStore((s) => s.scheme);
   const setScheme = useThemeStore((s) => s.setScheme);
   const slot = useResolvedSlot("shell.footer");
+  const activeId = useThemeStore((s) => s.activeId);
+
   const hidden = new Set(slot.hidden);
 
-  // An expert theme's own composition for this slot, when it ships one. A
-  // theme with no tree renders the footer's flex row exactly as it always has.
-  const activeId = useThemeStore((s) => s.activeId);
-  const themeFiles = useThemeStore((s) => s.themeFiles);
-  const composition = useMemo(() => {
-    const theme = themeFiles[activeId];
-    if (theme === undefined || theme.tier !== "expert") return null;
-    const treeJson = theme.components["shell.footer"];
-    if (treeJson === undefined) return null;
-    const { tree, issues } = resolveComponentTree("shell.footer", treeJson, FOOTER_CHILDREN);
-    for (const issue of issues) {
-      console.warn(`[theme components] ${issue.slotId}: ${issue.message}`);
-    }
-    return tree;
-  }, [activeId, themeFiles]);
+  const composition = useComponentComposition("shell.footer");
 
   // Applies immediately (cheap); setSetting persists on its own debounce.
   function changeScale(next: number) {
