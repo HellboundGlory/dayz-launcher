@@ -1,6 +1,6 @@
 use crate::error::RegistryError;
 use crate::filter::{self, ServerFilter, ServerListRow, SortDir, SortKey, SERVER_LIST_COLUMNS};
-use crate::rows::{Export, ExportRow, ServerKey};
+use crate::rows::{Export, ExportRow, ServerKey, WorkshopCacheRow};
 use rusqlite::{params, Connection};
 use std::net::Ipv4Addr;
 use std::str::FromStr;
@@ -517,5 +517,71 @@ impl Reader {
             "servers_needing",
         )?;
         Ok(rows)
+    }
+
+    /// Workshop details cached within `max_age_secs`.
+    pub fn get_workshop_cache(
+        &self,
+        ids: &[u64],
+        max_age_secs: u64,
+    ) -> Result<std::collections::HashMap<u64, WorkshopCacheRow>, RegistryError> {
+        if ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        let cutoff = if max_age_secs >= now as u64 {
+            0
+        } else {
+            now - max_age_secs as i64
+        };
+
+        let placeholders = std::iter::repeat_n("?", ids.len())
+            .collect::<Vec<_>>()
+            .join(",");
+        let sql = format!(
+            "SELECT workshop_id, title, file_size, preview_url, time_updated, cached_at
+             FROM workshop_cache
+             WHERE workshop_id IN ({placeholders}) AND cached_at >= ?"
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
+        let mut params: Vec<rusqlite::types::Value> = ids
+            .iter()
+            .map(|&id| rusqlite::types::Value::Integer(id as i64))
+            .collect();
+        params.push(rusqlite::types::Value::Integer(cutoff));
+
+        let rows = stmt.query_map(rusqlite::params_from_iter(params), |r| {
+            let workshop_id = r.get::<_, i64>(0)? as u64;
+            Ok((
+                workshop_id,
+                WorkshopCacheRow {
+                    workshop_id,
+                    title: r.get(1)?,
+                    file_size: r.get::<_, i64>(2)? as u64,
+                    preview_url: r.get(3)?,
+                    time_updated: r.get::<_, i64>(4)? as u64,
+                    cached_at: r.get(5)?,
+                },
+            ))
+        })?;
+
+        let mut map = std::collections::HashMap::with_capacity(ids.len());
+        for row in rows {
+            let (id, entry) = row?;
+            map.insert(id, entry);
+        }
+        Ok(map)
+    }
+
+    #[inline]
+    pub fn cached_workshop_details(
+        &self,
+        ids: &[u64],
+        max_age_secs: u64,
+    ) -> Result<std::collections::HashMap<u64, WorkshopCacheRow>, RegistryError> {
+        self.get_workshop_cache(ids, max_age_secs)
     }
 }

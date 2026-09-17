@@ -80,3 +80,15 @@ pub struct Export {
     pub rows: Vec<ExportRow>,
     pub mod_names: std::collections::HashMap<u64, String>,
 }
+
+/// Cached workshop item metadata.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct WorkshopCacheRow {
+    pub workshop_id: u64,
+    pub title: String,
+    pub file_size: u64,
+    pub preview_url: Option<String>,
+    pub time_updated: u64,
+    pub cached_at: i64,
+}
+
