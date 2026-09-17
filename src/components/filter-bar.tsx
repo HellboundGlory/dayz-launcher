@@ -7,13 +7,174 @@ import { slotChildrenToRender } from "@/theme/slot-children";
 import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
 import { useComponentComposition } from "@/theme/use-component-composition";
 import { useThemeStore } from "@/theme/theme-store";
-import type { SortKey } from "@/types/filters";
+import type { ServerFilter, SortDir, SortKey } from "@/types/filters";
 
-interface FilterBarProps {
+export interface FilterBarProps {
   onRefresh: () => void;
   refreshing: boolean;
   onOpenModFilter: () => void;
   modFilterOpen: boolean;
+}
+
+export interface FilterBarControlsParams {
+  filter: ServerFilter;
+  setFilter: (patch: Partial<ServerFilter>) => void;
+  resetFilter: () => void;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  setSort: (key: SortKey, dir: SortDir) => void;
+  onRefresh: () => void;
+  refreshing: boolean;
+  onOpenModFilter: () => void;
+  modFilterOpen: boolean;
+}
+
+export function buildFilterBarControls({
+  filter,
+  setFilter,
+  resetFilter,
+  sortKey,
+  sortDir,
+  setSort,
+  onRefresh,
+  refreshing,
+  onOpenModFilter,
+  modFilterOpen,
+}: FilterBarControlsParams): Record<string, React.ReactNode> {
+  return {
+    searchInput: (
+      <SearchInput value={filter.search} onChange={(search) => setFilter({ search })} />
+    ),
+    mapFilter: (
+      <MapDropdown selectedMaps={filter.maps ?? []} onChange={(maps) => setFilter({ maps })} />
+    ),
+    tagsFilter: (
+      <TagsDropdown
+        official={filter.official}
+        modded={filter.modded}
+        firstPerson={filter.first_person}
+        onChange={(field, value) => setFilter({ [field]: value })}
+      />
+    ),
+    modsFilter: (
+      <ModsFilterTrigger
+        modIds={filter.mod_ids}
+        modIdsExclude={filter.mod_ids_exclude}
+        onOpen={onOpenModFilter}
+        open={modFilterOpen}
+      />
+    ),
+    countryFilter: (
+      <CountryDropdown
+        selectedCountries={filter.countries ?? []}
+        onChange={(countries) => setFilter({ countries })}
+      />
+    ),
+    sortControl: (
+      <SortDropdown
+        sortKey={sortKey}
+        sortDir={sortDir}
+        onSort={(key) => setSort(key, sortKey === key && sortDir === "desc" ? "asc" : "desc")}
+      />
+    ),
+    pingSlider: (
+      <PingSlider maxPing={filter.max_ping ?? 500} onChange={(max_ping) => setFilter({ max_ping })} />
+    ),
+    hideEmptyToggle: (
+      <button
+        data-tetra-el="hideEmptyToggle"
+        aria-pressed={Boolean(filter.hide_empty)}
+        title="Hide empty servers (0 players)"
+        onClick={() => setFilter({ hide_empty: !filter.hide_empty })}
+        className={cn(
+          "fbtn flex shrink-0 items-center gap-1 rounded-[6px] border px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider transition-colors",
+          filter.hide_empty
+            ? "border-accent-line bg-accent-soft text-accent"
+            : "border-line bg-surface2 text-muted hover:text-ink",
+        )}
+      >
+        Hide empty
+      </button>
+    ),
+    hideFullToggle: (
+      <button
+        data-tetra-el="hideFullToggle"
+        aria-pressed={Boolean(filter.hide_full)}
+        title="Hide full servers"
+        onClick={() => setFilter({ hide_full: !filter.hide_full })}
+        className={cn(
+          "fbtn flex shrink-0 items-center gap-1 rounded-[6px] border px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider transition-colors",
+          filter.hide_full
+            ? "border-accent-line bg-accent-soft text-accent"
+            : "border-line bg-surface2 text-muted hover:text-ink",
+        )}
+      >
+        Hide full
+      </button>
+    ),
+    hideLockedToggle: (
+      <button
+        data-tetra-el="hideLockedToggle"
+        aria-pressed={Boolean(filter.hide_locked)}
+        title="Hide password-protected servers"
+        onClick={() => setFilter({ hide_locked: !filter.hide_locked })}
+        className={cn(
+          "fbtn flex shrink-0 items-center gap-1 rounded-[6px] border px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider transition-colors",
+          filter.hide_locked
+            ? "border-accent-line bg-accent-soft text-accent"
+            : "border-line bg-surface2 text-muted hover:text-ink",
+        )}
+      >
+        Hide locked
+      </button>
+    ),
+    hideOfflineToggle: (
+      <button
+        data-tetra-el="hideOfflineToggle"
+        aria-pressed={Boolean(filter.hide_offline)}
+        title="Hide unreachable or offline servers"
+        onClick={() => setFilter({ hide_offline: !filter.hide_offline })}
+        className={cn(
+          "fbtn flex shrink-0 items-center gap-1 rounded-[6px] border px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider transition-colors",
+          filter.hide_offline
+            ? "border-accent-line bg-accent-soft text-accent"
+            : "border-line bg-surface2 text-muted hover:text-ink",
+        )}
+      >
+        Hide offline
+      </button>
+    ),
+    resetAction: (
+      <button
+        data-tetra-el="resetAction"
+        onClick={resetFilter}
+        className="fbtn flex shrink-0 items-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-ink"
+        title="Reset all filters to defaults"
+      >
+        <RotateCcw className="size-3" />
+        Reset
+      </button>
+    ),
+    // Gated on `refreshing` alone, not `discovering` — rows can already
+    // be on screen worth re-probing before discovery finishes.
+    refreshAction: (
+      <button
+        data-tetra-el="refreshAction"
+        onClick={onRefresh}
+        disabled={refreshing}
+        className={cn(
+          "fbtn flex shrink-0 items-center justify-center gap-1 rounded-[6px] border px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider transition-colors",
+          refreshing
+            ? "cursor-not-allowed border-line bg-surface2 text-muted"
+            : "border-accent-line bg-accent-soft text-accent shadow-[var(--glow)] hover:brightness-110",
+        )}
+        title="Re-probe the servers currently on screen — ping, lock, mods, online status"
+      >
+        <RefreshCw className={cn("size-3", refreshing && "animate-spin")} />
+        {refreshing ? "Refreshing…" : "Refresh"}
+      </button>
+    ),
+  };
 }
 
 type TagField = "official" | "modded" | "first_person";
@@ -64,72 +225,25 @@ export function FilterBar({ onRefresh, refreshing, onOpenModFilter, modFilterOpe
   const setFilter = useServerStore((s) => s.setFilter);
   const resetFilter = useServerStore((s) => s.resetFilter);
   const sortKey = useServerStore((s) => s.sortKey);
-  const activeId = useThemeStore((s) => s.activeId);
-  const composition = useComponentComposition("filterBar");
-
   const sortDir = useServerStore((s) => s.sortDir);
   const setSort = useServerStore((s) => s.setSort);
+  const activeId = useThemeStore((s) => s.activeId);
+  const composition = useComponentComposition("filterBar");
   const slot = useResolvedSlot("filterBar");
 
-  const controls: Record<string, React.ReactNode> = {
-    searchInput: (
-      <SearchInput value={filter.search} onChange={(search) => setFilter({ search })} />
-    ),
-    mapFilter: (
-      <MapDropdown selectedMaps={filter.maps ?? []} onChange={(maps) => setFilter({ maps })} />
-    ),
-    tagsFilter: (
-      <TagsDropdown
-        official={filter.official}
-        modded={filter.modded}
-        firstPerson={filter.first_person}
-        onChange={(field, value) => setFilter({ [field]: value })}
-      />
-    ),
-    modsFilter: (
-      <ModsFilterTrigger
-        modIds={filter.mod_ids}
-        modIdsExclude={filter.mod_ids_exclude}
-        onOpen={onOpenModFilter}
-        open={modFilterOpen}
-      />
-    ),
-    countryFilter: (
-      <CountryDropdown
-        selectedCountries={filter.countries ?? []}
-        onChange={(countries) => setFilter({ countries })}
-      />
-    ),
-    sortControl: (
-      <SortDropdown
-        sortKey={sortKey}
-        sortDir={sortDir}
-        onSort={(key) => setSort(key, sortKey === key && sortDir === "desc" ? "asc" : "desc")}
-      />
-    ),
-    pingSlider: (
-      <PingSlider maxPing={filter.max_ping ?? 500} onChange={(max_ping) => setFilter({ max_ping })} />
-    ),
-    // Gated on `refreshing` alone, not `discovering` — rows can already
-    // be on screen worth re-probing before discovery finishes.
-    refreshAction: (
-      <button
-        data-tetra-el="refreshAction"
-        onClick={onRefresh}
-        disabled={refreshing}
-        className={cn(
-          "fbtn flex shrink-0 items-center justify-center gap-1 rounded-[6px] border px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider transition-colors",
-          refreshing
-            ? "cursor-not-allowed border-line bg-surface2 text-muted"
-            : "border-accent-line bg-accent-soft text-accent shadow-[var(--glow)] hover:brightness-110",
-        )}
-        title="Re-probe the servers currently on screen — ping, lock, mods, online status"
-      >
-        <RefreshCw className={cn("size-3", refreshing && "animate-spin")} />
-        {refreshing ? "Refreshing…" : "Refresh"}
-      </button>
-    ),
-  };
+  const controls = buildFilterBarControls({
+    filter,
+    setFilter,
+    resetFilter,
+    sortKey,
+    sortDir,
+    setSort,
+    onRefresh,
+    refreshing,
+    onOpenModFilter,
+    modFilterOpen,
+  });
+
   return (
     // At 1.5x scale the viewport is ~975 CSS px and the fixed-width controls
     // alone exceed it, so the row wraps — a second row beats clipping the
@@ -143,19 +257,7 @@ export function FilterBar({ onRefresh, refreshing, onOpenModFilter, modFilterOpe
       ) : (
         <>
           {slotChildrenToRender(slot, ["searchInput", "refreshAction"]).map((id) => (
-            <Fragment key={id}>
-              {id === "refreshAction" && (
-                <button
-                  onClick={resetFilter}
-                  className="fbtn flex shrink-0 items-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-ink"
-                  title="Reset all filters to defaults"
-                >
-                  <RotateCcw className="size-3" />
-                  Reset
-                </button>
-              )}
-              {controls[id]}
-            </Fragment>
+            <Fragment key={id}>{controls[id]}</Fragment>
           ))}
         </>
       )}
