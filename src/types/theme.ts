@@ -4,6 +4,11 @@
  * `Option<T>` fields are `| null`, matching how the backend serialises them.
  */
 
+export interface ThemePreview {
+  file: string;
+  caption: string;
+}
+
 /** One theme's `theme.json`, as the backend reads and writes it. */
 export interface ThemeManifest {
   schemaVersion: number;
@@ -14,10 +19,7 @@ export interface ThemeManifest {
   version: string;
   themeApi: string;
   minimumLauncherVersion: string;
-  /** `basic` (design tokens only), `advanced` (tokens + layout.json, custom CSS,
-   * fonts and images) or `expert` (adds `components/` and `settings.schema.json`
-   * — declarative component composition and theme-defined settings). Every tier
-   * imports and exports; a preview carries one too. */
+  /** Kept for v1 manifests' display metadata; capabilities govern v2 content. */
   tier: string;
   description: string;
   preview: string | null;
@@ -25,6 +27,9 @@ export interface ThemeManifest {
   homepage: string | null;
   tags: string[];
   capabilities: string[];
+  incompatible?: boolean;
+  incompatibleReason?: string | null;
+  previews?: ThemePreview[];
 }
 
 /** The fields a grid card needs, without reading `tokens.json` for every install. */
@@ -40,6 +45,9 @@ export interface ThemeSummary {
   preview: string | null;
   tags: string[];
   capabilities: string[];
+  incompatible?: boolean;
+  incompatibleReason?: string | null;
+  previews?: ThemePreview[];
 }
 
 /** One theme, fully. The backend flattens the manifest, so this isn't nested at the wire level. */

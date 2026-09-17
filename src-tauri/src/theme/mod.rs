@@ -18,7 +18,7 @@ pub mod watch;
 
 use std::path::{Path, PathBuf};
 
-pub use manifest::ThemeManifest;
+pub use manifest::{ThemeManifest, ThemePreview};
 use serde_json::Value;
 
 /// The manifest file's name, in one place because `save` and `scan` both need it.
@@ -115,10 +115,15 @@ pub struct ThemeSummary {
     pub preview: Option<String>,
     pub tags: Vec<String>,
     pub capabilities: Vec<String>,
+    pub incompatible: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub incompatible_reason: Option<String>,
+    pub previews: Vec<ThemePreview>,
 }
 
 impl ThemeSummary {
     fn of(manifest: &ThemeManifest) -> Self {
+        let incompatible = manifest.schema_version == 1 || manifest.theme_api.starts_with("1.");
         Self {
             id: manifest.id.clone(),
             name: manifest.name.clone(),
@@ -131,6 +136,10 @@ impl ThemeSummary {
             preview: manifest.preview.clone(),
             tags: manifest.tags.clone(),
             capabilities: manifest.capabilities.clone(),
+            incompatible,
+            incompatible_reason: incompatible
+                .then(|| "Incompatible — older theme format".to_string()),
+            previews: manifest.previews.clone(),
         }
     }
 }
@@ -526,7 +535,7 @@ pub fn migrate(themes_root: &Path, legacy: &[LegacyTheme]) -> Migration {
             name: theme.name.clone(),
             author: "local".to_string(),
             version: "1.0.0".to_string(),
-            theme_api: manifest::SCHEMA_VERSION.to_string(),
+            theme_api: archive::SUPPORTED_THEME_API_RANGE.to_string(),
             // This build wrote it, so this build is the floor it can rely on.
             minimum_launcher_version: env!("CARGO_PKG_VERSION").to_string(),
             tier: "basic".to_string(),
@@ -565,13 +574,41 @@ mod tests {
             name: "Test Theme".to_string(),
             author: "tester".to_string(),
             version: "2.1.0".to_string(),
-            theme_api: "1".to_string(),
+            theme_api: "2.0".to_string(),
             minimum_launcher_version: "2.6.0".to_string(),
             tier: "basic".to_string(),
             description: "A theme for a test.".to_string(),
             capabilities: vec!["tokens".to_string()],
             ..ThemeManifest::default()
         }
+    }
+
+    #[test]
+    fn scan_reports_older_formats_as_incompatible_without_hiding_them() {
+        let root = scratch("incompatible");
+        for (id, schema, api) in [
+            ("old.schema", 1, "2.0"),
+            ("old.api", 2, "1.3"),
+            ("current.theme", 2, "2.0"),
+        ] {
+            let mut manifest = manifest(id);
+            manifest.schema_version = schema;
+            manifest.theme_api = api.to_string();
+            save(&root, &manifest, &tokens(), None).unwrap();
+        }
+        let scanned = scan(&root);
+        assert!(scanned.skipped.is_empty());
+        assert_eq!(scanned.themes.len(), 3);
+        for theme in scanned.themes {
+            assert_eq!(theme.incompatible, theme.id.starts_with("old."));
+            assert_eq!(
+                theme.incompatible_reason.as_deref(),
+                theme
+                    .incompatible
+                    .then_some("Incompatible — older theme format")
+            );
+        }
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     fn tokens() -> Value {
