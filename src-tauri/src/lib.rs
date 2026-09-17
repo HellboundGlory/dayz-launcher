@@ -127,6 +127,7 @@ pub fn run() {
             commands::server::get_server_list,
             commands::server::get_server,
             commands::server::get_server_mods,
+            commands::server::server_mod_readiness,
             commands::server::toggle_favourite,
             commands::server::get_map_list,
             commands::server::get_server_counts,

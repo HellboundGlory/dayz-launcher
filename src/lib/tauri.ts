@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Server } from "@/types/server";
+import type { Server, ServerModReadiness, ModReadinessEntry } from "@/types/server";
+export type { ServerModReadiness, ModReadinessEntry };
 import type {
   ActivationStatus,
   LegacyTheme,
@@ -353,6 +354,16 @@ export async function getServerMods(
   queryPort: number,
 ): Promise<{ workshop_id: string; name: string }[]> {
   return invoke<{ workshop_id: string; name: string }[]>("get_server_mods", {
+    addr,
+    queryPort,
+  });
+}
+
+export async function serverModReadiness(
+  addr: string,
+  queryPort: number,
+): Promise<ServerModReadiness> {
+  return invoke<ServerModReadiness>("server_mod_readiness", {
     addr,
     queryPort,
   });
