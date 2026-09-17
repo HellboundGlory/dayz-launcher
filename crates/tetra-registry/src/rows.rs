@@ -91,4 +91,3 @@ pub struct WorkshopCacheRow {
     pub time_updated: u64,
     pub cached_at: i64,
 }
-

@@ -2103,14 +2103,19 @@ mod tests {
         let mod1 = res.mods.iter().find(|m| m.workshop_id == "1001").unwrap();
         let mod2 = res.mods.iter().find(|m| m.workshop_id == "2002").unwrap();
 
-        assert!(!mod1.is_unique, "mod 1001 is on a favourite server, not unique");
+        assert!(
+            !mod1.is_unique,
+            "mod 1001 is on a favourite server, not unique"
+        );
         assert!(mod2.is_unique, "mod 2002 is unique to target server");
     }
 
     fn make_dayz_rules_packet(mods: &[(u64, &str)]) -> Vec<u8> {
         let mut packed = vec![
             0x02, // protocol
-            0x00, 0x00, 0x00, // flags
+            0x00,
+            0x00,
+            0x00,             // flags
             mods.len() as u8, // mod_count
         ];
         for (wid, name) in mods {
@@ -2151,7 +2156,9 @@ mod tests {
         use tetra_steam::{Command, SteamHandle};
         use tokio::net::UdpSocket;
 
-        let server_sock = UdpSocket::bind("127.0.0.1:0").await.expect("bind server socket");
+        let server_sock = UdpSocket::bind("127.0.0.1:0")
+            .await
+            .expect("bind server socket");
         let server_addr = server_sock.local_addr().expect("local addr");
 
         let packet = make_dayz_rules_packet(&[(2002, "New Updated Mod")]);
@@ -2286,7 +2293,10 @@ mod tests {
             .await
             .expect("upsert servers");
 
-        writer.set_favourite(cared_key, true).await.expect("set favourite");
+        writer
+            .set_favourite(cared_key, true)
+            .await
+            .expect("set favourite");
 
         writer
             .upsert_server_mods(
@@ -2369,9 +2379,10 @@ mod tests {
             }
         });
 
-        let outcome = super::unsubscribe_unique_mods_impl(&app_state, "198.51.100.20".into(), 27016)
-            .await
-            .expect("unsubscribe outcome");
+        let outcome =
+            super::unsubscribe_unique_mods_impl(&app_state, "198.51.100.20".into(), 27016)
+                .await
+                .expect("unsubscribe outcome");
 
         assert_eq!(outcome.count, 1);
         assert_eq!(outcome.total_size_bytes, 250_000_000);
@@ -2416,7 +2427,10 @@ mod tests {
             .await
             .expect("upsert servers");
 
-        writer.set_favourite(fav_key, true).await.expect("set favourite");
+        writer
+            .set_favourite(fav_key, true)
+            .await
+            .expect("set favourite");
 
         writer
             .upsert_server_mods(
@@ -2513,9 +2527,10 @@ mod tests {
             }
         });
 
-        let summary = super::get_unique_mods_summary_impl(&app_state, "198.51.100.40".into(), 27016)
-            .await
-            .expect("summary");
+        let summary =
+            super::get_unique_mods_summary_impl(&app_state, "198.51.100.40".into(), 27016)
+                .await
+                .expect("summary");
 
         assert_eq!(summary.count, 2, "2 unique mods (101 and 102)");
         assert_eq!(
@@ -2523,9 +2538,10 @@ mod tests {
             "50MB + 75MB = 125MB for unique mods"
         );
 
-        let outcome = super::unsubscribe_unique_mods_impl(&app_state, "198.51.100.40".into(), 27016)
-            .await
-            .expect("outcome");
+        let outcome =
+            super::unsubscribe_unique_mods_impl(&app_state, "198.51.100.40".into(), 27016)
+                .await
+                .expect("outcome");
 
         assert_eq!(outcome.count, summary.count);
         assert_eq!(outcome.total_size_bytes, summary.total_size_bytes);

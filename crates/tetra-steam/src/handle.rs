@@ -316,7 +316,9 @@ impl SteamHandle {
             return Ok(Vec::new());
         }
 
-        let mut fresh_cache = reader.get_workshop_cache(&valid_ids, TTL_SECS).unwrap_or_default();
+        let mut fresh_cache = reader
+            .get_workshop_cache(&valid_ids, TTL_SECS)
+            .unwrap_or_default();
 
         if valid_ids.iter().all(|id| fresh_cache.contains_key(id)) {
             let mut seen = std::collections::HashSet::new();
@@ -514,7 +516,9 @@ mod tests {
         assert_eq!(res[0].title, "New Title");
         assert_eq!(res[0].file_size, 99999);
 
-        let cached_in_db = reader.get_workshop_cache(&[200], 86_400).expect("get db cache");
+        let cached_in_db = reader
+            .get_workshop_cache(&[200], 86_400)
+            .expect("get db cache");
         assert_eq!(
             cached_in_db.get(&200).map(|r| r.title.as_str()),
             Some("New Title")
@@ -555,5 +559,3 @@ mod tests {
         assert!(err_res.is_err());
     }
 }
-
-
