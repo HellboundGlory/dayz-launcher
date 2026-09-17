@@ -147,7 +147,9 @@ In Rust, against the registry:
 
 Every failure carries a stable rule id, the file, a JSON pointer and a message (SPEC §14.4). Fixture packages cover one valid case and one failing case per rule id.
 
-Package 3.2a implements `app_lib::validator::{validate_layout_file, validate_layout_value}` with `LAY-01`–`LAY-12`, `ELE-01`–`ELE-08`, `LST-01`–`LST-06`, and `LIM-01`–`LIM-05`. It borrows a lossless JSON AST, reads the compiled registry, validates list-file `row` envelopes separately, and returns field-level RFC 6901 pointers. Region uniqueness and structural budgets span the file; responsive roots and expanded/collapsed alternatives do not double-count element multiplicity. Required-element checks, cross-file composition checks, and settings expansion remain in the subsequent packages.
+Package 3.2a implements `app_lib::validator::{validate_layout_file, validate_layout_value}` with `LAY-01`–`LAY-12`, `ELE-01`–`ELE-08`, `LST-01`–`LST-06`, and `LIM-01`–`LIM-05`. It borrows a lossless JSON AST, reads the compiled registry, validates list-file `row` envelopes separately, and returns field-level RFC 6901 pointers. Region uniqueness and structural budgets span the file; responsive roots and expanded/collapsed alternatives do not double-count element multiplicity.
+
+Package 3.2b adds `app_lib::validator::validate_theme_layouts` for a path-to-JSON map. It checks provided view and Settings layouts with the optional shell, and checks modal, popup, and list-row requirements separately (`REQ-01`–`REQ-05`). Surface contents expand recursively; `withJoin` stays local to its row, modal, or selection context. Composition multiplicity respects overlapping responsive roots and region-scoped controls. Region ids are globally unique, while references resolve only within their file or composing files. Popup close controls are required for region/inline placement. Single-file validation remains available; settings-combination and conditional visibility analysis (`REQ-06`) remain for the subsequent package.
 
 ### Package 3.3: manifest and archive v2
 

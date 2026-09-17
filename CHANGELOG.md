@@ -5,6 +5,7 @@
 ### Added
 
 - Shared v2 theme element registry for TypeScript and Rust, with documentation parity checks.
+- Cross-file v2 layout validation for required elements, surface contents, join notices, composition multiplicity, and region references.
 
 ### Changed
 

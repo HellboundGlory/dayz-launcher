@@ -6,7 +6,12 @@ use super::ast::{LayoutFile, Node, NodeKind};
 use super::{Severity, ValidationIssue};
 use crate::theme::registry::{EnumValue, Multiplicity, OptionDef, Registry, Subject};
 
-pub(super) fn validate(file: &str, value: &Value, registry: &Registry) -> Vec<ValidationIssue> {
+pub(super) fn validate(
+    file: &str,
+    value: &Value,
+    registry: &Registry,
+    composing_regions: &HashSet<String>,
+) -> Vec<ValidationIssue> {
     let mut validator = Validator {
         file,
         registry,
@@ -17,11 +22,11 @@ pub(super) fn validate(file: &str, value: &Value, registry: &Registry) -> Vec<Va
     };
     validator.file(value);
     for (id, pointer) in std::mem::take(&mut validator.references) {
-        if !validator.regions.contains(&id) {
+        if !validator.regions.contains(&id) && !composing_regions.contains(&id) {
             validator.issue(
                 "LAY-09",
                 &pointer,
-                format!("Region {id:?} does not exist in this file"),
+                format!("Region {id:?} does not exist in this composition"),
             );
         }
     }
@@ -310,7 +315,12 @@ impl Validator<'_> {
                     {
                         self.issue("ELE-02", pointer, "Surface cannot be placed here");
                     }
+                    let mut elements = BTreeSet::new();
+                    let mut visited = HashSet::new();
                     for id in &surface.contains {
+                        super::composition::expand(id, self.registry, &mut elements, &mut visited);
+                    }
+                    for id in elements {
                         self.placed_element(id, &Map::new(), pointer, &context);
                     }
                 } else {
@@ -744,7 +754,10 @@ fn child(pointer: &str, key: &str) -> String {
     format!("{pointer}/{}", key.replace('~', "~0").replace('/', "~1"))
 }
 
-fn descendants<'a>(props: &'a Map<String, Value>, pointer: &str) -> Vec<(&'a Value, String)> {
+pub(super) fn descendants<'a>(
+    props: &'a Map<String, Value>,
+    pointer: &str,
+) -> Vec<(&'a Value, String)> {
     let mut children = Vec::new();
     if let Some(array) = props.get("children").and_then(Value::as_array) {
         for (index, node) in array.iter().enumerate() {
