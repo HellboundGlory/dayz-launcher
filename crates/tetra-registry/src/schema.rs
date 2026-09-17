@@ -1,7 +1,7 @@
 use crate::error::RegistryError;
 use rusqlite::Connection;
 
-pub const LATEST_VERSION: u32 = 6;
+pub const LATEST_VERSION: u32 = 7;
 
 struct Migration {
     version: u32,
@@ -32,6 +32,10 @@ const MIGRATIONS: &[Migration] = &[
     Migration {
         version: 6,
         sql: V6,
+    },
+    Migration {
+        version: 7,
+        sql: V7,
     },
 ];
 
@@ -179,6 +183,17 @@ WHERE bots > 0
 const V6: &str = r#"
 ALTER TABLE servers ADD COLUMN mods_updated_at INTEGER;
 CREATE INDEX idx_servers_last_seen ON servers(last_seen);
+"#;
+
+const V7: &str = r#"
+CREATE TABLE workshop_cache (
+    workshop_id   INTEGER NOT NULL PRIMARY KEY,
+    title         TEXT    NOT NULL,
+    file_size     INTEGER NOT NULL,
+    preview_url   TEXT,
+    time_updated  INTEGER NOT NULL,
+    cached_at     INTEGER NOT NULL
+);
 "#;
 
 /// How long a server may go unresponsive, in days, before it's pruned —

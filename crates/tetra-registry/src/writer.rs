@@ -1,5 +1,5 @@
 use crate::error::RegistryError;
-use crate::rows::{ServerKey, ServerRow};
+use crate::rows::{ServerKey, ServerRow, WorkshopCacheRow};
 use rusqlite::{params, Connection};
 use tetra_core::a2s::dayz::ServerMod;
 use tetra_core::classify::fake::is_fake_listing;
@@ -18,6 +18,7 @@ pub(crate) enum Job {
     LastPlayed(ServerKey, Ack<usize>),
     SetOnline(Vec<ServerKey>, bool, Ack<()>),
     ProbeAttempt(Vec<ServerKey>, Ack<()>),
+    WorkshopCache(Vec<WorkshopCacheRow>, Ack<usize>),
 }
 
 /// Handle to the single writer thread. Cheap to clone.
@@ -89,11 +90,33 @@ impl Writer {
         self.send(|ack| Job::SetOnline(keys, online, ack)).await
     }
 
+    fn blocking_send<T>(&self, make: impl FnOnce(Ack<T>) -> Job) -> Result<T, RegistryError> {
+        let (ack, rx) = oneshot::channel();
+        self.tx
+            .blocking_send(make(ack))
+            .map_err(|_| RegistryError::Closed)?;
+        rx.blocking_recv().map_err(|_| RegistryError::Closed)?
+    }
+
     /// Stamp "we asked these ourselves, just now" — written before the probe,
     /// not after, so an address that never answers still advances and the
     /// unresolved sweep keeps rotating instead of retrying the same dead rows.
     pub async fn mark_probe_attempt(&self, keys: Vec<ServerKey>) -> Result<(), RegistryError> {
         self.send(|ack| Job::ProbeAttempt(keys, ack)).await
+    }
+
+    pub async fn upsert_workshop_cache(
+        &self,
+        items: Vec<WorkshopCacheRow>,
+    ) -> Result<usize, RegistryError> {
+        self.send(|ack| Job::WorkshopCache(items, ack)).await
+    }
+
+    pub fn upsert_workshop_cache_blocking(
+        &self,
+        items: Vec<WorkshopCacheRow>,
+    ) -> Result<usize, RegistryError> {
+        self.blocking_send(|ack| Job::WorkshopCache(items, ack))
     }
 }
 
@@ -120,6 +143,9 @@ pub(crate) fn run(conn: Connection, mut rx: mpsc::Receiver<Job>) {
             }
             Job::ProbeAttempt(keys, ack) => {
                 let _ = ack.send(mark_probe_attempt(&conn, &keys));
+            }
+            Job::WorkshopCache(items, ack) => {
+                let _ = ack.send(upsert_workshop_cache(&conn, &items));
             }
         }
     }
@@ -406,4 +432,41 @@ fn now() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0)
+}
+
+const UPSERT_WORKSHOP_CACHE: &str = r#"
+INSERT INTO workshop_cache (
+    workshop_id, title, file_size, preview_url, time_updated, cached_at
+) VALUES (
+    ?1, ?2, ?3, ?4, ?5, ?6
+)
+ON CONFLICT(workshop_id) DO UPDATE SET
+    title = excluded.title,
+    file_size = excluded.file_size,
+    preview_url = excluded.preview_url,
+    time_updated = excluded.time_updated,
+    cached_at = excluded.cached_at
+"#;
+
+fn upsert_workshop_cache(
+    conn: &Connection,
+    items: &[WorkshopCacheRow],
+) -> Result<usize, RegistryError> {
+    let tx = conn.unchecked_transaction()?;
+    let mut n = 0;
+    {
+        let mut stmt = tx.prepare_cached(UPSERT_WORKSHOP_CACHE)?;
+        for item in items {
+            n += stmt.execute(params![
+                item.workshop_id as i64,
+                item.title,
+                item.file_size as i64,
+                item.preview_url,
+                item.time_updated as i64,
+                item.cached_at,
+            ])?;
+        }
+    }
+    tx.commit()?;
+    Ok(n)
 }

@@ -4889,6 +4889,7 @@ name = "tetra-registry"
 version = "2.6.0"
 dependencies = [
  "rusqlite",
+ "serde",
  "tetra-core",
  "thiserror 2.0.19",
  "tokio",

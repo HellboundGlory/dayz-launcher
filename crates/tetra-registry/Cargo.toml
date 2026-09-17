@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 tetra-core = { path = "../tetra-core" }
 rusqlite.workspace = true
+serde = { workspace = true }
 thiserror.workspace = true
 tokio.workspace = true
 

@@ -66,7 +66,7 @@ describe("resolveChildOrder with no layout active", () => {
       ["mods.inspector", INSPECTOR_ACTIONS_DOM],
       ["mods.actionBar", ACTION_BAR_DOM, { actionBarCluster: ACTION_BAR_CLUSTER }],
       ["mods.actionBar", ACTION_BAR_CLUSTER],
-      ["modal.serverInfo", ["statGrid", "readinessStrip", "propsList"]],
+      ["modal.serverInfo", ["statGrid", "readinessStrip", "propsList", "readinessList"]],
     ];
     for (const [slotId, markup, wrappers] of groups) {
       expect(resolveChildOrder(slotId, markup, resolvedFor()[slotId].children, wrappers)).toEqual(
