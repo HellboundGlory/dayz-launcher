@@ -1,5 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Server } from "@/types/server";
+import type {
+  Server,
+  ServerModReadiness,
+  ModReadinessEntry,
+  UniqueModsSummary,
+  UnsubscribeOutcome,
+} from "@/types/server";
+export type { ServerModReadiness, ModReadinessEntry, UniqueModsSummary, UnsubscribeOutcome };
 import type {
   ActivationStatus,
   LegacyTheme,
@@ -356,6 +363,55 @@ export async function getServerMods(
     addr,
     queryPort,
   });
+}
+
+export async function serverModReadiness(
+  addr: string,
+  queryPort: number,
+): Promise<ServerModReadiness> {
+  return invoke<ServerModReadiness>("server_mod_readiness", {
+    addr,
+    queryPort,
+  });
+}
+
+export async function checkServerMods(
+  addr: string,
+  queryPort: number,
+): Promise<ServerModReadiness> {
+  return invoke<ServerModReadiness>("check_server_mods", {
+    addr,
+    queryPort,
+  });
+}
+
+export async function getUniqueModsSummary(
+  addr: string,
+  queryPort: number,
+): Promise<UniqueModsSummary> {
+  return invoke<UniqueModsSummary>("get_unique_mods_summary", {
+    addr,
+    queryPort,
+  });
+}
+
+export async function unsubscribeUniqueMods(
+  addr: string,
+  queryPort: number,
+): Promise<UnsubscribeOutcome> {
+  return invoke<UnsubscribeOutcome>("unsubscribe_unique_mods", {
+    addr,
+    queryPort,
+  });
+}
+
+export async function copyAddress(addr: string, gamePort: number): Promise<void> {
+  const host = addr.includes(":") ? addr.split(":")[0] : addr;
+  await navigator.clipboard.writeText(`${host}:${gamePort}`);
+}
+
+export async function copyServerAddress(server: { addr: string; game_port: number }): Promise<void> {
+  return copyAddress(server.addr, server.game_port);
 }
 
 export async function discoverSteamPaths(): Promise<{

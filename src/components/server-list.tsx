@@ -507,6 +507,7 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                       o ? rowKey : cur === rowKey ? null : cur,
                     )
                   }
+                  modPending={pending}
                 />
               </div>
             );

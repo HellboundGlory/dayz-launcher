@@ -15,7 +15,7 @@ function registryOrder(slotId: string): string[] {
 }
 
 describe("registry order matches render order", () => {
-  it("filterBar: search, dropdowns, ping, Refresh — Refresh last, Reset untagged", () => {
+  it("filterBar: search, dropdowns, ping, hide toggles, Reset, Refresh — Refresh last", () => {
     expect(registryOrder("filterBar")).toEqual([
       "searchInput",
       "mapFilter",
@@ -24,6 +24,11 @@ describe("registry order matches render order", () => {
       "countryFilter",
       "sortControl",
       "pingSlider",
+      "hideEmptyToggle",
+      "hideFullToggle",
+      "hideLockedToggle",
+      "hideOfflineToggle",
+      "resetAction",
       "refreshAction",
     ]);
   });
