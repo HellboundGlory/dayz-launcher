@@ -1,4 +1,5 @@
 pub mod ast;
+mod composition;
 pub mod issue;
 mod rules;
 
@@ -26,9 +27,18 @@ pub fn validate_layout_file(file_path: &str, content: &str) -> Vec<ValidationIss
     }
 }
 
-pub fn validate_layout_value(file_path: &str, value: &Value) -> Vec<ValidationIssue> {
-    rules::validate(file_path, value, &REGISTRY)
+pub fn validate_theme_layouts(
+    files: &std::collections::HashMap<String, Value>,
+) -> Vec<ValidationIssue> {
+    composition::validate(files, &REGISTRY)
 }
+
+pub fn validate_layout_value(file_path: &str, value: &Value) -> Vec<ValidationIssue> {
+    rules::validate(file_path, value, &REGISTRY, &Default::default())
+}
+
+#[cfg(test)]
+mod composition_tests;
 
 #[cfg(test)]
 mod tests;
