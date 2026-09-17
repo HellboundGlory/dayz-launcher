@@ -180,7 +180,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
 
   return (
     <div
-      className="ovl absolute inset-0 z-[60] flex items-center justify-center bg-[rgba(5,8,13,0.7)]"
+      className="ovl absolute inset-0 z-[60] flex items-center justify-center [background-color:var(--t-color-scrim)]"
       onMouseDown={closeIfOutside}
     >
       <div
@@ -190,7 +190,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
         aria-modal="true"
         aria-label={`Server info: ${server.name || server.addr}`}
         onKeyDown={trapTab}
-        className="modal w-[min(480px,calc(100%-40px))] max-h-[85vh] flex flex-col overflow-hidden rounded-[10px] border border-line bg-surface shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
+        className="modal w-[min(480px,calc(100%-40px))] max-h-[85vh] flex flex-col overflow-hidden [border-radius:var(--t-radius-modal)] border border-line bg-surface [box-shadow:var(--t-shadow-modal)]"
       >
         <div className="modal-wrap relative flex flex-col min-h-0 flex-1">
           <button
@@ -203,10 +203,10 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
           </button>
 
           <div className="m-identity shrink-0 p-3.5">
-            <h2 className="text-[14px] font-bold leading-snug text-ink">
+            <h2 className="[font-size:var(--t-type-heading-size)] font-bold leading-snug text-ink">
               {server.name || server.addr}
             </h2>
-            <p className="mt-0.5 font-mono-data text-[10px] text-muted">
+            <p className="mt-0.5 font-mono-data [font-size:var(--t-type-data-size)] text-muted">
               {server.addr}
               {server.game_port > 0 && ` · game port ${server.game_port}`}
             </p>
@@ -301,14 +301,14 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
     return (
       <div
         data-tetra-el="readinessStrip"
-        className="flex items-center gap-1.5 border-b border-line px-3.5 py-2 text-[10px] text-muted"
+        className="flex items-center gap-1.5 border-b border-line px-3.5 py-2 [font-size:var(--t-type-label-size)] text-muted"
       >
         <span
           className={cn(
             "inline-block h-[7px] w-[7px] rounded-full",
             readiness.tone === "warn"
-              ? "bg-warn shadow-[0_0_5px_rgba(193,154,85,0.6)]"
-              : "bg-success shadow-[0_0_5px_rgba(77,154,117,0.6)]",
+              ? "bg-warn [box-shadow:var(--t-shadow-readinessWarning)]"
+              : "bg-success [box-shadow:var(--t-shadow-readinessSuccess)]",
           )}
         />
         {readiness.text}
@@ -331,14 +331,14 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
     if (busy) {
       return (
         <div className="flex gap-1.5">
-          <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-[6px] bg-surface2 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-accent ring-1 ring-accent-line">
+          <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] bg-surface2 px-4 py-2 [font-size:var(--t-type-button-size)] font-bold uppercase tracking-wider text-accent ring-1 ring-accent-line">
             <Loader2 className="size-3.5 shrink-0 animate-spin" />
             <span className="truncate">{actions.phaseLabel(actions.op!)}</span>
           </div>
           {actions.op!.phase !== "launching" && actions.op!.phase !== "starting" && (
             <button
               onClick={actions.cancelWait}
-              className="shrink-0 rounded-[6px] bg-surface2 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted2 ring-1 ring-line transition-colors hover:text-danger"
+              className="shrink-0 [border-radius:var(--t-radius-control)] bg-surface2 px-3 py-2 [font-size:var(--t-type-button-size)] font-semibold uppercase tracking-wider text-muted2 ring-1 ring-line transition-colors hover:text-danger"
             >
               Cancel
             </button>
@@ -351,7 +351,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
         <button
           disabled
           title="DayZ is running. Quit the game before joining another server."
-          className="flex w-full items-center justify-center gap-1.5 rounded-[6px] bg-success px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-[#10131a]"
+          className="flex w-full items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] bg-success px-4 py-2 [font-size:var(--t-type-button-size)] font-bold uppercase tracking-wider [color:var(--t-color-onSuccess)]"
         >
           <Check className="size-3.5" />
           <span>PLAYING</span>
@@ -372,7 +372,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
           ref={joinRef}
           data-tetra-el="joinAction"
           onClick={() => void actions.verifyAndJoin(server, false)}
-          className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-[6px] bg-accent px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-[#10131a] shadow-[var(--glow)] transition-colors hover:brightness-110"
+          className="flex min-w-0 flex-1 items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-4 py-2 [font-size:var(--t-type-button-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-shadow-glow)] transition-colors hover:brightness-110"
         >
           {server.modded ? <Download className="size-3.5" /> : <Play className="size-3.5" />}
           <span>{needsFix ? "Fix and join" : "Join"}</span>
@@ -383,7 +383,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
           aria-haspopup="menu"
           aria-expanded={loadOpen}
           title="Load this server's mods to the main menu"
-          className="flex shrink-0 items-center justify-center rounded-[6px] bg-accent px-2 text-[#10131a] shadow-[var(--glow)] transition-colors hover:brightness-110"
+          className="flex shrink-0 items-center justify-center [border-radius:var(--t-radius-control)] bg-accent px-2 [color:var(--t-color-onAccent)] [box-shadow:var(--t-shadow-glow)] transition-colors hover:brightness-110"
         >
           <ChevronDown className={cn("size-3.5 transition-transform", loadOpen && "rotate-180")} />
         </button>
@@ -393,7 +393,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
             role="menu"
             // Opens upward — the modal's overflow-hidden clips a downward
             // menu on this last-row position.
-            className="absolute bottom-full right-0 z-[6] mb-1 w-56 rounded-[7px] border border-line bg-surface2 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
+            className="absolute bottom-full right-0 z-[6] mb-1 w-56 [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)]"
           >
             <button
               role="menuitem"
@@ -402,7 +402,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
                 void actions.verifyAndJoin(server, true);
               }}
               title="Verify the mod list, then launch DayZ to the main menu with this server's mods loaded — it does not join the server."
-              className="flex w-full items-center gap-2 rounded-[5px] px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-ink transition-colors hover:bg-accent-soft hover:text-accent"
+              className="flex w-full items-center gap-2 [border-radius:var(--t-radius-popupItem)] px-3 py-2 text-left [font-size:var(--t-type-body-size)] font-bold uppercase tracking-wider text-ink transition-colors hover:bg-accent-soft hover:text-accent"
             >
               <ListTree className="size-3.5 text-muted2" />
               <span>Load</span>
@@ -474,7 +474,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
             type="button"
             onClick={handleCheckMods}
             disabled={checkingMods || busy}
-            className="inline-flex items-center gap-1.5 rounded-[5px] border border-line bg-surface2 px-2.5 py-1 text-[10px] font-semibold text-ink transition-colors hover:bg-accent-soft hover:text-accent disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface2 px-2.5 py-1 [font-size:var(--t-type-button-size)] font-semibold text-ink transition-colors hover:bg-accent-soft hover:text-accent disabled:opacity-40"
           >
             <RefreshCw className={cn("size-3", checkingMods && "animate-spin")} />
             <span>Check mods</span>
@@ -483,7 +483,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
             type="button"
             onClick={() => void actions.subscribeOnly(server)}
             disabled={busy}
-            className="inline-flex items-center gap-1.5 rounded-[5px] border border-line bg-surface2 px-2.5 py-1 text-[10px] font-semibold text-ink transition-colors hover:bg-accent-soft hover:text-accent disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface2 px-2.5 py-1 [font-size:var(--t-type-button-size)] font-semibold text-ink transition-colors hover:bg-accent-soft hover:text-accent disabled:opacity-40"
           >
             <Download className="size-3" />
             <span>Download mods</span>
@@ -492,7 +492,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
             type="button"
             onClick={handleUnsubscribeUnique}
             disabled={busy}
-            className="inline-flex items-center gap-1.5 rounded-[5px] border border-line bg-surface2 px-2.5 py-1 text-[10px] font-semibold text-ink transition-colors hover:bg-danger-soft hover:text-danger disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface2 px-2.5 py-1 [font-size:var(--t-type-button-size)] font-semibold text-ink transition-colors hover:bg-danger-soft hover:text-danger disabled:opacity-40"
           >
             <Trash2 className="size-3" />
             <span>Unsubscribe unique</span>
@@ -500,7 +500,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
           <button
             type="button"
             onClick={handleCopyAddress}
-            className="inline-flex items-center gap-1.5 rounded-[5px] border border-line bg-surface2 px-2.5 py-1 text-[10px] font-semibold text-ink transition-colors hover:bg-accent-soft hover:text-accent"
+            className="inline-flex items-center gap-1.5 [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface2 px-2.5 py-1 [font-size:var(--t-type-button-size)] font-semibold text-ink transition-colors hover:bg-accent-soft hover:text-accent"
           >
             {copiedAddress ? <Check className="size-3 text-success" /> : <Copy className="size-3" />}
             <span>{copiedAddress ? "Address copied" : "Copy address"}</span>
@@ -508,7 +508,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
         </div>
 
         {downloadSummaryText && (
-          <div className="flex items-center justify-between gap-2 pb-2 text-[10px]">
+          <div className="flex items-center justify-between gap-2 pb-2 [font-size:var(--t-type-label-size)]">
             <span className="font-semibold text-muted">
               {readinessData ? `${readinessData.mods.length} mod${readinessData.mods.length === 1 ? "" : "s"}` : ""}
             </span>
@@ -517,12 +517,12 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
         )}
 
         {loadingReadiness ? (
-          <div className="flex items-center justify-center py-4 text-[10px] text-muted">
+          <div className="flex items-center justify-center py-4 [font-size:var(--t-type-label-size)] text-muted">
             <Loader2 className="mr-1.5 size-3.5 animate-spin" />
             <span>Checking mod readiness…</span>
           </div>
         ) : !readinessData || readinessData.mods.length === 0 ? (
-          <div className="py-2 text-center text-[10px] text-muted">
+          <div className="py-2 text-center [font-size:var(--t-type-label-size)] text-muted">
             {server.modded ? "No mods found or not probed yet." : "No mods required."}
           </div>
         ) : (
@@ -530,7 +530,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
             {readinessData.mods.map((mod) => (
               <div
                 key={mod.workshop_id}
-                className="flex items-center gap-2 rounded-[5px] border border-line bg-surface2 px-2.5 py-1.5 text-[11px]"
+                className="flex items-center gap-2 [border-radius:var(--t-radius-readinessRow)] border border-line bg-surface2 px-2.5 py-1.5 [font-size:var(--t-type-body-size)]"
               >
                 {mod.preview_url ? (
                   <img
@@ -551,7 +551,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
                     <span className="truncate font-semibold text-ink">{mod.name || mod.workshop_id}</span>
                     {mod.is_unique && <Badge tone="accent2">Unique</Badge>}
                   </div>
-                  <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted">
+                  <div className="mt-0.5 flex items-center gap-2 [font-size:var(--t-type-data-size)] text-muted">
                     <span className="font-mono-data">{formatModSize(mod)}</span>
                     {mod.downloaded_bytes != null &&
                       mod.total_bytes != null &&
@@ -584,15 +584,15 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
           role="dialog"
           aria-modal="true"
           aria-label={confirm.title}
-          className="w-80 rounded-[8px] border border-line bg-surface p-3 shadow-2xl"
+          className="w-80 [border-radius:var(--t-radius-confirm)] border border-line bg-surface p-3 [box-shadow:var(--t-shadow-confirm)]"
           onClick={(e) => e.stopPropagation()}
         >
           <p className="text-xs font-bold text-ink">{confirm.title}</p>
-          <p className="mt-1.5 text-[11px] leading-relaxed text-muted2">{confirm.message}</p>
+          <p className="mt-1.5 [font-size:var(--t-type-body-size)] leading-relaxed text-muted2">{confirm.message}</p>
           <div className="mt-3 flex justify-end gap-2">
             <button
               onClick={() => setConfirm(null)}
-              className="rounded-[6px] border border-line bg-surface2 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted2 transition-colors hover:text-ink"
+              className="[border-radius:var(--t-radius-control)] border border-line bg-surface2 px-3 py-1.5 [font-size:var(--t-type-button-size)] font-semibold uppercase tracking-wider text-muted2 transition-colors hover:text-ink"
             >
               Cancel
             </button>
@@ -602,7 +602,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
                 setConfirm(null);
                 void action();
               }}
-              className="rounded-[6px] bg-danger px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#10131a] transition-colors hover:brightness-110"
+              className="[border-radius:var(--t-radius-control)] bg-danger px-3 py-1.5 [font-size:var(--t-type-button-size)] font-bold uppercase tracking-wider [color:var(--t-color-onDanger)] transition-colors hover:brightness-110"
             >
               Unsubscribe
             </button>
@@ -618,7 +618,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
       <p
         title={actions.notice.kind === "code" ? NOTICES[actions.notice.code].detail : undefined}
         className={cn(
-          "mb-2 cursor-help text-center text-[10px]",
+          "mb-2 cursor-help text-center [font-size:var(--t-type-label-size)]",
           actions.notice.kind === "code" && NOTICES[actions.notice.code].text.startsWith("E")
             ? "text-danger"
             : "text-warn",
@@ -633,14 +633,14 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
     return (
       <>
         {result?.message && (
-          <p className="mt-2 text-center text-[10px] text-success">{result.message}</p>
+          <p className="mt-2 text-center [font-size:var(--t-type-label-size)] text-success">{result.message}</p>
         )}
         {result?.error && (
           <div className="mt-2 rounded-md bg-danger-soft px-3 py-2 ring-1 ring-danger-line">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-danger">
+            <p className="[font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider text-danger">
               Launch refused
             </p>
-            <p className="mt-1 text-[10px] leading-relaxed text-ink">{result.error}</p>
+            <p className="mt-1 [font-size:var(--t-type-label-size)] leading-relaxed text-ink">{result.error}</p>
           </div>
         )}
       </>
@@ -663,7 +663,7 @@ function Badge({ tone, children }: { tone: "success" | "danger" | "accent" | "ac
               ? "bg-accent2-soft text-accent2"
               : "bg-muted-soft text-muted2";
   return (
-    <span className={cn("inline-flex items-center rounded-[3px] px-1.5 py-px text-[8px] font-bold uppercase tracking-[0.05em] leading-[1.4]", cls)}>
+    <span className={cn("inline-flex items-center [border-radius:var(--t-radius-badge)] px-1.5 py-px [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-[0.05em] leading-[1.4]", cls)}>
       {children}
     </span>
   );
@@ -672,8 +672,8 @@ function Badge({ tone, children }: { tone: "success" | "danger" | "accent" | "ac
 function Stat({ label, value, className }: { label: string; value: string; className?: string }) {
   return (
     <div className="bg-surface px-2 py-3.5 text-center">
-      <p className={cn("font-mono-data text-[22px] font-extrabold leading-none", className)}>{value}</p>
-      <p className="mt-1 text-[8px] font-bold uppercase tracking-[0.06em] text-muted">{label}</p>
+      <p className={cn("font-mono-data [font-size:var(--t-type-display-size)] font-extrabold leading-none", className)}>{value}</p>
+      <p className="mt-1 [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-[0.06em] text-muted">{label}</p>
     </div>
   );
 }
@@ -681,8 +681,8 @@ function Stat({ label, value, className }: { label: string; value: string; class
 function Prop({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-2 py-0.5">
-      <span className="shrink-0 text-[9px] font-bold uppercase tracking-[0.06em] text-muted">{label}</span>
-      <span className="min-w-0 truncate font-mono-data text-[10px] text-ink">{value}</span>
+      <span className="shrink-0 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.06em] text-muted">{label}</span>
+      <span className="min-w-0 truncate font-mono-data [font-size:var(--t-type-data-size)] text-ink">{value}</span>
     </div>
   );
 }

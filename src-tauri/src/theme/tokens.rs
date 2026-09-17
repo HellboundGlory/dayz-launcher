@@ -242,6 +242,9 @@ token_group! {
         sidebar_item: TokenValue = "7px".into() => "sidebarItem",
         control_small: TokenValue = "sm".into() => "controlSmall",
         popup_item: TokenValue = "5px".into() => "popupItem",
+        confirm: TokenValue = "lg".into() => "confirm",
+        control_compact: TokenValue = "5px".into() => "controlCompact",
+        readiness_row: TokenValue = "5px".into() => "readinessRow",
     }
 }
 
@@ -480,6 +483,7 @@ token_group! {
         on_accent: TokenValue = "#10131a".into() => "onAccent",
         on_accent2: TokenValue = "#10131a".into() => "onAccent2",
         on_danger: TokenValue = "#10131a".into() => "onDanger",
+        on_success: TokenValue = "#10131a".into() => "onSuccess",
         focus_ring: TokenValue = "var(--accent-line)".into() => "focusRing",
         scrim: TokenValue = "rgba(5,8,13,0.7)".into() => "scrim",
         row_hover: TokenValue = "var(--row-hover)".into() => "rowHover",
@@ -504,6 +508,9 @@ token_group! {
         glow: TokenValue = "glow".into() => "glow",
         popup_filter: TokenValue = "md".into() => "popupFilter",
         state_warning: TokenValue = "0 0 4px var(--warn)".into() => "stateWarning",
+        confirm: TokenValue = "0 25px 50px -12px rgb(0 0 0 / 0.25)".into() => "confirm",
+        readiness_warning: TokenValue = "0 0 5px rgba(193,154,85,0.6)".into() => "readinessWarning",
+        readiness_success: TokenValue = "0 0 5px rgba(77,154,117,0.6)".into() => "readinessSuccess",
     }
 }
 
