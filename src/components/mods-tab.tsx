@@ -96,9 +96,9 @@ const PILL_TONE: Record<"ready" | "update" | "dl" | "muted", string> = {
 };
 
 const PILL_DOT_GLOW: Record<"ready" | "update" | "dl" | "muted", string> = {
-  ready: "shadow-[0_0_4px_currentColor]",
-  update: "shadow-[0_0_4px_currentColor]",
-  dl: "shadow-[var(--glow)]",
+  ready: "[box-shadow:var(--t-shadow-statusDot)]",
+  update: "[box-shadow:var(--t-shadow-statusDot)]",
+  dl: "[box-shadow:var(--t-shadow-glow)]",
   muted: "",
 };
 
@@ -306,7 +306,7 @@ export function ModsTab() {
     searchInput: (
       <div
         data-tetra-el="searchInput"
-        className="search flex min-w-0 flex-1 items-center gap-1.5 rounded-[6px] border border-line bg-surface2 px-2.5 py-[5px]"
+        className="search flex min-w-0 flex-1 items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-[5px]"
       >
         <Search className="size-3 shrink-0 text-muted" />
         <input
@@ -314,7 +314,7 @@ export function ModsTab() {
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search mods by name, tag or id…"
           aria-label="Search mods"
-          className="min-w-0 flex-1 bg-transparent py-0.5 text-[11px] text-ink outline-none placeholder:text-muted"
+          className="min-w-0 flex-1 bg-transparent py-0.5 [font-size:var(--t-type-body-size)] text-ink outline-none placeholder:text-muted"
         />
       </div>
     ),
@@ -325,9 +325,9 @@ export function ModsTab() {
             key={f.key}
             onClick={() => setStatusFilter(f.key)}
             className={cn(
-              "fbtn flex items-center justify-center rounded-[6px] border border-line bg-surface2 px-2.5 py-[5px] text-[10px] font-bold uppercase tracking-wider transition-colors",
+              "fbtn flex items-center justify-center [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-[5px] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider transition-colors",
               statusFilter === f.key
-                ? "border-accent-line bg-accent-soft text-accent shadow-[var(--glow)]"
+                ? "border-accent-line bg-accent-soft text-accent [box-shadow:var(--t-shadow-glow)]"
                 : "text-muted hover:text-ink",
             )}
           >
@@ -342,7 +342,7 @@ export function ModsTab() {
         onClick={() => void load(true)}
         disabled={loading || !!op}
         title="Re-read the list and refresh details from the Workshop"
-        className="fbtn flex shrink-0 items-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+        className="fbtn flex shrink-0 items-center gap-1 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2 py-[5px] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
       >
         <RefreshCw className={cn("size-3", loading && "animate-spin")} />
         Refresh
@@ -365,23 +365,23 @@ export function ModsTab() {
       </div>
 
       {error && (
-        <div className="border-b border-danger-line bg-danger-soft px-3 py-1.5 text-[11px] text-danger">
+        <div className="border-b border-danger-line bg-danger-soft px-3 py-1.5 [font-size:var(--t-type-body-size)] text-danger">
           {error}
         </div>
       )}
       {fromCache && (
-        <div className="border-b border-warn bg-warn-soft px-3 py-1.5 text-[10px] uppercase tracking-wider text-warn">
+        <div className="border-b border-warn bg-warn-soft px-3 py-1.5 [font-size:var(--t-type-label-size)] uppercase tracking-wider text-warn">
           Steam unreachable — showing last known mod list
         </div>
       )}
       {outdatedCount > 0 && (
-        <div className="flex items-center gap-2 border-b border-warn-line bg-warn-soft px-3 py-1.5 text-[10.5px] font-semibold text-warn">
+        <div className="flex items-center gap-2 border-b border-warn-line bg-warn-soft px-3 py-1.5 [font-size:var(--t-type-compactBody-size)] font-semibold text-warn">
           <TriangleAlert className="size-3 shrink-0" />
           {outdatedCount} mod{outdatedCount === 1 ? "" : "s"} need{outdatedCount === 1 ? "s" : ""} updating
           <button
             onClick={() => void updateAllOutdated()}
             disabled={!!op}
-            className="ml-auto shrink-0 rounded-[5px] bg-warn px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-[#10131a] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+            className="ml-auto shrink-0 [border-radius:var(--t-radius-controlCompact)] bg-warn px-2 py-1 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {op?.kind === "update" ? op.note ?? "Updating…" : "Update all"}
           </button>
@@ -393,15 +393,15 @@ export function ModsTab() {
         <div className="mx-wrap relative h-full overflow-hidden">
           <div
             ref={scrollRef}
-            className="mx-list h-full overflow-y-auto p-2 transition-[padding-right] duration-200"
+            className="mx-list h-full overflow-y-auto p-2 transition-[padding-right] [transition-duration:var(--t-motion-expand-duration)]"
             style={{ paddingRight: selectedMod ? INSPECTOR_WIDTH : undefined }}
           >
             {loading && mods.length === 0 ? (
-              <div className="flex h-full items-center justify-center gap-2 text-[11px] text-muted">
+              <div className="flex h-full items-center justify-center gap-2 [font-size:var(--t-type-body-size)] text-muted">
                 <Loader2 className="size-3.5 animate-spin" /> Loading subscribed mods…
               </div>
             ) : mods.length === 0 ? (
-              <div className="flex h-full items-center justify-center px-4 text-center text-[11px] text-muted">
+              <div className="flex h-full items-center justify-center px-4 text-center [font-size:var(--t-type-body-size)] text-muted">
                 {search || statusFilter !== "all"
                   ? "No mods match the current filter."
                   : "You have no subscribed DayZ Workshop mods."}
@@ -479,8 +479,8 @@ const ModRow = memo(function ModRow({
       data-tetra-slot="mods.row"
       onClick={() => openMod(selected ? null : mod.workshop_id)}
       className={cn(
-        "mx-row flex cursor-pointer items-center gap-2.5 rounded-[8px] border border-line bg-surface px-2.5 py-2 transition-[border-color,background,box-shadow] duration-150 hover:border-accent-line",
-        selected && "border-accent-line bg-accent-soft shadow-[var(--glow)]",
+        "mx-row flex cursor-pointer items-center gap-2.5 [border-radius:var(--t-radius-row)] border border-line bg-surface px-2.5 py-2 transition-[border-color,background,box-shadow] [transition-duration:var(--t-motion-hover-duration)] hover:border-accent-line",
+        selected && "border-accent-line bg-accent-soft [box-shadow:var(--t-shadow-glow)]",
         mod.locally_disabled && "opacity-50",
       )}
     >
@@ -545,9 +545,9 @@ function modRowNodes(
       >
         <span
           className={cn(
-            "box flex h-[13px] w-[13px] items-center justify-center rounded-[3px] border border-line transition-colors",
+            "box flex h-[13px] w-[13px] items-center justify-center [border-radius:var(--t-radius-badge)] border border-line transition-colors",
             checked
-              ? "border-accent bg-accent text-[#10131a] shadow-[var(--glow)]"
+              ? "border-accent bg-accent [color:var(--t-color-onAccent)] [box-shadow:var(--t-shadow-glow)]"
               : "bg-surface2 hover:border-accent-line",
           )}
         >
@@ -556,7 +556,7 @@ function modRowNodes(
       </div>
     ),
     modIcon: (
-      <div data-tetra-el="modIcon" className="mx-thumb h-[30px] w-[30px] shrink-0 overflow-hidden rounded-[7px] bg-surface2">
+      <div data-tetra-el="modIcon" className="mx-thumb h-[30px] w-[30px] shrink-0 overflow-hidden [border-radius:var(--t-radius-thumb)] bg-surface2">
         {mod.preview_url ? (
           <img
             src={mod.preview_url}
@@ -569,24 +569,24 @@ function modRowNodes(
             }}
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-[9px] text-muted">
+          <div className="flex h-full w-full items-center justify-center [font-size:var(--t-type-caption-size)] text-muted">
             {mod.locally_disabled ? "⏸" : "—"}
           </div>
         )}
       </div>
     ),
     modName: (
-      <div className="mx-title flex min-w-0 items-center gap-1.5 text-[11px] font-semibold">
+      <div className="mx-title flex min-w-0 items-center gap-1.5 [font-size:var(--t-type-body-size)] font-semibold">
         <span data-tetra-el="modName" className="truncate text-ink">{mod.title ?? mod.workshop_id}</span>
         {mod.locally_disabled && (
-          <span className="shrink-0 rounded-[4px] border border-muted/50 px-1 text-[8px] font-bold uppercase tracking-wider text-muted2">
+          <span className="shrink-0 [border-radius:var(--t-radius-chip)] border border-muted/50 px-1 [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-wider text-muted2">
             Disabled
           </span>
         )}
       </div>
     ),
     modTags: (
-      <div data-tetra-el="modTags" className="mx-meta truncate text-[8px] text-muted">
+      <div data-tetra-el="modTags" className="mx-meta truncate [font-size:var(--t-type-micro-size)] text-muted">
         {(mod.tags ?? []).slice(0, 3).join(" · ") || mod.workshop_id}
       </div>
     ),
@@ -600,12 +600,12 @@ function modRowNodes(
           )}
         >
           <span className={cn("d h-[5px] w-[5px] shrink-0 rounded-full bg-current", PILL_DOT_GLOW[ui.tone])} />
-          <span className="l text-[8px] font-bold uppercase tracking-wider whitespace-nowrap">{ui.label}</span>
+          <span className="l [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-wider whitespace-nowrap">{ui.label}</span>
         </span>
         {state === "downloading" && progress && progress.total && Number(progress.total) > 0 && (
           <div className="mx-prog h-[3px] overflow-hidden rounded-full bg-line">
             <i
-              className="block h-full rounded-full bg-accent shadow-[var(--glow)]"
+              className="block h-full rounded-full bg-accent [box-shadow:var(--t-shadow-glow)]"
               style={{
                 width: `${Math.min(100, (Number(progress.downloaded) / Number(progress.total)) * 100)}%`,
               }}
@@ -617,7 +617,7 @@ function modRowNodes(
     sizeLabel: (
       <span
         data-tetra-el="sizeLabel"
-        className="mx-num sz w-[64px] shrink-0 truncate text-right font-mono-data text-[9px] text-accent2"
+        className="mx-num sz w-[64px] shrink-0 truncate text-right font-mono-data [font-size:var(--t-type-caption-size)] text-accent2"
       >
         {mod.size_on_disk ? formatBytes(Number(mod.size_on_disk), 1) : "—"}
       </span>
@@ -625,7 +625,7 @@ function modRowNodes(
     updatedLabel: (
       <span
         data-tetra-el="updatedLabel"
-        className="mx-num upd w-[76px] shrink-0 truncate text-right font-mono-data text-[9px] text-muted2"
+        className="mx-num upd w-[76px] shrink-0 truncate text-right font-mono-data [font-size:var(--t-type-caption-size)] text-muted2"
       >
         {mod.time_updated ? formatLastPlayed(mod.time_updated) : "—"}
       </span>
@@ -676,7 +676,7 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
       data-tetra-el="closeAction"
       onClick={() => openMod(null)}
       aria-label="Close details"
-      className="mxi-close absolute right-2 top-2 z-[3] flex h-[22px] w-[22px] items-center justify-center rounded-[6px] border border-line bg-[rgba(10,12,16,0.7)] text-muted2 transition-colors hover:border-accent-line hover:text-ink"
+      className="mxi-close absolute right-2 top-2 z-[3] flex h-[22px] w-[22px] items-center justify-center [border-radius:var(--t-radius-control)] border border-line [background-color:var(--t-color-scrim)] text-muted2 transition-colors hover:border-accent-line hover:text-ink"
     >
       <X className="size-3" />
     </button>
@@ -684,23 +684,23 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
 
   const bodyFields = {
     previewImage: (
-      <div data-tetra-el="previewImage" className="m2-preview relative h-[118px] shrink-0 overflow-hidden rounded-[7px] bg-surface2">
+      <div data-tetra-el="previewImage" className="m2-preview relative h-[118px] shrink-0 overflow-hidden [border-radius:var(--t-radius-thumb)] bg-surface2">
         {mod.preview_url ? (
           <img src={mod.preview_url} alt="" draggable={false} className="h-full w-full object-cover" />
         ) : (
-          <div className="flex h-full items-center justify-center text-[10px] text-muted">
+          <div className="flex h-full items-center justify-center [font-size:var(--t-type-label-size)] text-muted">
             No preview image
           </div>
         )}
         {mod.locally_disabled && (
-          <span className="absolute left-2 top-2 rounded border border-muted/60 bg-black/60 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-ink">
+          <span className="absolute left-2 top-2 rounded border border-muted/60 bg-black/60 px-1.5 py-0.5 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-wider text-ink">
             Disabled
           </span>
         )}
       </div>
     ),
     name: (
-      <h2 data-tetra-el="name" className="m2-title text-[13px] font-bold leading-snug text-ink">
+      <h2 data-tetra-el="name" className="m2-title [font-size:var(--t-type-size-xl)] font-bold leading-snug text-ink">
         {mod.title ?? mod.workshop_id}
       </h2>
     ),
@@ -713,7 +713,7 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
         )}
       >
         <span className={cn("h-[6px] w-[6px] shrink-0 rounded-full bg-current", PILL_DOT_GLOW[ui.tone])} />
-        <span className="truncate text-[9px] font-bold uppercase tracking-wider">{ui.label}</span>
+        <span className="truncate [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-wider">{ui.label}</span>
       </span>
     ),
     tags: (
@@ -721,7 +721,7 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
         {(mod.tags ?? []).slice(0, 6).map((t: string) => (
           <span
             key={t}
-            className="tag rounded-[4px] bg-surface2 px-1.5 py-0.5 text-[8px] text-muted2"
+            className="tag [border-radius:var(--t-radius-chip)] bg-surface2 px-1.5 py-0.5 [font-size:var(--t-type-micro-size)] text-muted2"
           >
             {t}
           </span>
@@ -729,7 +729,7 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
       </div>
     ),
     description: mod.description ? (
-      <p data-tetra-el="description" className="m2-desc line-clamp-6 text-[10px] leading-relaxed text-muted">
+      <p data-tetra-el="description" className="m2-desc line-clamp-6 [font-size:var(--t-type-label-size)] leading-relaxed text-muted">
         {mod.description}
       </p>
     ) : null,
@@ -755,7 +755,7 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
           onClick={() => void updateMods([mod.workshop_id])}
           disabled={updating}
           title="Download the newer Workshop copy"
-          className="m2-btn flex flex-1 items-center justify-center gap-1 rounded-[6px] border border-warn-line bg-warn-soft px-2 py-1.5 text-[9px] font-bold uppercase tracking-[0.03em] text-warn transition-colors disabled:opacity-50"
+          className="m2-btn flex flex-1 items-center justify-center gap-1 [border-radius:var(--t-radius-control)] border border-warn-line bg-warn-soft px-2 py-1.5 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.03em] text-warn transition-colors disabled:opacity-50"
         >
           <Download className={cn("size-3", updating && "animate-pulse")} />
           {updating ? "…" : "Update"}
@@ -765,7 +765,7 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
       <button
         data-tetra-el="openInSteamAction"
         onClick={openInSteam}
-        className="m2-btn flex flex-1 items-center justify-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-1.5 text-[9px] font-bold uppercase tracking-[0.03em] text-muted2 transition-colors hover:text-ink"
+        className="m2-btn flex flex-1 items-center justify-center gap-1 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2 py-1.5 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.03em] text-muted2 transition-colors hover:text-ink"
       >
         <ExternalLink className="size-3" /> Open in Steam
       </button>
@@ -774,7 +774,7 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
       <button
         data-tetra-el="openFolderAction"
         onClick={() => void openModFolder(mod.folder!)}
-        className="m2-btn flex flex-1 items-center justify-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-1.5 text-[9px] font-bold uppercase tracking-[0.03em] text-muted2 transition-colors hover:text-ink"
+        className="m2-btn flex flex-1 items-center justify-center gap-1 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2 py-1.5 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.03em] text-muted2 transition-colors hover:text-ink"
       >
         <FolderOpen className="size-3" /> Open folder
       </button>
@@ -784,7 +784,7 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
         data-tetra-el="reinstallAction"
         onClick={() => void reinstall()}
         disabled={reinstalling}
-        className="m2-btn flex flex-1 items-center justify-center gap-1 rounded-[6px] border border-accent-line bg-accent-soft px-2 py-1.5 text-[9px] font-bold uppercase tracking-[0.03em] text-accent shadow-[var(--glow)] transition-colors disabled:opacity-50"
+        className="m2-btn flex flex-1 items-center justify-center gap-1 [border-radius:var(--t-radius-control)] border border-accent-line bg-accent-soft px-2 py-1.5 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.03em] text-accent [box-shadow:var(--t-shadow-glow)] transition-colors disabled:opacity-50"
       >
         <RefreshCw className={cn("size-3", reinstalling && "animate-spin")} />
         {reinstalling ? "…" : "Reinstall"}
@@ -795,7 +795,7 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
   return (
     <div
       data-tetra-slot="mods.inspector"
-      className="mx-inspector absolute bottom-0 right-0 top-0 z-[8] flex flex-col overflow-hidden border-l border-line bg-surface shadow-[-10px_0_26px_rgba(0,0,0,0.4)]"
+      className="mx-inspector absolute bottom-0 right-0 top-0 z-[8] flex flex-col overflow-hidden border-l border-line bg-surface [box-shadow:var(--t-shadow-drawer)]"
       style={{ width: INSPECTOR_WIDTH }}
     >
       {composition ? (
@@ -829,10 +829,10 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
 function InspectorRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="m2-ir flex items-baseline justify-between gap-2">
-      <span className="k shrink-0 text-[8px] font-bold uppercase tracking-[0.05em] text-muted">
+      <span className="k shrink-0 [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-[0.05em] text-muted">
         {label}
       </span>
-      <span className="v min-w-0 truncate text-right font-mono-data text-[9px] text-ink">{value}</span>
+      <span className="v min-w-0 truncate text-right font-mono-data [font-size:var(--t-type-caption-size)] text-ink">{value}</span>
     </div>
   );
 }
@@ -938,7 +938,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
   }
   const barNodes = {
     totalCount: (
-      <span data-tetra-el="totalCount" className="ab-count shrink-0 text-[10px] tabular-nums text-muted">
+      <span data-tetra-el="totalCount" className="ab-count shrink-0 [font-size:var(--t-type-label-size)] tabular-nums text-muted">
         {selectedCount > 0 ? (
           <>
             <span className="font-semibold text-ink">{selectedCount}</span> of {allCount} selected
@@ -954,7 +954,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
           data-tetra-el="selectAllAction"
           onClick={() => store.setAllSelected(true)}
           disabled={allCount === 0}
-          className="ab-link shrink-0 text-[9px] font-bold uppercase tracking-[0.06em] text-muted transition-colors hover:text-ink disabled:opacity-40"
+          className="ab-link shrink-0 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.06em] text-muted transition-colors hover:text-ink disabled:opacity-40"
         >
           Select all
         </button>
@@ -964,7 +964,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
         <button
           data-tetra-el="clearSelectionAction"
           onClick={() => store.clearSelection()}
-          className="ab-link shrink-0 text-[9px] font-bold uppercase tracking-[0.06em] text-muted transition-colors hover:text-ink"
+          className="ab-link shrink-0 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.06em] text-muted transition-colors hover:text-ink"
         >
           Clear
         </button>
@@ -984,7 +984,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
           }
           disabled={busy}
           title={`${removedCount} subscribed item${removedCount === 1 ? " is" : "s are"} no longer on the Workshop`}
-          className="ab-btn ab-ghost flex items-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-[5px] text-[8px] font-bold uppercase tracking-[0.04em] text-warn transition-[filter] hover:brightness-110 disabled:opacity-50"
+          className="ab-btn ab-ghost flex items-center gap-1 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2 py-[5px] [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-[0.04em] text-warn transition-[filter] hover:brightness-110 disabled:opacity-50"
         >
           <Trash2 className="size-3" />
           Clean up {removedCount}
@@ -1005,7 +1005,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
           disabled={busy || selectedCount === 0}
           title="Unsubscribe from the selected mods (Steam deletes them from disk)"
           className={cn(
-            "flex items-center justify-center gap-1.5 rounded-l-[6px] border border-danger-line bg-danger-soft px-3 py-[7px] text-[10px] font-bold uppercase tracking-wider text-danger transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40",
+            "flex items-center justify-center gap-1.5 [border-top-left-radius:var(--t-radius-control)] [border-bottom-left-radius:var(--t-radius-control)] border border-danger-line bg-danger-soft px-3 py-[7px] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-danger transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40",
             store.op?.kind === "unsubscribe" && "animate-pulse",
           )}
         >
@@ -1023,14 +1023,14 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
         <button
           onClick={() => setMenu(menu === "unsub" ? null : "unsub")}
           disabled={busy}
-          className="flex items-center justify-center rounded-r-[6px] border border-l-0 border-danger-line bg-danger-soft px-1.5 text-danger transition-colors hover:brightness-110 disabled:opacity-40"
+          className="flex items-center justify-center [border-top-right-radius:var(--t-radius-control)] [border-bottom-right-radius:var(--t-radius-control)] border border-l-0 border-danger-line bg-danger-soft px-1.5 text-danger transition-colors hover:brightness-110 disabled:opacity-40"
           aria-haspopup="menu"
           aria-expanded={menu === "unsub"}
         >
           <ChevronDown className={cn("size-3 transition-transform", menu === "unsub" && "rotate-180")} />
         </button>
         {menu === "unsub" && (
-          <div className="absolute bottom-full right-0 mb-1 w-56 rounded-[7px] border border-line bg-surface2 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
+          <div className="absolute bottom-full right-0 mb-1 w-56 [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)]">
             <MenuButton
               disabled={selectedCount === 0}
               label={selectedCount > 0 ? `Unsubscribe selected (${selectedCount})` : "Unsubscribe selected"}
@@ -1067,7 +1067,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
           disabled={busy}
           title={`Download the newer Workshop copy of ${outdatedCount} mod${outdatedCount === 1 ? "" : "s"}`}
           className={cn(
-            "flex shrink-0 items-center gap-1.5 rounded-[6px] border border-warn-line bg-warn-soft px-2.5 py-[7px] text-[10px] font-bold uppercase tracking-wider text-warn transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50",
+            "flex shrink-0 items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-warn-line bg-warn-soft px-2.5 py-[7px] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-warn transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50",
             store.op?.kind === "update" && "animate-pulse",
           )}
         >
@@ -1088,7 +1088,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
           }}
           disabled={busy || allCount === 0}
           title="Verify every mod against the Workshop and re-download anything outdated"
-          className="ab-verify flex items-center justify-center gap-1.5 rounded-l-[6px] bg-accent px-3 py-[7px] text-[10px] font-bold uppercase tracking-wider text-[#10131a] shadow-[var(--glow)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+          className="ab-verify flex items-center justify-center gap-1.5 [border-top-left-radius:var(--t-radius-control)] [border-bottom-left-radius:var(--t-radius-control)] bg-accent px-3 py-[7px] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-shadow-glow)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {store.op?.kind === "verify" ? (
             <Loader2 className="size-3 animate-spin" />
@@ -1100,14 +1100,14 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
         <button
           onClick={() => setMenu(menu === "verify" ? null : "verify")}
           disabled={busy}
-          className="flex items-center justify-center rounded-r-[6px] bg-accent px-1.5 text-[#10131a] shadow-[var(--glow)] transition-colors hover:brightness-110 disabled:opacity-50"
+          className="flex items-center justify-center [border-top-right-radius:var(--t-radius-control)] [border-bottom-right-radius:var(--t-radius-control)] bg-accent px-1.5 [color:var(--t-color-onAccent)] [box-shadow:var(--t-shadow-glow)] transition-colors hover:brightness-110 disabled:opacity-50"
           aria-haspopup="menu"
           aria-expanded={menu === "verify"}
         >
           <ChevronDown className={cn("size-3 transition-transform", menu === "verify" && "rotate-180")} />
         </button>
         {menu === "verify" && (
-          <div className="absolute bottom-full right-0 mb-1 w-56 rounded-[7px] border border-line bg-surface2 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
+          <div className="absolute bottom-full right-0 mb-1 w-56 [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)]">
             <MenuButton
               disabled={selectedCount === 0}
               label={selectedCount > 0 ? `Verify selected (${selectedCount})` : "Verify selected"}
@@ -1141,7 +1141,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
       {(store.verifyResult || store.mutationFailures || store.uniqueResult) && (
         <div className="flex items-center gap-2 border-b border-line bg-surface2 px-3 py-1">
           {store.verifyResult && (
-            <span className="text-[10px] text-muted2">
+            <span className="[font-size:var(--t-type-label-size)] text-muted2">
               <span className="font-semibold text-ink">{store.verifyResult.checked} checked</span>
               <span className="text-muted"> · </span>
               <span className="font-semibold text-warn">{store.verifyResult.outdated} outdated</span>
@@ -1150,35 +1150,35 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
             </span>
           )}
           {store.mutationFailures && store.mutationFailures.length > 0 && (
-            <span className="text-[10px] text-danger">
+            <span className="[font-size:var(--t-type-label-size)] text-danger">
               {store.mutationFailures.length} mod
               {store.mutationFailures.length === 1 ? "" : "s"} could not be removed: {store.mutationFailures[0][1]}
             </span>
           )}
           {store.mutationFailures && store.mutationFailures.length === 0 && (
-            <span className="text-[10px] text-success">Removed ok</span>
+            <span className="[font-size:var(--t-type-label-size)] text-success">Removed ok</span>
           )}
           {store.uniqueResult &&
             (store.uniqueResult.totalUnique === 0 ? (
-              <span className="text-[10px] text-warn">
+              <span className="[font-size:var(--t-type-label-size)] text-warn">
                 No mods are unique to {store.uniqueResult.server} — every mod it uses is shared
                 with another favourite/recent server.
               </span>
             ) : store.uniqueResult.selected === 0 ? (
-              <span className="text-[10px] text-warn">
+              <span className="[font-size:var(--t-type-label-size)] text-warn">
                 {store.uniqueResult.totalUnique} mod
                 {store.uniqueResult.totalUnique === 1 ? " is" : "s are"} unique to{" "}
                 {store.uniqueResult.server}, but none are in your subscribed library — nothing
                 was selected.
               </span>
             ) : store.uniqueResult.selected === store.uniqueResult.totalUnique ? (
-              <span className="text-[10px] text-muted2">
+              <span className="[font-size:var(--t-type-label-size)] text-muted2">
                 <span className="font-semibold text-ink">{store.uniqueResult.selected}</span>{" "}
                 unique mod{store.uniqueResult.selected === 1 ? "" : "s"} for{" "}
                 {store.uniqueResult.server} selected
               </span>
             ) : (
-              <span className="text-[10px] text-muted2">
+              <span className="[font-size:var(--t-type-label-size)] text-muted2">
                 <span className="font-semibold text-ink">{store.uniqueResult.selected}</span> of{" "}
                 {store.uniqueResult.totalUnique} unique mods for {store.uniqueResult.server} selected
                 ({store.uniqueResult.totalUnique - store.uniqueResult.selected} not in your library)
@@ -1190,7 +1190,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
               store.clearMutationFailures();
               store.clearUniqueResult();
             }}
-            className="ml-auto shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted hover:text-ink"
+            className="ml-auto shrink-0 [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider text-muted hover:text-ink"
           >
             DISMISS
           </button>
@@ -1233,16 +1233,16 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
             aria-modal="true"
             aria-label={confirm.title}
             onKeyDown={trapConfirmTab}
-            className="w-80 rounded-[8px] border border-line bg-surface p-3 shadow-2xl"
+            className="w-80 [border-radius:var(--t-radius-confirm)] border border-line bg-surface p-3 [box-shadow:var(--t-shadow-confirm)]"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-xs font-bold text-ink">{confirm.title}</p>
-            <p className="mt-1.5 text-[11px] leading-relaxed text-muted2">{confirm.message}</p>
+            <p className="mt-1.5 [font-size:var(--t-type-body-size)] leading-relaxed text-muted2">{confirm.message}</p>
             <div className="mt-3 flex justify-end gap-2">
               <button
                 ref={confirmCancelRef}
                 onClick={() => setConfirm(null)}
-                className="rounded-[6px] border border-line bg-surface2 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted2 transition-colors hover:text-ink"
+                className="[border-radius:var(--t-radius-control)] border border-line bg-surface2 px-3 py-1.5 [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider text-muted2 transition-colors hover:text-ink"
               >
                 Cancel
               </button>
@@ -1251,7 +1251,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
                   setConfirm(null);
                   confirm.action();
                 }}
-                className="rounded-[6px] bg-danger px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#10131a] transition-colors hover:brightness-110"
+                className="[border-radius:var(--t-radius-control)] bg-danger px-3 py-1.5 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onDanger)] transition-colors hover:brightness-110"
               >
                 Confirm
               </button>
@@ -1277,7 +1277,7 @@ function MenuButton({
       role="menuitem"
       disabled={disabled}
       onClick={onClick}
-      className="flex w-full items-center rounded-[5px] px-3 py-2 text-left text-[11px] font-semibold text-ink transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40"
+      className="flex w-full items-center [border-radius:var(--t-radius-controlCompact)] px-3 py-2 text-left [font-size:var(--t-type-body-size)] font-semibold text-ink transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40"
     >
       {label}
     </button>
@@ -1312,16 +1312,16 @@ function ServerPicker() {
         onClick={() => setOpen((o) => !o)}
         disabled={store.caredServers.length === 0}
         title="Select the mods only one server uses, in case you want to prune it"
-        className="ab-btn ab-ghost flex items-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-[5px] text-[8px] font-bold uppercase tracking-[0.04em] text-muted2 transition-colors hover:text-ink disabled:opacity-50"
+        className="ab-btn ab-ghost flex items-center gap-1 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2 py-[5px] [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-[0.04em] text-muted2 transition-colors hover:text-ink disabled:opacity-50"
       >
         <Star className="size-3" />
         {store.uniqueSource ? "Unique: " + truncate(store.uniqueSource, 24) : "Select unique…"}
         <ChevronDown className={cn("size-3 transition-transform", open && "rotate-180")} />
       </button>
       {open && (
-        <div className="absolute bottom-full left-0 mb-1 max-h-64 w-80 overflow-y-auto rounded-[7px] border border-line bg-surface2 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]">
+        <div className="absolute bottom-full left-0 mb-1 max-h-64 w-80 overflow-y-auto [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)]">
           {store.caredServers.length === 0 ? (
-            <p className="px-3 py-2 text-[10px] text-muted">No favourites or recently played servers yet.</p>
+            <p className="px-3 py-2 [font-size:var(--t-type-label-size)] text-muted">No favourites or recently played servers yet.</p>
           ) : (
             store.caredServers.map((srv) => {
               const label = srv.name || `${srv.addr}:${srv.query_port}`;
@@ -1333,10 +1333,10 @@ function ServerPicker() {
                     setOpen(false);
                     void store.selectUniqueTo(srv.addr, srv.query_port, srv.name);
                   }}
-                  className="flex w-full items-center gap-2 rounded-[5px] px-3 py-2 text-left transition-colors hover:bg-surface"
+                  className="flex w-full items-center gap-2 [border-radius:var(--t-radius-controlCompact)] px-3 py-2 text-left transition-colors hover:bg-surface"
                 >
                   <ChevronRight className="size-3 shrink-0 text-muted" />
-                  <span className="min-w-0 whitespace-normal break-words text-[11px] leading-snug text-ink">
+                  <span className="min-w-0 whitespace-normal break-words [font-size:var(--t-type-body-size)] leading-snug text-ink">
                     {label}
                   </span>
                 </button>

@@ -363,7 +363,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
 
   return (
     <div
-      className="ovl absolute inset-0 z-[60] flex items-center justify-center bg-[rgba(5,8,13,0.7)]"
+      className="ovl absolute inset-0 z-[60] flex items-center justify-center [background-color:var(--t-color-scrim)]"
       onMouseDown={closeIfOutside}
     >
       <div
@@ -373,12 +373,12 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
         aria-modal="true"
         aria-label="Filter by mod"
         onKeyDown={trapTab}
-        className="mod-filter-modal relative flex h-[540px] w-[min(700px,calc(100%-40px))] flex-col overflow-hidden rounded-[12px] border border-line bg-surface shadow-[0_24px_60px_rgba(0,0,0,0.6)]"
+        className="mod-filter-modal relative flex h-[540px] w-[min(700px,calc(100%-40px))] flex-col overflow-hidden [border-radius:var(--t-radius-modalLarge)] border border-line bg-surface [box-shadow:var(--t-shadow-xl)]"
       >
         <div className="flex shrink-0 items-center justify-between border-b border-line px-4 py-3">
           <div>
-            <h3 className="text-[13px] font-extrabold tracking-tight text-ink">Filter by mod</h3>
-            <p className="mt-0.5 text-[10px] text-muted">Require or exclude servers by the mods they run</p>
+            <h3 className="[font-size:var(--t-type-size-xl)] font-extrabold tracking-tight text-ink">Filter by mod</h3>
+            <p className="mt-0.5 [font-size:var(--t-type-label-size)] text-muted">Require or exclude servers by the mods they run</p>
           </div>
           {composition === null && closeAction()}
         </div>
@@ -393,7 +393,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
           </SlotChild>
         )}
 
-        <div className="mx-4 mt-2.5 flex shrink-0 items-center gap-1.5 rounded-[7px] border border-line bg-surface2 px-2.5 py-[7px]">
+        <div className="mx-4 mt-2.5 flex shrink-0 items-center gap-1.5 [border-radius:var(--t-radius-popup)] border border-line bg-surface2 px-2.5 py-[7px]">
           <Search className="size-[13px] shrink-0 text-muted" />
           <input
             value={query}
@@ -406,7 +406,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
                   : "Filter mods seen on these servers…"
             }
             aria-label="Search mods"
-            className="min-w-0 flex-1 bg-transparent text-[11px] text-ink outline-none placeholder:text-muted"
+            className="min-w-0 flex-1 bg-transparent [font-size:var(--t-type-body-size)] text-ink outline-none placeholder:text-muted"
           />
         </div>
 
@@ -421,12 +421,12 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
             {tab === "seen" && knownLoading && <ListSpinner />}
             {tab === "workshop" && searchLoading && <ListSpinner />}
             {tab === "workshop" && !query.trim() && !searchLoading && (
-              <p className="px-1.5 py-6 text-center text-[10.5px] leading-relaxed text-muted">
+              <p className="px-1.5 py-6 text-center [font-size:var(--t-type-compactBody-size)] leading-relaxed text-muted">
                 Type a mod name above to search the Workshop.
               </p>
             )}
             {tab === "workshop" && searchError && (
-              <p className="px-1.5 py-6 text-center text-[10.5px] leading-relaxed text-danger">{searchError}</p>
+              <p className="px-1.5 py-6 text-center [font-size:var(--t-type-compactBody-size)] leading-relaxed text-danger">{searchError}</p>
             )}
             {!searchLoading &&
               !(tab === "subscribed" && modsLoading && subscribedForDayz.length === 0) &&
@@ -434,7 +434,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
               activeList.length === 0 &&
               !(tab === "workshop" && !query.trim()) &&
               !(tab === "workshop" && searchError) && (
-                <p className="px-1.5 py-6 text-center text-[10.5px] text-muted">
+                <p className="px-1.5 py-6 text-center [font-size:var(--t-type-compactBody-size)] text-muted">
                   {tab === "subscribed" ? "No subscribed DayZ mods." : "No mods match."}
                 </p>
               )}
@@ -453,22 +453,22 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
                   }
                 }}
                 className={cn(
-                  "flex w-full cursor-pointer items-center gap-2.5 rounded-[7px] px-1.5 py-1.5 text-left transition-colors hover:bg-surface2",
+                  "flex w-full cursor-pointer items-center gap-2.5 [border-radius:var(--t-radius-popup)] px-1.5 py-1.5 text-left transition-colors hover:bg-surface2",
                   previewId === entry.id && "bg-accent-soft",
                 )}
               >
-                <span className="size-9 shrink-0 overflow-hidden rounded-[8px]">
+                <span className="size-9 shrink-0 overflow-hidden [border-radius:var(--t-radius-row)]">
                   <ModThumb id={entry.id} title={entry.title} previewUrl={entry.previewUrl} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-1.5 truncate text-[11px] font-bold text-ink">
+                  <span className="flex items-center gap-1.5 truncate [font-size:var(--t-type-body-size)] font-bold text-ink">
                     <span className="truncate">{entry.title}</span>
                     {entry.subscribed && <Star className="size-[10px] shrink-0 fill-warn text-warn" />}
                   </span>
                 </span>
                 <span
                   className={cn(
-                    "shrink-0 font-mono-data text-[9px]",
+                    "shrink-0 font-mono-data [font-size:var(--t-type-caption-size)]",
                     entry.serverCount ? "text-accent2" : "text-muted",
                   )}
                 >
@@ -487,7 +487,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
                         : `Include ${entry.title}`
                   }
                   className={cn(
-                    "flex size-[15px] shrink-0 items-center justify-center rounded-[4px] border-[1.5px] border-muted text-transparent",
+                    "flex size-[15px] shrink-0 items-center justify-center [border-radius:var(--t-radius-chip)] border-[1.5px] border-muted text-transparent",
                     selection[entry.id] === "include" && "border-accent bg-accent text-bg",
                     selection[entry.id] === "exclude" && "border-danger bg-danger text-bg",
                   )}
@@ -512,7 +512,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
         <div className="flex shrink-0 items-center gap-2.5 border-t border-line px-4 py-2.5">
           <div className="mr-auto flex items-center">
             {included.length === 0 && excluded.length === 0 ? (
-              <span className="text-[10px] text-muted">Nothing selected</span>
+              <span className="[font-size:var(--t-type-label-size)] text-muted">Nothing selected</span>
             ) : (
               <>
                 <div className="flex">
@@ -525,7 +525,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
                       <span
                         key={id}
                         className={cn(
-                          "-ml-1.5 size-[18px] overflow-hidden rounded-[5px] border-[1.5px] first:ml-0",
+                          "-ml-1.5 size-[18px] overflow-hidden [border-radius:var(--t-radius-controlCompact)] border-[1.5px] first:ml-0",
                           pick === "include" ? "border-accent" : "border-danger",
                         )}
                         style={{ zIndex: 4 - i }}
@@ -534,30 +534,30 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
                       </span>
                     ))}
                   {included.length + excluded.length > 4 && (
-                    <span className="-ml-1.5 flex size-[18px] items-center justify-center rounded-[5px] border-[1.5px] border-surface bg-surface2 text-[8px] font-bold text-muted2">
+                    <span className="-ml-1.5 flex size-[18px] items-center justify-center [border-radius:var(--t-radius-controlCompact)] border-[1.5px] border-surface bg-surface2 [font-size:var(--t-type-micro-size)] font-bold text-muted2">
                       +{included.length + excluded.length - 4}
                     </span>
                   )}
                 </div>
-                <span className="ml-2 text-[10px] text-muted">
+                <span className="ml-2 [font-size:var(--t-type-label-size)] text-muted">
                   {included.length > 0 && `${included.length} included`}
                   {included.length > 0 && excluded.length > 0 && " · "}
                   {excluded.length > 0 && `${excluded.length} excluded`}
                 </span>
                 <button
                   onClick={() => setSelection({})}
-                  className="ml-2.5 text-[9px] font-bold uppercase tracking-[0.05em] text-muted transition-colors hover:text-ink"
+                  className="ml-2.5 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.05em] text-muted transition-colors hover:text-ink"
                 >
                   Clear
                 </button>
               </>
             )}
           </div>
-          <div className="flex overflow-hidden rounded-[6px] border border-line">
+          <div className="flex overflow-hidden [border-radius:var(--t-radius-control)] border border-line">
             <button
               onClick={() => setMode("any")}
               className={cn(
-                "px-2.5 py-[5px] text-[9.5px] font-bold text-muted",
+                "px-2.5 py-[5px] [font-size:var(--t-type-compactCaption-size)] font-bold text-muted",
                 mode === "any" && "bg-accent-soft text-accent",
               )}
             >
@@ -566,7 +566,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
             <button
               onClick={() => setMode("all")}
               className={cn(
-                "px-2.5 py-[5px] text-[9.5px] font-bold text-muted",
+                "px-2.5 py-[5px] [font-size:var(--t-type-compactCaption-size)] font-bold text-muted",
                 mode === "all" && "bg-accent-soft text-accent",
               )}
             >
@@ -575,7 +575,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
           </div>
           <button
             onClick={onClose}
-            className="rounded-[6px] border border-line px-3.5 py-[7px] text-[10.5px] font-bold text-muted transition-colors hover:text-ink"
+            className="[border-radius:var(--t-radius-control)] border border-line px-3.5 py-[7px] [font-size:var(--t-type-compactBody-size)] font-bold text-muted transition-colors hover:text-ink"
           >
             Cancel
           </button>
@@ -625,7 +625,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
             role="tab"
             aria-selected={tab === t.key}
             className={cn(
-              "rounded-t-[6px] px-2.5 py-1.5 text-[10px] font-bold text-muted transition-colors",
+              "rounded-t-[6px] px-2.5 py-1.5 [font-size:var(--t-type-label-size)] font-bold text-muted transition-colors",
               tab === t.key && "bg-accent-soft text-accent",
             )}
           >
@@ -645,18 +645,18 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
         {!preview && (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-muted">
             <Inbox className="size-6 opacity-50" />
-            <p className="max-w-[20ch] text-[10.5px] leading-relaxed">
+            <p className="max-w-[20ch] [font-size:var(--t-type-compactBody-size)] leading-relaxed">
               Click a mod on the left to see its details here.
             </p>
           </div>
         )}
         {preview && (
           <>
-            <span className="mb-2.5 block h-[84px] w-full shrink-0 overflow-hidden rounded-[9px]">
+            <span className="mb-2.5 block h-[84px] w-full shrink-0 overflow-hidden [border-radius:var(--t-radius-panel)]">
               <ModThumb id={preview.id} title={preview.title} previewUrl={preview.previewUrl} />
             </span>
             <div className="flex items-start justify-between gap-2">
-              <h4 className="flex items-center gap-1.5 text-[13.5px] font-extrabold leading-tight tracking-tight text-ink">
+              <h4 className="flex items-center gap-1.5 [font-size:var(--t-type-compactHeading-size)] font-extrabold leading-tight tracking-tight text-ink">
                 {preview.title}
                 {preview.subscribed && <Star className="size-3 shrink-0 fill-warn text-warn" />}
               </h4>
@@ -665,7 +665,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
                   href={preview.workshopUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex shrink-0 items-center gap-1 pt-0.5 text-[9.5px] font-bold text-muted transition-colors hover:text-accent"
+                  className="flex shrink-0 items-center gap-1 pt-0.5 [font-size:var(--t-type-compactCaption-size)] font-bold text-muted transition-colors hover:text-accent"
                 >
                   <ExternalLink className="size-[10px]" />
                   View on Steam
@@ -673,7 +673,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
               )}
             </div>
             {(preview.score !== null || preview.numSubscriptions || preview.fileSize) && (
-              <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-muted2">
+              <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 [font-size:var(--t-type-label-size)] text-muted2">
                 {preview.score !== null && (
                   <span className="flex items-center gap-1">
                     <ThumbsUp className="size-[10px] text-muted" />
@@ -704,21 +704,21 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
               </div>
             )}
             {preview.description && (
-              <p className="mt-2.5 line-clamp-2 text-[11px] leading-relaxed text-muted2">{preview.description}</p>
+              <p className="mt-2.5 line-clamp-2 [font-size:var(--t-type-body-size)] leading-relaxed text-muted2">{preview.description}</p>
             )}
             {preview.tags.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1">
                 {preview.tags.map((t) => (
                   <span
                     key={t}
-                    className="rounded-[3px] border border-line bg-surface2 px-1.5 py-0.5 text-[8.5px] font-bold text-muted2"
+                    className="[border-radius:var(--t-radius-badge)] border border-line bg-surface2 px-1.5 py-0.5 [font-size:var(--t-type-compactMicro-size)] font-bold text-muted2"
                   >
                     {t}
                   </span>
                 ))}
               </div>
             )}
-            <div className="mt-2.5 rounded-[8px] border border-line bg-surface2 px-2.5 py-2 text-[10.5px] leading-relaxed text-muted2">
+            <div className="mt-2.5 [border-radius:var(--t-radius-row)] border border-line bg-surface2 px-2.5 py-2 [font-size:var(--t-type-compactBody-size)] leading-relaxed text-muted2">
               {preview.serverCount ? (
                 <>
                   <span className="font-mono-data font-bold text-accent2">{preview.serverCount}</span> of the
@@ -732,9 +732,9 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
               <button
                 onClick={() => setPick(preview, "include")}
                 className={cn(
-                  "flex flex-1 items-center justify-center gap-1.5 rounded-[6px] border px-3 py-2 text-[10.5px] font-bold",
+                  "flex flex-1 items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] border px-3 py-2 [font-size:var(--t-type-compactBody-size)] font-bold",
                   selection[preview.id] === "include"
-                    ? "border-accent-line bg-accent-soft text-accent shadow-[var(--glow)]"
+                    ? "border-accent-line bg-accent-soft text-accent [box-shadow:var(--t-shadow-glow)]"
                     : "border-line text-muted hover:text-ink",
                 )}
               >
@@ -744,7 +744,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
               <button
                 onClick={() => setPick(preview, "exclude")}
                 className={cn(
-                  "flex flex-1 items-center justify-center gap-1.5 rounded-[6px] border px-3 py-2 text-[10.5px] font-bold",
+                  "flex flex-1 items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] border px-3 py-2 [font-size:var(--t-type-compactBody-size)] font-bold",
                   selection[preview.id] === "exclude"
                     ? "border-danger-line bg-danger-soft text-danger"
                     : "border-line text-muted hover:text-ink",
@@ -765,7 +765,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
       <button
         data-tetra-el="applyAction"
         onClick={apply}
-        className="rounded-[6px] border border-accent-line bg-accent-soft px-3.5 py-[7px] text-[10.5px] font-bold text-accent shadow-[var(--glow)] transition-[filter] hover:brightness-110"
+        className="[border-radius:var(--t-radius-control)] border border-accent-line bg-accent-soft px-3.5 py-[7px] [font-size:var(--t-type-compactBody-size)] font-bold text-accent [box-shadow:var(--t-shadow-glow)] transition-[filter] hover:brightness-110"
       >
         Apply
       </button>
@@ -775,7 +775,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
 
 function ListSpinner() {
   return (
-    <div className="flex items-center justify-center gap-2 py-8 text-[10.5px] text-muted">
+    <div className="flex items-center justify-center gap-2 py-8 [font-size:var(--t-type-compactBody-size)] text-muted">
       <Loader2 className="size-3.5 animate-spin" />
       Loading…
     </div>
