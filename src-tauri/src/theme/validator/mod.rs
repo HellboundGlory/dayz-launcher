@@ -2,6 +2,10 @@ pub mod ast;
 mod composition;
 pub mod issue;
 mod rules;
+pub mod settings;
+
+#[cfg(test)]
+mod settings_tests;
 
 pub use issue::{Severity, ValidationIssue};
 

@@ -8,8 +8,177 @@ use crate::theme::registry::{Multiplicity, Registry};
 
 const SHELL: &str = "layout/shell.json";
 
+fn setting_description(settings: &HashMap<String, Value>) -> String {
+    serde_json::to_string(&settings.iter().collect::<BTreeMap<_, _>>()).unwrap()
+}
+
+fn is_hidden(value: &Value, settings: &HashMap<String, Value>) -> bool {
+    value.get("hidden").is_some_and(|hidden| {
+        hidden.as_bool().unwrap_or_else(|| {
+            hidden
+                .get("setting")
+                .and_then(Value::as_str)
+                .and_then(|id| settings.get(id))
+                .is_some_and(|actual| {
+                    hidden
+                        .get("equals")
+                        .is_some_and(|expected| actual == expected)
+                        || hidden.get("not").is_some_and(|expected| actual != expected)
+                })
+        })
+    })
+}
+
+fn validate_hidden(
+    value: &Value,
+    pointer: &str,
+    file: &str,
+    discrete: &HashSet<&str>,
+    issues: &mut Vec<ValidationIssue>,
+) {
+    let Some(props) = value.as_object() else {
+        return;
+    };
+    if let Some(hidden) = props.get("hidden") {
+        let valid = hidden.is_boolean()
+            || hidden.as_object().is_some_and(|condition| {
+                condition.len() == 2
+                    && condition
+                        .get("setting")
+                        .and_then(Value::as_str)
+                        .is_some_and(|id| discrete.contains(id))
+                    && (condition.contains_key("equals") ^ condition.contains_key("not"))
+            });
+        if !valid {
+            issue(issues, "LAY-03", file, &format!("{pointer}/hidden"),
+                "Hidden must be a boolean or a setting condition with exactly one of equals/not referencing a boolean or choice setting".into());
+        }
+    }
+    for (child, path) in rules::descendants(props, pointer) {
+        validate_hidden(child, &path, file, discrete, issues);
+    }
+}
+
+fn visibility<'a>(
+    root: &Root<'a>,
+    settings: &HashMap<String, Value>,
+    required: &[&str],
+    registry: &'a Registry,
+    file: &str,
+    issues: &mut Vec<ValidationIssue>,
+) -> BTreeSet<&'a str> {
+    let mut check = Visibility {
+        settings,
+        required,
+        registry,
+        file,
+        issues,
+        scope: None,
+    };
+    root.value
+        .map(|value| check.collect(value, &root.pointer))
+        .unwrap_or_default()
+}
+
+struct Visibility<'a, 'b> {
+    settings: &'b HashMap<String, Value>,
+    required: &'b [&'b str],
+    registry: &'a Registry,
+    file: &'b str,
+    issues: &'b mut Vec<ValidationIssue>,
+    scope: Option<String>,
+}
+
+impl<'a> Visibility<'a, '_> {
+    fn collect(&mut self, value: &'a Value, pointer: &str) -> BTreeSet<&'a str> {
+        let mut elements = BTreeSet::new();
+        let Some(props) = value.as_object() else {
+            return elements;
+        };
+        if props.contains_key("context")
+            && self.scope.as_deref().is_some_and(|scope| scope != pointer)
+        {
+            return elements;
+        }
+        if is_hidden(value, self.settings) {
+            return elements;
+        }
+        if let Some(node) = Node::from_value(value) {
+            let id = match node.kind {
+                NodeKind::Element => props.get("element"),
+                NodeKind::Surface => props.get("surface"),
+                _ => None,
+            }
+            .and_then(Value::as_str);
+            if let Some(id) = id {
+                expand(id, self.registry, &mut elements, &mut HashSet::new());
+            }
+        }
+        let mut expanded = BTreeSet::new();
+        let mut collapsed = None;
+        let mut first_tab = BTreeSet::new();
+        let mut other_tabs = BTreeSet::new();
+        for (child, path) in rules::descendants(props, pointer) {
+            if path == format!("{pointer}/empty") {
+                continue;
+            }
+            let child_elements = self.collect(child, &path);
+            let suffix = &path[pointer.len()..];
+            if suffix == "/collapsible/collapsed" {
+                collapsed = Some(child_elements);
+            } else if suffix.starts_with("/children/") {
+                expanded.extend(child_elements);
+            } else if suffix == "/tabs/0/content" {
+                first_tab.extend(child_elements);
+            } else if suffix.starts_with("/tabs/") {
+                other_tabs.extend(child_elements);
+            } else {
+                elements.extend(child_elements);
+            }
+        }
+        for id in &other_tabs {
+            if self.required.contains(id) && !first_tab.contains(id) {
+                self.missing(id, &format!("{pointer}/tabs/0/content"), "the default tab");
+            }
+        }
+        if let Some(collapsed) = collapsed {
+            for id in expanded.symmetric_difference(&collapsed) {
+                if self.required.contains(id) {
+                    let (path, state) = if expanded.contains(id) {
+                        (
+                            format!("{pointer}/collapsible/collapsed"),
+                            "the collapsed subtree",
+                        )
+                    } else {
+                        (format!("{pointer}/children"), "the expanded subtree")
+                    };
+                    self.missing(id, &path, state);
+                }
+            }
+        }
+        elements.extend(expanded);
+        elements.extend(first_tab);
+        elements
+    }
+
+    fn missing(&mut self, id: &str, pointer: &str, state: &str) {
+        issue(
+            self.issues,
+            "REQ-06",
+            self.file,
+            pointer,
+            format!(
+                "Required element {id:?} is missing from {state} / settings {}",
+                setting_description(self.settings)
+            ),
+        );
+    }
+}
+
 #[derive(Default)]
 struct Root<'a> {
+    value: Option<&'a Value>,
+    pointer: String,
     start: f64,
     end: Option<f64>,
     elements: BTreeSet<&'a str>,
@@ -30,9 +199,36 @@ pub(super) fn validate(
 ) -> Vec<ValidationIssue> {
     let layouts: BTreeMap<_, _> = files
         .iter()
+        .filter(|(file, _)| file.starts_with("layout/"))
         .map(|(file, value)| (file.as_str(), collect(value, registry)))
         .collect();
     let mut issues = Vec::new();
+    let combinations = match files.get("settings.schema.json") {
+        Some(schema) => match super::settings::extract_settings_combinations(schema) {
+            Ok(combinations) => combinations,
+            Err(errors) => {
+                issues.extend(errors);
+                Vec::new()
+            }
+        },
+        None => vec![HashMap::new()],
+    };
+    let discrete: HashSet<_> = files
+        .get("settings.schema.json")
+        .and_then(|schema| schema.get("fields"))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|field| matches!(field["type"].as_str(), Some("boolean" | "choice")))
+        .filter_map(|field| field["id"].as_str())
+        .collect();
+    for (file, layout) in &layouts {
+        for root in &layout.roots {
+            if let Some(value) = root.value {
+                validate_hidden(value, &root.pointer, file, &discrete, &mut issues);
+            }
+        }
+    }
     let mut global_regions = BTreeMap::new();
     for (file, layout) in &layouts {
         for (id, pointer) in &layout.regions {
@@ -110,7 +306,9 @@ pub(super) fn validate(
                     continue;
                 }
                 for id in &required {
-                    if !root.elements.contains(id) && !shell_root.elements.contains(id) {
+                    if !layout.roots.iter().any(|r| r.elements.contains(id))
+                        && !shell_roots.iter().any(|r| r.elements.contains(id))
+                    {
                         issue(
                             &mut issues,
                             rule,
@@ -118,6 +316,27 @@ pub(super) fn validate(
                             pointer,
                             format!("Required element {id:?} is missing from this composition"),
                         );
+                    }
+                }
+                for combination in &combinations {
+                    let mut visible =
+                        visibility(root, combination, &required, registry, file, &mut issues);
+                    visible.extend(visibility(
+                        shell_root,
+                        combination,
+                        &required,
+                        registry,
+                        file,
+                        &mut issues,
+                    ));
+                    for id in &required {
+                        if !visible.contains(id)
+                            && (layout.roots.iter().any(|r| r.elements.contains(id))
+                                || shell_roots.iter().any(|r| r.elements.contains(id)))
+                        {
+                            issue(&mut issues, "REQ-06", file, &root.pointer,
+                                format!("Required element {id:?} is missing at {} with shell {} / settings {}", root.pointer, shell_root.pointer, setting_description(combination)));
+                        }
                     }
                 }
                 for (key, path) in &root.placements {
@@ -153,6 +372,46 @@ pub(super) fn validate(
                             && !elements.contains(id.as_str())
                         {
                             issue(&mut issues, rule, file, pointer, format!("Element {id:?} is required alongside server.join in this context"));
+                        }
+                    }
+                }
+                if !elements.contains("server.join") {
+                    continue;
+                }
+                let local_required: Vec<_> = registry
+                    .elements
+                    .iter()
+                    .filter(|(_, def)| def.required.iter().any(|code| code == "withJoin"))
+                    .map(|(id, _)| id.as_str())
+                    .collect();
+                for settings in &combinations {
+                    // Hidden ancestors suppress the entire subject context.
+                    if pointer
+                        .match_indices('/')
+                        .map(|(end, _)| &pointer[..end])
+                        .chain(std::iter::once(pointer.as_str()))
+                        .filter_map(|path| files[*file].pointer(path))
+                        .any(|value| is_hidden(value, settings))
+                    {
+                        continue;
+                    }
+                    let Some(value) = files[*file].pointer(pointer) else {
+                        continue;
+                    };
+                    let mut check = Visibility {
+                        settings,
+                        required: &local_required,
+                        registry,
+                        file,
+                        issues: &mut issues,
+                        scope: Some(pointer.clone()),
+                    };
+                    let visible = check.collect(value, pointer);
+                    if visible.contains("server.join") {
+                        for id in &local_required {
+                            if elements.contains(id) && !visible.contains(id) {
+                                check.missing(id, pointer, "the visible Join context");
+                            }
                         }
                     }
                 }
@@ -246,6 +505,8 @@ fn collect<'a>(value: &'a Value, registry: &'a Registry) -> Layout<'a> {
         let mut root = Root {
             start,
             end,
+            value: Some(value),
+            pointer: pointer.clone(),
             ..Root::default()
         };
         let mut pending = vec![(value, pointer.clone(), pointer)];
