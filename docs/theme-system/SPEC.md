@@ -472,8 +472,10 @@ One file, `src/theme/registry.json`, is the source of truth for both sides: the 
 | `kind` | `display`, `input`, `action`, `nav`, `notice`, `list` or `block` |
 | `subject` | `server`, `mod`, `serverMod`, `modServer`, `workshopMod`, or absent for elements with no subject |
 | `where` | Placement codes (`ELEMENTS.md`, "Where codes") |
-| `required` | Where the element must appear, as `view:browser`, `view:mods`, `settings`, `modal:<id>`, `popup:<id>`, `list:<list>/row`, `views`, `views+settings`, or `withJoin` |
+| `excludedWhere` | Optional placement exclusions: `modal:serverInfo` for `server.info`, or `popup` for `server.menu` |
+| `required` | Where the element must appear, as `view:browser`, `view:mods`, `settings`, `modal:<id>`, `popup:<id>`, `list:<list>/row`, `views`, `views+settings`, or `withJoin`; `modal` means every themeable modal, and `popup:region` / `popup:inline` mean those popup placement modes |
 | `multiplicity` | `many`, `perComposition` or `perContext` |
+| `multiplicityScope` | Optional `region`: count `app.collapseToggle` once per target region within the composition |
 | `options` | Typed options: `enum`, `boolean`, `icon`, `text`, `length`, `token` or `region` |
 | `freeLabel` | Whether the `label` option is accepted; always `false` for required elements |
 | `since`, `aliases` | Version introduced, and previous ids still accepted |

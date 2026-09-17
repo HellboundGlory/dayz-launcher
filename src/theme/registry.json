@@ -1,0 +1,5045 @@
+{
+  "registryVersion": "2.0",
+  "elements": {
+    "app.minimize": {
+      "kind": "action",
+      "where": [
+        "app"
+      ],
+      "required": [
+        "views+settings"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "app.maximize": {
+      "kind": "action",
+      "where": [
+        "app"
+      ],
+      "required": [
+        "views+settings"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon"
+      ],
+      "states": [
+        "maximized"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "app.close": {
+      "kind": "action",
+      "where": [
+        "app"
+      ],
+      "required": [
+        "views+settings"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "app.dragRegion": {
+      "kind": "display",
+      "where": [
+        "app"
+      ],
+      "required": [
+        "views+settings"
+      ],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "app.logo": {
+      "kind": "display",
+      "where": [
+        "app"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "wordmark": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "image",
+        "wordmark"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "app.collapseToggle": {
+      "kind": "action",
+      "multiplicityScope": "region",
+      "where": [
+        "app"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "region": {
+          "type": "region"
+        },
+        "label": {
+          "type": "text",
+          "default": "sidebar"
+        },
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon"
+      ],
+      "states": [
+        "collapsed"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "app.uiScale": {
+      "kind": "input",
+      "where": [
+        "app"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "showLabel": {
+          "type": "boolean",
+          "default": true
+        },
+        "showValue": {
+          "type": "boolean",
+          "default": true
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label",
+        "track",
+        "knob",
+        "value"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "app.schemeToggle": {
+      "kind": "action",
+      "where": [
+        "app"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon"
+      ],
+      "states": [
+        "dark",
+        "light"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "nav.servers": {
+      "kind": "nav",
+      "where": [
+        "app"
+      ],
+      "required": [
+        "views"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "current"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "nav.favourites": {
+      "kind": "nav",
+      "where": [
+        "app"
+      ],
+      "required": [
+        "views"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "current"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "nav.recent": {
+      "kind": "nav",
+      "where": [
+        "app"
+      ],
+      "required": [
+        "views"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "current"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "nav.mods": {
+      "kind": "nav",
+      "where": [
+        "app"
+      ],
+      "required": [
+        "views"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "current"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "nav.settings": {
+      "kind": "nav",
+      "where": [
+        "app"
+      ],
+      "required": [
+        "views"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "open"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "status.steam": {
+      "kind": "display",
+      "where": [
+        "app"
+      ],
+      "required": [
+        "views"
+      ],
+      "multiplicity": "many",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "dotLabel",
+            "dot",
+            "label"
+          ],
+          "default": "dotLabel"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "dot",
+        "label"
+      ],
+      "states": [
+        "connected",
+        "disconnected"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "status.serverTotal": {
+      "kind": "display",
+      "where": [
+        "app"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "showLabel": {
+          "type": "boolean",
+          "default": true
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "value",
+        "label"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "status.populated": {
+      "kind": "display",
+      "where": [
+        "app"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "showLabel": {
+          "type": "boolean",
+          "default": true
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "value",
+        "label"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "status.listSource": {
+      "kind": "display",
+      "where": [
+        "app"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label"
+      ],
+      "states": [
+        "index",
+        "steam"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "status.lastRefreshed": {
+      "kind": "display",
+      "where": [
+        "app"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label",
+        "value"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "notice.update": {
+      "kind": "notice",
+      "where": [
+        "app"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "title",
+        "message",
+        "update",
+        "later"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "notice.storage": {
+      "kind": "notice",
+      "where": [
+        "app"
+      ],
+      "required": [
+        "views+settings"
+      ],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "tag",
+        "message"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "notice.error": {
+      "kind": "notice",
+      "where": [
+        "app"
+      ],
+      "required": [
+        "views+settings"
+      ],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "tag",
+        "message",
+        "dismiss"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "notice.modsError": {
+      "kind": "notice",
+      "where": [
+        "mods"
+      ],
+      "required": [
+        "view:mods"
+      ],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "message"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "notice.modsCached": {
+      "kind": "notice",
+      "where": [
+        "mods"
+      ],
+      "required": [
+        "view:mods"
+      ],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "message"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "notice.modsResult": {
+      "kind": "notice",
+      "where": [
+        "mods"
+      ],
+      "required": [
+        "view:mods"
+      ],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "message",
+        "dismiss"
+      ],
+      "states": [
+        "success",
+        "failure"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "notice.modsOutdated": {
+      "kind": "notice",
+      "where": [
+        "mods"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "message",
+        "updateAll"
+      ],
+      "states": [
+        "busy"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "filter.search": {
+      "kind": "input",
+      "where": [
+        "browser"
+      ],
+      "required": [
+        "view:browser"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "showIcon": {
+          "type": "boolean",
+          "default": true
+        },
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon",
+        "input"
+      ],
+      "states": [
+        "filled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "filter.map": {
+      "kind": "input",
+      "where": [
+        "browser"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "showLabel": {
+          "type": "boolean",
+          "default": true
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label",
+        "value",
+        "chevron"
+      ],
+      "states": [
+        "active",
+        "open"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "filter.tags": {
+      "kind": "input",
+      "where": [
+        "browser"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "showLabel": {
+          "type": "boolean",
+          "default": true
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label",
+        "value",
+        "chevron"
+      ],
+      "states": [
+        "active",
+        "open"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "filter.region": {
+      "kind": "input",
+      "where": [
+        "browser"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "showLabel": {
+          "type": "boolean",
+          "default": true
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label",
+        "value",
+        "chevron"
+      ],
+      "states": [
+        "active",
+        "open"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "filter.mods": {
+      "kind": "action",
+      "where": [
+        "browser"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "showLabel": {
+          "type": "boolean",
+          "default": true
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label",
+        "value",
+        "chevron"
+      ],
+      "states": [
+        "active"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "filter.sort": {
+      "kind": "input",
+      "where": [
+        "browser"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "showLabel": {
+          "type": "boolean",
+          "default": true
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label",
+        "value",
+        "direction",
+        "chevron"
+      ],
+      "states": [
+        "active",
+        "open"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "filter.maxPing": {
+      "kind": "input",
+      "where": [
+        "browser"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "showLabel": {
+          "type": "boolean",
+          "default": true
+        },
+        "showValue": {
+          "type": "boolean",
+          "default": true
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label",
+        "track",
+        "knob",
+        "value"
+      ],
+      "states": [
+        "active"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "filter.hideEmpty": {
+      "kind": "input",
+      "where": [
+        "browser"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "control": {
+          "type": "enum",
+          "values": [
+            "button",
+            "checkbox",
+            "switch"
+          ],
+          "default": "button"
+        },
+        "label": {
+          "type": "text"
+        },
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label",
+        "box",
+        "icon"
+      ],
+      "states": [
+        "on"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "filter.hideFull": {
+      "kind": "input",
+      "where": [
+        "browser"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "control": {
+          "type": "enum",
+          "values": [
+            "button",
+            "checkbox",
+            "switch"
+          ],
+          "default": "button"
+        },
+        "label": {
+          "type": "text"
+        },
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label",
+        "box",
+        "icon"
+      ],
+      "states": [
+        "on"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "filter.hideLocked": {
+      "kind": "input",
+      "where": [
+        "browser"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "control": {
+          "type": "enum",
+          "values": [
+            "button",
+            "checkbox",
+            "switch"
+          ],
+          "default": "button"
+        },
+        "label": {
+          "type": "text"
+        },
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label",
+        "box",
+        "icon"
+      ],
+      "states": [
+        "on"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "filter.hideOffline": {
+      "kind": "input",
+      "where": [
+        "browser"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "control": {
+          "type": "enum",
+          "values": [
+            "button",
+            "checkbox",
+            "switch"
+          ],
+          "default": "button"
+        },
+        "label": {
+          "type": "text"
+        },
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label",
+        "box",
+        "icon"
+      ],
+      "states": [
+        "on"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "filter.reset": {
+      "kind": "action",
+      "where": [
+        "browser"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "servers.refresh": {
+      "kind": "action",
+      "where": [
+        "browser"
+      ],
+      "required": [
+        "view:browser"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "busy"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.join": {
+      "kind": "action",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [
+        "list:servers/row",
+        "modal:serverInfo"
+      ],
+      "multiplicity": "perContext",
+      "options": {
+        "wording": {
+          "type": "enum",
+          "values": [
+            "join",
+            "fixAndJoin"
+          ],
+          "default": "join"
+        },
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon",
+          "default": "play"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon",
+        "label",
+        "spinner"
+      ],
+      "states": [
+        "busy",
+        "disabled",
+        "playing",
+        "modded",
+        "needsMods",
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": [],
+      "fallbackPlacement": {
+        "list:servers/row": "append",
+        "modal:serverInfo": "append"
+      }
+    },
+    "server.actionNotice": {
+      "kind": "notice",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [
+        "withJoin"
+      ],
+      "multiplicity": "perContext",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "message"
+      ],
+      "states": [
+        "warning",
+        "error",
+        "success",
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": [],
+      "fallbackPlacement": {
+        "list:servers/row": "afterElement:server.join",
+        "modal:serverInfo": "afterElement:server.join",
+        "withJoin": "afterElement:server.join"
+      }
+    },
+    "server.cancel": {
+      "kind": "action",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "label"
+        },
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.loadToMenu": {
+      "kind": "action",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "disabled",
+        "busy",
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.info": {
+      "kind": "action",
+      "subject": "server",
+      "excludedWhere": [
+        "modal:serverInfo"
+      ],
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.menu": {
+      "kind": "action",
+      "subject": "server",
+      "excludedWhere": [
+        "popup"
+      ],
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "menu": {
+          "type": "enum",
+          "values": [
+            "serverActions",
+            "serverLoad"
+          ],
+          "default": "serverActions"
+        },
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon"
+      ],
+      "states": [
+        "open",
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.favourite": {
+      "kind": "action",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "icon",
+            "iconLabel"
+          ],
+          "default": "icon"
+        },
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "on",
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.subscribeAll": {
+      "kind": "action",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "disabled",
+        "busy",
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.checkMods": {
+      "kind": "action",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "busy",
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.unsubscribeUnique": {
+      "kind": "action",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "disabled",
+        "busy",
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.copyAddress": {
+      "kind": "action",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "copied",
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.deselect": {
+      "kind": "action",
+      "subject": "server",
+      "where": [
+        "selection"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon"
+      ],
+      "states": [
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.name": {
+      "kind": "display",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.address": {
+      "kind": "display",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "showGamePort": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "address",
+        "gamePort"
+      ],
+      "states": [
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.map": {
+      "kind": "display",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.region": {
+      "kind": "display",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "format": {
+          "type": "enum",
+          "values": [
+            "name",
+            "code"
+          ],
+          "default": "name"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [
+        "unknown",
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.gameTime": {
+      "kind": "display",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "showIcon": {
+          "type": "boolean",
+          "default": true
+        },
+        "showMultiplier": {
+          "type": "boolean",
+          "default": true
+        },
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon",
+        "time",
+        "multiplier"
+      ],
+      "states": [
+        "day",
+        "night",
+        "unknown",
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.players": {
+      "kind": "display",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "format": {
+          "type": "enum",
+          "values": [
+            "countMax",
+            "count"
+          ],
+          "default": "countMax"
+        },
+        "showQueue": {
+          "type": "boolean",
+          "default": true
+        },
+        "showCaption": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "value",
+        "max",
+        "queue",
+        "caption"
+      ],
+      "states": [
+        "empty",
+        "full",
+        "queued",
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.ping": {
+      "kind": "display",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "showUnit": {
+          "type": "boolean",
+          "default": false
+        },
+        "showCaption": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "value",
+        "unit",
+        "caption"
+      ],
+      "states": [
+        "good",
+        "fair",
+        "poor",
+        "unknown",
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.modCount": {
+      "kind": "display",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "showCaption": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "value",
+        "caption"
+      ],
+      "states": [
+        "none",
+        "unprobed",
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.version": {
+      "kind": "display",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [
+        "unknown",
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.lastPlayed": {
+      "kind": "display",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "format": {
+          "type": "enum",
+          "values": [
+            "relative",
+            "date"
+          ],
+          "default": "relative"
+        },
+        "recentOnly": {
+          "type": "boolean",
+          "default": false
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label",
+        "value"
+      ],
+      "states": [
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.tags": {
+      "kind": "display",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "officialWording": {
+          "type": "enum",
+          "values": [
+            "vanilla",
+            "official"
+          ],
+          "default": "vanilla"
+        },
+        "showOffline": {
+          "type": "boolean",
+          "default": true
+        },
+        "showOfficial": {
+          "type": "boolean",
+          "default": true
+        },
+        "showModded": {
+          "type": "boolean",
+          "default": true
+        },
+        "showFirstPerson": {
+          "type": "boolean",
+          "default": true
+        },
+        "showLocked": {
+          "type": "boolean",
+          "default": true
+        },
+        "showModUpdate": {
+          "type": "boolean",
+          "default": true
+        },
+        "showBattleye": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "chip"
+      ],
+      "states": [
+        "offline",
+        "official",
+        "modded",
+        "firstPerson",
+        "locked",
+        "battleye",
+        "modUpdate"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.modUpdate": {
+      "kind": "display",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label"
+      ],
+      "states": [
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.readiness": {
+      "kind": "display",
+      "subject": "server",
+      "where": [
+        "server-panel"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "showDot": {
+          "type": "boolean",
+          "default": true
+        },
+        "showSize": {
+          "type": "boolean",
+          "default": true
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "dot",
+        "label",
+        "size"
+      ],
+      "states": [
+        "checking",
+        "ready",
+        "needsDownload",
+        "needsUpdate",
+        "downloading",
+        "unchecked",
+        "noMods",
+        "stale",
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.downloadSize": {
+      "kind": "display",
+      "subject": "server",
+      "where": [
+        "server-panel"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "qualifier",
+        "value"
+      ],
+      "states": [
+        "upperBound",
+        "none",
+        "checking",
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "serverMod.order": {
+      "kind": "display",
+      "subject": "serverMod",
+      "where": [
+        "serverMod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "value"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "serverMod.thumbnail": {
+      "kind": "display",
+      "subject": "serverMod",
+      "where": [
+        "serverMod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "image"
+      ],
+      "states": [
+        "missing"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "serverMod.name": {
+      "kind": "display",
+      "subject": "serverMod",
+      "where": [
+        "serverMod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "serverMod.state": {
+      "kind": "display",
+      "subject": "serverMod",
+      "where": [
+        "serverMod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "dotLabel",
+            "dot",
+            "label"
+          ],
+          "default": "dotLabel"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "dot",
+        "label"
+      ],
+      "states": [
+        "checking",
+        "ready",
+        "needsUpdate",
+        "downloading",
+        "notInstalled",
+        "notSubscribed",
+        "serverSide"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "serverMod.size": {
+      "kind": "display",
+      "subject": "serverMod",
+      "where": [
+        "serverMod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "qualifier",
+        "value"
+      ],
+      "states": [
+        "upperBound",
+        "unknown"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "serverMod.progress": {
+      "kind": "display",
+      "subject": "serverMod",
+      "where": [
+        "serverMod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "bar",
+        "value"
+      ],
+      "states": [
+        "indeterminate"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "serverMod.unique": {
+      "kind": "display",
+      "subject": "serverMod",
+      "where": [
+        "serverMod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "serverMod.openInSteam": {
+      "kind": "action",
+      "subject": "serverMod",
+      "where": [
+        "serverMod"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "icon"
+        },
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mods.search": {
+      "kind": "input",
+      "where": [
+        "mods"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "showIcon": {
+          "type": "boolean",
+          "default": false
+        },
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon",
+        "input"
+      ],
+      "states": [
+        "filled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mods.statusFilter": {
+      "kind": "input",
+      "where": [
+        "mods"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "option"
+      ],
+      "states": [
+        "selected"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mods.refresh": {
+      "kind": "action",
+      "where": [
+        "mods"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "busy"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mods.count": {
+      "kind": "display",
+      "where": [
+        "mods"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "value",
+        "label"
+      ],
+      "states": [
+        "selecting"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mods.selectAll": {
+      "kind": "action",
+      "where": [
+        "mods"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mods.clearSelection": {
+      "kind": "action",
+      "where": [
+        "mods"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mods.selectUnique": {
+      "kind": "input",
+      "where": [
+        "mods"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label",
+        "value",
+        "chevron"
+      ],
+      "states": [
+        "open",
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mods.cleanupRemoved": {
+      "kind": "action",
+      "where": [
+        "mods"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mods.unsubscribe": {
+      "kind": "action",
+      "where": [
+        "mods"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "busy",
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mods.unsubscribeMenu": {
+      "kind": "action",
+      "where": [
+        "mods"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon"
+      ],
+      "states": [
+        "open"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mods.unsubscribeSelected": {
+      "kind": "action",
+      "where": [
+        "mods",
+        "popup:modsUnsubscribe"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label"
+      ],
+      "states": [
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mods.unsubscribeAll": {
+      "kind": "action",
+      "where": [
+        "mods",
+        "popup:modsUnsubscribe"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label"
+      ],
+      "states": [
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mods.updateOutdated": {
+      "kind": "action",
+      "where": [
+        "mods"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mods.verify": {
+      "kind": "action",
+      "where": [
+        "mods"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "busy"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mods.verifyMenu": {
+      "kind": "action",
+      "where": [
+        "mods"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon"
+      ],
+      "states": [
+        "open"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mods.verifySelected": {
+      "kind": "action",
+      "where": [
+        "mods",
+        "popup:modsVerify"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label"
+      ],
+      "states": [
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mods.verifyAll": {
+      "kind": "action",
+      "where": [
+        "mods",
+        "popup:modsVerify"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mod.select": {
+      "kind": "input",
+      "subject": "mod",
+      "where": [
+        "mod"
+      ],
+      "required": [
+        "list:mods/row"
+      ],
+      "multiplicity": "perContext",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "box"
+      ],
+      "states": [
+        "checked",
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mod.status": {
+      "kind": "display",
+      "subject": "mod",
+      "where": [
+        "mod"
+      ],
+      "required": [
+        "list:mods/row"
+      ],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "label",
+        "progress"
+      ],
+      "states": [
+        "ready",
+        "update",
+        "downloading",
+        "missing",
+        "notSubscribed",
+        "serverSide",
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mod.thumbnail": {
+      "kind": "display",
+      "subject": "mod",
+      "where": [
+        "mod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "image",
+        "placeholder"
+      ],
+      "states": [
+        "missing",
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mod.name": {
+      "kind": "display",
+      "subject": "mod",
+      "where": [
+        "mod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mod.disabledBadge": {
+      "kind": "display",
+      "subject": "mod",
+      "where": [
+        "mod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label"
+      ],
+      "states": [
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mod.tags": {
+      "kind": "display",
+      "subject": "mod",
+      "where": [
+        "mod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "limit": {
+          "type": "enum",
+          "values": [
+            3,
+            6,
+            "all"
+          ],
+          "default": 3
+        },
+        "style": {
+          "type": "enum",
+          "values": [
+            "text",
+            "chips"
+          ],
+          "default": "text"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "text",
+        "chip"
+      ],
+      "states": [
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mod.size": {
+      "kind": "display",
+      "subject": "mod",
+      "where": [
+        "mod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "value"
+      ],
+      "states": [
+        "unknown",
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mod.updated": {
+      "kind": "display",
+      "subject": "mod",
+      "where": [
+        "mod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "format": {
+          "type": "enum",
+          "values": [
+            "relative",
+            "date"
+          ],
+          "default": "relative"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "value"
+      ],
+      "states": [
+        "unknown",
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mod.subscribed": {
+      "kind": "display",
+      "subject": "mod",
+      "where": [
+        "mod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "format": {
+          "type": "enum",
+          "values": [
+            "relative",
+            "date"
+          ],
+          "default": "relative"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "value"
+      ],
+      "states": [
+        "unknown",
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mod.rating": {
+      "kind": "display",
+      "subject": "mod",
+      "where": [
+        "mod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "up",
+        "down"
+      ],
+      "states": [
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mod.workshopId": {
+      "kind": "display",
+      "subject": "mod",
+      "where": [
+        "mod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mod.description": {
+      "kind": "display",
+      "subject": "mod",
+      "where": [
+        "mod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "clamp": {
+          "type": "enum",
+          "values": [
+            "none",
+            3,
+            6
+          ],
+          "default": 6
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [
+        "empty",
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mod.neededBy": {
+      "kind": "display",
+      "subject": "mod",
+      "where": [
+        "mod-panel"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "value",
+        "label"
+      ],
+      "states": [
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mod.update": {
+      "kind": "action",
+      "subject": "mod",
+      "where": [
+        "mod"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "label"
+        },
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "busy",
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mod.openInSteam": {
+      "kind": "action",
+      "subject": "mod",
+      "where": [
+        "mod"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "label"
+        },
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mod.openFolder": {
+      "kind": "action",
+      "subject": "mod",
+      "where": [
+        "mod"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "label"
+        },
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mod.reinstall": {
+      "kind": "action",
+      "subject": "mod",
+      "where": [
+        "mod"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "label"
+        },
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "busy",
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "mod.deselect": {
+      "kind": "action",
+      "subject": "mod",
+      "where": [
+        "mod-panel"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "icon": {
+          "type": "icon"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon"
+      ],
+      "states": [
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "modServer.name": {
+      "kind": "display",
+      "subject": "modServer",
+      "where": [
+        "modServer"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "modServer.address": {
+      "kind": "display",
+      "subject": "modServer",
+      "where": [
+        "modServer"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "modServer.lastPlayed": {
+      "kind": "display",
+      "subject": "modServer",
+      "where": [
+        "modServer"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "format": {
+          "type": "enum",
+          "values": [
+            "relative",
+            "date"
+          ],
+          "default": "relative"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label",
+        "value"
+      ],
+      "states": [
+        "never"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "modal.close": {
+      "kind": "action",
+      "where": [
+        "modal"
+      ],
+      "required": [
+        "modal"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "modFilter.apply": {
+      "kind": "action",
+      "where": [
+        "modFilter"
+      ],
+      "required": [
+        "modal:modFilter"
+      ],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "label"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "modFilter.source": {
+      "kind": "input",
+      "where": [
+        "modFilter"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "tab"
+      ],
+      "states": [
+        "selected"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "modFilter.search": {
+      "kind": "input",
+      "where": [
+        "modFilter"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "showIcon": {
+          "type": "boolean",
+          "default": false
+        },
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon",
+        "input"
+      ],
+      "states": [
+        "filled",
+        "busy"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "modFilter.summary": {
+      "kind": "display",
+      "where": [
+        "modFilter"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "showThumbnails": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "thumbnails",
+        "more",
+        "counts"
+      ],
+      "states": [
+        "empty"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "modFilter.clear": {
+      "kind": "action",
+      "where": [
+        "modFilter"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label"
+      ],
+      "states": [
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "modFilter.matchMode": {
+      "kind": "input",
+      "where": [
+        "modFilter"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "option"
+      ],
+      "states": [
+        "selected"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "modFilter.cancel": {
+      "kind": "action",
+      "where": [
+        "modFilter"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "workshopMod.pick": {
+      "kind": "input",
+      "subject": "workshopMod",
+      "where": [
+        "workshopMod"
+      ],
+      "required": [
+        "list:modFilterResults/row"
+      ],
+      "multiplicity": "perContext",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "box"
+      ],
+      "states": [
+        "included",
+        "excluded"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "workshopMod.thumbnail": {
+      "kind": "display",
+      "subject": "workshopMod",
+      "where": [
+        "workshopMod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "image",
+        "initials"
+      ],
+      "states": [
+        "missing"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "workshopMod.name": {
+      "kind": "display",
+      "subject": "workshopMod",
+      "where": [
+        "workshopMod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "workshopMod.subscribed": {
+      "kind": "display",
+      "subject": "workshopMod",
+      "where": [
+        "workshopMod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "workshopMod.serverCount": {
+      "kind": "display",
+      "subject": "workshopMod",
+      "where": [
+        "workshopMod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "value",
+        "unit"
+      ],
+      "states": [
+        "none"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "workshopMod.score": {
+      "kind": "display",
+      "subject": "workshopMod",
+      "where": [
+        "workshopMod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "value"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "workshopMod.subscribers": {
+      "kind": "display",
+      "subject": "workshopMod",
+      "where": [
+        "workshopMod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "value",
+        "label"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "workshopMod.size": {
+      "kind": "display",
+      "subject": "workshopMod",
+      "where": [
+        "workshopMod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "value"
+      ],
+      "states": [
+        "unknown"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "workshopMod.updated": {
+      "kind": "display",
+      "subject": "workshopMod",
+      "where": [
+        "workshopMod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "format": {
+          "type": "enum",
+          "values": [
+            "relative",
+            "date"
+          ],
+          "default": "relative"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label",
+        "value"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "workshopMod.description": {
+      "kind": "display",
+      "subject": "workshopMod",
+      "where": [
+        "workshopMod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "clamp": {
+          "type": "enum",
+          "values": [
+            "none",
+            3,
+            6
+          ],
+          "default": "none"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [
+        "empty"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "workshopMod.tags": {
+      "kind": "display",
+      "subject": "workshopMod",
+      "where": [
+        "workshopMod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "limit": {
+          "type": "enum",
+          "values": [
+            3,
+            6,
+            "all"
+          ],
+          "default": "all"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "chip"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "workshopMod.serverNote": {
+      "kind": "display",
+      "subject": "workshopMod",
+      "where": [
+        "workshopMod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "workshopMod.viewOnSteam": {
+      "kind": "action",
+      "subject": "workshopMod",
+      "where": [
+        "workshopMod"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "label": {
+          "type": "text"
+        },
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label",
+        "icon"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "workshopMod.include": {
+      "kind": "action",
+      "subject": "workshopMod",
+      "where": [
+        "workshopMod"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label"
+      ],
+      "states": [
+        "on"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "workshopMod.exclude": {
+      "kind": "action",
+      "subject": "workshopMod",
+      "where": [
+        "workshopMod"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label"
+      ],
+      "states": [
+        "on"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "update.install": {
+      "kind": "action",
+      "where": [
+        "update"
+      ],
+      "required": [
+        "modal:update"
+      ],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "label"
+      ],
+      "states": [
+        "busy",
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "update.viewRelease": {
+      "kind": "action",
+      "where": [
+        "update"
+      ],
+      "required": [
+        "modal:update"
+      ],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "label"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "update.later": {
+      "kind": "action",
+      "where": [
+        "update"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label"
+      ],
+      "states": [
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "update.title": {
+      "kind": "display",
+      "where": [
+        "update"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "update.summary": {
+      "kind": "display",
+      "where": [
+        "update"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "message",
+        "version",
+        "date"
+      ],
+      "states": [
+        "available",
+        "upToDate"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "update.changelog": {
+      "kind": "display",
+      "where": [
+        "update"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "content"
+      ],
+      "states": [
+        "empty"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "update.progress": {
+      "kind": "display",
+      "where": [
+        "update"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label",
+        "bar",
+        "error"
+      ],
+      "states": [
+        "downloading",
+        "failed"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "update.portableNote": {
+      "kind": "display",
+      "where": [
+        "update"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "settings.back": {
+      "kind": "action",
+      "where": [
+        "settings"
+      ],
+      "required": [
+        "settings"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "label"
+        },
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "settings.themeManagement": {
+      "kind": "block",
+      "where": [
+        "settings"
+      ],
+      "required": [
+        "settings"
+      ],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "settings.profileName": {
+      "kind": "input",
+      "where": [
+        "settings"
+      ],
+      "required": [
+        "settings"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "showHint": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "label",
+        "hint",
+        "control"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "settings.dayzPath": {
+      "kind": "input",
+      "where": [
+        "settings"
+      ],
+      "required": [
+        "settings"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "showHint": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "label",
+        "hint",
+        "control"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "settings.detectPaths": {
+      "kind": "action",
+      "where": [
+        "settings"
+      ],
+      "required": [
+        "settings"
+      ],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "label"
+      ],
+      "states": [
+        "busy"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "settings.workshopPath": {
+      "kind": "display",
+      "where": [
+        "settings"
+      ],
+      "required": [
+        "settings"
+      ],
+      "multiplicity": "many",
+      "options": {
+        "showHint": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "label",
+        "hint",
+        "control"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "settings.launchParams": {
+      "kind": "input",
+      "where": [
+        "settings"
+      ],
+      "required": [
+        "settings"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "showHint": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "label",
+        "hint",
+        "control"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "settings.minimiseToTray": {
+      "kind": "input",
+      "where": [
+        "settings"
+      ],
+      "required": [
+        "settings"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "showHint": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "label",
+        "hint",
+        "box"
+      ],
+      "states": [
+        "checked"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "settings.closeToTray": {
+      "kind": "input",
+      "where": [
+        "settings"
+      ],
+      "required": [
+        "settings"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "showHint": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "label",
+        "hint",
+        "box"
+      ],
+      "states": [
+        "checked"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "settings.onJoin": {
+      "kind": "input",
+      "where": [
+        "settings"
+      ],
+      "required": [
+        "settings"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "showHint": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "label",
+        "hint",
+        "control"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "settings.startWithWindows": {
+      "kind": "input",
+      "where": [
+        "settings"
+      ],
+      "required": [
+        "settings"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "showHint": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "label",
+        "hint",
+        "box",
+        "note"
+      ],
+      "states": [
+        "checked"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "settings.startMinimised": {
+      "kind": "input",
+      "where": [
+        "settings"
+      ],
+      "required": [
+        "settings"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "showHint": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "label",
+        "hint",
+        "box"
+      ],
+      "states": [
+        "checked",
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "settings.discordPresence": {
+      "kind": "input",
+      "where": [
+        "settings"
+      ],
+      "required": [
+        "settings"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "showHint": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "label",
+        "hint",
+        "box"
+      ],
+      "states": [
+        "checked"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "settings.dataFolder": {
+      "kind": "display",
+      "where": [
+        "settings"
+      ],
+      "required": [
+        "settings"
+      ],
+      "multiplicity": "many",
+      "options": {
+        "showHint": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "label",
+        "hint",
+        "control"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "settings.openDataFolder": {
+      "kind": "action",
+      "where": [
+        "settings"
+      ],
+      "required": [
+        "settings"
+      ],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "label"
+      ],
+      "states": [
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "settings.autoRefresh": {
+      "kind": "input",
+      "where": [
+        "settings"
+      ],
+      "required": [
+        "settings"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "showHint": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "label",
+        "hint",
+        "control"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "settings.title": {
+      "kind": "display",
+      "where": [
+        "settings"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "settings.sectionTitle": {
+      "kind": "display",
+      "where": [
+        "settings"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "section": {
+          "type": "enum",
+          "values": [
+            "game",
+            "launcher",
+            "theme"
+          ]
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "settings.sectionDescription": {
+      "kind": "display",
+      "where": [
+        "settings"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "section": {
+          "type": "enum",
+          "values": [
+            "game",
+            "launcher",
+            "theme"
+          ]
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "settings.sectionIcon": {
+      "kind": "display",
+      "where": [
+        "settings"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "section": {
+          "type": "enum",
+          "values": [
+            "game",
+            "launcher",
+            "theme"
+          ]
+        },
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "settings.groupTitle": {
+      "kind": "display",
+      "where": [
+        "settings"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "group": {
+          "type": "enum",
+          "values": [
+            "window",
+            "startup",
+            "discord"
+          ]
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "list.servers": {
+      "kind": "list",
+      "where": [
+        "browser"
+      ],
+      "required": [
+        "view:browser"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "header": {
+          "type": "boolean",
+          "default": true
+        },
+        "rowGap": {
+          "type": "token",
+          "default": "none"
+        },
+        "estimatedRowHeight": {
+          "type": "length",
+          "default": "56px"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "header",
+        "column",
+        "scroller",
+        "rows",
+        "empty",
+        "loading"
+      ],
+      "states": [
+        "empty",
+        "loading",
+        "filtered"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "list.mods": {
+      "kind": "list",
+      "where": [
+        "mods"
+      ],
+      "required": [
+        "view:mods"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "header": {
+          "type": "boolean",
+          "default": true
+        },
+        "rowGap": {
+          "type": "token",
+          "default": "none"
+        },
+        "estimatedRowHeight": {
+          "type": "length",
+          "default": "54px"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "header",
+        "column",
+        "scroller",
+        "rows",
+        "empty",
+        "loading"
+      ],
+      "states": [
+        "empty",
+        "loading",
+        "filtered"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "list.modFilterResults": {
+      "kind": "list",
+      "where": [
+        "modFilter"
+      ],
+      "required": [
+        "modal:modFilter"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "header": {
+          "type": "boolean",
+          "default": true
+        },
+        "rowGap": {
+          "type": "token",
+          "default": "none"
+        },
+        "estimatedRowHeight": {
+          "type": "length",
+          "default": "44px"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "header",
+        "column",
+        "scroller",
+        "rows",
+        "empty",
+        "loading"
+      ],
+      "states": [
+        "empty",
+        "loading",
+        "searching"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "list.serverMods": {
+      "kind": "list",
+      "subject": "server",
+      "where": [
+        "server-panel"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "header": {
+          "type": "boolean",
+          "default": false
+        },
+        "rowGap": {
+          "type": "token",
+          "default": "none"
+        },
+        "estimatedRowHeight": {
+          "type": "length",
+          "default": "32px"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "header",
+        "column",
+        "scroller",
+        "rows",
+        "empty",
+        "loading"
+      ],
+      "states": [
+        "empty",
+        "loading",
+        "stale"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "list.modServers": {
+      "kind": "list",
+      "subject": "mod",
+      "where": [
+        "mod-panel"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "header": {
+          "type": "boolean",
+          "default": false
+        },
+        "rowGap": {
+          "type": "token",
+          "default": "none"
+        },
+        "estimatedRowHeight": {
+          "type": "length",
+          "default": "32px"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "header",
+        "column",
+        "scroller",
+        "rows",
+        "empty",
+        "loading"
+      ],
+      "states": [
+        "empty",
+        "loading"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "popup.mapOptions": {
+      "kind": "input",
+      "where": [
+        "popup:mapFilter"
+      ],
+      "required": [
+        "popup:mapFilter"
+      ],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "option",
+        "empty"
+      ],
+      "states": [
+        "selected"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "popup.tagOptions": {
+      "kind": "input",
+      "where": [
+        "popup:tagsFilter"
+      ],
+      "required": [
+        "popup:tagsFilter"
+      ],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "option"
+      ],
+      "states": [
+        "included",
+        "excluded"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "popup.regionOptions": {
+      "kind": "input",
+      "where": [
+        "popup:regionFilter"
+      ],
+      "required": [
+        "popup:regionFilter"
+      ],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "option"
+      ],
+      "states": [
+        "selected"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "popup.regionNote": {
+      "kind": "display",
+      "where": [
+        "popup:regionFilter"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "popup.sortOptions": {
+      "kind": "input",
+      "where": [
+        "popup:sort"
+      ],
+      "required": [
+        "popup:sort"
+      ],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "option"
+      ],
+      "states": [
+        "selected",
+        "ascending",
+        "descending"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "popup.uniqueServerOptions": {
+      "kind": "input",
+      "where": [
+        "popup:modsUnique"
+      ],
+      "required": [
+        "popup:modsUnique"
+      ],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "option",
+        "empty"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    },
+    "popup.clear": {
+      "kind": "action",
+      "where": [
+        "popup:mapFilter",
+        "popup:tagsFilter",
+        "popup:regionFilter"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "label"
+      ],
+      "states": [
+        "disabled"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "popup.close": {
+      "kind": "action",
+      "where": [
+        "popup"
+      ],
+      "required": [
+        "popup:region",
+        "popup:inline"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon"
+      ],
+      "states": [],
+      "since": "2.0",
+      "aliases": []
+    }
+  },
+  "surfaces": {
+    "surface.windowControls": {
+      "where": [
+        "app"
+      ],
+      "contains": [
+        "app.minimize",
+        "app.maximize",
+        "app.close"
+      ]
+    },
+    "surface.navRail": {
+      "where": [
+        "app"
+      ],
+      "contains": [
+        "app.logo",
+        "nav.servers",
+        "nav.favourites",
+        "nav.recent",
+        "nav.mods",
+        "nav.settings",
+        "app.collapseToggle"
+      ]
+    },
+    "surface.filterBar": {
+      "where": [
+        "browser"
+      ],
+      "contains": [
+        "filter.search",
+        "filter.map",
+        "filter.tags",
+        "filter.mods",
+        "filter.region",
+        "filter.sort",
+        "filter.maxPing",
+        "filter.hideEmpty",
+        "filter.hideFull",
+        "filter.hideLocked",
+        "filter.hideOffline",
+        "filter.reset",
+        "servers.refresh"
+      ]
+    },
+    "surface.footerStatus": {
+      "where": [
+        "app"
+      ],
+      "contains": [
+        "status.steam",
+        "status.serverTotal",
+        "status.populated",
+        "status.listSource",
+        "status.lastRefreshed",
+        "app.uiScale",
+        "app.schemeToggle"
+      ]
+    },
+    "surface.serverIdentity": {
+      "where": [
+        "server"
+      ],
+      "contains": [
+        "server.name",
+        "server.address",
+        "server.tags"
+      ]
+    },
+    "surface.serverStats": {
+      "where": [
+        "server"
+      ],
+      "contains": [
+        "server.players",
+        "server.ping",
+        "server.gameTime"
+      ]
+    },
+    "surface.serverProps": {
+      "where": [
+        "server"
+      ],
+      "contains": [
+        "server.map",
+        "server.version",
+        "server.region",
+        "server.modCount"
+      ]
+    },
+    "surface.modDetails": {
+      "where": [
+        "mod"
+      ],
+      "contains": [
+        "mod.subscribed",
+        "mod.updated",
+        "mod.size",
+        "mod.rating",
+        "mod.workshopId"
+      ]
+    },
+    "surface.modsActionBar": {
+      "where": [
+        "mods"
+      ],
+      "contains": [
+        "mods.count",
+        "mods.selectAll",
+        "mods.clearSelection",
+        "mods.selectUnique",
+        "mods.cleanupRemoved",
+        "mods.unsubscribe",
+        "mods.unsubscribeMenu",
+        "mods.updateOutdated",
+        "mods.verify",
+        "mods.verifyMenu"
+      ]
+    },
+    "surface.updateBody": {
+      "where": [
+        "update"
+      ],
+      "contains": [
+        "update.summary",
+        "update.changelog",
+        "update.progress",
+        "update.portableNote"
+      ]
+    }
+  },
+  "lists": {
+    "list.servers": {
+      "subject": "server",
+      "template": "layout/lists/servers.json",
+      "sortKeys": [
+        "players",
+        "ping",
+        "mods",
+        "name",
+        "map",
+        "lastPlayed"
+      ],
+      "states": [
+        "selected",
+        "focused",
+        "offline",
+        "favourite",
+        "modded",
+        "official",
+        "firstPerson",
+        "locked",
+        "full",
+        "empty",
+        "modsPending",
+        "busy"
+      ],
+      "defaultSort": {
+        "key": "players",
+        "direction": "descending"
+      }
+    },
+    "list.mods": {
+      "subject": "mod",
+      "template": "layout/lists/mods.json",
+      "sortKeys": [
+        "name",
+        "status",
+        "size",
+        "updated",
+        "subscribed"
+      ],
+      "states": [
+        "selected",
+        "focused",
+        "checked",
+        "disabled",
+        "ready",
+        "update",
+        "downloading",
+        "missing",
+        "notSubscribed",
+        "serverSide"
+      ],
+      "defaultSort": {
+        "key": "name",
+        "direction": "ascending"
+      }
+    },
+    "list.modFilterResults": {
+      "subject": "workshopMod",
+      "template": "layout/lists/modFilterResults.json",
+      "sortKeys": [],
+      "states": [
+        "previewed",
+        "focused",
+        "included",
+        "excluded",
+        "subscribed"
+      ]
+    },
+    "list.serverMods": {
+      "subject": "serverMod",
+      "template": "layout/lists/serverMods.json",
+      "sortKeys": [],
+      "states": [
+        "ready",
+        "needsUpdate",
+        "downloading",
+        "notInstalled",
+        "notSubscribed",
+        "serverSide",
+        "unique"
+      ]
+    },
+    "list.modServers": {
+      "subject": "modServer",
+      "template": "layout/lists/modServers.json",
+      "sortKeys": [],
+      "states": [
+        "favourite",
+        "played"
+      ]
+    }
+  },
+  "modals": {
+    "serverInfo": {
+      "file": "layout/modals/serverInfo.json",
+      "subject": "server",
+      "required": [
+        "modal.close",
+        "server.join",
+        "server.actionNotice"
+      ]
+    },
+    "modFilter": {
+      "file": "layout/modals/modFilter.json",
+      "subject": null,
+      "required": [
+        "modal.close",
+        "modFilter.apply",
+        "list.modFilterResults"
+      ]
+    },
+    "update": {
+      "file": "layout/modals/update.json",
+      "subject": null,
+      "required": [
+        "modal.close",
+        "update.install",
+        "update.viewRelease"
+      ]
+    }
+  },
+  "popups": {
+    "mapFilter": {
+      "openedBy": "filter.map",
+      "requiredContents": [
+        "popup.mapOptions"
+      ]
+    },
+    "tagsFilter": {
+      "openedBy": "filter.tags",
+      "requiredContents": [
+        "popup.tagOptions"
+      ]
+    },
+    "regionFilter": {
+      "openedBy": "filter.region",
+      "requiredContents": [
+        "popup.regionOptions"
+      ]
+    },
+    "sort": {
+      "openedBy": "filter.sort",
+      "requiredContents": [
+        "popup.sortOptions"
+      ]
+    },
+    "serverActions": {
+      "openedBy": "server.menu",
+      "requiredContents": []
+    },
+    "serverLoad": {
+      "openedBy": "server.menu",
+      "requiredContents": []
+    },
+    "modsUnsubscribe": {
+      "openedBy": "mods.unsubscribeMenu",
+      "requiredContents": []
+    },
+    "modsVerify": {
+      "openedBy": "mods.verifyMenu",
+      "requiredContents": []
+    },
+    "modsUnique": {
+      "openedBy": "mods.selectUnique",
+      "requiredContents": [
+        "popup.uniqueServerOptions"
+      ]
+    }
+  },
+  "blocks": {
+    "settings.themeManagement": {
+      "where": [
+        "settings"
+      ]
+    }
+  },
+  "icons": [
+    "alertTriangle",
+    "appWindow",
+    "arrowRight",
+    "ban",
+    "check",
+    "checkCircle",
+    "chevronDown",
+    "chevronLeft",
+    "chevronRight",
+    "chevronsLeft",
+    "chevronsRight",
+    "clock",
+    "copy",
+    "download",
+    "externalLink",
+    "fileArchive",
+    "fileOutput",
+    "folder",
+    "folderOpen",
+    "gamepad",
+    "globe",
+    "inbox",
+    "info",
+    "listTree",
+    "loader",
+    "minus",
+    "moon",
+    "moreHorizontal",
+    "package",
+    "palette",
+    "play",
+    "plus",
+    "refresh",
+    "rotateCcw",
+    "search",
+    "settings",
+    "square",
+    "star",
+    "sun",
+    "thumbsUp",
+    "trash",
+    "upload",
+    "users",
+    "x"
+  ]
+}

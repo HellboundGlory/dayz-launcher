@@ -10,6 +10,7 @@ pub mod archive;
 pub mod css;
 pub mod manifest;
 pub mod protocol;
+pub mod registry;
 pub mod settings_values;
 pub mod tokens;
 pub mod watch;

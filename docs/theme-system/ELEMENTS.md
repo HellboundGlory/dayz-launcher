@@ -48,6 +48,8 @@ The rules:
 | `modFilter` | `layout/modals/modFilter.json` |
 | `update` | `layout/modals/update.json` |
 | `modal` | Any themeable modal file |
+| `selection` | A container with `"context": "selection"`, not a row or modal |
+| `popup` | Any themeable popup file |
 | `popup:<id>` | That popup's file, `layout/popups/<id>.json` |
 
 ### Req codes
@@ -660,7 +662,7 @@ Each popup has its own file, `layout/popups/<id>.json`, declaring its placement 
 | `popup.sortOptions` | input | popup:sort | popup | 1 | — | option | per option: `selected`, `ascending`, `descending` |
 | `popup.uniqueServerOptions` | input | popup:modsUnique | popup | 1 | — | option, empty | — |
 | `popup.clear` | action | popup:mapFilter, popup:tagsFilter, popup:regionFilter | — | 1 | `label` | label | `disabled` |
-| `popup.close` | action | any popup | popups placed in a region or inline | 1 | `icon`, `label` | icon, label | — |
+| `popup.close` | action | any popup | popups placed in a region or inline | 1 | `icon` | icon | — |
 
 - **Option lists:** `popup.mapOptions`, `popup.regionOptions` and `popup.uniqueServerOptions` are single lists of `role="option"` entries with a check mark on the selected ones. `popup.tagOptions` cycles Official, Modded and First person through include (✓), exclude (✗) and off. `popup.sortOptions` lists the server sort keys.
 - **Empty text:** "Loading maps..." for maps, and "No favourites or recently played servers yet." for unique servers.
