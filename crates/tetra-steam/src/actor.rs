@@ -142,7 +142,7 @@ pub struct WorkshopSearchRow {
     pub score: f32,
 }
 
-pub(crate) enum Command {
+pub enum Command {
     InternetListStream(Filters, Sender<StreamChunk>),
     /// Batched `item_state`, returned as `(id, bits)` pairs — one command per
     /// batch (not per mod) avoids interleaving a callback pump per query.

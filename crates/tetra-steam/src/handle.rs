@@ -270,8 +270,7 @@ impl SteamHandle {
             .map(|opt| opt.map(|info| PathBuf::from(info.folder)))
     }
 
-    #[cfg(test)]
-    pub(crate) fn new_mock(tx: Sender<Command>) -> Self {
+    pub fn new_mock(tx: Sender<Command>) -> Self {
         Self {
             tx: Mutex::new(tx),
             thread: Mutex::new(None),

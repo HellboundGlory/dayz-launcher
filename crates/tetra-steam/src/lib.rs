@@ -15,8 +15,8 @@ pub mod source;
 pub mod workshop;
 
 pub use actor::{
-    DownloadRow, MutationResult, StaleOutcome, StreamChunk, SubscribedModInfo, WorkshopSearchRow,
-    DAYZ_APP_ID,
+    Command, DownloadRow, MutationResult, StaleOutcome, StreamChunk, SubscribedModInfo,
+    WorkshopSearchRow, DAYZ_APP_ID,
 };
 pub use error::{InitFailure, SteamError};
 pub use handle::{workshop_details_cached, SteamHandle, LIST_REQUEST_BUDGET};

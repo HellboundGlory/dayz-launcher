@@ -47,3 +47,13 @@ export interface ModReadinessEntry {
   downloaded_bytes: number | null;
   total_bytes: number | null;
 }
+
+export interface UniqueModsSummary {
+  count: number;
+  total_size_bytes: number;
+}
+
+export interface UnsubscribeOutcome {
+  count: number;
+  total_size_bytes: number;
+}
