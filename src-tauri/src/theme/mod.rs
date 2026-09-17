@@ -13,6 +13,7 @@ pub mod protocol;
 pub mod registry;
 pub mod settings_values;
 pub mod tokens;
+pub mod validator;
 pub mod watch;
 
 use std::path::{Path, PathBuf};

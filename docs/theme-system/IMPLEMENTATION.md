@@ -147,6 +147,8 @@ In Rust, against the registry:
 
 Every failure carries a stable rule id, the file, a JSON pointer and a message (SPEC §14.4). Fixture packages cover one valid case and one failing case per rule id.
 
+Package 3.2a implements `app_lib::validator::{validate_layout_file, validate_layout_value}` with `LAY-01`–`LAY-12`, `ELE-01`–`ELE-08`, `LST-01`–`LST-06`, and `LIM-01`–`LIM-05`. It borrows a lossless JSON AST, reads the compiled registry, validates list-file `row` envelopes separately, and returns field-level RFC 6901 pointers. Region uniqueness and structural budgets span the file; responsive roots and expanded/collapsed alternatives do not double-count element multiplicity. Required-element checks, cross-file composition checks, and settings expansion remain in the subsequent packages.
+
 ### Package 3.3: manifest and archive v2
 
 - `theme.json` v2: fields, capabilities checked against the files shipped, `previews`, reserved `builtin.` ids, `themeApi` major 2, computed minimum launcher version.
