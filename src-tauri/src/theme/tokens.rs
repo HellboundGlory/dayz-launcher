@@ -245,6 +245,7 @@ token_group! {
         confirm: TokenValue = "lg".into() => "confirm",
         control_compact: TokenValue = "5px".into() => "controlCompact",
         readiness_row: TokenValue = "5px".into() => "readinessRow",
+        modal_large: TokenValue = "12px".into() => "modalLarge",
     }
 }
 
@@ -459,6 +460,46 @@ token_group! {
 }
 
 token_group! {
+    CompactMicroTypeRolesTokensV2 {
+        family: TokenValue = "ui".into() => "family",
+        size: TokenValue = "8.5px".into() => "size",
+        weight: TokenValue = "normal".into() => "weight",
+        tracking: TokenValue = "none".into() => "tracking",
+        leading: TokenValue = "normal".into() => "leading",
+    }
+}
+
+token_group! {
+    CompactCaptionTypeRolesTokensV2 {
+        family: TokenValue = "ui".into() => "family",
+        size: TokenValue = "9.5px".into() => "size",
+        weight: TokenValue = "normal".into() => "weight",
+        tracking: TokenValue = "none".into() => "tracking",
+        leading: TokenValue = "normal".into() => "leading",
+    }
+}
+
+token_group! {
+    CompactBodyTypeRolesTokensV2 {
+        family: TokenValue = "ui".into() => "family",
+        size: TokenValue = "10.5px".into() => "size",
+        weight: TokenValue = "normal".into() => "weight",
+        tracking: TokenValue = "none".into() => "tracking",
+        leading: TokenValue = "normal".into() => "leading",
+    }
+}
+
+token_group! {
+    CompactHeadingTypeRolesTokensV2 {
+        family: TokenValue = "ui".into() => "family",
+        size: TokenValue = "13.5px".into() => "size",
+        weight: TokenValue = "normal".into() => "weight",
+        tracking: TokenValue = "none".into() => "tracking",
+        leading: TokenValue = "normal".into() => "leading",
+    }
+}
+
+token_group! {
     TypeRolesTokensV2 {
         display: DisplayTypeRolesTokensV2 = DisplayTypeRolesTokensV2::default() => "display",
         heading: HeadingTypeRolesTokensV2 = HeadingTypeRolesTokensV2::default() => "heading",
@@ -475,6 +516,10 @@ token_group! {
         stat_value: StatValueTypeRolesTokensV2 = StatValueTypeRolesTokensV2::default() => "statValue",
         stat_caption: StatCaptionTypeRolesTokensV2 = StatCaptionTypeRolesTokensV2::default() => "statCaption",
         brand: BrandTypeRolesTokensV2 = BrandTypeRolesTokensV2::default() => "brand",
+        compact_micro: CompactMicroTypeRolesTokensV2 = CompactMicroTypeRolesTokensV2::default() => "compactMicro",
+        compact_caption: CompactCaptionTypeRolesTokensV2 = CompactCaptionTypeRolesTokensV2::default() => "compactCaption",
+        compact_body: CompactBodyTypeRolesTokensV2 = CompactBodyTypeRolesTokensV2::default() => "compactBody",
+        compact_heading: CompactHeadingTypeRolesTokensV2 = CompactHeadingTypeRolesTokensV2::default() => "compactHeading",
     }
 }
 
@@ -511,6 +556,8 @@ token_group! {
         confirm: TokenValue = "0 25px 50px -12px rgb(0 0 0 / 0.25)".into() => "confirm",
         readiness_warning: TokenValue = "0 0 5px rgba(193,154,85,0.6)".into() => "readinessWarning",
         readiness_success: TokenValue = "0 0 5px rgba(77,154,117,0.6)".into() => "readinessSuccess",
+        status_dot: TokenValue = "0 0 4px currentColor".into() => "statusDot",
+        update: TokenValue = "0 25px 50px -12px rgb(0 0 0 / 0.5)".into() => "update",
     }
 }
 

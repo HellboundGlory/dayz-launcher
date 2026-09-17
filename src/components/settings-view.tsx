@@ -30,11 +30,11 @@ const REFRESH_INTERVALS: { value: number; label: string }[] = [
 
 /** The shared text-input / select styling (board `.field input`). */
 const INPUT_CLASS =
-  "w-full rounded-[6px] border border-line bg-bg px-2.5 py-2 text-xs text-ink placeholder-muted outline-none transition-colors duration-150 hover:border-line-weak focus:border-accent-line";
+  "w-full [border-radius:var(--t-radius-input)] border border-line bg-bg px-2.5 py-2 text-xs text-ink placeholder-muted outline-none transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:border-line-weak focus:border-accent-line";
 
 /** Small secondary button (Detect / Open) sitting next to an input. */
 const BUTTON_CLASS =
-  "flex shrink-0 items-center gap-1.5 rounded-[6px] border border-line bg-surface2 px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted2 transition-colors duration-150 hover:text-ink disabled:opacity-50";
+  "flex shrink-0 items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-2 [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider text-muted2 transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:text-ink disabled:opacity-50";
 
 // Full-page overlay; the sidebar stays interactive. Four accordions, one open at a time.
 export function SettingsView({
@@ -119,7 +119,7 @@ export function SettingsView({
   return (
     <div
       data-tetra-slot="settings.background"
-      className="settings absolute bottom-0 right-0 top-7 left-[var(--side-w,176px)] z-40 flex flex-col bg-bg transition-[left] duration-200"
+      className="settings absolute bottom-0 right-0 top-7 left-[var(--side-w,176px)] z-40 flex flex-col bg-bg transition-[left] [transition-duration:var(--t-motion-expand-duration)]"
     >
       <div
         data-tetra-slot="settings.shell"
@@ -130,7 +130,7 @@ export function SettingsView({
             data-tetra-el="backAction"
             onClick={onClose}
             aria-label="Back to the launcher"
-            className="s-back flex items-center gap-1.5 rounded-[6px] border border-line bg-surface2 px-2.5 py-1.5 text-[10px] font-semibold text-muted2 transition-colors hover:border-accent-line hover:text-ink"
+            className="s-back flex items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-1.5 [font-size:var(--t-type-label-size)] font-semibold text-muted2 transition-colors hover:border-accent-line hover:text-ink"
           >
             <ChevronLeft className="h-3 w-3" />
             Back
@@ -219,7 +219,7 @@ export function SettingsView({
                 placeholder={"-noPause\n-cpuCount=4"}
                 spellCheck={false}
                 rows={3}
-                className={cn(INPUT_CLASS, "resize-y font-mono text-[11px]")}
+                className={cn(INPUT_CLASS, "resize-y font-mono [font-size:var(--t-type-body-size)]")}
               />
             </Field>
           </div>
@@ -299,14 +299,14 @@ export function SettingsView({
                     className="mt-0.5 size-3.5 shrink-0 accent-accent disabled:cursor-not-allowed"
                   />
                   <span>
-                    <span className="block text-[11px] text-ink">Start minimised</span>
-                    <span className="mt-0.5 block text-[9px] leading-[1.4] text-muted">
+                    <span className="block [font-size:var(--t-type-body-size)] text-ink">Start minimised</span>
+                    <span className="mt-0.5 block [font-size:var(--t-type-caption-size)] leading-[1.4] text-muted">
                       Start hidden in the tray. Opening the launcher yourself always shows the window.
                     </span>
                   </span>
                 </label>
               </div>
-              <p className="mt-1.5 text-[10px] leading-relaxed text-muted">
+              <p className="mt-1.5 [font-size:var(--t-type-label-size)] leading-relaxed text-muted">
                 Start with Windows does nothing in a debug build — the entry would point at the
                 build folder and replace your installed copy&apos;s.
               </p>
@@ -334,7 +334,7 @@ export function SettingsView({
                     // Selectable so the path can be copied, but not a control
                     // that pretends to be editable.
                     onFocus={(e) => e.currentTarget.select()}
-                    className={cn(INPUT_CLASS, "cursor-text font-mono text-[10px]")}
+                    className={cn(INPUT_CLASS, "cursor-text font-mono [font-size:var(--t-type-label-size)]")}
                   />
                   <button
                     onClick={() => void openDataFolder()}
@@ -403,8 +403,8 @@ function Field({
 }) {
   return (
     <div className="field mb-3.5">
-      <div className="fb text-[10px] font-semibold text-ink">{label}</div>
-      {hint && <div className="fh mt-0.5 text-[9px] leading-[1.4] text-muted">{hint}</div>}
+      <div className="fb [font-size:var(--t-type-label-size)] font-semibold text-ink">{label}</div>
+      {hint && <div className="fh mt-0.5 [font-size:var(--t-type-caption-size)] leading-[1.4] text-muted">{hint}</div>}
       <div className="mt-1.5">{children}</div>
     </div>
   );
@@ -431,8 +431,8 @@ function CheckboxRow({
         className="mt-0.5 size-3.5 shrink-0 accent-accent"
       />
       <span className="min-w-0">
-        <span className="cl block text-[11px] text-ink">{label}</span>
-        {hint && <span className="ch mt-0.5 block text-[9px] leading-[1.4] text-muted">{hint}</span>}
+        <span className="cl block [font-size:var(--t-type-body-size)] text-ink">{label}</span>
+        {hint && <span className="ch mt-0.5 block [font-size:var(--t-type-caption-size)] leading-[1.4] text-muted">{hint}</span>}
       </span>
     </label>
   );

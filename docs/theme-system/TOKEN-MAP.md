@@ -2,7 +2,7 @@
 
 The v2 token spine exposes Neutral scales and semantic roles on the document root. Role values are scale step names or literals; the emitter resolves each step against its matching scale before writing CSS. Palette variables and `--glow` retain their existing names and derivation.
 
-Packages 2.2 and 2.3 migrate the shell, controls, and server browser listed below. Other sources remain migration references for Package 2.4. Consumers bind individual type properties: unmentioned properties still inherit their existing values, including legacy Inter/JetBrains Mono families; the v2 system-family defaults are unchanged. Structural zero/full-size utilities and layout-slot width overrides remain structural constraints, not spacing defaults.
+Packages 2.2, 2.3, and 2.4a migrate the shell, controls, server browser, Mods, Settings, and Update components listed below. Other sources remain migration references for subsequent packages. Consumers bind individual type properties: unmentioned properties still inherit their existing values, including legacy Inter/JetBrains Mono families; the v2 system-family defaults are unchanged. Structural zero/full-size utilities and layout-slot width overrides remain structural constraints, not spacing defaults.
 
 Type roles expose five variables; motion roles expose duration and easing separately. Shell consumers use arbitrary CSS property utilities (for example `[font-size:var(--t-type-body-size)]`) so no literal-style utility prefixes remain. New radius, spacing, brand tracking and shadow variants preserve the original computed values; slider knob travel derives from the track and knob roles. Scale/role collisions at `border.hairline` and `shadow.glow` resolve to values, not self-references.
 
@@ -186,6 +186,29 @@ Type roles expose five variables; motion roles expose duration and easing separa
 | `shadow.confirm` | `--t-shadow-confirm` | `0 25px 50px -12px rgb(0 0 0 / 0.25)` | src/components/server-row-actions.tsx:383; src/components/server-info-modal.tsx:587 |
 | `shadow.readinessWarning` | `--t-shadow-readinessWarning` | `0 0 5px rgba(193,154,85,0.6)` | src/components/server-info-modal.tsx:310 |
 | `shadow.readinessSuccess` | `--t-shadow-readinessSuccess` | `0 0 5px rgba(77,154,117,0.6)` | src/components/server-info-modal.tsx:311 |
+
+## Package 2.4a: Mods, Settings, and Update
+
+The five migrated components use explicit property utilities for font sizes, radii (including split-button corners), shadows, and explicit transition durations. Layout dimensions and existing palette utilities remain unchanged. The Mods inspector close button now shares `color.scrim` with modal backdrops, as required by the token migration; its former `rgba(10,12,16,0.7)` background becomes `rgba(5,8,13,0.7)`.
+
+| Role or scale | CSS variable | Default | Usage |
+|---|---|---|---|
+| `radius.modalLarge` | `--t-radius-modalLarge` | `12px` | Mod filter and Update dialogs |
+| `shadow.statusDot` | `--t-shadow-statusDot` | `0 0 4px currentColor` | Mods ready/update status dots |
+| `shadow.update` | `--t-shadow-update` | `0 25px 50px -12px rgb(0 0 0 / 0.5)` | Update dialog; preserves its former black/50 shadow |
+| `type.compactMicro.size` | `--t-type-compactMicro-size` | `8.5px` | Mod filter preview tags |
+| `type.compactCaption.size` | `--t-type-compactCaption-size` | `9.5px` | Mod filter mode controls and preview link |
+| `type.compactBody.size` | `--t-type-compactBody-size` | `10.5px` | Mods update notice; mod filter states, preview description, and actions |
+| `type.compactHeading.size` | `--t-type-compactHeading-size` | `13.5px` | Mod filter preview title |
+| `scales.type.size.xl` | `--t-type-size-xl` | `13px` | Mods inspector title and mod filter heading |
+| `scales.shadow.xl` | `--t-shadow-xl` | `0 24px 60px rgba(0,0,0,0.6)` | Mod filter dialog |
+| `radius.input`, `control`, `controlCompact`, `popup`, `row`, `panel`, `chip`, `badge`, `thumb`, `confirm` | `--t-radius-{role}` | Existing defaults | Settings input/panel; Mods and mod filter controls, rows, tags, thumbnails, menus, and confirmation |
+| `type.micro`, `caption`, `label`, `body`, `subheading` | `--t-type-{role}-size` | Existing defaults | Text throughout all five components, preserving 8/9/10/11/12px sizes |
+| `shadow.glow`, `popup`, `drawer`, `confirm` | `--t-shadow-{role}` | Existing defaults | Mods selection, popups, inspector, confirmation; mod filter actions |
+| `motion.hover.duration`, `motion.expand.duration` | `--t-motion-{role}-duration` | `150ms`, `200ms` | Explicit control transitions, Mods inspector clearance, Settings position/chevron |
+| `color.onAccent`, `onDanger`, `scrim` | `--t-color-{role}` | Existing defaults | Mods solid controls, destructive confirmation, inspector close button; mod filter backdrop |
+
+The four new compact type roles retain the standard sibling defaults (`family: ui`, `weight: normal`, `tracking: none`, `leading: normal`); consumers currently bind only size. TypeScript and Rust define identical defaults for all seven added roles.
 
 ## Migration boundaries
 
