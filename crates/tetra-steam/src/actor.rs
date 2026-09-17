@@ -179,6 +179,8 @@ pub(crate) enum Command {
         query: String,
         ack: Sender<Result<Vec<WorkshopSearchRow>, SteamError>>,
     },
+    /// Look up workshop metadata by id.
+    UGCQueryDetails(Vec<u64>, Sender<Result<Vec<WorkshopSearchRow>, SteamError>>),
     /// Queue a fresh download of each id, answering with the ones Steam
     /// accepted. Used for per-mod "reinstall" and re-pinning a cleared item.
     UGCDownload(Vec<u64>, Sender<Result<Vec<u64>, SteamError>>),
@@ -285,6 +287,12 @@ fn service_instant(
         }
         Command::SearchWorkshop { query, ack } => {
             if let Some(started) = start_workshop_search(client, query, ack) {
+                pending.push(started);
+            }
+            None
+        }
+        Command::UGCQueryDetails(ids, ack) => {
+            if let Some(started) = start_query_details(client, ids, ack) {
                 pending.push(started);
             }
             None
@@ -443,6 +451,7 @@ pub(crate) fn run(
                 | Command::UGCVerifyMods(..)
                 | Command::SubscribedMods { .. }
                 | Command::SearchWorkshop { .. }
+                | Command::UGCQueryDetails(..)
                 | Command::UGCDownload(..)),
             ) => {
                 service_instant(&client, cmd, &mut pending, &mut active);
@@ -645,6 +654,13 @@ enum PendingCheck {
     Search {
         rows: Arc<Mutex<Vec<WorkshopSearchRow>>>,
         done: Arc<AtomicBool>,
+        deadline: Instant,
+        ack: Sender<Result<Vec<WorkshopSearchRow>, SteamError>>,
+    },
+    Details {
+        rows: Arc<Mutex<Vec<WorkshopSearchRow>>>,
+        finished: Arc<AtomicUsize>,
+        issued: usize,
         deadline: Instant,
         ack: Sender<Result<Vec<WorkshopSearchRow>, SteamError>>,
     },
@@ -946,6 +962,80 @@ fn start_workshop_search(
     })
 }
 
+fn start_query_details(
+    client: &Client,
+    ids: Vec<u64>,
+    ack: Sender<Result<Vec<WorkshopSearchRow>, SteamError>>,
+) -> Option<PendingCheck> {
+    let ids = workshop_only_ids(ids);
+    if ids.is_empty() {
+        let _ = ack.send(Ok(Vec::new()));
+        return None;
+    }
+
+    let ugc = client.ugc();
+    let rows: Arc<Mutex<Vec<WorkshopSearchRow>>> = Arc::new(Mutex::new(Vec::new()));
+    let finished = Arc::new(AtomicUsize::new(0));
+    let mut issued = 0usize;
+
+    for chunk in ids.chunks(UGC_QUERY_PAGE) {
+        let page: Vec<steamworks::PublishedFileId> = chunk
+            .iter()
+            .map(|&id| steamworks::PublishedFileId(id))
+            .collect();
+        let Ok(query) = ugc.query_items(page) else {
+            continue;
+        };
+        issued += 1;
+        let slot_rows = Arc::clone(&rows);
+        let done = Arc::clone(&finished);
+        query.fetch(move |result| {
+            if let Ok(results) = result {
+                let mut out = slot_rows.lock().unwrap_or_else(|e| e.into_inner());
+                for (index, item) in results.iter().enumerate() {
+                    let Some(item) = item else {
+                        continue;
+                    };
+                    out.push(WorkshopSearchRow {
+                        workshop_id: item.published_file_id.0.to_string(),
+                        title: item.title,
+                        preview_url: results.preview_url(index as u32),
+                        description: item.description,
+                        tags: item.tags,
+                        workshop_url: item.url,
+                        time_created: item.time_created,
+                        time_updated: item.time_updated,
+                        file_size: item.file_size,
+                        num_subscriptions: results
+                            .statistic(index as u32, steamworks::UGCStatisticType::Subscriptions)
+                            .unwrap_or(0)
+                            .to_string(),
+                        num_upvotes: item.num_upvotes,
+                        num_downvotes: item.num_downvotes,
+                        score: item.score,
+                    });
+                }
+            }
+            done.fetch_add(1, Ordering::Relaxed);
+        });
+    }
+
+    if issued == 0 {
+        let _ = ack.send(Err(SteamError::Request(
+            "Steam refused the Workshop details request".into(),
+        )));
+        return None;
+    }
+
+    Some(PendingCheck::Details {
+        rows,
+        finished,
+        issued,
+        deadline: Instant::now() + QUERY_DEADLINE,
+        ack,
+    })
+}
+
 /// Deduplicate ids and drop anything that is not a Workshop id (id 0 marks
 /// server-side content Steam must never be asked about).
 fn workshop_only_ids(ids: Vec<u64>) -> Vec<u64> {
@@ -1098,6 +1188,22 @@ fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>, active: &mut Ac
             } => {
                 let expired = Instant::now() > *deadline;
                 if !done.load(Ordering::Relaxed) && !expired {
+                    return true;
+                }
+                let out = rows.lock().unwrap_or_else(|e| e.into_inner()).clone();
+                let _ = ack.send(Ok(out));
+                false
+            }
+            PendingCheck::Details {
+                rows,
+                finished,
+                issued,
+                deadline,
+                ack,
+            } => {
+                let answered = finished.load(Ordering::Relaxed) >= *issued;
+                let expired = Instant::now() > *deadline;
+                if !answered && !expired {
                     return true;
                 }
                 let out = rows.lock().unwrap_or_else(|e| e.into_inner()).clone();
