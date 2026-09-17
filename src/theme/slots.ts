@@ -136,6 +136,9 @@ export const SLOTS: Slot[] = [
       { id: "moreInfoItem", required: false, since: "1.0" },
       { id: "loadToMenuItem", required: false, since: "1.0" },
       { id: "downloadModsItem", required: false, since: "1.0" },
+      { id: "checkModsItem", required: false, since: "1.1" },
+      { id: "unsubscribeUniqueItem", required: false, since: "1.1" },
+      { id: "copyAddressItem", required: false, since: "1.1" },
     ],
   },
   {
@@ -146,6 +149,7 @@ export const SLOTS: Slot[] = [
       { id: "statGrid", required: false, since: "1.0" },
       { id: "readinessStrip", required: false, since: "1.0" },
       { id: "propsList", required: false, since: "1.0" },
+      { id: "readinessList", required: false, since: "1.1" },
       { id: "joinAction", required: true, since: "1.0" },
     ],
   },

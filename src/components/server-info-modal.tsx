@@ -1,8 +1,20 @@
 import { useEffect, useRef, useState } from "react";
-import { X, Play, Download, ChevronDown, Loader2, Check, ListTree } from "lucide-react";
-import type { Server } from "@/types/server";
+import {
+  X,
+  Play,
+  Download,
+  ChevronDown,
+  Loader2,
+  Check,
+  ListTree,
+  RefreshCw,
+  Trash2,
+  Copy,
+  Package,
+} from "lucide-react";
+import type { Server, ServerModReadiness, ModReadinessEntry } from "@/types/server";
 import { useServerStore } from "@/stores/server-store";
-import { cn, formatGameTime, regionName } from "@/lib/utils";
+import { cn, formatBytes, formatGameTime, regionName } from "@/lib/utils";
 import { useServerActions, NOTICES } from "@/hooks/use-server-actions";
 import { SlotChildren } from "@/theme/slot-render";
 import { useResolvedSlot } from "@/theme/use-resolved-layout";
@@ -10,22 +22,67 @@ import { resolveChildOrder } from "@/theme/slot-order";
 import { useComponentComposition } from "@/theme/use-component-composition";
 import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
 import { useThemeStore } from "@/theme/theme-store";
+import {
+  serverModReadiness,
+  checkServerMods,
+  getUniqueModsSummary,
+  unsubscribeUniqueMods,
+  copyServerAddress,
+  type ModState,
+} from "@/lib/tauri";
 
 interface ServerInfoModalProps {
   server: Server;
   onClose: () => void;
+  initialReadiness?: ServerModReadiness;
 }
 
 // "More info" modal, opened from the row ⋯ menu. Focus trapped; Escape, ✕
 // and backdrop click close.
-export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
+export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInfoModalProps) {
   const actions = useServerActions();
   const modPending = useServerStore((s) => s.modPending);
+  const mergeModPending = useServerStore((s) => s.mergeModPending);
+  const triggerReload = useServerStore((s) => s.triggerReload);
+
+  const [readinessData, setReadinessData] = useState<ServerModReadiness | null>(
+    initialReadiness ?? null,
+  );
+  const [loadingReadiness, setLoadingReadiness] = useState(false);
+  const [checkingMods, setCheckingMods] = useState(false);
+  const [copiedAddress, setCopiedAddress] = useState(false);
+  const [confirm, setConfirm] = useState<{
+    title: string;
+    message: string;
+    action: () => Promise<void> | void;
+  } | null>(null);
+
   const [loadOpen, setLoadOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const joinRef = useRef<HTMLButtonElement>(null);
   const loadMenuRef = useRef<HTMLDivElement>(null);
   const loadToggleRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (initialReadiness) return;
+    let cancelled = false;
+    if (server.modded) {
+      setLoadingReadiness(true);
+      serverModReadiness(server.addr, server.query_port)
+        .then((res) => {
+          if (!cancelled) setReadinessData(res);
+        })
+        .catch((e) => {
+          console.error("Failed to fetch server mod readiness:", e);
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingReadiness(false);
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [server.addr, server.query_port, server.modded, initialReadiness]);
 
   // Focus the primary action on open; Escape + outside click close. The
   // outside-click guard requires the mousedown to start inside and end outside
@@ -92,12 +149,30 @@ export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
 
   const bodyOrder = resolveChildOrder(
     "modal.serverInfo",
-    ["statGrid", "readinessStrip", "propsList"],
+    ["statGrid", "readinessStrip", "propsList", "readinessList"],
     useResolvedSlot("modal.serverInfo").children,
   );
 
   const activeId = useThemeStore((s) => s.activeId);
   const composition = useComponentComposition("modal.serverInfo");
+
+  const downloadSummaryText = (() => {
+    if (!readinessData) return null;
+    let totalBytes = 0;
+    let hasUpper = false;
+    let needsUpdateCount = 0;
+    for (const m of readinessData.mods) {
+      if (m.state !== "ready" && m.state !== "not_on_workshop") {
+        needsUpdateCount++;
+        const sz = m.size_bytes;
+        if (typeof sz === "number") totalBytes += sz;
+        if (m.size_is_upper_bound) hasUpper = true;
+      }
+    }
+    if (needsUpdateCount === 0) return "Download size: 0 bytes";
+    const formatted = formatBytes(totalBytes, 1);
+    return hasUpper ? `Download size: up to ${formatted}` : `Download size: ${formatted}`;
+  })();
 
   function closeIfOutside(e: React.MouseEvent) {
     if (e.target === e.currentTarget) onClose();
@@ -115,9 +190,9 @@ export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
         aria-modal="true"
         aria-label={`Server info: ${server.name || server.addr}`}
         onKeyDown={trapTab}
-        className="modal w-[min(430px,calc(100%-40px))] overflow-hidden rounded-[10px] border border-line bg-surface shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
+        className="modal w-[min(480px,calc(100%-40px))] max-h-[85vh] flex flex-col overflow-hidden rounded-[10px] border border-line bg-surface shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
       >
-        <div className="modal-wrap relative">
+        <div className="modal-wrap relative flex flex-col min-h-0 flex-1">
           <button
             data-tetra-el="closeAction"
             onClick={onClose}
@@ -127,7 +202,7 @@ export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
             <X className="size-4" />
           </button>
 
-          <div className="m-identity p-3.5">
+          <div className="m-identity shrink-0 p-3.5">
             <h2 className="text-[14px] font-bold leading-snug text-ink">
               {server.name || server.addr}
             </h2>
@@ -148,10 +223,6 @@ export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
             </div>
           </div>
 
-          {/* closeAction is absolutely positioned in the corner and joinAction
-              sits in .m-actions beside its notice and result lines. A composed
-              tree places all five registry children itself; the notice and
-              result lines are not registry children and stay fallback-only. */}
           {composition !== null ? (
             <ComponentTreeRenderer
               node={composition}
@@ -160,6 +231,7 @@ export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
                 statGrid: statGrid(),
                 readinessStrip: readinessStrip(),
                 propsList: propsList(),
+                readinessList: readinessList(),
                 joinAction: joinBlock(),
               }}
               themeId={activeId}
@@ -167,21 +239,25 @@ export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
           ) : (
             <>
               {closeAction()}
-              <SlotChildren
-                order={bodyOrder}
-                nodes={{
-                  statGrid: statGrid(),
-                  readinessStrip: readinessStrip(),
-                  propsList: propsList(),
-                }}
-              />
-              <div className="m-actions border-t border-line px-3.5 pb-3.5 pt-2.5">
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <SlotChildren
+                  order={bodyOrder}
+                  nodes={{
+                    statGrid: statGrid(),
+                    readinessStrip: readinessStrip(),
+                    propsList: propsList(),
+                    readinessList: readinessList(),
+                  }}
+                />
+              </div>
+              <div className="m-actions shrink-0 border-t border-line px-3.5 pb-3.5 pt-2.5">
                 {noticeLine()}
                 {joinBlock()}
                 {resultLine()}
               </div>
             </>
           )}
+          {confirmDialog()}
         </div>
       </div>
     </div>
@@ -282,6 +358,14 @@ export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
         </button>
       );
     }
+    const hasPendingMod =
+      pending ||
+      (readinessData?.mods.some(
+        (m) => m.state !== "ready" && m.state !== "not_on_workshop",
+      ) ??
+        false);
+    const needsFix = server.modded && hasPendingMod;
+
     return (
       <div className="relative flex w-full gap-1">
         <button
@@ -291,7 +375,7 @@ export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
           className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-[6px] bg-accent px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-[#10131a] shadow-[var(--glow)] transition-colors hover:brightness-110"
         >
           {server.modded ? <Download className="size-3.5" /> : <Play className="size-3.5" />}
-          <span>Join</span>
+          <span>{needsFix ? "Fix and join" : "Join"}</span>
         </button>
         <button
           ref={loadToggleRef}
@@ -325,6 +409,205 @@ export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
             </button>
           </div>
         )}
+      </div>
+    );
+  }
+
+  async function handleCheckMods() {
+    setCheckingMods(true);
+    try {
+      const res = await checkServerMods(server.addr, server.query_port);
+      setReadinessData(res);
+      const hasPending = res.mods.some(
+        (m) => m.state !== "ready" && m.state !== "not_on_workshop",
+      );
+      mergeModPending([{ addr: server.addr, pending: hasPending }]);
+      triggerReload();
+    } catch (e) {
+      actions.setNotice({ kind: "plain", text: String(e) });
+    } finally {
+      setCheckingMods(false);
+    }
+  }
+
+  async function handleUnsubscribeUnique() {
+    try {
+      const summary = await getUniqueModsSummary(server.addr, server.query_port);
+      setConfirm({
+        title: "Unsubscribe unique mods",
+        message: `Unsubscribe ${summary.count} unique mod${summary.count === 1 ? "" : "s"} (${formatBytes(summary.total_size_bytes, 1)}) only used by this server?`,
+        action: async () => {
+          try {
+            const outcome = await unsubscribeUniqueMods(server.addr, server.query_port);
+            actions.setNotice({
+              kind: "plain",
+              text: `Unsubscribed ${outcome.count} mod${outcome.count === 1 ? "" : "s"} (${formatBytes(outcome.total_size_bytes, 1)})`,
+            });
+            const fresh = await serverModReadiness(server.addr, server.query_port);
+            setReadinessData(fresh);
+            triggerReload();
+          } catch (e) {
+            actions.setNotice({ kind: "plain", text: String(e) });
+          }
+        },
+      });
+    } catch (e) {
+      actions.setNotice({ kind: "plain", text: String(e) });
+    }
+  }
+
+  async function handleCopyAddress() {
+    try {
+      await copyServerAddress(server);
+      setCopiedAddress(true);
+      setTimeout(() => setCopiedAddress(false), 2000);
+    } catch (e) {
+      actions.setNotice({ kind: "plain", text: String(e) });
+    }
+  }
+
+  function readinessList(): React.ReactNode {
+    return (
+      <div data-tetra-el="readinessList" className="m-readiness border-b border-line px-3.5 py-2.5">
+        <div className="flex flex-wrap items-center gap-1.5 pb-2">
+          <button
+            type="button"
+            onClick={handleCheckMods}
+            disabled={checkingMods || busy}
+            className="inline-flex items-center gap-1.5 rounded-[5px] border border-line bg-surface2 px-2.5 py-1 text-[10px] font-semibold text-ink transition-colors hover:bg-accent-soft hover:text-accent disabled:opacity-40"
+          >
+            <RefreshCw className={cn("size-3", checkingMods && "animate-spin")} />
+            <span>Check mods</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => void actions.subscribeOnly(server)}
+            disabled={busy}
+            className="inline-flex items-center gap-1.5 rounded-[5px] border border-line bg-surface2 px-2.5 py-1 text-[10px] font-semibold text-ink transition-colors hover:bg-accent-soft hover:text-accent disabled:opacity-40"
+          >
+            <Download className="size-3" />
+            <span>Download mods</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleUnsubscribeUnique}
+            disabled={busy}
+            className="inline-flex items-center gap-1.5 rounded-[5px] border border-line bg-surface2 px-2.5 py-1 text-[10px] font-semibold text-ink transition-colors hover:bg-danger-soft hover:text-danger disabled:opacity-40"
+          >
+            <Trash2 className="size-3" />
+            <span>Unsubscribe unique</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleCopyAddress}
+            className="inline-flex items-center gap-1.5 rounded-[5px] border border-line bg-surface2 px-2.5 py-1 text-[10px] font-semibold text-ink transition-colors hover:bg-accent-soft hover:text-accent"
+          >
+            {copiedAddress ? <Check className="size-3 text-success" /> : <Copy className="size-3" />}
+            <span>{copiedAddress ? "Address copied" : "Copy address"}</span>
+          </button>
+        </div>
+
+        {downloadSummaryText && (
+          <div className="flex items-center justify-between gap-2 pb-2 text-[10px]">
+            <span className="font-semibold text-muted">
+              {readinessData ? `${readinessData.mods.length} mod${readinessData.mods.length === 1 ? "" : "s"}` : ""}
+            </span>
+            <span className="font-mono-data font-semibold text-ink">{downloadSummaryText}</span>
+          </div>
+        )}
+
+        {loadingReadiness ? (
+          <div className="flex items-center justify-center py-4 text-[10px] text-muted">
+            <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+            <span>Checking mod readiness…</span>
+          </div>
+        ) : !readinessData || readinessData.mods.length === 0 ? (
+          <div className="py-2 text-center text-[10px] text-muted">
+            {server.modded ? "No mods found or not probed yet." : "No mods required."}
+          </div>
+        ) : (
+          <div className="flex max-h-[220px] flex-col gap-1.5 overflow-y-auto pr-1">
+            {readinessData.mods.map((mod) => (
+              <div
+                key={mod.workshop_id}
+                className="flex items-center gap-2 rounded-[5px] border border-line bg-surface2 px-2.5 py-1.5 text-[11px]"
+              >
+                {mod.preview_url ? (
+                  <img
+                    src={mod.preview_url}
+                    alt=""
+                    className="size-7 shrink-0 rounded object-cover border border-line-weak"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLElement).style.display = "none";
+                    }}
+                  />
+                ) : (
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded border border-line-weak bg-surface text-muted">
+                    <Package className="size-3.5" />
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate font-semibold text-ink">{mod.name || mod.workshop_id}</span>
+                    {mod.is_unique && <Badge tone="accent2">Unique</Badge>}
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted">
+                    <span className="font-mono-data">{formatModSize(mod)}</span>
+                    {mod.downloaded_bytes != null &&
+                      mod.total_bytes != null &&
+                      mod.state === "downloading" && (
+                        <span className="font-mono-data">
+                          {formatBytes(mod.downloaded_bytes, 1)} / {formatBytes(mod.total_bytes, 1)}
+                        </span>
+                      )}
+                  </div>
+                </div>
+                <div className="shrink-0">
+                  <Badge tone={modBadgeTone(mod.state)}>{modBadgeLabel(mod.state)}</Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function confirmDialog(): React.ReactNode {
+    if (!confirm) return null;
+    return (
+      <div
+        className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4"
+        onClick={() => setConfirm(null)}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={confirm.title}
+          className="w-80 rounded-[8px] border border-line bg-surface p-3 shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="text-xs font-bold text-ink">{confirm.title}</p>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-muted2">{confirm.message}</p>
+          <div className="mt-3 flex justify-end gap-2">
+            <button
+              onClick={() => setConfirm(null)}
+              className="rounded-[6px] border border-line bg-surface2 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted2 transition-colors hover:text-ink"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                const action = confirm.action;
+                setConfirm(null);
+                void action();
+              }}
+              className="rounded-[6px] bg-danger px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#10131a] transition-colors hover:brightness-110"
+            >
+              Unsubscribe
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -366,17 +649,19 @@ export function ServerInfoModal({ server, onClose }: ServerInfoModalProps) {
 
 }
 
-function Badge({ tone, children }: { tone: "success" | "danger" | "accent" | "accent2" | "muted"; children: React.ReactNode }) {
+function Badge({ tone, children }: { tone: "success" | "danger" | "accent" | "accent2" | "warn" | "muted"; children: React.ReactNode }) {
   const cls =
     tone === "success"
       ? "bg-[rgba(77,154,117,0.16)] text-success"
       : tone === "danger"
         ? "bg-danger-soft text-danger"
-        : tone === "accent"
-          ? "bg-accent-soft text-accent"
-          : tone === "accent2"
-            ? "bg-accent2-soft text-accent2"
-            : "bg-muted-soft text-muted2";
+        : tone === "warn"
+          ? "bg-warn-soft text-warn"
+          : tone === "accent"
+            ? "bg-accent-soft text-accent"
+            : tone === "accent2"
+              ? "bg-accent2-soft text-accent2"
+              : "bg-muted-soft text-muted2";
   return (
     <span className={cn("inline-flex items-center rounded-[3px] px-1.5 py-px text-[8px] font-bold uppercase tracking-[0.05em] leading-[1.4]", cls)}>
       {children}
@@ -401,3 +686,51 @@ function Prop({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+function modBadgeTone(state: ModState): "success" | "warn" | "accent" | "danger" | "muted" {
+  switch (state) {
+    case "ready":
+      return "success";
+    case "needs_update":
+      return "warn";
+    case "downloading":
+      return "accent";
+    case "not_installed":
+      return "warn";
+    case "not_subscribed":
+      return "danger";
+    case "not_on_workshop":
+      return "muted";
+  }
+}
+
+function modBadgeLabel(state: ModState): string {
+  switch (state) {
+    case "ready":
+      return "Ready";
+    case "needs_update":
+      return "Needs update";
+    case "downloading":
+      return "Downloading";
+    case "not_installed":
+      return "Not installed";
+    case "not_subscribed":
+      return "Not subscribed";
+    case "not_on_workshop":
+      return "Unlisted";
+  }
+}
+
+function formatModSize(mod: ModReadinessEntry): string {
+  if (mod.size_is_upper_bound) {
+    return `up to ${formatBytes(mod.size_bytes ?? 0, 1)}`;
+  }
+  if (mod.state === "ready") {
+    return "Ready";
+  }
+  if (mod.size_bytes == null) {
+    return "—";
+  }
+  return formatBytes(mod.size_bytes, 1);
+}
+
