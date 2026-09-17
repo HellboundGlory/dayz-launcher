@@ -73,7 +73,7 @@ function TierBadge({ tier }: { tier: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center whitespace-nowrap rounded-full border px-1.5 py-[3px] text-[8px] font-bold uppercase tracking-wider",
+        "inline-flex items-center whitespace-nowrap rounded-full border px-1.5 py-[3px] [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-wider",
         TIER_TONE[tier] ?? TIER_TONE.basic,
       )}
     >
@@ -256,14 +256,14 @@ export function ImportThemeDialog({
         aria-modal="true"
         aria-label={manifest ? `Import theme: ${manifest.name}` : "Import theme"}
         onKeyDown={trapTab}
-        className="max-h-[calc(100%-40px)] w-[min(430px,calc(100%-40px))] overflow-y-auto rounded-[10px] border border-line bg-surface shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
+        className="max-h-[calc(100%-40px)] w-[min(430px,calc(100%-40px))] overflow-y-auto [border-radius:var(--t-radius-modal)] border border-line bg-surface [box-shadow:var(--t-shadow-modal)]"
       >
         <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
           <div className="min-w-0">
-            <h2 className="truncate text-[13.5px] font-bold text-ink">
+            <h2 className="truncate [font-size:var(--t-type-compactHeading-size)] font-bold text-ink">
               {manifest ? `Import Theme: ${manifest.name}` : "Import Theme"}
             </h2>
-            <p className="mt-0.5 text-[10px] text-muted">
+            <p className="mt-0.5 [font-size:var(--t-type-label-size)] text-muted">
               {manifest
                 ? "Review the package before installing it"
                 : "Pick a Tetra theme package (.zip)"}
@@ -282,23 +282,23 @@ export function ImportThemeDialog({
           {/* The error state offers only Cancel — the rejection message owns the body. */}
           {phase !== "error" && (
             <section className="flex flex-col gap-1.5">
-              <h3 className="text-[9.5px] font-bold uppercase tracking-wider text-muted2">Step 1</h3>
+              <h3 className="[font-size:var(--t-type-compactCaption-size)] font-bold uppercase tracking-wider text-muted2">Step 1</h3>
               <div
                 className={cn(
-                  "flex flex-col items-center gap-2 rounded-[8px] border border-dashed border-line bg-surface2 px-4 py-5 text-center transition-colors duration-150",
+                  "flex flex-col items-center gap-2 [border-radius:var(--t-radius-card)] border border-dashed border-line bg-surface2 px-4 py-5 text-center transition-colors [transition-duration:var(--t-motion-hover-duration)]",
                   dragOver && "border-accent-line bg-accent-soft",
                 )}
               >
                 <FileArchive className="size-5 text-muted" />
-                <p className="text-[10.5px] text-muted">
+                <p className="[font-size:var(--t-type-compactBody-size)] text-muted">
                   {dragOver ? "Drop to import" : "Drag a .zip here"}
                 </p>
-                <p className="text-[9.5px] uppercase tracking-wider text-muted-soft">or</p>
+                <p className="[font-size:var(--t-type-compactCaption-size)] uppercase tracking-wider text-muted-soft">or</p>
                 <button
                   ref={chooseRef}
                   onClick={() => void chooseFile()}
                   disabled={phase === "loading" || busy}
-                  className="flex items-center gap-1.5 rounded-[6px] border border-line bg-surface px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-ink transition-colors duration-150 hover:border-accent-line hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface px-3 py-2 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-ink transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:border-accent-line hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {phase === "loading" ? (
                     <Loader2 className="size-3.5 animate-spin" />
@@ -312,7 +312,7 @@ export function ImportThemeDialog({
           )}
 
           {phase === "loading" && (
-            <div className="flex items-center justify-center gap-1.5 rounded-[8px] border border-line bg-surface2 px-3 py-4 text-[10.5px] text-accent">
+            <div className="flex items-center justify-center gap-1.5 [border-radius:var(--t-radius-card)] border border-line bg-surface2 px-3 py-4 [font-size:var(--t-type-compactBody-size)] text-accent">
               <Loader2 className="size-3.5 shrink-0 animate-spin" />
               <span>Validating package…</span>
             </div>
@@ -320,14 +320,14 @@ export function ImportThemeDialog({
 
           {phase === "error" && (
             <div className="flex flex-col gap-2.5">
-              <div className="rounded-[8px] border border-danger-line bg-danger-soft px-3 py-2.5 text-[10.5px] leading-relaxed text-danger">
+              <div className="[border-radius:var(--t-radius-card)] border border-danger-line bg-danger-soft px-3 py-2.5 [font-size:var(--t-type-compactBody-size)] leading-relaxed text-danger">
                 <p className="font-bold uppercase tracking-wider">Import failed</p>
                 <p className="mt-1 break-words">{error}</p>
               </div>
               <div className="flex justify-end">
                 <button
                   onClick={close}
-                  className="rounded-[6px] border border-line bg-surface px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-muted2 transition-colors duration-150 hover:text-ink"
+                  className="[border-radius:var(--t-radius-control)] border border-line bg-surface px-3 py-2 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-muted2 transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:text-ink"
                 >
                   Cancel
                 </button>
@@ -337,34 +337,34 @@ export function ImportThemeDialog({
 
           {showPreview && (
             <section className="flex flex-col gap-1.5">
-              <h3 className="text-[9.5px] font-bold uppercase tracking-wider text-muted2">
+              <h3 className="[font-size:var(--t-type-compactCaption-size)] font-bold uppercase tracking-wider text-muted2">
                 Step 2
               </h3>
-              <div className="flex flex-col gap-3 rounded-[8px] border border-line bg-surface2 p-3.5">
+              <div className="flex flex-col gap-3 [border-radius:var(--t-radius-card)] border border-line bg-surface2 p-3.5">
                 <div>
-                  <p className="text-[12.5px] font-bold text-ink">{manifest.name}</p>
-                  <p className="mt-0.5 text-[10px] text-muted">
+                  <p className="[font-size:var(--t-type-compactTitle-size)] font-bold text-ink">{manifest.name}</p>
+                  <p className="mt-0.5 [font-size:var(--t-type-label-size)] text-muted">
                     by {manifest.author} · <span className="font-mono-data">v{manifest.version}</span>
                   </p>
                   {manifest.description && (
-                    <p className="mt-1.5 text-[10.5px] leading-relaxed text-muted2">
+                    <p className="mt-1.5 [font-size:var(--t-type-compactBody-size)] leading-relaxed text-muted2">
                       “{manifest.description}”
                     </p>
                   )}
                 </div>
 
                 <div>
-                  <h4 className="text-[9.5px] font-bold uppercase tracking-wider text-muted2">
+                  <h4 className="[font-size:var(--t-type-compactCaption-size)] font-bold uppercase tracking-wider text-muted2">
                     Compatibility
                   </h4>
                   <ul className="mt-1.5 flex flex-col gap-1">
-                    <li className="flex items-center gap-1.5 text-[10.5px] text-muted2">
+                    <li className="flex items-center gap-1.5 [font-size:var(--t-type-compactBody-size)] text-muted2">
                       <CheckCircle2 className="size-3.5 shrink-0 text-success" />
                       <span>
                         Theme API <span className="font-mono-data">{manifest.themeApi}</span>
                       </span>
                     </li>
-                    <li className="flex items-center gap-1.5 text-[10.5px] text-muted2">
+                    <li className="flex items-center gap-1.5 [font-size:var(--t-type-compactBody-size)] text-muted2">
                       <CheckCircle2 className="size-3.5 shrink-0 text-success" />
                       <span>
                         Requires Tetra Launcher ≥{" "}
@@ -375,7 +375,7 @@ export function ImportThemeDialog({
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <p className="flex items-center gap-1.5 text-[10px] text-muted">
+                  <p className="flex items-center gap-1.5 [font-size:var(--t-type-label-size)] text-muted">
                     <TierBadge tier={manifest.tier} />
                     <span aria-hidden="true">·</span>
                     <span className="font-mono-data text-muted2">
@@ -386,19 +386,19 @@ export function ImportThemeDialog({
                   </p>
 
                   {capabilityList.length > 0 && (
-                    <p className="text-[10px] text-muted">
+                    <p className="[font-size:var(--t-type-label-size)] text-muted">
                       Includes: <span className="text-muted2">{capabilityList.join(", ")}</span>
                     </p>
                   )}
                 </div>
 
-                <p className="text-[10.5px] leading-relaxed text-ink">{copy.line}</p>
+                <p className="[font-size:var(--t-type-compactBody-size)] leading-relaxed text-ink">{copy.line}</p>
 
                 <div className="flex justify-end gap-1.5">
                   <button
                     onClick={close}
                     disabled={busy}
-                    className="rounded-[6px] border border-line bg-surface px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-muted2 transition-colors duration-150 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+                    className="[border-radius:var(--t-radius-control)] border border-line bg-surface px-3 py-2 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-muted2 transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Cancel
                   </button>
@@ -407,7 +407,7 @@ export function ImportThemeDialog({
                     onClick={() => void install()}
                     disabled={busy}
                     className={cn(
-                      "flex items-center gap-1.5 rounded-[6px] bg-accent px-3.5 py-2 text-[10px] font-bold uppercase tracking-wider text-[#10131a] shadow-[var(--glow)] transition-colors hover:brightness-110",
+                      "flex items-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-3.5 py-2 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-shadow-glow)] transition-colors hover:brightness-110",
                       "disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:brightness-100",
                     )}
                   >

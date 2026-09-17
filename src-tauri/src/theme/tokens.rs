@@ -500,6 +500,26 @@ token_group! {
 }
 
 token_group! {
+    CompactSubheadingTypeRolesTokensV2 {
+        family: TokenValue = "ui".into() => "family",
+        size: TokenValue = "11.5px".into() => "size",
+        weight: TokenValue = "normal".into() => "weight",
+        tracking: TokenValue = "none".into() => "tracking",
+        leading: TokenValue = "normal".into() => "leading",
+    }
+}
+
+token_group! {
+    CompactTitleTypeRolesTokensV2 {
+        family: TokenValue = "ui".into() => "family",
+        size: TokenValue = "12.5px".into() => "size",
+        weight: TokenValue = "normal".into() => "weight",
+        tracking: TokenValue = "none".into() => "tracking",
+        leading: TokenValue = "normal".into() => "leading",
+    }
+}
+
+token_group! {
     TypeRolesTokensV2 {
         display: DisplayTypeRolesTokensV2 = DisplayTypeRolesTokensV2::default() => "display",
         heading: HeadingTypeRolesTokensV2 = HeadingTypeRolesTokensV2::default() => "heading",
@@ -520,6 +540,8 @@ token_group! {
         compact_caption: CompactCaptionTypeRolesTokensV2 = CompactCaptionTypeRolesTokensV2::default() => "compactCaption",
         compact_body: CompactBodyTypeRolesTokensV2 = CompactBodyTypeRolesTokensV2::default() => "compactBody",
         compact_heading: CompactHeadingTypeRolesTokensV2 = CompactHeadingTypeRolesTokensV2::default() => "compactHeading",
+        compact_subheading: CompactSubheadingTypeRolesTokensV2 = CompactSubheadingTypeRolesTokensV2::default() => "compactSubheading",
+        compact_title: CompactTitleTypeRolesTokensV2 = CompactTitleTypeRolesTokensV2::default() => "compactTitle",
     }
 }
 
@@ -558,6 +580,7 @@ token_group! {
         readiness_success: TokenValue = "0 0 5px rgba(77,154,117,0.6)".into() => "readinessSuccess",
         status_dot: TokenValue = "0 0 4px currentColor".into() => "statusDot",
         update: TokenValue = "0 25px 50px -12px rgb(0 0 0 / 0.5)".into() => "update",
+        inspector: TokenValue = "0 8px 24px rgba(0,0,0,0.5)".into() => "inspector",
     }
 }
 

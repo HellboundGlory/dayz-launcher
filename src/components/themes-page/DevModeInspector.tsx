@@ -337,7 +337,7 @@ export function DevModeInspector() {
         <>
           <div
             data-dev-inspector
-            className="absolute rounded-[3px] border-2 border-[#ff4fd8] bg-[rgba(255,79,216,0.12)]"
+            className="absolute [border-radius:var(--t-radius-badge)] border-2 [border-color:rgb(255,79,216)] bg-[rgba(255,79,216,0.12)]"
             style={{ top: rect.top, left: rect.left, width: rect.width, height: rect.height }}
           />
           <div
@@ -346,7 +346,7 @@ export function DevModeInspector() {
             // Not pointer-events-auto here: the badge can land over real
             // content behind it, so only the two buttons below opt back in —
             // everything else stays click-through.
-            className="absolute overflow-auto rounded-[6px] border border-[#ff4fd8] bg-[rgba(12,10,16,0.95)] px-2.5 py-2 font-mono-data text-[10px] leading-[1.5] text-[#e9e6f2] shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
+            className="absolute overflow-auto [border-radius:var(--t-radius-control)] border [border-color:rgb(255,79,216)] bg-[rgba(12,10,16,0.95)] px-2.5 py-2 font-mono-data [font-size:var(--t-type-label-size)] leading-[1.5] [color:rgb(233,230,242)] [box-shadow:var(--t-shadow-inspector)]"
             style={{
               top,
               left,
@@ -355,12 +355,12 @@ export function DevModeInspector() {
             }}
           >
             <div className="flex items-center gap-1.5">
-              <span className="rounded-[3px] bg-[rgba(255,79,216,0.25)] px-1 py-px text-[9px] font-bold uppercase tracking-[0.04em] text-[#ff9ae8]">
+              <span className="[border-radius:var(--t-radius-badge)] bg-[rgba(255,79,216,0.25)] px-1 py-px [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.04em] [color:rgb(255,154,232)]">
                 {active.node.kind === "slot" ? "slot" : "el"}
               </span>
-              <span className="break-all font-semibold text-[#ffd7f6]">{active.node.id}</span>
+              <span className="break-all font-semibold [color:rgb(255,215,246)]">{active.node.id}</span>
               {pinned && (
-                <span className="ml-auto shrink-0 text-[9px] uppercase tracking-[0.04em] text-[#9c93ad]">
+                <span className="ml-auto shrink-0 [font-size:var(--t-type-caption-size)] uppercase tracking-[0.04em] [color:rgb(156,147,173)]">
                   pinned · click elsewhere or Esc
                 </span>
               )}
@@ -368,12 +368,12 @@ export function DevModeInspector() {
 
             {active.node.kind === "slot" && (
               <div className="mt-1.5 flex flex-col gap-0.5">
-                {!slot && <span className="text-[#ff9ae8]">not in the SLOTS registry</span>}
+                {!slot && <span className="[color:rgb(255,154,232)]">not in the SLOTS registry</span>}
                 {(["required", "optional"] as const).map((group) => {
                   const ids = (group === "required" ? required : optional).map((c) => c.id);
                   return (
                     <div key={group}>
-                      <span className="uppercase tracking-[0.04em] text-[#9c93ad]">{group}</span>
+                      <span className="uppercase tracking-[0.04em] [color:rgb(156,147,173)]">{group}</span>
                       <span className="ml-1.5">{ids.length > 0 ? ids.join(", ") : "—"}</span>
                     </div>
                   );
@@ -386,17 +386,17 @@ export function DevModeInspector() {
                 type="button"
                 onClick={() => void copySelector(active.node)}
                 className={cn(
-                  "pointer-events-auto shrink-0 rounded-[4px] border px-1.5 py-px text-[9.5px] font-semibold uppercase tracking-[0.04em]",
+                  "pointer-events-auto shrink-0 [border-radius:var(--t-radius-chip)] border px-1.5 py-px [font-size:var(--t-type-compactCaption-size)] font-semibold uppercase tracking-[0.04em]",
                   copyState === "failed"
                     ? "border-danger text-danger"
                     : copyState === "copied"
-                      ? "border-[#ff4fd8] bg-[rgba(255,79,216,0.2)] text-[#ff9ae8]"
-                      : "border-[#ff4fd8] text-[#ff9ae8] hover:bg-[rgba(255,79,216,0.2)]",
+                      ? "[border-color:rgb(255,79,216)] bg-[rgba(255,79,216,0.2)] [color:rgb(255,154,232)]"
+                      : "[border-color:rgb(255,79,216)] [color:rgb(255,154,232)] hover:bg-[rgba(255,79,216,0.2)]",
                 )}
               >
                 {copyState === "copied" ? "Copied!" : copyState === "failed" ? "Copy failed" : "Ctrl+C to copy"}
               </button>
-              <span className="break-all text-[#9c93ad]">{selectorFor(active.node)}</span>
+              <span className="break-all [color:rgb(156,147,173)]">{selectorFor(active.node)}</span>
             </div>
           </div>
         </>

@@ -43,7 +43,7 @@ function TierBadge({ tier }: { tier: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center whitespace-nowrap rounded-full border px-1.5 py-[3px] text-[8px] font-bold uppercase tracking-wider",
+        "inline-flex items-center whitespace-nowrap rounded-full border px-1.5 py-[3px] [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-wider",
         TIER_TONE[tier] ?? TIER_TONE.basic,
       )}
     >
@@ -54,7 +54,7 @@ function TierBadge({ tier }: { tier: string }) {
 
 /** Shared text-input styling (board `.field input`). */
 const INPUT_CLASS =
-  "w-full rounded-[6px] border border-line bg-bg px-2.5 py-2 text-[11.5px] text-ink placeholder-muted outline-none transition-colors duration-150 hover:border-line-weak focus:border-accent-line";
+  "w-full [border-radius:var(--t-radius-control)] border border-line bg-bg px-2.5 py-2 [font-size:var(--t-type-compactSubheading-size)] text-ink placeholder-muted outline-none transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:border-line-weak focus:border-accent-line";
 
 /** The four tokens the read-only swatch strip shows: background, raised surface, and the two accents. */
 const SWATCH_TOKENS = ["bg", "surface2", "accent", "accent2"] as const;
@@ -207,14 +207,14 @@ export function ExportThemeDialog({
         aria-modal="true"
         aria-label={`Export theme: ${loaded ? theme.name : id}`}
         onKeyDown={trapTab}
-        className="flex max-h-[min(620px,calc(100%-40px))] w-[min(460px,calc(100%-40px))] flex-col overflow-hidden rounded-[12px] border border-line bg-surface shadow-[0_24px_60px_rgba(0,0,0,0.6)]"
+        className="flex max-h-[min(620px,calc(100%-40px))] w-[min(460px,calc(100%-40px))] flex-col overflow-hidden [border-radius:var(--t-radius-modalLarge)] border border-line bg-surface [box-shadow:var(--t-shadow-xl)]"
       >
         <div className="flex shrink-0 items-start justify-between border-b border-line px-4 py-3">
           <div className="min-w-0">
-            <h3 className="truncate text-[13px] font-extrabold tracking-tight text-ink">
+            <h3 className="truncate [font-size:var(--t-type-size-xl)] font-extrabold tracking-tight text-ink">
               {loaded ? `Export Theme: ${name.trim() || id}` : "Export Theme"}
             </h3>
-            <p className="mt-0.5 flex items-center gap-1.5 truncate font-mono-data text-[10px] text-muted">
+            <p className="mt-0.5 flex items-center gap-1.5 truncate font-mono-data [font-size:var(--t-type-label-size)] text-muted">
               <span className="truncate">{id}</span>
               {theme && <TierBadge tier={theme.tier} />}
             </p>
@@ -227,13 +227,13 @@ export function ExportThemeDialog({
                     src={previewUrl}
                     alt=""
                     onError={() => setPreviewFailed(true)}
-                    className="h-[14px] w-16 rounded-[3px] object-cover ring-1 ring-line"
+                    className="h-[14px] w-16 [border-radius:var(--t-radius-badge)] object-cover ring-1 ring-line"
                   />
                 )}
                 {SWATCH_TOKENS.map((t) => (
                   <span
                     key={t}
-                    className="h-[14px] w-9 rounded-[3px] ring-1 ring-line"
+                    className="h-[14px] w-9 [border-radius:var(--t-radius-badge)] ring-1 ring-line"
                     style={{ backgroundColor: palette[t] }}
                   />
                 ))}
@@ -251,7 +251,7 @@ export function ExportThemeDialog({
 
         <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-4">
           {!loaded && !error && (
-            <div className="flex items-center justify-center gap-1.5 py-8 text-[11px] text-muted">
+            <div className="flex items-center justify-center gap-1.5 py-8 [font-size:var(--t-type-body-size)] text-muted">
               <Loader2 className="size-3.5 animate-spin" />
               <span>Reading the theme…</span>
             </div>
@@ -283,7 +283,7 @@ export function ExportThemeDialog({
                   type="text"
                   value={version}
                   onChange={(e) => setVersion(e.target.value)}
-                  className={cn(INPUT_CLASS, "font-mono-data text-[11px]")}
+                  className={cn(INPUT_CLASS, "font-mono-data [font-size:var(--t-type-body-size)]")}
                 />
               </Field>
 
@@ -301,7 +301,7 @@ export function ExportThemeDialog({
                   {tags.map((t) => (
                     <span
                       key={t}
-                      className="inline-flex items-center gap-1 rounded-[10px] bg-surface2 px-2 py-[3px] text-[10px] text-ink"
+                      className="inline-flex items-center gap-1 [border-radius:var(--t-radius-modal)] bg-surface2 px-2 py-[3px] [font-size:var(--t-type-label-size)] text-ink"
                     >
                       {t}
                       <button
@@ -325,7 +325,7 @@ export function ExportThemeDialog({
                     }}
                     placeholder="Add tag…"
                     aria-label="Add tag"
-                    className={cn(INPUT_CLASS, "w-auto min-w-[92px] flex-1 py-[3px] text-[10px]")}
+                    className={cn(INPUT_CLASS, "w-auto min-w-[92px] flex-1 py-[3px] [font-size:var(--t-type-label-size)]")}
                   />
                 </div>
               </Field>
@@ -350,14 +350,14 @@ export function ExportThemeDialog({
                 />
               </Field>
 
-              <div className="rounded-[7px] border border-line bg-bg px-3 py-2.5">
-                <p className="text-[9.5px] font-bold uppercase tracking-wider text-muted2">
+              <div className="[border-radius:var(--t-radius-popup)] border border-line bg-bg px-3 py-2.5">
+                <p className="[font-size:var(--t-type-compactCaption-size)] font-bold uppercase tracking-wider text-muted2">
                   Will include
                 </p>
-                <p className="mt-1 font-mono-data text-[10px] text-ink">
+                <p className="mt-1 font-mono-data [font-size:var(--t-type-label-size)] text-ink">
                   {includedFiles.join(", ")}
                 </p>
-                <p className="mt-1.5 text-[10px] leading-relaxed text-muted">
+                <p className="mt-1.5 [font-size:var(--t-type-label-size)] leading-relaxed text-muted">
                   Will NOT include: settings, favourites, or any personal data.
                 </p>
               </div>
@@ -365,11 +365,11 @@ export function ExportThemeDialog({
           )}
 
           {error && (
-            <div className="rounded-[7px] bg-danger-soft px-3 py-2 ring-1 ring-danger-line">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-danger">
+            <div className="[border-radius:var(--t-radius-popup)] bg-danger-soft px-3 py-2 ring-1 ring-danger-line">
+              <p className="[font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider text-danger">
                 {loaded ? "Export failed" : "Could not load theme"}
               </p>
-              <p className="mt-1 break-words text-[10px] leading-relaxed text-ink">{error}</p>
+              <p className="mt-1 break-words [font-size:var(--t-type-label-size)] leading-relaxed text-ink">{error}</p>
             </div>
           )}
         </div>
@@ -377,14 +377,14 @@ export function ExportThemeDialog({
         <div className="flex shrink-0 items-center justify-end gap-1.5 border-t border-line px-4 py-3">
           <button
             onClick={onClose}
-            className="rounded-[6px] border border-line bg-surface2 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-muted2 transition-colors hover:text-ink"
+            className="[border-radius:var(--t-radius-control)] border border-line bg-surface2 px-3 py-2 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-muted2 transition-colors hover:text-ink"
           >
             Cancel
           </button>
           <button
             onClick={() => void handleExport()}
             disabled={!loaded || busy}
-            className="flex items-center justify-center gap-1.5 rounded-[6px] bg-accent px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-[#10131a] shadow-[var(--glow)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none disabled:hover:brightness-100"
+            className="flex items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-4 py-2 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-shadow-glow)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none disabled:hover:brightness-100"
           >
             {busy && <Loader2 className="size-3.5 animate-spin" />}
             <span>Export ZIP…</span>
@@ -398,7 +398,7 @@ export function ExportThemeDialog({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="mb-1.5 block text-[9.5px] font-bold uppercase tracking-wider text-muted2">
+      <label className="mb-1.5 block [font-size:var(--t-type-compactCaption-size)] font-bold uppercase tracking-wider text-muted2">
         {label}
       </label>
       {children}

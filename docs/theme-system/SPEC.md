@@ -216,10 +216,10 @@ Roles are what the base interface actually reads (ADR-0016). A theme that change
 |---|---|
 | `radius` | `window`, `panel`, `card`, `modal`, `popup`, `row`, `control`, `input`, `chip`, `badge`, `thumb`, `track`, `pill` |
 | `space` | `windowPad`, `panelPad`, `modalPad`, `popupPad`, `rowX`, `rowY`, `controlX`, `controlY`, `chipX`, `chipY`, `stackGap`, `inlineGap`, `sectionGap`, `listGap` |
-| `type` | `display`, `heading`, `subheading`, `body`, `label`, `caption`, `micro`, `button`, `chip`, `data`, `rowName`, `rowMeta`, `statValue`, `statCaption` (each holds family, size, weight, tracking and leading) |
+| `type` | `display`, `heading`, `subheading`, `body`, `label`, `caption`, `micro`, `button`, `chip`, `data`, `rowName`, `rowMeta`, `statValue`, `statCaption`, `compactSubheading` (11.5px), `compactTitle` (12.5px) (each holds family, size, weight, tracking and leading) |
 | `color` | `onAccent`, `onAccent2`, `onDanger`, `focusRing`, `scrim`, `rowHover`, `rowSelected` |
 | `border` | `hairline`, `control`, `focus` |
-| `shadow` | `panel`, `modal`, `popup`, `drawer`, `glow` |
+| `shadow` | `panel`, `modal`, `popup`, `drawer`, `glow`, `inspector` (`0 8px 24px rgba(0,0,0,0.5)`) |
 | `motion` | `hover`, `expand`, `overlay` |
 
 **The default rule:** every role's default equals the value the base interface uses today at the call sites listed in `docs/theme-system/TOKEN-MAP.md`, which the tokens stage produces. Where two call sites mapped to one role differ today, the role splits into `<role>` and a named variant (for example `radius.control` and `radius.controlSmall`), and the map and this table are updated in the same commit. No call site is left holding a hardcoded value.

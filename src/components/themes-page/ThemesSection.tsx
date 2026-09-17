@@ -19,10 +19,10 @@ import { ImportThemeDialog } from "./ImportThemeDialog";
 import { ExportThemeDialog } from "./ExportThemeDialog";
 
 const TOOLBAR_BTN =
-  "flex items-center gap-1.5 rounded-[6px] border border-line bg-surface2 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-muted2 transition-colors hover:text-ink";
+  "flex items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-1.5 [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-[0.04em] text-muted2 transition-colors hover:text-ink";
 
 const ACTION_BTN =
-  "rounded-[6px] border border-line bg-surface2 px-2.5 py-1.5 text-[10px] font-semibold text-ink transition-colors hover:border-accent-line hover:text-accent disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line disabled:hover:text-ink";
+  "[border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-1.5 [font-size:var(--t-type-label-size)] font-semibold text-ink transition-colors hover:border-accent-line hover:text-accent disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line disabled:hover:text-ink";
 
 /** The "Theme" accordion body: the installed-themes grid, the active theme's
  * detail strip, and the existing token customiser tucked behind "Customize
@@ -116,7 +116,7 @@ export function ThemesSection({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <span className="text-[9.5px] font-bold uppercase tracking-wider text-muted2">
+        <span className="[font-size:var(--t-type-compactCaption-size)] font-bold uppercase tracking-wider text-muted2">
           Installed themes
         </span>
         <div className="flex gap-1.5">
@@ -137,8 +137,8 @@ export function ThemesSection({
       </div>
 
       {templates !== null && (
-        <div className="rounded-[8px] border border-line bg-surface2 p-2.5">
-          <div className="mb-1.5 text-[9.5px] font-bold uppercase tracking-wider text-muted2">
+        <div className="[border-radius:var(--t-radius-card)] border border-line bg-surface2 p-2.5">
+          <div className="mb-1.5 [font-size:var(--t-type-compactCaption-size)] font-bold uppercase tracking-wider text-muted2">
             Start from
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -155,13 +155,13 @@ export function ThemesSection({
                 className={ACTION_BTN}
               >
                 {template.name}
-                <span className="ml-1.5 font-mono-data text-[9px] normal-case text-muted">
+                <span className="ml-1.5 font-mono-data [font-size:var(--t-type-caption-size)] normal-case text-muted">
                   {template.tier}
                 </span>
               </button>
             ))}
             {templates.length === 0 && (
-              <span className="self-center text-[10px] text-muted">
+              <span className="self-center [font-size:var(--t-type-label-size)] text-muted">
                 No starter templates ship with this build.
               </span>
             )}
@@ -179,15 +179,15 @@ export function ThemesSection({
         onDelete={(id) => void deleteTheme(id)}
       />
 
-      <div className="rounded-[8px] border border-line bg-surface p-3">
+      <div className="[border-radius:var(--t-radius-card)] border border-line bg-surface p-3">
         <div className="flex flex-wrap items-center gap-2">
           <span
             aria-hidden
             className="size-1.5 shrink-0 rounded-full bg-success ring-2 ring-success-soft"
           />
-          <strong className="text-[12px] text-ink">{activeName}</strong>
+          <strong className="[font-size:var(--t-type-subheading-size)] text-ink">{activeName}</strong>
           {installed && (
-            <span className="font-mono-data text-[10px] text-muted">
+            <span className="font-mono-data [font-size:var(--t-type-label-size)] text-muted">
               v{installed.version} · {installed.tier}
             </span>
           )}
@@ -229,11 +229,11 @@ export function ThemesSection({
         </div>
 
         <div className="mt-2.5 flex items-center gap-1.5 border-t border-line-weak pt-2.5">
-          <span className="mr-auto text-[9px] text-muted">preview</span>
+          <span className="mr-auto [font-size:var(--t-type-caption-size)] text-muted">preview</span>
           {(["bg", "surface", "accent", "text"] as const).map((t) => (
             <span
               key={t}
-              className="size-[14px] rounded-[4px] ring-1 ring-line"
+              className="size-[14px] [border-radius:var(--t-radius-chip)] ring-1 ring-line"
               style={{ background: dark[t] }}
             />
           ))}

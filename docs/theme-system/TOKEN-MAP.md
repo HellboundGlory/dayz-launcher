@@ -2,7 +2,7 @@
 
 The v2 token spine exposes Neutral scales and semantic roles on the document root. Role values are scale step names or literals; the emitter resolves each step against its matching scale before writing CSS. Palette variables and `--glow` retain their existing names and derivation.
 
-Packages 2.2, 2.3, and 2.4a migrate the shell, controls, server browser, Mods, Settings, and Update components listed below. Other sources remain migration references for subsequent packages. Consumers bind individual type properties: unmentioned properties still inherit their existing values, including legacy Inter/JetBrains Mono families; the v2 system-family defaults are unchanged. Structural zero/full-size utilities and layout-slot width overrides remain structural constraints, not spacing defaults.
+Packages 2.2, 2.3, 2.4a, and 2.4b migrate the shell, controls, server browser, Mods, Settings, Update, Themes page, and theme customizer components listed below. Other sources remain migration references for subsequent packages. Consumers bind individual type properties: unmentioned properties still inherit their existing values, including legacy Inter/JetBrains Mono families; the v2 system-family defaults are unchanged. Structural zero/full-size utilities and layout-slot width overrides remain structural constraints, not spacing defaults.
 
 Type roles expose five variables; motion roles expose duration and easing separately. Shell consumers use arbitrary CSS property utilities (for example `[font-size:var(--t-type-body-size)]`) so no literal-style utility prefixes remain. New radius, spacing, brand tracking and shadow variants preserve the original computed values; slider knob travel derives from the track and knob roles. Scale/role collisions at `border.hairline` and `shadow.glow` resolve to values, not self-references.
 
@@ -209,6 +209,25 @@ The five migrated components use explicit property utilities for font sizes, rad
 | `color.onAccent`, `onDanger`, `scrim` | `--t-color-{role}` | Existing defaults | Mods solid controls, destructive confirmation, inspector close button; mod filter backdrop |
 
 The four new compact type roles retain the standard sibling defaults (`family: ui`, `weight: normal`, `tracking: none`, `leading: normal`); consumers currently bind only size. TypeScript and Rust define identical defaults for all seven added roles.
+
+## Package 2.4b: Themes page and customizer
+
+The customizer and all eight Themes page components bind font sizes, radii, shadows, explicit transition durations, and solid-button contrast to tokens. Layout dimensions, palette previews, and inherited typography remain unchanged. The developer inspector retains its diagnostic pink palette as equivalent RGB colors, independent of the theme being inspected.
+
+| Role or scale | CSS variable | Default | Usage |
+|---|---|---|---|
+| `type.compactSubheading.size` | `--t-type-compactSubheading-size` | `11.5px` | Export dialog text inputs |
+| `type.compactTitle.size` | `--t-type-compactTitle-size` | `12.5px` | Import dialog package name |
+| `shadow.inspector` | `--t-shadow-inspector` | `0 8px 24px rgba(0,0,0,0.5)` | Developer inspector badge; preserves its stronger shadow than ordinary popups |
+| `type.micro`, `caption`, `compactCaption`, `label`, `compactBody`, `body`, `subheading`, `compactHeading` | `--t-type-{role}-size` | Existing defaults | Text throughout the customizer, dialogs, cards, pagination, settings form, and Themes section |
+| `scales.type.size.xl` | `--t-type-size-xl` | `13px` | Export dialog heading |
+| `radius.controlCompact`, `control`, `popup`, `card`, `modal`, `modalLarge`, `badge`, `chip`, `track` | `--t-radius-{role}` | Existing defaults | Controls, sections, dialogs, inspector badges, and swatches |
+| `radius.thumb` | `--t-radius-thumb` | `7px` | Theme card preview top corners |
+| `shadow.glow`, `popup`, `popupFilter`, `modal`, `confirm`; `scales.shadow.xl` | `--t-shadow-{role}`; `--t-shadow-xl` | Existing defaults | Accent controls, card menu, customizer menu, import dialog, deletion confirmation, export dialog |
+| `motion.hover.duration` | `--t-motion-hover-duration` | `150ms` | Customizer switch/dropdown and dialog controls |
+| `color.onAccent`, `onDanger` | `--t-color-{role}` | Existing defaults | Customizer switch knob and Save, export/import actions, destructive confirmation |
+
+Both new compact type roles retain standard sibling defaults (`family: ui`, `weight: normal`, `tracking: none`, `leading: normal`); consumers bind only size. TypeScript and Rust define identical defaults for all three added roles.
 
 ## Migration boundaries
 
