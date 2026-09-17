@@ -187,7 +187,7 @@ export function ServerRowActions({
             ? "DayZ is running. Quit the game before joining another server."
             : undefined
         }
-        className="flex shrink-0 items-center gap-1.5 rounded-[6px] bg-accent px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#10131a] shadow-[var(--glow)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none disabled:hover:brightness-100"
+        className="flex shrink-0 items-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-3 py-1.5 [font-size:var(--t-type-button-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-shadow-glow)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:[box-shadow:none] disabled:hover:brightness-100"
       >
         {busyForThis ? (
           <>
@@ -215,7 +215,7 @@ export function ServerRowActions({
         aria-expanded={open}
         aria-label={`More actions for ${server.name || server.addr}`}
         className={cn(
-          "rounded-[6px] border border-line bg-surface2 p-[5px] text-muted2 transition-colors hover:border-accent-line hover:text-accent",
+          "[border-radius:var(--t-radius-control)] border border-line bg-surface2 p-[5px] text-muted2 transition-colors hover:border-accent-line hover:text-accent",
           open && "border-accent-line text-accent",
         )}
       >
@@ -230,7 +230,7 @@ export function ServerRowActions({
         ref={menuRef}
         role="menu"
         onKeyDown={onMenuKeyDown}
-        className="menu absolute right-0 top-[calc(100%+4px)] z-[6] w-[184px] rounded-[7px] border border-line bg-surface2 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
+        className="menu absolute right-0 top-[calc(100%+4px)] z-[6] w-[184px] [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)]"
       >
         {slotChildrenToRender(slot, [], MENU_ITEM_IDS).map((id) => (
           <MenuItem
@@ -339,7 +339,7 @@ export function ServerRowActions({
           actions.notice.kind === "code" ? NOTICES[actions.notice.code].detail : undefined
         }
         className={cn(
-          "max-w-[140px] truncate text-[9px] leading-snug",
+          "max-w-[140px] truncate [font-size:var(--t-type-caption-size)] leading-snug",
           isError ? "text-danger" : "text-warn",
         )}
       >
@@ -356,7 +356,7 @@ export function ServerRowActions({
             actions.notice!.kind === "code" ? NOTICES[actions.notice!.code].detail : undefined
           }
           className={cn(
-            "truncate text-[9px] leading-snug",
+            "truncate [font-size:var(--t-type-caption-size)] leading-snug",
             actions.notice!.kind === "code" &&
               (actions.notice!.code.startsWith("E") || NOTICES[actions.notice!.code].text.startsWith("E"))
               ? "text-danger"
@@ -380,15 +380,15 @@ export function ServerRowActions({
           role="dialog"
           aria-modal="true"
           aria-label={confirm.title}
-          className="w-80 rounded-[8px] border border-line bg-surface p-3 shadow-2xl"
+          className="w-80 [border-radius:var(--t-radius-confirm)] border border-line bg-surface p-3 [box-shadow:var(--t-shadow-confirm)]"
           onClick={(e) => e.stopPropagation()}
         >
           <p className="text-xs font-bold text-ink">{confirm.title}</p>
-          <p className="mt-1.5 text-[11px] leading-relaxed text-muted2">{confirm.message}</p>
+          <p className="mt-1.5 [font-size:var(--t-type-body-size)] leading-relaxed text-muted2">{confirm.message}</p>
           <div className="mt-3 flex justify-end gap-2">
             <button
               onClick={() => setConfirm(null)}
-              className="rounded-[6px] border border-line bg-surface2 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted2 transition-colors hover:text-ink"
+              className="[border-radius:var(--t-radius-control)] border border-line bg-surface2 px-3 py-1.5 [font-size:var(--t-type-button-size)] font-semibold uppercase tracking-wider text-muted2 transition-colors hover:text-ink"
             >
               Cancel
             </button>
@@ -398,7 +398,7 @@ export function ServerRowActions({
                 setConfirm(null);
                 void action();
               }}
-              className="rounded-[6px] bg-danger px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#10131a] transition-colors hover:brightness-110"
+              className="[border-radius:var(--t-radius-control)] bg-danger px-3 py-1.5 [font-size:var(--t-type-button-size)] font-bold uppercase tracking-wider [color:var(--t-color-onDanger)] transition-colors hover:brightness-110"
             >
               Unsubscribe
             </button>
@@ -460,7 +460,7 @@ function MenuItem({
       data-tetra-el={dataTetraEl}
       onClick={onClick}
       disabled={disabled}
-      className="flex w-full items-center gap-2 rounded-[5px] px-2.5 py-[7px] text-left text-[11px] font-semibold text-ink transition-colors hover:bg-accent-soft hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+      className="flex w-full items-center gap-2 [border-radius:var(--t-radius-popupItem)] px-2.5 py-[7px] text-left [font-size:var(--t-type-body-size)] font-semibold text-ink transition-colors hover:bg-accent-soft hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
     >
       <span className="flex h-[15px] w-[15px] shrink-0 items-center justify-center text-muted2">
         {icon}

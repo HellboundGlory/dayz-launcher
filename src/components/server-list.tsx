@@ -149,7 +149,7 @@ export function serverRowNodes(
         <div
           data-tetra-el="playerCount"
           className={cn(
-            "font-mono-data text-[13px] font-bold tabular-nums leading-none",
+            "font-mono-data [font-size:var(--t-type-statValue-size)] font-bold tabular-nums leading-none",
             !server.online || server.players === 0
               ? "text-muted"
               : server.players >= server.max_players
@@ -163,14 +163,14 @@ export function serverRowNodes(
           {server.players}/{server.max_players}
           {server.queue != null && server.queue > 0 && (
             <span
-              className="text-[10px] text-warn"
+              className="[font-size:var(--t-type-data-size)] text-warn"
               title={`${server.queue} waiting in the join queue`}
             >
               +{server.queue}
             </span>
           )}
         </div>
-        <div className="mt-0.5 text-[7px] font-bold uppercase tracking-[0.07em] text-muted">
+        <div className="mt-0.5 [font-size:var(--t-type-statCaption-size)] font-bold uppercase [letter-spacing:var(--t-type-statCaption-tracking)] text-muted">
           Players
         </div>
       </div>
@@ -180,7 +180,7 @@ export function serverRowNodes(
         <div
           data-tetra-el="pingBadge"
           className={cn(
-            "font-mono-data text-[13px] font-bold tabular-nums leading-none",
+            "font-mono-data [font-size:var(--t-type-statValue-size)] font-bold tabular-nums leading-none",
             !server.online || server.ping === null
               ? "text-muted"
               : server.ping > 120
@@ -193,7 +193,7 @@ export function serverRowNodes(
         >
           {server.online ? (server.ping ?? "—") : "—"}
         </div>
-        <div className="mt-0.5 text-[7px] font-bold uppercase tracking-[0.07em] text-muted">
+        <div className="mt-0.5 [font-size:var(--t-type-statCaption-size)] font-bold uppercase [letter-spacing:var(--t-type-statCaption-tracking)] text-muted">
           Ping
         </div>
       </div>
@@ -201,7 +201,7 @@ export function serverRowNodes(
     modCountLabel: (
       <div data-tetra-el="modCountLabel" className="l2-stat text-right">
         <ModCount server={server} />
-        <div className="mt-0.5 text-[7px] font-bold uppercase tracking-[0.07em] text-muted">
+        <div className="mt-0.5 [font-size:var(--t-type-statCaption-size)] font-bold uppercase [letter-spacing:var(--t-type-statCaption-tracking)] text-muted">
           Mods
         </div>
       </div>
@@ -434,7 +434,7 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
     <div ref={scrollRef} className="l2-body min-h-0 flex-1 overflow-y-auto p-2">
       {servers.length === 0 ? (
         <div className="flex h-32 items-center justify-center">
-          <span className="text-[11px] text-muted">
+          <span className="[font-size:var(--t-type-body-size)] text-muted">
             {hasLoadedOnce
               ? "No servers match the current filters."
               : "No servers yet — the list fills in once Steam connects."}
@@ -461,10 +461,10 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                 ref={rowVirtualizer.measureElement}
                 onClick={() => setSelectedServer(server)}
                 className={cn(
-                  "l2-row flex cursor-pointer items-center gap-3 rounded-[8px] border border-line bg-surface px-3 py-2 transition-[border-color,background,box-shadow] duration-150",
+                  "l2-row flex cursor-pointer items-center gap-3 [border-radius:var(--t-radius-row)] border border-line bg-surface px-3 py-2 transition-[border-color,background,box-shadow] [transition-duration:var(--t-motion-hover-duration)]",
                   "hover:border-accent-line",
                   isSelected &&
-                    "border-accent-line bg-accent-soft shadow-[var(--glow)]",
+                    "border-accent-line bg-accent-soft [box-shadow:var(--t-shadow-glow)]",
                   !server.online && "opacity-50",
                 )}
                 style={{
@@ -485,10 +485,10 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                     ))}
 
                     <div className="l2-main min-w-0 flex-1">
-                      <div className="flex items-center gap-1 whitespace-nowrap text-[12px] font-semibold">
+                      <div className="flex items-center gap-1 whitespace-nowrap [font-size:var(--t-type-rowName-size)] font-semibold">
                         {renderNameLine(nameLineIds, nodes, pending)}
                       </div>
-                      <div className="mt-0.5 flex items-center gap-2.5 whitespace-nowrap text-[9px] text-muted">
+                      <div className="mt-0.5 flex items-center gap-2.5 whitespace-nowrap [font-size:var(--t-type-rowMeta-size)] text-muted">
                         {renderDetails(detailIds, nodes)}
                       </div>
                     </div>
@@ -523,7 +523,7 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
 function ModCount({ server }: { server: Server }) {
   if (server.mod_count !== null) {
     return (
-      <div className="font-mono-data text-[13px] font-bold tabular-nums leading-none text-accent2">
+      <div className="font-mono-data [font-size:var(--t-type-statValue-size)] font-bold tabular-nums leading-none text-accent2">
         {server.mod_count === 0 ? "—" : server.mod_count}
       </div>
     );
@@ -531,7 +531,7 @@ function ModCount({ server }: { server: Server }) {
   if (server.modded) {
     return (
       <div
-        className="font-mono-data text-[13px] font-bold leading-none text-warn/80"
+        className="font-mono-data [font-size:var(--t-type-statValue-size)] font-bold leading-none text-warn/80"
         title="This server declares mods. The mod list is fetched on refresh."
       >
         ?
@@ -539,7 +539,7 @@ function ModCount({ server }: { server: Server }) {
     );
   }
   return (
-    <div className="font-mono-data text-[13px] font-bold leading-none text-muted">
+    <div className="font-mono-data [font-size:var(--t-type-statValue-size)] font-bold leading-none text-muted">
       —
     </div>
   );
@@ -548,7 +548,7 @@ function ModCount({ server }: { server: Server }) {
 type TagTone = "accent" | "accent2" | "muted" | "danger";
 
 const TAG_CLASS: Record<TagTone, string> = {
-  accent: "bg-accent-soft text-accent shadow-[var(--glow)]",
+  accent: "bg-accent-soft text-accent [box-shadow:var(--t-shadow-glow)]",
   accent2: "bg-accent2-soft text-accent2",
   muted: "bg-muted-soft text-muted2",
   danger: "bg-danger-soft text-danger",
@@ -570,7 +570,7 @@ function Tag({
       data-tetra-el={dataTetraEl}
       title={title}
       className={cn(
-        "inline-block shrink-0 rounded-[4px] px-1 py-px text-[8px] font-bold uppercase leading-[1.3] tracking-[0.04em]",
+        "inline-block shrink-0 [border-radius:var(--t-radius-chip)] px-1 py-px [font-size:var(--t-type-chip-size)] font-bold uppercase [line-height:var(--t-type-chip-leading)] [letter-spacing:var(--t-type-chip-tracking)]",
         TAG_CLASS[tone],
       )}
     >

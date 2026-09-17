@@ -37,12 +37,12 @@ export interface MotionRoleV2 {
   easing?: TokenValue;
 }
 export interface RolesV2 {
-  radius: Steps<"window" | "panel" | "card" | "modal" | "popup" | "row" | "control" | "input" | "chip" | "badge" | "thumb" | "track" | "pill" | "sidebarItem" | "controlSmall" | "popupItem">;
+  radius: Steps<"window" | "panel" | "card" | "modal" | "popup" | "row" | "control" | "input" | "chip" | "badge" | "thumb" | "track" | "pill" | "sidebarItem" | "controlSmall" | "popupItem" | "confirm" | "controlCompact" | "readinessRow">;
   space: Steps<"windowPad" | "panelPad" | "modalPad" | "popupPad" | "rowX" | "rowY" | "controlX" | "controlY" | "chipX" | "chipY" | "stackGap" | "inlineGap" | "sectionGap" | "listGap" | "controlCompactX" | "controlCompactY" | "controlSmallX" | "controlSmallY" | "sidebarPad" | "sidebarSettingsPad" | "sidebarLogoY" | "sidebarListGap" | "sidebarItemGap" | "inlineGapWide" | "inlineGapSmall" | "popupFilterPad" | "popupOffset" | "popupClearGap" | "separatorX" | "separatorY" | "footerX" | "footerY" | "footerGap" | "stateChipY" | "windowControlWidth" | "windowControlHeight" | "sidebarWidth" | "sidebarToggleOffset" | "sidebarToggleHeight" | "searchMinWidth" | "popupMinWidth" | "popupMaxHeight" | "scaleTrackWidth" | "scaleKnobSize" | "sliderHeight" | "stateDotSize" | "pingTrackWidth" | "dataWidth" | "iconTiny" | "iconSmall" | "iconChevron" | "iconMedium" | "iconLarge" | "iconBox" | "sidebarCollapsedWidth">;
   type: Partial<Record<"display" | "heading" | "subheading" | "body" | "label" | "caption" | "micro" | "button" | "chip" | "data" | "rowName" | "rowMeta" | "statValue" | "statCaption" | "brand", TypeRoleV2>>;
-  color: Steps<"onAccent" | "onAccent2" | "onDanger" | "focusRing" | "scrim" | "rowHover" | "rowSelected">;
+  color: Steps<"onAccent" | "onAccent2" | "onDanger" | "onSuccess" | "focusRing" | "scrim" | "rowHover" | "rowSelected">;
   border: Steps<"hairline" | "control" | "focus">;
-  shadow: Steps<"panel" | "modal" | "popup" | "drawer" | "glow" | "popupFilter" | "stateWarning">;
+  shadow: Steps<"panel" | "modal" | "popup" | "drawer" | "glow" | "popupFilter" | "stateWarning" | "confirm" | "readinessWarning" | "readinessSuccess">;
   motion: Partial<Record<"hover" | "expand" | "overlay", MotionRoleV2>>;
 }
 export interface TokensV2 {
@@ -78,15 +78,15 @@ export const NEUTRAL_TOKENS: TokensV2 & ResolvedTokensV2 = {
     motion: { duration: { fast: "150ms", normal: "200ms", slow: "300ms" }, easing: { standard: "cubic-bezier(0.4, 0, 0.2, 1)", linear: "linear" } },
   },
   roles: {
-    radius: { window: "lg", panel: "9px", card: "lg", modal: "10px", popup: "7px", row: "lg", control: "md", input: "md", chip: "sm", badge: "3px", thumb: "7px", track: "xs", pill: "full", sidebarItem: "7px", controlSmall: "sm", popupItem: "5px" },
+    radius: { window: "lg", panel: "9px", card: "lg", modal: "10px", popup: "7px", row: "lg", control: "md", input: "md", chip: "sm", badge: "3px", thumb: "7px", track: "xs", pill: "full", sidebarItem: "7px", controlSmall: "sm", popupItem: "5px", confirm: "lg", controlCompact: "5px", readinessRow: "5px" },
     space: { windowPad: "0", panelPad: "16", modalPad: "14", popupPad: "4", rowX: "12", rowY: "8", controlX: "12", controlY: "6", chipX: "4", chipY: "1px", stackGap: "12", inlineGap: "6", sectionGap: "14", listGap: "6", controlCompactX: "8", controlCompactY: "5px", controlSmallX: "10", controlSmallY: "2", sidebarPad: "8", sidebarSettingsPad: "10", sidebarLogoY: "14", sidebarListGap: "3px", sidebarItemGap: "10", inlineGapWide: "8", inlineGapSmall: "4", popupFilterPad: "5px", popupOffset: "5px", popupClearGap: "7px", separatorX: "2", separatorY: "4", footerX: "14", footerY: "7px", footerGap: "14", stateChipY: "3px", windowControlWidth: "40", windowControlHeight: "28", sidebarWidth: "176px", sidebarToggleOffset: "96px", sidebarToggleHeight: "46", searchMinWidth: "140px", popupMinWidth: "190px", popupMaxHeight: "320px", scaleTrackWidth: "120px", scaleKnobSize: "7px", sliderHeight: "3px", stateDotSize: "5px", pingTrackWidth: "56px", dataWidth: "36", iconTiny: "11px", iconSmall: "12", iconChevron: "13px", iconMedium: "14", iconLarge: "18", iconBox: "22", sidebarCollapsedWidth: "52px" },
     type: {
       display: typeRole("3xl", "extrabold", "data", "none", "none"), heading: typeRole("2xl", "bold", "ui", "none", "snug"), subheading: typeRole("lg", "semibold"), body: typeRole("md"), label: typeRole("sm", "semibold"), caption: typeRole("xs", "normal", "ui", "none", "1.4"), micro: typeRole("2xs"), button: typeRole("sm", "bold", "ui", "wider"), chip: typeRole("2xs", "bold", "ui", "0.04em", "1.3"), data: typeRole("sm", "normal", "data"), rowName: typeRole("lg", "semibold"), rowMeta: typeRole("xs"), statValue: typeRole("xl", "bold", "data", "none", "none"), statCaption: typeRole("3xs", "bold", "ui", "0.07em"),
       brand: typeRole("xl", "bold", "ui", "0.06em"),
     },
-    color: { onAccent: "#10131a", onAccent2: "#10131a", onDanger: "#10131a", focusRing: "var(--accent-line)", scrim: "rgba(5,8,13,0.7)", rowHover: "var(--row-hover)", rowSelected: "var(--row-selected)" },
+    color: { onAccent: "#10131a", onAccent2: "#10131a", onDanger: "#10131a", onSuccess: "#10131a", focusRing: "var(--accent-line)", scrim: "rgba(5,8,13,0.7)", rowHover: "var(--row-hover)", rowSelected: "var(--row-selected)" },
     border: { hairline: "hairline", control: "hairline", focus: "thick" },
-    shadow: { panel: "none", modal: "lg", popup: "sm", drawer: "-10px 0 26px rgba(0,0,0,0.4)", glow: "glow", popupFilter: "md", stateWarning: "0 0 4px var(--warn)" },
+    shadow: { panel: "none", modal: "lg", popup: "sm", drawer: "-10px 0 26px rgba(0,0,0,0.4)", glow: "glow", popupFilter: "md", stateWarning: "0 0 4px var(--warn)", confirm: "0 25px 50px -12px rgb(0 0 0 / 0.25)", readinessWarning: "0 0 5px rgba(193,154,85,0.6)", readinessSuccess: "0 0 5px rgba(77,154,117,0.6)" },
     motion: { hover: { duration: "fast", easing: "standard" }, expand: { duration: "normal", easing: "standard" }, overlay: { duration: "0ms", easing: "standard" } },
   },
 };
