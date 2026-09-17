@@ -235,7 +235,7 @@ fn responsive_compositions_only_compare_simultaneously_active_roots() {
     files.get_mut(BROWSER).unwrap()["variants"][1]["root"]["children"] = json!([]);
     assert!(validate_theme_layouts(&files)
         .iter()
-        .any(|i| i.rule_id == "REQ-01"));
+        .any(|i| i.rule_id == "REQ-06" && i.pointer == "/variants/1/root"));
 }
 
 #[test]
@@ -291,4 +291,139 @@ fn empty_row_content_neither_satisfies_requirements_nor_hides_regions() {
     assert!(validate_theme_layouts(&files)
         .iter()
         .any(|i| i.rule_id == "REQ-05" && i.message.contains("server.join")));
+}
+
+#[test]
+fn hidden_conditions_expand_settings_and_inherit_container_visibility() {
+    let mut files = theme();
+    files.insert("settings.schema.json".into(), json!({"schemaVersion":2,"fields":[{"id":"foo","type":"boolean","label":"Foo","default":false}]}));
+    files.get_mut(BROWSER).unwrap()["root"]["hidden"] = json!({"setting":"foo","equals":true});
+    let issues = validate_theme_layouts(&files);
+    assert!(issues.iter().any(|i| i.rule_id == "REQ-06"
+        && i.file == BROWSER
+        && i.pointer == "/root"
+        && i.message.contains("\"foo\":true")));
+    assert!(!issues
+        .iter()
+        .any(|i| i.rule_id == "REQ-01" || i.rule_id == "SET-01"));
+    files.get_mut(BROWSER).unwrap()["root"]["hidden"] = json!({"setting":"foo","not":false});
+    assert!(validate_theme_layouts(&files)
+        .iter()
+        .any(|i| i.rule_id == "REQ-06" && i.message.contains("\"foo\":true")));
+    files.get_mut(BROWSER).unwrap()["root"]["hidden"] = json!(false);
+    assert_eq!(validate_theme_layouts(&files), vec![]);
+    files.get_mut(SHELL).unwrap()["root"]["hidden"] = json!(true);
+    assert!(validate_theme_layouts(&files)
+        .iter()
+        .any(|i| i.rule_id == "REQ-06" && i.file == BROWSER));
+}
+
+#[test]
+fn hidden_rejects_malformed_or_non_discrete_references() {
+    let mut files = theme();
+    files.insert("settings.schema.json".into(), json!({"schemaVersion":2,"fields":[{"id":"size","type":"number","label":"Size","min":0,"max":1,"default":0},{"id":"foo","type":"boolean","label":"Foo","default":false}]}));
+    for hidden in [
+        json!(1),
+        json!({}),
+        json!({"setting":"missing","equals":true}),
+        json!({"setting":"size","equals":0}),
+        json!({"setting":"foo"}),
+        json!({"setting":"foo","equals":true,"not":false}),
+        json!({"setting":false,"equals":true}),
+        json!({"setting":"foo","equals":true,"extra":true}),
+    ] {
+        files.get_mut(BROWSER).unwrap()["root"]["hidden"] = hidden;
+        assert!(validate_theme_layouts(&files)
+            .iter()
+            .any(|i| i.rule_id == "LAY-03" && i.pointer == "/root/hidden"));
+    }
+    files.remove("settings.schema.json");
+    files.get_mut(BROWSER).unwrap()["root"]["hidden"] = json!({"setting":"foo","equals":true});
+    assert!(validate_theme_layouts(&files)
+        .iter()
+        .any(|i| i.rule_id == "LAY-03"));
+}
+
+#[test]
+fn collapsible_requires_both_subtrees_and_tabs_require_default_content() {
+    let mut files = theme();
+    let content = files[BROWSER]["root"].clone();
+    files.get_mut(BROWSER).unwrap()["root"]["collapsible"] =
+        json!({"default":"expanded","collapsed":{"type":"box"}});
+    assert!(validate_theme_layouts(&files)
+        .iter()
+        .any(|i| i.rule_id == "REQ-06" && i.pointer == "/root/collapsible/collapsed"));
+    files.get_mut(BROWSER).unwrap()["root"]["collapsible"]["collapsed"] = content.clone();
+    assert_eq!(validate_theme_layouts(&files), vec![]);
+    files.get_mut(BROWSER).unwrap()["root"]["children"] = json!([]);
+    assert!(validate_theme_layouts(&files)
+        .iter()
+        .any(|i| i.rule_id == "REQ-06" && i.pointer == "/root/children"));
+    files.get_mut(BROWSER).unwrap()["root"] = json!({"type":"tabs","tabs":[
+        {"id":"first","label":{"type":"text","value":"First"},"content":{"type":"box"}},
+        {"id":"second","label":{"type":"text","value":"Second"},"content":content}
+    ]});
+    assert!(validate_theme_layouts(&files)
+        .iter()
+        .any(|i| i.rule_id == "REQ-06" && i.pointer == "/root/tabs/0/content"));
+    files.get_mut(BROWSER).unwrap()["root"]["tabs"][0]["content"] = content;
+    assert!(!validate_theme_layouts(&files)
+        .iter()
+        .any(|i| i.rule_id.starts_with("REQ-")));
+}
+
+#[test]
+fn accordion_sections_count_without_enumerating_open_states() {
+    let mut files = theme();
+    let content = files[BROWSER]["root"].clone();
+    files.get_mut(BROWSER).unwrap()["root"] = json!({"type":"accordion","mode":"single","initial":"none","sections":[
+        {"id":"first","header":{"type":"text","value":"First"},"body":content}
+    ]});
+    assert_eq!(validate_theme_layouts(&files), vec![]);
+}
+
+#[test]
+fn visible_join_cannot_borrow_a_hidden_notice() {
+    let file = "layout/lists/servers.json";
+    let files = HashMap::from([(
+        file.into(),
+        json!({"schemaVersion":2,"row":{
+            "type":"box","children":[{"element":"server.join"},{"element":"server.actionNotice","hidden":true}]
+        }}),
+    )]);
+    assert!(validate_theme_layouts(&files)
+        .iter()
+        .any(|issue| issue.rule_id == "REQ-06" && issue.message.contains("server.actionNotice")));
+}
+
+#[test]
+fn all_four_variants_are_checked_at_sixty_four_combinations() {
+    let mut files = theme();
+    let fields: Vec<_> = (0..6)
+        .map(|i| json!({"id":format!("f{i}"),"type":"boolean","label":"Flag","default":false}))
+        .collect();
+    files.insert(
+        "settings.schema.json".into(),
+        json!({"schemaVersion":2,"fields":fields}),
+    );
+    let root = files[BROWSER]["root"].clone();
+    files.insert(
+        BROWSER.into(),
+        json!({"schemaVersion":2,"variants":[
+            {"minWidth":0,"root":root}, {"minWidth":800,"root":root},
+            {"minWidth":1000,"root":root}, {"minWidth":1200,"root":root}
+        ]}),
+    );
+    assert_eq!(validate_theme_layouts(&files), vec![]);
+    files.get_mut(BROWSER).unwrap()["variants"][3]["root"]["hidden"] =
+        json!({"setting":"f5","equals":true});
+    let issues = validate_theme_layouts(&files);
+    assert!(issues.iter().any(|issue| issue.rule_id == "REQ-06"
+        && issue.pointer == "/variants/3/root"
+        && issue
+            .message
+            .contains("\"f0\":true,\"f1\":true,\"f2\":true,\"f3\":true,\"f4\":true,\"f5\":true")));
+    assert!(!issues
+        .iter()
+        .any(|issue| issue.rule_id == "REQ-06" && issue.pointer != "/variants/3/root"));
 }
