@@ -87,7 +87,7 @@ export function buildFilterBarControls({
         title="Hide empty servers (0 players)"
         onClick={() => setFilter({ hide_empty: !filter.hide_empty })}
         className={cn(
-          "fbtn flex shrink-0 items-center gap-1 rounded-[6px] border px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider transition-colors",
+          "fbtn flex shrink-0 items-center gap-[var(--t-space-inlineGapSmall)] [border-radius:var(--t-radius-control)] border px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-button-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)]",
           filter.hide_empty
             ? "border-accent-line bg-accent-soft text-accent"
             : "border-line bg-surface2 text-muted hover:text-ink",
@@ -103,7 +103,7 @@ export function buildFilterBarControls({
         title="Hide full servers"
         onClick={() => setFilter({ hide_full: !filter.hide_full })}
         className={cn(
-          "fbtn flex shrink-0 items-center gap-1 rounded-[6px] border px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider transition-colors",
+          "fbtn flex shrink-0 items-center gap-[var(--t-space-inlineGapSmall)] [border-radius:var(--t-radius-control)] border px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-button-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)]",
           filter.hide_full
             ? "border-accent-line bg-accent-soft text-accent"
             : "border-line bg-surface2 text-muted hover:text-ink",
@@ -119,7 +119,7 @@ export function buildFilterBarControls({
         title="Hide password-protected servers"
         onClick={() => setFilter({ hide_locked: !filter.hide_locked })}
         className={cn(
-          "fbtn flex shrink-0 items-center gap-1 rounded-[6px] border px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider transition-colors",
+          "fbtn flex shrink-0 items-center gap-[var(--t-space-inlineGapSmall)] [border-radius:var(--t-radius-control)] border px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-button-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)]",
           filter.hide_locked
             ? "border-accent-line bg-accent-soft text-accent"
             : "border-line bg-surface2 text-muted hover:text-ink",
@@ -135,7 +135,7 @@ export function buildFilterBarControls({
         title="Hide unreachable or offline servers"
         onClick={() => setFilter({ hide_offline: !filter.hide_offline })}
         className={cn(
-          "fbtn flex shrink-0 items-center gap-1 rounded-[6px] border px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider transition-colors",
+          "fbtn flex shrink-0 items-center gap-[var(--t-space-inlineGapSmall)] [border-radius:var(--t-radius-control)] border px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-button-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)]",
           filter.hide_offline
             ? "border-accent-line bg-accent-soft text-accent"
             : "border-line bg-surface2 text-muted hover:text-ink",
@@ -148,10 +148,10 @@ export function buildFilterBarControls({
       <button
         data-tetra-el="resetAction"
         onClick={resetFilter}
-        className="fbtn flex shrink-0 items-center gap-1 rounded-[6px] border border-line bg-surface2 px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-ink"
+        className="fbtn flex shrink-0 items-center gap-[var(--t-space-inlineGapSmall)] [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-button-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:text-ink"
         title="Reset all filters to defaults"
       >
-        <RotateCcw className="size-3" />
+        <RotateCcw className="size-[var(--t-space-iconSmall)]" />
         Reset
       </button>
     ),
@@ -163,14 +163,14 @@ export function buildFilterBarControls({
         onClick={onRefresh}
         disabled={refreshing}
         className={cn(
-          "fbtn flex shrink-0 items-center justify-center gap-1 rounded-[6px] border px-2 py-[5px] text-[10px] font-bold uppercase tracking-wider transition-colors",
+          "fbtn flex shrink-0 items-center justify-center gap-[var(--t-space-inlineGapSmall)] [border-radius:var(--t-radius-control)] border px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-button-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)]",
           refreshing
             ? "cursor-not-allowed border-line bg-surface2 text-muted"
-            : "border-accent-line bg-accent-soft text-accent shadow-[var(--glow)] hover:brightness-110",
+            : "border-accent-line bg-accent-soft text-accent [box-shadow:var(--t-shadow-glow)] hover:brightness-110",
         )}
         title="Re-probe the servers currently on screen — ping, lock, mods, online status"
       >
-        <RefreshCw className={cn("size-3", refreshing && "animate-spin")} />
+        <RefreshCw className={cn("size-[var(--t-space-iconSmall)]", refreshing && "animate-spin")} />
         {refreshing ? "Refreshing…" : "Refresh"}
       </button>
     ),
@@ -250,7 +250,7 @@ export function FilterBar({ onRefresh, refreshing, onOpenModFilter, modFilterOpe
     // Refresh button off the right edge.
     <div
       data-tetra-slot="filterBar"
-      className="filterbar flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-2 border-b border-line bg-surface px-2.5 py-2"
+      className="filterbar flex shrink-0 flex-wrap items-center gap-x-[var(--t-space-inlineGap)] gap-y-[var(--t-space-inlineGapWide)] border-b border-line bg-surface px-[var(--t-space-controlSmallX)] py-[var(--t-space-rowY)]"
     >
       {composition !== null ? (
         <ComponentTreeRenderer node={composition} nodes={controls} themeId={activeId} />
@@ -296,16 +296,16 @@ function SearchInput({
   return (
     <div
       data-tetra-el="searchInput"
-      className="search flex min-w-[140px] flex-1 items-center gap-1.5 rounded-[6px] border border-line bg-surface2 px-2.5 py-[5px]"
+      className="search flex min-w-[var(--t-space-searchMinWidth)] flex-1 items-center gap-[var(--t-space-inlineGap)] [border-radius:var(--t-radius-input)] border border-line bg-surface2 px-[var(--t-space-controlSmallX)] py-[var(--t-space-controlCompactY)]"
     >
-      <Search className="size-3 shrink-0 text-muted" />
+      <Search className="size-[var(--t-space-iconSmall)] shrink-0 text-muted" />
       <input
         type="text"
         placeholder="Search servers…"
         value={text}
         onChange={(e) => setText(e.target.value)}
         aria-label="Search servers"
-        className="min-w-0 flex-1 bg-transparent text-[11px] text-ink outline-none placeholder:text-muted"
+        className="min-w-0 flex-1 bg-transparent [font-size:var(--t-type-body-size)] text-ink outline-none placeholder:text-muted"
       />
     </div>
   );
@@ -315,7 +315,7 @@ function SearchInput({
 
 function FdropMenu({ children }: { children: React.ReactNode }) {
   return (
-    <div className="fdrop-menu absolute left-0 top-[calc(100%+5px)] z-30 max-h-80 min-w-[190px] overflow-y-auto rounded-[7px] border border-line bg-surface2 p-[5px] shadow-[0_10px_28px_rgba(0,0,0,0.5)]">
+    <div className="fdrop-menu absolute left-0 top-[calc(100%+var(--t-space-popupOffset))] z-30 max-h-[var(--t-space-popupMaxHeight)] min-w-[var(--t-space-popupMinWidth)] overflow-y-auto [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-[var(--t-space-popupFilterPad)] [box-shadow:var(--t-shadow-popupFilter)]">
       {children}
     </div>
   );
@@ -338,12 +338,12 @@ function FdropItem({
       role="option"
       aria-selected={active}
       className={cn(
-        "flex w-full items-center gap-2 whitespace-nowrap rounded-[5px] px-2 py-1.5 text-[10px] font-semibold text-muted2 transition-colors hover:bg-surface hover:text-ink",
+        "flex w-full items-center gap-[var(--t-space-inlineGapWide)] whitespace-nowrap [border-radius:var(--t-radius-popupItem)] px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] text-muted2 transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:bg-surface hover:text-ink",
         active && "bg-accent-soft text-accent",
       )}
     >
-      <span className="flex h-[14px] w-[14px] shrink-0 items-center justify-center text-muted">
-        {icon ?? <Check className={cn("size-3", !active && "opacity-0")} strokeWidth={2} />}
+      <span className="flex h-[var(--t-space-iconMedium)] w-[var(--t-space-iconMedium)] shrink-0 items-center justify-center text-muted">
+        {icon ?? <Check className={cn("size-[var(--t-space-iconSmall)]", !active && "opacity-0")} strokeWidth={2} />}
       </span>
       <span className="truncate">{children}</span>
     </button>
@@ -354,7 +354,7 @@ function FdropClear({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="flex w-full items-center gap-[7px] rounded-[5px] px-2 py-[5px] text-[8px] font-bold uppercase tracking-[0.05em] text-muted transition-colors hover:bg-surface hover:text-ink"
+      className="flex w-full items-center gap-[var(--t-space-popupClearGap)] [border-radius:var(--t-radius-popupItem)] px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-micro-size)] [font-weight:var(--t-type-button-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:bg-surface hover:text-ink"
     >
       Clear
     </button>
@@ -362,7 +362,7 @@ function FdropClear({ onClick }: { onClick: () => void }) {
 }
 
 function FdropSep() {
-  return <div className="mx-0.5 my-1 h-px bg-line" />;
+  return <div className="mx-[var(--t-space-separatorX)] my-[var(--t-space-separatorY)] h-[var(--t-border-hairline)] bg-line" />;
 }
 
 function FdropTrigger({
@@ -394,15 +394,15 @@ function FdropTrigger({
       aria-expanded={open ?? false}
       data-tetra-el={dataTetraEl}
       className={cn(
-        "fdrop-trigger flex items-center gap-1.5 whitespace-nowrap rounded-[6px] border border-line bg-surface2 px-2 py-[5px] text-[10px] font-bold text-muted transition-colors hover:border-accent-line hover:text-ink",
-        on && "border-accent-line bg-accent-soft text-accent shadow-[var(--glow)]",
+        "fdrop-trigger flex items-center gap-[var(--t-space-inlineGap)] whitespace-nowrap [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-button-weight)] text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:border-accent-line hover:text-ink",
+        on && "border-accent-line bg-accent-soft text-accent [box-shadow:var(--t-shadow-glow)]",
       )}
     >
       <span>{label}</span>
-      <span className={cn("truncate font-semibold text-muted2", on && "text-accent")}>
+      <span className={cn("truncate [font-weight:var(--t-type-label-weight)] text-muted2", on && "text-accent")}>
         {children}
       </span>
-      <ChevronDown className="size-[11px] text-muted" />
+      <ChevronDown className="size-[var(--t-space-iconTiny)] text-muted" />
     </button>
   );
 }
@@ -484,7 +484,7 @@ function MapDropdown({
       {open && (
         <FdropMenu>
           {maps.length === 0 && (
-            <div className="px-2 py-1.5 text-[10px] text-muted">Loading maps...</div>
+            <div className="px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] text-muted">Loading maps...</div>
           )}
           {maps.map(([normalised, display]) => (
             <FdropItem
@@ -559,8 +559,8 @@ function TagsDropdown({
             const val = values[opt.field];
             return (
               <FdropItem key={opt.field} active={val === true} onClick={() => cycle(opt.field)}>
-                <span className="flex min-w-0 items-center gap-2">
-                  <span className={cn("font-mono-data text-[10px]", indicatorColor(val))}>
+                <span className="flex min-w-0 items-center gap-[var(--t-space-inlineGapWide)]">
+                  <span className={cn("font-mono-data [font-size:var(--t-type-label-size)]", indicatorColor(val))}>
                     {indicator(val)}
                   </span>
                   <span className="truncate">{opt.label}</span>
@@ -633,7 +633,7 @@ function CountryDropdown({
           ))}
           <FdropSep />
           {/* The classifier is a coarse first-octet table, not a real geo lookup. */}
-          <p className="px-2 pb-1 pt-0.5 text-[8px] leading-snug text-muted">
+          <p className="px-[var(--t-space-controlCompactX)] pb-[var(--t-space-separatorY)] pt-[var(--t-space-separatorX)] [font-size:var(--t-type-micro-size)] [line-height:var(--t-type-heading-leading)] text-muted">
             Approximate — based on IP block, not confirmed location
           </p>
           <FdropClear onClick={() => onChange([])} />
@@ -705,9 +705,9 @@ function PingSlider({
   return (
     <div
       data-tetra-el="pingSlider"
-      className="ping-row flex shrink-0 items-center gap-1.5 px-0.5 text-[10px] text-muted"
+      className="ping-row flex shrink-0 items-center gap-[var(--t-space-inlineGap)] px-[var(--t-space-separatorX)] [font-size:var(--t-type-label-size)] text-muted"
     >
-      <span className="font-bold uppercase tracking-[0.05em] text-muted2">PING</span>
+      <span className="[font-weight:var(--t-type-button-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-muted2">PING</span>
       <input
         type="range"
         min={50}
@@ -719,9 +719,9 @@ function PingSlider({
           onChange(v >= SLIDER_MAX ? null : v);
         }}
         aria-label="Maximum ping"
-        className="h-[3px] w-14 cursor-pointer appearance-none rounded-full bg-line accent-accent"
+        className="h-[var(--t-space-sliderHeight)] w-[var(--t-space-pingTrackWidth)] cursor-pointer appearance-none [border-radius:var(--t-radius-pill)] bg-line accent-accent"
       />
-      <span className="w-9 font-mono-data text-muted2">
+      <span className="w-[var(--t-space-dataWidth)] font-mono-data text-muted2">
         {isUnlimited ? "Any" : `${sliderValue}ms`}
       </span>
     </div>

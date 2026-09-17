@@ -239,6 +239,9 @@ token_group! {
         thumb: TokenValue = "7px".into() => "thumb",
         track: TokenValue = "xs".into() => "track",
         pill: TokenValue = "full".into() => "pill",
+        sidebar_item: TokenValue = "7px".into() => "sidebarItem",
+        control_small: TokenValue = "sm".into() => "controlSmall",
+        popup_item: TokenValue = "5px".into() => "popupItem",
     }
 }
 
@@ -258,6 +261,47 @@ token_group! {
         inline_gap: TokenValue = "6".into() => "inlineGap",
         section_gap: TokenValue = "14".into() => "sectionGap",
         list_gap: TokenValue = "6".into() => "listGap",
+        control_compact_x: TokenValue = "8".into() => "controlCompactX",
+        control_compact_y: TokenValue = "5px".into() => "controlCompactY",
+        control_small_x: TokenValue = "10".into() => "controlSmallX",
+        control_small_y: TokenValue = "2".into() => "controlSmallY",
+        sidebar_pad: TokenValue = "8".into() => "sidebarPad",
+        sidebar_settings_pad: TokenValue = "10".into() => "sidebarSettingsPad",
+        sidebar_logo_y: TokenValue = "14".into() => "sidebarLogoY",
+        sidebar_list_gap: TokenValue = "3px".into() => "sidebarListGap",
+        sidebar_item_gap: TokenValue = "10".into() => "sidebarItemGap",
+        inline_gap_wide: TokenValue = "8".into() => "inlineGapWide",
+        inline_gap_small: TokenValue = "4".into() => "inlineGapSmall",
+        popup_filter_pad: TokenValue = "5px".into() => "popupFilterPad",
+        popup_offset: TokenValue = "5px".into() => "popupOffset",
+        popup_clear_gap: TokenValue = "7px".into() => "popupClearGap",
+        separator_x: TokenValue = "2".into() => "separatorX",
+        separator_y: TokenValue = "4".into() => "separatorY",
+        footer_x: TokenValue = "14".into() => "footerX",
+        footer_y: TokenValue = "7px".into() => "footerY",
+        footer_gap: TokenValue = "14".into() => "footerGap",
+        state_chip_y: TokenValue = "3px".into() => "stateChipY",
+        window_control_width: TokenValue = "40".into() => "windowControlWidth",
+        window_control_height: TokenValue = "28".into() => "windowControlHeight",
+        sidebar_width: TokenValue = "176px".into() => "sidebarWidth",
+        sidebar_collapsed_width: TokenValue = "52px".into() => "sidebarCollapsedWidth",
+        sidebar_toggle_offset: TokenValue = "96px".into() => "sidebarToggleOffset",
+        sidebar_toggle_height: TokenValue = "46".into() => "sidebarToggleHeight",
+        search_min_width: TokenValue = "140px".into() => "searchMinWidth",
+        popup_min_width: TokenValue = "190px".into() => "popupMinWidth",
+        popup_max_height: TokenValue = "320px".into() => "popupMaxHeight",
+        scale_track_width: TokenValue = "120px".into() => "scaleTrackWidth",
+        scale_knob_size: TokenValue = "7px".into() => "scaleKnobSize",
+        slider_height: TokenValue = "3px".into() => "sliderHeight",
+        state_dot_size: TokenValue = "5px".into() => "stateDotSize",
+        ping_track_width: TokenValue = "56px".into() => "pingTrackWidth",
+        data_width: TokenValue = "36".into() => "dataWidth",
+        icon_tiny: TokenValue = "11px".into() => "iconTiny",
+        icon_small: TokenValue = "12".into() => "iconSmall",
+        icon_chevron: TokenValue = "13px".into() => "iconChevron",
+        icon_medium: TokenValue = "14".into() => "iconMedium",
+        icon_large: TokenValue = "18".into() => "iconLarge",
+        icon_box: TokenValue = "22".into() => "iconBox",
     }
 }
 
@@ -402,6 +446,16 @@ token_group! {
 }
 
 token_group! {
+    BrandTypeRolesTokensV2 {
+        family: TokenValue = "ui".into() => "family",
+        size: TokenValue = "xl".into() => "size",
+        weight: TokenValue = "bold".into() => "weight",
+        tracking: TokenValue = "0.06em".into() => "tracking",
+        leading: TokenValue = "normal".into() => "leading",
+    }
+}
+
+token_group! {
     TypeRolesTokensV2 {
         display: DisplayTypeRolesTokensV2 = DisplayTypeRolesTokensV2::default() => "display",
         heading: HeadingTypeRolesTokensV2 = HeadingTypeRolesTokensV2::default() => "heading",
@@ -417,6 +471,7 @@ token_group! {
         row_meta: RowMetaTypeRolesTokensV2 = RowMetaTypeRolesTokensV2::default() => "rowMeta",
         stat_value: StatValueTypeRolesTokensV2 = StatValueTypeRolesTokensV2::default() => "statValue",
         stat_caption: StatCaptionTypeRolesTokensV2 = StatCaptionTypeRolesTokensV2::default() => "statCaption",
+        brand: BrandTypeRolesTokensV2 = BrandTypeRolesTokensV2::default() => "brand",
     }
 }
 
@@ -447,6 +502,8 @@ token_group! {
         popup: TokenValue = "sm".into() => "popup",
         drawer: TokenValue = "-10px 0 26px rgba(0,0,0,0.4)".into() => "drawer",
         glow: TokenValue = "glow".into() => "glow",
+        popup_filter: TokenValue = "md".into() => "popupFilter",
+        state_warning: TokenValue = "0 0 4px var(--warn)".into() => "stateWarning",
     }
 }
 
