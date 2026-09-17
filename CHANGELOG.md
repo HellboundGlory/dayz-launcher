@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- Shared v2 theme element registry for TypeScript and Rust, with documentation parity checks.
+
 ### Changed
 
 - Themes page and customizer font sizes, corners, shadows, explicit transition durations, and action contrast now follow theme tokens without changing Neutral defaults.

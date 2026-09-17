@@ -19,6 +19,8 @@ mod state;
 mod theme;
 mod window_state;
 
+pub use theme::registry;
+
 /// Added to the command line registered with the OS startup entry, so
 /// `start_minimised` can apply only to an OS-triggered launch.
 const AUTOSTART_FLAG: &str = "--autostart";

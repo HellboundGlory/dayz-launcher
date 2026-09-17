@@ -9,7 +9,7 @@ const COMMIT_DELAY_MS = 350;
 
 /** Pending writes by field id. Per field rather than one shared timer:
  * dragging a second slider must not cancel the first slider's write. */
-export type CommitTimers = Record<string, number | undefined>;
+export type CommitTimers = Record<string, number | NodeJS.Timeout | undefined>;
 
 /**
  * A slider's granularity: the schema declares only `min`/`max`, and the
