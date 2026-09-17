@@ -186,16 +186,16 @@ export function ThemeGrid({
             aria-modal="true"
             aria-label={confirm.title}
             onKeyDown={trapConfirmTab}
-            className="w-80 rounded-[8px] border border-line bg-surface p-3 shadow-2xl"
+            className="w-80 [border-radius:var(--t-radius-card)] border border-line bg-surface p-3 [box-shadow:var(--t-shadow-confirm)]"
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="text-xs font-bold text-ink">{confirm.title}</p>
-            <p className="mt-1.5 text-[11px] leading-relaxed text-muted2">{confirm.message}</p>
+            <p className="[font-size:var(--t-type-subheading-size)] font-bold text-ink">{confirm.title}</p>
+            <p className="mt-1.5 [font-size:var(--t-type-body-size)] leading-relaxed text-muted2">{confirm.message}</p>
             <div className="mt-3 flex justify-end gap-2">
               <button
                 ref={confirmCancelRef}
                 onClick={() => setConfirm(null)}
-                className="rounded-[6px] border border-line bg-surface2 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted2 transition-colors hover:text-ink"
+                className="[border-radius:var(--t-radius-control)] border border-line bg-surface2 px-3 py-1.5 [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider text-muted2 transition-colors hover:text-ink"
               >
                 Cancel
               </button>
@@ -205,7 +205,7 @@ export function ThemeGrid({
                   setConfirm(null);
                   onDelete(id);
                 }}
-                className="rounded-[6px] bg-danger px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#10131a] transition-colors hover:brightness-110"
+                className="[border-radius:var(--t-radius-control)] bg-danger px-3 py-1.5 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onDanger)] transition-colors hover:brightness-110"
               >
                 Confirm
               </button>

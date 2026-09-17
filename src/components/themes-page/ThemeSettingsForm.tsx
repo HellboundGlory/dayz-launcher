@@ -63,17 +63,17 @@ export function ThemeSettingsForm({ id, fields }: { id: string; fields: Settings
   }
 
   return (
-    <div className="flex flex-col gap-1.5 rounded-[8px] border border-line bg-surface2 p-2.5">
+    <div className="flex flex-col gap-1.5 [border-radius:var(--t-radius-card)] border border-line bg-surface2 p-2.5">
       {fields.map((field) =>
         field.type === "number" ? (
           <div
             key={field.id}
-            className="flex items-center gap-2 rounded-[7px] border border-line bg-bg px-2.5 py-[7px]"
+            className="flex items-center gap-2 [border-radius:var(--t-radius-popup)] border border-line bg-bg px-2.5 py-[7px]"
           >
             <label
               htmlFor={`theme-setting-${field.id}`}
               title={field.label}
-              className="w-[92px] shrink-0 truncate text-[9px] font-semibold text-ink"
+              className="w-[92px] shrink-0 truncate [font-size:var(--t-type-caption-size)] font-semibold text-ink"
             >
               {field.label}
             </label>
@@ -108,7 +108,7 @@ export function ThemeSettingsForm({ id, fields }: { id: string; fields: Settings
               }}
               className="h-[3px] flex-1 accent-accent"
             />
-            <output className="w-[40px] shrink-0 text-right font-mono-data text-[9px] text-accent">
+            <output className="w-[40px] shrink-0 text-right font-mono-data [font-size:var(--t-type-caption-size)] text-accent">
               {current(field) as number}
             </output>
           </div>
@@ -120,7 +120,7 @@ export function ThemeSettingsForm({ id, fields }: { id: string; fields: Settings
               onChange={(e) => void setSettingsValue(id, field.id, e.target.checked)}
               className="mt-0.5 size-3.5 shrink-0 accent-accent"
             />
-            <span className="min-w-0 text-[11px] text-ink">{field.label}</span>
+            <span className="min-w-0 [font-size:var(--t-type-body-size)] text-ink">{field.label}</span>
           </label>
         ),
       )}

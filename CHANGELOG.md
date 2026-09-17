@@ -1,6 +1,11 @@
 # Changelog
 
 ## Unreleased
+
+### Changed
+
+- Themes page and customizer font sizes, corners, shadows, explicit transition durations, and action contrast now follow theme tokens without changing Neutral defaults.
+
 ## v2.6.0 — 2026-09-09
 
 ### Added

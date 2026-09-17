@@ -10,7 +10,7 @@ interface PaginationProps {
 }
 
 const PAGER_BUTTON =
-  "inline-flex h-6 w-6 items-center justify-center rounded-[5px] border border-line bg-surface2 text-muted2 transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-40";
+  "inline-flex h-6 w-6 items-center justify-center [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface2 text-muted2 transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-40";
 
 export function Pagination({
   page,
@@ -33,7 +33,7 @@ export function Pagination({
       >
         <ChevronLeft className="size-3.5" />
       </button>
-      <p className="font-mono-data text-[10px] uppercase tracking-wider text-muted2">
+      <p className="font-mono-data [font-size:var(--t-type-label-size)] uppercase tracking-wider text-muted2">
         Page {pageLabel} / {totalLabel} · {totalCount} installed
       </p>
       <button
