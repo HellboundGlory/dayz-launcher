@@ -233,6 +233,21 @@ describe("theme extras", () => {
     "local.partial": { id: "local.partial", name: "Partial", tokens } as ThemeFile,
   });
 
+  it("applies installed v2 roles without overriding live palette edits or bloom", () => {
+    const themeFiles = files({ schemaVersion: 2, bloom: 0.2, colors: { dark: { accent: "#ff0000" } }, scales: { radius: { md: "9px" } }, roles: { space: { rowX: "18" } } });
+    expect(resolvedExtras("local.partial", themeFiles).shadows.glowIntensity).toBe(0.2);
+    useThemeStore.setState({ activeId: "local.partial", scheme: "dark", themeFiles, custom: { dark: { accent: "#00ff00" }, light: {} }, bloom: 0.4 });
+    useThemeStore.getState().apply();
+    expect(writtenProps["--accent"]).toBe("#00ff00");
+    expect(writtenProps["--bloom"]).toBe("0.4");
+    expect(writtenProps["--t-radius-control"]).toBe("9px");
+    expect(writtenProps["--t-space-rowX"]).toBe("18px");
+    useThemeStore.setState({ activeId: "neutral" });
+    useThemeStore.getState().apply();
+    expect(writtenProps["--t-radius-control"]).toBe("6px");
+    expect(writtenProps["--t-space-rowX"]).toBe("12px");
+  });
+
   it("fills the missing spacing keys of a partial theme from the defaults", () => {
     const themeFiles = files({ spacing: { md: "12px" } });
 

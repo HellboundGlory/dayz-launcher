@@ -24,6 +24,7 @@ import {
   type Typography,
 } from "./palette";
 import { applyTheme, DEFAULT_EXTRAS, type ThemeExtras } from "./apply";
+import { parseTokens } from "./tokens";
 import { applyThemeFonts, applyThemeStylesheet } from "./css-loader";
 import {
   resolveSettingsSchema,
@@ -127,7 +128,10 @@ export function slugify(name: string): string {
 /** One scheme's palette out of an untrusted `tokens.json`; missing tokens fall back to neutral. */
 function paletteFromTokens(tokens: unknown, scheme: "dark" | "light"): Palette {
   const out = { ...(scheme === "dark" ? NEUTRAL_DARK : NEUTRAL_LIGHT) };
-  const raw = (tokens as Record<string, unknown> | null | undefined)?.[scheme];
+  const root = tokens as Record<string, unknown> | null | undefined;
+  const raw = root?.schemaVersion === 2
+    ? parseTokens(root).colors?.[scheme]
+    : root?.[scheme];
   if (raw === null || typeof raw !== "object") return out;
   for (const token of TOKENS) {
     const value = (raw as Record<string, unknown>)[token];
@@ -216,7 +220,7 @@ export function resolvedExtras(
       dataFont: typography.dataFont ?? DEFAULT_TYPOGRAPHY.dataFont,
     },
     shadows: {
-      glowIntensity: glowIntensityOf(root.shadows) ?? DEFAULT_EXTRAS.shadows.glowIntensity,
+      glowIntensity: (root.schemaVersion === 2 ? parseTokens(root).bloom : glowIntensityOf(root.shadows)) ?? DEFAULT_EXTRAS.shadows.glowIntensity,
     },
   };
 }
@@ -450,10 +454,12 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
               layout: substitutePlaceholders(raw.layout, values),
             },
           };
+    const tokenFile = files[activeId]?.tokens as Record<string, unknown> | undefined;
+    const tokens = tokenFile?.schemaVersion === 2 ? parseTokens(tokenFile) : undefined;
     applyTheme(effective(scheme, activeId, files, custom), scheme, {
       ...effectiveExtras(activeId, files, customExtras),
       shadows: { glowIntensity: bloom },
-    });
+    }, tokens ? { scales: tokens.scales, roles: tokens.roles } : undefined);
     // CSS and fonts belong to an installed theme's own files; a preset or
     // neutral has none, which unloads whatever the previous theme had.
     const file = files[activeId];
