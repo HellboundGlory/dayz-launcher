@@ -158,6 +158,9 @@ Package 3.2b adds `app_lib::validator::validate_theme_layouts` for a path-to-JSO
 - The package path allowlist (SPEC §3.1): anything outside it is refused.
 - v1 packages are refused with a clear message, and v1 folders on disk are reported as incompatible (ADR-0003).
 
+Package 3.3 implements manifest and archive v2: `ThemeManifest` schemaVersion 2 with `themeApi: "2.0"`, `previews`, and `capabilities`; the SPEC §3.1 package path allowlist (`PKG-01`); archive limits of 64 files (`PKG-03`), 8 MB uncompressed (`PKG-04`), depth 3, and 4096px images; v1 package rejection per ADR-0003; `MAN-02`..`MAN-09` manifest gates; and `ThemeSummary` incompatibility tracking. Bundled starter templates remain v1 until Package 4.6.
+
+
 ### Package 3.4: variants and settings combinations
 
 - Expand every breakpoint variant against every settings combination, capped at 4 × 64, and validate each.

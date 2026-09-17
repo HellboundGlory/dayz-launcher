@@ -1,9 +1,8 @@
 //! Importing a theme `.zip`: [`stage_for_preview`] unpacks into
 //! `themes/.staging/<id>` (never the live themes directory) and reports what
 //! it found. Every limit is enforced while streaming, cheapest checks first,
-//! before an entry is written — this is still hostile input. Anything a theme
-//! carries besides its two JSON files is then content-sniffed: the extension
-//! only picks the decoder, the bytes have to prove they are that format.
+//! before an entry is written. Packaged assets are content-sniffed: the
+//! extension picks the decoder, and the bytes must prove their format.
 //!
 //! [`export`] goes the other way: repackages an installed theme into the same
 //! files an import accepts, and refuses to ship one naming this machine's own
@@ -13,41 +12,21 @@ use std::io::{Read, Seek, Write};
 use std::path::{Path, PathBuf};
 
 use crate::theme::{
-    composition_gate, composition_refused, ThemeManifest, ThemeSummary, COMPONENTS_DIR,
-    LAYOUT_FILE, MANIFEST_FILE, SETTINGS_SCHEMA_FILE, STYLES_FILE, TOKENS_FILE,
+    ThemeManifest, ThemeSummary, MANIFEST_FILE, SETTINGS_SCHEMA_FILE, STYLES_FILE, TOKENS_FILE,
 };
 use quick_xml::events::Event;
 
-/// Exact match today since `"1.0"` is the only version so far; becomes a
-/// range check once a second one exists (hence the name).
-pub const SUPPORTED_THEME_API_RANGE: &str = "1.0";
+pub const SUPPORTED_THEME_API_RANGE: &str = "2.0";
 
-/// The tiers this build can load.
-const SUPPORTED_TIERS: [&str; 3] = ["basic", "advanced", "expert"];
-
-/// Headroom above a manifest+palette, not a target — big enough for a real
-/// theme, small enough to reject an accidental asset pack cleanly.
-const MAX_FILES: usize = 20;
-
-/// Uncompressed, summed across entries — generous for two JSON files, small
-/// enough to refuse a zip bomb before it fills a disk.
-const MAX_TOTAL_UNCOMPRESSED_BYTES: u64 = 2 * 1024 * 1024;
-
-/// `preview/dark/…` is already deeper nesting than a theme ships.
+const MAX_FILES: usize = 64;
+const MAX_TOTAL_UNCOMPRESSED_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_PATH_DEPTH: usize = 3;
-
-/// Everything a theme package may carry. This widens what an import accepts,
-/// not what it trusts: each extension below is content-sniffed in
-/// [`sniff_asset`], and an extension outside this list still fails the whole
-/// package. `.json` is the manifest and the palette, `.txt`/`.md` plain notes.
-const ALLOWED_EXTENSIONS: [&str; 13] = [
-    "json", "css", "png", "webp", "jpg", "jpeg", "svg", "woff2", "woff", "ttf", "otf", "txt", "md",
+const ALLOWED_EXTENSIONS: [&str; 12] = [
+    "json", "css", "png", "webp", "jpg", "jpeg", "svg", "woff2", "woff", "ttf", "otf", "md",
 ];
-
-/// The two extension families an advanced-tier theme must declare a
-/// capability for; every member is also in [`ALLOWED_EXTENSIONS`].
 const FONT_EXTENSIONS: [&str; 4] = ["woff2", "woff", "ttf", "otf"];
 const IMAGE_EXTENSIONS: [&str; 5] = ["png", "webp", "jpg", "jpeg", "svg"];
+const CAPABILITIES: [&str; 6] = ["tokens", "css", "fonts", "images", "layout", "settings"];
 
 /// A theme image is chrome: a 4096 square is already a full-screen backdrop.
 /// Checked against the header before any pixel buffer is allocated.
@@ -178,13 +157,20 @@ pub fn confirm_theme_install(themes_root: &Path, staging_id: &str) -> Result<Str
     Ok(manifest.id)
 }
 
-/// Split out so [`stage_for_preview`] owns the one cleanup path: every `Err`
-/// here discards the staging directory. Order is deliberate: limits and
-/// zip-slip are checked before extraction, the manifest only after its bytes exist.
+/// Every failure discards staging; limits and path checks precede extraction.
 fn inspect<R: Read + Seek>(
     archive: &mut zip::ZipArchive<R>,
     staging_dir: &Path,
 ) -> Result<(ThemeManifest, usize), String> {
+    // Report the obsolete format even when it carries obsolete paths too.
+    if let Ok(mut entry) = archive.by_name(MANIFEST_FILE) {
+        if entry.size() <= MAX_TOTAL_UNCOMPRESSED_BYTES {
+            let bytes = read_entry(&mut entry, MANIFEST_FILE, &mut 0)?;
+            if let Ok(manifest) = serde_json::from_slice::<ThemeManifest>(&bytes) {
+                validate_manifest(&manifest)?;
+            }
+        }
+    }
     // Canonicalised once: on Windows the zip-slip check needs `\\?\C:\…` form to compare against.
     let staging_root = staging_dir
         .canonicalize()
@@ -201,9 +187,9 @@ fn inspect<R: Read + Seek>(
             .map_err(|e| format!("Could not read entry {index} of the package: {e}"))?;
         let name = entry.name().to_string();
 
-        if extracted >= MAX_FILES {
+        if !entry.is_dir() && extracted >= MAX_FILES {
             return Err(format!(
-                "This package holds more than {MAX_FILES} files — a theme is a manifest, a palette and its assets."
+                "PKG-03: This package holds more than {MAX_FILES} files."
             ));
         }
         let depth = name.matches('/').count();
@@ -216,7 +202,7 @@ fn inspect<R: Read + Seek>(
         if let Some(claimed) = entry.size().checked_add(total_bytes) {
             if claimed > MAX_TOTAL_UNCOMPRESSED_BYTES {
                 return Err(format!(
-                    "This package expands to more than {} MB; a theme package should be far smaller.",
+                    "PKG-04: This package expands to more than {} MB.",
                     MAX_TOTAL_UNCOMPRESSED_BYTES / (1024 * 1024)
                 ));
             }
@@ -233,23 +219,7 @@ fn inspect<R: Read + Seek>(
             continue;
         }
 
-        // Checked against the full name: `tokens.json/…` and `tokens.json.exe` both fail.
-        let Some(extension) = allowed_extension(&name) else {
-            return Err(format!(
-                "`{name}` is not a file a theme package may hold — allowed are {ALLOWED_EXTENSIONS:?}."
-            ));
-        };
-
-        // The slot registry gates compositions on import exactly as the read
-        // path does: an unknown or restricted slot's file is not a theme file.
-        if let Some(named) = components_file_slot(&name) {
-            let Some((slot, composable)) = composition_gate(named) else {
-                return Err(format!("`{name}` names no slot in the slot registry."));
-            };
-            if !composable {
-                return Err(composition_refused(&name, slot));
-            }
-        }
+        let extension = package_extension(&name)?;
 
         // Read into memory rather than straight to disk: an asset has to be
         // sniffed before it is staged, and a theme asset is bounded by the
@@ -267,49 +237,17 @@ fn inspect<R: Read + Seek>(
     let parsed: ThemeManifest = serde_json::from_str(&raw)
         .map_err(|e| format!("{MANIFEST_FILE} is not a valid manifest: {e}"))?;
 
-    // Three compatibility gates, cheapest first, before tokens.json is even read.
-    if !SUPPORTED_TIERS.contains(&parsed.tier.as_str()) {
-        return Err(format!(
-            "`{}` is a `{}` theme, which this build cannot load — this theme needs a newer Tetra Launcher.",
-            parsed.name, parsed.tier
-        ));
-    }
-    if parsed.theme_api != SUPPORTED_THEME_API_RANGE {
-        return Err(format!(
-            "`{}` is written against theme API {} and this Launcher speaks {SUPPORTED_THEME_API_RANGE} — this theme needs a newer Tetra Launcher.",
-            parsed.name, parsed.theme_api
-        ));
-    }
-    minimum_launcher_version_at_most(&parsed)?;
+    validate_manifest(&parsed)?;
 
     let tokens_path = staging_dir.join(TOKENS_FILE);
-    let raw = std::fs::read_to_string(&tokens_path)
-        .map_err(|_| format!("This package has no {TOKENS_FILE} — it is not a Tetra theme."))?;
-    let tokens: serde_json::Value =
-        serde_json::from_str(&raw).map_err(|e| format!("{TOKENS_FILE} is not valid JSON: {e}"))?;
-    crate::theme::validate_tokens(&tokens)?;
-
-    // A layout is optional in a package just as it is in an installed theme.
-    let layout_path = staging_dir.join(LAYOUT_FILE);
-    if layout_path.exists() {
-        let raw = std::fs::read_to_string(&layout_path)
-            .map_err(|e| format!("Could not read {}: {e}", layout_path.display()))?;
-        let layout: serde_json::Value = serde_json::from_str(&raw)
-            .map_err(|e| format!("{LAYOUT_FILE} is not valid JSON: {e}"))?;
-        crate::theme::validate_layout(&layout)?;
+    if tokens_path.is_file() {
+        let raw = std::fs::read_to_string(&tokens_path)
+            .map_err(|e| format!("Could not read {TOKENS_FILE}: {e}"))?;
+        let tokens: serde_json::Value = serde_json::from_str(&raw)
+            .map_err(|e| format!("{TOKENS_FILE} is not valid JSON: {e}"))?;
+        crate::theme::validate_tokens(&tokens)?;
     }
-
-    // Checked once the content exists on disk: an advanced package's manifest
-    // must declare what it ships.
-    missing_capabilities(&parsed, staging_dir)?;
-
-    // Checked last: the id becomes a directory name on install.
-    if !crate::theme::is_usable_id(&parsed.id) {
-        return Err(format!(
-            "This package declares id `{}`, which is not a usable theme id.",
-            parsed.id
-        ));
-    }
+    validate_package_contents(&parsed, staging_dir)?;
 
     Ok((parsed, extracted))
 }
@@ -386,7 +324,7 @@ fn read_entry(
         *total_bytes += read as u64;
         if *total_bytes > MAX_TOTAL_UNCOMPRESSED_BYTES {
             return Err(format!(
-                "This package expands to more than {} MB; a theme package should be far smaller.",
+                "PKG-04: This package expands to more than {} MB.",
                 MAX_TOTAL_UNCOMPRESSED_BYTES / (1024 * 1024)
             ));
         }
@@ -412,14 +350,70 @@ fn allowed_extension(name: &str) -> Option<&'static str> {
         .find(|allowed| allowed.eq_ignore_ascii_case(extension))
 }
 
+fn package_extension(name: &str) -> Result<&'static str, String> {
+    let extension = allowed_extension(name);
+    let allowed = match name {
+        "theme.json"
+        | "tokens.json"
+        | "styles.css"
+        | "settings.schema.json"
+        | "README.md"
+        | "layout/shell.json"
+        | "layout/settings.json"
+        | "layout/views/browser.json"
+        | "layout/views/mods.json"
+        | "layout/modals/serverInfo.json"
+        | "layout/modals/modFilter.json"
+        | "layout/modals/update.json"
+        | "layout/lists/servers.json"
+        | "layout/lists/mods.json"
+        | "layout/lists/modFilterResults.json"
+        | "layout/lists/serverMods.json"
+        | "layout/lists/modServers.json" => true,
+        _ => {
+            if let Some(popup) = name
+                .strip_prefix("layout/popups/")
+                .and_then(|p| p.strip_suffix(".json"))
+            {
+                [
+                    "mapFilter",
+                    "modsUnique",
+                    "regionFilter",
+                    "sort",
+                    "tagsFilter",
+                    "serverActions",
+                    "serverLoad",
+                    "modActions",
+                    "settingsNav",
+                ]
+                .contains(&popup)
+            } else if let Some((dir, file)) = name.split_once('/') {
+                let basename = file.rsplit_once('.').map(|(base, _)| base);
+                !file.contains('/')
+                    && !file.contains('\\')
+                    && basename.is_some_and(|base| !base.is_empty() && base != "." && base != "..")
+                    && match (dir, extension) {
+                        ("fonts", Some(ext)) => FONT_EXTENSIONS.contains(&ext),
+                        ("images", Some(ext)) => IMAGE_EXTENSIONS.contains(&ext),
+                        ("previews", Some(ext)) => ["png", "webp", "jpg", "jpeg"].contains(&ext),
+                        _ => false,
+                    }
+            } else {
+                false
+            }
+        }
+    };
+    extension
+        .filter(|_| allowed)
+        .ok_or_else(|| format!("`{name}` is outside the package path allowlist; refusing it."))
+}
+
 /// Prove the bytes are what the extension claims they are, before they are
 /// staged. A theme is shared between machines, so the extension is a claim by
 /// the author and the content is the evidence.
 fn sniff_asset(name: &str, extension: &str, bytes: &[u8]) -> Result<(), String> {
     match extension {
-        // The manifest and the palette are parsed as JSON further down; a
-        // nested `.json` has no schema of its own to check against.
-        "json" | "txt" | "md" => Ok(()),
+        "json" | "md" => Ok(()),
         "css" => sniff_css(name, bytes),
         "png" | "webp" | "jpg" | "jpeg" => sniff_raster_image(name, extension, bytes),
         "woff2" | "woff" | "ttf" | "otf" => sniff_font(name, extension, bytes),
@@ -791,123 +785,151 @@ fn be_u32(bytes: &[u8], at: usize) -> Option<u32> {
     Some(u32::from_be_bytes([slice[0], slice[1], slice[2], slice[3]]))
 }
 
-/// Whether `relative` is a components-file-shaped path: exactly
-/// `components/<anything>.json`, one level deep — the shape a composition
-/// file must have before the slot registry has a say. A nested
-/// `assets/components/x.json` is not one, and neither is anything under
-/// `components/` that is not a `.json`. `Some` is the would-be slot id.
-fn components_file_slot(relative: &str) -> Option<&str> {
-    let mut segments = relative.split('/');
-    let (Some(dir), Some(name), None) = (segments.next(), segments.next(), segments.next()) else {
-        return None;
-    };
-    if dir != COMPONENTS_DIR {
-        return None;
-    }
-    name.strip_suffix(".json").filter(|slot| !slot.is_empty())
-}
-
-/// Refuse an `advanced` or `expert` package whose content needs a capability
-/// its manifest does not declare. `basic` is exempt: a basic theme may carry
-/// stray assets nothing reads, and every theme installed before this gate
-/// existed is basic. Every missing capability is reported at once, not one
-/// per attempt.
-fn missing_capabilities(manifest: &ThemeManifest, staging_dir: &Path) -> Result<(), String> {
-    if manifest.tier != "advanced" && manifest.tier != "expert" {
-        return Ok(());
-    }
-    let declares = |capability: &str| manifest.capabilities.iter().any(|d| d == capability);
-
-    // One trigger file per capability, in a fixed order so the message is stable.
-    let mut triggers: [(&str, Option<String>); 6] = [
-        ("layout", None),
-        ("css", None),
-        ("fonts", None),
-        ("assets", None),
-        ("components", None),
-        ("settings", None),
-    ];
+fn validate_package_contents(manifest: &ThemeManifest, staging_dir: &Path) -> Result<(), String> {
+    let mut shipped = [false; 6];
+    let mut files = std::collections::HashSet::new();
     let mut stack = vec![(staging_dir.to_path_buf(), String::new())];
     while let Some((dir, prefix)) = stack.pop() {
-        let Ok(entries) = std::fs::read_dir(&dir) else {
-            continue;
-        };
-        for entry in entries.flatten() {
+        for entry in
+            std::fs::read_dir(&dir).map_err(|e| format!("Could not read {}: {e}", dir.display()))?
+        {
+            let entry = entry.map_err(|e| format!("Could not inspect theme content: {e}"))?;
             let name = entry.file_name().to_string_lossy().into_owned();
             let relative = if prefix.is_empty() {
-                name.clone()
+                name
             } else {
                 format!("{prefix}/{name}")
             };
-            if entry.path().is_dir() {
+            if entry.file_type().map_err(|e| e.to_string())?.is_dir() {
                 stack.push((entry.path(), relative));
                 continue;
             }
-            let extension = Path::new(&name)
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or_default();
-            // Only the two names the importer actually reads are root-only:
-            // a nested `assets/layout.json` is an inert file, not a layout.
-            let slot = if prefix.is_empty() && name == LAYOUT_FILE {
-                0
-            } else if prefix.is_empty() && name == STYLES_FILE {
-                1
-            } else if FONT_EXTENSIONS
-                .iter()
-                .any(|f| f.eq_ignore_ascii_case(extension))
-            {
-                2
-            } else if IMAGE_EXTENSIONS
-                .iter()
-                .any(|i| i.eq_ignore_ascii_case(extension))
-            {
-                3
-            } else if components_file_slot(&relative).is_some() {
-                4
-            } else if prefix.is_empty() && name == SETTINGS_SCHEMA_FILE {
-                5
-            } else {
+            if relative == crate::theme::settings_values::SETTINGS_VALUES_FILE {
                 continue;
-            };
-            triggers[slot].1.get_or_insert(relative);
-        }
-    }
-
-    let mut missing = Vec::new();
-    for (capability, trigger) in triggers {
-        if let Some(trigger) = trigger {
-            if !declares(capability) {
-                missing.push(format!("`{capability}` (it has {trigger})"));
             }
+            package_extension(&relative)?;
+            if let Some(index) = capability_for_path(&relative) {
+                shipped[index] = true;
+            }
+            files.insert(relative);
         }
     }
-    if missing.is_empty() {
-        return Ok(());
+    for (index, capability) in CAPABILITIES.iter().enumerate() {
+        let declared = manifest
+            .capabilities
+            .iter()
+            .any(|value| value == capability);
+        if declared && !shipped[index] {
+            return Err(format!(
+                "MAN-07: capability `{capability}` is declared without its required files."
+            ));
+        }
+        if shipped[index] && !declared {
+            return Err(format!(
+                "MAN-08: files for capability `{capability}` are present without declaring it."
+            ));
+        }
     }
-    Err(format!(
-        "`{}` is an `advanced` theme that does not declare the capabilities its content needs: {}. Declare them in {MANIFEST_FILE}, or remove those files.",
-        manifest.name,
-        missing.join(", ")
-    ))
+    for preview in &manifest.previews {
+        if !files.contains(&preview.file) {
+            return Err(format!(
+                "MAN-09: preview `{}` is not a file in the package.",
+                preview.file
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn capability_for_path(name: &str) -> Option<usize> {
+    match name {
+        TOKENS_FILE => Some(0),
+        STYLES_FILE => Some(1),
+        _ if name.starts_with("fonts/") => Some(2),
+        _ if name.starts_with("images/") => Some(3),
+        _ if name.starts_with("layout/") => Some(4),
+        SETTINGS_SCHEMA_FILE => Some(5),
+        _ => None,
+    }
+}
+
+fn validate_manifest(parsed: &ThemeManifest) -> Result<(), String> {
+    if parsed.theme_api.starts_with("1.") || parsed.schema_version == 1 {
+        return Err("This is a theme system v1 package (themeApi 1.0). v1 packages cannot be imported; theme system v2 is required (ADR-0003).".to_string());
+    }
+    if !parsed.theme_api.starts_with("2.") || parsed.schema_version != 2 {
+        return Err(format!("MAN-05: theme API {} is unsupported; theme system {SUPPORTED_THEME_API_RANGE} is required.", parsed.theme_api));
+    }
+    if parsed.id.starts_with("builtin.") {
+        return Err("Theme ID starts with reserved prefix 'builtin.'".to_string());
+    }
+    let id = parsed.id.as_bytes();
+    if !(3..=64).contains(&id.len())
+        || !id
+            .first()
+            .is_some_and(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+        || !id
+            .iter()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || b"._-".contains(c))
+    {
+        return Err("MAN-02: theme id must match ^[a-z0-9][a-z0-9._-]{2,63}$.".to_string());
+    }
+    for (field, value) in [("name", &parsed.name), ("author", &parsed.author)] {
+        if !(1..=48).contains(&value.chars().count()) {
+            return Err(format!("{field} must contain 1–48 characters."));
+        }
+    }
+    if parsed.description.chars().count() > 280 {
+        return Err("description must contain at most 280 characters.".to_string());
+    }
+    if parsed.tags.len() > 8 || parsed.tags.iter().any(|tag| tag.chars().count() > 24) {
+        return Err("tags must contain at most 8 entries of at most 24 characters.".to_string());
+    }
+    if let Some(homepage) = &parsed.homepage {
+        let url = tauri::Url::parse(homepage)
+            .map_err(|e| format!("homepage must be an HTTPS URL: {e}"))?;
+        if url.scheme() != "https" || url.host_str().is_none() {
+            return Err("homepage must be an HTTPS URL.".to_string());
+        }
+    }
+    for capability in &parsed.capabilities {
+        if !CAPABILITIES.contains(&capability.as_str()) {
+            return Err(format!("MAN-07: unknown capability `{capability}`."));
+        }
+    }
+    if parsed.previews.len() > 5
+        || parsed
+            .previews
+            .iter()
+            .any(|p| p.caption.chars().count() > 80)
+    {
+        return Err(
+            "MAN-09: at most 5 previews with captions of at most 80 characters are allowed."
+                .to_string(),
+        );
+    }
+    semver::Version::parse(&parsed.version)
+        .map_err(|e| format!("MAN-04: version is not valid semver: {e}"))?;
+    minimum_launcher_version_at_most(parsed)
 }
 
 /// Refuse a manifest that needs a launcher newer than this build. Parsed as
 /// real versions, not compared as strings — `"2.6.0" > "2.10.0"` lexically.
 /// An unparseable version is refused, not skipped: it can't be shown compatible.
 fn minimum_launcher_version_at_most(manifest: &ThemeManifest) -> Result<(), String> {
-    let minimum =
-        semver::Version::parse(manifest.minimum_launcher_version.trim()).map_err(|e| {
-            format!(
-                "`{}` declares minimumLauncherVersion `{}`, which is not a version: {e}",
-                manifest.name, manifest.minimum_launcher_version
-            )
-        })?;
+    let minimum = semver::Version::parse(&manifest.minimum_launcher_version).map_err(|e| {
+        format!(
+            "MAN-04: `{}` declares minimumLauncherVersion `{}`, which is not a version: {e}",
+            manifest.name, manifest.minimum_launcher_version
+        )
+    })?;
+    // All currently supported v2 features landed together in 2.6.0.
+    let minimum = minimum.max(semver::Version::new(2, 6, 0));
     let running = semver::Version::parse(env!("CARGO_PKG_VERSION"))
         .map_err(|e| format!("This build's own version is unparseable: {e}"))?;
     if minimum > running {
         return Err(format!(
-            "`{}` needs Tetra Launcher {} or newer; this build is {}.",
+            "MAN-06: `{}` needs Tetra Launcher {} or newer; this build is {}.",
             manifest.name, minimum, running
         ));
     }
@@ -1002,44 +1024,18 @@ pub fn export(
     dest_path: &Path,
 ) -> Result<(), String> {
     let theme_dir = crate::theme::theme_dir(themes_root, id)?;
-    let crate::theme::ThemeFile {
-        mut manifest,
-        tokens,
-        layout,
-        ..
-    } = crate::theme::get(themes_root, id)?;
+    let mut manifest: ThemeManifest = serde_json::from_slice(
+        &std::fs::read(theme_dir.join(MANIFEST_FILE))
+            .map_err(|e| format!("Could not read manifest for `{id}`: {e}"))?,
+    )
+    .map_err(|e| format!("Could not parse manifest: {e}"))?;
     overrides.apply_to(&mut manifest);
 
     let manifest_json = serde_json::to_vec_pretty(&manifest)
         .map_err(|e| format!("Could not serialise the manifest: {e}"))?;
-    let tokens_json = serde_json::to_vec_pretty(&tokens)
-        .map_err(|e| format!("Could not serialise tokens: {e}"))?;
-    let layout_json = layout
-        .as_ref()
-        .map(serde_json::to_vec_pretty)
-        .transpose()
-        .map_err(|e| format!("Could not serialise layout: {e}"))?;
-
-    let mut files = vec![
-        (MANIFEST_FILE.to_string(), manifest_json),
-        (TOKENS_FILE.to_string(), tokens_json),
-    ];
-    if let Some(layout_json) = layout_json {
-        files.push((LAYOUT_FILE.to_string(), layout_json));
-    }
-
-    let styles_path = theme_dir.join(STYLES_FILE);
-    if styles_path.is_file() {
-        let bytes = std::fs::read(&styles_path)
-            .map_err(|e| format!("Could not read {}: {e}", styles_path.display()))?;
-        // Defensive: a local theme placed by hand never passed the import gate
-        // a packaged one did, and a stylesheet is the one file whose content is
-        // the attack surface.
-        let text = std::str::from_utf8(&bytes)
-            .map_err(|e| format!("{STYLES_FILE} is not valid UTF-8: {e}"))?;
-        crate::theme::css::validate_css(text)?;
-        files.push((STYLES_FILE.to_string(), bytes));
-    }
+    validate_manifest(&manifest)?;
+    validate_package_contents(&manifest, &theme_dir)?;
+    let mut files = vec![(MANIFEST_FILE.to_string(), manifest_json)];
 
     let named = files.len();
     append_assets(&theme_dir, &mut files)?;
@@ -1063,27 +1059,12 @@ pub fn export(
 /// `settings.values.json` is listed although no named source writes it: it is
 /// this user's own tuning of their installed copy, not the theme's portable
 /// content (Phase 3 §0 decision 4).
-const EXPORTED_FILES: [&str; 5] = [
+const EXPORTED_FILES: [&str; 2] = [
     MANIFEST_FILE,
-    TOKENS_FILE,
-    LAYOUT_FILE,
-    STYLES_FILE,
     crate::theme::settings_values::SETTINGS_VALUES_FILE,
 ];
 
-/// Append every other file an installed theme ships, at its own relative path.
-///
-/// Entry names join path components with `/` explicitly, never the OS
-/// separator, so a package written on Windows is the one Linux reads. A file
-/// whose extension is outside [`ALLOWED_EXTENSIONS`], or whose bytes fail
-/// [`sniff_asset`], is skipped rather than fatal: this reads a directory the
-/// Launcher itself installed, and the allow-list is the same enforcement point
-/// the import side already applies.
-///
-/// The ceilings an import enforces apply here too, checked before each file is
-/// read — an export must never produce a package this build would refuse, and a
-/// stray gigabyte must not be read into memory to discover that. Depth is the
-/// count of `/` in the entry name, exactly as the import side counts it.
+/// Preserve portable content, using the same paths, limits and sniffing as import.
 fn append_assets(theme_dir: &Path, files: &mut Vec<(String, Vec<u8>)>) -> Result<(), String> {
     let mut total_bytes: u64 = files.iter().map(|(_, bytes)| bytes.len() as u64).sum();
     let mut stack = vec![(theme_dir.to_path_buf(), String::new())];
@@ -1109,20 +1090,7 @@ fn append_assets(theme_dir: &Path, files: &mut Vec<(String, Vec<u8>)>) -> Result
             if !file_type.is_file() || EXPORTED_FILES.contains(&relative.as_str()) {
                 continue;
             }
-            let Some(extension) = allowed_extension(&relative) else {
-                continue;
-            };
-            // The slot registry gates compositions on export exactly as the
-            // import side does: an export must never produce a package this
-            // build would refuse to re-import.
-            if let Some(named) = components_file_slot(&relative) {
-                let Some((slot, composable)) = composition_gate(named) else {
-                    return Err(format!("`{relative}` names no slot in the slot registry."));
-                };
-                if !composable {
-                    return Err(composition_refused(&relative, slot));
-                }
-            }
+            let extension = package_extension(&relative)?;
             let depth = relative.matches('/').count();
             if depth > MAX_PATH_DEPTH {
                 return Err(format!(
@@ -1131,7 +1099,7 @@ fn append_assets(theme_dir: &Path, files: &mut Vec<(String, Vec<u8>)>) -> Result
             }
             if files.len() >= MAX_FILES {
                 return Err(format!(
-                    "This theme holds more than {MAX_FILES} packageable files — a theme is a manifest, a palette and its assets."
+                    "PKG-03: This theme holds more than {MAX_FILES} packageable files."
                 ));
             }
             let path = entry.path();
@@ -1141,14 +1109,17 @@ fn append_assets(theme_dir: &Path, files: &mut Vec<(String, Vec<u8>)>) -> Result
                 .len();
             if total_bytes + len > MAX_TOTAL_UNCOMPRESSED_BYTES {
                 return Err(format!(
-                    "This theme expands to more than {} MB; refusing to export it.",
+                    "PKG-04: This theme expands to more than {} MB; refusing to export it.",
                     MAX_TOTAL_UNCOMPRESSED_BYTES / (1024 * 1024)
                 ));
             }
             let bytes = std::fs::read(&path)
                 .map_err(|e| format!("Could not read {}: {e}", path.display()))?;
-            if sniff_asset(&relative, extension, &bytes).is_err() {
-                continue;
+            sniff_asset(&relative, extension, &bytes)?;
+            if relative == TOKENS_FILE {
+                let tokens = serde_json::from_slice(&bytes)
+                    .map_err(|e| format!("{TOKENS_FILE} is not valid JSON: {e}"))?;
+                crate::theme::validate_tokens(&tokens)?;
             }
             total_bytes += bytes.len() as u64;
             files.push((relative, bytes));
@@ -1219,6 +1190,208 @@ mod tests {
     use super::*;
     use crate::theme::manifest;
     use std::sync::atomic::{AtomicU64, Ordering};
+
+    #[test]
+    fn v1_manifests_are_refused_with_migration_guidance() {
+        for (schema_version, theme_api) in [(1, "2.0"), (2, "1.0")] {
+            let root = scratch("v1");
+            let old = ThemeManifest {
+                schema_version,
+                theme_api: theme_api.into(),
+                ..manifest()
+            };
+            let package = root.join("old.zip");
+            build_zip(
+                &package,
+                &[
+                    Entry::file("layout.json", "{}"),
+                    Entry::file(MANIFEST_FILE, serde_json::to_string(&old).unwrap()),
+                ],
+            );
+            let error = stage_for_preview(&root, &package, &[]).unwrap_err();
+            assert!(error.contains("ADR-0003"), "{error}");
+            assert!(error.contains("v1 packages cannot be imported"), "{error}");
+        }
+    }
+
+    #[test]
+    fn invalid_manifest_metadata_is_refused() {
+        let cases = [
+            (
+                "id",
+                serde_json::json!("builtin.custom"),
+                "reserved prefix 'builtin.'",
+            ),
+            ("id", serde_json::json!("Abc"), "MAN-02"),
+            ("id", serde_json::json!("ab"), "MAN-02"),
+            ("id", serde_json::json!("a".repeat(65)), "MAN-02"),
+            ("name", serde_json::json!(""), "name"),
+            ("author", serde_json::json!("a".repeat(49)), "author"),
+            (
+                "description",
+                serde_json::json!("a".repeat(281)),
+                "description",
+            ),
+            ("tags", serde_json::json!(vec!["a"; 9]), "tags"),
+            ("tags", serde_json::json!(["a".repeat(25)]), "tags"),
+            ("homepage", serde_json::json!("http://example.com"), "HTTPS"),
+            ("version", serde_json::json!("1.0"), "MAN-04"),
+            (
+                "minimumLauncherVersion",
+                serde_json::json!("invalid"),
+                "MAN-04",
+            ),
+            (
+                "capabilities",
+                serde_json::json!(["tokens", "assets"]),
+                "MAN-07",
+            ),
+        ];
+        for (field, value, expected) in cases {
+            let root = scratch("metadata");
+            let mut json = serde_json::to_value(manifest()).unwrap();
+            json[field] = value;
+            let changed: ThemeManifest = serde_json::from_value(json).unwrap();
+            let package = fixture_with_manifest(&root, "invalid", &changed);
+            let error = stage_for_preview(&root, &package, &[]).unwrap_err();
+            assert!(error.contains(expected), "{field}: {error}");
+        }
+    }
+
+    #[test]
+    fn declared_capabilities_require_files_and_tiers_grant_no_exemption() {
+        for capability in ["css", "fonts", "images", "layout", "settings"] {
+            let root = scratch("missing-content");
+            let mut themed = manifest();
+            themed.capabilities.push(capability.into());
+            let package = fixture_with_manifest(&root, "missing", &themed);
+            let error = stage_for_preview(&root, &package, &[]).unwrap_err();
+            assert!(
+                error.contains("MAN-07") && error.contains(capability),
+                "{error}"
+            );
+        }
+        let root = scratch("undeclared");
+        for tier in ["", "basic", "advanced", "expert"] {
+            let package = content_package(&root, "undeclared", tier, &["tokens"], &["css"]);
+            let error = stage_for_preview(&root, &package, &[]).unwrap_err();
+            assert!(error.contains("MAN-08"), "{error}");
+        }
+    }
+
+    #[test]
+    fn previews_require_shipped_files_and_bounded_captions_and_count() {
+        let root = scratch("previews");
+        let preview = crate::theme::ThemePreview {
+            file: "previews/screen.png".into(),
+            caption: "Browser".into(),
+        };
+        for previews in [
+            vec![preview.clone(); 6],
+            vec![crate::theme::ThemePreview {
+                caption: "x".repeat(81),
+                ..preview.clone()
+            }],
+            vec![preview.clone()],
+        ] {
+            let themed = ThemeManifest {
+                previews,
+                ..manifest()
+            };
+            let package = fixture_with_manifest(&root, "invalid", &themed);
+            let error = stage_for_preview(&root, &package, &[]).unwrap_err();
+            assert!(error.contains("MAN-09"), "{error}");
+        }
+        let themed = ThemeManifest {
+            previews: vec![preview],
+            ..manifest()
+        };
+        let package = root.join("valid.zip");
+        build_zip(
+            &package,
+            &[
+                Entry::file(MANIFEST_FILE, serde_json::to_string(&themed).unwrap()),
+                Entry::file(TOKENS_FILE, tokens_json()),
+                Entry::bytes(
+                    "previews/screen.png",
+                    encode_image(image::ImageFormat::Png, 8, 8),
+                ),
+            ],
+        );
+        let staged = stage_for_preview(&root, &package, &[]).unwrap();
+        let id = confirm_theme_install(&root, &staged.staging_id).unwrap();
+        assert_eq!(
+            crate::theme::scan(&root).themes[0].previews,
+            themed.previews
+        );
+        let exported = root.join("exported.zip");
+        export(&root, &id, &ManifestOverrides::default(), &root, &exported).unwrap();
+        let imported = stage_for_preview(&root, &exported, &[]).unwrap();
+        assert_eq!(imported.manifest.previews, themed.previews);
+    }
+
+    #[test]
+    fn v2_layout_and_settings_packages_do_not_require_tokens() {
+        let root = scratch("layout-only");
+        let themed = ThemeManifest {
+            theme_api: "2.x".into(),
+            capabilities: vec!["layout".into(), "settings".into()],
+            ..manifest()
+        };
+        let package = root.join("layout.zip");
+        build_zip(
+            &package,
+            &[
+                Entry::file(MANIFEST_FILE, serde_json::to_string(&themed).unwrap()),
+                Entry::file("layout/popups/settingsNav.json", "{}"),
+                Entry::file("settings.schema.json", "{}"),
+            ],
+        );
+        let staged = stage_for_preview(&root, &package, &[]).unwrap();
+        let id = confirm_theme_install(&root, &staged.staging_id).unwrap();
+        let exported = root.join("exported.zip");
+        export(&root, &id, &ManifestOverrides::default(), &root, &exported).unwrap();
+        let imported = stage_for_preview(&root, &exported, &[]).unwrap();
+        assert_eq!(imported.manifest.capabilities, themed.capabilities);
+        assert!(!staging_dir(&root, &imported).join(TOKENS_FILE).exists());
+    }
+
+    #[test]
+    fn sixty_four_files_are_accepted() {
+        let root = scratch("file-boundary");
+        let extras: Vec<Entry> = (0..62)
+            .map(|n| Entry::file(format!("images/{n}.svg"), "<svg/>"))
+            .collect();
+        let package = fixture(&root, "boundary", &extras);
+        assert_eq!(
+            stage_for_preview(&root, &package, &[]).unwrap().file_count,
+            64
+        );
+    }
+
+    #[test]
+    fn exactly_eight_mebibytes_are_accepted() {
+        let root = scratch("byte-boundary");
+        let manifest_json = serde_json::to_string(&manifest()).unwrap();
+        let tokens = tokens_json();
+        let remaining = MAX_TOTAL_UNCOMPRESSED_BYTES as usize - manifest_json.len() - tokens.len();
+        let package = root.join("boundary.zip");
+        build_zip(
+            &package,
+            &[
+                Entry::file(MANIFEST_FILE, manifest_json),
+                Entry::file(TOKENS_FILE, tokens),
+                Entry::file("README.md", "a".repeat(remaining)),
+            ],
+        );
+        let preview = stage_for_preview(&root, &package, &[]).unwrap();
+        assert_eq!(
+            std::fs::metadata(staging_dir(&root, &preview).join("README.md"))
+                .unwrap()
+                .len(),
+            remaining as u64
+        );
+    }
 
     /// A scratch directory unique to one test — never the real themes root.
     fn scratch(tag: &str) -> PathBuf {
@@ -1307,8 +1480,22 @@ mod tests {
     /// A valid two-file package, plus any extra entries a test adds.
     fn fixture(themes_root: &Path, tag: &str, extra: &[Entry]) -> PathBuf {
         let zip_path = themes_root.join(format!("{tag}.zip"));
+        let mut themed = manifest();
+        for capability in ["css", "fonts", "images", "layout", "settings"] {
+            let prefix = format!("{capability}/");
+            if extra.iter().any(|entry| match entry {
+                Entry::File(name, _) => {
+                    name.starts_with(&prefix)
+                        || (capability == "css" && name == "styles.css")
+                        || (capability == "settings" && name == "settings.schema.json")
+                }
+                Entry::Symlink(_, _) => false,
+            }) {
+                themed.capabilities.push(capability.to_string());
+            }
+        }
         let mut entries = vec![
-            Entry::file(MANIFEST_FILE, serde_json::to_string(&manifest()).unwrap()),
+            Entry::file(MANIFEST_FILE, serde_json::to_string(&themed).unwrap()),
             Entry::file(TOKENS_FILE, tokens_json()),
         ];
         entries.extend(
@@ -1352,6 +1539,9 @@ mod tests {
             preview: None,
             tags: Vec::new(),
             capabilities: Vec::new(),
+            incompatible: false,
+            incompatible_reason: None,
+            previews: Vec::new(),
         }
     }
 
@@ -1364,16 +1554,16 @@ mod tests {
     fn content_entry(kind: &str) -> Entry {
         match kind {
             "layout" => Entry::file(
-                LAYOUT_FILE,
+                "layout/shell.json",
                 serde_json::json!({ "schemaVersion": 1, "slots": {} }).to_string(),
             ),
             "css" => Entry::file(
                 STYLES_FILE,
                 r#"[data-tetra-slot="shell.sidebar"] { opacity: 0.9; }"#,
             ),
-            "fonts" => Entry::bytes("assets/fonts/body.ttf", minimal_ttf()),
-            "assets" => Entry::bytes(
-                "assets/preview.png",
+            "fonts" => Entry::bytes("fonts/body.ttf", minimal_ttf()),
+            "images" => Entry::bytes(
+                "images/preview.png",
                 encode_image(image::ImageFormat::Png, 8, 8),
             ),
             other => panic!("unknown content kind {other}"),
@@ -1676,70 +1866,26 @@ mod tests {
         assert!(!root.parent().unwrap().join("escaped.json").exists());
     }
 
-    /// The slot registry gates compositions at import, exactly as the read
-    /// path does: a file for a slot capped at `compositionCeiling: "advanced"`
-    /// fails the whole package, not just that file.
     #[test]
-    fn a_composition_file_for_a_restricted_slot_is_refused() {
-        let root = scratch("import-restricted-slot");
-        let zip_path = fixture(
-            &root,
-            "import-restricted-slot",
-            &[Entry::file(
-                "components/modal.steamRequired.json",
-                r#"{"schemaVersion":1,"root":{"type":"stack"}}"#,
-            )],
-        );
-
-        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-
-        assert!(
-            error.contains("modal.steamRequired.json")
-                && error.contains("not a slot a theme may compose"),
-            "message was: {error}"
-        );
-        assert!(!root.join(STAGING_DIR).read_dir().unwrap().next().is_some());
-    }
-
-    /// A composition file naming no slot in the registry fails the whole
-    /// package, so a typo cannot ship as a silently-ignored theme file.
-    #[test]
-    fn a_composition_file_for_an_unknown_slot_is_refused() {
-        let root = scratch("import-unknown-slot");
-        let zip_path = fixture(
-            &root,
-            "import-unknown-slot",
-            &[Entry::file(
-                "components/server.rows.json",
-                r#"{"schemaVersion":1,"root":{"type":"stack"}}"#,
-            )],
-        );
-
-        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-
-        assert!(
-            error.contains("server.rows.json") && error.contains("no slot in the slot registry"),
-            "message was: {error}"
-        );
-        assert!(!root.join(STAGING_DIR).read_dir().unwrap().next().is_some());
-    }
-
-    /// An unrestricted slot's composition file stages exactly as before.
-    #[test]
-    fn a_composition_file_for_an_unrestricted_slot_is_staged() {
-        let root = scratch("import-ok-slot");
-        let tree = r#"{"schemaVersion":1,"slot":"server.row","root":{"type":"core","ref":"name"}}"#;
-        let zip_path = fixture(
-            &root,
-            "import-ok-slot",
-            &[Entry::file("components/server.row.json", tree)],
-        );
-
-        let preview = stage_for_preview(&root, &zip_path, &[]).expect("must stage");
-
-        assert_eq!(preview.file_count, 3);
-        let staged = staging_dir(&root, &preview).join("components/server.row.json");
-        assert_eq!(std::fs::read(staged).unwrap(), tree.as_bytes());
+    fn files_outside_the_v2_allowlist_are_refused() {
+        for path in [
+            "layout.json",
+            "components/server.row.json",
+            "layout/popups/unknown.json",
+            "layout/views/unknown.json",
+            "images/nested/a.svg",
+            "previews/a.svg",
+            "meta/extra.json",
+        ] {
+            let root = scratch("allowlist");
+            let package = fixture(&root, "invalid", &[Entry::file(path, "{}")]);
+            let error = stage_for_preview(&root, &package, &[]).unwrap_err();
+            assert!(
+                error.contains("outside the package path allowlist"),
+                "{error}"
+            );
+            assert!(root.join(STAGING_DIR).read_dir().unwrap().next().is_none());
+        }
     }
 
     #[test]
@@ -1760,14 +1906,14 @@ mod tests {
     fn too_many_files_is_refused() {
         let root = scratch("count");
         // One over the limit: the ceiling is a limit, not a suggestion.
-        let extras: Vec<Entry> = (0..MAX_FILES)
-            .map(|n| Entry::file(format!("extra-{n}.json"), "{}"))
+        let extras: Vec<Entry> = (0..63)
+            .map(|n| Entry::file(format!("images/extra-{n}.svg"), "<svg/>"))
             .collect();
         let zip_path = fixture(&root, "count", &extras);
 
         let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
 
-        assert!(error.contains("more than 20 files"), "message was: {error}");
+        assert!(error.contains("PKG-03"), "message was: {error}");
     }
 
     #[test]
@@ -1776,7 +1922,7 @@ mod tests {
         // Highly compressible: the archive is tiny, the content is not. The
         // limit must follow the decompressed bytes, not the file size.
         let bomb = "a".repeat(MAX_TOTAL_UNCOMPRESSED_BYTES as usize + 1);
-        let zip_path = fixture(&root, "bomb", &[Entry::file("big.json", bomb)]);
+        let zip_path = fixture(&root, "bomb", &[Entry::file("README.md", bomb)]);
         let compressed = std::fs::metadata(&zip_path).unwrap().len();
         assert!(
             compressed < MAX_TOTAL_UNCOMPRESSED_BYTES / 100,
@@ -1785,10 +1931,7 @@ mod tests {
 
         let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
 
-        assert!(
-            error.contains("expands to more than 2 MB"),
-            "message was: {error}"
-        );
+        assert!(error.contains("PKG-04"), "message was: {error}");
     }
 
     #[test]
@@ -1805,19 +1948,6 @@ mod tests {
     }
 
     #[test]
-    fn a_nested_json_file_within_the_depth_limit_is_staged() {
-        let root = scratch("nested");
-        let zip_path = fixture(&root, "nested", &[Entry::file("meta/extra.json", "{}")]);
-
-        let preview = stage_for_preview(&root, &zip_path, &[]).expect("nested json must stage");
-
-        assert_eq!(preview.file_count, 3);
-        assert!(staging_dir(&root, &preview)
-            .join("meta/extra.json")
-            .is_file());
-    }
-
-    #[test]
     fn an_extension_outside_the_allow_list_is_refused() {
         let root = scratch("extension");
         let zip_path = fixture(&root, "extension", &[Entry::file("payload.sh", "echo hi")]);
@@ -1825,7 +1955,10 @@ mod tests {
         let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
 
         assert!(error.contains("payload.sh"), "message was: {error}");
-        assert!(error.contains("allowed are"), "message was: {error}");
+        assert!(
+            error.contains("outside the package path allowlist"),
+            "message was: {error}"
+        );
         assert!(
             !root.join(STAGING_DIR).read_dir().unwrap().next().is_some(),
             "a refused package must leave no staging directory"
@@ -1840,26 +1973,26 @@ mod tests {
             "assets-ok",
             &[
                 Entry::bytes(
-                    "art/logo.png",
+                    "images/logo.png",
                     encode_image(image::ImageFormat::Png, 24, 16),
                 ),
                 Entry::bytes(
-                    "art/logo.webp",
+                    "images/logo.webp",
                     encode_image(image::ImageFormat::WebP, 24, 16),
                 ),
                 Entry::bytes(
-                    "art/logo.jpg",
+                    "images/logo.jpg",
                     encode_image(image::ImageFormat::Jpeg, 24, 16),
                 ),
                 Entry::bytes(
-                    "art/logo.jpeg",
+                    "images/logo.jpeg",
                     encode_image(image::ImageFormat::Jpeg, 24, 16),
                 ),
-                Entry::bytes("art/icon.ttf", minimal_ttf()),
-                Entry::bytes("art/icon.woff", build_woff(&minimal_font_tables())),
-                Entry::bytes("art/icon.woff2", build_woff2(&minimal_font_tables())),
+                Entry::bytes("fonts/icon.ttf", minimal_ttf()),
+                Entry::bytes("fonts/icon.woff", build_woff(&minimal_font_tables())),
+                Entry::bytes("fonts/icon.woff2", build_woff2(&minimal_font_tables())),
                 Entry::file(
-                    "art/logo.svg",
+                    "images/logo.svg",
                     r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 4"><rect width="4" height="4"/></svg>"#,
                 ),
             ],
@@ -1870,10 +2003,10 @@ mod tests {
         assert_eq!(preview.file_count, 10);
         let staged = staging_dir(&root, &preview);
         for asset in [
-            "art/logo.png",
-            "art/logo.webp",
-            "art/icon.woff2",
-            "art/logo.svg",
+            "images/logo.png",
+            "images/logo.webp",
+            "fonts/icon.woff2",
+            "images/logo.svg",
         ] {
             assert!(staged.join(asset).is_file(), "{asset} must be staged");
         }
@@ -1888,7 +2021,7 @@ mod tests {
             ("jpeg", "this is definitely not a jpeg"),
         ] {
             let root = scratch("fake-image");
-            let name = format!("art/logo.{extension}");
+            let name = format!("images/logo.{extension}");
             let zip_path = fixture(&root, "fake-image", &[Entry::file(&name, body)]);
 
             let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
@@ -1911,14 +2044,14 @@ mod tests {
             &root,
             "mismatched-image",
             &[Entry::bytes(
-                "art/logo.jpg",
+                "images/logo.jpg",
                 encode_image(image::ImageFormat::Png, 8, 8),
             )],
         );
 
         let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
 
-        assert!(error.contains("art/logo.jpg"), "message was: {error}");
+        assert!(error.contains("images/logo.jpg"), "message was: {error}");
     }
 
     #[test]
@@ -1943,7 +2076,11 @@ mod tests {
         png.extend_from_slice(&0u32.to_be_bytes());
         png.extend_from_slice(b"IEND");
         png.extend_from_slice(&crc32(b"IEND", &[]).to_be_bytes());
-        let zip_path = fixture(&root, "oversize-image", &[Entry::bytes("art/big.png", png)]);
+        let zip_path = fixture(
+            &root,
+            "oversize-image",
+            &[Entry::bytes("images/big.png", png)],
+        );
 
         let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
 
@@ -1999,7 +2136,7 @@ mod tests {
             ("webp", oversized_webp),
         ] {
             let root = scratch("oversize-each");
-            let name = format!("art/big.{extension}");
+            let name = format!("images/big.{extension}");
             let zip_path = fixture(&root, "oversize-each", &[Entry::bytes(&name, body)]);
 
             let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
@@ -2019,19 +2156,19 @@ mod tests {
         let zip_path = fixture(
             &root,
             "corrupt-image",
-            &[Entry::bytes("art/broken.png", &good[..40])],
+            &[Entry::bytes("images/broken.png", &good[..40])],
         );
 
         let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
 
-        assert!(error.contains("art/broken.png"), "message was: {error}");
+        assert!(error.contains("images/broken.png"), "message was: {error}");
     }
 
     #[test]
     fn a_renamed_extension_on_non_font_bytes_is_refused() {
         for extension in ["ttf", "otf", "woff", "woff2"] {
             let root = scratch("fake-font");
-            let name = format!("art/icon.{extension}");
+            let name = format!("fonts/icon.{extension}");
             let zip_path = fixture(&root, "fake-font", &[Entry::file(&name, "not a font")]);
 
             let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
@@ -2053,7 +2190,7 @@ mod tests {
             ("otf", build_woff2(&minimal_font_tables())),
         ] {
             let root = scratch("wrong-font-container");
-            let name = format!("art/icon.{extension}");
+            let name = format!("fonts/icon.{extension}");
             let zip_path = fixture(&root, "wrong-font-container", &[Entry::bytes(&name, body)]);
 
             let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
@@ -2073,7 +2210,7 @@ mod tests {
                 &root,
                 "otf-flavor",
                 &[Entry::bytes(
-                    "art/icon.otf",
+                    "fonts/icon.otf",
                     build_sfnt(flavor, &minimal_font_tables()),
                 )],
             );
@@ -2097,7 +2234,7 @@ mod tests {
             &root,
             "bad-font-tables",
             &[Entry::bytes(
-                "art/icon.ttf",
+                "fonts/icon.ttf",
                 build_sfnt(0x0001_0000, &tables),
             )],
         );
@@ -2117,14 +2254,14 @@ mod tests {
             &root,
             "svg-script",
             &[Entry::file(
-                "art/evil.svg",
+                "images/evil.svg",
                 r#"<svg xmlns="http://www.w3.org/2000/svg"><SCRIPT>alert(1)</SCRIPT></svg>"#,
             )],
         );
 
         let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
 
-        assert!(error.contains("art/evil.svg"), "message was: {error}");
+        assert!(error.contains("images/evil.svg"), "message was: {error}");
         assert!(error.contains("<script>"), "message was: {error}");
     }
 
@@ -2135,7 +2272,11 @@ mod tests {
             let body = format!(
                 r#"<svg xmlns="http://www.w3.org/2000/svg" {attribute}><rect width="4" height="4"/></svg>"#
             );
-            let zip_path = fixture(&root, "svg-handler", &[Entry::file("art/evil.svg", body)]);
+            let zip_path = fixture(
+                &root,
+                "svg-handler",
+                &[Entry::file("images/evil.svg", body)],
+            );
 
             let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
 
@@ -2155,7 +2296,7 @@ mod tests {
             &root,
             "svg-mentions-script",
             &[Entry::file(
-                "art/notes.svg",
+                "images/notes.svg",
                 r#"<svg xmlns="http://www.w3.org/2000/svg"><desc>A &lt;script&gt; tag is banned.</desc></svg>"#,
             )],
         );
@@ -2173,7 +2314,7 @@ mod tests {
             &root,
             "svg-malformed",
             &[Entry::file(
-                "art/broken.svg",
+                "images/broken.svg",
                 r#"<svg xmlns="http://www.w3.org/2000/svg"><rect width="4">"#,
             )],
         );
@@ -2190,7 +2331,10 @@ mod tests {
         let zip_path = fixture(
             &root,
             "not-svg",
-            &[Entry::file("art/logo.svg", "<html><body>hi</body></html>")],
+            &[Entry::file(
+                "images/logo.svg",
+                "<html><body>hi</body></html>",
+            )],
         );
 
         let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
@@ -2206,7 +2350,7 @@ mod tests {
             &root,
             "css-clean",
             &[Entry::file(
-                "style/theme.css",
+                "styles.css",
                 r#"[data-tetra-slot="server.row"] { border-radius: 2px; }"#,
             )],
         );
@@ -2222,7 +2366,7 @@ mod tests {
         let zip_path = fixture(
             &root,
             "css-banned",
-            &[Entry::file("style/theme.css", r#"@import "other.css";"#)],
+            &[Entry::file("styles.css", r#"@import "other.css";"#)],
         );
 
         let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
@@ -2239,14 +2383,17 @@ mod tests {
             &root,
             "asset-atomic",
             &[
-                Entry::bytes("art/good.png", encode_image(image::ImageFormat::Png, 8, 8)),
-                Entry::file("art/fake.ttf", "not a font"),
+                Entry::bytes(
+                    "images/good.png",
+                    encode_image(image::ImageFormat::Png, 8, 8),
+                ),
+                Entry::file("fonts/fake.ttf", "not a font"),
             ],
         );
 
         let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
 
-        assert!(error.contains("art/fake.ttf"), "message was: {error}");
+        assert!(error.contains("fonts/fake.ttf"), "message was: {error}");
         assert!(
             !root.join(STAGING_DIR).read_dir().unwrap().next().is_some(),
             "the whole import must be discarded"
@@ -2277,36 +2424,28 @@ mod tests {
         let zip_path = fixture(
             &root,
             "uppercase",
-            &[Entry::bytes("art/LOGO.PNG", logo.clone())],
+            &[Entry::bytes("images/LOGO.PNG", logo.clone())],
         );
 
         let preview = stage_for_preview(&root, &zip_path, &[]).expect("`LOGO.PNG` is still a png");
 
         let staged = staging_dir(&root, &preview);
-        assert!(staged.join("art/LOGO.PNG").is_file());
+        assert!(staged.join("images/LOGO.PNG").is_file());
     }
 
     #[test]
     fn a_plain_text_asset_is_staged_without_further_checks() {
         let root = scratch("text");
-        let zip_path = fixture(
-            &root,
-            "text",
-            &[
-                Entry::file("README.md", "# Aurora\n"),
-                Entry::file("preview/notes.txt", "notes"),
-            ],
-        );
+        let zip_path = fixture(&root, "text", &[Entry::file("README.md", "# Aurora\n")]);
 
         let preview = stage_for_preview(&root, &zip_path, &[]).expect("notes must stage");
 
-        assert_eq!(preview.file_count, 4);
+        assert_eq!(preview.file_count, 3);
         let staged = staging_dir(&root, &preview);
         assert_eq!(
             std::fs::read_to_string(staged.join("README.md")).unwrap(),
             "# Aurora\n"
         );
-        assert!(staged.join("preview/notes.txt").is_file());
     }
 
     /// An advanced package carrying content and declaring every capability it
@@ -2318,8 +2457,8 @@ mod tests {
             &root,
             "tier-advanced",
             "advanced",
-            &["tokens", "layout", "css", "fonts", "assets"],
-            &["layout", "css", "fonts", "assets"],
+            &["tokens", "layout", "css", "fonts", "images"],
+            &["layout", "css", "fonts", "images"],
         );
 
         let preview = stage_for_preview(&root, &zip_path, &[])
@@ -2329,10 +2468,10 @@ mod tests {
         assert_eq!(preview.file_count, 6);
         let staged = staging_dir(&root, &preview);
         for file in [
-            LAYOUT_FILE,
+            "layout/shell.json",
             STYLES_FILE,
-            "assets/fonts/body.ttf",
-            "assets/preview.png",
+            "fonts/body.ttf",
+            "images/preview.png",
         ] {
             assert!(staged.join(file).is_file(), "{file} must be staged");
         }
@@ -2346,7 +2485,7 @@ mod tests {
             ("layout", "layout"),
             ("css", "css"),
             ("fonts", "fonts"),
-            ("assets", "assets"),
+            ("images", "images"),
         ] {
             let root = scratch(&format!("tier-missing-{kind}"));
             let zip_path = content_package(
@@ -2370,103 +2509,16 @@ mod tests {
         }
     }
 
-    /// Every absent capability is reported together, so a theme author fixes
-    /// the manifest once instead of one capability per re-attempt.
-    #[test]
-    fn an_advanced_theme_missing_several_capabilities_names_them_all_at_once() {
-        let root = scratch("tier-missing-all");
-        let zip_path = content_package(
-            &root,
-            "tier-missing-all",
-            "advanced",
-            &["tokens"],
-            &["layout", "css", "fonts", "assets"],
-        );
-
-        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-
-        for capability in ["layout", "css", "fonts", "assets"] {
-            assert!(
-                error.contains(&format!("`{capability}`")),
-                "the combined message must name {capability}, was: {error}"
-            );
-        }
-    }
-
-    /// The capability cross-check is advanced-only: a basic theme carrying
-    /// assets is the pre-Phase-2 shape and must load exactly as it always did.
-    #[test]
-    fn a_basic_theme_with_stray_content_and_no_capabilities_is_still_accepted() {
-        let root = scratch("tier-basic-exempt");
-        let zip_path = content_package(
-            &root,
-            "tier-basic-exempt",
-            "basic",
-            &[],
-            &["fonts", "assets", "layout"],
-        );
-
-        let preview = stage_for_preview(&root, &zip_path, &[]).expect("basic is exempt");
-
-        assert_eq!(preview.manifest.tier, "basic");
-        assert_eq!(preview.file_count, 5);
-    }
-
-    /// The capability check reads the two names this codebase actually
-    /// consumes: a nested `assets/layout.json` is an inert data file, not a
-    /// layout, and must not demand the `layout` capability.
-    #[test]
-    fn a_nested_file_sharing_a_root_name_does_not_demand_its_capability() {
-        let root = scratch("tier-nested-name");
-        let zip_path = root.join("nested-name.zip");
-        build_zip(
-            &zip_path,
-            &[
-                Entry::file(
-                    MANIFEST_FILE,
-                    serde_json::to_string(&ThemeManifest {
-                        tier: "advanced".to_string(),
-                        ..manifest()
-                    })
-                    .unwrap(),
-                ),
-                Entry::file(TOKENS_FILE, tokens_json()),
-                Entry::file("assets/layout.json", "{}"),
-            ],
-        );
-
-        let preview =
-            stage_for_preview(&root, &zip_path, &[]).expect("a nested json must stay inert");
-
-        assert_eq!(preview.file_count, 3);
-    }
-
-    /// `expert` is in `SUPPORTED_TIERS`: the tier gate itself no longer
-    /// refuses it (the capability cross-check is separate and covered by its
-    /// own tests).
-    #[test]
-    fn an_expert_tier_theme_clears_the_tier_gate() {
-        let root = scratch("tier");
-        let mut expert = manifest();
-        expert.tier = "expert".to_string();
-        let zip_path = fixture_with_manifest(&root, "tier", &expert);
-
-        let preview =
-            stage_for_preview(&root, &zip_path, &[]).expect("expert is a supported tier now");
-
-        assert_eq!(preview.manifest.tier, "expert");
-    }
-
     #[test]
     fn an_unknown_theme_api_is_refused() {
         let root = scratch("api");
         let mut future = manifest();
-        future.theme_api = "2.0".to_string();
+        future.theme_api = "3.0".to_string();
         let zip_path = fixture_with_manifest(&root, "api", &future);
 
         let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
 
-        assert!(error.contains("theme API 2.0"), "message was: {error}");
+        assert!(error.contains("MAN-05"), "message was: {error}");
     }
 
     #[test]
@@ -2507,7 +2559,7 @@ mod tests {
 
         let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
 
-        assert!(error.contains(TOKENS_FILE), "message was: {error}");
+        assert!(error.contains("MAN-07"), "message was: {error}");
     }
 
     #[test]
@@ -2536,7 +2588,7 @@ mod tests {
             &root,
             "layout",
             &[Entry::file(
-                LAYOUT_FILE,
+                "layout/shell.json",
                 serde_json::json!({ "schemaVersion": 1, "slots": { "sidebar": "aside" } })
                     .to_string(),
             )],
@@ -2545,27 +2597,9 @@ mod tests {
         let preview = stage_for_preview(&root, &zip_path, &[]).expect("a layout is optional");
 
         assert_eq!(preview.file_count, 3);
-        assert!(staging_dir(&root, &preview).join(LAYOUT_FILE).is_file());
-    }
-
-    /// Fail-closed like a malformed palette: the whole import is refused and
-    /// the staging directory goes with it.
-    #[test]
-    fn a_layout_that_is_not_a_layout_object_is_refused_at_inspect_time() {
-        let root = scratch("badlayout");
-        let zip_path = fixture(
-            &root,
-            "badlayout",
-            &[Entry::file(LAYOUT_FILE, r#"{"slots":{}}"#)],
-        );
-
-        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-
-        assert!(error.contains("schemaVersion"), "message was: {error}");
-        assert!(
-            !root.join(STAGING_DIR).read_dir().unwrap().next().is_some(),
-            "a refused import must leave no staging directory"
-        );
+        assert!(staging_dir(&root, &preview)
+            .join("layout/shell.json")
+            .is_file());
     }
 
     #[test]
@@ -2615,10 +2649,7 @@ mod tests {
 
         let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
 
-        assert!(
-            error.contains("not a usable theme id"),
-            "message was: {error}"
-        );
+        assert!(error.contains("MAN-02"), "message was: {error}");
     }
 
     #[test]
@@ -2877,36 +2908,6 @@ mod tests {
         }
     }
 
-    /// A theme installed with a layout.json must not lose it on export —
-    /// the portable package mirrors the live install directory.
-    #[test]
-    fn an_exported_theme_carries_its_layout_json_when_it_has_one() {
-        let root = scratch("export-layout");
-        let tokens: serde_json::Value = serde_json::from_str(&tokens_json()).unwrap();
-        let layout = serde_json::json!({ "schemaVersion": 1, "slots": {} });
-        crate::theme::save(&root, &manifest(), &tokens, Some(&layout))
-            .expect("could not install the fixture theme");
-        let dest = root.join("layout.zip");
-
-        export(
-            &root,
-            "aurora.test",
-            &ManifestOverrides::default(),
-            &root,
-            &dest,
-        )
-        .unwrap();
-
-        let mut archive = zip::ZipArchive::new(std::fs::File::open(&dest).unwrap()).unwrap();
-        let names: Vec<String> = (0..archive.len())
-            .map(|i| archive.by_index(i).unwrap().name().to_string())
-            .collect();
-        assert_eq!(names, vec![MANIFEST_FILE, TOKENS_FILE, LAYOUT_FILE]);
-
-        let preview = stage_for_preview(&root, &dest, &[]).expect("an export must re-import");
-        assert_eq!(preview.file_count, 3);
-    }
-
     /// Package I's acceptance test: an installed advanced theme carrying a
     /// palette, a layout, a stylesheet and a font must survive export →
     /// reimport on a clean profile with every byte intact.
@@ -2924,15 +2925,21 @@ mod tests {
                 .collect(),
             ..manifest()
         };
-        crate::theme::save(&root, &advanced, &tokens, Some(&layout)).unwrap();
+        crate::theme::save(&root, &advanced, &tokens, None).unwrap();
+        std::fs::create_dir_all(root.join("aurora.test/layout")).unwrap();
+        std::fs::write(
+            root.join("aurora.test/layout/shell.json"),
+            serde_json::to_vec(&layout).unwrap(),
+        )
+        .unwrap();
 
         // A hand-placed local theme's own files, which `save` does not write.
         let styles = br#"[data-tetra-slot="shell.sidebar"] { opacity: 0.9; }"#.to_vec();
         let font = minimal_ttf();
         let installed = root.join("aurora.test");
-        std::fs::create_dir_all(installed.join("assets/fonts")).unwrap();
+        std::fs::create_dir_all(installed.join("fonts")).unwrap();
         std::fs::write(installed.join(STYLES_FILE), &styles).unwrap();
-        std::fs::write(installed.join("assets/fonts/body.ttf"), &font).unwrap();
+        std::fs::write(installed.join("fonts/body.ttf"), &font).unwrap();
 
         let dest = root.join("advanced.zip");
         export(
@@ -2958,11 +2965,11 @@ mod tests {
                 std::fs::read(installed.join(TOKENS_FILE)).unwrap(),
             ),
             (
-                LAYOUT_FILE,
-                std::fs::read(installed.join(LAYOUT_FILE)).unwrap(),
+                "layout/shell.json",
+                std::fs::read(installed.join("layout/shell.json")).unwrap(),
             ),
             (STYLES_FILE, styles),
-            ("assets/fonts/body.ttf", font),
+            ("fonts/body.ttf", font),
         ] {
             assert_eq!(
                 std::fs::read(staged.join(name)).unwrap(),
@@ -2972,156 +2979,25 @@ mod tests {
         }
     }
 
-    /// Phase 3's own acceptance test: an installed expert theme carrying
-    /// every file kind this phase added — a palette, a layout, a stylesheet,
-    /// a font, both component trees and a settings schema — must survive
-    /// export -> reimport on a clean profile with every byte intact, now
-    /// that the tier gate lets `expert` through.
     #[test]
-    fn an_expert_theme_round_trips_through_export_and_reimport() {
-        let root = scratch("export-expert");
-        let clean = scratch("export-expert-clean");
-        let tokens: serde_json::Value = serde_json::from_str(&tokens_json()).unwrap();
-        let layout = serde_json::json!({ "schemaVersion": 1, "slots": { "sidebar": "aside" } });
-        let expert = ThemeManifest {
-            tier: "expert".to_string(),
-            capabilities: ["tokens", "layout", "css", "fonts", "components", "settings"]
-                .iter()
-                .map(|c| c.to_string())
-                .collect(),
-            ..manifest()
-        };
-        crate::theme::save(&root, &expert, &tokens, Some(&layout)).unwrap();
-
-        // Hand-placed local files, which `save` does not write.
-        let styles = br#"[data-tetra-slot="shell.sidebar"] { opacity: 0.9; }"#.to_vec();
-        let font = minimal_ttf();
-        let server_row =
-            br#"{"schemaVersion":1,"slot":"server.row","root":{"type":"core","ref":"name"}}"#
-                .to_vec();
-        let mods_row =
-            br#"{"schemaVersion":1,"slot":"mods.row","root":{"type":"core","ref":"modName"}}"#
-                .to_vec();
-        let sidebar =
-            br#"{"schemaVersion":1,"slot":"shell.sidebar","root":{"type":"core","ref":"navList"}}"#
-                .to_vec();
-        let settings_schema = br#"{"schemaVersion":1,"fields":[{"id":"accentHue","type":"number","label":"Accent hue","min":0,"max":360,"default":210}]}"#.to_vec();
-        let installed = root.join("aurora.test");
-        std::fs::create_dir_all(installed.join("assets/fonts")).unwrap();
-        std::fs::create_dir_all(installed.join(COMPONENTS_DIR)).unwrap();
-        std::fs::write(installed.join(STYLES_FILE), &styles).unwrap();
-        std::fs::write(installed.join("assets/fonts/body.ttf"), &font).unwrap();
-        for (slot, tree) in [
-            ("server.row", &server_row),
-            ("mods.row", &mods_row),
-            ("shell.sidebar", &sidebar),
-        ] {
-            std::fs::write(
-                installed.join(COMPONENTS_DIR).join(format!("{slot}.json")),
-                tree,
-            )
-            .unwrap();
-        }
-        std::fs::write(installed.join(SETTINGS_SCHEMA_FILE), &settings_schema).unwrap();
-
-        let dest = root.join("expert.zip");
-        export(
-            &root,
-            "aurora.test",
-            &ManifestOverrides::default(),
-            &root,
-            &dest,
-        )
-        .expect("exporting an expert theme must work");
-
-        let preview = stage_for_preview(&clean, &dest, &[])
-            .expect("the export must re-import cleanly now that expert is supported");
-        assert_eq!(preview.manifest.tier, "expert");
-        assert_eq!(preview.file_count, 9);
-
-        let staged = staging_dir(&clean, &preview);
-        assert_eq!(preview.manifest.id, expert.id);
-        assert_eq!(preview.manifest.capabilities, expert.capabilities);
-        for (name, original) in [
-            (
-                TOKENS_FILE,
-                std::fs::read(installed.join(TOKENS_FILE)).unwrap(),
-            ),
-            (
-                LAYOUT_FILE,
-                std::fs::read(installed.join(LAYOUT_FILE)).unwrap(),
-            ),
-            (STYLES_FILE, styles),
-            ("assets/fonts/body.ttf", font),
-            (
-                "components/server.row.json",
-                std::fs::read(installed.join("components/server.row.json")).unwrap(),
-            ),
-            (
-                "components/mods.row.json",
-                std::fs::read(installed.join("components/mods.row.json")).unwrap(),
-            ),
-            (
-                "components/shell.sidebar.json",
-                std::fs::read(installed.join("components/shell.sidebar.json")).unwrap(),
-            ),
-            (
-                SETTINGS_SCHEMA_FILE,
-                std::fs::read(installed.join(SETTINGS_SCHEMA_FILE)).unwrap(),
-            ),
-        ] {
-            assert_eq!(
-                std::fs::read(staged.join(name)).unwrap(),
-                original,
-                "{name} must survive the round trip byte for byte"
-            );
-        }
-
-        // The generalized names are read back as the slot ids they name, not
-        // just carried as opaque bytes through the zip: install the staged
-        // import and read the theme the launcher would actually serve.
-        let installed_id =
-            confirm_theme_install(&clean, &preview.staging_id).expect("the staged import confirms");
-        let reinstalled =
-            crate::theme::get(&clean, &installed_id).expect("the installed theme reads back");
-        for slot in ["server.row", "mods.row", "shell.sidebar"] {
-            assert!(
-                reinstalled.components.contains_key(slot),
-                "{slot} should have been discovered under components/: {:?}",
-                reinstalled.components.keys().collect::<Vec<_>>()
-            );
-        }
-    }
-
-    /// Export is the allow-list's second enforcement point: a file the import
-    /// side would refuse is left out of the package rather than failing the
-    /// export, and one that fails the content sniff goes with it.
-    #[test]
-    fn an_export_skips_files_outside_the_allow_list_or_failing_the_sniff() {
-        let root = scratch("export-skip");
+    fn an_export_refuses_files_outside_the_allowlist() {
+        let root = scratch("export-invalid");
         install(&root, &manifest(), &tokens_json());
-        let installed = root.join("aurora.test");
-        std::fs::create_dir_all(installed.join("assets")).unwrap();
-        std::fs::write(installed.join("assets/run.sh"), b"#!/bin/sh\n").unwrap();
-        std::fs::write(installed.join("assets/broken.ttf"), b"not a font").unwrap();
-        let font = minimal_ttf();
-        std::fs::write(installed.join("assets/icon.ttf"), &font).unwrap();
-
-        let dest = root.join("skips.zip");
-        export(
+        std::fs::write(root.join("aurora.test/layout.json"), b"{}").unwrap();
+        let dest = root.join("invalid.zip");
+        let error = export(
             &root,
             "aurora.test",
             &ManifestOverrides::default(),
             &root,
             &dest,
         )
-        .unwrap();
-
-        let preview = stage_for_preview(&root, &dest, &[]).expect("the export must re-import");
-        assert_eq!(preview.file_count, 3);
-        let staged = staging_dir(&root, &preview).join("assets/icon.ttf");
-        // The real relative path, with `/` as the separator, is the entry name.
-        assert_eq!(std::fs::read(staged).unwrap(), font);
+        .unwrap_err();
+        assert!(
+            error.contains("outside the package path allowlist"),
+            "{error}"
+        );
+        assert!(!dest.exists());
     }
 
     /// The settings-values sidecar is this user's own tuning of their installed
@@ -3160,11 +3036,13 @@ mod tests {
     #[test]
     fn an_export_over_the_file_count_ceiling_is_refused() {
         let root = scratch("export-too-many");
-        install(&root, &manifest(), &tokens_json());
+        let mut themed = manifest();
+        themed.capabilities.push("images".to_string());
+        install(&root, &themed, &tokens_json());
         let installed = root.join("aurora.test");
-        std::fs::create_dir_all(installed.join("assets")).unwrap();
-        for n in 0..MAX_FILES {
-            std::fs::write(installed.join(format!("assets/note-{n}.txt")), b"note").unwrap();
+        std::fs::create_dir_all(installed.join("images")).unwrap();
+        for n in 0..63 {
+            std::fs::write(installed.join(format!("images/note-{n}.svg")), b"<svg/>").unwrap();
         }
         let dest = root.join("too-many.zip");
 
@@ -3177,7 +3055,7 @@ mod tests {
         )
         .unwrap_err();
 
-        assert!(error.contains("more than 20"), "message was: {error}");
+        assert!(error.contains("PKG-03"), "message was: {error}");
         assert!(!dest.exists(), "a refused export must write no package");
     }
 
@@ -3186,7 +3064,9 @@ mod tests {
     #[test]
     fn an_export_refuses_a_stylesheet_validate_css_would_reject() {
         let root = scratch("export-bad-css");
-        install(&root, &manifest(), &tokens_json());
+        let mut themed = manifest();
+        themed.capabilities.push("css".to_string());
+        install(&root, &themed, &tokens_json());
         let installed = root.join("aurora.test");
         std::fs::write(installed.join(STYLES_FILE), br#"@import "remote.css";"#).unwrap();
         let dest = root.join("bad-css.zip");
@@ -3312,15 +3192,20 @@ mod tests {
         for (name, body) in [
             (
                 MANIFEST_FILE,
-                serde_json::to_string(&manifest()).unwrap().into_bytes(),
+                serde_json::to_string(&ThemeManifest {
+                    capabilities: vec!["tokens".into(), "images".into(), "fonts".into()],
+                    ..manifest()
+                })
+                .unwrap()
+                .into_bytes(),
             ),
             (TOKENS_FILE, tokens_json().into_bytes()),
-            ("preview/logo.png", logo.clone()),
-            ("preview/hero.jpg", hero.clone()),
-            ("preview/bg.webp", backdrop.clone()),
-            ("preview/icon.ttf", icon.clone()),
-            ("preview/icon.svg", svg.to_vec()),
-            ("preview/readme.md", b"# Aurora".to_vec()),
+            ("previews/logo.png", logo.clone()),
+            ("previews/hero.jpg", hero.clone()),
+            ("previews/bg.webp", backdrop.clone()),
+            ("fonts/icon.ttf", icon.clone()),
+            ("images/icon.svg", svg.to_vec()),
+            ("README.md", b"# Aurora".to_vec()),
         ] {
             writer
                 .start_file(name, options)
@@ -3335,27 +3220,24 @@ mod tests {
         assert_eq!(preview.file_count, 8);
         let staged = staging_dir(&root, &preview);
         for asset in [
-            "preview/logo.png",
-            "preview/hero.jpg",
-            "preview/bg.webp",
-            "preview/icon.ttf",
-            "preview/icon.svg",
-            "preview/readme.md",
+            "previews/logo.png",
+            "previews/hero.jpg",
+            "previews/bg.webp",
+            "fonts/icon.ttf",
+            "images/icon.svg",
+            "README.md",
         ] {
             assert!(staged.join(asset).is_file(), "{asset} must be staged");
         }
         assert_eq!(
-            std::fs::read(staged.join("preview/logo.png")).unwrap(),
+            std::fs::read(staged.join("previews/logo.png")).unwrap(),
             logo
         );
         assert_eq!(
-            std::fs::read(staged.join("preview/bg.webp")).unwrap(),
+            std::fs::read(staged.join("previews/bg.webp")).unwrap(),
             backdrop
         );
-        assert_eq!(
-            std::fs::read(staged.join("preview/icon.ttf")).unwrap(),
-            icon
-        );
+        assert_eq!(std::fs::read(staged.join("fonts/icon.ttf")).unwrap(), icon);
     }
 
     /// A real font, in each of the three containers, produced by an actual
@@ -3412,7 +3294,7 @@ mod tests {
             ("woff2", REAL_WOFF2),
         ] {
             let bytes = decode_base64(fixture);
-            let name = format!("art/icon.{extension}");
+            let name = format!("fonts/icon.{extension}");
 
             sniff_asset(&name, extension, &bytes)
                 .unwrap_or_else(|e| panic!("a real {extension} font must be accepted: {e}"));
@@ -3425,7 +3307,7 @@ mod tests {
     fn a_real_font_under_the_wrong_extension_is_still_refused() {
         let bytes = decode_base64(REAL_WOFF2);
 
-        let error = sniff_asset("art/icon.ttf", "ttf", &bytes).unwrap_err();
+        let error = sniff_asset("fonts/icon.ttf", "ttf", &bytes).unwrap_err();
 
         assert!(
             error.contains("not a readable font"),

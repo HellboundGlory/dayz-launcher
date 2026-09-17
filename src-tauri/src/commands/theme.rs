@@ -1353,6 +1353,7 @@ mod starter_templates {
         assert_eq!(ids, TEMPLATES, "the shipped set, sorted by id");
         let tiers: Vec<&str> = scan.themes.iter().map(|t| t.tier.as_str()).collect();
         assert_eq!(tiers, ["advanced", "basic", "expert"]);
+        assert!(scan.themes.iter().all(|theme| theme.incompatible));
     }
 
     /// Each template's own files, through the validators the rest of the
@@ -1375,7 +1376,6 @@ mod starter_templates {
                 "{id}: says what it demonstrates"
             );
             assert_eq!(file.manifest.version, "1.0.0");
-            assert_eq!(file.manifest.theme_api, archive::SUPPORTED_THEME_API_RANGE);
 
             // A palette must be complete: every token the frontend reads, in both
             // schemes, as a hex string — an absent one silently falls back to
@@ -1409,47 +1409,20 @@ mod starter_templates {
         }
     }
 
-    /// All three templates are accepted by the *import* pipeline, not merely
-    /// readable — the tier gate included.
+    // Package 4.6 replaces these templates together with the v1 renderer.
     #[test]
-    fn every_template_is_a_valid_import_package() {
-        for (id, expected_files, expected_capabilities) in [
-            ("starter.basic", 2, vec!["tokens"]),
-            ("starter.advanced", 4, vec!["tokens", "layout", "css"]),
-            (
-                "starter.expert",
-                6,
-                vec!["tokens", "layout", "css", "components", "settings"],
-            ),
-        ] {
+    fn bundled_v1_templates_are_refused_at_import() {
+        for id in TEMPLATES {
             let root = scratch(id);
             let zip_path = root.join(format!("{id}.zip"));
             zip_template(&bundled().join(id), &zip_path);
-
-            let preview = archive::stage_for_preview(&root, &zip_path, &[])
-                .unwrap_or_else(|e| panic!("{id} must be a valid package: {e}"));
-
-            assert_eq!(preview.manifest.id, id);
-            assert_eq!(preview.classification, "new");
-            assert_eq!(
-                preview.file_count, expected_files,
-                "{id}: theme.json + what it ships"
+            let error = archive::stage_for_preview(&root, &zip_path, &[]).unwrap_err();
+            assert!(error.contains("ADR-0003"), "{id}: {error}");
+            assert!(
+                error.contains("v1 packages cannot be imported; theme system v2 is required"),
+                "{id}: {error}"
             );
-            assert_eq!(preview.manifest.capabilities, expected_capabilities);
-            // The staged copy is a real theme on disk, not just a parsed header:
-            // its own manifest and palette are what the install step will move.
-            let staged = root.join(".staging").join(&preview.staging_id);
-            let staged_manifest: ThemeManifest = serde_json::from_str(
-                &std::fs::read_to_string(staged.join(theme::MANIFEST_FILE)).unwrap(),
-            )
-            .expect("the staged manifest is valid");
-            assert_eq!(staged_manifest.id, id);
-            let tokens: serde_json::Value = serde_json::from_str(
-                &std::fs::read_to_string(staged.join(theme::TOKENS_FILE)).unwrap(),
-            )
-            .expect("the staged palette is valid JSON");
-            theme::validate_tokens(&tokens).expect("the staged palette is a palette");
-            let _ = std::fs::remove_dir_all(&root);
+            std::fs::remove_dir_all(root).unwrap();
         }
     }
 
