@@ -54,18 +54,14 @@ export function FooterBar({
     setSetting("uiScale", next);
   }
 
-  // Wide track (120px) so each of the 10 scale steps stays grabbable.
-  const TRACK_PX = 120;
-  const KNOB_PX = 7;
-  const knobLeft =
-    ((uiScale - UI_SCALE_MIN) / (UI_SCALE_MAX - UI_SCALE_MIN)) * (TRACK_PX - KNOB_PX);
+  const knobPosition = (uiScale - UI_SCALE_MIN) / (UI_SCALE_MAX - UI_SCALE_MIN);
 
   const children: Record<string, ReactNode> = {
     steamStateChip: (
       <div
         data-tetra-el="steamStateChip"
         className={cn(
-          "f2-state flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-[3px] text-[9px] font-semibold",
+          "f2-state flex shrink-0 items-center gap-[var(--t-space-inlineGap)] [border-radius:var(--t-radius-pill)] border px-[var(--t-space-controlSmallX)] py-[var(--t-space-stateChipY)] [font-size:var(--t-type-caption-size)] [font-weight:var(--t-type-label-weight)]",
           steamConnected
             ? "border-success bg-accent-soft text-success"
             : "border-warn bg-warn-soft text-warn",
@@ -73,8 +69,8 @@ export function FooterBar({
       >
         <span
           className={cn(
-            "size-[5px] rounded-full",
-            steamConnected ? "bg-success shadow-[var(--glow)]" : "bg-warn shadow-[0_0_4px_var(--warn)]",
+            "size-[var(--t-space-stateDotSize)] [border-radius:var(--t-radius-pill)]",
+            steamConnected ? "bg-success [box-shadow:var(--t-shadow-glow)]" : "bg-warn [box-shadow:var(--t-shadow-stateWarning)]",
           )}
         />
         {steamConnected ? "Steam connected" : "Steam not connected"}
@@ -86,15 +82,15 @@ export function FooterBar({
     serverCounts: steamConnected && (
       <div
         data-tetra-el="serverCounts"
-        className="f2-stats flex min-w-0 flex-1 items-center gap-2 font-mono-data text-[10px] text-muted"
+        className="f2-stats flex min-w-0 flex-1 items-center gap-[var(--t-space-inlineGapWide)] font-mono-data [font-size:var(--t-type-label-size)] text-muted"
       >
         <span>
-          <em className="font-semibold not-italic text-muted2">{servers.toLocaleString()}</em>{" "}
+          <em className="[font-weight:var(--t-type-label-weight)] not-italic text-muted2">{servers.toLocaleString()}</em>{" "}
           servers
         </span>
         <span className="sep text-line">·</span>
         <span>
-          <em className="font-semibold not-italic text-muted2">
+          <em className="[font-weight:var(--t-type-label-weight)] not-italic text-muted2">
             {populated.toLocaleString()}
           </em>{" "}
           populated
@@ -110,7 +106,7 @@ export function FooterBar({
               }
             >
               via{" "}
-              <em className="font-semibold not-italic text-muted2">
+              <em className="[font-weight:var(--t-type-label-weight)] not-italic text-muted2">
                 {listSource === "index" ? "index" : "Steam"}
               </em>
             </span>
@@ -120,7 +116,7 @@ export function FooterBar({
           <>
             <span className="sep text-line">·</span>
             <span>
-              refreshed <em className="font-semibold not-italic text-muted2">{refreshedAt}</em>
+              refreshed <em className="[font-weight:var(--t-type-label-weight)] not-italic text-muted2">{refreshedAt}</em>
             </span>
           </>
         )}
@@ -130,13 +126,13 @@ export function FooterBar({
     uiScaleSlider: (
       <label
         data-tetra-el="uiScaleSlider"
-        className="f2-scale ml-auto flex shrink-0 items-center gap-2 text-[9px] uppercase tracking-[0.05em] text-muted2"
+        className="f2-scale ml-auto flex shrink-0 items-center gap-[var(--t-space-inlineGapWide)] [font-size:var(--t-type-caption-size)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-muted2"
       >
-        <span className="lbl font-bold">Scale</span>
-        <span className="track relative h-[3px] w-[120px] rounded-[2px] bg-line">
+        <span className="lbl [font-weight:var(--t-type-button-weight)]">Scale</span>
+        <span className="track relative h-[var(--t-space-sliderHeight)] w-[var(--t-space-scaleTrackWidth)] [border-radius:var(--t-radius-track)] bg-line">
           <span
-            className="knob absolute left-0 top-1/2 h-[7px] w-[7px] rounded-full bg-accent shadow-[var(--glow)] transition-transform duration-150"
-            style={{ transform: `translate(${knobLeft}px, -50%)` }}
+            className="knob absolute left-0 top-1/2 h-[var(--t-space-scaleKnobSize)] w-[var(--t-space-scaleKnobSize)] [border-radius:var(--t-radius-pill)] bg-accent [box-shadow:var(--t-shadow-glow)] transition-transform [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] "
+            style={{ transform: `translate(calc(${knobPosition} * (var(--t-space-scaleTrackWidth) - var(--t-space-scaleKnobSize))), -50%)` }}
           />
           <input
             type="range"
@@ -147,10 +143,10 @@ export function FooterBar({
             onChange={(e) => changeScale(Number(e.target.value))}
             aria-label="Interface scale"
             title="Size of everything in the launcher"
-            className="absolute inset-0 h-full w-full cursor-pointer rounded-[2px] opacity-0"
+            className="absolute inset-0 h-full w-full cursor-pointer [border-radius:var(--t-radius-track)] opacity-0"
           />
         </span>
-        <span className="val w-9 text-right font-mono-data text-[9px] normal-case tracking-normal text-muted2">
+        <span className="val w-[var(--t-space-dataWidth)] text-right font-mono-data [font-size:var(--t-type-caption-size)] normal-case [letter-spacing:var(--t-type-data-tracking)] text-muted2">
           {Math.round(uiScale * 100)}%
         </span>
       </label>
@@ -163,12 +159,12 @@ export function FooterBar({
         onClick={() => setScheme(scheme === "dark" ? "light" : "dark")}
         aria-label={scheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
         title={scheme === "dark" ? "Lighten the launcher theme" : "Darken the launcher theme"}
-        className="f2-scheme flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full text-muted2 transition-colors hover:text-ink"
+        className="f2-scheme flex h-[var(--t-space-iconBox)] w-[var(--t-space-iconBox)] shrink-0 items-center justify-center [border-radius:var(--t-radius-pill)] text-muted2 transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:text-ink"
       >
         {scheme === "dark" ? (
-          <Sun className="h-[14px] w-[14px]" strokeWidth={1.6} />
+          <Sun className="h-[var(--t-space-iconMedium)] w-[var(--t-space-iconMedium)]" strokeWidth={1.6} />
         ) : (
-          <Moon className="h-[14px] w-[14px]" strokeWidth={1.6} />
+          <Moon className="h-[var(--t-space-iconMedium)] w-[var(--t-space-iconMedium)]" strokeWidth={1.6} />
         )}
       </button>
     ),
@@ -182,7 +178,7 @@ export function FooterBar({
   return (
     <div
       data-tetra-slot="shell.footer"
-      className="footer-v2 flex shrink-0 items-center gap-3.5 border-t border-line bg-surface px-3.5 py-[7px]"
+      className="footer-v2 flex shrink-0 items-center gap-[var(--t-space-footerGap)] border-t border-line bg-surface px-[var(--t-space-footerX)] py-[var(--t-space-footerY)]"
     >
       {composition !== null ? (
         <ComponentTreeRenderer node={composition} nodes={children} themeId={activeId} />
@@ -193,7 +189,7 @@ export function FooterBar({
             <Fragment key={id}>
               {children[id]}
               {/* Decorative rule, not a registered child: it stays beside the chip. */}
-              {id === "steamStateChip" && <div className="f2-vrule h-3.5 w-px shrink-0 bg-line" />}
+              {id === "steamStateChip" && <div className="f2-vrule h-[var(--t-space-iconMedium)] w-[var(--t-border-hairline)] shrink-0 bg-line" />}
             </Fragment>
           );
         })

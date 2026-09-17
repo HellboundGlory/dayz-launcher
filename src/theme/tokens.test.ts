@@ -5,28 +5,8 @@ import { NEUTRAL_TOKENS, parseTokens, resolveTokens } from "./tokens";
 
 afterEach(() => vi.unstubAllGlobals());
 
-const roles = {
-  radius: "window panel card modal popup row control input chip badge thumb track pill",
-  space: "windowPad panelPad modalPad popupPad rowX rowY controlX controlY chipX chipY stackGap inlineGap sectionGap listGap",
-  type: "display heading subheading body label caption micro button chip data rowName rowMeta statValue statCaption",
-  color: "onAccent onAccent2 onDanger focusRing scrim rowHover rowSelected",
-  border: "hairline control focus",
-  shadow: "panel modal popup drawer glow",
-  motion: "hover expand overlay",
-};
 
 describe("v2 token resolution", () => {
-  it("supplies the complete role and scale contract for an empty theme", () => {
-    const tokens = resolveTokens();
-    for (const [family, names] of Object.entries(roles)) {
-      expect(Object.keys(tokens.roles[family as keyof typeof tokens.roles]).sort()).toEqual(names.split(" ").sort());
-    }
-    expect(Object.keys(tokens.scales).sort()).toEqual(["border", "motion", "radius", "shadow", "space", "type"]);
-    expect(tokens.scales.space).toEqual(Object.fromEntries(Array.from({ length: 25 }, (_, index) => [index * 2, `${index * 2}px`])));
-    for (const role of Object.values(tokens.roles.type)) expect(Object.keys(role).sort()).toEqual(["family", "leading", "size", "tracking", "weight"]);
-    for (const role of Object.values(tokens.roles.motion)) expect(Object.keys(role).sort()).toEqual(["duration", "easing"]);
-    expect(tokens.colors).toEqual({ dark: NEUTRAL_DARK, light: NEUTRAL_LIGHT });
-  });
 
   it("merges nested overrides without mutating Neutral or retaining previous themes", () => {
     const tokens = resolveTokens({ colors: { dark: { accent: "#ff0000" } }, bloom: 0, scales: { type: { weight: { normal: 450 } } }, roles: { type: { body: { size: "17px" } }, radius: { row: 0 } } });

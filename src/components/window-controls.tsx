@@ -41,27 +41,27 @@ export function WindowControls() {
         title="Minimize"
         aria-label="Minimize"
         data-tetra-el="windowControls"
-        className="inline-flex h-7 w-[40px] items-center justify-center text-muted transition-colors hover:bg-surface2 hover:text-ink"
+        className="inline-flex h-[var(--t-space-windowControlHeight)] w-[var(--t-space-windowControlWidth)] items-center justify-center text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:bg-surface2 hover:text-ink"
       >
-        <Minus className="size-3.5" />
+        <Minus className="size-[var(--t-space-iconMedium)]" />
       </button>
       <button
         onClick={maximizeWindow}
         title="Maximize"
         aria-label="Maximize"
         data-tetra-el="windowControls"
-        className="inline-flex h-7 w-[40px] items-center justify-center text-muted transition-colors hover:bg-surface2 hover:text-ink"
+        className="inline-flex h-[var(--t-space-windowControlHeight)] w-[var(--t-space-windowControlWidth)] items-center justify-center text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:bg-surface2 hover:text-ink"
       >
-        <Square className="size-3" />
+        <Square className="size-[var(--t-space-iconSmall)]" />
       </button>
       <button
         onClick={closeWindow}
         title="Close"
         aria-label="Close"
         data-tetra-el="windowControls"
-        className="inline-flex h-7 w-[40px] items-center justify-center text-muted transition-colors hover:bg-danger hover:text-ink"
+        className="inline-flex h-[var(--t-space-windowControlHeight)] w-[var(--t-space-windowControlWidth)] items-center justify-center text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:bg-danger hover:text-ink"
       >
-        <X className="size-3.5" />
+        <X className="size-[var(--t-space-iconMedium)]" />
       </button>
     </Fragment>
   );
@@ -72,7 +72,7 @@ export function WindowControls() {
       <div
         data-tetra-el="dragRegion"
         data-tauri-drag-region
-        className="flex h-7 shrink-0 select-none items-center justify-end border-b border-line bg-surface"
+        className="flex h-[var(--t-space-windowControlHeight)] shrink-0 select-none items-center justify-end border-b border-line bg-surface"
       >
         {windowControls}
       </div>
@@ -86,7 +86,7 @@ export function WindowControls() {
       data-tetra-slot="shell.header"
       data-tetra-el={dragHidden ? undefined : "dragRegion"}
       data-tauri-drag-region={dragHidden ? undefined : true}
-      className="flex h-7 shrink-0 select-none items-center justify-end border-b border-line bg-surface"
+      className="flex h-[var(--t-space-windowControlHeight)] shrink-0 select-none items-center justify-end border-b border-line bg-surface"
     >
       {composition !== null ? (
         <ComponentTreeRenderer node={composition} nodes={nodes} themeId={activeId} />

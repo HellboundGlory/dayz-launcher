@@ -61,7 +61,7 @@ export function Sidebar({
   const slot = useResolvedSlot("shell.sidebar");
   const hidden = new Set(slot.hidden);
   const [collapsed, setCollapsed] = useState(() => slot.params.defaultCollapsed === true);
-  const width = typeof slot.params.width === "string" ? slot.params.width : "176px";
+  const width = typeof slot.params.width === "string" ? slot.params.width : "var(--t-space-sidebarWidth)";
   const right = slot.params.position === "right";
 
   const navItems = orderedByLayout(slot.children, NAV_IDS)
@@ -107,13 +107,13 @@ export function Sidebar({
         onKeyDown={onNavKeyDown}
         aria-current={active ? "page" : undefined}
         className={cn(
-          "flex items-center gap-2.5 rounded-[7px] px-2.5 py-2 text-[12px] font-semibold text-muted transition-colors hover:bg-surface2 hover:text-ink",
-          active && "bg-accent-soft text-accent shadow-[var(--glow)]",
+          "flex items-center gap-[var(--t-space-sidebarItemGap)] [border-radius:var(--t-radius-sidebarItem)] px-[var(--t-space-controlSmallX)] py-[var(--t-space-rowY)] [font-size:var(--t-type-subheading-size)] [font-weight:var(--t-type-label-weight)] text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:bg-surface2 hover:text-ink",
+          active && "bg-accent-soft text-accent [box-shadow:var(--t-shadow-glow)]",
           collapsed && "justify-center px-0",
         )}
       >
-        <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center">
-          <Icon className="h-[18px] w-[18px]" strokeWidth={1.6} />
+        <span className="flex h-[var(--t-space-iconBox)] w-[var(--t-space-iconBox)] shrink-0 items-center justify-center">
+          <Icon className="h-[var(--t-space-iconLarge)] w-[var(--t-space-iconLarge)]" strokeWidth={1.6} />
         </span>
         {!collapsed && <span className="truncate">{label}</span>}
       </button>
@@ -124,22 +124,22 @@ export function Sidebar({
     logo: (
       <div
         className={cn(
-          "flex shrink-0 items-center border-b border-line px-3 py-3.5",
-          collapsed && "justify-center px-0 py-3.5",
+          "flex shrink-0 items-center border-b border-line px-[var(--t-space-rowX)] py-[var(--t-space-sidebarLogoY)]",
+          collapsed && "justify-center px-0 py-[var(--t-space-sidebarLogoY)]",
         )}
       >
         <div
           data-tetra-el="logo"
-          className={cn("flex min-w-0 items-center gap-2", collapsed && "gap-0")}
+          className={cn("flex min-w-0 items-center gap-[var(--t-space-inlineGapWide)]", collapsed && "gap-0")}
         >
           <img
             src={tetraLogo}
             alt=""
             draggable={false}
-            className="logo h-[18px] w-[18px] shrink-0 rounded-[4px] shadow-[var(--glow)]"
+            className="logo h-[var(--t-space-iconLarge)] w-[var(--t-space-iconLarge)] shrink-0 [border-radius:var(--t-radius-controlSmall)] [box-shadow:var(--t-shadow-glow)]"
           />
           {!collapsed && (
-            <span className="brand-name truncate text-[13px] font-bold tracking-[0.06em] text-accent">
+            <span className="brand-name truncate [font-size:var(--t-type-brand-size)] [font-weight:var(--t-type-button-weight)] [letter-spacing:var(--t-type-brand-tracking)] text-accent">
               TETRA
             </span>
           )}
@@ -148,7 +148,7 @@ export function Sidebar({
     ),
 
     navList: (
-      <nav data-tetra-el="navList" className="flex flex-1 flex-col gap-[3px] p-2" aria-label="Main">
+      <nav data-tetra-el="navList" className="flex flex-1 flex-col gap-[var(--t-space-sidebarListGap)] p-[var(--t-space-sidebarPad)]" aria-label="Main">
         {navItems.map((item) => renderNavItem(item))}
       </nav>
     ),
@@ -156,7 +156,7 @@ export function Sidebar({
     settingsEntry: (
       <div
         className={cn(
-          "flex shrink-0 flex-col gap-1.5 border-t border-line p-2.5",
+          "flex shrink-0 flex-col gap-[var(--t-space-inlineGap)] border-t border-line p-[var(--t-space-sidebarSettingsPad)]",
           collapsed && "items-center",
         )}
       >
@@ -165,13 +165,13 @@ export function Sidebar({
           onClick={() => (settingsOpen ? onCloseSettings() : onOpenSettings())}
           aria-pressed={settingsOpen}
           className={cn(
-            "flex items-center gap-2.5 rounded-[7px] px-2.5 py-2 text-[12px] font-semibold text-muted transition-colors hover:bg-surface2 hover:text-ink",
-            settingsOpen && "bg-accent-soft text-accent shadow-[var(--glow)]",
+            "flex items-center gap-[var(--t-space-sidebarItemGap)] [border-radius:var(--t-radius-sidebarItem)] px-[var(--t-space-controlSmallX)] py-[var(--t-space-rowY)] [font-size:var(--t-type-subheading-size)] [font-weight:var(--t-type-label-weight)] text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:bg-surface2 hover:text-ink",
+            settingsOpen && "bg-accent-soft text-accent [box-shadow:var(--t-shadow-glow)]",
             collapsed && "justify-center px-0",
           )}
         >
-          <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center">
-            <Settings className="h-[18px] w-[18px]" strokeWidth={1.6} />
+          <span className="flex h-[var(--t-space-iconBox)] w-[var(--t-space-iconBox)] shrink-0 items-center justify-center">
+            <Settings className="h-[var(--t-space-iconLarge)] w-[var(--t-space-iconLarge)]" strokeWidth={1.6} />
           </span>
           {!collapsed && <span>Settings</span>}
         </button>
@@ -194,14 +194,14 @@ export function Sidebar({
         title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         className={
           right
-            ? "absolute bottom-24 left-0 z-[5] flex h-[46px] w-[18px] items-center justify-center rounded-r-[4px] border border-line border-l-0 bg-surface2 text-muted transition-colors hover:bg-accent-soft hover:text-accent"
-            : "absolute bottom-24 right-0 z-[5] flex h-[46px] w-[18px] items-center justify-center rounded-l-[4px] border border-line border-r-0 bg-surface2 text-muted transition-colors hover:bg-accent-soft hover:text-accent"
+            ? "absolute bottom-[var(--t-space-sidebarToggleOffset)] left-0 z-[5] flex h-[var(--t-space-sidebarToggleHeight)] w-[var(--t-space-iconLarge)] items-center justify-center [border-top-right-radius:var(--t-radius-controlSmall)] [border-bottom-right-radius:var(--t-radius-controlSmall)] border border-line border-l-0 bg-surface2 text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:bg-accent-soft hover:text-accent"
+            : "absolute bottom-[var(--t-space-sidebarToggleOffset)] right-0 z-[5] flex h-[var(--t-space-sidebarToggleHeight)] w-[var(--t-space-iconLarge)] items-center justify-center [border-top-left-radius:var(--t-radius-controlSmall)] [border-bottom-left-radius:var(--t-radius-controlSmall)] border border-line border-r-0 bg-surface2 text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:bg-accent-soft hover:text-accent"
         }
       >
         {collapsed ? (
-          <ChevronsRight className="h-[13px] w-[13px]" />
+          <ChevronsRight className="h-[var(--t-space-iconChevron)] w-[var(--t-space-iconChevron)]" />
         ) : (
-          <ChevronsLeft className="h-[13px] w-[13px]" />
+          <ChevronsLeft className="h-[var(--t-space-iconChevron)] w-[var(--t-space-iconChevron)]" />
         )}
       </button>
     ),
@@ -223,8 +223,8 @@ export function Sidebar({
       data-tetra-slot="shell.sidebar"
       className={cn(
         right
-          ? "side relative flex shrink-0 flex-col overflow-hidden border-l border-line bg-surface transition-[width] duration-200"
-          : "side relative flex shrink-0 flex-col overflow-hidden border-r border-line bg-surface transition-[width] duration-200",
+          ? "side relative flex shrink-0 flex-col overflow-hidden border-l border-line bg-surface transition-[width] [transition-duration:var(--t-motion-expand-duration)] [transition-timing-function:var(--t-motion-expand-easing)] "
+          : "side relative flex shrink-0 flex-col overflow-hidden border-r border-line bg-surface transition-[width] [transition-duration:var(--t-motion-expand-duration)] [transition-timing-function:var(--t-motion-expand-easing)] ",
       )}
       style={{ width: `var(--side-w, ${width})` }}
       data-collapsed={collapsed || undefined}

@@ -119,10 +119,10 @@ export function App() {
   const sideWidthValue = sideCollapsed
     ? typeof sideCollapsedWidth === "string"
       ? sideCollapsedWidth
-      : "52px"
+      : "var(--t-space-sidebarCollapsedWidth)"
     : typeof sideWidth === "string"
       ? sideWidth
-      : "176px";
+      : "var(--t-space-sidebarWidth)"
 
   // Each tab is a filter preset, not just a highlight toggle.
   const handleViewChange = useCallback(
@@ -786,7 +786,7 @@ export function App() {
 
   return (
     <div
-      className="relative flex h-screen flex-col overflow-hidden rounded-[8px] border border-line bg-bg"
+      className="relative flex h-screen flex-col overflow-hidden [border-radius:var(--t-radius-window)] border border-line bg-bg"
       style={{ "--side-w": sideWidthValue } as CSSProperties}
     >
       <WindowResizeHandles />
@@ -798,11 +798,11 @@ export function App() {
 
           {/* "Later" dismisses for this session only. */}
           {updateAvailable && !updateBannerDismissed && (
-            <div className="flex items-center gap-3 border-b border-accent-line bg-accent-soft px-3 py-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-accent">
+            <div className="flex items-center gap-[var(--t-space-stackGap)] border-b border-accent-line bg-accent-soft px-[var(--t-space-rowX)] py-[var(--t-space-controlY)]">
+              <span className="[font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-accent">
                 Update available
               </span>
-              <span className="min-w-0 flex-1 truncate text-[11px] text-ink">
+              <span className="min-w-0 flex-1 truncate [font-size:var(--t-type-body-size)] text-ink">
                 Tetra Launcher v{updateAvailable.version} is ready to install.
               </span>
               <button
@@ -810,13 +810,13 @@ export function App() {
                   setUpdateBannerDismissed(true);
                   setUpdateOpen(true);
                 }}
-                className="shrink-0 rounded bg-accent px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-bg transition-[filter] hover:brightness-110"
+                className="shrink-0 [border-radius:var(--t-radius-controlSmall)] bg-accent px-[var(--t-space-controlSmallX)] py-[var(--t-space-controlSmallY)] [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-button-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-bg transition-[filter] [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:brightness-110"
               >
                 Update
               </button>
               <button
                 onClick={() => setUpdateBannerDismissed(true)}
-                className="shrink-0 rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted transition-colors hover:text-ink"
+                className="shrink-0 [border-radius:var(--t-radius-controlSmall)] px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlSmallY)] [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:text-ink"
               >
                 Later
               </button>
@@ -840,11 +840,11 @@ export function App() {
 
               {/* Not dismissible — favourites/recent are not being saved. */}
               {storageDegraded && (
-                <div className="flex items-center gap-2 border-b border-warn bg-warn-soft px-3 py-1.5">
-                  <span className="text-[10px] font-semibold uppercase text-warn">
+                <div className="flex items-center gap-[var(--t-space-inlineGapWide)] border-b border-warn bg-warn-soft px-[var(--t-space-rowX)] py-[var(--t-space-controlY)]">
+                  <span className="[font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase text-warn">
                     STORAGE
                   </span>
-                  <span className="text-[11px] text-ink">
+                  <span className="[font-size:var(--t-type-body-size)] text-ink">
                     The server database could not be opened, so this session is
                     running from memory — favourites and recently-played will
                     not be saved.
@@ -853,14 +853,14 @@ export function App() {
               )}
 
               {error && (
-                <div className="flex items-center gap-2 border-b border-danger bg-surface2 px-3 py-1.5">
-                  <span className="text-[10px] font-semibold uppercase text-danger">
+                <div className="flex items-center gap-[var(--t-space-inlineGapWide)] border-b border-danger bg-surface2 px-[var(--t-space-rowX)] py-[var(--t-space-controlY)]">
+                  <span className="[font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase text-danger">
                     ERROR
                   </span>
-                  <span className="truncate text-[11px] text-ink">{error}</span>
+                  <span className="truncate [font-size:var(--t-type-body-size)] text-ink">{error}</span>
                   <button
                     onClick={() => setError(null)}
-                    className="ml-auto shrink-0 text-[10px] text-muted hover:text-ink"
+                    className="ml-auto shrink-0 [font-size:var(--t-type-label-size)] text-muted hover:text-ink"
                   >
                     DISMISS
                   </button>
