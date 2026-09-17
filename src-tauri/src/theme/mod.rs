@@ -11,6 +11,7 @@ pub mod css;
 pub mod manifest;
 pub mod protocol;
 pub mod settings_values;
+pub mod tokens;
 pub mod watch;
 
 use std::path::{Path, PathBuf};
@@ -197,14 +198,17 @@ fn theme_dir(themes_root: &Path, id: &str) -> Result<PathBuf, String> {
     Ok(themes_root.join(id))
 }
 
-/// A palette must be a JSON object carrying a `schemaVersion`; nothing else
-/// about it is the backend's business.
+/// v1 keeps its envelope check until the package-format cutover.
 pub fn validate_tokens(tokens: &Value) -> Result<(), String> {
     let Some(object) = tokens.as_object() else {
         return Err("tokens.json must be a JSON object".to_string());
     };
     if !object.contains_key("schemaVersion") {
         return Err("tokens.json has no `schemaVersion`".to_string());
+    }
+    if object.get("schemaVersion").and_then(Value::as_u64) == Some(2) {
+        serde_json::from_value::<tokens::TokensV2>(tokens.clone())
+            .map_err(|error| format!("Invalid tokens.json: {error}"))?;
     }
     Ok(())
 }
