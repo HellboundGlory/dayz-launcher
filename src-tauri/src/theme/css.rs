@@ -34,27 +34,42 @@ mod tests {
 
     #[test]
     fn an_expression_function_is_refused() {
-        rejects("[data-el=\"box\"] { width: expression(alert(1)); }", "expression(");
+        rejects(
+            "[data-el=\"box\"] { width: expression(alert(1)); }",
+            "expression(",
+        );
     }
 
     #[test]
     fn a_moz_binding_is_refused() {
-        rejects("[data-el=\"box\"] { -moz-binding: url(evil.xml#x); }", "-moz-binding");
+        rejects(
+            "[data-el=\"box\"] { -moz-binding: url(evil.xml#x); }",
+            "-moz-binding",
+        );
     }
 
     #[test]
     fn a_behavior_property_is_refused() {
-        rejects("[data-el=\"box\"] { behavior: url(evil.htc); }", "behavior:");
+        rejects(
+            "[data-el=\"box\"] { behavior: url(evil.htc); }",
+            "behavior:",
+        );
     }
 
     #[test]
     fn a_javascript_url_is_refused() {
-        rejects("[data-el=\"link\"] { background: url(javascript:alert(1)); }", "javascript:");
+        rejects(
+            "[data-el=\"link\"] { background: url(javascript:alert(1)); }",
+            "javascript:",
+        );
     }
 
     #[test]
     fn a_vbscript_url_is_refused() {
-        rejects("[data-el=\"link\"] { background: url(vbscript:msgbox(1)); }", "vbscript:");
+        rejects(
+            "[data-el=\"link\"] { background: url(vbscript:msgbox(1)); }",
+            "vbscript:",
+        );
     }
 
     #[test]
@@ -99,8 +114,14 @@ mod tests {
 
     #[test]
     fn a_parent_segment_is_refused() {
-        rejects("[data-el=\"link\"] { background: url(../secret.png); }", "../secret.png");
-        rejects("[data-el=\"link\"] { background: url(x/../../secret.png); }", "..");
+        rejects(
+            "[data-el=\"link\"] { background: url(../secret.png); }",
+            "../secret.png",
+        );
+        rejects(
+            "[data-el=\"link\"] { background: url(x/../../secret.png); }",
+            "..",
+        );
         rejects(
             r#"[data-el="link"] { background: url("assets/../secret.png"); }"#,
             "assets/../secret.png",
@@ -141,8 +162,10 @@ mod tests {
     #[test]
     fn a_relative_url_passes() {
         validate_css("[data-el=\"link\"] { background: url(assets/bg.png); }").expect("must pass");
-        validate_css(r#"[data-el="link"] { background: url("assets/bg.png"); }"#).expect("must pass");
-        validate_css("[data-el=\"link\"] { background: url(./assets/bg.png); }").expect("must pass");
+        validate_css(r#"[data-el="link"] { background: url("assets/bg.png"); }"#)
+            .expect("must pass");
+        validate_css("[data-el=\"link\"] { background: url(./assets/bg.png); }")
+            .expect("must pass");
     }
 
     #[test]
