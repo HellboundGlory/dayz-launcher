@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Palette } from "@/theme/palette";
 import type { ValidationIssue } from "@/types/theme";
-import { clearDevState, refreshDevIssues, useDevStore } from "./dev-store";
+import { clearDevState, noteDevReload, refreshDevIssues, useDevStore } from "./dev-store";
 
 const backend = vi.hoisted(() => ({
   validateTheme: vi.fn<(id: string) => Promise<ValidationIssue[]>>(),
@@ -104,13 +104,14 @@ describe("useDevStore", () => {
     expect(useDevStore.getState().issues).toEqual([BACKEND_ISSUE]);
   });
 
-  it("clear resets every field including variantWidth and settingsOverride", () => {
+  it("clear resets every field including variantWidth, settingsOverride and heldReload", () => {
     useDevStore.setState({
       issues: [BACKEND_ISSUE],
       contrast: [BACKEND_ISSUE],
       error: "oops",
       variantWidth: 650,
       settingsOverride: { showFps: true },
+      heldReload: true,
     });
     clearDevState();
     const state = useDevStore.getState();
@@ -119,7 +120,31 @@ describe("useDevStore", () => {
     expect(state.error).toBeNull();
     expect(state.variantWidth).toBeNull();
     expect(state.settingsOverride).toBeNull();
+    expect(state.heldReload).toBe(false);
     expect(state.refreshing).toBe(false);
+  });
+
+  it("noteReload sets issues, heldReload and error, leaving contrast and the two overrides alone", () => {
+    useDevStore.setState({
+      contrast: [BACKEND_ISSUE],
+      variantWidth: 975,
+      settingsOverride: { compact: true },
+    });
+    noteDevReload([BACKEND_ISSUE], true, "boom");
+    const state = useDevStore.getState();
+    expect(state.issues).toEqual([BACKEND_ISSUE]);
+    expect(state.heldReload).toBe(true);
+    expect(state.error).toBe("boom");
+    expect(state.contrast).toEqual([BACKEND_ISSUE]);
+    expect(state.variantWidth).toBe(975);
+    expect(state.settingsOverride).toEqual({ compact: true });
+  });
+
+  it("a successful refresh clears a held reload", async () => {
+    useDevStore.setState({ heldReload: true });
+    backend.validateTheme.mockResolvedValue([]);
+    await refreshDevIssues("my-theme", PALETTE, ROLE_COLORS, "dark");
+    expect(useDevStore.getState().heldReload).toBe(false);
   });
 
   it("setVariantWidth and setSettingsOverride round-trip, including back to null", () => {

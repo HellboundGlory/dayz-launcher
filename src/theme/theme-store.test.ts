@@ -12,7 +12,7 @@ import {
   watchHotReload,
   watchThemeActivationReverted,
 } from "./theme-store";
-import type { ThemeFile } from "@/types/theme";
+import type { ThemeFile, ValidationIssue } from "@/types/theme";
 
 const backend = vi.hoisted(() => ({
   /** What `migrate_legacy_custom_themes` reports back, in input order. */
@@ -35,6 +35,14 @@ const backend = vi.hoisted(() => ({
   setSettingsCalls: [] as { id: string; fieldId: string; value: string | number | boolean }[],
   /** Ids `get_theme` was asked for, in call order. */
   themeCalls: [] as string[],
+  /** `validate_theme` issues to return, by id; missing means no issues. */
+  validationIssuesById: {} as Record<string, ValidationIssue[]>,
+  /** ids for which `validate_theme` rejects with this message instead. */
+  validateErrorsById: {} as Record<string, string>,
+  /** Ids `validate_theme` was asked for, in call order. */
+  validateCalls: [] as string[],
+  /** ids for which `get_theme` rejects with this message instead of resolving. */
+  getThemeErrorsById: {} as Record<string, string>,
 }));
 
 const events = vi.hoisted(() => ({
@@ -66,6 +74,9 @@ vi.mock("@/lib/tauri", () => ({
   listInstalledThemes: async () => backend.installed,
   getTheme: async (id: string) => {
     backend.themeCalls.push(id);
+    if (backend.getThemeErrorsById[id] !== undefined) {
+      throw new Error(backend.getThemeErrorsById[id]);
+    }
     return {
       id,
       name: id,
@@ -83,6 +94,13 @@ vi.mock("@/lib/tauri", () => ({
   getThemeSettingsValues: async (id: string) => backend.settingsById[id] ?? {},
   setThemeSettingsValue: async (id: string, fieldId: string, value: string | number | boolean) => {
     backend.setSettingsCalls.push({ id, fieldId, value });
+  },
+  validateTheme: async (id: string) => {
+    backend.validateCalls.push(id);
+    if (backend.validateErrorsById[id] !== undefined) {
+      throw new Error(backend.validateErrorsById[id]);
+    }
+    return backend.validationIssuesById[id] ?? [];
   },
 }));
 
@@ -137,9 +155,14 @@ beforeEach(() => {
   backend.layoutById = {};
   backend.setSettingsCalls.length = 0;
   backend.themeCalls.length = 0;
+  backend.validationIssuesById = {};
+  backend.validateErrorsById = {};
+  backend.validateCalls.length = 0;
+  backend.getThemeErrorsById = {};
   themeCssHead.length = 0;
   for (const name of Object.keys(writtenProps)) delete writtenProps[name];
   useThemeStore.setState({ activeId: "neutral", themeFiles: {}, settingsValues: {} });
+  useDevStore.getState().clear();
 });
 
 /** Two microtask turns: enough for async operations to settle. */
@@ -636,6 +659,68 @@ describe("hot reload listener", () => {
 
     expect(backend.themeCalls).toEqual([]);
     expect(useThemeStore.getState().themeFiles["local.stale"]).toBeUndefined();
+  });
+
+  it("holds back a reload whose validation reports an error, leaving themeFiles unchanged", async () => {
+    useThemeStore.setState({ activeId: "local.aurora", scheme: "dark", themeFiles: {} });
+    backend.tokensById["local.aurora"] = { dark: { bg: "#123456" } };
+    backend.validationIssuesById["local.aurora"] = [
+      { ruleId: "LAY-01", severity: "error", file: "layout/shell.json", pointer: "", message: "bad" },
+    ];
+
+    watchHotReload();
+    events.hotReload?.({ payload: { id: "local.aurora" } });
+    await settled();
+
+    expect(useThemeStore.getState().themeFiles["local.aurora"]).toBeUndefined();
+    expect(useDevStore.getState().heldReload).toBe(true);
+    expect(useDevStore.getState().issues).toEqual(backend.validationIssuesById["local.aurora"]);
+  });
+
+  it("swaps in a reload whose validation reports only warnings, leaving heldReload false", async () => {
+    useThemeStore.setState({ activeId: "local.aurora", scheme: "dark", themeFiles: {} });
+    backend.tokensById["local.aurora"] = { dark: { bg: "#123456" } };
+    backend.validationIssuesById["local.aurora"] = [
+      { ruleId: "TOK-05", severity: "warning", file: "tokens.json", pointer: "", message: "low contrast" },
+    ];
+
+    watchHotReload();
+    events.hotReload?.({ payload: { id: "local.aurora" } });
+    await settled();
+
+    expect(useThemeStore.getState().themeFiles["local.aurora"]?.tokens).toEqual({ dark: { bg: "#123456" } });
+    expect(useDevStore.getState().heldReload).toBe(false);
+    expect(writtenProps["--bg"]).toBe("#123456");
+  });
+
+  it("swaps in a reload when validateTheme itself rejects, recording the error", async () => {
+    useThemeStore.setState({ activeId: "local.aurora", scheme: "dark", themeFiles: {} });
+    backend.tokensById["local.aurora"] = { dark: { bg: "#123456" } };
+    backend.validateErrorsById["local.aurora"] = "validator crashed";
+
+    watchHotReload();
+    events.hotReload?.({ payload: { id: "local.aurora" } });
+    await settled();
+
+    expect(useThemeStore.getState().themeFiles["local.aurora"]?.tokens).toEqual({ dark: { bg: "#123456" } });
+    expect(useDevStore.getState().heldReload).toBe(false);
+    expect(useDevStore.getState().error).toContain("validator crashed");
+    expect(writtenProps["--bg"]).toBe("#123456");
+  });
+
+  it("leaves themeFiles unchanged and holds the reload when getTheme itself rejects", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    useThemeStore.setState({ activeId: "local.broken", scheme: "dark", themeFiles: {} });
+    backend.getThemeErrorsById["local.broken"] = "corrupt tokens.json";
+
+    watchHotReload();
+    events.hotReload?.({ payload: { id: "local.broken" } });
+    await settled();
+
+    expect(useThemeStore.getState().themeFiles["local.broken"]).toBeUndefined();
+    expect(useDevStore.getState().heldReload).toBe(true);
+    expect(useDevStore.getState().error).toContain("corrupt tokens.json");
+    consoleError.mockRestore();
   });
 
   it("matches the id live, not the one active when the listener was registered", async () => {

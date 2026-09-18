@@ -17,6 +17,8 @@ export interface DevStore {
   variantWidth: number | null;
   /** Dev-only theme-settings values; null means the theme's own stored values. */
   settingsOverride: Record<string, SettingsValue> | null;
+  /** True when the last hot reload was held back because the saved files have errors. */
+  heldReload: boolean;
 
   refresh: (
     themeId: string,
@@ -26,6 +28,8 @@ export interface DevStore {
   ) => Promise<void>;
   setVariantWidth: (width: number | null) => void;
   setSettingsOverride: (values: Record<string, SettingsValue> | null) => void;
+  /** What a hot reload found: its issues, whether it was held, and any read/validate failure. */
+  noteReload: (issues: ValidationIssue[], held: boolean, error: string | null) => void;
   clear: () => void;
 }
 
@@ -36,6 +40,7 @@ const INITIAL = {
   error: null as string | null,
   variantWidth: null as number | null,
   settingsOverride: null as Record<string, SettingsValue> | null,
+  heldReload: false,
 };
 
 // Guards against a slower earlier refresh overwriting a newer one's results.
@@ -51,7 +56,7 @@ export const useDevStore = create<DevStore>((set) => ({
     try {
       const issues = await validateTheme(themeId);
       if (seq !== refreshSeq) return;
-      set({ issues, contrast, error: null, refreshing: false });
+      set({ issues, contrast, error: null, refreshing: false, heldReload: false });
     } catch (e) {
       if (seq !== refreshSeq) return;
       set({ issues: [], contrast, error: String(e), refreshing: false });
@@ -61,6 +66,8 @@ export const useDevStore = create<DevStore>((set) => ({
   setVariantWidth: (width) => set({ variantWidth: width }),
 
   setSettingsOverride: (values) => set({ settingsOverride: values }),
+
+  noteReload: (issues, held, error) => set({ issues, heldReload: held, error }),
 
   clear: () => set({ ...INITIAL }),
 }));
@@ -76,4 +83,8 @@ export function refreshDevIssues(
 
 export function clearDevState(): void {
   useDevStore.getState().clear();
+}
+
+export function noteDevReload(issues: ValidationIssue[], held: boolean, error: string | null): void {
+  useDevStore.getState().noteReload(issues, held, error);
 }
