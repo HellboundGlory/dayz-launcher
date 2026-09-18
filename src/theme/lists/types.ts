@@ -1,14 +1,6 @@
-import type { LayoutNode } from "../renderer/types";
+import type { ColumnDef, LayoutNode } from "../renderer/types";
 
-export interface ColumnDef {
-  id: string;
-  label?: string;
-  width: string;
-  minWidth?: string;
-  maxWidth?: string;
-  align?: "start" | "center" | "end";
-  sort?: string;
-}
+export type { ColumnDef };
 
 export interface ListFile {
   schemaVersion: 2;

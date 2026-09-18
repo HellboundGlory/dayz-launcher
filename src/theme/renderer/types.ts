@@ -195,10 +195,27 @@ export interface LayoutVariant {
   root: LayoutNode;
 }
 
+export interface ColumnDef {
+  id: string;
+  label?: string;
+  width: string;
+  minWidth?: string;
+  maxWidth?: string;
+  align?: "start" | "center" | "end";
+  sort?: string;
+}
+
 export interface LayoutFile {
   schemaVersion: number;
   root?: LayoutNode;
   variants?: LayoutVariant[];
+  columns?: ColumnDef[];
+  header?: boolean;
+  row?: LayoutNode;
+  empty?: LayoutNode;
+  placement?: ModalPlacement | PopupPlacement;
+  backdrop?: "dim" | "none";
+  presentation?: SettingsPresentation;
 }
 
 export interface ModalPlacement {
