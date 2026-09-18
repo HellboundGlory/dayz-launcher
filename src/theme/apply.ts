@@ -34,6 +34,7 @@ export function applyTheme(
   scheme: "dark" | "light",
   extras: ThemeExtras = DEFAULT_EXTRAS,
   tokens?: Partial<TokensV2>,
+  settingsValues?: Record<string, string | number | boolean>,
 ): void {
   const p = document.documentElement.style;
   const resolved = resolveTokens(tokens);
@@ -118,6 +119,12 @@ export function applyTheme(
         // Resolve literals rather than var() references: hairline and glow share scale/role names.
         p.setProperty(`--t-${family}-${role}`, String(typeof value === "string" && scale && Object.prototype.hasOwnProperty.call(scale, value) ? scale[value] : value));
       }
+    }
+  }
+
+  if (settingsValues) {
+    for (const [id, val] of Object.entries(settingsValues)) {
+      p.setProperty(`--setting-${id}`, String(val));
     }
   }
 

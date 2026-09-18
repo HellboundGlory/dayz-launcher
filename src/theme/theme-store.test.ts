@@ -31,7 +31,7 @@ const backend = vi.hoisted(() => ({
   /** `layout.json` contents `get_theme` returns, by id. */
   layoutById: {} as Record<string, unknown>,
   /** Every `set_theme_settings_value` call, in order. */
-  setSettingsCalls: [] as { id: string; fieldId: string; value: number | boolean }[],
+  setSettingsCalls: [] as { id: string; fieldId: string; value: string | number | boolean }[],
   /** Ids `get_theme` was asked for, in call order. */
   themeCalls: [] as string[],
 }));
@@ -80,7 +80,7 @@ vi.mock("@/lib/tauri", () => ({
   saveTheme: async (_manifest: unknown, tokens: unknown) => void backend.savedTokens.push(tokens),
   deleteTheme: async () => {},
   getThemeSettingsValues: async (id: string) => backend.settingsById[id] ?? {},
-  setThemeSettingsValue: async (id: string, fieldId: string, value: number | boolean) => {
+  setThemeSettingsValue: async (id: string, fieldId: string, value: string | number | boolean) => {
     backend.setSettingsCalls.push({ id, fieldId, value });
   },
 }));
@@ -376,23 +376,65 @@ describe("settings values", () => {
     const fields = [
       { id: "accentHue", type: "number" as const, label: "Accent hue", min: 0, max: 360, default: 210 },
       { id: "compactRows", type: "boolean" as const, label: "Compact rows", default: false },
-    ];
-
-    expect(mergeSettingsValues(fields, { accentHue: 300 })).toEqual({
-      accentHue: 300,
-      compactRows: false,
-    });
-  });
-
-  it("treats a wrong-typed value and an unknown field id as untuned", () => {
-    const fields = [
-      { id: "accentHue", type: "number" as const, label: "Accent hue", min: 0, max: 360, default: 210 },
-      { id: "compactRows", type: "boolean" as const, label: "Compact rows", default: false },
+      {
+        id: "fontMode",
+        type: "choice" as const,
+        label: "Font Mode",
+        options: [
+          { value: "sans", label: "Sans-Serif" },
+          { value: "mono", label: "Monospace" },
+        ],
+        default: "sans",
+      },
+      { id: "primaryColor", type: "color" as const, label: "Primary Color", default: "#123456" },
     ];
 
     expect(
-      mergeSettingsValues(fields, { accentHue: "300", compactRows: true, gone: 1 }),
-    ).toEqual({ accentHue: 210, compactRows: true });
+      mergeSettingsValues(fields, {
+        accentHue: 300,
+        compactRows: true,
+        fontMode: "mono",
+        primaryColor: "#ff0000",
+      }),
+    ).toEqual({
+      accentHue: 300,
+      compactRows: true,
+      fontMode: "mono",
+      primaryColor: "#ff0000",
+    });
+  });
+
+  it("treats wrong-typed, out-of-bounds, or invalid option values as untuned", () => {
+    const fields = [
+      { id: "accentHue", type: "number" as const, label: "Accent hue", min: 0, max: 360, default: 210 },
+      { id: "compactRows", type: "boolean" as const, label: "Compact rows", default: false },
+      {
+        id: "fontMode",
+        type: "choice" as const,
+        label: "Font Mode",
+        options: [
+          { value: "sans", label: "Sans-Serif" },
+          { value: "mono", label: "Monospace" },
+        ],
+        default: "sans",
+      },
+      { id: "primaryColor", type: "color" as const, label: "Primary Color", default: "#123456" },
+    ];
+
+    expect(
+      mergeSettingsValues(fields, {
+        accentHue: 400,
+        compactRows: "true",
+        fontMode: "serif",
+        primaryColor: "invalid",
+        gone: 1,
+      }),
+    ).toEqual({
+      accentHue: 210,
+      compactRows: false,
+      fontMode: "sans",
+      primaryColor: "#123456",
+    });
   });
 
   it("paints a picked theme's tuned values on the activation itself", async () => {

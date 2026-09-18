@@ -1,7 +1,3 @@
-/** The settings-schema resolver and the placeholder substituter. Both consume
- * untrusted theme JSON the same way `layout-store.ts` does: a malformed entry
- * is dropped with an issue, never thrown, and nothing is newly trusted just
- * because it came out of a template. */
 import { describe, expect, it } from "vitest";
 import { resolveSettingsSchema, substitutePlaceholders } from "./settings-schema";
 
@@ -13,28 +9,69 @@ const hue = {
   label: "Accent hue",
   min: 0,
   max: 360,
+  step: 1,
   default: 210,
 };
 const compact = { id: "compactRows", type: "boolean", label: "Compact server rows", default: false };
+const mode = {
+  id: "fontMode",
+  type: "choice",
+  label: "Font Mode",
+  options: [
+    { value: "sans", label: "Sans-Serif" },
+    { value: "mono", label: "Monospace" },
+  ],
+  default: "sans",
+};
+const primaryColor = {
+  id: "primaryColor",
+  type: "color",
+  label: "Primary Color",
+  default: "#123456",
+};
 
 describe("resolveSettingsSchema", () => {
-  it("reads both field types, preserving file order and every bound", () => {
-    const { fields, issues } = resolveSettingsSchema(schema([hue, compact]));
+  it("reads all 4 field types, preserving file order and properties", () => {
+    const { fields, issues } = resolveSettingsSchema(schema([hue, compact, mode, primaryColor]));
 
-    expect(fields).toEqual([
-      { id: "accentHue", type: "number", label: "Accent hue", min: 0, max: 360, default: 210 },
-      { id: "compactRows", type: "boolean", label: "Compact server rows", default: false },
-    ]);
+    expect(fields).toEqual([hue, compact, mode, primaryColor]);
     expect(issues).toEqual([]);
   });
 
   it("drops only the field with an unknown type, keeping the rest", () => {
     const { fields, issues } = resolveSettingsSchema(
-      schema([hue, { id: "accent", type: "color", label: "Accent", default: "#fff" }, compact]),
+      schema([hue, { id: "unknownField", type: "unknownType", label: "Unknown", default: "foo" }, compact]),
     );
 
     expect(fields.map((field) => field.id)).toEqual(["accentHue", "compactRows"]);
-    expect(issues).toEqual([{ slotId: "accent", message: "field 'accent' has unknown type 'color'" }]);
+    expect(issues).toEqual([{ slotId: "unknownField", message: "field 'unknownField' has unknown type 'unknownType'" }]);
+  });
+
+  it("drops a field with duplicate id", () => {
+    const { fields, issues } = resolveSettingsSchema(
+      schema([hue, { ...hue, label: "Duplicate hue" }]),
+    );
+
+    expect(fields).toEqual([hue]);
+    expect(issues).toEqual([{ slotId: "accentHue", message: "field 'accentHue' has duplicate id" }]);
+  });
+
+  it("drops a choice field with invalid options or default", () => {
+    const { fields, issues } = resolveSettingsSchema(
+      schema([{ id: "badChoice", type: "choice", label: "Bad", options: [{ value: "one", label: "One" }], default: "one" }]),
+    );
+
+    expect(fields).toEqual([]);
+    expect(issues).toEqual([{ slotId: "badChoice", message: "field 'badChoice' declares `type: \"choice\"` but needs at least two options" }]);
+  });
+
+  it("drops a color field with invalid hex default", () => {
+    const { fields, issues } = resolveSettingsSchema(
+      schema([{ id: "badColor", type: "color", label: "Bad Color", default: "blue" }]),
+    );
+
+    expect(fields).toEqual([]);
+    expect(issues).toEqual([{ slotId: "badColor", message: "field 'badColor' declares `type: \"color\"` but invalid hex `default`" }]);
   });
 
   it("drops a number field whose min is above its max", () => {
@@ -77,12 +114,13 @@ describe("resolveSettingsSchema", () => {
 
 describe("substitutePlaceholders", () => {
   it("returns a whole-string placeholder as the value's typed form, not its text", () => {
-    const values = { accentHue: 210, compactRows: true };
+    const values = { accentHue: 210, compactRows: true, fontMode: "sans" };
 
     expect(substitutePlaceholders({ density: "{{compactRows}}" }, values)).toEqual({
       density: true,
     });
     expect(substitutePlaceholders({ hue: "{{accentHue}}" }, values)).toEqual({ hue: 210 });
+    expect(substitutePlaceholders({ font: "{{fontMode}}" }, values)).toEqual({ font: "sans" });
   });
 
   it("substitutes a placeholder embedded in a larger string", () => {
@@ -95,9 +133,9 @@ describe("substitutePlaceholders", () => {
   });
 
   it("substitutes several fragments in one string", () => {
-    const result = substitutePlaceholders("{{a}}px solid rgb({{b}}, 0, 0)", { a: 2, b: 16 });
+    const result = substitutePlaceholders("{{a}}px solid {{color}}", { a: 2, color: "#ff0000" });
 
-    expect(result).toBe("2px solid rgb(16, 0, 0)");
+    expect(result).toBe("2px solid #ff0000");
   });
 
   it("leaves an unknown placeholder literal, whole-string and fragment alike", () => {

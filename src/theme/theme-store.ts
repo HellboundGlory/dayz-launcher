@@ -45,6 +45,8 @@ import {
 } from "@/lib/tauri";
 import type { LegacyTheme, ThemeFile, ThemeManifest, ThemeSummary } from "@/types/theme";
 
+export type SettingsValue = string | number | boolean;
+
 interface ThemeState {
   scheme: "dark" | "light";
   /** A preset id, or an installed theme's own id (`local.<slug>`). */
@@ -63,13 +65,13 @@ interface ThemeState {
   /** Each theme's tuned settings-schema values, keyed by id — merged over that
    * theme's own schema defaults when written, so `apply()` only ever reads a
    * complete set and never has to know about defaults itself. */
-  settingsValues: Record<string, Record<string, number | boolean>>;
+  settingsValues: Record<string, Record<string, SettingsValue>>;
 
   hydrate: () => Promise<void>;
   apply: () => void;
   /** Tune one field: writes it through the backend, mirrors it into
    * `settingsValues` immediately, then repaints. */
-  setSettingsValue: (id: string, fieldId: string, value: number | boolean) => Promise<void>;
+  setSettingsValue: (id: string, fieldId: string, value: SettingsValue) => Promise<void>;
   setScheme: (scheme: "dark" | "light") => void;
   /** `deleteOnRevert`: `id` was just created by this same action (duplicate,
    * "New theme") — abandoning the activation deletes it too, not just the pick. */
@@ -294,12 +296,24 @@ async function refreshInstalledThemes(): Promise<void> {
 export function mergeSettingsValues(
   fields: SettingsField[],
   stored: Record<string, unknown>,
-): Record<string, number | boolean> {
-  const values: Record<string, number | boolean> = {};
+): Record<string, SettingsValue> {
+  const values: Record<string, SettingsValue> = {};
   for (const field of fields) {
     const raw = stored[field.id];
-    if (field.type === "number") values[field.id] = typeof raw === "number" ? raw : field.default;
-    else values[field.id] = typeof raw === "boolean" ? raw : field.default;
+    if (field.type === "number") {
+      values[field.id] =
+        typeof raw === "number" && raw >= field.min && raw <= field.max ? raw : field.default;
+    } else if (field.type === "boolean") {
+      values[field.id] = typeof raw === "boolean" ? raw : field.default;
+    } else if (field.type === "choice") {
+      values[field.id] =
+        typeof raw === "string" && field.options.some((opt) => opt.value === raw)
+          ? raw
+          : field.default;
+    } else if (field.type === "color") {
+      values[field.id] =
+        typeof raw === "string" && /^#[0-9a-fA-F]{6}$/.test(raw) ? raw : field.default;
+    }
   }
   return values;
 }
@@ -438,10 +452,16 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
           };
     const tokenFile = files[activeId]?.tokens as Record<string, unknown> | undefined;
     const tokens = tokenFile?.schemaVersion === 2 ? parseTokens(tokenFile) : undefined;
-    applyTheme(effective(scheme, activeId, files, custom), scheme, {
-      ...effectiveExtras(activeId, files, customExtras),
-      shadows: { glowIntensity: bloom },
-    }, tokens ? { scales: tokens.scales, roles: tokens.roles } : undefined);
+    applyTheme(
+      effective(scheme, activeId, files, custom),
+      scheme,
+      {
+        ...effectiveExtras(activeId, files, customExtras),
+        shadows: { glowIntensity: bloom },
+      },
+      tokens ? { scales: tokens.scales, roles: tokens.roles } : undefined,
+      settingsValues[activeId] ?? {},
+    );
     // CSS belongs to an installed theme's own files; a preset or
     // neutral has none, which unloads whatever the previous theme had.
     const file = files[activeId];
@@ -455,7 +475,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 
   setSettingsValue: async (id, fieldId, value) => {
     try {
-      await setThemeSettingsValue(id, fieldId, value);
+      await setThemeSettingsValue(id, fieldId, value as unknown as number | boolean);
     } catch (e) {
       console.error(`Could not save setting "${fieldId}" for theme "${id}":`, e);
       return;

@@ -1,13 +1,9 @@
-/** Regression guard for folding bloom into `extras.shadows.glowIntensity`:
- * the glow output must stay byte-identical to the old standalone `bloom`
- * parameter, so a fixed glowIntensity sweeps against the legacy formula. */
 import { describe, expect, it, vi } from "vitest";
 import { applyTheme, DEFAULT_EXTRAS } from "./apply";
 import { NEUTRAL_DARK, rgba } from "./palette";
 
 const GLOW_STEPS = [0, 0.25, 0.5, 0.75, 1];
 
-/** The pre-fold glow formula, kept verbatim as the expected output. */
 function legacyGlow(accent: string, scheme: "dark" | "light", bloom: number): string {
   const A = (a: number) => (scheme === "light" ? a * 0.6 : a);
   const r = (px: number) => `${Math.round(px * bloom * 100) / 100}px`;
@@ -45,7 +41,28 @@ describe("glow regression across glowIntensity", () => {
       const props = render("light", glowIntensity);
       expect(props["--glow"]).toBe(legacyGlow(NEUTRAL_DARK.accent, "light", glowIntensity));
     }
-    // The dimming factor is real: light mode must not equal dark mode output.
     expect(render("light", 1)["--glow"]).not.toBe(render("dark", 1)["--glow"]);
+  });
+});
+
+describe("settingsValues CSS custom properties", () => {
+  it("writes --setting-<id> custom properties onto documentElement style", () => {
+    const props: Record<string, string> = {};
+    vi.stubGlobal("document", {
+      documentElement: {
+        style: { setProperty: (name: string, value: string) => void (props[name] = value) },
+      },
+    });
+    applyTheme(NEUTRAL_DARK, "dark", DEFAULT_EXTRAS, undefined, {
+      accentHue: 210,
+      compactRows: true,
+      fontMode: "sans",
+      primaryColor: "#ff0000",
+    });
+
+    expect(props["--setting-accentHue"]).toBe("210");
+    expect(props["--setting-compactRows"]).toBe("true");
+    expect(props["--setting-fontMode"]).toBe("sans");
+    expect(props["--setting-primaryColor"]).toBe("#ff0000");
   });
 });
