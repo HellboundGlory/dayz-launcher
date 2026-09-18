@@ -103,3 +103,18 @@ export interface ManifestOverrides {
   license?: string;
   homepage?: string;
 }
+
+/** Mirrors the Rust `Severity` in `theme::validator::issue`, which serialises lowercase. */
+export type ValidationSeverity = "error" | "warning";
+
+/** One finding from `validate_theme` or a Dev Mode check. Mirrors `theme::validator::issue::ValidationIssue`. */
+export interface ValidationIssue {
+  ruleId: string;
+  severity: ValidationSeverity;
+  /** Package-relative file the issue is in, e.g. "layout/shell.json". */
+  file: string;
+  /** RFC 6901 pointer to the offending node; "" when the whole file is the subject. */
+  pointer: string;
+  message: string;
+  hint?: string;
+}

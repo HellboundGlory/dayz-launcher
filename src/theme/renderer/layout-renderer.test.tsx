@@ -1,12 +1,15 @@
 // The layout renderer, asserted as the markup a themed screen actually emits:
 // variant selection, the four containers, the leaves, sizing, anchored
 // positioning, landmarks, outlets and settings-driven hidden conditions.
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactNode } from "react";
+import { useDevStore } from "@/theme/dev/dev-store";
 import { LayoutRenderer } from "./layout-renderer";
 import { resolveVariant } from "./variant";
 import type { LayoutFile, LayoutNode, SettingValue } from "./types";
+
+afterEach(() => useDevStore.getState().clear());
 
 const file = (root: LayoutNode): LayoutFile => ({ schemaVersion: 2, root });
 
@@ -254,3 +257,43 @@ describe("hidden conditions", () => {
     expect(render(tree({ setting: "mode", not: "grid" }), { settings: { mode: "grid" } })).toContain("gone");
   });
 });
+
+describe("dev-mode overrides", () => {
+  const variants: LayoutFile = {
+    schemaVersion: 2,
+    variants: [
+      { minWidth: 0, root: { type: "box", id: "r-narrow", children: [] } },
+      { minWidth: 900, root: { type: "box", id: "r-wide", children: [] } },
+    ],
+  };
+
+  it("picks the variant for a dev variantWidth over the width prop", () => {
+    useDevStore.getState().setVariantWidth(1000);
+    const html = renderToStaticMarkup(<LayoutRenderer file={variants} width={500} />);
+    expect(html).toContain('id="r-wide"');
+  });
+
+  it("reads a dev settingsOverride for a node's hidden condition", () => {
+    useDevStore.getState().setSettingsOverride({ compactRows: true });
+    const html = render(
+      { type: "stack", children: [{ type: "text", value: "gone", hidden: { setting: "compactRows", equals: true } }, { type: "text", value: "kept" }] },
+      { settings: { compactRows: false } },
+    );
+    expect(html).not.toContain("gone");
+  });
+
+  it("leaves the existing width/settings behaviour unchanged when both dev overrides are null", () => {
+    expect(resolveVariant(variants, 899)).toEqual(
+      expect.objectContaining({ id: "r-narrow" }),
+    );
+    const html = render(tree({ setting: "compactRows", equals: true }), { settings: { compactRows: true } });
+    expect(html).not.toContain("gone");
+  });
+});
+
+function tree(hidden: LayoutNode["hidden"]): LayoutNode {
+  return {
+    type: "stack",
+    children: [{ type: "text", value: "gone", hidden }, { type: "text", value: "kept" }],
+  };
+}
