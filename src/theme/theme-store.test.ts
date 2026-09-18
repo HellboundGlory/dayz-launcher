@@ -93,7 +93,7 @@ vi.stubGlobal("localStorage", {
 });
 
 // applyTheme writes straight onto the document element's style; applyThemeStylesheet
-// and applyThemeFonts touch head/fonts, so the stub covers those too.
+// touches head, so the stub covers that.
 interface StubLink {
   attributes: Record<string, string>;
   getAttribute: (name: string) => string | null;
@@ -103,8 +103,6 @@ interface StubLink {
 /** Every `--token` applyTheme wrote, most recent write per token. */
 const writtenProps: Record<string, string> = {};
 const themeCssHead: StubLink[] = [];
-const addedFonts: unknown[] = [];
-const fontFaces: { family: string; source: string }[] = [];
 vi.stubGlobal("document", {
   documentElement: {
     style: {
@@ -122,25 +120,7 @@ vi.stubGlobal("document", {
     };
     return el;
   },
-  fonts: {
-    add: (face: unknown) => void addedFonts.push(face),
-    delete: () => {},
-  },
 });
-vi.stubGlobal(
-  "FontFace",
-  class {
-    constructor(
-      public family: string,
-      public source: string,
-    ) {
-      fontFaces.push(this);
-    }
-    load() {
-      return Promise.resolve(this);
-    }
-  },
-);
 
 const PALETTE = { bg: "#101010" } as Palette;
 
@@ -157,13 +137,11 @@ beforeEach(() => {
   backend.setSettingsCalls.length = 0;
   backend.themeCalls.length = 0;
   themeCssHead.length = 0;
-  fontFaces.length = 0;
-  addedFonts.length = 0;
   for (const name of Object.keys(writtenProps)) delete writtenProps[name];
   useThemeStore.setState({ activeId: "neutral", themeFiles: {}, settingsValues: {} });
 });
 
-/** Two microtask turns: enough for an `applyThemeFonts` load chain to settle. */
+/** Two microtask turns: enough for async operations to settle. */
 async function settled(): Promise<void> {
   await Promise.resolve();
   await Promise.resolve();
@@ -350,21 +328,16 @@ describe("apply() asset wiring", () => {
       id,
       name: id,
       capabilities,
-      tokens: { typography: { customFonts: [{ family: "Aurora Sans", file: "fonts/a.woff2" }] } },
     } as ThemeFile;
   };
 
-  it("applies the active theme's stylesheet and fonts, then unloads them on a theme without them", async () => {
-    const loaded = installed("local.aurora", ["tokens", "css", "fonts"]);
+  it("applies the active theme's stylesheet, then unloads it on a theme without css", () => {
+    const loaded = installed("local.aurora", ["tokens", "css"]);
     useThemeStore.setState({ activeId: "local.aurora", themeFiles: { "local.aurora": loaded } });
 
     useThemeStore.getState().apply();
-    await settled();
     expect(themeCssHead.map((el) => el.attributes.href)).toEqual([
       "tetra-theme://local.aurora/styles.css",
-    ]);
-    expect(fontFaces.map((f) => f.source)).toEqual([
-      "url(tetra-theme://local.aurora/fonts/a.woff2)",
     ]);
 
     useThemeStore.getState().setScheme("light");
@@ -373,35 +346,7 @@ describe("apply() asset wiring", () => {
     // Neutral has no ThemeFile at all: nothing may stay applied.
     useThemeStore.setState({ activeId: "neutral", themeFiles: {} });
     useThemeStore.getState().apply();
-    await settled();
     expect(themeCssHead).toHaveLength(0);
-    expect(addedFonts).toHaveLength(1);
-  });
-
-  it("drops customFonts entries missing a string family or file", async () => {
-    const theme = {
-      id: "local.partial",
-      name: "Partial",
-      capabilities: ["fonts"],
-      tokens: {
-        typography: {
-          customFonts: [
-            { family: "Good", file: "fonts/good.woff2" },
-            { family: "NoFile" },
-            { file: "fonts/no-family.woff2" },
-            "nonsense",
-          ],
-        },
-      },
-    } as ThemeFile;
-    useThemeStore.setState({ activeId: "local.partial", themeFiles: { "local.partial": theme } });
-
-    useThemeStore.getState().apply();
-    await settled();
-
-    expect(fontFaces).toEqual([
-      { family: "Good", source: "url(tetra-theme://local.partial/fonts/good.woff2)" },
-    ]);
   });
 });
 
