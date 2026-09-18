@@ -1,4 +1,3 @@
-// @ts-expect-error fs is provided at vitest runtime
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { REGISTRY, type ElementDef, type OptionDef, type Registry } from "./registry";
