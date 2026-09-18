@@ -1,5 +1,6 @@
 pub mod ast;
 mod composition;
+pub mod css;
 pub mod issue;
 mod rules;
 pub mod settings;
@@ -7,6 +8,7 @@ pub mod settings;
 #[cfg(test)]
 mod settings_tests;
 
+pub use css::validate_css_stylesheet;
 pub use issue::{Severity, ValidationIssue};
 
 use std::sync::LazyLock;
