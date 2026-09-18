@@ -24,6 +24,7 @@ import {
   type Typography,
 } from "./palette";
 import { applyTheme, DEFAULT_EXTRAS, type ThemeExtras } from "./apply";
+import { useDevStore } from "./dev/dev-store";
 import { parseTokens } from "./tokens";
 import { applyThemeStylesheet } from "./css-loader";
 import {
@@ -437,7 +438,10 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     // tuned tokens. A theme with no cached values (a preset, or an installed
     // theme nothing has tuned) is left alone — substituting nothing would only
     // leave the placeholders literal, which already fails whatever gated them.
-    const values = settingsValues[activeId];
+    // Dev Mode's settings override, when set, stands in for the stored values
+    // so an author can preview a combination without tuning it for real.
+    const devOverride = useDevStore.getState().settingsOverride;
+    const values = devOverride ?? settingsValues[activeId];
     const raw = themeFiles[activeId];
     const files =
       values === undefined || raw === undefined
@@ -460,7 +464,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
         shadows: { glowIntensity: bloom },
       },
       tokens ? { scales: tokens.scales, roles: tokens.roles } : undefined,
-      settingsValues[activeId] ?? {},
+      values ?? {},
     );
     // CSS belongs to an installed theme's own files; a preset or
     // neutral has none, which unloads whatever the previous theme had.
