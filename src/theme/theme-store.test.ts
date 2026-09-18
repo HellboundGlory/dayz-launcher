@@ -1,7 +1,8 @@
 /** The one-time localStorage -> file-backed migration, focused on the
  * `custom:<name>` -> installed-id remap a pre-migration selection depends on. */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_EXTRAS } from "./apply";
+import { useDevStore } from "./dev/dev-store";
 import { DEFAULT_RADII, DEFAULT_SPACING, DEFAULT_TYPOGRAPHY, type Palette } from "./palette";
 import {
   effectiveExtras,
@@ -483,6 +484,47 @@ describe("settings values", () => {
 
     expect(backend.setSettingsCalls).toEqual([{ id, fieldId: "accentHue", value: 42 }]);
     expect(writtenProps["--accent"]).toBe("hsl(42, 45%, 60%)");
+  });
+});
+
+describe("apply() dev settings override", () => {
+  const id = "local.devPreview";
+
+  beforeEach(() => {
+    useThemeStore.setState({
+      activeId: id,
+      themeFiles: {
+        [id]: {
+          id,
+          name: id,
+          tokens: {
+            dark: { accent: "hsl({{hue}}, 50%, 50%)" },
+            light: { accent: "hsl({{hue}}, 50%, 50%)" },
+            spacing: { md: "{{hue}}px" },
+          },
+        } as ThemeFile,
+      },
+      settingsValues: { [id]: { hue: 100 } },
+    });
+  });
+
+  afterEach(() => {
+    useDevStore.getState().clear();
+  });
+
+  it("substitutes the dev override's values instead of the stored ones", () => {
+    useDevStore.getState().setSettingsOverride({ hue: 250 });
+    useThemeStore.getState().apply();
+    expect(writtenProps["--accent"]).toBe("hsl(250, 50%, 50%)");
+    expect(writtenProps["--space-md"]).toBe("250px");
+    expect(writtenProps["--setting-hue"]).toBe("250");
+  });
+
+  it("substitutes the stored values exactly as before when there is no override", () => {
+    useThemeStore.getState().apply();
+    expect(writtenProps["--accent"]).toBe("hsl(100, 50%, 50%)");
+    expect(writtenProps["--space-md"]).toBe("100px");
+    expect(writtenProps["--setting-hue"]).toBe("100");
   });
 });
 
