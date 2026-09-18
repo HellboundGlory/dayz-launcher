@@ -82,6 +82,7 @@ export interface DevModeValidationPanelViewProps {
   copyState: CopyState;
   onCopy: (file: string, pointer: string) => void;
   switcher?: ReactNode;
+  heldReload: boolean;
 }
 
 /** Pure markup for the validation panel — no store reads, no portal, no effects. */
@@ -98,6 +99,7 @@ export function DevModeValidationPanelView({
   copyState,
   onCopy,
   switcher,
+  heldReload,
 }: DevModeValidationPanelViewProps) {
   const isEmpty = issues.length === 0 && contrast.length === 0 && Object.keys(fallbackReasons).length === 0;
 
@@ -140,6 +142,12 @@ export function DevModeValidationPanelView({
       {!collapsed && (
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto px-2.5 py-2">
           {switcher}
+
+          {heldReload && (
+            <div className="[color:rgb(255,140,140)]">
+              Hot reload held — the saved files have errors; still showing the last valid version.
+            </div>
+          )}
 
           {error && (
             <div className="[color:rgb(255,140,140)]">Could not validate: {error}</div>
@@ -196,10 +204,12 @@ export function DevModeValidationPanelView({
 export function DevModeValidationPanel() {
   const activeId = useThemeStore((s) => s.activeId);
   const scheme = useThemeStore((s) => s.scheme);
+  const activeFile = useThemeStore((s) => s.themeFiles[s.activeId]);
   const issues = useDevStore((s) => s.issues);
   const contrast = useDevStore((s) => s.contrast);
   const refreshing = useDevStore((s) => s.refreshing);
   const error = useDevStore((s) => s.error);
+  const heldReload = useDevStore((s) => s.heldReload);
   const refresh = useDevStore((s) => s.refresh);
   const clear = useDevStore((s) => s.clear);
   const fallbackReasons = useFallbackStore((s) => s.fallbackReasons);
@@ -221,9 +231,9 @@ export function DevModeValidationPanel() {
 
   useEffect(() => {
     doRefresh();
-    // Only re-runs on an actual theme/scheme switch — doRefresh reads
-    // custom/themeFiles fresh from the store itself.
-  }, [activeId, scheme, doRefresh]);
+    // Also re-runs when the active theme's own file identity changes, so a
+    // hot reload that swaps in new tokens recomputes contrast against them.
+  }, [activeId, scheme, activeFile, doRefresh]);
 
   useEffect(() => {
     return () => clear();
@@ -263,6 +273,7 @@ export function DevModeValidationPanel() {
       copyState={copyState}
       onCopy={handleCopy}
       switcher={<DevModeSwitcher />}
+      heldReload={heldReload}
     />,
     document.body,
   );

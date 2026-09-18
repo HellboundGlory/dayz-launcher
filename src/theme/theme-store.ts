@@ -43,8 +43,9 @@ import {
   saveTheme as saveThemeCmd,
   setActiveThemeId,
   setThemeSettingsValue,
+  validateTheme,
 } from "@/lib/tauri";
-import type { LegacyTheme, ThemeFile, ThemeManifest, ThemeSummary } from "@/types/theme";
+import type { LegacyTheme, ThemeFile, ThemeManifest, ThemeSummary, ValidationIssue } from "@/types/theme";
 
 export type SettingsValue = string | number | boolean;
 
@@ -723,13 +724,26 @@ export function watchHotReload(): () => void {
     // change while an earlier theme's watch is still in flight.
     if (id !== useThemeStore.getState().activeId) return;
     void getTheme(id)
-      .then((file) => {
-        const store = useThemeStore.getState();
-        useThemeStore.setState({ themeFiles: { ...store.themeFiles, [id]: file } });
-        store.apply();
-      })
       .catch((e) => {
         console.error(`Could not hot-reload theme "${id}":`, e);
+        // Nothing was swapped in, so the last valid version stays on screen.
+        useDevStore.getState().noteReload([], true, String(e));
+        return null;
+      })
+      .then((file) => {
+        if (file === null) return;
+        const swapAndApply = (issues: ValidationIssue[], held: boolean, error: string | null) => {
+          useDevStore.getState().noteReload(issues, held, error);
+          if (held) return;
+          const store = useThemeStore.getState();
+          useThemeStore.setState({ themeFiles: { ...store.themeFiles, [id]: file } });
+          store.apply();
+        };
+        return validateTheme(id).then(
+          (issues) => swapAndApply(issues, issues.some((i) => i.severity === "error"), null),
+          // Can't prove the new files are bad — swap in and apply as usual.
+          (e) => swapAndApply([], false, String(e)),
+        );
       });
   });
   return () => {

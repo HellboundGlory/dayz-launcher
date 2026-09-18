@@ -15,6 +15,7 @@ const BASE_PROPS: DevModeValidationPanelViewProps = {
   onRefresh: () => {},
   copyState: null,
   onCopy: () => {},
+  heldReload: false,
 };
 
 const ERROR_ISSUE: ValidationIssue = {
@@ -94,5 +95,10 @@ describe("DevModeValidationPanelView", () => {
     const switcher = <div data-testid="the-switcher">switcher markup</div>;
     expect(render({ collapsed: false, switcher })).toContain("switcher markup");
     expect(render({ collapsed: true, switcher })).not.toContain("switcher markup");
+  });
+
+  it("renders the held-reload line only when heldReload is true", () => {
+    expect(render({ heldReload: true })).toContain("Hot reload held");
+    expect(render({ heldReload: false })).not.toContain("Hot reload held");
   });
 });
