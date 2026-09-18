@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { effective, useThemeStore } from "@/theme/theme-store";
@@ -6,6 +6,7 @@ import { parseTokens, resolveTokens } from "@/theme/tokens";
 import { useDevStore } from "@/theme/dev/dev-store";
 import { useFallbackStore } from "@/theme/fallback/store";
 import type { ValidationIssue } from "@/types/theme";
+import { DevModeSwitcher } from "./DevModeSwitcher";
 
 type CopyState = { key: string; status: "copied" | "failed" } | null;
 
@@ -80,6 +81,7 @@ export interface DevModeValidationPanelViewProps {
   onRefresh: () => void;
   copyState: CopyState;
   onCopy: (file: string, pointer: string) => void;
+  switcher?: ReactNode;
 }
 
 /** Pure markup for the validation panel — no store reads, no portal, no effects. */
@@ -95,6 +97,7 @@ export function DevModeValidationPanelView({
   onRefresh,
   copyState,
   onCopy,
+  switcher,
 }: DevModeValidationPanelViewProps) {
   const isEmpty = issues.length === 0 && contrast.length === 0 && Object.keys(fallbackReasons).length === 0;
 
@@ -136,6 +139,8 @@ export function DevModeValidationPanelView({
 
       {!collapsed && (
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto px-2.5 py-2">
+          {switcher}
+
           {error && (
             <div className="[color:rgb(255,140,140)]">Could not validate: {error}</div>
           )}
@@ -257,6 +262,7 @@ export function DevModeValidationPanel() {
       onRefresh={doRefresh}
       copyState={copyState}
       onCopy={handleCopy}
+      switcher={<DevModeSwitcher />}
     />,
     document.body,
   );

@@ -89,4 +89,10 @@ describe("DevModeValidationPanelView", () => {
     const expandedHtml = render({ collapsed: false, issues: [ERROR_ISSUE] });
     expect(expandedHtml).toContain("missing required child");
   });
+
+  it("renders the switcher node inside the expanded body and omits it when collapsed", () => {
+    const switcher = <div data-testid="the-switcher">switcher markup</div>;
+    expect(render({ collapsed: false, switcher })).toContain("switcher markup");
+    expect(render({ collapsed: true, switcher })).not.toContain("switcher markup");
+  });
 });
