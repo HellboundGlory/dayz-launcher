@@ -65,8 +65,7 @@ export function isElementInLayout(layout: LayoutFile, elementId: string): boolea
       if (v.root && isElementInNode(v.root, elementId)) return true;
     }
   }
-  const asList = layout as unknown as { row?: LayoutNode };
-  if (asList.row && isElementInNode(asList.row, elementId)) return true;
+  if (layout.row && isElementInNode(layout.row, elementId)) return true;
   return false;
 }
 

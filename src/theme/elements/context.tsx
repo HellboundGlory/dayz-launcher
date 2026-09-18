@@ -71,7 +71,7 @@ export function ElementContextProvider({
   children,
   value,
 }: {
-  children: ReactNode;
+  children?: ReactNode;
   value?: Partial<ElementContextValue>;
 }) {
   const [collapsedRegions, setCollapsedRegions] = useState<Record<string, boolean>>(
