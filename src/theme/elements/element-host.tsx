@@ -33,6 +33,30 @@ import {
   NoticeUpdate,
   ServerActionNotice,
 } from "./notice-elements";
+import {
+  ServerAddress,
+  ServerFavourite,
+  ServerInfo,
+  ServerJoin,
+  ServerLastPlayed,
+  ServerMap,
+  ServerMenu,
+  ServerModCount,
+  ServerName,
+  ServerPing,
+  ServerPlayers,
+  ServerTags,
+  ServerTime,
+} from "./server-elements";
+import {
+  ModActions,
+  ModAuthor,
+  ModName,
+  ModSize,
+  ModStatus,
+  ModSubscribed,
+  ModUpdated,
+} from "./mod-elements";
 import { useElementContext } from "./context";
 import type { ElementNode } from "../renderer/types";
 
@@ -110,6 +134,48 @@ export function ElementHost({
       return <NoticeModsOutdated className={mergedClass} style={style} />;
     case "server.actionNotice":
       return <ServerActionNotice className={mergedClass} style={style} />;
+
+    case "server.name":
+      return <ServerName className={mergedClass} style={style} />;
+    case "server.players":
+      return <ServerPlayers className={mergedClass} style={style} />;
+    case "server.ping":
+      return <ServerPing className={mergedClass} style={style} />;
+    case "server.map":
+      return <ServerMap className={mergedClass} style={style} />;
+    case "server.time":
+      return <ServerTime className={mergedClass} style={style} />;
+    case "server.tags":
+      return <ServerTags className={mergedClass} style={style} />;
+    case "server.favourite":
+      return <ServerFavourite className={mergedClass} style={style} />;
+    case "server.join":
+      return <ServerJoin options={node.options} className={mergedClass} style={style} />;
+    case "server.info":
+      return <ServerInfo className={mergedClass} style={style} />;
+    case "server.menu":
+      return <ServerMenu className={mergedClass} style={style} />;
+    case "server.address":
+      return <ServerAddress className={mergedClass} style={style} />;
+    case "server.lastPlayed":
+      return <ServerLastPlayed className={mergedClass} style={style} />;
+    case "server.modCount":
+      return <ServerModCount className={mergedClass} style={style} />;
+
+    case "mod.name":
+      return <ModName className={mergedClass} style={style} />;
+    case "mod.status":
+      return <ModStatus className={mergedClass} style={style} />;
+    case "mod.size":
+      return <ModSize className={mergedClass} style={style} />;
+    case "mod.updated":
+      return <ModUpdated className={mergedClass} style={style} />;
+    case "mod.actions":
+      return <ModActions className={mergedClass} style={style} />;
+    case "mod.author":
+      return <ModAuthor className={mergedClass} style={style} />;
+    case "mod.subscribed":
+      return <ModSubscribed className={mergedClass} style={style} />;
 
     default:
       return (
