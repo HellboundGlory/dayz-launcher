@@ -20,6 +20,7 @@ import { ModsTab } from "./components/mods-tab";
 import { FooterBar } from "./components/footer-bar";
 import { SettingsView } from "./components/settings-view";
 import { DevModeInspector } from "./components/themes-page/DevModeInspector";
+import { DevModeValidationPanel } from "./components/themes-page/DevModeValidationPanel";
 import { OnboardingModal } from "./components/onboarding-modal";
 import { UpdateModal } from "./components/update-modal";
 import { SteamRequiredModal } from "./components/steam-required-modal";
@@ -871,6 +872,7 @@ export function App() {
       )}
 
       {devMode && <DevModeInspector />}
+      {devMode && <DevModeValidationPanel />}
 
       {showOnboarding && steamConnected && (
         <OnboardingModal onDone={() => setShowOnboarding(false)} />

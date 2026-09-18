@@ -261,7 +261,7 @@ export function DevModeInspector() {
       if (!(target instanceof Element)) return;
       // Clicks inside the badge manage pin state themselves (Copy) — must not
       // also be reinterpreted as "click elsewhere" here.
-      if (target.closest("[data-dev-inspector]")) return;
+      if (target.closest("[data-dev-inspector], [data-dev-panel]")) return;
       const resolved = resolveDevTarget(target);
       setCopyState("idle");
       if (resolved === null) {
@@ -302,7 +302,7 @@ export function DevModeInspector() {
       }
       // Its own outline and the badge's own buttons — reaching for either
       // must not blank the readout "Copy selector" is about to act on.
-      if (target.closest("[data-dev-inspector]")) return;
+      if (target.closest("[data-dev-inspector], [data-dev-panel]")) return;
       const resolved = resolveDevTarget(target);
       if (resolved === null) {
         if (lastKey.current === "") return;
