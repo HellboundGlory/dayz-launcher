@@ -138,6 +138,7 @@ describe("applyThemeStylesheet", () => {
       id: "tetra-theme-css",
       rel: "stylesheet",
       href: "tetra-theme://aurora/styles.css",
+      layer: "theme",
     });
   });
 
@@ -157,6 +158,7 @@ describe("applyThemeStylesheet", () => {
     applyThemeStylesheet("aurora", ["css"]);
     expect(head).toHaveLength(1);
     expect(head[0].attributes.href).toBe("tetra-theme://aurora/styles.css");
+    expect(head[0].attributes.layer).toBe("theme");
   });
 
   it("updates the existing link in place when the theme id changes", () => {
@@ -168,6 +170,7 @@ describe("applyThemeStylesheet", () => {
     expect(head).toHaveLength(1);
     expect(head[0]).toBe(first);
     expect(first.attributes.href).toBe("tetra-theme://borealis/styles.css");
+    expect(first.attributes.layer).toBe("theme");
   });
 
   it("removes the link when no theme is active", () => {
@@ -184,6 +187,19 @@ describe("applyThemeStylesheet", () => {
     applyThemeStylesheet("aurora", ["css"]);
 
     expect(head).toHaveLength(1);
+  });
+
+  it("configures theme stylesheet in the 'theme' cascade layer", () => {
+    applyThemeStylesheet("aurora", ["css"]);
+    expect(head[0].attributes.layer).toBe("theme");
+  });
+
+  it("ensures layer='theme' is present when updating an existing link missing the attribute", () => {
+    applyThemeStylesheet("aurora", ["css"]);
+    delete head[0].attributes.layer;
+
+    applyThemeStylesheet("borealis", ["css"]);
+    expect(head[0].attributes.layer).toBe("theme");
   });
 });
 

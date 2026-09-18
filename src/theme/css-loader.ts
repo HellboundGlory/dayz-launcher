@@ -24,12 +24,14 @@ export function applyThemeStylesheet(themeId: string | null, capabilities: strin
   const href = resolveThemeAsset(themeId, "styles.css");
   if (existing !== null) {
     if (existing.getAttribute("href") !== href) existing.setAttribute("href", href);
+    if (existing.getAttribute("layer") !== "theme") existing.setAttribute("layer", "theme");
     return;
   }
   const link = document.createElement("link");
   link.setAttribute("id", LINK_ID);
   link.setAttribute("rel", "stylesheet");
   link.setAttribute("href", href);
+  link.setAttribute("layer", "theme");
   document.head.appendChild(link);
 }
 
