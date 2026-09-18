@@ -24,6 +24,7 @@ import {
   type Typography,
 } from "./palette";
 import { applyTheme, DEFAULT_EXTRAS, type ThemeExtras } from "./apply";
+import { useDevStore } from "./dev/dev-store";
 import { parseTokens } from "./tokens";
 import { applyThemeStylesheet } from "./css-loader";
 import {
@@ -42,8 +43,9 @@ import {
   saveTheme as saveThemeCmd,
   setActiveThemeId,
   setThemeSettingsValue,
+  validateTheme,
 } from "@/lib/tauri";
-import type { LegacyTheme, ThemeFile, ThemeManifest, ThemeSummary } from "@/types/theme";
+import type { LegacyTheme, ThemeFile, ThemeManifest, ThemeSummary, ValidationIssue } from "@/types/theme";
 
 export type SettingsValue = string | number | boolean;
 
@@ -437,7 +439,10 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     // tuned tokens. A theme with no cached values (a preset, or an installed
     // theme nothing has tuned) is left alone — substituting nothing would only
     // leave the placeholders literal, which already fails whatever gated them.
-    const values = settingsValues[activeId];
+    // Dev Mode's settings override, when set, stands in for the stored values
+    // so an author can preview a combination without tuning it for real.
+    const devOverride = useDevStore.getState().settingsOverride;
+    const values = devOverride ?? settingsValues[activeId];
     const raw = themeFiles[activeId];
     const files =
       values === undefined || raw === undefined
@@ -460,7 +465,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
         shadows: { glowIntensity: bloom },
       },
       tokens ? { scales: tokens.scales, roles: tokens.roles } : undefined,
-      settingsValues[activeId] ?? {},
+      values ?? {},
     );
     // CSS belongs to an installed theme's own files; a preset or
     // neutral has none, which unloads whatever the previous theme had.
@@ -719,13 +724,26 @@ export function watchHotReload(): () => void {
     // change while an earlier theme's watch is still in flight.
     if (id !== useThemeStore.getState().activeId) return;
     void getTheme(id)
-      .then((file) => {
-        const store = useThemeStore.getState();
-        useThemeStore.setState({ themeFiles: { ...store.themeFiles, [id]: file } });
-        store.apply();
-      })
       .catch((e) => {
         console.error(`Could not hot-reload theme "${id}":`, e);
+        // Nothing was swapped in, so the last valid version stays on screen.
+        useDevStore.getState().noteReload([], true, String(e));
+        return null;
+      })
+      .then((file) => {
+        if (file === null) return;
+        const swapAndApply = (issues: ValidationIssue[], held: boolean, error: string | null) => {
+          useDevStore.getState().noteReload(issues, held, error);
+          if (held) return;
+          const store = useThemeStore.getState();
+          useThemeStore.setState({ themeFiles: { ...store.themeFiles, [id]: file } });
+          store.apply();
+        };
+        return validateTheme(id).then(
+          (issues) => swapAndApply(issues, issues.some((i) => i.severity === "error"), null),
+          // Can't prove the new files are bad — swap in and apply as usual.
+          (e) => swapAndApply([], false, String(e)),
+        );
       });
   });
   return () => {

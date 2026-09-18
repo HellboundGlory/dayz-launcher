@@ -15,6 +15,7 @@ import type {
   ThemeImportPreview,
   ThemeManifest,
   ThemeSummary,
+  ValidationIssue,
 } from "@/types/theme";
 
 // ── Server Commands ──
@@ -772,4 +773,9 @@ export async function watchActiveTheme(id: string): Promise<void> {
 /** Stop the watch, if one is running; a no-op when none is. */
 export async function stopWatchingTheme(): Promise<void> {
   return invoke<void>("stop_watching_theme");
+}
+
+/** Run the full validator against an installed theme (Dev Mode's validation panel). */
+export async function validateTheme(id: string): Promise<ValidationIssue[]> {
+  return invoke<ValidationIssue[]>("validate_theme", { id });
 }

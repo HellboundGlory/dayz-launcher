@@ -2,6 +2,7 @@
 // render context, and walk the tree.
 
 import { useMemo, type ReactNode } from "react";
+import { useDevStore } from "@/theme/dev/dev-store";
 import { LayoutNodeRenderer, RenderContextProvider } from "./node-renderer";
 import type { SettingsValues } from "./props";
 import { resolveVariant } from "./variant";
@@ -28,10 +29,15 @@ export function LayoutRenderer({
   settings,
   themeId = "",
 }: LayoutRendererProps) {
-  const root = useMemo(() => resolveVariant(file, width), [file, width]);
+  // The selector subscribes so an unrelated dev-store field doesn't re-render
+  // the tree; the getState() fallback covers SSR/renderToStaticMarkup, where
+  // zustand's server snapshot is frozen at store creation (see FallbackNotice).
+  const devWidth = useDevStore((s) => s.variantWidth) ?? useDevStore.getState().variantWidth;
+  const devSettings = useDevStore((s) => s.settingsOverride) ?? useDevStore.getState().settingsOverride;
+  const root = useMemo(() => resolveVariant(file, devWidth ?? width), [file, devWidth, width]);
   const value = useMemo(
-    () => ({ settings: settings ?? {}, outlets: outlets ?? {}, renderElement, themeId }),
-    [settings, outlets, renderElement, themeId],
+    () => ({ settings: devSettings ?? settings ?? {}, outlets: outlets ?? {}, renderElement, themeId }),
+    [devSettings, settings, outlets, renderElement, themeId],
   );
   return (
     <RenderContextProvider value={value}>
