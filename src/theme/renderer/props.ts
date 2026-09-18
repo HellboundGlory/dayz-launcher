@@ -123,6 +123,7 @@ export interface RenderedAttrs {
   id?: string;
   className?: string;
   style?: CSSProperties;
+  "data-state"?: string;
 }
 
 /** The id, class and non-layout style every node shares. `hostsPositioned`

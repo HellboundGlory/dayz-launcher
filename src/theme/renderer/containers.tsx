@@ -24,7 +24,7 @@ export function Stack({ node, attrs, as: As, children }: ContainerProps<StackNod
     ...attrs.style,
   };
   return (
-    <As id={attrs.id} className={attrs.className} style={style}>
+    <As id={attrs.id} className={attrs.className} style={style} data-state={attrs["data-state"]}>
       {children}
     </As>
   );
@@ -44,7 +44,7 @@ export function Grid({ node, attrs, as: As, children }: ContainerProps<GridNode>
     ...attrs.style,
   };
   return (
-    <As id={attrs.id} className={attrs.className} style={style}>
+    <As id={attrs.id} className={attrs.className} style={style} data-state={attrs["data-state"]}>
       {children}
     </As>
   );
@@ -52,7 +52,7 @@ export function Grid({ node, attrs, as: As, children }: ContainerProps<GridNode>
 
 export function Box({ attrs, as: As, children }: ContainerProps<BoxNode>) {
   return (
-    <As id={attrs.id} className={attrs.className} style={attrs.style}>
+    <As id={attrs.id} className={attrs.className} style={attrs.style} data-state={attrs["data-state"]}>
       {children}
     </As>
   );
@@ -66,8 +66,9 @@ export function Scroll({ node, attrs, as: As, children }: ContainerProps<ScrollN
     ...attrs.style,
   };
   return (
-    <As id={attrs.id} className={attrs.className} style={style}>
+    <As id={attrs.id} className={attrs.className} style={style} data-state={attrs["data-state"]}>
       {children}
     </As>
   );
 }
+

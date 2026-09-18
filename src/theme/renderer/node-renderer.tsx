@@ -10,7 +10,11 @@ import { commonAttrs, isHidden, LANDMARK_TAGS, positionStyle, type SettingsValue
 import type { ContainerNode, HostNode, LayoutNode } from "./types";
 import { ElementHost } from "../elements/element-host";
 import { SurfaceHost } from "../elements/surface-host";
-import { SubjectContextProvider, useElementContext } from "../elements/context";
+import { SubjectContextProvider, useElementContext, type ElementContextValue } from "../elements/context";
+import { Tabs } from "../interaction/tabs";
+import { Accordion } from "../interaction/accordion";
+import { ResizableHandle } from "../interaction/resizable";
+import { getPersistedCollapsed, getPersistedSize } from "../interaction/store";
 
 export interface RenderContextValue {
   settings: SettingsValues;
@@ -19,7 +23,7 @@ export interface RenderContextValue {
   themeId: string;
 }
 
-const RenderContext = createContext<RenderContextValue>({
+export const RenderContext = createContext<RenderContextValue>({
   settings: {},
   outlets: {},
   themeId: "",
@@ -62,6 +66,7 @@ export function LayoutNodeRenderer({ node }: { node: LayoutNode }) {
 }
 
 function ContainerRenderer({ node }: { node: ContainerNode }) {
+  const ctx = useContext(RenderContext);
   const elementCtx = useElementContext();
 
   if (node.context !== undefined) {
@@ -91,47 +96,126 @@ function ContainerRenderer({ node }: { node: ContainerNode }) {
         subject={{ kind: subjectKind, data: subjectData }}
         contextName={node.context}
       >
-        {renderContainer(node)}
+        {renderContainer(node, ctx, elementCtx)}
       </SubjectContextProvider>
     );
   }
 
-  return renderContainer(node);
+  return renderContainer(node, ctx, elementCtx);
 }
 
-function renderContainer(node: ContainerNode) {
-  const hostsPositioned =
-    node.position === undefined && node.children.some((child) => child.position !== undefined);
+function renderContainer(
+  node: ContainerNode,
+  ctx: RenderContextValue,
+  elementCtx: ElementContextValue,
+) {
+  const hasPositionedChildren =
+    "children" in node && Array.isArray(node.children)
+      ? node.children.some((child) => child.position !== undefined)
+      : false;
+  const hostsPositioned = node.position === undefined && hasPositionedChildren;
   const attrs = commonAttrs(node, hostsPositioned);
-  const as = node.landmark !== undefined ? LANDMARK_TAGS[node.landmark] : "div";
-  const children = node.children.map((child, index) => (
-    <LayoutNodeRenderer key={index} node={child} />
-  ));
+  const As = node.landmark !== undefined ? LANDMARK_TAGS[node.landmark] : "div";
+  const regionId = node.id ?? "";
+
+  if (node.resizable && regionId) {
+    const persistedSize = getPersistedSize(ctx.themeId, regionId);
+    if (persistedSize) {
+      const isHoriz = node.resizable.edge === "left" || node.resizable.edge === "right";
+      attrs.style = {
+        ...attrs.style,
+        [isHoriz ? "width" : "height"]: persistedSize,
+      };
+    }
+    if (attrs.style?.position === undefined) {
+      attrs.style = {
+        ...attrs.style,
+        position: "relative",
+      };
+    }
+  }
+
+  let isCollapsed = false;
+  if (node.collapsible) {
+    if (regionId && elementCtx.collapsedRegions[regionId] !== undefined) {
+      isCollapsed = elementCtx.collapsedRegions[regionId];
+    } else if (regionId) {
+      const defaultCollapsed = node.collapsible.default === "collapsed";
+      isCollapsed = getPersistedCollapsed(ctx.themeId, regionId, defaultCollapsed);
+    } else {
+      isCollapsed = node.collapsible.default === "collapsed";
+    }
+    attrs["data-state"] = isCollapsed ? "collapsed" : "expanded";
+  }
+
+  if (node.collapsible && isCollapsed) {
+    const collapsedContent = (
+      <>
+        <LayoutNodeRenderer node={node.collapsible.collapsed} />
+        {node.resizable && <ResizableHandle node={node} />}
+      </>
+    );
+
+    switch (node.type) {
+      case "stack":
+        return <Stack node={node} attrs={attrs} as={As}>{collapsedContent}</Stack>;
+      case "grid":
+        return <Grid node={node} attrs={attrs} as={As}>{collapsedContent}</Grid>;
+      case "scroll":
+        return <Scroll node={node} attrs={attrs} as={As}>{collapsedContent}</Scroll>;
+      case "box":
+        return <Box node={node} attrs={attrs} as={As}>{collapsedContent}</Box>;
+      default:
+        return (
+          <As id={attrs.id} className={attrs.className} style={attrs.style} data-state={attrs["data-state"]}>
+            {collapsedContent}
+          </As>
+        );
+    }
+  }
+
+  if (node.type === "tabs") {
+    return <Tabs node={node} attrs={attrs} as={As} />;
+  }
+
+  if (node.type === "accordion") {
+    return <Accordion node={node} attrs={attrs} as={As} />;
+  }
+
+  const children = (
+    <>
+      {node.children.map((child, index) => (
+        <LayoutNodeRenderer key={index} node={child} />
+      ))}
+      {node.resizable && <ResizableHandle node={node} />}
+    </>
+  );
 
   switch (node.type) {
     case "stack":
       return (
-        <Stack node={node} attrs={attrs} as={as}>
+        <Stack node={node} attrs={attrs} as={As}>
           {children}
         </Stack>
       );
     case "grid":
       return (
-        <Grid node={node} attrs={attrs} as={as}>
+        <Grid node={node} attrs={attrs} as={As}>
           {children}
         </Grid>
       );
     case "scroll":
       return (
-        <Scroll node={node} attrs={attrs} as={as}>
+        <Scroll node={node} attrs={attrs} as={As}>
           {children}
         </Scroll>
       );
     case "box":
       return (
-        <Box node={node} attrs={attrs} as={as}>
+        <Box node={node} attrs={attrs} as={As}>
           {children}
         </Box>
       );
   }
+
 }

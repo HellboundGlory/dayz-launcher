@@ -1,6 +1,7 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import type { Server } from "@/types/server";
 import type { ListSource } from "@/lib/tauri";
+import { getPersistedCollapsed, setPersistedCollapsed } from "../interaction/store";
 
 export type ViewId = "servers" | "fav" | "recent" | "mods";
 export type ContextSubjectKind = "server" | "mod" | "serverMod" | "modServer" | "workshopMod";
@@ -78,10 +79,21 @@ export function ElementContextProvider({
   );
 
   const toggleCollapsed = (regionId: string) => {
-    setCollapsedRegions((prev) => ({ ...prev, [regionId]: !prev[regionId] }));
+    setCollapsedRegions((prev) => {
+      const current = prev[regionId] ?? getPersistedCollapsed("", regionId, false);
+      const next = !current;
+      setPersistedCollapsed("", regionId, next);
+      return { ...prev, [regionId]: next };
+    });
   };
 
-  const isCollapsed = (regionId: string) => !!collapsedRegions[regionId];
+  const isCollapsed = (regionId: string) => {
+    if (collapsedRegions[regionId] !== undefined) {
+      return !!collapsedRegions[regionId];
+    }
+    return getPersistedCollapsed("", regionId, false);
+  };
+
 
   const merged = useMemo<ElementContextValue>(() => ({
     subjectContext: null,
