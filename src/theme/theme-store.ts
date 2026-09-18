@@ -25,7 +25,7 @@ import {
 } from "./palette";
 import { applyTheme, DEFAULT_EXTRAS, type ThemeExtras } from "./apply";
 import { parseTokens } from "./tokens";
-import { applyThemeFonts, applyThemeStylesheet } from "./css-loader";
+import { applyThemeStylesheet } from "./css-loader";
 import {
   resolveSettingsSchema,
   substitutePlaceholders,
@@ -242,24 +242,6 @@ function glowIntensityOf(raw: unknown): number | undefined {
   return typeof glowIntensity === "number" ? glowIntensity : undefined;
 }
 
-/** A theme's declared custom fonts out of its raw `tokens.json`; entries missing a string `family`/`file` are dropped. */
-function themeCustomFonts(file: ThemeFile | undefined): { family: string; file: string }[] {
-  const tokens: unknown = file?.tokens;
-  if (typeof tokens !== "object" || tokens === null) return [];
-  const typography = "typography" in tokens ? tokens.typography : undefined;
-  if (typeof typography !== "object" || typography === null) return [];
-  const customFonts = "customFonts" in typography ? typography.customFonts : undefined;
-  if (!Array.isArray(customFonts)) return [];
-  const out: { family: string; file: string }[] = [];
-  for (const entry of customFonts) {
-    if (typeof entry !== "object" || entry === null) continue;
-    if (!("family" in entry) || typeof entry.family !== "string") continue;
-    if (!("file" in entry) || typeof entry.file !== "string") continue;
-    out.push({ family: entry.family, file: entry.file });
-  }
-  return out;
-}
-
 /** The extras that actually render, editor overrides merged. Not per-scheme — these don't vary by mode. */
 export function effectiveExtras(
   activeId: string,
@@ -460,11 +442,10 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       ...effectiveExtras(activeId, files, customExtras),
       shadows: { glowIntensity: bloom },
     }, tokens ? { scales: tokens.scales, roles: tokens.roles } : undefined);
-    // CSS and fonts belong to an installed theme's own files; a preset or
+    // CSS belongs to an installed theme's own files; a preset or
     // neutral has none, which unloads whatever the previous theme had.
     const file = files[activeId];
     applyThemeStylesheet(file ? activeId : null, file?.capabilities ?? []);
-    applyThemeFonts(file ? activeId : null, themeCustomFonts(file));
     // Every mutation funnels through apply() — persisting the UI prefs here
     // means a scheme flip or bloom drag survives a restart without each action
     // having to remember to save. The active id isn't stored locally: only a
