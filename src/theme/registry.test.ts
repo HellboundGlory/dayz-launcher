@@ -1,3 +1,4 @@
+// @ts-expect-error fs is provided at vitest runtime
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { REGISTRY, type ElementDef, type OptionDef, type Registry } from "./registry";
@@ -198,7 +199,7 @@ describe("shared v2 registry", () => {
       code(id)[0], { openedBy: code(openedBy)[0], requiredContents: code(required) },
     ]));
     expect(REGISTRY.popups).toEqual(popups);
-    const iconLine = specDoc.split("\n").find((line) => line.trimStart().startsWith("`alertTriangle`"))!;
+    const iconLine = specDoc.split("\n").find((line: string) => line.trimStart().startsWith("`alertTriangle`"))!;
     expect(REGISTRY.icons).toEqual(code(iconLine));
     expect(new Set(REGISTRY.icons).size).toBe(44);
   });

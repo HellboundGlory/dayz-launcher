@@ -5,23 +5,70 @@ import { REGISTRY } from "@/theme/registry";
 
 const SURFACE_ATTR = "data-surface";
 const EL_ATTR = "data-el";
+const REGION_ATTR = "data-region";
+const PART_ATTR = "data-part";
+const CONTEXT_ATTR = "data-context";
 
 export interface TetraNode {
   /** Read at match time — the attribute value may be rebound in place. */
   id: string;
-  kind: "surface" | "el";
+  kind: "surface" | "el" | "region" | "part";
   element: Element;
+  context?: string | null;
+  partOf?: string;
 }
 
-/** Nearest ancestor (or the element itself) carrying a `data-surface` or
- * `data-el` attribute; `null` when the walk reaches the document. */
+function findContext(start: Element | null): string | null {
+  for (let node = start; node !== null; node = node.parentElement) {
+    if (node.hasAttribute?.(CONTEXT_ATTR)) {
+      const val = node.getAttribute(CONTEXT_ATTR);
+      if (val) return val;
+    }
+  }
+  return null;
+}
+
+function findPartOf(start: Element | null): string | undefined {
+  for (let node = start; node !== null; node = node.parentElement) {
+    if (node.hasAttribute?.(EL_ATTR)) {
+      const val = node.getAttribute(EL_ATTR);
+      if (val) return val;
+    }
+  }
+  return undefined;
+}
+
+/** Nearest ancestor (or the element itself) carrying a `data-part`, `data-surface`,
+ * `data-el`, `data-region`, or container `id` attribute; `null` when the walk reaches the document. */
 export function findTetraNode(start: Element | null): TetraNode | null {
   for (let node = start; node !== null; node = node.parentElement) {
-    if (node.hasAttribute(SURFACE_ATTR)) {
-      return { id: node.getAttribute(SURFACE_ATTR) ?? "", kind: "surface", element: node };
+    if (node.hasAttribute?.(PART_ATTR)) {
+      const id = node.getAttribute(PART_ATTR) ?? "";
+      const partOf = findPartOf(node.parentElement);
+      const context = findContext(node);
+      return { id, kind: "part", element: node, partOf, context };
     }
-    if (node.hasAttribute(EL_ATTR)) {
-      return { id: node.getAttribute(EL_ATTR) ?? "", kind: "el", element: node };
+    if (node.hasAttribute?.(SURFACE_ATTR)) {
+      const id = node.getAttribute(SURFACE_ATTR) ?? "";
+      const context = findContext(node);
+      return { id, kind: "surface", element: node, context };
+    }
+    if (node.hasAttribute?.(EL_ATTR)) {
+      const id = node.getAttribute(EL_ATTR) ?? "";
+      const context = findContext(node);
+      return { id, kind: "el", element: node, context };
+    }
+    if (node.hasAttribute?.(REGION_ATTR)) {
+      const id = node.getAttribute(REGION_ATTR) ?? "";
+      const context = findContext(node);
+      return { id, kind: "region", element: node, context };
+    }
+    if (node.hasAttribute?.("id")) {
+      const id = node.getAttribute("id");
+      if (id) {
+        const context = findContext(node);
+        return { id, kind: "region", element: node, context };
+      }
     }
   }
   return null;
@@ -29,13 +76,35 @@ export function findTetraNode(start: Element | null): TetraNode | null {
 
 /** The attribute selector that selects exactly the tagged markup. */
 export function selectorFor(node: TetraNode): string {
-  const attr = node.kind === "surface" ? SURFACE_ATTR : EL_ATTR;
-  // Registry ids are plain ASCII; CSS.escape is absent in older webviews.
-  const id =
+  const escape = (str: string) =>
     typeof CSS !== "undefined" && typeof CSS.escape === "function"
-      ? CSS.escape(node.id)
-      : node.id.replace(/["\\]/g, "\\$&");
-  return `[${attr}="${id}"]`;
+      ? CSS.escape(str)
+      : str.replace(/["\\]/g, "\\$&");
+
+  let base = "";
+  if (node.kind === "surface") {
+    base = `[${SURFACE_ATTR}="${escape(node.id)}"]`;
+  } else if (node.kind === "el") {
+    base = `[${EL_ATTR}="${escape(node.id)}"]`;
+  } else if (node.kind === "part") {
+    const partSel = `[${PART_ATTR}="${escape(node.id)}"]`;
+    if (node.partOf) {
+      base = `[${EL_ATTR}="${escape(node.partOf)}"] ${partSel}`;
+    } else {
+      base = partSel;
+    }
+  } else if (node.kind === "region") {
+    if (node.element.hasAttribute?.(REGION_ATTR) || !node.element.hasAttribute?.("id")) {
+      base = `[${REGION_ATTR}="${escape(node.id)}"]`;
+    } else {
+      base = `#${escape(node.id)}`;
+    }
+  }
+
+  if (node.context) {
+    return `[${CONTEXT_ATTR}="${escape(node.context)}"] ${base}`;
+  }
+  return base;
 }
 
 interface HoverState {
@@ -375,6 +444,11 @@ export function DevModeInspector() {
               )}
             </div>
 
+            <div className="mt-1 flex items-center gap-1.5 [font-size:var(--t-type-caption-size)]">
+              <span className="uppercase tracking-[0.04em] [color:rgb(156,147,173)]">context:</span>
+              <span className="[color:rgb(233,230,242)]">{active.node.context ?? "none"}</span>
+            </div>
+
             {active.node.kind === "surface" && (
               <div className="mt-1.5 flex flex-col gap-0.5">
                 {!surfaceDef && <span className="[color:rgb(255,154,232)]">not in the REGISTRY surfaces</span>}
@@ -396,6 +470,15 @@ export function DevModeInspector() {
                     <span className="ml-1.5">{elementDef.kind}</span>
                   </div>
                 )}
+              </div>
+            )}
+
+            {active.node.kind === "part" && active.node.partOf && (
+              <div className="mt-1.5 flex flex-col gap-0.5">
+                <div>
+                  <span className="uppercase tracking-[0.04em] [color:rgb(156,147,173)]">part of</span>
+                  <span className="ml-1.5">{active.node.partOf}</span>
+                </div>
               </div>
             )}
 

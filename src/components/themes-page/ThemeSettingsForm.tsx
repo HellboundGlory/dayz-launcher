@@ -4,7 +4,7 @@ import type { SettingsField } from "@/theme/settings-schema";
 
 const COMMIT_DELAY_MS = 350;
 
-export type CommitTimers = Record<string, number | NodeJS.Timeout | undefined>;
+export type CommitTimers = Record<string, number | ReturnType<typeof setTimeout> | undefined>;
 
 export function stepFor(min: number, max: number): number {
   const span = max - min;

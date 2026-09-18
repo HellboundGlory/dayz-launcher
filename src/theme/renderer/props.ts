@@ -124,6 +124,7 @@ export interface RenderedAttrs {
   className?: string;
   style?: CSSProperties;
   "data-state"?: string;
+  "data-region"?: string;
 }
 
 /** The id, class and non-layout style every node shares. `hostsPositioned`
@@ -135,6 +136,7 @@ export function commonAttrs(node: CommonProps, hostsPositioned = false): Rendere
   else if (hostsPositioned) style.position = "relative";
   return {
     id: node.id,
+    "data-region": node.id,
     className: node.class,
     style: Object.keys(style).length > 0 ? style : undefined,
   };
