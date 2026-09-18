@@ -1,12 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Server, ServerModReadiness } from "@/types/server";
 import { ServerInfoModal } from "./server-info-modal";
-
-const mockUseComponentComposition = vi.fn();
-vi.mock("@/theme/use-component-composition", () => ({
-  useComponentComposition: (slotId: string) => mockUseComponentComposition(slotId),
-}));
 
 const mockServerActions = {
   op: null,
@@ -99,10 +94,6 @@ const sampleReadiness: ServerModReadiness = {
 };
 
 describe("ServerInfoModal", () => {
-  beforeEach(() => {
-    mockUseComponentComposition.mockReturnValue(null);
-  });
-
   describe("Readiness list and formatting", () => {
     it("displays mod names, states, and thumbnail preview when available", () => {
       const html = renderToStaticMarkup(

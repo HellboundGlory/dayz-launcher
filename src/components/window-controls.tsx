@@ -1,22 +1,10 @@
-import { Fragment, type ReactNode } from "react";
+import { Fragment } from "react";
 import { Minus, Square, X } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useResolvedSlot } from "@/theme/use-resolved-layout";
-import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
-import { useThemeStore } from "@/theme/theme-store";
-import { useComponentComposition } from "@/theme/use-component-composition";
 
 // The frameless window's min/max/close cluster — needed since decorations:
 // false leaves no OS-provided way to close the window. Also doubles as the drag region.
 export function WindowControls() {
-  const slot = useResolvedSlot("shell.header");
-  const hidden = new Set(slot.hidden);
-  const dragHidden = hidden.has("dragRegion");
-
-  const composition = useComponentComposition("shell.header");
-
-  const activeId = useThemeStore((s) => s.activeId);
-
   function minimizeWindow() {
     getCurrentWindow()
       .minimize()
@@ -66,33 +54,13 @@ export function WindowControls() {
     </Fragment>
   );
 
-  const nodes: Record<string, ReactNode> = {
-    windowControls,
-    dragRegion: (
-      <div
-        data-tetra-el="dragRegion"
-        data-tauri-drag-region
-        className="flex h-[var(--t-space-windowControlHeight)] shrink-0 select-none items-center justify-end border-b border-line bg-surface"
-      >
-        {windowControls}
-      </div>
-    ),
-  };
-
-  // The container is the slot and the drag region in one element; hiding the
-  // optional child drops its tags, not the bar itself.
   return (
     <div
-      data-tetra-slot="shell.header"
-      data-tetra-el={dragHidden ? undefined : "dragRegion"}
-      data-tauri-drag-region={dragHidden ? undefined : true}
+      data-tetra-el="dragRegion"
+      data-tauri-drag-region
       className="flex h-[var(--t-space-windowControlHeight)] shrink-0 select-none items-center justify-end border-b border-line bg-surface"
     >
-      {composition !== null ? (
-        <ComponentTreeRenderer node={composition} nodes={nodes} themeId={activeId} />
-      ) : (
-        windowControls
-      )}
+      {windowControls}
     </div>
   );
 }

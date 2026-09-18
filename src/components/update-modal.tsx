@@ -1,12 +1,8 @@
 import { useEffect } from "react";
-import { SlotChild } from "@/theme/slot-render";
 import { X, Download, ExternalLink } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { open as openLink } from "@tauri-apps/plugin-shell";
 import { useUpdateStore } from "@/stores/update-store";
-import { useComponentComposition } from "@/theme/use-component-composition";
-import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
-import { useThemeStore } from "@/theme/theme-store";
 
 /** Where the "View Release" link sends a portable user for a manual download —
     the project's own download page, not a raw link into GitHub's releases list. */
@@ -29,9 +25,6 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
   const progress = useUpdateStore((s) => s.progress);
   const install = useUpdateStore((s) => s.install);
 
-  const activeId = useThemeStore((s) => s.activeId);
-  const composition = useComponentComposition("modal.update");
-
   // Escape closes. Bound only while open, so a closed modal keeps no
   // document-level listener alive — the same rule the other popovers use.
   useEffect(() => {
@@ -53,7 +46,6 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
       }}
     >
       <div
-        data-tetra-slot="modal.update"
         role="dialog"
         aria-modal="true"
         aria-label="Update"
@@ -64,7 +56,7 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
           <h2 className="text-sm font-semibold text-ink">
             {available ? "Update available" : "Updates"}
           </h2>
-          {composition === null && closeAction()}
+          {closeAction()}
         </div>
 
         {/* Body */}
@@ -133,36 +125,9 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
 
         {/* Footer */}
         <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
-          {composition === null && laterAction()}
-          {composition === null &&
-            (installed === true ? (
-              <SlotChild slotId="modal.update" id="installAction">
-                {installAction()}
-              </SlotChild>
-            ) : (
-              <SlotChild slotId="modal.update" id="viewReleaseAction">
-                {viewReleaseAction()}
-              </SlotChild>
-            ))}
+          {laterAction()}
+          {installed === true ? installAction() : viewReleaseAction()}
         </div>
-        {composition !== null && (
-          // The overlay is pointer-events-none so clicks reach the version,
-          // changelog and progress beneath wherever the composition doesn't
-          // cover them; each themed child re-enables its own.
-          <div className="pointer-events-none absolute inset-0">
-            <ComponentTreeRenderer
-              node={composition}
-              nodes={{
-                closeAction: <div className="pointer-events-auto">{closeAction()}</div>,
-                laterAction: <div className="pointer-events-auto">{laterAction()}</div>,
-                ...(installed === true
-                  ? { installAction: <div className="pointer-events-auto">{installAction()}</div> }
-                  : { viewReleaseAction: <div className="pointer-events-auto">{viewReleaseAction()}</div> }),
-              }}
-              themeId={activeId}
-            />
-          </div>
-        )}
       </div>
     </div>
   );

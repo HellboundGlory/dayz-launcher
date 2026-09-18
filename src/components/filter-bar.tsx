@@ -2,11 +2,6 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { Search, ChevronDown, RefreshCw, RotateCcw, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useServerStore } from "@/stores/server-store";
-import { useResolvedSlot } from "@/theme/use-resolved-layout";
-import { slotChildrenToRender } from "@/theme/slot-children";
-import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
-import { useComponentComposition } from "@/theme/use-component-composition";
-import { useThemeStore } from "@/theme/theme-store";
 import type { ServerFilter, SortDir, SortKey } from "@/types/filters";
 
 export interface FilterBarProps {
@@ -227,9 +222,6 @@ export function FilterBar({ onRefresh, refreshing, onOpenModFilter, modFilterOpe
   const sortKey = useServerStore((s) => s.sortKey);
   const sortDir = useServerStore((s) => s.sortDir);
   const setSort = useServerStore((s) => s.setSort);
-  const activeId = useThemeStore((s) => s.activeId);
-  const composition = useComponentComposition("filterBar");
-  const slot = useResolvedSlot("filterBar");
 
   const controls = buildFilterBarControls({
     filter,
@@ -248,19 +240,10 @@ export function FilterBar({ onRefresh, refreshing, onOpenModFilter, modFilterOpe
     // At 1.5x scale the viewport is ~975 CSS px and the fixed-width controls
     // alone exceed it, so the row wraps — a second row beats clipping the
     // Refresh button off the right edge.
-    <div
-      data-tetra-slot="filterBar"
-      className="filterbar flex shrink-0 flex-wrap items-center gap-x-[var(--t-space-inlineGap)] gap-y-[var(--t-space-inlineGapWide)] border-b border-line bg-surface px-[var(--t-space-controlSmallX)] py-[var(--t-space-rowY)]"
-    >
-      {composition !== null ? (
-        <ComponentTreeRenderer node={composition} nodes={controls} themeId={activeId} />
-      ) : (
-        <>
-          {slotChildrenToRender(slot, ["searchInput", "refreshAction"]).map((id) => (
-            <Fragment key={id}>{controls[id]}</Fragment>
-          ))}
-        </>
-      )}
+    <div className="filterbar flex shrink-0 flex-wrap items-center gap-x-[var(--t-space-inlineGap)] gap-y-[var(--t-space-inlineGapWide)] border-b border-line bg-surface px-[var(--t-space-controlSmallX)] py-[var(--t-space-rowY)]">
+      {Object.entries(controls).map(([key, node]) => (
+        <Fragment key={key}>{node}</Fragment>
+      ))}
     </div>
   );
 }

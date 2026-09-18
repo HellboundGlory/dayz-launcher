@@ -20,11 +20,6 @@ import {
 import type { Server } from "@/types/server";
 import type { ViewId } from "./sidebar";
 import { cn, formatGameTime, formatLastPlayed, regionName } from "@/lib/utils";
-import { useResolvedSlot } from "@/theme/use-resolved-layout";
-import { slotChildrenToRender } from "@/theme/slot-children";
-import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
-import { useThemeStore } from "@/theme/theme-store";
-import { useComponentComposition } from "@/theme/use-component-composition";
 import { ServerRowActions } from "./server-row-actions";
 
 interface ServerListProps {
@@ -418,17 +413,10 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
   });
   const virtualItems = rowVirtualizer.getVirtualItems();
 
-  // A row's four DOM groups, in resolved order. Same for every row — only the
-  // data differs — so this is resolved once here, not per virtual item.
-  // Only `name` is required here; `tagsLine` is optional and may be hidden.
-  const slot = useResolvedSlot("server.row");
-  const favouriteIds = slotChildrenToRender(slot, [], SERVER_ROW_GROUPS.favourite);
-  const nameLineIds = slotChildrenToRender(slot, ["name"], SERVER_ROW_GROUPS.nameLine);
-  const detailIds = slotChildrenToRender(slot, [], SERVER_ROW_GROUPS.details);
-  const statIds = slotChildrenToRender(slot, [], SERVER_ROW_GROUPS.stats);
-
-  const activeId = useThemeStore((s) => s.activeId);
-  const composition = useComponentComposition("server.row");
+  const favouriteIds = SERVER_ROW_GROUPS.favourite;
+  const nameLineIds = SERVER_ROW_GROUPS.nameLine;
+  const detailIds = SERVER_ROW_GROUPS.details;
+  const statIds = SERVER_ROW_GROUPS.stats;
 
   return (
     <div ref={scrollRef} className="l2-body min-h-0 flex-1 overflow-y-auto p-2">
@@ -456,7 +444,6 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
             return (
               <div
                 key={rowKey}
-                data-tetra-slot="server.row"
                 data-index={virtualRow.index}
                 ref={rowVirtualizer.measureElement}
                 onClick={() => setSelectedServer(server)}
@@ -476,28 +463,22 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                   zIndex: menuOpenKey === rowKey ? 10 : undefined,
                 }}
               >
-                {composition !== null ? (
-                  <ComponentTreeRenderer node={composition} nodes={nodes} themeId={activeId} />
-                ) : (
-                  <>
-                    {favouriteIds.map((id) => (
-                      <Fragment key={id}>{nodes[id]}</Fragment>
-                    ))}
+                {favouriteIds.map((id) => (
+                  <Fragment key={id}>{nodes[id]}</Fragment>
+                ))}
 
-                    <div className="l2-main min-w-0 flex-1">
-                      <div className="flex items-center gap-1 whitespace-nowrap [font-size:var(--t-type-rowName-size)] font-semibold">
-                        {renderNameLine(nameLineIds, nodes, pending)}
-                      </div>
-                      <div className="mt-0.5 flex items-center gap-2.5 whitespace-nowrap [font-size:var(--t-type-rowMeta-size)] text-muted">
-                        {renderDetails(detailIds, nodes)}
-                      </div>
-                    </div>
+                <div className="l2-main min-w-0 flex-1">
+                  <div className="flex items-center gap-1 whitespace-nowrap [font-size:var(--t-type-rowName-size)] font-semibold">
+                    {renderNameLine(nameLineIds, nodes, pending)}
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-2.5 whitespace-nowrap [font-size:var(--t-type-rowMeta-size)] text-muted">
+                    {renderDetails(detailIds, nodes)}
+                  </div>
+                </div>
 
-                    <div className="l2-stats flex shrink-0 items-center gap-3.5">
-                      {renderStats(statIds, nodes)}
-                    </div>
-                  </>
-                )}
+                <div className="l2-stats flex shrink-0 items-center gap-3.5">
+                  {renderStats(statIds, nodes)}
+                </div>
 
                 <ServerRowActions
                   server={server}

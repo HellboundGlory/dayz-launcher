@@ -15,14 +15,14 @@ function node(attrs: Record<string, string>, parent: Element | null = null): Ele
 
 describe("findTetraNode", () => {
   it("returns the element itself when it carries the attribute", () => {
-    const el = node({ "data-tetra-slot": "filterBar" });
+    const el = node({ "data-surface": "surface.filterBar" });
 
-    expect(findTetraNode(el)).toMatchObject({ id: "filterBar", kind: "slot", element: el });
+    expect(findTetraNode(el)).toMatchObject({ id: "surface.filterBar", kind: "surface", element: el });
   });
 
   it("stops at the nearest tagged ancestor", () => {
-    const slot = node({ "data-tetra-slot": "server.row" });
-    const child = node({ "data-tetra-el": "name" }, slot);
+    const surface = node({ "data-surface": "surface.serverBrowser" });
+    const child = node({ "data-el": "name" }, surface);
 
     expect(findTetraNode(node({}, child))).toMatchObject({
       id: "name",
@@ -31,30 +31,30 @@ describe("findTetraNode", () => {
     });
   });
 
-  it("keeps walking past untagged wrappers up to a slot container", () => {
-    const slot = node({ "data-tetra-slot": "shell.sidebar" });
+  it("keeps walking past untagged wrappers up to a surface container", () => {
+    const surface = node({ "data-surface": "surface.navRail" });
 
-    expect(findTetraNode(node({}, node({}, slot)))).toMatchObject({
-      id: "shell.sidebar",
-      kind: "slot",
+    expect(findTetraNode(node({}, node({}, surface)))).toMatchObject({
+      id: "surface.navRail",
+      kind: "surface",
     });
   });
 
   it("reads the inner tag first when both ancestors are tagged", () => {
-    const header = node({ "data-tetra-slot": "shell.header" });
-    const dragRegion = node({ "data-tetra-el": "dragRegion" }, header);
+    const header = node({ "data-surface": "surface.windowControls" });
+    const dragRegion = node({ "data-el": "app.dragRegion" }, header);
 
-    expect(findTetraNode(dragRegion)).toMatchObject({ id: "dragRegion", kind: "el" });
+    expect(findTetraNode(dragRegion)).toMatchObject({ id: "app.dragRegion", kind: "el" });
     expect(findTetraNode(dragRegion.parentElement)).toMatchObject({
-      id: "shell.header",
-      kind: "slot",
+      id: "surface.windowControls",
+      kind: "surface",
     });
   });
 
-  it("prefers the slot id when one node carries both attributes", () => {
-    const both = node({ "data-tetra-slot": "shell.header", "data-tetra-el": "dragRegion" });
+  it("prefers the surface id when one node carries both attributes", () => {
+    const both = node({ "data-surface": "surface.windowControls", "data-el": "app.dragRegion" });
 
-    expect(findTetraNode(both)).toMatchObject({ id: "shell.header", kind: "slot" });
+    expect(findTetraNode(both)).toMatchObject({ id: "surface.windowControls", kind: "surface" });
   });
 
   it("returns null when nothing in the tree is tagged, or there is no start", () => {
@@ -65,10 +65,10 @@ describe("findTetraNode", () => {
 
 describe("selectorFor", () => {
   it("builds the selector that matches the tagged element", () => {
-    const slot: TetraNode = { id: "server.row", kind: "slot", element: node({}) };
+    const surface: TetraNode = { id: "surface.serverBrowser", kind: "surface", element: node({}) };
     const el: TetraNode = { id: "joinAction", kind: "el", element: node({}) };
 
-    expect(selectorFor(slot)).toBe('[data-tetra-slot="server.row"]');
-    expect(selectorFor(el)).toBe('[data-tetra-el="joinAction"]');
+    expect(selectorFor(surface)).toBe('[data-surface="surface.serverBrowser"]');
+    expect(selectorFor(el)).toBe('[data-el="joinAction"]');
   });
 });

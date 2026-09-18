@@ -7,7 +7,10 @@
 // every field id, type and bound is untrusted here. Substitution is plain text
 // replacement, never an expression language (proposal §4.4).
 
-import type { LayoutIssue } from "./layout-store";
+export interface SettingsIssue {
+  slotId: string;
+  message: string;
+}
 
 /** The only two types a schema field may declare (§0 decision 3). */
 export type SettingsField =
@@ -18,7 +21,7 @@ export type SettingsField =
  * A malformed entry is dropped with an issue of its own; the rest still load. */
 export function resolveSettingsSchema(schemaJson: unknown): {
   fields: SettingsField[];
-  issues: LayoutIssue[];
+  issues: SettingsIssue[];
 } {
   if (!isPlainObject(schemaJson) || !Array.isArray(schemaJson.fields)) {
     return {
@@ -33,7 +36,7 @@ export function resolveSettingsSchema(schemaJson: unknown): {
   }
 
   const fields: SettingsField[] = [];
-  const issues: LayoutIssue[] = [];
+  const issues: SettingsIssue[] = [];
   for (const entry of schemaJson.fields) {
     const field = readField(entry, issues);
     if (field) fields.push(field);
@@ -43,7 +46,7 @@ export function resolveSettingsSchema(schemaJson: unknown): {
 
 /** One entry, or null with an issue pushed. `slotId` carries the field id when
  * the entry has one, so the issue points at the line a theme author wrote. */
-function readField(entry: unknown, issues: LayoutIssue[]): SettingsField | null {
+function readField(entry: unknown, issues: SettingsIssue[]): SettingsField | null {
   if (!isPlainObject(entry)) {
     issues.push({ slotId: "", message: `a field entry is not an object ('${describe(entry)}')` });
     return null;

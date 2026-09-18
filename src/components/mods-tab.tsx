@@ -29,7 +29,6 @@ import {
   visibleRows,
   type ModStatusFilter,
 } from "@/stores/mods-store";
-import { useThemeStore } from "@/theme/theme-store";
 import {
   steamModStates,
   steamDownloadProgress,
@@ -40,37 +39,11 @@ import {
   type SubscribedMod,
 } from "@/lib/tauri";
 import { cn, formatBytes, formatLastPlayed } from "@/lib/utils";
-import { SlotChildren } from "@/theme/slot-render";
-import { useResolvedSlot } from "@/theme/use-resolved-layout";
-import { resolveChildOrder } from "@/theme/slot-order";
-import { type ResolvedNode } from "@/theme/component-tree";
-import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
-import { useComponentComposition } from "@/theme/use-component-composition";
 
-// One DOM group of a slot's children per list: the markup's order, plus the
-// wrapper elements that hold several registry children between them.
-const TOOLBAR_POSITIONS = ["searchInput", "statusFilter", "refreshAction"];
-const ROW_POSITIONS = ["selectCheckbox", "modIcon", "mxMain", "modStatusBadge", "sizeLabel", "updatedLabel"];
-const ROW_WRAPPERS = { mxMain: ["modName", "modTags"] };
-const ROW_MAIN = ["modName", "modTags"];
-const INSPECTOR_BODY = ["previewImage", "name", "status", "tags", "description", "detailFields", "inspectorActions"];
-const INSPECTOR_ACTIONS = ["updateAction", "openInSteamAction", "openFolderAction", "reinstallAction"];
-const INSPECTOR_WRAPPERS = { inspectorActions: INSPECTOR_ACTIONS };
 // Shared with the list's own right padding below: the inspector overlays the
 // list rather than sitting in normal flow, so nothing shrinks the list's rows
 // for it automatically — the list has to reserve the same width itself.
 const INSPECTOR_WIDTH = 340;
-const ACTION_BAR_POSITIONS = [
-  "totalCount",
-  "selectAllAction",
-  "clearSelectionAction",
-  "actionBarCluster",
-  "unsubscribeAction",
-  "updateOutdatedAction",
-  "verifyAction",
-];
-const ACTION_BAR_CLUSTER = ["uniqueToServerAction", "cleanupRemovedAction"];
-const ACTION_BAR_WRAPPERS = { actionBarCluster: ACTION_BAR_CLUSTER };
 
 // Mods tab: rich rows with a slide-in inspector, status filter, and action bar.
 
@@ -270,28 +243,7 @@ export function ModsTab() {
 
   const selectedMod = rows.find((r) => r.workshop_id === selectedModId) ?? null;
 
-  const toolbarChildren = useResolvedSlot("mods.toolbar").children;
-  const rowChildren = useResolvedSlot("mods.row").children;
-  // Memoized so the rows' `memo` still holds: a fresh array identity on every
-  // ModsTab render (each keystroke, each poll tick) would re-render every row.
-  const toolbarOrder = useMemo(
-    () => resolveChildOrder("mods.toolbar", TOOLBAR_POSITIONS, toolbarChildren),
-    [toolbarChildren],
-  );
-  const rowOrder = useMemo(
-    () => resolveChildOrder("mods.row", ROW_POSITIONS, rowChildren, ROW_WRAPPERS),
-    [rowChildren],
-  );
-  const rowMainOrder = useMemo(
-    () => resolveChildOrder("mods.row", ROW_MAIN, rowChildren),
-    [rowChildren],
-  );
 
-  const activeId = useThemeStore((s) => s.activeId);
-  // Resolved once for the whole list rather than per row, so the tree's object
-  // identity stays stable and each memoized row keeps its own memo.
-  const rowComposition = useComponentComposition("mods.row");
-  const toolbarComposition = useComponentComposition("mods.toolbar");
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
@@ -351,17 +303,12 @@ export function ModsTab() {
   };
 
   return (
-    <div data-tetra-slot="view.mods" className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* ── Filter / toolbar strip ── */}
-      <div
-        data-tetra-slot="mods.toolbar"
-        className="filterbar flex shrink-0 items-center gap-1.5 border-b border-line bg-surface px-2.5 py-2"
-      >
-        {toolbarComposition ? (
-          <ComponentTreeRenderer node={toolbarComposition} nodes={toolbarNodes} themeId={activeId} />
-        ) : (
-          <SlotChildren order={toolbarOrder} nodes={toolbarNodes} />
-        )}
+      <div className="filterbar flex shrink-0 items-center gap-1.5 border-b border-line bg-surface px-2.5 py-2">
+        {toolbarNodes.searchInput}
+        {toolbarNodes.statusFilter}
+        {toolbarNodes.refreshAction}
       </div>
 
       {error && (
@@ -426,10 +373,6 @@ export function ModsTab() {
                       <ModRow
                         mod={mod}
                         selected={selectedModId === mod.workshop_id}
-                        order={rowOrder}
-                        mainOrder={rowMainOrder}
-                        composition={rowComposition}
-                        themeId={activeId}
                       />
                     </div>
                   );
@@ -453,17 +396,9 @@ export function ModsTab() {
 const ModRow = memo(function ModRow({
   mod,
   selected,
-  order,
-  mainOrder,
-  composition,
-  themeId,
 }: {
   mod: SubscribedMod;
   selected: boolean;
-  order: string[];
-  mainOrder: string[];
-  composition: ResolvedNode | null;
-  themeId: string;
 }) {
   const checked = useModsStore((s) => s.selectedIds.has(mod.workshop_id));
   const rawLive = useModsStore((s) => s.states[mod.workshop_id]);
@@ -476,7 +411,6 @@ const ModRow = memo(function ModRow({
 
   return (
     <div
-      data-tetra-slot="mods.row"
       onClick={() => openMod(selected ? null : mod.workshop_id)}
       className={cn(
         "mx-row flex cursor-pointer items-center gap-2.5 [border-radius:var(--t-radius-row)] border border-line bg-surface px-2.5 py-2 transition-[border-color,background,box-shadow] [transition-duration:var(--t-motion-hover-duration)] hover:border-accent-line",
@@ -484,24 +418,15 @@ const ModRow = memo(function ModRow({
         mod.locally_disabled && "opacity-50",
       )}
     >
-      {composition ? (
-        <ComponentTreeRenderer node={composition} nodes={nodes} themeId={themeId} />
-      ) : (
-        <SlotChildren
-          order={order}
-          nodes={{
-            ...nodes,
-            // The `.mx-main` block is not a registry id — no component tree can
-            // name it — so only the grouped render carries it, holding the same
-            // two children it always held.
-            mxMain: (
-              <div className="mx-main min-w-0 flex-1">
-                <SlotChildren order={mainOrder} nodes={nodes} />
-              </div>
-            ),
-          }}
-        />
-      )}
+      {nodes.selectCheckbox}
+      {nodes.modIcon}
+      <div className="mx-main min-w-0 flex-1">
+        {nodes.modName}
+        {nodes.modTags}
+      </div>
+      {nodes.modStatusBadge}
+      {nodes.sizeLabel}
+      {nodes.updatedLabel}
     </div>
   );
 });
@@ -644,16 +569,6 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
   const updating = op?.kind === "update";
   const ui = STATUS_UI[state];
 
-  const inspectorChildren = useResolvedSlot("mods.inspector").children;
-  const activeId = useThemeStore((s) => s.activeId);
-  const bodyOrder = resolveChildOrder(
-    "mods.inspector",
-    INSPECTOR_BODY,
-    inspectorChildren,
-    INSPECTOR_WRAPPERS,
-  );
-  const actionsOrder = resolveChildOrder("mods.inspector", INSPECTOR_ACTIONS, inspectorChildren);
-
   function openInSteam() {
     void openWorkshopInSteam(mod.workshop_id).catch((e) => console.error(e));
   }
@@ -668,8 +583,6 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
     setReinstalling(false);
     void load(true);
   }
-
-  const composition = useComponentComposition("mods.inspector");
 
   const closeAction = (
     <button
@@ -794,34 +707,24 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
 
   return (
     <div
-      data-tetra-slot="mods.inspector"
       className="mx-inspector absolute bottom-0 right-0 top-0 z-[8] flex flex-col overflow-hidden border-l border-line bg-surface [box-shadow:var(--t-shadow-drawer)]"
       style={{ width: INSPECTOR_WIDTH }}
     >
-      {composition ? (
-        <ComponentTreeRenderer
-          node={composition}
-          nodes={{ closeAction, ...bodyFields, ...actionNodes }}
-          themeId={activeId}
-        />
-      ) : (
-        <>
-          {closeAction}
-          <div className="body flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2.5">
-            <SlotChildren
-              order={bodyOrder}
-              nodes={{
-                ...bodyFields,
-                inspectorActions: (
-                  <div className="m2-actions mt-0.5 flex gap-1.5">
-                    <SlotChildren order={actionsOrder} nodes={actionNodes} />
-                  </div>
-                ),
-              }}
-            />
-          </div>
-        </>
-      )}
+      {closeAction}
+      <div className="body flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2.5">
+        {bodyFields.previewImage}
+        {bodyFields.name}
+        {bodyFields.status}
+        {bodyFields.tags}
+        {bodyFields.description}
+        {bodyFields.detailFields}
+        <div className="m2-actions mt-0.5 flex gap-1.5">
+          {actionNodes.updateAction}
+          {actionNodes.openInSteamAction}
+          {actionNodes.openFolderAction}
+          {actionNodes.reinstallAction}
+        </div>
+      </div>
     </div>
   );
 }
@@ -869,17 +772,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
   const allCount = visibleRows(store.rows).length;
   const outdatedCount = visibleRows(store.rows).filter((r) => r.state === "needs_update").length;
 
-  const barChildren = useResolvedSlot("mods.actionBar").children;
-  const barOrder = resolveChildOrder(
-    "mods.actionBar",
-    ACTION_BAR_POSITIONS,
-    barChildren,
-    ACTION_BAR_WRAPPERS,
-  );
-  const clusterOrder = resolveChildOrder("mods.actionBar", ACTION_BAR_CLUSTER, barChildren);
 
-  const activeId = useThemeStore((s) => s.activeId);
-  const composition = useComponentComposition("mods.actionBar");
 
   useEffect(() => {
     if (!menu) return;
@@ -1134,7 +1027,6 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
   return (
     <div
       ref={barRef}
-      data-tetra-slot="mods.actionBar"
       className="mods-actionbar relative shrink-0 border-t border-line bg-surface"
     >
       {/* Last VERIFY / unsubscribe / unique-select outcome, if there is one. */}
@@ -1198,28 +1090,17 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
       )}
 
       <div className="flex items-center gap-2 px-2.5 py-[7px]">
-        {composition ? (
-          <ComponentTreeRenderer node={composition} nodes={barNodes} themeId={activeId} />
-        ) : (
-          <SlotChildren
-            order={barOrder}
-            nodes={{
-              ...barNodes,
-              /* Right-pushed: unique-to-a-server and clean-up share one cluster. */
-              actionBarCluster: (
-                <div className="ml-auto flex items-center gap-1.5">
-                  <SlotChildren
-                    order={clusterOrder}
-                    nodes={{
-                      uniqueToServerAction: barNodes.uniqueToServerAction,
-                      cleanupRemovedAction: barNodes.cleanupRemovedAction,
-                    }}
-                  />
-                </div>
-              ),
-            }}
-          />
-        )}
+        {barNodes.totalCount}
+        {barNodes.selectAllAction}
+        {barNodes.clearSelectionAction}
+        {/* Right-pushed: unique-to-a-server and clean-up share one cluster. */}
+        <div className="ml-auto flex items-center gap-1.5">
+          {barNodes.uniqueToServerAction}
+          {barNodes.cleanupRemovedAction}
+        </div>
+        {barNodes.unsubscribeAction}
+        {barNodes.updateOutdatedAction}
+        {barNodes.verifyAction}
       </div>
 
       {confirm && (

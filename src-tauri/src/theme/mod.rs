@@ -41,53 +41,6 @@ pub const SETTINGS_SCHEMA_FILE: &str = "settings.schema.json";
 /// per composed slot, named after the slot id verbatim.
 pub const COMPONENTS_DIR: &str = "components";
 
-/// The frontend's `src/theme/slots.ts` `SLOTS` array mirrored as `(slot id,
-/// compositionCeiling is "advanced")`. Kept in sync by hand — update when
-/// `slots.ts` changes.
-pub const SLOTS: [(&str, bool); 24] = [
-    ("shell.sidebar", false),
-    ("view.servers", false),
-    ("view.favourites", false),
-    ("view.recent", false),
-    ("view.mods", false),
-    ("shell.header", false),
-    ("shell.footer", false),
-    ("filterBar", false),
-    ("server.row", false),
-    ("server.rowActions", false),
-    ("modal.serverInfo", false),
-    ("modal.modFilter", false),
-    ("modal.update", false),
-    ("modal.steamRequired", true),
-    ("mods.toolbar", false),
-    ("mods.row", false),
-    ("mods.inspector", false),
-    ("mods.actionBar", false),
-    ("modal.onboarding", true),
-    ("settings.background", true),
-    ("settings.shell", true),
-    ("settings.game", true),
-    ("settings.launcher", true),
-    ("settings.theme", true),
-];
-
-/// The slot registry's verdict on a composition's slot id: `Some((slot,
-/// composable))` for a known slot, `None` for one the registry does not know.
-/// The bool is `false` exactly for the slots `slots.ts` caps at
-/// `compositionCeiling: "advanced"`. The one definition of "a components
-/// file", shared with the import gate.
-pub fn composition_gate(slot_id: &str) -> Option<(&str, bool)> {
-    SLOTS
-        .iter()
-        .find(|(known, _)| *known == slot_id)
-        .map(|&(known, restricted)| (known, !restricted))
-}
-
-/// The error [`read_components`] and the import gate report for a composition
-/// file the slot registry refuses.
-pub fn composition_refused(name: &str, slot: &str) -> String {
-    format!("`{name}` targets `{slot}`, which is not a slot a theme may compose components into.")
-}
 
 /// Whether `name` could name a composition file at all: `<slot id>.json` with
 /// a nonempty slot id. Anything else under `components/` is a stray, not a
@@ -288,11 +241,7 @@ fn read_optional_json(
     validate(&value)?;
     Ok(Some(value))
 }
-/// Every composition a theme ships, one `components/<slot id>.json` each,
-/// keyed by the slot id its own filename names. No `components/` directory at
-/// all is the ordinary "this theme composes nothing" case, not an error; a
-/// file that is not a known, unrestricted slot's composition fails the whole
-/// read, exactly as a corrupt `tokens.json` does.
+/// Reads every composition a theme ships under `components/<slot id>.json`.
 fn read_components(dir: &Path) -> Result<std::collections::BTreeMap<String, Value>, String> {
     let components_dir = dir.join(COMPONENTS_DIR);
     if !components_dir.is_dir() {
@@ -313,21 +262,13 @@ fn read_components(dir: &Path) -> Result<std::collections::BTreeMap<String, Valu
             continue;
         }
         let slot_id = name.strip_suffix(".json").unwrap();
-        let Some((slot, composable)) = composition_gate(slot_id) else {
-            return Err(format!(
-                "`{name}` in {} names no slot in the slot registry.",
-                components_dir.display()
-            ));
-        };
-        if !composable {
-            return Err(composition_refused(&name, slot));
-        }
         if let Some(tree) = read_optional_json(&components_dir, &name, validate_components)? {
-            components.insert(slot.to_string(), tree);
+            components.insert(slot_id.to_string(), tree);
         }
     }
     Ok(components)
 }
+
 
 /// One theme's manifest, tokens, and whichever optional content files it ships.
 pub fn get(themes_root: &Path, id: &str) -> Result<ThemeFile, String> {
@@ -763,55 +704,9 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// Fail-closed, like a corrupt `tokens.json`: a composition file whose
-    /// filename names no slot in the registry costs the whole theme, since a
-    /// typo would otherwise do nothing and look like a working theme.
     #[test]
-    fn a_components_file_for_an_unknown_slot_fails_the_read() {
-        let root = scratch("unknownslot");
-        let dir = root.join("dev.bad");
-        save(&root, &manifest("dev.bad"), &tokens(), None).expect("save");
-        let components_dir = dir.join(COMPONENTS_DIR);
-        std::fs::create_dir_all(&components_dir).unwrap();
-        std::fs::write(
-            components_dir.join("server.rows.json"),
-            serde_json::to_vec_pretty(&components()).unwrap(),
-        )
-        .unwrap();
-
-        let err = get(&root, "dev.bad").expect_err("an unknown slot must fail the read");
-        assert!(
-            err.contains("server.rows.json") && err.contains("no slot in the slot registry"),
-            "{err}"
-        );
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    /// The `compositionCeiling: "advanced"` line in `slots.ts` is enforced
-    /// here too: a recovery/config slot accepts no composition file at all.
-    #[test]
-    fn a_components_file_for_a_restricted_slot_fails_the_read() {
-        let root = scratch("restrictedslot");
-        let dir = root.join("dev.bad");
-        save(&root, &manifest("dev.bad"), &tokens(), None).expect("save");
-        let components_dir = dir.join(COMPONENTS_DIR);
-        std::fs::create_dir_all(&components_dir).unwrap();
-        std::fs::write(
-            components_dir.join("modal.steamRequired.json"),
-            serde_json::to_vec_pretty(&components()).unwrap(),
-        )
-        .unwrap();
-
-        let err = get(&root, "dev.bad").expect_err("a restricted slot must fail the read");
-        assert!(err.contains("not a slot a theme may compose"), "{err}");
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    /// The gate rejects only the file that earned it: unrestricted slots read
-    /// exactly as before, one entry per file.
-    #[test]
-    fn unrestricted_slots_compose_exactly_as_before_the_gate() {
-        let root = scratch("unrestrictedslot");
+    fn components_files_are_read() {
+        let root = scratch("components_read");
         let dir = root.join("dev.good");
         save(&root, &manifest("dev.good"), &tokens(), None).expect("save");
         let components_dir = dir.join(COMPONENTS_DIR);
