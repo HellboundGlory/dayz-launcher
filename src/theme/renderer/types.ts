@@ -148,7 +148,39 @@ export interface SurfaceNode extends CommonProps {
   surface: string;
 }
 
-export type ContainerNode = StackNode | GridNode | BoxNode | ScrollNode;
+export interface TabDef {
+  id: string;
+  label: LayoutNode;
+  content: LayoutNode;
+}
+
+export interface TabsNode extends CommonProps {
+  type: "tabs";
+  id: string;
+  tabs: TabDef[];
+}
+
+export interface AccordionSectionDef {
+  id: string;
+  header: LayoutNode;
+  body: LayoutNode;
+}
+
+export interface AccordionNode extends CommonProps {
+  type: "accordion";
+  id: string;
+  mode: "single" | "multiple";
+  initial: "none" | "first";
+  sections: AccordionSectionDef[];
+}
+
+export type ContainerNode =
+  | StackNode
+  | GridNode
+  | BoxNode
+  | ScrollNode
+  | TabsNode
+  | AccordionNode;
 
 export type LayoutNode =
   | ContainerNode
@@ -169,5 +201,46 @@ export interface LayoutFile {
   variants?: LayoutVariant[];
 }
 
+export interface ModalPlacement {
+  mode: "center" | "region" | "anchor";
+  region?: string;
+  anchor?: Anchor;
+  x?: string;
+  y?: string;
+}
+
+export interface ModalLayoutFile {
+  schemaVersion: number;
+  placement?: ModalPlacement;
+  backdrop?: "dim" | "none";
+  root: LayoutNode;
+}
+
+export interface PopupPlacement {
+  mode: "anchored" | "region" | "inline";
+  side?: "top" | "bottom" | "left" | "right";
+  align?: "start" | "center" | "end";
+  offset?: string;
+  maxHeight?: string;
+}
+
+export interface PopupLayoutFile {
+  schemaVersion: number;
+  placement?: PopupPlacement;
+  root: LayoutNode;
+}
+
+export interface SettingsPresentation {
+  mode: "overlay" | "view" | "panel";
+  region?: string;
+}
+
+export interface SettingsLayoutFile {
+  schemaVersion: number;
+  presentation?: SettingsPresentation;
+  root: LayoutNode;
+}
+
 /** What `renderElement` receives: the two host-owned leaf shapes. */
 export type HostNode = ElementNode | SurfaceNode;
+
