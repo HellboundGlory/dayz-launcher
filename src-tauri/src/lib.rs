@@ -175,6 +175,7 @@ pub fn run() {
             commands::settings::data_folder_path,
             commands::theme::list_installed_themes,
             commands::theme::get_theme,
+            commands::theme::validate_theme,
             commands::theme::save_theme,
             commands::theme::delete_theme,
             commands::theme::get_theme_settings_values,
