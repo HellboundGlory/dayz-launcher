@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { cn } from "@/lib/utils";
-import { SlotChild } from "@/theme/slot-render";
 import { useSettingsStore } from "@/stores/settings-store";
 import { discoverSteamPaths, validateDayzPath } from "@/lib/tauri";
 import tetraLogo from "@/assets/tetra-logo.png";
@@ -99,7 +98,6 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
   return (
     <div className="absolute inset-0 z-[90] flex items-center justify-center bg-[rgba(5,8,13,0.7)]">
       <div
-        data-tetra-slot="modal.onboarding"
         className="w-[min(360px,calc(100%-40px))] overflow-hidden rounded-[10px] border border-line bg-surface shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
       >
         <div className="flex items-start gap-2.5 border-b border-line p-4">
@@ -192,18 +190,16 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
                   placeholder="C:\Program Files (x86)\Steam\steamapps\common\DayZ"
                   className={cn(INPUT_CLASS, "font-mono-data text-[10px]")}
                 />
-                <SlotChild slotId="modal.onboarding" id="pathBrowser">
-                  <button
-                    data-tetra-el="pathBrowser"
-                    onClick={browseForFolder}
-                    disabled={browsing}
-                    title="Browse for your DayZ install folder"
-                    className={cn(GHOST_BUTTON_CLASS, "py-2")}
-                  >
-                    <FolderOpen className="size-3" />
-                    Browse
-                  </button>
-                </SlotChild>
+                <button
+                  data-tetra-el="pathBrowser"
+                  onClick={browseForFolder}
+                  disabled={browsing}
+                  title="Browse for your DayZ install folder"
+                  className={cn(GHOST_BUTTON_CLASS, "py-2")}
+                >
+                  <FolderOpen className="size-3" />
+                  Browse
+                </button>
                 <button
                   onClick={() => void scan()}
                   title="Scan the Steam registry again"

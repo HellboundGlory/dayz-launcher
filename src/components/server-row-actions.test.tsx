@@ -3,12 +3,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { Server } from "@/types/server";
 import { useServerStore } from "@/stores/server-store";
 import { ServerRowActions, MENU_ITEMS, MENU_ITEM_IDS } from "./server-row-actions";
-import type { ResolvedNode } from "@/theme/component-tree";
-
-const mockUseComponentComposition = vi.fn();
-vi.mock("@/theme/use-component-composition", () => ({
-  useComponentComposition: (slotId: string) => mockUseComponentComposition(slotId),
-}));
 
 const mockServerActions = {
   op: null,
@@ -75,7 +69,6 @@ const baseServer: Server = {
 
 describe("ServerRowActions", () => {
   beforeEach(() => {
-    mockUseComponentComposition.mockReturnValue(null);
     mockServerActions.notice = null;
     useServerStore.setState({ modPending: {} });
   });
@@ -120,19 +113,6 @@ describe("ServerRowActions", () => {
       expect(html).toContain("Mod versions not checked");
     });
 
-    it("renders notice in composed path", () => {
-      mockServerActions.notice = { kind: "code", code: "W01" };
-      const compositionTree: ResolvedNode = {
-        type: "stack",
-        children: [{ type: "core", ref: "joinAction" }],
-      };
-      mockUseComponentComposition.mockReturnValue(compositionTree);
-
-      const html = renderToStaticMarkup(
-        <ServerRowActions server={baseServer} onMoreInfo={() => {}} />,
-      );
-      expect(html).toContain("Mod versions not checked");
-    });
 
     it("renders error code notice with text-danger", () => {
       mockServerActions.notice = { kind: "code", code: "E01" };

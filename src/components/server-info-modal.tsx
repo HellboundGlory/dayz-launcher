@@ -16,12 +16,6 @@ import type { Server, ServerModReadiness, ModReadinessEntry } from "@/types/serv
 import { useServerStore } from "@/stores/server-store";
 import { cn, formatBytes, formatGameTime, regionName } from "@/lib/utils";
 import { useServerActions, NOTICES } from "@/hooks/use-server-actions";
-import { SlotChildren } from "@/theme/slot-render";
-import { useResolvedSlot } from "@/theme/use-resolved-layout";
-import { resolveChildOrder } from "@/theme/slot-order";
-import { useComponentComposition } from "@/theme/use-component-composition";
-import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
-import { useThemeStore } from "@/theme/theme-store";
 import {
   serverModReadiness,
   checkServerMods,
@@ -147,15 +141,6 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
       ? actions.launchResult
       : null;
 
-  const bodyOrder = resolveChildOrder(
-    "modal.serverInfo",
-    ["statGrid", "readinessStrip", "propsList", "readinessList"],
-    useResolvedSlot("modal.serverInfo").children,
-  );
-
-  const activeId = useThemeStore((s) => s.activeId);
-  const composition = useComponentComposition("modal.serverInfo");
-
   const downloadSummaryText = (() => {
     if (!readinessData) return null;
     let totalBytes = 0;
@@ -185,7 +170,6 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
     >
       <div
         ref={wrapRef}
-        data-tetra-slot="modal.serverInfo"
         role="dialog"
         aria-modal="true"
         aria-label={`Server info: ${server.name || server.addr}`}
@@ -223,40 +207,18 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
             </div>
           </div>
 
-          {composition !== null ? (
-            <ComponentTreeRenderer
-              node={composition}
-              nodes={{
-                closeAction: closeAction(),
-                statGrid: statGrid(),
-                readinessStrip: readinessStrip(),
-                propsList: propsList(),
-                readinessList: readinessList(),
-                joinAction: joinBlock(),
-              }}
-              themeId={activeId}
-            />
-          ) : (
-            <>
-              {closeAction()}
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                <SlotChildren
-                  order={bodyOrder}
-                  nodes={{
-                    statGrid: statGrid(),
-                    readinessStrip: readinessStrip(),
-                    propsList: propsList(),
-                    readinessList: readinessList(),
-                  }}
-                />
-              </div>
-              <div className="m-actions shrink-0 border-t border-line px-3.5 pb-3.5 pt-2.5">
-                {noticeLine()}
-                {joinBlock()}
-                {resultLine()}
-              </div>
-            </>
-          )}
+          {closeAction()}
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {statGrid()}
+            {readinessStrip()}
+            {propsList()}
+            {readinessList()}
+          </div>
+          <div className="m-actions shrink-0 border-t border-line px-3.5 pb-3.5 pt-2.5">
+            {noticeLine()}
+            {joinBlock()}
+            {resultLine()}
+          </div>
           {confirmDialog()}
         </div>
       </div>

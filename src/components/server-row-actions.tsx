@@ -14,11 +14,6 @@ import {
 import { cn, formatBytes } from "@/lib/utils";
 import type { Server } from "@/types/server";
 import { useServerActions, NOTICES } from "@/hooks/use-server-actions";
-import { useResolvedSlot } from "@/theme/use-resolved-layout";
-import { slotChildrenToRender } from "@/theme/slot-children";
-import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
-import { useThemeStore } from "@/theme/theme-store";
-import { useComponentComposition } from "@/theme/use-component-composition";
 import { useServerStore } from "@/stores/server-store";
 import {
   checkServerMods,
@@ -86,8 +81,6 @@ export function ServerRowActions({
   } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const activeId = useThemeStore((s) => s.activeId);
-  const composition = useComponentComposition("server.rowActions");
 
   const actions = useServerActions();
   const hookModPending = useServerStore((s) => s.modPending[server.addr]);
@@ -99,7 +92,6 @@ export function ServerRowActions({
   const triggerReload = useServerStore((s) => s.triggerReload);
   const hasPendingMod = modPendingProp !== undefined ? modPendingProp : !!storeModPending;
   const needsFix = server.modded && hasPendingMod;
-  const slot = useResolvedSlot("server.rowActions");
 
   // Ref-fed so an inline parent callback can't retrigger the effect.
   const onOpenChangeRef = useRef(onOpenChange);
@@ -154,19 +146,12 @@ export function ServerRowActions({
   return (
     <div
       ref={ref}
-      data-tetra-slot="server.rowActions"
       className="row-act relative flex shrink-0 items-center gap-[5px]"
     >
-      {composition !== null ? (
-        <ComponentTreeRenderer node={composition} nodes={composeNodes()} themeId={activeId} />
-      ) : (
-        <>
-          {joinButton()}
-          {chevronButton()}
-          {noticeInline()}
-          {open && dropdownMenu()}
-        </>
-      )}
+      {joinButton()}
+      {chevronButton()}
+      {noticeInline()}
+      {open && dropdownMenu()}
       {confirmDialog()}
     </div>
   );
@@ -232,7 +217,7 @@ export function ServerRowActions({
         onKeyDown={onMenuKeyDown}
         className="menu absolute right-0 top-[calc(100%+4px)] z-[6] w-[184px] [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)]"
       >
-        {slotChildrenToRender(slot, [], MENU_ITEM_IDS).map((id) => (
+        {MENU_ITEM_IDS.map((id) => (
           <MenuItem
             key={id}
             icon={
@@ -408,37 +393,7 @@ export function ServerRowActions({
     );
   }
 
-  function composeNodes(): Partial<Record<string, React.ReactNode>> {
-    const itemNode = (id: string): React.ReactNode => (
-      <MenuItem
-        data-tetra-el={id}
-        icon={
-          id === "copyAddressItem" && copied ? (
-            <Check className="size-3.5 text-success" />
-          ) : (
-            MENU_ITEMS[id].icon
-          )
-        }
-        label={id === "copyAddressItem" && copied ? "Address copied" : MENU_ITEMS[id].label}
-        disabled={MENU_ITEMS[id].disabled(joinDisabled, !!actions.op)}
-        onClick={() => runItem(id)}
-      />
-    );
-    return {
-      joinAction: (
-        <div className="flex items-center gap-1.5">
-          {joinButton()}
-          {noticeInline()}
-        </div>
-      ),
-      moreInfoItem: itemNode("moreInfoItem"),
-      loadToMenuItem: itemNode("loadToMenuItem"),
-      downloadModsItem: itemNode("downloadModsItem"),
-      checkModsItem: itemNode("checkModsItem"),
-      unsubscribeUniqueItem: itemNode("unsubscribeUniqueItem"),
-      copyAddressItem: itemNode("copyAddressItem"),
-    };
-  }
+
 }
 
 function MenuItem({

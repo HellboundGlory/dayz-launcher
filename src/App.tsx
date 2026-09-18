@@ -11,11 +11,6 @@ import { Sidebar, type ViewId } from "./components/sidebar";
 // Servers/Favourites/Recent share one component tree (just a different
 // server-list filter), so this is what gives each its own themeable
 // background despite being the same DOM structure underneath.
-const VIEW_TETRA_SLOT: Record<Exclude<ViewId, "mods">, string> = {
-  servers: "view.servers",
-  fav: "view.favourites",
-  recent: "view.recent",
-};
 import { WindowControls } from "./components/window-controls";
 import { FilterBar } from "./components/filter-bar";
 import { ServerList } from "./components/server-list";
@@ -35,7 +30,6 @@ import { useUpdateStore } from "./stores/update-store";
 import { useModsStore } from "./stores/mods-store";
 import { watchDayz } from "./stores/launch-store";
 import { useThemeStore, watchHotReload, watchThemeActivationReverted } from "./theme/theme-store";
-import { useResolvedSlot } from "./theme/use-resolved-layout";
 import type { Server } from "./types/server";
 import {
   steamInit,
@@ -108,21 +102,10 @@ export function App() {
   const mapsLoaded = useServerStore((s) => s.mapsLoaded);
   const hasLoadedOnce = useServerStore((s) => s.hasLoadedOnce);
 
-  // shell.sidebar's resolved layout: `position: "right"` puts the rail after
-  // the main column; anything else keeps today's left placement.
-  const sidebarSlot = useResolvedSlot("shell.sidebar");
-  const sidebarRight = sidebarSlot.params.position === "right";
-  // `width`/`collapsedWidth` replace the two literals as defaults; a theme
-  // that sets neither leaves today's 176px/52px behaviour untouched.
-  const sideWidth = sidebarSlot.params.width;
-  const sideCollapsedWidth = sidebarSlot.params.collapsedWidth;
+  const sidebarRight = false;
   const sideWidthValue = sideCollapsed
-    ? typeof sideCollapsedWidth === "string"
-      ? sideCollapsedWidth
-      : "var(--t-space-sidebarCollapsedWidth)"
-    : typeof sideWidth === "string"
-      ? sideWidth
-      : "var(--t-space-sidebarWidth)"
+    ? "var(--t-space-sidebarCollapsedWidth)"
+    : "var(--t-space-sidebarWidth)";
 
   // Each tab is a filter preset, not just a highlight toggle.
   const handleViewChange = useCallback(
@@ -827,10 +810,7 @@ export function App() {
             /* Mods tab replaces the whole server-browser stack while active. */
             <ModsTab />
           ) : (
-            <div
-              data-tetra-slot={VIEW_TETRA_SLOT[activeView]}
-              className="flex min-h-0 flex-1 flex-col"
-            >
+            <div className="flex min-h-0 flex-1 flex-col">
               <FilterBar
                 onRefresh={handleRefresh}
                 refreshing={refreshing}

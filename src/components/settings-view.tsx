@@ -118,11 +118,9 @@ export function SettingsView({
 
   return (
     <div
-      data-tetra-slot="settings.background"
       className="settings absolute bottom-0 right-0 top-7 left-[var(--side-w,176px)] z-40 flex flex-col bg-bg transition-[left] [transition-duration:var(--t-motion-expand-duration)]"
     >
       <div
-        data-tetra-slot="settings.shell"
         className="s-head flex shrink-0 items-center justify-between border-b border-line bg-surface px-[18px] py-[13px]"
       >
         <div className="lt flex items-center gap-2.5">
@@ -148,10 +146,9 @@ export function SettingsView({
           open={openSec === "game"}
           onToggle={() => toggle("game")}
           onKeyDown={(e) => rove(e, 0)}
-          tetraSlot="settings.game"
           tetraToggleEl="sectionToggle"
         >
-          <div data-tetra-slot="settings.game">
+          <div>
             <Field label="In-Game Name" hint={'Sets -name= at launch, so you are not "Survivor".'}>
               <input
                 data-tetra-el="profileNameInput"
@@ -233,10 +230,9 @@ export function SettingsView({
           open={openSec === "launcher"}
           onToggle={() => toggle("launcher")}
           onKeyDown={(e) => rove(e, 1)}
-          tetraSlot="settings.launcher"
           tetraToggleEl="sectionToggle"
         >
-          <div data-tetra-slot="settings.launcher">
+          <div>
             <div data-tetra-el="windowOptions">
               <h3 className="mb-1 text-xs font-medium text-ink">Window</h3>
               {/* Two independent switches, not one list. Each names the button it
@@ -377,10 +373,9 @@ export function SettingsView({
           open={openSec === "theme"}
           onToggle={() => toggle("theme")}
           onKeyDown={(e) => rove(e, 2)}
-          tetraSlot="settings.theme"
           tetraToggleEl="sectionToggle"
         >
-          <div data-tetra-slot="settings.theme">
+          <div>
             <div data-tetra-el="themeManagement">
               <ThemesSection devMode={devMode} onDevModeChange={onDevModeChange} />
             </div>

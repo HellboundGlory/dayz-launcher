@@ -11,10 +11,6 @@ import {
   type WorkshopSearchResult,
 } from "@/lib/tauri";
 import { cn, formatBytes, formatLastPlayed } from "@/lib/utils";
-import { SlotChild } from "@/theme/slot-render";
-import { useComponentComposition } from "@/theme/use-component-composition";
-import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
-import { useThemeStore } from "@/theme/theme-store";
 
 type Tab = "subscribed" | "seen" | "workshop";
 
@@ -358,9 +354,6 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
     { key: "workshop", label: "Search Workshop" },
   ];
 
-  const activeId = useThemeStore((s) => s.activeId);
-  const composition = useComponentComposition("modal.modFilter");
-
   return (
     <div
       className="ovl absolute inset-0 z-[60] flex items-center justify-center [background-color:var(--t-color-scrim)]"
@@ -368,7 +361,6 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
     >
       <div
         ref={wrapRef}
-        data-tetra-slot="modal.modFilter"
         role="dialog"
         aria-modal="true"
         aria-label="Filter by mod"
@@ -380,18 +372,10 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
             <h3 className="[font-size:var(--t-type-size-xl)] font-extrabold tracking-tight text-ink">Filter by mod</h3>
             <p className="mt-0.5 [font-size:var(--t-type-label-size)] text-muted">Require or exclude servers by the mods they run</p>
           </div>
-          {composition === null && closeAction()}
+          {closeAction()}
         </div>
 
-        {/* Each of this slot's children sits in a different row of the modal —
-            ✕ and Apply in the header/footer, the tab strip under the header, the
-            preview beside the list — so none has a sibling to reorder against.
-            Only the two optional ones are wired, to hide them. */}
-        {composition === null && (
-          <SlotChild slotId="modal.modFilter" id="tabStrip">
-            {tabStrip()}
-          </SlotChild>
-        )}
+        {tabStrip()}
 
         <div className="mx-4 mt-2.5 flex shrink-0 items-center gap-1.5 [border-radius:var(--t-radius-popup)] border border-line bg-surface2 px-2.5 py-[7px]">
           <Search className="size-[13px] shrink-0 text-muted" />
@@ -411,12 +395,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
         </div>
 
         <div className="mt-2.5 flex min-h-0 flex-1">
-          <div
-            className={cn(
-              "flex min-w-0 flex-col overflow-y-auto px-2.5 pb-2.5",
-              composition === null ? "w-[380px] shrink-0 border-r border-line" : "flex-1",
-            )}
-          >
+          <div className="flex min-w-0 w-[380px] shrink-0 flex-col overflow-y-auto border-r border-line px-2.5 pb-2.5">
             {tab === "subscribed" && modsLoading && subscribedForDayz.length === 0 && <ListSpinner />}
             {tab === "seen" && knownLoading && <ListSpinner />}
             {tab === "workshop" && searchLoading && <ListSpinner />}
@@ -502,11 +481,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
             ))}
           </div>
 
-          {composition === null && (
-            <SlotChild slotId="modal.modFilter" id="previewPane">
-              {previewPane()}
-            </SlotChild>
-          )}
+          {previewPane()}
         </div>
 
         <div className="flex shrink-0 items-center gap-2.5 border-t border-line px-4 py-2.5">
@@ -579,25 +554,8 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
           >
             Cancel
           </button>
-          {composition === null && applyAction()}
+          {applyAction()}
         </div>
-        {composition !== null && (
-          // The overlay is pointer-events-none so clicks reach the search input
-          // and list beneath wherever the composition doesn't cover them; each
-          // themed child re-enables its own.
-          <div className="pointer-events-none absolute inset-0">
-            <ComponentTreeRenderer
-              node={composition}
-              nodes={{
-                closeAction: <div className="pointer-events-auto">{closeAction()}</div>,
-                tabStrip: <div className="pointer-events-auto">{tabStrip()}</div>,
-                previewPane: <div className="pointer-events-auto">{previewPane()}</div>,
-                applyAction: <div className="pointer-events-auto">{applyAction()}</div>,
-              }}
-              themeId={activeId}
-            />
-          </div>
-        )}
       </div>
     </div>
   );

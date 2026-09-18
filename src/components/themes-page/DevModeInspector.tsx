@@ -1,28 +1,24 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
-import { SLOTS } from "@/theme/slots";
+import { REGISTRY } from "@/theme/registry";
 
-const SLOT_ATTR = "data-tetra-slot";
-const EL_ATTR = "data-tetra-el";
+const SURFACE_ATTR = "data-surface";
+const EL_ATTR = "data-el";
 
 export interface TetraNode {
   /** Read at match time — the attribute value may be rebound in place. */
   id: string;
-  kind: "slot" | "el";
+  kind: "surface" | "el";
   element: Element;
 }
 
-/** Nearest ancestor (or the element itself) carrying a `data-tetra-slot` or
- * `data-tetra-el` attribute; `null` when the walk reaches the document. The one
- * element carrying both (`shell.header`, whose drag region is also its own
- * child) reports the slot: the container is the themable unit, and taking the
- * child there would make every other slot's container area report a child
- * instead. */
+/** Nearest ancestor (or the element itself) carrying a `data-surface` or
+ * `data-el` attribute; `null` when the walk reaches the document. */
 export function findTetraNode(start: Element | null): TetraNode | null {
   for (let node = start; node !== null; node = node.parentElement) {
-    if (node.hasAttribute(SLOT_ATTR)) {
-      return { id: node.getAttribute(SLOT_ATTR) ?? "", kind: "slot", element: node };
+    if (node.hasAttribute(SURFACE_ATTR)) {
+      return { id: node.getAttribute(SURFACE_ATTR) ?? "", kind: "surface", element: node };
     }
     if (node.hasAttribute(EL_ATTR)) {
       return { id: node.getAttribute(EL_ATTR) ?? "", kind: "el", element: node };
@@ -33,7 +29,7 @@ export function findTetraNode(start: Element | null): TetraNode | null {
 
 /** The attribute selector that selects exactly the tagged markup. */
 export function selectorFor(node: TetraNode): string {
-  const attr = node.kind === "slot" ? SLOT_ATTR : EL_ATTR;
+  const attr = node.kind === "surface" ? SURFACE_ATTR : EL_ATTR;
   // Registry ids are plain ASCII; CSS.escape is absent in older webviews.
   const id =
     typeof CSS !== "undefined" && typeof CSS.escape === "function"
@@ -77,12 +73,16 @@ export function placeOverlay(
   };
 }
 
-/** `shell.footer`'s current rect, fresh each call — it never moves, but the
+/** `surface.footerStatus`'s current rect, fresh each call — it never moves, but the
  * list underneath it does not actually clip against it (see the mousemove
  * handler below), so anything reaching into this area is refused outright
  * rather than trusted. */
 function footerRect(): DOMRect | null {
-  return document.querySelector(`[${SLOT_ATTR}="shell.footer"]`)?.getBoundingClientRect() ?? null;
+  return (
+    document.querySelector(`[${SURFACE_ATTR}="surface.footerStatus"]`)?.getBoundingClientRect() ??
+    document.querySelector(".footer-v2")?.getBoundingClientRect() ??
+    null
+  );
 }
 
 /** The same "is this a real, inspectable target" rule used for both live
@@ -93,9 +93,16 @@ function resolveDevTarget(target: Element): { node: TetraNode; rect: DOMRect } |
   if (node === null) return null;
   const rect = node.element.getBoundingClientRect();
   const footer = footerRect();
-  const isFooterItself = node.element.closest(`[${SLOT_ATTR}="shell.footer"]`) !== null;
-  const isOverlaySurface = node.element.closest(`[${SLOT_ATTR}="settings.background"]`) !== null;
+  const isFooterItself =
+    node.element.closest(`[${SURFACE_ATTR}="surface.footerStatus"]`) !== null ||
+    node.element.closest(".footer-v2") !== null;
+  const isOverlaySurface =
+    node.element.closest(`[${SURFACE_ATTR}="surface.settingsBackground"]`) !== null ||
+    node.element.closest(".settings") !== null;
   const isViewContainerItself =
+    node.id === "surface.serverBrowser" ||
+    node.id === "surface.modsBrowser" ||
+    node.id === "surface.settingsBackground" ||
     node.id === "view.servers" ||
     node.id === "view.favourites" ||
     node.id === "view.recent" ||
@@ -312,12 +319,14 @@ export function DevModeInspector() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [releasePin]);
 
-  const slot =
-    active !== null && active.node.kind === "slot"
-      ? SLOTS.find((s) => s.id === active.node.id)
+  const surfaceDef =
+    active !== null && active.node.kind === "surface"
+      ? REGISTRY.surfaces[active.node.id]
       : undefined;
-  const required = slot?.children.filter((c) => c.required) ?? [];
-  const optional = slot?.children.filter((c) => !c.required) ?? [];
+  const elementDef =
+    active !== null && active.node.kind === "el"
+      ? REGISTRY.elements[active.node.id]
+      : undefined;
   const { rect } = active ?? {};
 
   // The badge is measured rather than guessed: a full-height slot (the sidebar)
@@ -356,7 +365,7 @@ export function DevModeInspector() {
           >
             <div className="flex items-center gap-1.5">
               <span className="[border-radius:var(--t-radius-badge)] bg-[rgba(255,79,216,0.25)] px-1 py-px [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.04em] [color:rgb(255,154,232)]">
-                {active.node.kind === "slot" ? "slot" : "el"}
+                {active.node.kind}
               </span>
               <span className="break-all font-semibold [color:rgb(255,215,246)]">{active.node.id}</span>
               {pinned && (
@@ -366,18 +375,27 @@ export function DevModeInspector() {
               )}
             </div>
 
-            {active.node.kind === "slot" && (
+            {active.node.kind === "surface" && (
               <div className="mt-1.5 flex flex-col gap-0.5">
-                {!slot && <span className="[color:rgb(255,154,232)]">not in the SLOTS registry</span>}
-                {(["required", "optional"] as const).map((group) => {
-                  const ids = (group === "required" ? required : optional).map((c) => c.id);
-                  return (
-                    <div key={group}>
-                      <span className="uppercase tracking-[0.04em] [color:rgb(156,147,173)]">{group}</span>
-                      <span className="ml-1.5">{ids.length > 0 ? ids.join(", ") : "—"}</span>
-                    </div>
-                  );
-                })}
+                {!surfaceDef && <span className="[color:rgb(255,154,232)]">not in the REGISTRY surfaces</span>}
+                {surfaceDef && (
+                  <div>
+                    <span className="uppercase tracking-[0.04em] [color:rgb(156,147,173)]">contains</span>
+                    <span className="ml-1.5">{surfaceDef.contains.length > 0 ? surfaceDef.contains.join(", ") : "—"}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {active.node.kind === "el" && (
+              <div className="mt-1.5 flex flex-col gap-0.5">
+                {!elementDef && <span className="[color:rgb(255,154,232)]">not in the REGISTRY elements</span>}
+                {elementDef && (
+                  <div>
+                    <span className="uppercase tracking-[0.04em] [color:rgb(156,147,173)]">kind</span>
+                    <span className="ml-1.5">{elementDef.kind}</span>
+                  </div>
+                )}
               </div>
             )}
 

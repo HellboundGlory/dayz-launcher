@@ -12,10 +12,6 @@ interface SettingsAccordionProps {
   children: React.ReactNode;
   /** Roving-arrow navigation across the accordion headers. */
   onKeyDown: (e: React.KeyboardEvent) => void;
-  /** The theme slot this whole section belongs to, and the child id for its
-   * own toggle header — passed by the caller, since this component is shared
-   * across sections that each map to a different slot. */
-  tetraSlot?: string;
   tetraToggleEl?: string;
 }
 
@@ -34,7 +30,6 @@ export function SettingsAccordion({
   onToggle,
   onKeyDown,
   children,
-  tetraSlot,
   tetraToggleEl,
 }: SettingsAccordionProps) {
   const bodyId = `settings-acc-${id}`;
@@ -42,7 +37,6 @@ export function SettingsAccordion({
 
   return (
     <section
-      data-tetra-slot={tetraSlot}
       className={cn("sec overflow-hidden [border-radius:var(--t-radius-panel)] border border-line bg-surface", open && "open")}
     >
       <button
