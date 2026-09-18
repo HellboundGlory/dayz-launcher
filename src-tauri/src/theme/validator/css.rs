@@ -292,7 +292,9 @@ fn parse_selector_and_validate(
                 expect_ident_is_type = true;
             }
             Token::Delim('.') => {
-                if let Ok(Token::Ident(class_name)) = parser.next_including_whitespace_and_comments() {
+                if let Ok(Token::Ident(class_name)) =
+                    parser.next_including_whitespace_and_comments()
+                {
                     let name = class_name.to_string();
                     if name.starts_with("t-") || name == "t-" {
                         if is_valid_theme_class(&name) {
@@ -433,7 +435,12 @@ fn parse_selector_and_validate(
                         let lower = func_name.to_ascii_lowercase();
                         if matches!(lower.as_str(), "not" | "is" | "where") {
                             let _ = parser.parse_nested_block(|nested| {
-                                parse_selector_and_validate(nested, file_path, known_classes, issues);
+                                parse_selector_and_validate(
+                                    nested,
+                                    file_path,
+                                    known_classes,
+                                    issues,
+                                );
                                 Ok::<(), ParseError<()>>(())
                             });
                         } else if lower == "nth-child" {
@@ -580,7 +587,9 @@ fn parse_declarations(
                                         severity: Severity::Error,
                                         file: file_path.into(),
                                         pointer: property_name.clone(),
-                                        message: format!("Value contains banned construct '{construct}'"),
+                                        message: format!(
+                                            "Value contains banned construct '{construct}'"
+                                        ),
                                         hint: None,
                                     });
                                     found_banned = true;
@@ -601,9 +610,13 @@ fn parse_declarations(
                             let url_str = parser
                                 .parse_nested_block(|nested| {
                                     let mut buf = String::new();
-                                    while let Ok(t) = nested.next_including_whitespace_and_comments() {
+                                    while let Ok(t) =
+                                        nested.next_including_whitespace_and_comments()
+                                    {
                                         match t {
-                                            Token::QuotedString(s) => return Ok::<String, ParseError<()>>(s.to_string()),
+                                            Token::QuotedString(s) => {
+                                                return Ok::<String, ParseError<()>>(s.to_string())
+                                            }
                                             Token::WhiteSpace(_) | Token::Comment(_) => continue,
                                             Token::Ident(s) => buf.push_str(s),
                                             Token::Delim(c) => buf.push(*c),
@@ -669,7 +682,9 @@ fn validate_declaration(
             Token::WhiteSpace(_) | Token::Comment(_) => true,
             Token::QuotedString(s) => s.is_empty(),
             _ => false,
-        }) && value_tokens.iter().any(|t| matches!(t, Token::QuotedString(s) if s.is_empty()));
+        }) && value_tokens
+            .iter()
+            .any(|t| matches!(t, Token::QuotedString(s) if s.is_empty()));
 
         if !is_empty_string {
             issues.push(ValidationIssue {
@@ -884,7 +899,10 @@ mod tests {
         "#;
         let issues = validate_css_stylesheet("styles.css", css, None);
         let rules: Vec<&str> = issues.iter().map(|i| i.rule_id.as_str()).collect();
-        assert!(rules.iter().all(|r| *r == "CSS-01"), "Expected all CSS-01, got: {rules:?}");
+        assert!(
+            rules.iter().all(|r| *r == "CSS-01"),
+            "Expected all CSS-01, got: {rules:?}"
+        );
     }
 
     #[test]
@@ -923,7 +941,10 @@ mod tests {
             [data-el="box"] { background: url(vbscript:msgbox(1)); }
         "#;
         let issues = validate_css_stylesheet("styles.css", css, None);
-        assert!(issues.iter().all(|i| i.rule_id == "CSS-05"), "Got issues: {issues:#?}");
+        assert!(
+            issues.iter().all(|i| i.rule_id == "CSS-05"),
+            "Got issues: {issues:#?}"
+        );
     }
 
     #[test]
@@ -951,7 +972,10 @@ mod tests {
         "#;
         let issues = validate_css_stylesheet("styles.css", css, None);
         assert_eq!(issues.len(), 5);
-        assert!(issues.iter().all(|i| i.rule_id == "CSS-07"), "Got issues: {issues:#?}");
+        assert!(
+            issues.iter().all(|i| i.rule_id == "CSS-07"),
+            "Got issues: {issues:#?}"
+        );
     }
 
     #[test]
