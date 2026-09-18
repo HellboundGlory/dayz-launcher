@@ -3,12 +3,14 @@
 //! starter template. Storage rules live in [`crate::theme`]; these wrappers
 //! resolve the themes directory and log what got skipped.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::state::{PendingActivation, RestoreSnapshot};
+use crate::theme::validator::{self, Severity, ValidationIssue};
 use crate::theme::{self, LegacyTheme, ThemeFile, ThemeManifest, ThemeSummary};
 
 /// Every installed theme, for the themes grid. A directory whose manifest is
@@ -26,6 +28,124 @@ pub fn list_installed_themes(app: AppHandle) -> Vec<ThemeSummary> {
 #[tauri::command]
 pub fn get_theme(app: AppHandle, id: String) -> Result<ThemeFile, String> {
     theme::get(&crate::paths::themes_dir(&app), &id)
+}
+
+/// Every path the v2 `layout/` allowlist admits — [`theme::archive`]'s own
+/// `package_extension` enumerates the same set; kept in sync by hand since
+/// that function is a private predicate, not a list.
+const LAYOUT_ALLOWLIST: &[&str] = &[
+    "layout/shell.json",
+    "layout/settings.json",
+    "layout/views/browser.json",
+    "layout/views/mods.json",
+    "layout/modals/serverInfo.json",
+    "layout/modals/modFilter.json",
+    "layout/modals/update.json",
+    "layout/lists/servers.json",
+    "layout/lists/mods.json",
+    "layout/lists/modFilterResults.json",
+    "layout/lists/serverMods.json",
+    "layout/lists/modServers.json",
+    "layout/popups/mapFilter.json",
+    "layout/popups/modsUnique.json",
+    "layout/popups/regionFilter.json",
+    "layout/popups/sort.json",
+    "layout/popups/tagsFilter.json",
+    "layout/popups/serverActions.json",
+    "layout/popups/serverLoad.json",
+    "layout/popups/modActions.json",
+    "layout/popups/settingsNav.json",
+];
+
+/// Run the v2 validators against every file an installed theme ships, for Dev
+/// Mode's validation panel. Order: layout issues, then settings, then CSS.
+#[tauri::command]
+pub fn validate_theme(app: AppHandle, id: String) -> Result<Vec<ValidationIssue>, String> {
+    validate_theme_at(&crate::paths::themes_dir(&app), &id)
+}
+
+/// [`validate_theme`]'s body, taking a plain root so it is testable against a
+/// scratch directory instead of a live `AppHandle`.
+fn validate_theme_at(themes_root: &Path, id: &str) -> Result<Vec<ValidationIssue>, String> {
+    if !theme::is_usable_id(id) {
+        return Err(format!(
+            "`{id}` is not a usable theme id — it must be a single directory name"
+        ));
+    }
+    let dir = themes_root.join(id);
+    if !dir.is_dir() {
+        return Err(format!("No installed theme `{id}` at {}", dir.display()));
+    }
+
+    let mut issues = Vec::new();
+    issues.extend(validate_theme_layouts(&dir)?);
+    issues.extend(validate_theme_settings(&dir)?);
+    issues.extend(validate_theme_styles(&dir)?);
+    Ok(issues)
+}
+
+/// Layout files that parse become one map handed to [`validator::validate_theme_layouts`]
+/// (which cross-checks slots across files); a file that fails to parse is validated
+/// on its own instead, so its LAY-01 issue is never dropped.
+fn validate_theme_layouts(dir: &Path) -> Result<Vec<ValidationIssue>, String> {
+    let mut parsed = HashMap::new();
+    let mut issues = Vec::new();
+
+    for path in LAYOUT_ALLOWLIST {
+        let file = dir.join(path);
+        if !file.is_file() {
+            continue;
+        }
+        let content = std::fs::read_to_string(&file)
+            .map_err(|e| format!("Could not read {}: {e}", file.display()))?;
+        match serde_json::from_str(&content) {
+            Ok(value) => {
+                parsed.insert((*path).to_string(), value);
+            }
+            Err(_) => issues.extend(validator::validate_layout_file(path, &content)),
+        }
+    }
+
+    issues.extend(validator::validate_theme_layouts(&parsed));
+    Ok(issues)
+}
+
+/// `settings.schema.json`, when the theme ships one. A parse failure is
+/// reported as a SET-01 issue rather than failing the whole command, matching
+/// how a malformed layout file is handled.
+fn validate_theme_settings(dir: &Path) -> Result<Vec<ValidationIssue>, String> {
+    let path = dir.join(theme::SETTINGS_SCHEMA_FILE);
+    if !path.is_file() {
+        return Ok(Vec::new());
+    }
+    let content = std::fs::read_to_string(&path)
+        .map_err(|e| format!("Could not read {}: {e}", path.display()))?;
+    match serde_json::from_str(&content) {
+        Ok(value) => Ok(validator::settings::validate_settings_schema(&value)),
+        Err(error) => Ok(vec![ValidationIssue {
+            rule_id: "SET-01".into(),
+            severity: Severity::Error,
+            file: theme::SETTINGS_SCHEMA_FILE.into(),
+            pointer: String::new(),
+            message: format!("Invalid settings.schema.json: {error}"),
+            hint: None,
+        }]),
+    }
+}
+
+/// `styles.css`, when the theme ships one.
+fn validate_theme_styles(dir: &Path) -> Result<Vec<ValidationIssue>, String> {
+    let path = dir.join(theme::STYLES_FILE);
+    if !path.is_file() {
+        return Ok(Vec::new());
+    }
+    let source = std::fs::read_to_string(&path)
+        .map_err(|e| format!("Could not read {}: {e}", path.display()))?;
+    Ok(validator::validate_css_stylesheet(
+        theme::STYLES_FILE,
+        &source,
+        None,
+    ))
 }
 
 /// Install a new theme. Create-only: an id that already has a directory is an
@@ -1258,6 +1378,81 @@ mod tests {
             reverted_payload(slot.as_ref().unwrap())["restoredTheme"],
             "local.edited"
         );
+    }
+
+    fn write(dir: &Path, relative: &str, content: &str) {
+        let path = dir.join(relative);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, content).unwrap();
+    }
+
+    #[test]
+    fn validate_theme_reports_no_error_issues_for_a_theme_that_is_all_valid() {
+        let (root, dir) = installed("validate-ok", "local.ok");
+        write(
+            &dir,
+            "layout/shell.json",
+            r#"{"schemaVersion":2,"root":{"type":"box"}}"#,
+        );
+
+        let issues = validate_theme_at(&root, "local.ok").unwrap();
+
+        assert!(
+            issues.iter().all(|i| i.severity != Severity::Error),
+            "{issues:?}"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn validate_theme_reports_lay01_for_a_malformed_layout_file() {
+        let (root, dir) = installed("validate-bad-layout", "local.bad-layout");
+        write(&dir, "layout/shell.json", "{ not json");
+
+        let issues = validate_theme_layouts(&dir).unwrap();
+
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.rule_id == "LAY-01" && i.file == "layout/shell.json"),
+            "{issues:?}"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn validate_theme_refuses_an_at_import_in_styles_css() {
+        let (root, dir) = installed("validate-css", "local.css");
+        write(&dir, "styles.css", "@import \"other.css\";");
+
+        let issues = validate_theme_styles(&dir).unwrap();
+
+        assert!(issues.iter().any(|i| i.file == "styles.css"), "{issues:?}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn validate_theme_reports_set01_for_a_malformed_settings_schema() {
+        let (root, dir) = installed("validate-bad-settings", "local.bad-settings");
+        write(&dir, theme::SETTINGS_SCHEMA_FILE, "{ not json");
+
+        let issues = validate_theme_settings(&dir).unwrap();
+
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.rule_id == "SET-01" && i.file == theme::SETTINGS_SCHEMA_FILE),
+            "{issues:?}"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn validate_theme_refuses_a_missing_theme_directory() {
+        let root = std::env::temp_dir().join("tetra-validate-missing-does-not-exist");
+        let _ = std::fs::remove_dir_all(&root);
+
+        assert!(validate_theme_at(&root, "local.missing").is_err());
     }
 }
 

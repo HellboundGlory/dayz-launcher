@@ -41,7 +41,6 @@ pub const SETTINGS_SCHEMA_FILE: &str = "settings.schema.json";
 /// per composed slot, named after the slot id verbatim.
 pub const COMPONENTS_DIR: &str = "components";
 
-
 /// Whether `name` could name a composition file at all: `<slot id>.json` with
 /// a nonempty slot id. Anything else under `components/` is a stray, not a
 /// slot reference, and is ignored rather than validated.
@@ -268,7 +267,6 @@ fn read_components(dir: &Path) -> Result<std::collections::BTreeMap<String, Valu
     }
     Ok(components)
 }
-
 
 /// One theme's manifest, tokens, and whichever optional content files it ships.
 pub fn get(themes_root: &Path, id: &str) -> Result<ThemeFile, String> {
