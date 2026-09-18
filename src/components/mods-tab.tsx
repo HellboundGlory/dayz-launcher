@@ -28,6 +28,8 @@ import {
   useModsStore,
   visibleRows,
   type ModStatusFilter,
+  type ModSortKey,
+  type ModSortDir,
 } from "@/stores/mods-store";
 import {
   steamModStates,
@@ -100,6 +102,47 @@ export function effectiveModState(rowState: ModState, liveState?: ModState): Mod
   return liveState;
 }
 
+const STATUS_RANK: Record<ModState, number> = {
+  downloading: 0,
+  needs_update: 1,
+  not_installed: 2,
+  not_subscribed: 3,
+  ready: 4,
+  not_on_workshop: 5,
+};
+
+export function sortMods(
+  mods: SubscribedMod[],
+  sortKey: ModSortKey,
+  sortDir: ModSortDir,
+  states: Record<string, ModState> = {},
+): SubscribedMod[] {
+  const dir = sortDir === "asc" ? 1 : -1;
+  return [...mods].sort((a, b) => {
+    switch (sortKey) {
+      case "name":
+        return (a.title ?? "").localeCompare(b.title ?? "") * dir;
+      case "status": {
+        const stateA = effectiveModState(a.state, states[a.workshop_id]);
+        const stateB = effectiveModState(b.state, states[b.workshop_id]);
+        const rankA = STATUS_RANK[stateA] ?? 99;
+        const rankB = STATUS_RANK[stateB] ?? 99;
+        const rankDiff = rankA - rankB;
+        if (rankDiff !== 0) {
+          return rankDiff * dir;
+        }
+        return (a.title ?? "").localeCompare(b.title ?? "");
+      }
+      case "subscribed":
+        return (modSubscribed(a) - modSubscribed(b)) * dir;
+      case "updated":
+        return ((a.time_updated ?? 0) - (b.time_updated ?? 0)) * dir;
+      case "size":
+        return (Number(a.size_on_disk || 0) - Number(b.size_on_disk || 0)) * dir;
+    }
+  });
+}
+
 // Shallow-compared slice so a change to something only a child cares about
 // (progress, selectedIds) doesn't re-run this component and every row.
 function useModsTabSlice() {
@@ -123,6 +166,7 @@ function useModsTabSlice() {
       setSearch: s.setSearch,
       setStatusFilter: s.setStatusFilter,
       updateAllOutdated: s.updateAllOutdated,
+      setSort: s.setSort,
     })),
   );
 }
@@ -176,19 +220,7 @@ export function ModsTab() {
         }
       });
     }
-    const dir = sortDir === "asc" ? 1 : -1;
-    return [...visible].sort((a, b) => {
-      switch (sortKey) {
-        case "name":
-          return (a.title ?? "").localeCompare(b.title ?? "") * dir;
-        case "subscribed":
-          return (modSubscribed(a) - modSubscribed(b)) * dir;
-        case "updated":
-          return ((a.time_updated ?? 0) - (b.time_updated ?? 0)) * dir;
-        case "size":
-          return (Number(a.size_on_disk || 0) - Number(b.size_on_disk || 0)) * dir;
-      }
-    });
+    return sortMods(visible, sortKey, sortDir, states);
   }, [rows, states, search, statusFilter, sortKey, sortDir]);
 
   const removedCount = rows.filter((r) => r.removed).length;
