@@ -65,6 +65,11 @@ export interface CommonProps {
   position?: PositionDef;
   hidden?: HiddenCondition;
   landmark?: Landmark;
+  context?: "selection" | "modSelection" | "modFilterPreview";
+  empty?: LayoutNode;
+  collapsible?: { default?: "expanded" | "collapsed"; collapsed: LayoutNode };
+  resizable?: { edge: "left" | "right" | "top" | "bottom"; min?: Length; max?: Length };
+  column?: string;
 }
 
 export interface StackNode extends CommonProps {
@@ -136,6 +141,7 @@ export interface OutletNode extends CommonProps {
 export interface ElementNode extends CommonProps {
   element: string;
   options?: Record<string, unknown>;
+  label?: string;
 }
 
 export interface SurfaceNode extends CommonProps {

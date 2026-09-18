@@ -8,6 +8,9 @@ import { Box, Grid, Scroll, Stack } from "./containers";
 import { ImageLeaf, OutletLeaf, TextLeaf } from "./leaves";
 import { commonAttrs, isHidden, LANDMARK_TAGS, positionStyle, type SettingsValues } from "./props";
 import type { ContainerNode, HostNode, LayoutNode } from "./types";
+import { ElementHost } from "../elements/element-host";
+import { SurfaceHost } from "../elements/surface-host";
+import { SubjectContextProvider, useElementContext } from "../elements/context";
 
 export interface RenderContextValue {
   settings: SettingsValues;
@@ -35,9 +38,14 @@ export function LayoutNodeRenderer({ node }: { node: LayoutNode }) {
   if (isHidden(node.hidden, ctx.settings)) return null;
 
   if (isHostNode(node)) {
-    const content = ctx.renderElement?.(node) ?? null;
+    const content =
+      ctx.renderElement?.(node) ??
+      ("element" in node ? (
+        <ElementHost node={node} />
+      ) : (
+        <SurfaceHost node={node} />
+      ));
     if (node.position === undefined) return <>{content}</>;
-    // A positioned host node needs an element of its own for the style to land on.
     return <div style={positionStyle(node.position)}>{content}</div>;
   }
 
@@ -49,8 +57,46 @@ export function LayoutNodeRenderer({ node }: { node: LayoutNode }) {
     case "outlet":
       return <OutletLeaf node={node} outlets={ctx.outlets} attrs={commonAttrs(node)} />;
     default:
-      return renderContainer(node);
+      return <ContainerRenderer node={node} />;
   }
+}
+
+function ContainerRenderer({ node }: { node: ContainerNode }) {
+  const elementCtx = useElementContext();
+
+  if (node.context !== undefined) {
+    let subjectData: unknown = null;
+    let subjectKind: "server" | "mod" | "workshopMod" = "server";
+
+    if (node.context === "selection") {
+      subjectData = elementCtx.selectedServer;
+      subjectKind = "server";
+    } else if (node.context === "modSelection") {
+      subjectData = elementCtx.selectedMod;
+      subjectKind = "mod";
+    } else if (node.context === "modFilterPreview") {
+      subjectData = elementCtx.previewMod;
+      subjectKind = "workshopMod";
+    }
+
+    if (!subjectData) {
+      if (node.empty) {
+        return <LayoutNodeRenderer node={node.empty} />;
+      }
+      return null;
+    }
+
+    return (
+      <SubjectContextProvider
+        subject={{ kind: subjectKind, data: subjectData }}
+        contextName={node.context}
+      >
+        {renderContainer(node)}
+      </SubjectContextProvider>
+    );
+  }
+
+  return renderContainer(node);
 }
 
 function renderContainer(node: ContainerNode) {
