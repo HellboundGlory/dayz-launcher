@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 2,
+  "columns": [
+    { "id": "favourite", "width": "28px", "align": "center" },
+    { "id": "name", "width": "1fr", "align": "start", "sort": "name" },
+    { "id": "address", "width": "150px", "align": "start", "label": "ADDRESS" },
+    { "id": "time", "width": "64px", "align": "start", "label": "TIME" },
+    { "id": "lastPlayed", "width": "88px", "align": "start", "sort": "lastPlayed" },
+    { "id": "map", "width": "96px", "align": "start", "sort": "map" },
+    { "id": "players", "width": "64px", "align": "end", "sort": "players" },
+    { "id": "mods", "width": "52px", "align": "end", "sort": "mods" },
+    { "id": "cc", "width": "34px", "align": "end", "label": "CC" },
+    { "id": "ping", "width": "52px", "align": "end", "sort": "ping" },
+    { "id": "actions", "width": "auto", "align": "end" }
+  ],
+  "row": {
+    "type": "grid",
+    "children": [
+      {
+        "element": "server.favourite",
+        "column": "favourite"
+      },
+      {
+        "type": "stack",
+        "direction": "column",
+        "column": "name",
+        "children": [
+          { "element": "server.name" },
+          { "element": "server.tags" }
+        ]
+      },
+      {
+        "element": "server.address",
+        "column": "address"
+      },
+      {
+        "element": "server.gameTime",
+        "column": "time",
+        "options": {
+          "showIcon": false,
+          "showMultiplier": false
+        }
+      },
+      {
+        "element": "server.lastPlayed",
+        "column": "lastPlayed"
+      },
+      {
+        "element": "server.map",
+        "column": "map"
+      },
+      {
+        "element": "server.players",
+        "column": "players",
+        "options": {
+          "showCaption": false
+        }
+      },
+      {
+        "element": "server.modCount",
+        "column": "mods",
+        "options": {
+          "showCaption": false
+        }
+      },
+      {
+        "element": "server.region",
+        "column": "cc",
+        "options": {
+          "format": "code"
+        }
+      },
+      {
+        "element": "server.ping",
+        "column": "ping",
+        "options": {
+          "showCaption": false
+        }
+      },
+      {
+        "element": "server.join",
+        "column": "actions",
+        "options": {
+          "display": "icon"
+        }
+      }
+    ]
+  }
+}
