@@ -6,7 +6,8 @@ import { exportTheme, getTheme } from "@/lib/tauri";
 import { resolveThemeAsset } from "@/theme/asset-resolver";
 import { resolvedPair } from "@/theme/theme-store";
 import type { ManifestOverrides, ThemeFile } from "@/types/theme";
-import { capabilityLabels, type Capability } from "./ImportThemeDialog";
+import { capabilityLabels, type Capability } from "./capability-labels";
+import { CapabilityBadge } from "./ImportThemeDialog";
 
 interface ExportThemeDialogProps {
   id: string;
@@ -30,26 +31,6 @@ export function packagedFiles(theme: Pick<ThemeFile, "layout" | "capabilities">)
     ...(theme.layout !== null ? ["layout.json"] : []),
     ...capabilityLabels(theme.capabilities, EXTRA_FILE_CAPABILITIES),
   ];
-}
-
-/** Tier tones, matching ImportThemeDialog's badge. Anything the backend would
- * reject never reaches this dialog, so an unrecognised tier reads muted. */
-const TIER_TONE: Record<string, string> = {
-  basic: "border-line text-muted2",
-  advanced: "border-accent-line bg-accent-soft text-accent",
-};
-
-function TierBadge({ tier }: { tier: string }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center whitespace-nowrap rounded-full border px-1.5 py-[3px] [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-wider",
-        TIER_TONE[tier] ?? TIER_TONE.basic,
-      )}
-    >
-      {tier}
-    </span>
-  );
 }
 
 /** Shared text-input styling (board `.field input`). */
@@ -216,7 +197,7 @@ export function ExportThemeDialog({
             </h3>
             <p className="mt-0.5 flex items-center gap-1.5 truncate font-mono-data [font-size:var(--t-type-label-size)] text-muted">
               <span className="truncate">{id}</span>
-              {theme && <TierBadge tier={theme.tier} />}
+              {theme && <CapabilityBadge capabilities={theme.capabilities} />}
             </p>
             {/* The theme's own preview image when it declares one and it loads;
                 otherwise its tokens are the only preview there is. */}
