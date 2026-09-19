@@ -11,7 +11,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::state::{PendingActivation, RestoreSnapshot};
 use crate::theme::validator::{self, Severity, ValidationIssue};
-use crate::theme::{self, LegacyTheme, ThemeFile, ThemeManifest, ThemeSummary};
+use crate::theme::{self, LegacyTheme, ThemeFile, ThemeManifest, ThemeSummary, LAYOUT_ALLOWLIST};
 
 /// Every installed theme, for the themes grid. A directory whose manifest is
 /// missing, unreadable or corrupt is skipped and logged, not fatal.
@@ -30,32 +30,6 @@ pub fn get_theme(app: AppHandle, id: String) -> Result<ThemeFile, String> {
     theme::get(&crate::paths::themes_dir(&app), &id)
 }
 
-/// Every path the v2 `layout/` allowlist admits — [`theme::archive`]'s own
-/// `package_extension` enumerates the same set; kept in sync by hand since
-/// that function is a private predicate, not a list.
-const LAYOUT_ALLOWLIST: &[&str] = &[
-    "layout/shell.json",
-    "layout/settings.json",
-    "layout/views/browser.json",
-    "layout/views/mods.json",
-    "layout/modals/serverInfo.json",
-    "layout/modals/modFilter.json",
-    "layout/modals/update.json",
-    "layout/lists/servers.json",
-    "layout/lists/mods.json",
-    "layout/lists/modFilterResults.json",
-    "layout/lists/serverMods.json",
-    "layout/lists/modServers.json",
-    "layout/popups/mapFilter.json",
-    "layout/popups/modsUnique.json",
-    "layout/popups/regionFilter.json",
-    "layout/popups/sort.json",
-    "layout/popups/tagsFilter.json",
-    "layout/popups/serverActions.json",
-    "layout/popups/serverLoad.json",
-    "layout/popups/modActions.json",
-    "layout/popups/settingsNav.json",
-];
 
 /// Run the v2 validators against every file an installed theme ships, for Dev
 /// Mode's validation panel. Order: layout issues, then settings, then CSS.
@@ -1886,8 +1860,6 @@ mod builtin_themes {
     #[test]
     fn every_bundled_builtin_theme_validates_as_an_installed_theme() {
         for id in BUILTIN_THEME_IDS {
-            let dir = shipped().join(id);
-
             let file = theme::get(&shipped(), id).unwrap_or_else(|e| panic!("{id}: {e}"));
             assert_eq!(file.manifest.id, id, "{id}: directory name is its id");
             assert_eq!(file.manifest.schema_version, 2, "{id}: is a v2 package");
@@ -1917,14 +1889,11 @@ mod builtin_themes {
                 }
             }
 
-            if let Some(layout) = &file.layout {
-                theme::validate_layout(layout).unwrap_or_else(|e| panic!("{id}: {e}"));
+            let issues = validate_theme_at(&shipped(), id).unwrap_or_else(|e| panic!("{id}: {e}"));
+            for issue in &issues {
+                println!("VALIDATION ISSUE: {id} {:?} {} {} {}: {}", issue.severity, issue.rule_id, issue.file, issue.pointer, issue.message);
             }
-            if dir.join(theme::STYLES_FILE).is_file() {
-                let css = std::fs::read_to_string(dir.join(theme::STYLES_FILE)).unwrap();
-                crate::theme::css::validate_css(&css)
-                    .unwrap_or_else(|e| panic!("{id} styles.css: {e}"));
-            }
+            assert!(issues.is_empty(), "{id} has validation issues: {issues:#?}");
         }
     }
 

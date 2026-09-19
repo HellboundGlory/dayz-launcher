@@ -8,6 +8,7 @@
     "children": [
       {
         "type": "stack",
+        "id": "r-filterbar",
         "direction": "row",
         "align": "center",
         "justify": "spaceBetween",

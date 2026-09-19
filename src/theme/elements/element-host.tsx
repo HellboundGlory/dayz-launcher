@@ -35,7 +35,9 @@ import {
 } from "./notice-elements";
 import {
   ServerAddress,
+  ServerCheckMods,
   ServerFavourite,
+  ServerGameTime,
   ServerInfo,
   ServerJoin,
   ServerLastPlayed,
@@ -45,9 +47,25 @@ import {
   ServerName,
   ServerPing,
   ServerPlayers,
+  ServerRegion,
+  ServerSubscribeAll,
   ServerTags,
-  ServerTime,
+  ServerUnsubscribeUnique,
 } from "./server-elements";
+import {
+  FilterHideEmpty,
+  FilterHideFull,
+  FilterHideLocked,
+  FilterHideOffline,
+  FilterMap,
+  FilterMaxPing,
+  FilterRegion,
+  FilterReset,
+  FilterSearch,
+  FilterTags,
+  ServersRefresh,
+} from "./filter-elements";
+import { ServerListHost, ServerModsListHost } from "./list-elements";
 import {
   ModActions,
   ModAuthor,
@@ -56,6 +74,9 @@ import {
   ModStatus,
   ModSubscribed,
   ModUpdated,
+  ServerModName,
+  ServerModSize,
+  ServerModState,
 } from "./mod-elements";
 import { useElementContext } from "./context";
 import type { ElementNode } from "../renderer/types";
@@ -138,17 +159,18 @@ export function ElementHost({
     case "server.name":
       return <ServerName className={mergedClass} style={style} />;
     case "server.players":
-      return <ServerPlayers className={mergedClass} style={style} />;
+      return <ServerPlayers options={node.options} className={mergedClass} style={style} />;
     case "server.ping":
       return <ServerPing className={mergedClass} style={style} />;
     case "server.map":
       return <ServerMap className={mergedClass} style={style} />;
+    case "server.gameTime":
     case "server.time":
-      return <ServerTime className={mergedClass} style={style} />;
+      return <ServerGameTime className={mergedClass} style={style} />;
     case "server.tags":
       return <ServerTags className={mergedClass} style={style} />;
     case "server.favourite":
-      return <ServerFavourite className={mergedClass} style={style} />;
+      return <ServerFavourite options={node.options} className={mergedClass} style={style} />;
     case "server.join":
       return <ServerJoin options={node.options} className={mergedClass} style={style} />;
     case "server.info":
@@ -160,7 +182,50 @@ export function ElementHost({
     case "server.lastPlayed":
       return <ServerLastPlayed className={mergedClass} style={style} />;
     case "server.modCount":
-      return <ServerModCount className={mergedClass} style={style} />;
+      return <ServerModCount options={node.options} className={mergedClass} style={style} />;
+    case "server.region":
+      return <ServerRegion options={node.options} className={mergedClass} style={style} />;
+    case "server.checkMods":
+      return <ServerCheckMods options={node.options} className={mergedClass} style={style} />;
+    case "server.subscribeAll":
+      return <ServerSubscribeAll options={node.options} className={mergedClass} style={style} />;
+    case "server.unsubscribeUnique":
+      return <ServerUnsubscribeUnique options={node.options} className={mergedClass} style={style} />;
+
+    case "filter.search":
+      return <FilterSearch options={node.options} className={mergedClass} style={style} />;
+    case "filter.map":
+      return <FilterMap options={node.options} className={mergedClass} style={style} />;
+    case "filter.tags":
+      return <FilterTags options={node.options} className={mergedClass} style={style} />;
+    case "filter.region":
+      return <FilterRegion options={node.options} className={mergedClass} style={style} />;
+    case "filter.maxPing":
+      return <FilterMaxPing className={mergedClass} style={style} />;
+    case "filter.hideEmpty":
+      return <FilterHideEmpty options={node.options} className={mergedClass} style={style} />;
+    case "filter.hideFull":
+      return <FilterHideFull options={node.options} className={mergedClass} style={style} />;
+    case "filter.hideLocked":
+      return <FilterHideLocked options={node.options} className={mergedClass} style={style} />;
+    case "filter.hideOffline":
+      return <FilterHideOffline options={node.options} className={mergedClass} style={style} />;
+    case "servers.refresh":
+      return <ServersRefresh options={node.options} className={mergedClass} style={style} />;
+    case "filter.reset":
+      return <FilterReset className={mergedClass} style={style} />;
+
+    case "list.servers":
+      return <ServerListHost className={mergedClass} style={style} />;
+    case "list.serverMods":
+      return <ServerModsListHost className={mergedClass} style={style} />;
+
+    case "serverMod.state":
+      return <ServerModState options={node.options} className={mergedClass} style={style} />;
+    case "serverMod.name":
+      return <ServerModName className={mergedClass} style={style} />;
+    case "serverMod.size":
+      return <ServerModSize className={mergedClass} style={style} />;
 
     case "mod.name":
       return <ModName className={mergedClass} style={style} />;

@@ -1,6 +1,7 @@
 import type { CSSProperties, MouseEvent } from "react";
 import { Star, Play, Info, MoreHorizontal } from "lucide-react";
 import type { Server } from "@/types/server";
+import { formatLastPlayed, regionName } from "@/lib/utils";
 import { useElementContext } from "./context";
 
 function useServerSubject(): Server | null {
@@ -12,8 +13,18 @@ function useServerSubject(): Server | null {
 }
 
 export function ServerName({ className, style }: { className?: string; style?: CSSProperties }) {
+  const { contextName } = useElementContext();
   const server = useServerSubject();
   if (!server) return null;
+
+  if (contextName === "selection") {
+    return (
+      <div data-el="server.name" className={className ?? "text-lg font-bold text-ink truncate mb-0.5"} style={style}>
+        {server.name}
+      </div>
+    );
+  }
+
   return (
     <span data-el="server.name" className={className ?? "truncate"} style={style}>
       {server.name}
@@ -21,22 +32,70 @@ export function ServerName({ className, style }: { className?: string; style?: C
   );
 }
 
-export function ServerPlayers({ className, style }: { className?: string; style?: CSSProperties }) {
+export function ServerPlayers({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const { contextName } = useElementContext();
   const server = useServerSubject();
   if (!server) return null;
+
+  if (contextName === "selection") {
+    return (
+      <div data-el="server.players" className={className} style={style}>
+        <div data-part="label" className="text-[10px] text-muted uppercase font-bold tracking-wider mb-1">
+          PLAYERS
+        </div>
+        <div data-part="value" className="text-base font-bold tabular-nums leading-none">
+          <span data-part="current">{server.players}</span>/<span data-part="max">{server.max_players}</span>
+        </div>
+      </div>
+    );
+  }
+
+  const showCaption = options?.showCaption !== false;
   return (
     <span data-el="server.players" className={className} style={style}>
-      <span data-part="current">{server.players}</span>/
-      <span data-part="max">{server.max_players}</span>
+      <span data-part="current">{server.players}</span>/<span data-part="max">{server.max_players}</span>
+      {showCaption && options?.caption ? <span> {String(options.caption)}</span> : null}
     </span>
   );
 }
 
 export function ServerPing({ className, style }: { className?: string; style?: CSSProperties }) {
+  const { contextName } = useElementContext();
   const server = useServerSubject();
   if (!server) return null;
+
+  if (contextName === "selection") {
+    return (
+      <div data-el="server.ping" className={className} style={style}>
+        <div data-part="label" className="text-[10px] text-muted uppercase font-bold tracking-wider mb-1">
+          PING
+        </div>
+        <div data-part="value" className="text-base font-bold tabular-nums leading-none">
+          {server.ping ?? "—"} <span className="text-xs font-normal text-muted">ms</span>
+        </div>
+      </div>
+    );
+  }
+
+  const pingClass =
+    server.ping === null
+      ? "text-muted"
+      : server.ping > 120
+        ? "text-danger"
+        : server.ping > 80
+          ? "text-warn"
+          : "text-success";
+
   return (
-    <span data-el="server.ping" className={className} style={style}>
+    <span data-el="server.ping" className={className ?? pingClass} style={style}>
       <span data-part="value">{server.ping ?? "—"}</span>
     </span>
   );
@@ -52,38 +111,84 @@ export function ServerMap({ className, style }: { className?: string; style?: CS
   );
 }
 
-export function ServerTime({ className, style }: { className?: string; style?: CSSProperties }) {
+export function ServerGameTime({ className, style }: { className?: string; style?: CSSProperties }) {
+  const { contextName } = useElementContext();
   const server = useServerSubject();
   if (!server) return null;
+
+  if (contextName === "selection") {
+    return (
+      <div data-el="server.gameTime" className={className} style={style}>
+        <div data-part="label" className="text-[10px] text-muted uppercase font-bold tracking-wider mb-1">
+          TIME
+        </div>
+        <div data-part="value" className="text-base font-bold tabular-nums leading-none">
+          {server.in_game_time ?? "—"}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <span data-el="server.time" className={className} style={style}>
+    <span data-el="server.gameTime" className={className} style={style}>
       {server.in_game_time ?? "—"}
     </span>
   );
 }
+export const ServerTime = ServerGameTime;
 
 export function ServerTags({ className, style }: { className?: string; style?: CSSProperties }) {
   const server = useServerSubject();
   if (!server) return null;
 
   return (
-    <div data-el="server.tags" className={className ?? "flex items-center gap-1"} style={style}>
-      {!server.online && <span data-part="tag" data-state="offline" className="text-danger">OFFLINE</span>}
-      {server.official && <span data-part="tag" data-state="vanilla" className="text-accent">VANILLA</span>}
-      {server.modded && <span data-part="tag" data-state="modded" className="text-accent2">MODDED</span>}
-      {server.first_person && <span data-part="tag" data-state="1pp" className="text-muted">1PP</span>}
-      {server.locked && <span data-part="tag" data-state="locked" className="text-danger">LOCKED</span>}
+    <div data-el="server.tags" className={className ?? "flex items-center gap-1 text-[10px]"} style={style}>
+      {!server.online && <span data-part="tag" data-state="offline" className="text-danger font-semibold">OFFLINE</span>}
+      {server.official && <span data-part="tag" data-state="vanilla" className="text-accent border border-accent/40 px-1 py-0.5 rounded font-semibold">OFFICIAL</span>}
+      {server.modded && <span data-part="tag" data-state="modded" className="text-accent2 border border-accent2/40 px-1 py-0.5 rounded font-semibold">MODDED</span>}
+      {server.first_person && <span data-part="tag" data-state="1pp" className="text-muted border border-border px-1 py-0.5 rounded font-semibold">1PP</span>}
+      {server.locked && <span data-part="tag" data-state="locked" className="text-danger border border-danger/40 px-1 py-0.5 rounded font-semibold">LOCKED</span>}
     </div>
   );
 }
 
-export function ServerFavourite({ className, style }: { className?: string; style?: CSSProperties }) {
+export function ServerFavourite({
+  options: _options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const { contextName } = useElementContext();
   const server = useServerSubject();
   if (!server) return null;
 
   const handleClick = (e: MouseEvent) => {
     e.stopPropagation();
   };
+
+  if (contextName === "selection") {
+    return (
+      <button
+        type="button"
+        data-el="server.favourite"
+        data-state={server.favourite ? "favourite" : undefined}
+        aria-label={server.favourite ? "Remove from favourites" : "Add to favourites"}
+        aria-pressed={server.favourite}
+        onClick={handleClick}
+        className={className ?? "flex-1 py-2 px-3 text-xs font-semibold text-center border border-border bg-surface2 hover:border-accent text-text transition-colors flex items-center justify-center gap-1.5"}
+        style={style}
+      >
+        <Star
+          className="size-3.5"
+          fill={server.favourite ? "currentColor" : "none"}
+        />
+        <span>{server.favourite ? "Favourited" : "Favourite"}</span>
+      </button>
+    );
+  }
 
   return (
     <button
@@ -115,12 +220,14 @@ export function ServerJoin({
   className?: string;
   style?: CSSProperties;
 }) {
+  const { contextName } = useElementContext();
   const server = useServerSubject();
   if (!server) return null;
 
   const wording = (options?.wording as string) ?? "join";
   const display = (options?.display as string) ?? "iconLabel";
-  const labelText = wording === "fixAndJoin" ? "Fix & Join" : "Join";
+  const isFixAndJoin = wording === "fixAndJoin";
+  const labelText = isFixAndJoin ? "FIX AND JOIN" : "Join";
 
   const showIcon = display === "iconLabel" || display === "icon";
   const showLabel = display === "iconLabel" || display === "label";
@@ -129,13 +236,29 @@ export function ServerJoin({
     e.stopPropagation();
   };
 
+  if (contextName === "selection" && isFixAndJoin) {
+    return (
+      <button
+        type="button"
+        data-el="server.join"
+        onClick={handleClick}
+        aria-label="Fix and join"
+        className={className ?? "flex items-center justify-between w-full bg-accent px-4 py-2.5 font-bold text-bg uppercase tracking-wider transition-colors hover:brightness-110 my-1"}
+        style={style}
+      >
+        <span data-part="label">{labelText}</span>
+        <span data-part="sublabel" className="text-xs font-semibold opacity-90">1.6 GB first</span>
+      </button>
+    );
+  }
+
   return (
     <button
       type="button"
       data-el="server.join"
       onClick={handleClick}
       aria-label={labelText}
-      className={className ?? "flex items-center gap-1.5 [border-radius:var(--t-radius-controlSmall)] bg-accent px-3 py-1 font-semibold text-bg"}
+      className={className ?? "flex items-center gap-1.5 bg-accent px-3 py-1 font-semibold text-bg"}
       style={style}
     >
       {showIcon && (
@@ -193,8 +316,17 @@ export function ServerMenu({ className, style }: { className?: string; style?: C
 }
 
 export function ServerAddress({ className, style }: { className?: string; style?: CSSProperties }) {
+  const { contextName } = useElementContext();
   const server = useServerSubject();
   if (!server) return null;
+
+  if (contextName === "selection") {
+    return (
+      <div data-el="server.address" className={className ?? "text-xs text-muted font-mono-data mb-3"} style={style}>
+        {server.addr}:{server.game_port} · game port {server.game_port} · DayZ {server.version}
+      </div>
+    );
+  }
 
   return (
     <span data-el="server.address" className={className ?? "font-mono-data text-muted"} style={style}>
@@ -205,22 +337,130 @@ export function ServerAddress({ className, style }: { className?: string; style?
 
 export function ServerLastPlayed({ className, style }: { className?: string; style?: CSSProperties }) {
   const server = useServerSubject();
-  if (!server || !server.last_played) return null;
-
+  if (!server) return null;
+  const text = server.last_played ? formatLastPlayed(server.last_played) : "never";
   return (
-    <span data-el="server.lastPlayed" className={className ?? "text-muted"} style={style}>
-      Played
+    <span data-el="server.lastPlayed" className={className ?? "text-muted font-mono-data"} style={style}>
+      {text}
     </span>
   );
 }
 
-export function ServerModCount({ className, style }: { className?: string; style?: CSSProperties }) {
+export function ServerModCount({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const { contextName } = useElementContext();
   const server = useServerSubject();
   if (!server) return null;
 
+  if (contextName === "selection") {
+    return (
+      <div data-el="server.modCount" className={className} style={style}>
+        <div data-part="label" className="text-[10px] text-muted uppercase font-bold tracking-wider mb-1">
+          MODS
+        </div>
+        <div data-part="value" className="text-base font-bold tabular-nums leading-none">
+          {server.mod_count ?? 0}
+        </div>
+      </div>
+    );
+  }
+
+  const showCaption = options?.showCaption !== false;
   return (
     <span data-el="server.modCount" className={className ?? "font-mono-data text-muted"} style={style}>
-      {server.mod_count ?? 0} mods
+      {server.mod_count ?? 0}{showCaption ? " mods" : ""}
     </span>
+  );
+}
+
+export function ServerRegion({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const server = useServerSubject();
+  if (!server) return null;
+  const isCode = options?.format === "code";
+  return (
+    <span data-el="server.region" className={className ?? "text-muted font-mono-data"} style={style}>
+      {isCode ? (server.country_code ?? "—") : regionName(server.country_code)}
+    </span>
+  );
+}
+
+export function ServerCheckMods({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const label = (options?.label as string) ?? "Verify mods";
+  return (
+    <button
+      type="button"
+      data-el="server.checkMods"
+      className={className ?? "flex-1 py-2 px-3 text-xs font-semibold text-center border border-border bg-surface2 hover:border-accent text-text transition-colors"}
+      style={style}
+    >
+      <span data-part="label">{label}</span>
+    </button>
+  );
+}
+
+export function ServerSubscribeAll({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const label = (options?.label as string) ?? "Subscribe all";
+  return (
+    <button
+      type="button"
+      data-el="server.subscribeAll"
+      className={className ?? "flex-1 py-2 px-3 text-xs font-semibold text-center border border-border bg-surface2 hover:border-accent text-text transition-colors"}
+      style={style}
+    >
+      <span data-part="label">{label}</span>
+    </button>
+  );
+}
+
+export function ServerUnsubscribeUnique({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const label = (options?.label as string) ?? "Unsubscribe all";
+  return (
+    <button
+      type="button"
+      data-el="server.unsubscribeUnique"
+      className={className ?? "flex-1 py-2 px-3 text-xs font-semibold text-center border border-border bg-surface2 hover:border-accent text-text transition-colors"}
+      style={style}
+    >
+      <span data-part="label">{label}</span>
+    </button>
   );
 }

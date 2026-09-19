@@ -7,6 +7,7 @@
     "children": [
       {
         "type": "stack",
+        "id": "r-header",
         "direction": "row",
         "align": "center",
         "landmark": "banner",
@@ -49,6 +50,7 @@
       },
       {
         "type": "stack",
+        "id": "r-footer",
         "direction": "row",
         "align": "center",
         "justify": "spaceBetween",

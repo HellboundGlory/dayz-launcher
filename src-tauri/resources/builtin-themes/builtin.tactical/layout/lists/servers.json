@@ -5,12 +5,12 @@
     { "id": "name", "width": "1fr", "align": "start", "sort": "name" },
     { "id": "address", "width": "150px", "align": "start", "label": "ADDRESS" },
     { "id": "time", "width": "64px", "align": "start", "label": "TIME" },
-    { "id": "lastPlayed", "width": "88px", "align": "start", "sort": "lastPlayed" },
-    { "id": "map", "width": "96px", "align": "start", "sort": "map" },
-    { "id": "players", "width": "64px", "align": "end", "sort": "players" },
-    { "id": "mods", "width": "52px", "align": "end", "sort": "mods" },
+    { "id": "last-played", "width": "88px", "align": "start", "sort": "lastPlayed", "label": "LAST PLAYED" },
+    { "id": "map", "width": "96px", "align": "start", "sort": "map", "label": "MAP" },
+    { "id": "players", "width": "64px", "align": "end", "sort": "players", "label": "PLAYERS" },
+    { "id": "mods", "width": "52px", "align": "end", "sort": "mods", "label": "MODS" },
     { "id": "cc", "width": "34px", "align": "end", "label": "CC" },
-    { "id": "ping", "width": "52px", "align": "end", "sort": "ping" },
+    { "id": "ping", "width": "52px", "align": "end", "sort": "ping", "label": "PING" },
     { "id": "actions", "width": "auto", "align": "end" }
   ],
   "row": {
@@ -43,7 +43,7 @@
       },
       {
         "element": "server.lastPlayed",
-        "column": "lastPlayed"
+        "column": "last-played"
       },
       {
         "element": "server.map",
@@ -78,11 +78,20 @@
         }
       },
       {
-        "element": "server.join",
+        "type": "stack",
+        "direction": "row",
         "column": "actions",
-        "options": {
-          "display": "icon"
-        }
+        "children": [
+          {
+            "element": "server.join",
+            "options": {
+              "display": "icon"
+            }
+          },
+          {
+            "element": "server.actionNotice"
+          }
+        ]
       }
     ]
   }

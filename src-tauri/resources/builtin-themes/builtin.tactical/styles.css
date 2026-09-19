@@ -1,13 +1,109 @@
 /* Tactical v2 HUD theme styles */
 
+/* Shell Header & Footer */
+[data-region="r-header"] {
+  border-bottom: 1px solid var(--border);
+  padding: 8px 16px;
+  background-color: var(--surface);
+  gap: 16px;
+  border-radius: 0;
+}
+
+[data-region="r-footer"] {
+  border-top: 1px solid var(--border);
+  padding: 6px 16px;
+  background-color: var(--surface);
+  font-size: 11px;
+  color: var(--muted);
+  border-radius: 0;
+}
+
+[data-region="r-filterbar"] {
+  border-bottom: 1px solid var(--border);
+  padding: 8px 16px;
+  background-color: var(--surface);
+  gap: 12px;
+  border-radius: 0;
+}
+
+[data-region="r-main"] {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+/* Header Elements */
+[data-el="app.logo"] [data-part="image"] {
+  display: none;
+}
+
+[data-el="app.logo"] [data-part="wordmark"] {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #e2e8f0;
+}
+
+[data-surface="surface.windowControls"] {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 12px;
+}
+
+[data-surface="surface.windowControls"] [data-el^="app."] {
+  padding: 4px 6px;
+  color: #64748b;
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-surface="surface.windowControls"] [data-el^="app."]:hover {
+  color: #e2e8f0;
+}
+
+[data-surface="surface.windowControls"] [data-el="app.close"]:hover {
+  color: #ef4444;
+}
+
+[data-el="nav.mods"],
+[data-el="nav.settings"] {
+  color: #64748b;
+  background: transparent;
+  border: none;
+  padding: 4px;
+}
+
+[data-el="nav.mods"]:hover,
+[data-el="nav.settings"]:hover {
+  color: #94a3b8;
+}
+
 /* Top Navigation Tabs */
 [data-el="nav.servers"],
 [data-el="nav.favourites"],
 [data-el="nav.recent"] {
-  border-radius: 0;
-  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  border: 1px solid transparent;
+  background-color: transparent;
+  transition: all 0.15s ease;
+}
+
+[data-el="nav.servers"]:hover,
+[data-el="nav.favourites"]:hover,
+[data-el="nav.recent"]:hover {
+  color: #94a3b8;
 }
 
 [data-el="nav.servers"][aria-selected="true"],
@@ -15,19 +111,22 @@
 [data-el="nav.recent"][aria-selected="true"],
 [data-el="nav.servers"][data-state~="active"],
 [data-el="nav.favourites"][data-state~="active"],
-[data-el="nav.recent"][data-state~="active"] {
+[data-el="nav.recent"][data-state~="active"],
+[data-el="nav.servers"][data-state="current"],
+[data-el="nav.favourites"][data-state="current"],
+[data-el="nav.recent"][data-state="current"] {
   border: 1px solid var(--accent);
   color: var(--accent);
-  background-color: var(--surface2);
+  background-color: rgba(95, 168, 211, 0.12);
 }
 
 /* Filter Bar & Hide Toggles */
 [data-el^="filter."] {
-  border-radius: 0;
+  border-radius: 2px;
 }
 
 [data-el^="filter.hide"] {
-  border-radius: 0;
+  border-radius: 2px;
   border: 1px solid var(--border);
   background-color: var(--surface);
   text-transform: uppercase;
@@ -88,6 +187,11 @@
   padding: 16px;
   background-color: var(--surface);
   border-radius: 0;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 /* Stat Block */
@@ -104,10 +208,55 @@
   padding: 8px;
   background-color: var(--surface2);
   font-family: var(--font-data);
-  border-radius: 0;
+  border-radius: 2px;
+}
+
+[data-region="r-stats"] [data-part="label"] {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+[data-region="r-stats"] [data-part="value"] {
+  color: #f8fafc;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Action Notice Card */
+[data-el="server.actionNotice"] {
+  border: 1px solid #785a28;
+  background-color: #1a1710;
+  padding: 10px 12px;
+  border-radius: 2px;
+}
+
+[data-el="server.actionNotice"] [data-part="title"] {
+  color: #f59e0b;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+[data-el="server.actionNotice"] [data-part="message"] {
+  color: #94a3b8;
+  font-size: 11px;
+  margin-top: 4px;
 }
 
 /* Mod Readiness List */
+[data-el="list.serverMods"],
+[data-list="serverMods"] {
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  border-radius: 2px;
+}
+
 [data-el="list.serverMods"] [data-row],
 [data-list="serverMods"] [data-row] {
   padding: 4px 8px;
@@ -117,9 +266,9 @@
 
 /* Action Buttons */
 [data-el="server.join"] {
-  border-radius: 0;
+  border-radius: 2px;
   background-color: var(--accent);
-  color: var(--bg);
+  color: #0e1116;
   border: 1px solid var(--accent2);
   font-weight: 700;
   text-transform: uppercase;
@@ -136,10 +285,13 @@
 [data-el="server.favourite"],
 [data-el="servers.refresh"],
 [data-el="filter.reset"] {
-  border-radius: 0;
+  border-radius: 2px;
   border: 1px solid var(--border);
   background-color: var(--surface2);
-  color: var(--text);
+  color: #cbd5e1;
+  font-size: 12px;
+  padding: 8px 12px;
+  transition: border-color 0.15s ease, color 0.15s ease;
 }
 
 [data-el="server.checkMods"]:hover,
@@ -149,6 +301,7 @@
 [data-el="servers.refresh"]:hover,
 [data-el="filter.reset"]:hover {
   border-color: var(--accent);
+  color: #f8fafc;
 }
 
 /* General HUD Surfaces & Modals */
