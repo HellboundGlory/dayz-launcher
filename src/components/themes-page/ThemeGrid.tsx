@@ -14,6 +14,9 @@ export interface GridEntry {
   version?: string;
   /** The manifest's own relative preview path; absent for built-ins. */
   preview?: string;
+  /** True when the backend's scan flagged this theme's schema/API as unsupported. */
+  incompatible?: boolean;
+  incompatibleReason?: string;
 }
 
 interface ThemeGridProps {
@@ -45,7 +48,16 @@ export function buildGridEntries(installedThemes: ThemeSummary[]): GridEntry[] {
   const showcase = BUILTIN_SHOWCASE_IDS.flatMap((id) => {
     const t = installedThemes.find((theme) => theme.id === id);
     return t
-      ? [{ id: t.id, name: t.name, builtin: true, author: t.author, version: t.version, preview: gridPreview(t) }]
+      ? [{
+          id: t.id,
+          name: t.name,
+          builtin: true,
+          author: t.author,
+          version: t.version,
+          preview: gridPreview(t),
+          incompatible: t.incompatible,
+          incompatibleReason: t.incompatibleReason ?? undefined,
+        }]
       : [];
   });
   const rest = installedThemes.filter((t) => !(t.id in IS_SHOWCASE));
@@ -59,6 +71,8 @@ export function buildGridEntries(installedThemes: ThemeSummary[]): GridEntry[] {
       author: t.author,
       version: t.version,
       preview: gridPreview(t),
+      incompatible: t.incompatible,
+      incompatibleReason: t.incompatibleReason ?? undefined,
     })),
   ];
 }
@@ -145,17 +159,22 @@ export function ThemeGrid({
               active={entry.id === activeId}
               swatches={[dark.bg, dark.surface, dark.accent, dark.text]}
               previewUrl={entry.preview ? resolveThemeAsset(entry.id, entry.preview) : undefined}
-              onActivate={() => onActivate(entry.id)}
-              onDuplicate={() =>
-                onDuplicate(
-                  entry.id,
-                  nextDuplicateName(
-                    entry.name,
-                    entries.map((e) => e.name),
-                  ),
-                )
+              incompatible={entry.incompatible}
+              incompatibleReason={entry.incompatibleReason}
+              onActivate={entry.incompatible ? undefined : () => onActivate(entry.id)}
+              onDuplicate={
+                entry.incompatible
+                  ? undefined
+                  : () =>
+                      onDuplicate(
+                        entry.id,
+                        nextDuplicateName(
+                          entry.name,
+                          entries.map((e) => e.name),
+                        ),
+                      )
               }
-              onExport={custom ? () => onExport(entry.id) : undefined}
+              onExport={custom && !entry.incompatible ? () => onExport(entry.id) : undefined}
               // The active theme can't delete itself out from under the launcher.
               onRequestDelete={
                 custom && entry.id !== activeId
