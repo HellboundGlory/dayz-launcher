@@ -9,19 +9,31 @@ vi.mock("./ThemeCard", () => ({
   ThemeCard: ({
     name,
     builtin,
+    onActivate,
+    onDuplicate,
     onExport,
     onRequestDelete,
+    incompatible,
+    incompatibleReason,
   }: {
     name: string;
     builtin: boolean;
+    onActivate?: () => void;
+    onDuplicate?: () => void;
     onExport?: () => void;
     onRequestDelete?: () => void;
+    incompatible?: boolean;
+    incompatibleReason?: string;
   }) => (
     <p
       data-name={name}
       data-builtin={String(builtin)}
+      data-has-activate={onActivate !== undefined ? "yes" : "no"}
+      data-has-duplicate={onDuplicate !== undefined ? "yes" : "no"}
       data-has-export={onExport !== undefined ? "yes" : "no"}
       data-has-delete={onRequestDelete !== undefined ? "yes" : "no"}
+      data-incompatible={String(Boolean(incompatible))}
+      data-reason={incompatibleReason ?? ""}
     />
   ),
 }));
@@ -56,9 +68,19 @@ const renderGrid = (installed: ThemeSummary[]) =>
   );
 
 const cards = (html: string) =>
-  [...html.matchAll(/data-name="([^"]+)" data-builtin="(\w+)" data-has-export="(\w+)" data-has-delete="(\w+)"/g)].map(
-    ([, name, builtin, hasExport, hasDelete]) => ({ name, builtin, hasExport, hasDelete }),
-  );
+  [...html.matchAll(/<p ([^>]+)><\/p>/g)].map(([, attrs]) => {
+    const get = (attr: string) => attrs.match(new RegExp(`${attr}="([^"]*)"`))?.[1] ?? "";
+    return {
+      name: get("data-name"),
+      builtin: get("data-builtin"),
+      hasActivate: get("data-has-activate"),
+      hasDuplicate: get("data-has-duplicate"),
+      hasExport: get("data-has-export"),
+      hasDelete: get("data-has-delete"),
+      incompatible: get("data-incompatible"),
+      reason: get("data-reason"),
+    };
+  });
 
 describe("buildGridEntries", () => {
   it("orders neutral, then the showcase theme, then user themes", () => {
@@ -98,6 +120,23 @@ describe("buildGridEntries", () => {
     const entries = buildGridEntries([summary("local.x", "X")]);
     expect(entries.find((e) => e.id === "local.x")).toMatchObject({ preview: undefined });
   });
+
+  it("carries an incompatible theme's flag and reason through, still present in the grid", () => {
+    const t = { ...summary("local.old", "Old Skin"), incompatible: true, incompatibleReason: "v1 theme" };
+    const entries = buildGridEntries([t]);
+    expect(entries.find((e) => e.id === "local.old")).toMatchObject({
+      incompatible: true,
+      incompatibleReason: "v1 theme",
+    });
+  });
+
+  it("leaves incompatible undefined for an ordinary theme", () => {
+    const entries = buildGridEntries([summary("local.x", "X")]);
+    expect(entries.find((e) => e.id === "local.x")).toMatchObject({
+      incompatible: undefined,
+      incompatibleReason: undefined,
+    });
+  });
 });
 
 describe("ThemeGrid render", () => {
@@ -113,9 +152,26 @@ describe("ThemeGrid render", () => {
 
   it("still offers export and delete for an ordinary installed theme", () => {
     const page = cards(renderGrid([summary("local.myskin", "My Skin")]));
-    expect(page).toEqual([
+    expect(page).toMatchObject([
       { name: "Neutral", builtin: "true", hasExport: "no", hasDelete: "no" },
       { name: "My Skin", builtin: "false", hasExport: "yes", hasDelete: "yes" },
     ]);
+  });
+
+  it("lists an incompatible theme as delete-only, with its reason and no activate/duplicate/export", () => {
+    const t = {
+      ...summary("local.old", "Old Skin"),
+      incompatible: true,
+      incompatibleReason: "Built for theme API 1.0, which v2 no longer runs.",
+    };
+    const page = cards(renderGrid([t]));
+    expect(page.find((c) => c.name === "Old Skin")).toMatchObject({
+      incompatible: "true",
+      reason: "Built for theme API 1.0, which v2 no longer runs.",
+      hasActivate: "no",
+      hasDuplicate: "no",
+      hasExport: "no",
+      hasDelete: "yes",
+    });
   });
 });
