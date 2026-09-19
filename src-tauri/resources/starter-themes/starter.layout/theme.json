@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 2,
+  "id": "starter.layout",
+  "name": "Custom layout",
+  "author": "Tetra Launcher",
+  "version": "1.0.0",
+  "themeApi": "2.0",
+  "minimumLauncherVersion": "2.6.0",
+  "description": "Lays out the window itself: a shell, a view, a list row and a detail panel. Copy this one to rearrange where things go, not just how they look.",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "homepage": "https://tetralauncher.com/",
+  "tags": ["starter", "layout"],
+  "capabilities": ["tokens", "css", "layout", "settings"]
+}

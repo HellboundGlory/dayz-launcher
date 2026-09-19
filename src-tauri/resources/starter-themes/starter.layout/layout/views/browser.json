@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 2,
+  "root": {
+    "type": "stack",
+    "direction": "column",
+    "height": "100%",
+    "grow": 1,
+    "children": [
+      { "surface": "surface.filterBar" },
+      {
+        "type": "stack",
+        "direction": "row",
+        "grow": 1,
+        "children": [
+          {
+            "type": "stack",
+            "id": "r-detail",
+            "context": "selection",
+            "direction": "column",
+            "children": [
+              { "element": "server.name" },
+              { "element": "server.tags" },
+              {
+                "type": "stack",
+                "direction": "row",
+                "children": [
+                  { "element": "server.players" },
+                  { "element": "server.ping" }
+                ]
+              },
+              {
+                "type": "stack",
+                "direction": "row",
+                "children": [
+                  { "element": "server.map" },
+                  { "element": "server.gameTime" }
+                ]
+              },
+              { "element": "server.address" },
+              { "element": "list.serverMods" },
+              {
+                "type": "stack",
+                "direction": "row",
+                "children": [
+                  { "element": "server.join" },
+                  { "element": "server.actionNotice" }
+                ]
+              }
+            ]
+          },
+          { "element": "list.servers", "grow": 1 }
+        ]
+      }
+    ]
+  }
+}
