@@ -79,6 +79,25 @@ describe("buildGridEntries", () => {
     const entries = buildGridEntries([summary("local.x", "X")]);
     expect(entries.map((e) => e.id)).toEqual(["neutral", "local.x"]);
   });
+
+  it("prefers the first previews entry over the legacy preview field", () => {
+    const t = { ...summary("local.x", "X"), preview: "preview.png", previews: [{ file: "previews/one.png", caption: "One" }] };
+    const entries = buildGridEntries([t]);
+    expect(entries.find((e) => e.id === "local.x")).toMatchObject({ preview: "previews/one.png" });
+  });
+
+  it("falls back to the legacy preview field when previews is absent or empty", () => {
+    const withoutField = summary("local.x", "X");
+    const withEmpty = { ...summary("local.y", "Y"), previews: [] };
+    const entries = buildGridEntries([{ ...withoutField, preview: "preview.png" }, { ...withEmpty, preview: "preview.png" }]);
+    expect(entries.find((e) => e.id === "local.x")).toMatchObject({ preview: "preview.png" });
+    expect(entries.find((e) => e.id === "local.y")).toMatchObject({ preview: "preview.png" });
+  });
+
+  it("yields no preview when neither field is set", () => {
+    const entries = buildGridEntries([summary("local.x", "X")]);
+    expect(entries.find((e) => e.id === "local.x")).toMatchObject({ preview: undefined });
+  });
 });
 
 describe("ThemeGrid render", () => {

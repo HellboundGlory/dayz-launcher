@@ -4,8 +4,33 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { CheckCircle2, FileArchive, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { confirmThemeInstall, importThemePreview } from "@/lib/tauri";
-import type { ThemeImportPreview, ThemeManifest, ThemeSummary } from "@/types/theme";
+import { resolveThemeAsset } from "@/theme/asset-resolver";
+import type { ThemeImportPreview, ThemeManifest, ThemePreview, ThemeSummary } from "@/types/theme";
 import { capabilityLabel, capabilityLabels } from "./capability-labels";
+
+const MAX_RENDERED_PREVIEWS = 5;
+
+/** One staged preview image + caption. Mirrors `ThemeCard`'s image-failure fallback: a broken
+ * image hides itself and keeps its caption, rather than showing a broken-image icon. */
+function PreviewThumb({ stagingId, preview }: { stagingId: string; preview: ThemePreview }) {
+  const [failed, setFailed] = useState(false);
+  const url = resolveThemeAsset(stagingId, preview.file);
+  return (
+    <figure className="w-28 shrink-0">
+      {!failed && (
+        <img
+          src={url}
+          alt=""
+          onError={() => setFailed(true)}
+          className="h-16 w-28 [border-radius:var(--t-radius-thumb)] border border-line object-cover"
+        />
+      )}
+      <figcaption className="mt-1 truncate [font-size:var(--t-type-micro-size)] text-muted" title={preview.caption}>
+        {preview.caption}
+      </figcaption>
+    </figure>
+  );
+}
 
 interface ImportThemeDialogProps {
   /** Consulted for the currently-installed version behind an update/downgrade/same_version message. */
@@ -318,6 +343,14 @@ export function ImportThemeDialog({
                     </p>
                   )}
                 </div>
+
+                {manifest.previews && manifest.previews.length > 0 && (
+                  <div className="flex gap-2 overflow-x-auto">
+                    {manifest.previews.slice(0, MAX_RENDERED_PREVIEWS).map((p, i) => (
+                      <PreviewThumb key={i} stagingId={preview.stagingId} preview={p} />
+                    ))}
+                  </div>
+                )}
 
                 <div>
                   <h4 className="[font-size:var(--t-type-compactCaption-size)] font-bold uppercase tracking-wider text-muted2">

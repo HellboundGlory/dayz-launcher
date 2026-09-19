@@ -35,12 +35,17 @@ const IS_SHOWCASE = Object.fromEntries(
   BUILTIN_SHOWCASE_IDS.map((id) => [id, true as const]),
 ) as Record<string, true>;
 
+/** The grid card's image: the first `previews` entry, falling back to v1's single `preview`. */
+function gridPreview(t: ThemeSummary): string | undefined {
+  return t.previews?.[0]?.file ?? t.preview ?? undefined;
+}
+
 /** Neutral, then the showcase themes in fixed order, then installed themes. */
 export function buildGridEntries(installedThemes: ThemeSummary[]): GridEntry[] {
   const showcase = BUILTIN_SHOWCASE_IDS.flatMap((id) => {
     const t = installedThemes.find((theme) => theme.id === id);
     return t
-      ? [{ id: t.id, name: t.name, builtin: true, author: t.author, version: t.version, preview: t.preview ?? undefined }]
+      ? [{ id: t.id, name: t.name, builtin: true, author: t.author, version: t.version, preview: gridPreview(t) }]
       : [];
   });
   const rest = installedThemes.filter((t) => !(t.id in IS_SHOWCASE));
@@ -53,7 +58,7 @@ export function buildGridEntries(installedThemes: ThemeSummary[]): GridEntry[] {
       builtin: false,
       author: t.author,
       version: t.version,
-      preview: t.preview ?? undefined,
+      preview: gridPreview(t),
     })),
   ];
 }
