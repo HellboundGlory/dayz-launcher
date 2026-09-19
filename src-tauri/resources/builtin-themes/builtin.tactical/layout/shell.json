@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 2,
+  "root": {
+    "type": "stack",
+    "direction": "column",
+    "height": "100%",
+    "children": [
+      {
+        "type": "stack",
+        "direction": "row",
+        "align": "center",
+        "landmark": "banner",
+        "children": [
+          { "element": "app.logo" },
+          {
+            "type": "stack",
+            "direction": "row",
+            "landmark": "navigation",
+            "children": [
+              { "element": "nav.servers", "options": { "display": "label" } },
+              { "element": "nav.favourites", "options": { "display": "label" } },
+              { "element": "nav.recent", "options": { "display": "label" } }
+            ]
+          },
+          { "element": "app.dragRegion", "grow": 1 },
+          {
+            "type": "stack",
+            "direction": "row",
+            "align": "center",
+            "children": [
+              { "element": "nav.mods", "options": { "display": "icon" } },
+              { "element": "nav.settings", "options": { "display": "icon" } },
+              { "element": "status.steam" },
+              { "surface": "surface.windowControls" }
+            ]
+          }
+        ]
+      },
+      { "element": "notice.error" },
+      { "element": "notice.storage" },
+      {
+        "type": "box",
+        "id": "r-main",
+        "landmark": "main",
+        "grow": 1,
+        "children": [
+          { "type": "outlet", "name": "view" }
+        ]
+      },
+      {
+        "type": "stack",
+        "direction": "row",
+        "align": "center",
+        "justify": "spaceBetween",
+        "landmark": "contentinfo",
+        "children": [
+          {
+            "type": "stack",
+            "direction": "row",
+            "align": "center",
+            "children": [
+              { "element": "status.serverTotal" },
+              { "element": "status.populated" },
+              { "element": "status.lastRefreshed" }
+            ]
+          },
+          {
+            "type": "text",
+            "value": "Verify = Steam reports installed & current · not a checksum",
+            "role": "caption"
+          }
+        ]
+      },
+      { "type": "outlet", "name": "modals" }
+    ]
+  }
+}
