@@ -14,9 +14,10 @@ import { PRESETS } from "@/theme/palette";
 import { ThemeCustomiser } from "../theme-customiser";
 import { ThemeGrid, nextDuplicateName } from "./ThemeGrid";
 import { ThemeSettingsForm } from "./ThemeSettingsForm";
-import { newThemeRequest, byTier } from "./new-theme";
+import { newThemeRequest, byCapability } from "./new-theme";
 import { ImportThemeDialog } from "./ImportThemeDialog";
 import { ExportThemeDialog } from "./ExportThemeDialog";
+import { capabilityLabel } from "./capability-labels";
 
 const TOOLBAR_BTN =
   "flex items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-1.5 [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-[0.04em] text-muted2 transition-colors hover:text-ink";
@@ -146,7 +147,7 @@ export function ThemesSection({
             <button type="button" onClick={handleBlankTheme} className={ACTION_BTN}>
               Blank (copy Neutral)
             </button>
-            {byTier(templates).map((template) => (
+            {byCapability(templates).map((template) => (
               <button
                 key={template.id}
                 type="button"
@@ -156,7 +157,7 @@ export function ThemesSection({
               >
                 {template.name}
                 <span className="ml-1.5 font-mono-data [font-size:var(--t-type-caption-size)] normal-case text-muted">
-                  {template.tier}
+                  {capabilityLabel(template.capabilities)}
                 </span>
               </button>
             ))}
@@ -188,7 +189,7 @@ export function ThemesSection({
           <strong className="[font-size:var(--t-type-subheading-size)] text-ink">{activeName}</strong>
           {installed && (
             <span className="font-mono-data [font-size:var(--t-type-label-size)] text-muted">
-              v{installed.version} · {installed.tier}
+              v{installed.version} · {capabilityLabel(installed.capabilities)}
             </span>
           )}
         </div>

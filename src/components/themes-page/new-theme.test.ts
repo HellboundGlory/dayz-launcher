@@ -3,21 +3,21 @@
  * pins that a scaffolded theme lands on an id of the same shape — and that a
  * pick naming a template this build doesn't ship calls nothing at all. */
 import { describe, expect, it } from "vitest";
-import { byTier, newThemeRequest } from "./new-theme";
+import { byCapability, newThemeRequest } from "./new-theme";
 import type { ThemeSummary } from "@/types/theme";
 
-const template = (id: string, tier = "basic"): ThemeSummary => ({
+const template = (id: string, capabilities: string[] = ["tokens"]): ThemeSummary => ({
   id,
   name: id,
   author: "Tetra Launcher",
   version: "1.0.0",
   themeApi: "1.0",
   minimumLauncherVersion: "2.6.0",
-  tier,
+  tier: "",
   description: "",
   preview: null,
   tags: [],
-  capabilities: ["tokens"],
+  capabilities,
 });
 
 const TEMPLATES = [template("starter.basic"), template("starter.advanced")];
@@ -55,27 +55,27 @@ describe("newThemeRequest", () => {
   });
 });
 
-describe("byTier", () => {
-  it("lists the tiers in the order they build on each other, not alphabetically", () => {
-    const listed = byTier([
-      template("starter.expert", "expert"),
-      template("starter.basic", "basic"),
-      template("starter.advanced", "advanced"),
+describe("byCapability", () => {
+  it("lists the starters in the order they build on each other, not alphabetically", () => {
+    const listed = byCapability([
+      template("starter.layout", ["tokens", "css", "layout", "settings"]),
+      template("starter.colours", ["tokens"]),
+      template("starter.styled", ["tokens", "css", "settings"]),
     ]);
 
     expect(listed.map((t) => t.id)).toEqual([
-      "starter.basic",
-      "starter.advanced",
-      "starter.expert",
+      "starter.colours",
+      "starter.styled",
+      "starter.layout",
     ]);
   });
 
-  it("keeps a template whose tier it does not know rather than dropping it", () => {
-    const listed = byTier([
-      template("starter.future", "future"),
-      template("starter.basic", "basic"),
+  it("sorts templates sharing a label by id", () => {
+    const listed = byCapability([
+      template("starter.zebra", ["tokens"]),
+      template("starter.alpha", ["tokens"]),
     ]);
 
-    expect(listed.map((t) => t.id)).toEqual(["starter.basic", "starter.future"]);
+    expect(listed.map((t) => t.id)).toEqual(["starter.alpha", "starter.zebra"]);
   });
 });

@@ -3,7 +3,7 @@
  * actually packages. Both stood in for hand-written/plain-text copy that had
  * already drifted, so these pin the mapping rather than the markup. */
 import { describe, expect, it } from "vitest";
-import { capabilityLabels } from "./ImportThemeDialog";
+import { capabilityLabel, capabilityLabels } from "./capability-labels";
 import { packagedFiles } from "./ExportThemeDialog";
 
 describe("capabilityLabels", () => {
@@ -42,6 +42,24 @@ describe("capabilityLabels", () => {
       "fonts",
       "assets",
     ])).toEqual(["Custom CSS", "Fonts", "Assets"]);
+  });
+});
+
+describe("capabilityLabel", () => {
+  it("returns Custom layout when layout is present, whatever else is", () => {
+    expect(capabilityLabel(["layout"])).toBe("Custom layout");
+    expect(capabilityLabel(["tokens", "layout", "css", "fonts"])).toBe("Custom layout");
+  });
+
+  it("returns Styled for css or fonts without layout", () => {
+    expect(capabilityLabel(["css"])).toBe("Styled");
+    expect(capabilityLabel(["fonts"])).toBe("Styled");
+    expect(capabilityLabel(["tokens", "css", "fonts"])).toBe("Styled");
+  });
+
+  it("returns Colours for tokens alone and for an empty list", () => {
+    expect(capabilityLabel(["tokens"])).toBe("Colours");
+    expect(capabilityLabel([])).toBe("Colours");
   });
 });
 
