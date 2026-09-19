@@ -51,14 +51,19 @@ fn read_asset(themes_root: &Path, uri: &Uri) -> Result<(&'static str, Vec<u8>), 
     Ok((content_type, bytes))
 }
 
-/// `tetra-theme://<theme id>/<relative path>` -> its two halves. The path
-/// arrives percent-encoded; an asset name may hold spaces or non-ASCII.
+/// `tetra-theme://<theme id>/<relative path>` -> its two halves. Both arrive
+/// percent-encoded: an asset name may hold spaces or non-ASCII, and a staged
+/// package's id is `.staging/<staging id>` — the `/` the URI grammar forbids
+/// in a bare host is what the frontend percent-encodes to get it there.
 fn split_uri(uri: &Uri) -> Result<(String, String), String> {
+    let theme_id = percent_encoding::percent_decode_str(uri.host().unwrap_or_default())
+        .decode_utf8()
+        .map_err(|_| "The request host is not valid UTF-8.".to_string())?;
     let rel_path = percent_encoding::percent_decode_str(uri.path())
         .decode_utf8()
         .map_err(|_| "The request path is not valid UTF-8.".to_string())?;
     Ok((
-        uri.host().unwrap_or_default().to_string(),
+        theme_id.into_owned(),
         rel_path.trim_start_matches('/').to_string(),
     ))
 }
@@ -71,12 +76,34 @@ pub fn resolve_asset(
     theme_id: &str,
     rel_path: &str,
 ) -> Result<PathBuf, String> {
-    // The id becomes a path component, exactly as in `theme::theme_dir`.
-    if !crate::theme::is_usable_id(theme_id) {
+    let staging_prefix = format!("{}/", crate::theme::archive::STAGING_DIR);
+    let (theme_dir, id_for_errors) = if theme_id == crate::theme::archive::STAGING_DIR {
         return Err(format!(
-            "`{theme_id}` is not a usable theme id — it must be a single directory name"
+            "`{theme_id}` names the staging area itself, not a staged package"
         ));
-    }
+    } else if let Some(staging_id) = theme_id.strip_prefix(&staging_prefix) {
+        // The staging id becomes a path component the same way an installed
+        // id does; a `/` inside it (e.g. a second segment) fails this check.
+        if !crate::theme::is_usable_id(staging_id) {
+            return Err(format!(
+                "`{staging_id}` is not a usable staging id — it must be a single directory name"
+            ));
+        }
+        (
+            themes_root
+                .join(crate::theme::archive::STAGING_DIR)
+                .join(staging_id),
+            theme_id.to_string(),
+        )
+    } else {
+        // The id becomes a path component, exactly as in `theme::theme_dir`.
+        if !crate::theme::is_usable_id(theme_id) {
+            return Err(format!(
+                "`{theme_id}` is not a usable theme id — it must be a single directory name"
+            ));
+        }
+        (themes_root.join(theme_id), theme_id.to_string())
+    };
 
     let relative = Path::new(rel_path);
     // Checked before the `..` scan below: on Windows a leading `\` makes the
@@ -106,16 +133,15 @@ pub fn resolve_asset(
         ));
     }
 
-    let theme_root = themes_root.join(theme_id);
-    if !theme_root.is_dir() {
+    if !theme_dir.is_dir() {
         return Err(format!(
-            "No installed theme `{theme_id}` at {}",
-            theme_root.display()
+            "No installed theme `{id_for_errors}` at {}",
+            theme_dir.display()
         ));
     }
-    let theme_root = theme_root
+    let theme_root = theme_dir
         .canonicalize()
-        .map_err(|e| format!("Could not resolve {}: {e}", theme_root.display()))?;
+        .map_err(|e| format!("Could not resolve {}: {e}", theme_dir.display()))?;
 
     let candidate = theme_root.join(relative);
     // Before canonicalising, which would follow the link: checked on the final
@@ -199,6 +225,20 @@ mod tests {
             .expect("a valid request URL")
     }
 
+    /// A root holding one staged package (under `.staging/<id>`, same shape as
+    /// `installed`'s theme) plus the same escape target at the themes root.
+    fn staged(tag: &str, staging_id: &str) -> PathBuf {
+        let root = scratch(tag);
+        let package = root
+            .join(crate::theme::archive::STAGING_DIR)
+            .join(staging_id);
+        std::fs::create_dir_all(package.join("previews")).unwrap();
+        std::fs::write(package.join("main.css"), b"body{}").unwrap();
+        std::fs::write(package.join("previews/shot.png"), b"png").unwrap();
+        std::fs::write(root.join("settings.json"), b"{}").unwrap();
+        root
+    }
+
     #[test]
     fn a_nested_asset_resolves_inside_its_theme() {
         let root = installed("nested");
@@ -267,6 +307,76 @@ mod tests {
         for id in ["..", "../../etc", "aurora.theme/../.."] {
             let reason = resolve_asset(&root, id, "main.css").expect_err("must refuse");
             assert!(reason.contains("usable theme id"), "{id}: {reason}");
+        }
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_staged_asset_resolves_under_dot_staging() {
+        let root = staged("staged", "pkg-123");
+        let package = root
+            .join(crate::theme::archive::STAGING_DIR)
+            .join("pkg-123");
+
+        let resolved =
+            resolve_asset(&root, ".staging/pkg-123", "previews/shot.png").expect("must resolve");
+
+        assert_eq!(
+            resolved,
+            package.join("previews/shot.png").canonicalize().unwrap()
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_normal_theme_id_cannot_resolve_into_staging() {
+        let root = staged("staged-not-installed", "pkg-123");
+
+        let reason = resolve_asset(&root, "pkg-123", "previews/shot.png").expect_err("must refuse");
+
+        assert!(reason.contains("No installed theme"), "{reason}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_parent_segment_is_refused_for_a_staged_host() {
+        let root = staged("staged-parent", "pkg-123");
+
+        let reason = resolve_asset(&root, ".staging/pkg-123", "../../settings.json")
+            .expect_err("must refuse");
+
+        assert!(reason.contains(".."), "{reason}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn an_absolute_path_is_refused_for_a_staged_host() {
+        let root = staged("staged-absolute", "pkg-123");
+        let outside = root.join("settings.json").to_string_lossy().into_owned();
+
+        let reason = resolve_asset(&root, ".staging/pkg-123", &outside).expect_err("must refuse");
+
+        assert!(reason.contains("absolute"), "{reason}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_bare_staging_host_with_no_id_is_refused() {
+        let root = staged("staged-bare", "pkg-123");
+
+        let reason = resolve_asset(&root, ".staging", "main.css").expect_err("must refuse");
+
+        assert!(reason.contains("staging"), "{reason}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_staging_id_that_is_not_usable_is_refused() {
+        let root = staged("staged-bad-id", "pkg-123");
+
+        for id in [".staging/..", ".staging/../../etc", ".staging/a/b"] {
+            let reason = resolve_asset(&root, id, "main.css").expect_err("must refuse");
+            assert!(reason.contains("usable staging id"), "{id}: {reason}");
         }
         let _ = std::fs::remove_dir_all(&root);
     }

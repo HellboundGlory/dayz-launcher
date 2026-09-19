@@ -14,7 +14,9 @@ const MAX_RENDERED_PREVIEWS = 5;
  * image hides itself and keeps its caption, rather than showing a broken-image icon. */
 function PreviewThumb({ stagingId, preview }: { stagingId: string; preview: ThemePreview }) {
   const [failed, setFailed] = useState(false);
-  const url = resolveThemeAsset(stagingId, preview.file);
+  // A staged package isn't installed under `themes/<id>` yet — it lives at
+  // `themes/.staging/<stagingId>`, which protocol.rs serves under this prefix.
+  const url = resolveThemeAsset(`.staging/${stagingId}`, preview.file);
   return (
     <figure className="w-28 shrink-0">
       {!failed && (
