@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { DevModeValidationPanelView, type DevModeValidationPanelViewProps } from "./DevModeValidationPanel";
+import {
+  clampPanelPosition,
+  DevModeValidationPanelView,
+  type DevModeValidationPanelViewProps,
+} from "./DevModeValidationPanel";
 import type { ValidationIssue } from "@/types/theme";
 
 const BASE_PROPS: DevModeValidationPanelViewProps = {
@@ -100,5 +104,47 @@ describe("DevModeValidationPanelView", () => {
   it("renders the held-reload line only when heldReload is true", () => {
     expect(render({ heldReload: true })).toContain("Hot reload held");
     expect(render({ heldReload: false })).not.toContain("Hot reload held");
+  });
+
+  it("renders the positioning style it is handed", () => {
+    const html = render({ positionStyle: { top: 100, left: 50 } });
+    expect(html).toContain("top:100px");
+    expect(html).toContain("left:50px");
+  });
+
+  it("uses the default top-right anchor when no positioning style is given", () => {
+    const html = render();
+    expect(html).toContain("top:36px");
+    expect(html).toContain("right:8px");
+  });
+
+  it("gives the header a grab cursor, and a grabbing cursor while dragging", () => {
+    expect(render()).toContain("cursor:grab");
+    expect(render({ dragging: true })).toContain("cursor:grabbing");
+  });
+});
+
+describe("clampPanelPosition", () => {
+  const size = { w: 400, h: 300 };
+  const viewport = { w: 1200, h: 800 };
+
+  it("returns a position already inside the viewport unchanged", () => {
+    expect(clampPanelPosition({ top: 100, left: 200 }, size, viewport)).toEqual({ top: 100, left: 200 });
+  });
+
+  it("pulls a position off the right or bottom edge back to the 8px margin", () => {
+    expect(clampPanelPosition({ top: 790, left: 1190 }, size, viewport)).toEqual({
+      top: viewport.h - size.h - 8,
+      left: viewport.w - size.w - 8,
+    });
+  });
+
+  it("pushes a negative position to the 8px margin", () => {
+    expect(clampPanelPosition({ top: -50, left: -20 }, size, viewport)).toEqual({ top: 8, left: 8 });
+  });
+
+  it("collapses to the 8px minimum when the panel is bigger than the viewport", () => {
+    const hugeSize = { w: 1500, h: 900 };
+    expect(clampPanelPosition({ top: 100, left: 100 }, hugeSize, viewport)).toEqual({ top: 8, left: 8 });
   });
 });

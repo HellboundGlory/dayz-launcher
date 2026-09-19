@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  type Ref,
+} from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { effective, useThemeStore } from "@/theme/theme-store";
@@ -9,6 +18,27 @@ import type { ValidationIssue } from "@/types/theme";
 import { DevModeSwitcher } from "./DevModeSwitcher";
 
 type CopyState = { key: string; status: "copied" | "failed" } | null;
+
+const PANEL_MARGIN = 8;
+const DEFAULT_TOP = 36;
+const DEFAULT_RIGHT = PANEL_MARGIN;
+
+/** Keeps the panel fully on screen with an 8px margin; collapses to that
+ * margin on an axis where the panel is bigger than the viewport rather than
+ * letting the upper bound go negative. Mirrors `placeOverlay` in
+ * DevModeInspector.tsx. */
+export function clampPanelPosition(
+  pos: { top: number; left: number },
+  size: { w: number; h: number },
+  viewport: { w: number; h: number },
+): { top: number; left: number } {
+  const maxLeft = Math.max(PANEL_MARGIN, viewport.w - size.w - PANEL_MARGIN);
+  const maxTop = Math.max(PANEL_MARGIN, viewport.h - size.h - PANEL_MARGIN);
+  return {
+    left: Math.min(Math.max(pos.left, PANEL_MARGIN), maxLeft),
+    top: Math.min(Math.max(pos.top, PANEL_MARGIN), maxTop),
+  };
+}
 
 function groupByFile(issues: ValidationIssue[]): [string, ValidationIssue[]][] {
   const map = new Map<string, ValidationIssue[]>();
@@ -83,7 +113,16 @@ export interface DevModeValidationPanelViewProps {
   onCopy: (file: string, pointer: string) => void;
   switcher?: ReactNode;
   heldReload: boolean;
+  positionStyle?: CSSProperties;
+  dragging?: boolean;
+  onHeaderPointerDown?: (e: ReactPointerEvent<HTMLDivElement>) => void;
+  onHeaderPointerMove?: (e: ReactPointerEvent<HTMLDivElement>) => void;
+  onHeaderPointerUp?: (e: ReactPointerEvent<HTMLDivElement>) => void;
+  panelRef?: Ref<HTMLDivElement>;
 }
+
+const DEFAULT_POSITION_STYLE: CSSProperties = { top: DEFAULT_TOP, right: DEFAULT_RIGHT };
+const noop = () => {};
 
 /** Pure markup for the validation panel — no store reads, no portal, no effects. */
 export function DevModeValidationPanelView({
@@ -100,20 +139,31 @@ export function DevModeValidationPanelView({
   onCopy,
   switcher,
   heldReload,
+  positionStyle = DEFAULT_POSITION_STYLE,
+  dragging = false,
+  onHeaderPointerDown = noop,
+  onHeaderPointerMove = noop,
+  onHeaderPointerUp = noop,
+  panelRef,
 }: DevModeValidationPanelViewProps) {
   const isEmpty = issues.length === 0 && contrast.length === 0 && Object.keys(fallbackReasons).length === 0;
 
   return (
     <div
+      ref={panelRef}
       data-dev-panel
-      className="pointer-events-auto fixed bottom-2 left-2 z-[390] flex flex-col overflow-hidden [border-radius:var(--t-radius-control)] border [border-color:rgb(255,79,216)] bg-[rgba(12,10,16,0.95)] font-mono-data [font-size:var(--t-type-label-size)] leading-[1.5] [color:rgb(233,230,242)] [box-shadow:var(--t-shadow-inspector)]"
-      style={{ maxWidth: "min(420px, calc(100vw - 16px))", maxHeight: "60vh" }}
+      className="pointer-events-auto fixed z-[390] flex flex-col overflow-hidden [border-radius:var(--t-radius-control)] border [border-color:rgb(255,79,216)] bg-[rgba(12,10,16,0.95)] font-mono-data [font-size:var(--t-type-label-size)] leading-[1.5] [color:rgb(233,230,242)] [box-shadow:var(--t-shadow-inspector)]"
+      style={{ ...positionStyle, maxWidth: "min(420px, calc(100vw - 16px))", maxHeight: "60vh" }}
     >
       <div
+        onPointerDown={onHeaderPointerDown}
+        onPointerMove={onHeaderPointerMove}
+        onPointerUp={onHeaderPointerUp}
         className={cn(
           "flex shrink-0 items-center gap-1.5 px-2.5 py-2",
           !collapsed && "border-b [border-color:rgba(255,79,216,0.4)]",
         )}
+        style={{ cursor: dragging ? "grabbing" : "grab", touchAction: "none" }}
       >
         <span className="[border-radius:var(--t-radius-badge)] bg-[rgba(255,79,216,0.25)] px-1 py-px [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.04em] [color:rgb(255,154,232)]">
           Validation
@@ -218,6 +268,65 @@ export function DevModeValidationPanel() {
   const [copyState, setCopyState] = useState<CopyState>(null);
   const copyResetTimer = useRef<number | null>(null);
 
+  const panelRef = useRef<HTMLDivElement>(null);
+  const dragOffset = useRef({ x: 0, y: 0 });
+  const hasDraggedRef = useRef(false);
+  const [dragPos, setDragPos] = useState<{ top: number; left: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const handleHeaderPointerDown = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+    if ((e.target as Element).closest("button")) return;
+    const rect = panelRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDragging(true);
+  }, []);
+
+  const handleHeaderPointerMove = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+    const rect = panelRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    hasDraggedRef.current = true;
+    setDragPos(
+      clampPanelPosition(
+        { left: e.clientX - dragOffset.current.x, top: e.clientY - dragOffset.current.y },
+        { w: rect.width, h: rect.height },
+        { w: window.innerWidth, h: window.innerHeight },
+      ),
+    );
+  }, []);
+
+  const handleHeaderPointerUp = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    setDragging(false);
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (!hasDraggedRef.current) return;
+      const rect = panelRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setDragPos((prev) =>
+        prev
+          ? clampPanelPosition(
+              prev,
+              { w: rect.width, h: rect.height },
+              { w: window.innerWidth, h: window.innerHeight },
+            )
+          : prev,
+      );
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const positionStyle: CSSProperties = dragPos
+    ? { top: dragPos.top, left: dragPos.left }
+    : DEFAULT_POSITION_STYLE;
+
   const doRefresh = useCallback(() => {
     const { activeId: id, scheme: currentScheme, custom, themeFiles } = useThemeStore.getState();
     const palette = effective(currentScheme, id, themeFiles, custom);
@@ -274,6 +383,12 @@ export function DevModeValidationPanel() {
       onCopy={handleCopy}
       switcher={<DevModeSwitcher />}
       heldReload={heldReload}
+      positionStyle={positionStyle}
+      dragging={dragging}
+      onHeaderPointerDown={handleHeaderPointerDown}
+      onHeaderPointerMove={handleHeaderPointerMove}
+      onHeaderPointerUp={handleHeaderPointerUp}
+      panelRef={panelRef}
     />,
     document.body,
   );
