@@ -20,7 +20,7 @@ const backend = vi.hoisted(() => ({
   /** Ids written through `set_active_theme_id`, in call order. */
   setActiveCalls: [] as (string | null)[],
   /** What `list_installed_themes` sees. */
-  installed: [] as { id: string; name: string }[],
+  installed: [] as { id: string; name: string; incompatible?: boolean }[],
   /** The `tokens` object each `save_theme` call received, in call order. */
   savedTokens: [] as unknown[],
   /** `tokens.json` contents `get_theme` returns, by id. */
@@ -227,6 +227,26 @@ describe("hydrate legacy migration", () => {
     expect(useThemeStore.getState().scheme).toBe("light");
     expect(useThemeStore.getState().bloom).toBe(0.5);
     expect(backend.setActiveCalls).toEqual(["local.foo"]);
+  });
+});
+
+describe("hydrate incompatible fallback", () => {
+  it("falls back to neutral when the stored active theme is reported incompatible", async () => {
+    storage.set("tetra.themeActive", JSON.stringify({ activeId: "local.old" }));
+    backend.installed = [{ id: "local.old", name: "Old", incompatible: true }];
+
+    await useThemeStore.getState().hydrate();
+
+    expect(useThemeStore.getState().activeId).toBe("neutral");
+  });
+
+  it("leaves activeId alone when the stored active theme is not incompatible", async () => {
+    storage.set("tetra.themeActive", JSON.stringify({ activeId: "local.fine" }));
+    backend.installed = [{ id: "local.fine", name: "Fine" }];
+
+    await useThemeStore.getState().hydrate();
+
+    expect(useThemeStore.getState().activeId).toBe("local.fine");
   });
 });
 
