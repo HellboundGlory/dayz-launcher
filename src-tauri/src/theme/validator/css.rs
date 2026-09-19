@@ -491,6 +491,13 @@ fn is_allowed_attribute(attr: &str) -> bool {
             | "data-list"
             | "data-row"
             | "data-column"
+            | "data-region"
+            | "data-surface"
+            | "aria-selected"
+            | "aria-pressed"
+            | "aria-expanded"
+            | "aria-sort"
+            | "disabled"
             | "data-tetra-slot"
             | "data-tetra-el"
     )
@@ -500,6 +507,7 @@ fn is_allowed_pseudo_class(pseudo: &str) -> bool {
     matches!(
         pseudo,
         "hover"
+            | "focus"
             | "focus-visible"
             | "active"
             | "disabled"

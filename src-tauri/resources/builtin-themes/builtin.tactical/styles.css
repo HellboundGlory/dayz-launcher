@@ -1,50 +1,158 @@
-/* The composed grid is the server.row wrapper's first child, so columns target
-   that child. */
+/* Tactical v2 HUD theme styles */
 
-[data-tetra-slot="server.row"] {
+/* Top Navigation Tabs */
+[data-el="nav.servers"],
+[data-el="nav.favourites"],
+[data-el="nav.recent"] {
+  border-radius: 0;
+  border: 1px solid transparent;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+[data-el="nav.servers"][aria-selected="true"],
+[data-el="nav.favourites"][aria-selected="true"],
+[data-el="nav.recent"][aria-selected="true"],
+[data-el="nav.servers"][data-state~="active"],
+[data-el="nav.favourites"][data-state~="active"],
+[data-el="nav.recent"][data-state~="active"] {
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  background-color: var(--surface2);
+}
+
+/* Filter Bar & Hide Toggles */
+[data-el^="filter."] {
+  border-radius: 0;
+}
+
+[data-el^="filter.hide"] {
+  border-radius: 0;
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+[data-el^="filter.hide"][aria-pressed="true"],
+[data-el^="filter.hide"][data-state~="active"] {
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  background-color: var(--surface2);
+  box-shadow: 0 0 6px var(--accent-soft);
+}
+
+/* Server List Rows & Table */
+[data-list="servers"] {
+  border-radius: 0;
+}
+
+[data-list="servers"] [data-row] {
   border-radius: 0;
   border-bottom: 1px solid var(--border);
   letter-spacing: 0.01em;
 }
 
-[data-tetra-slot="server.row"] > :first-child {
-  grid-template-columns:
-    20px minmax(160px, 1fr) 120px 60px 70px 90px 56px 48px 24px 36px 48px;
-  column-gap: var(--space-md);
-  width: 100%;
+[data-list="servers"] [data-row]:hover,
+[data-list="servers"] [data-row][data-state~="hover"] {
+  background-color: var(--surface2);
 }
 
-[data-tetra-slot="server.row"] [data-tetra-el="addressLabel"],
-[data-tetra-slot="server.row"] [data-tetra-el="gameTimeLabel"],
-[data-tetra-slot="server.row"] [data-tetra-el="lastPlayedLabel"],
-[data-tetra-slot="server.row"] [data-tetra-el="mapLabel"] {
+[data-list="servers"] [data-row][aria-selected="true"],
+[data-list="servers"] [data-row][data-state~="selected"] {
+  background-color: var(--surface2);
+  border-left: 2px solid var(--accent);
+}
+
+/* Numeric & Data Fields */
+[data-el="server.players"],
+[data-el="server.modCount"],
+[data-el="server.ping"] {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-data);
+}
+
+[data-el="server.address"],
+[data-el="server.gameTime"],
+[data-el="server.lastPlayed"],
+[data-el="server.map"] {
   color: var(--muted2);
   font-family: var(--font-data);
-  font-size: 10px;
 }
 
-[data-tetra-slot="server.row"] [data-tetra-el="playerCount"],
-[data-tetra-slot="server.row"] [data-tetra-el="modCountLabel"],
-[data-tetra-slot="server.row"] [data-tetra-el="pingBadge"] {
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  justify-self: end;
-}
-
-[data-tetra-slot="server.row"],
-[data-tetra-slot="server.rowActions"] {
+/* Detail Panel */
+[data-region="r-detail"] {
+  width: 360px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  padding: 16px;
+  background-color: var(--surface);
   border-radius: 0;
 }
 
-[data-tetra-slot="filterBar"] {
+/* Stat Block */
+[data-region="r-stats"] {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
   border-radius: 0;
-  letter-spacing: 0.02em;
 }
 
-[data-tetra-slot="shell.footer"],
-[data-tetra-slot="shell.sidebar"] {
+[data-region="r-stats"] > [data-el] {
+  flex: 1;
+  border: 1px solid var(--border);
+  padding: 8px;
+  background-color: var(--surface2);
+  font-family: var(--font-data);
   border-radius: 0;
-  letter-spacing: 0.03em;
+}
+
+/* Mod Readiness List */
+[data-el="list.serverMods"] [data-row],
+[data-list="serverMods"] [data-row] {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+}
+
+/* Action Buttons */
+[data-el="server.join"] {
+  border-radius: 0;
+  background-color: var(--accent);
+  color: var(--bg);
+  border: 1px solid var(--accent2);
+  font-weight: 700;
   text-transform: uppercase;
-  font-size: 10px;
+  letter-spacing: 0.05em;
+}
+
+[data-el="server.join"]:hover {
+  background-color: var(--accent2);
+}
+
+[data-el="server.checkMods"],
+[data-el="server.subscribeAll"],
+[data-el="server.unsubscribeUnique"],
+[data-el="server.favourite"],
+[data-el="servers.refresh"],
+[data-el="filter.reset"] {
+  border-radius: 0;
+  border: 1px solid var(--border);
+  background-color: var(--surface2);
+  color: var(--text);
+}
+
+[data-el="server.checkMods"]:hover,
+[data-el="server.subscribeAll"]:hover,
+[data-el="server.unsubscribeUnique"]:hover,
+[data-el="server.favourite"]:hover,
+[data-el="servers.refresh"]:hover,
+[data-el="filter.reset"]:hover {
+  border-color: var(--accent);
+}
+
+/* General HUD Surfaces & Modals */
+[data-surface],
+[data-region] {
+  border-radius: 0;
 }
