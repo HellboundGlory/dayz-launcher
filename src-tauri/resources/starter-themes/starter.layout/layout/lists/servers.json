@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 2,
+  "columns": [
+    { "id": "favourite", "width": "40px" },
+    { "id": "name", "width": "1fr", "label": "Server Name", "sort": "name" },
+    { "id": "location", "width": "150px", "label": "Map / Ping" },
+    { "id": "players", "width": "90px", "label": "Players", "sort": "players" },
+    { "id": "actions", "width": "140px", "label": "Actions" }
+  ],
+  "row": {
+    "type": "stack",
+    "direction": "row",
+    "align": "center",
+    "children": [
+      { "element": "server.favourite", "column": "favourite" },
+      {
+        "type": "stack",
+        "direction": "column",
+        "column": "name",
+        "children": [
+          { "element": "server.name" },
+          { "element": "server.tags" }
+        ]
+      },
+      {
+        "type": "stack",
+        "direction": "column",
+        "column": "location",
+        "children": [
+          { "element": "server.map" },
+          { "element": "server.ping" }
+        ]
+      },
+      { "element": "server.players", "column": "players" },
+      {
+        "type": "stack",
+        "direction": "row",
+        "column": "actions",
+        "children": [
+          { "element": "server.join" },
+          { "element": "server.actionNotice" }
+        ]
+      }
+    ]
+  }
+}
