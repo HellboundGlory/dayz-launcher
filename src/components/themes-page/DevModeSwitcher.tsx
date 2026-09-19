@@ -37,6 +37,8 @@ export interface DevModeSwitcherViewProps {
   activeCombination: string | null;
   capped: boolean;
   settingsAvailable: boolean;
+  /** Why the Variant row can't do anything, or null when the width chips are live. */
+  variantInertReason: string | null;
   onPickWidth: (width: number | null) => void;
   onPickCombination: (label: string | null) => void;
 }
@@ -58,6 +60,7 @@ export function DevModeSwitcherView({
   activeCombination,
   capped,
   settingsAvailable,
+  variantInertReason,
   onPickWidth,
   onPickCombination,
 }: DevModeSwitcherViewProps) {
@@ -65,27 +68,31 @@ export function DevModeSwitcherView({
     <div className="flex flex-col gap-1.5">
       <div className="flex flex-col gap-1">
         <div className="uppercase tracking-[0.04em] [color:rgb(156,147,173)]">Variant</div>
-        <div className="flex flex-wrap gap-1">
-          <button
-            type="button"
-            aria-pressed={activeWidth === null}
-            onClick={() => onPickWidth(null)}
-            className={chipClass(activeWidth === null)}
-          >
-            Real width
-          </button>
-          {widths.map((width) => (
+        {variantInertReason !== null ? (
+          <div className="[color:rgb(156,147,173)]">{variantInertReason}</div>
+        ) : (
+          <div className="flex flex-wrap gap-1">
             <button
-              key={width}
               type="button"
-              aria-pressed={activeWidth === width}
-              onClick={() => onPickWidth(width)}
-              className={chipClass(activeWidth === width)}
+              aria-pressed={activeWidth === null}
+              onClick={() => onPickWidth(null)}
+              className={chipClass(activeWidth === null)}
             >
-              {width}px
+              Real width
             </button>
-          ))}
-        </div>
+            {widths.map((width) => (
+              <button
+                key={width}
+                type="button"
+                aria-pressed={activeWidth === width}
+                onClick={() => onPickWidth(width)}
+                className={chipClass(activeWidth === width)}
+              >
+                {width}px
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-1">
@@ -131,6 +138,7 @@ export function DevModeSwitcher() {
   const activeWidth = useDevStore((s) => s.variantWidth) ?? useDevStore.getState().variantWidth;
   const settingsOverride =
     useDevStore((s) => s.settingsOverride) ?? useDevStore.getState().settingsOverride;
+  const activeRenderers = useDevStore((s) => s.activeRenderers);
 
   // The label of the combination this component last dispatched — matched
   // against rather than deep-comparing the store's values map.
@@ -138,14 +146,23 @@ export function DevModeSwitcher() {
 
   const activeFile = themeFiles[activeId];
 
-  const widths = (() => {
-    const set = new Set<number>(FIXED_WIDTHS);
+  const declaredMinWidths = (() => {
+    const set = new Set<number>();
     for (const file of Object.values(NEUTRAL_LAYOUTS)) {
       for (const width of minWidthsOf(file)) set.add(width);
     }
     for (const width of untrustedMinWidths(activeFile?.layout)) set.add(width);
-    return [...set].sort((a, b) => a - b);
+    return set;
   })();
+
+  const widths = [...new Set<number>([...FIXED_WIDTHS, ...declaredMinWidths])].sort((a, b) => a - b);
+
+  const variantInertReason =
+    activeRenderers === 0
+      ? "No screen renders from a layout file yet"
+      : declaredMinWidths.size === 0
+        ? "No variants declared"
+        : null;
 
   const { fields } = resolveSettingsSchema(activeFile?.settingsSchema);
   const { combinations, capped } = settingsCombinations(fields);
@@ -180,6 +197,7 @@ export function DevModeSwitcher() {
       activeCombination={activeCombination}
       capped={capped}
       settingsAvailable={settingsAvailable}
+      variantInertReason={variantInertReason}
       onPickWidth={handlePickWidth}
       onPickCombination={handlePickCombination}
     />

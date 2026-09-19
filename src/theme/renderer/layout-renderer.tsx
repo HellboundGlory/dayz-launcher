@@ -1,7 +1,7 @@
 // The top-level renderer: pick the responsive root for the width, publish the
 // render context, and walk the tree.
 
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { useDevStore } from "@/theme/dev/dev-store";
 import { LayoutNodeRenderer, RenderContextProvider } from "./node-renderer";
 import type { SettingsValues } from "./props";
@@ -29,6 +29,8 @@ export function LayoutRenderer({
   settings,
   themeId = "",
 }: LayoutRendererProps) {
+  // Tells the Dev Mode switcher a screen is actually drawing from a layout file.
+  useEffect(() => useDevStore.getState().registerRenderer(), []);
   // The selector subscribes so an unrelated dev-store field doesn't re-render
   // the tree; the getState() fallback covers SSR/renderToStaticMarkup, where
   // zustand's server snapshot is frozen at store creation (see FallbackNotice).
