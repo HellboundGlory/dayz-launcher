@@ -9,6 +9,7 @@ const BASE_PROPS: DevModeSwitcherViewProps = {
   activeCombination: null,
   capped: false,
   settingsAvailable: true,
+  variantInertReason: null,
   onPickWidth: () => {},
   onPickCombination: () => {},
 };
@@ -54,5 +55,20 @@ describe("DevModeSwitcherView", () => {
   it("renders the capped notice when capped is true", () => {
     expect(render({ capped: true })).toContain("Showing the first 64 combinations");
     expect(render({ capped: false })).not.toContain("Showing the first 64 combinations");
+  });
+
+  it("renders the inert reason and no width chips or Real width button when non-null", () => {
+    const html = render({ variantInertReason: "No screen renders from a layout file yet" });
+    expect(html).toContain("No screen renders from a layout file yet");
+    expect(html).not.toContain("Real width");
+    expect(html).not.toContain("650px");
+    expect(html).not.toContain("975px");
+    expect(html).not.toContain("1400px");
+  });
+
+  it("renders the width chips as today when variantInertReason is null", () => {
+    const html = render({ variantInertReason: null });
+    expect(html).toContain("Real width");
+    expect(html).toContain("650px");
   });
 });

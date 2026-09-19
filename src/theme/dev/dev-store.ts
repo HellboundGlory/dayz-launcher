@@ -19,6 +19,8 @@ export interface DevStore {
   settingsOverride: Record<string, SettingsValue> | null;
   /** True when the last hot reload was held back because the saved files have errors. */
   heldReload: boolean;
+  /** How many LayoutRenderer instances are mounted; 0 means no screen draws from a layout file. */
+  activeRenderers: number;
 
   refresh: (
     themeId: string,
@@ -30,6 +32,8 @@ export interface DevStore {
   setSettingsOverride: (values: Record<string, SettingsValue> | null) => void;
   /** What a hot reload found: its issues, whether it was held, and any read/validate failure. */
   noteReload: (issues: ValidationIssue[], held: boolean, error: string | null) => void;
+  /** Registers a mounted renderer and returns its unregister function. */
+  registerRenderer: () => () => void;
   clear: () => void;
 }
 
@@ -48,6 +52,7 @@ let refreshSeq = 0;
 
 export const useDevStore = create<DevStore>((set) => ({
   ...INITIAL,
+  activeRenderers: 0,
 
   refresh: async (themeId, palette, roleColors, scheme) => {
     const seq = ++refreshSeq;
@@ -69,6 +74,13 @@ export const useDevStore = create<DevStore>((set) => ({
 
   noteReload: (issues, held, error) => set({ issues, heldReload: held, error }),
 
+  registerRenderer: () => {
+    set((s) => ({ activeRenderers: s.activeRenderers + 1 }));
+    return () => set((s) => ({ activeRenderers: Math.max(0, s.activeRenderers - 1) }));
+  },
+
+  // Renderers may still be mounted when Dev Mode is switched off, so this
+  // count must survive clear() — resetting it here would lie next time.
   clear: () => set({ ...INITIAL }),
 }));
 

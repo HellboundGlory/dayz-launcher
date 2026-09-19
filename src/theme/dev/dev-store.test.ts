@@ -43,6 +43,7 @@ const BACKEND_ISSUE: ValidationIssue = {
 beforeEach(() => {
   backend.validateTheme.mockReset();
   useDevStore.getState().clear();
+  useDevStore.setState({ activeRenderers: 0 });
 });
 
 describe("useDevStore", () => {
@@ -157,5 +158,40 @@ describe("useDevStore", () => {
     expect(useDevStore.getState().settingsOverride).toEqual({ rowDensity: "compact" });
     useDevStore.getState().setSettingsOverride(null);
     expect(useDevStore.getState().settingsOverride).toBeNull();
+  });
+
+  it("registerRenderer increments activeRenderers and its returned function decrements it", () => {
+    expect(useDevStore.getState().activeRenderers).toBe(0);
+    const unregister = useDevStore.getState().registerRenderer();
+    expect(useDevStore.getState().activeRenderers).toBe(1);
+    unregister();
+    expect(useDevStore.getState().activeRenderers).toBe(0);
+  });
+
+  it("counts overlapping registrations correctly", () => {
+    const unregisterA = useDevStore.getState().registerRenderer();
+    const unregisterB = useDevStore.getState().registerRenderer();
+    expect(useDevStore.getState().activeRenderers).toBe(2);
+    unregisterA();
+    expect(useDevStore.getState().activeRenderers).toBe(1);
+    unregisterB();
+    expect(useDevStore.getState().activeRenderers).toBe(0);
+  });
+
+  it("never lets activeRenderers go below 0", () => {
+    const unregister = useDevStore.getState().registerRenderer();
+    unregister();
+    unregister();
+    expect(useDevStore.getState().activeRenderers).toBe(0);
+  });
+
+  it("clear leaves activeRenderers untouched while resetting the other fields", () => {
+    useDevStore.getState().registerRenderer();
+    useDevStore.setState({ issues: [BACKEND_ISSUE], variantWidth: 650 });
+    clearDevState();
+    const state = useDevStore.getState();
+    expect(state.activeRenderers).toBe(1);
+    expect(state.issues).toEqual([]);
+    expect(state.variantWidth).toBeNull();
   });
 });
