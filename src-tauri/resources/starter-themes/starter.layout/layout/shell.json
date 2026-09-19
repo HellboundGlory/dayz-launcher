@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 2,
+  "root": {
+    "type": "stack",
+    "direction": "column",
+    "height": "100%",
+    "children": [
+      {
+        "type": "stack",
+        "direction": "row",
+        "align": "center",
+        "landmark": "banner",
+        "children": [
+          { "surface": "surface.windowControls" },
+          { "element": "app.dragRegion", "grow": 1 },
+          { "surface": "surface.navRail" }
+        ]
+      },
+      { "element": "notice.error" },
+      { "element": "notice.storage" },
+      {
+        "type": "box",
+        "id": "r-main",
+        "landmark": "main",
+        "grow": 1,
+        "children": [{ "type": "outlet", "name": "view" }]
+      },
+      {
+        "type": "stack",
+        "direction": "row",
+        "align": "center",
+        "justify": "spaceBetween",
+        "landmark": "contentinfo",
+        "children": [
+          {
+            "type": "stack",
+            "direction": "row",
+            "children": [
+              { "element": "status.steam" },
+              { "element": "status.listSource" }
+            ]
+          },
+          {
+            "type": "stack",
+            "direction": "row",
+            "children": [
+              { "element": "status.populated" },
+              { "element": "status.serverTotal" },
+              { "element": "status.lastRefreshed" }
+            ]
+          }
+        ]
+      },
+      { "type": "outlet", "name": "modals" }
+    ]
+  }
+}

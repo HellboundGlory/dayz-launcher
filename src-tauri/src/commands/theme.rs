@@ -1526,35 +1526,19 @@ mod starter_templates {
         writer.finish().expect("could not finish the package");
     }
 
-    /// What a template's directory ships, as `(relative path, text)`, for every
-    /// file a theme's schema actually reads.
-    fn json_file(template_dir: &Path, name: &str) -> serde_json::Value {
-        let path = template_dir.join(name);
-        let raw = std::fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("{} is missing: {e}", path.display()));
-        serde_json::from_str(&raw)
-            .unwrap_or_else(|e| panic!("{} is not valid JSON: {e}", path.display()))
-    }
-
     /// Every template this build ships, in the id order `theme::scan` reports.
-    const TEMPLATES: [&str; 3] = ["starter.colours", "starter.expert", "starter.styled"];
+    const TEMPLATES: [&str; 3] = ["starter.colours", "starter.layout", "starter.styled"];
 
-    /// `starter.colours` and `starter.styled` are v2 packages; `starter.expert`
-    /// is still v1 until the next dispatch replaces it with `starter.layout`.
+    /// All three bundled templates are v2 packages, so none is flagged incompatible.
     #[test]
-    fn every_bundled_template_is_listed_and_only_expert_is_still_v1() {
+    fn every_bundled_template_is_listed_and_none_is_incompatible() {
         let scan = theme::scan(&bundled());
 
         assert!(scan.skipped.is_empty(), "{:?}", scan.skipped);
         let ids: Vec<&str> = scan.themes.iter().map(|t| t.id.as_str()).collect();
         assert_eq!(ids, TEMPLATES, "the shipped set, sorted by id");
         for theme in &scan.themes {
-            let expect_incompatible = theme.id == "starter.expert";
-            assert_eq!(
-                theme.incompatible, expect_incompatible,
-                "{}: incompatible flag",
-                theme.id
-            );
+            assert!(!theme.incompatible, "{}: incompatible flag", theme.id);
         }
     }
 
@@ -1581,8 +1565,8 @@ mod starter_templates {
 
             // A palette must be complete: every token the frontend reads, in both
             // schemes, as a hex string — an absent one silently falls back to
-            // neutral, which would make the template barely a theme. v1's
-            // `starter.expert` keeps its flat shape; v2 nests colours under `colors`.
+            // neutral, which would make the template barely a theme. All three
+            // templates are v2, so colours nest under `colors`.
             let is_v2 = file.tokens["schemaVersion"] == 2;
             for scheme in ["dark", "light"] {
                 for token in [
@@ -1617,28 +1601,11 @@ mod starter_templates {
         }
     }
 
-    // The next dispatch replaces `starter.expert` with `starter.layout`, which
-    // will be v2; until then it stays the one bundled v1 holdout.
-    #[test]
-    fn the_bundled_v1_template_is_refused_at_import() {
-        let id = "starter.expert";
-        let root = scratch(id);
-        let zip_path = root.join(format!("{id}.zip"));
-        zip_template(&bundled().join(id), &zip_path);
-        let error = archive::stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-        assert!(error.contains("ADR-0003"), "{id}: {error}");
-        assert!(
-            error.contains("v1 packages cannot be imported; theme system v2 is required"),
-            "{id}: {error}"
-        );
-        std::fs::remove_dir_all(root).unwrap();
-    }
-
-    /// The two v2 starters are ordinary user-importable packages: staged and
-    /// installed through the same pipeline a downloaded theme goes through.
+    /// All three bundled starters are ordinary user-importable v2 packages:
+    /// staged and installed through the same pipeline a downloaded theme goes through.
     #[test]
     fn the_bundled_v2_templates_import_successfully() {
-        for id in ["starter.colours", "starter.styled"] {
+        for id in TEMPLATES {
             let root = scratch(&format!("import-{id}"));
             let zip_path = root.join(format!("{id}.zip"));
             zip_template(&bundled().join(id), &zip_path);
@@ -1653,14 +1620,14 @@ mod starter_templates {
     fn scaffolding_copies_the_template_under_the_new_id_and_name() {
         let bundled = bundled();
 
-        // All three, so the Expert package's nested `components/` directory is
-        // covered as well as the flat pair — it is the one a shallow copy would
-        // silently drop. The v2 starters omit `tier` (a v1 leftover the struct
-        // defaults to empty), so only Expert's is nonempty.
+        // All three, so Custom layout's nested `layout/` directory is covered
+        // as well as the flat pair — it is the one a shallow copy would
+        // silently drop. All three v2 starters omit `tier` (a v1 leftover the
+        // struct defaults to empty).
         for (template_id, slug, tier) in [
             ("starter.colours", "colours", ""),
             ("starter.styled", "styled", ""),
-            ("starter.expert", "expert", "expert"),
+            ("starter.layout", "layout", ""),
         ] {
             let themes_root = scratch(&format!("scaffold-{slug}"));
             let new_id = format!("local.my-{slug}");
@@ -1814,16 +1781,19 @@ mod starter_templates {
                 &["tokens", "css", "settings"],
             ),
             (
-                "starter.expert",
+                "starter.layout",
                 &[
                     "theme.json",
                     "tokens.json",
-                    "layout.json",
                     "styles.css",
-                    "components/server.row.json",
                     "settings.schema.json",
+                    "README.md",
+                    "layout/shell.json",
+                    "layout/views/browser.json",
+                    "layout/lists/servers.json",
+                    "layout/modals/serverInfo.json",
                 ],
-                &["tokens", "layout", "css", "components", "settings"],
+                &["tokens", "css", "layout", "settings"],
             ),
         ];
         for (id, files, capabilities) in expected {
@@ -1839,70 +1809,6 @@ mod starter_templates {
             // The declared capabilities agree with the files that are there.
             let manifest = theme::get(&bundled, id).unwrap().manifest;
             assert_eq!(manifest.capabilities, capabilities, "{id}: capabilities");
-        }
-    }
-
-    /// The two subject files of the Expert tier, held to §4.3/§4.4's own shape —
-    /// the vocabulary is closed, and a `core` leaf names a real child. The
-    /// frontend's half of this (do those refs exist in `slots.ts`?) is
-    /// `starter-templates.test.ts`, since the registry lives there.
-    #[test]
-    fn the_expert_template_uses_only_the_documented_components_and_settings_shapes() {
-        let dir = bundled().join("starter.expert");
-
-        let component = json_file(&dir, "components/server.row.json");
-        assert_eq!(component["slot"], "server.row");
-        let mut core_refs = Vec::new();
-        walk_component(&component["root"], &mut core_refs);
-        assert!(
-            core_refs.iter().all(|r| !r.trim().is_empty()),
-            "every core ref names a child: {core_refs:?}"
-        );
-        assert!(
-            core_refs.len() >= 3,
-            "a composition demonstrates the shape: {core_refs:?}"
-        );
-
-        let schema = json_file(&dir, "settings.schema.json");
-        let fields = schema["fields"]
-            .as_array()
-            .expect("settings.schema.json holds `fields`");
-        assert_eq!(fields.len(), 2, "one number field and one boolean field");
-        let by_type = |wanted: &str| {
-            fields
-                .iter()
-                .find(|f| f["type"] == wanted)
-                .unwrap_or_else(|| panic!("no {wanted} field"))
-        };
-        let number = by_type("number");
-        assert!(number["min"].is_number() && number["max"].is_number());
-        assert!(number["default"].is_number());
-        assert_eq!(number["id"], "accentHue");
-        let boolean = by_type("boolean");
-        assert!(boolean["default"].is_boolean());
-        assert_eq!(boolean["id"], "compactRows");
-    }
-
-    /// Walks a §4.3 tree, refusing anything outside the closed vocabulary. Every
-    /// leaf is a `core` naming a child; `stack`/`box`/`grid` only hold children.
-    fn walk_component(node: &serde_json::Value, core_refs: &mut Vec<String>) {
-        let kind = node["type"].as_str().expect("every node declares a `type`");
-        match kind {
-            "core" => core_refs.push(
-                node["ref"]
-                    .as_str()
-                    .expect("a core leaf names its child in `ref`")
-                    .to_string(),
-            ),
-            "stack" | "box" | "grid" => {
-                for child in node["children"]
-                    .as_array()
-                    .unwrap_or_else(|| panic!("{kind} holds its children in an array"))
-                {
-                    walk_component(child, core_refs);
-                }
-            }
-            other => panic!("`{other}` is not in the primitive vocabulary"),
         }
     }
 }
