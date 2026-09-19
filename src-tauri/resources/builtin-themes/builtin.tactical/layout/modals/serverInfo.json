@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 2,
+  "placement": {
+    "mode": "center"
+  },
+  "backdrop": "dim",
+  "root": {
+    "type": "stack",
+    "direction": "column",
+    "children": [
+      {
+        "type": "stack",
+        "direction": "row",
+        "align": "center",
+        "justify": "spaceBetween",
+        "children": [
+          { "element": "modal.close" },
+          { "element": "server.name" }
+        ]
+      },
+      { "element": "server.address" },
+      { "element": "server.tags" },
+      {
+        "type": "stack",
+        "direction": "row",
+        "children": [
+          { "element": "server.players" },
+          { "element": "server.ping" },
+          { "element": "server.map" },
+          { "element": "server.gameTime" }
+        ]
+      },
+      { "element": "list.serverMods" },
+      {
+        "type": "stack",
+        "direction": "row",
+        "children": [
+          {
+            "element": "server.join",
+            "options": {
+              "wording": "fixAndJoin"
+            }
+          },
+          { "element": "server.actionNotice" }
+        ]
+      },
+      {
+        "type": "stack",
+        "direction": "row",
+        "children": [
+          {
+            "element": "server.checkMods",
+            "options": {
+              "label": "Verify mods"
+            }
+          },
+          {
+            "element": "server.subscribeAll",
+            "options": {
+              "label": "Subscribe all"
+            }
+          },
+          { "element": "server.favourite" }
+        ]
+      }
+    ]
+  }
+}
