@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { REGISTRY } from "../registry";
+import type { LayoutNode } from "../renderer/types";
 import { LayoutRenderer } from "../renderer/layout-renderer";
 import { ModalHost } from "../interaction/modal-host";
 import { SettingsHost } from "../interaction/settings-host";
@@ -86,9 +87,11 @@ describe("Neutral layouts", () => {
       expect(isElementInLayout(MODS_LAYOUT, "mod.status")).toBe(true);
       expect(isElementInLayout(MODS_LAYOUT, "mod.size")).toBe(true);
       expect(isElementInLayout(MODS_LAYOUT, "mod.updated")).toBe(true);
-      expect(isElementInLayout(MODS_LAYOUT, "mod.author")).toBe(true);
       expect(isElementInLayout(MODS_LAYOUT, "mod.subscribed")).toBe(true);
-      expect(isElementInLayout(MODS_LAYOUT, "mod.actions")).toBe(true);
+      expect(isElementInLayout(MODS_LAYOUT, "mod.update")).toBe(true);
+      expect(isElementInLayout(MODS_LAYOUT, "mod.openInSteam")).toBe(true);
+      expect(isElementInLayout(MODS_LAYOUT, "mod.openFolder")).toBe(true);
+      expect(isElementInLayout(MODS_LAYOUT, "mod.reinstall")).toBe(true);
     });
 
     it("settings layout contains all 16 required settings elements", () => {
@@ -206,6 +209,51 @@ describe("Neutral layouts", () => {
           expect(allowedSorts).toContain(col.sort);
         }
       }
+    });
+  });
+
+  describe("Registered id coverage", () => {
+    // Walks every node reachable from a layout file and asserts each `element`/`surface`
+    // id is known to the registry. This catches unknown ids (the drift that actually
+    // happened); it does not replace the Rust validator's full structural checks.
+    function collectUnknownIds(node: LayoutNode, file: string, violations: string[]): void {
+      if ("element" in node && node.element) {
+        if (!(node.element in REGISTRY.elements)) {
+          violations.push(`${file}: unknown element "${node.element}"`);
+        }
+      }
+      if ("surface" in node && node.surface) {
+        if (!(node.surface in REGISTRY.surfaces)) {
+          violations.push(`${file}: unknown surface "${node.surface}"`);
+        }
+      }
+      if ("children" in node && node.children) {
+        for (const child of node.children) collectUnknownIds(child, file, violations);
+      }
+      if ("tabs" in node && node.tabs) {
+        for (const tab of node.tabs) {
+          collectUnknownIds(tab.label, file, violations);
+          collectUnknownIds(tab.content, file, violations);
+        }
+      }
+      if ("sections" in node && node.sections) {
+        for (const section of node.sections) {
+          collectUnknownIds(section.header, file, violations);
+          collectUnknownIds(section.body, file, violations);
+        }
+      }
+      if (node.empty) collectUnknownIds(node.empty, file, violations);
+      if (node.collapsible?.collapsed) collectUnknownIds(node.collapsible.collapsed, file, violations);
+    }
+
+    it("every element/surface id used by Neutral's layouts is registered", () => {
+      const violations: string[] = [];
+      for (const [file, layout] of Object.entries(NEUTRAL_LAYOUTS)) {
+        if (layout.root) collectUnknownIds(layout.root, file, violations);
+        for (const variant of layout.variants ?? []) collectUnknownIds(variant.root, file, violations);
+        if (layout.row) collectUnknownIds(layout.row, file, violations);
+      }
+      expect(violations).toEqual([]);
     });
   });
 
