@@ -1,8 +1,0 @@
-{
-  "schemaVersion": 1,
-  "slots": {
-    "filterBar": {
-      "order": ["searchInput", "mapFilter", "tagsFilter", "countryFilter", "pingSlider", "refreshAction"]
-    }
-  }
-}
