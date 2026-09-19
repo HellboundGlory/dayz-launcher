@@ -32,7 +32,7 @@ const CAPABILITIES: [&str; 6] = ["tokens", "css", "fonts", "images", "layout", "
 /// Checked against the header before any pixel buffer is allocated.
 const MAX_IMAGE_DIMENSION: u32 = 4096;
 
-const STAGING_DIR: &str = ".staging";
+pub(crate) const STAGING_DIR: &str = ".staging";
 
 /// What a validated package would install, for the confirmation dialog.
 /// `staging_id` names the directory under `themes/.staging/` that
