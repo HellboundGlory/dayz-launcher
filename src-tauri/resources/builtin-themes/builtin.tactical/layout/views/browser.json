@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 2,
+  "root": {
+    "type": "stack",
+    "direction": "column",
+    "height": "100%",
+    "grow": 1,
+    "children": [
+      {
+        "type": "stack",
+        "direction": "row",
+        "align": "center",
+        "justify": "spaceBetween",
+        "children": [
+          {
+            "type": "stack",
+            "direction": "row",
+            "align": "center",
+            "children": [
+              {
+                "element": "filter.search",
+                "options": {
+                  "showIcon": true
+                }
+              },
+              { "element": "filter.map" },
+              { "element": "filter.tags" },
+              {
+                "element": "filter.region",
+                "options": {
+                  "label": "Country"
+                }
+              },
+              { "element": "filter.maxPing" }
+            ]
+          },
+          {
+            "type": "stack",
+            "direction": "row",
+            "align": "center",
+            "children": [
+              {
+                "element": "filter.hideEmpty",
+                "options": {
+                  "control": "button",
+                  "label": "HIDE EMPTY"
+                }
+              },
+              {
+                "element": "filter.hideFull",
+                "options": {
+                  "control": "button",
+                  "label": "HIDE FULL"
+                }
+              },
+              {
+                "element": "filter.hideLocked",
+                "options": {
+                  "control": "button",
+                  "label": "HIDE LOCKED"
+                }
+              },
+              {
+                "element": "filter.hideOffline",
+                "options": {
+                  "control": "button",
+                  "label": "HIDE DEAD"
+                }
+              },
+              {
+                "element": "servers.refresh",
+                "options": {
+                  "display": "icon"
+                }
+              },
+              {
+                "element": "filter.reset",
+                "options": {
+                  "display": "iconLabel"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "stack",
+        "direction": "row",
+        "grow": 1,
+        "children": [
+          {
+            "element": "list.servers",
+            "grow": 1
+          },
+          {
+            "type": "stack",
+            "id": "r-detail",
+            "context": "selection",
+            "direction": "column",
+            "children": [
+              { "element": "server.name" },
+              { "element": "server.address" },
+              { "element": "server.tags" },
+              {
+                "type": "stack",
+                "id": "r-stats",
+                "direction": "row",
+                "children": [
+                  { "element": "server.players" },
+                  { "element": "server.ping" },
+                  { "element": "server.gameTime" },
+                  { "element": "server.modCount" }
+                ]
+              },
+              { "element": "server.actionNotice" },
+              { "element": "list.serverMods" },
+              {
+                "element": "server.join",
+                "options": {
+                  "wording": "fixAndJoin"
+                }
+              },
+              {
+                "type": "stack",
+                "direction": "row",
+                "children": [
+                  {
+                    "element": "server.checkMods",
+                    "options": {
+                      "label": "Verify mods"
+                    }
+                  },
+                  {
+                    "element": "server.subscribeAll",
+                    "options": {
+                      "label": "Subscribe all"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "stack",
+                "direction": "row",
+                "children": [
+                  {
+                    "element": "server.unsubscribeUnique",
+                    "options": {
+                      "label": "Unsubscribe all"
+                    }
+                  },
+                  { "element": "server.favourite" }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
