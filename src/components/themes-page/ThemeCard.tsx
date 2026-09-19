@@ -11,12 +11,17 @@ interface ThemeCardProps {
   swatches: [string, string, string, string];
   /** A resolved `tetra-theme://` URL (see `resolveThemeAsset`); absent when the theme declares no preview. */
   previewUrl?: string;
-  onActivate: () => void;
-  onDuplicate: () => void;
+  /** Absent for an incompatible theme — it can't be activated. */
+  onActivate?: () => void;
+  /** Absent for an incompatible theme — duplicating a dead theme forward makes no sense. */
+  onDuplicate?: () => void;
   /** Absent for a built-in theme — the menu item is omitted, not disabled. */
   onExport?: () => void;
   /** Absent for a built-in theme or the active theme. */
   onRequestDelete?: () => void;
+  /** Set when the backend's scan flagged this theme's schema/API as unsupported. */
+  incompatible?: boolean;
+  incompatibleReason?: string;
 }
 
 // Same hook as theme-customiser.tsx's, kept local on purpose — too small to share.
@@ -40,6 +45,8 @@ export function ThemeCard({
   onDuplicate,
   onExport,
   onRequestDelete,
+  incompatible,
+  incompatibleReason,
 }: ThemeCardProps): JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false);
   // A preview that fails (missing/stale file) falls back to the swatch strip,
@@ -102,13 +109,22 @@ export function ThemeCard({
           <p className="truncate [font-size:var(--t-type-body-size)] font-bold text-ink" title={name}>
             {name}
           </p>
+          {incompatible && (
+            <span className="shrink-0 [border-radius:var(--t-radius-controlCompact)] border border-danger-line px-1.5 py-0.5 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-wider text-danger">
+              Incompatible
+            </span>
+          )}
         </div>
         <p className="mt-0.5 truncate [font-size:var(--t-type-caption-size)] text-muted">
-          {builtin ? "built-in" : `by ${author} · v${version}`}
+          {incompatible
+            ? incompatibleReason ?? "This theme uses a format v2 no longer supports."
+            : builtin
+              ? "built-in"
+              : `by ${author} · v${version}`}
         </p>
 
         <div className="relative mt-2.5 flex items-center gap-1.5">
-          {!active && (
+          {!active && onActivate && (
             <button
               type="button"
               onClick={onActivate}
@@ -136,14 +152,16 @@ export function ThemeCard({
               role="menu"
               className="absolute bottom-full right-0 z-20 mb-1 w-44 [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)]"
             >
-              <MenuItem
-                icon={Copy}
-                label="Duplicate as new theme"
-                onClick={() => {
-                  setMenuOpen(false);
-                  onDuplicate();
-                }}
-              />
+              {onDuplicate && (
+                <MenuItem
+                  icon={Copy}
+                  label="Duplicate as new theme"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onDuplicate();
+                  }}
+                />
+              )}
               {onExport && (
                 <MenuItem
                   icon={FileOutput}

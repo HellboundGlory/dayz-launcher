@@ -421,6 +421,12 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       }
     }
 
+    // A v1 folder left on disk is never rendered: the backend flags it, and
+    // the stored active id could be stale from before the theme went bad.
+    if (activeInstalled(activeId, installedThemes)?.incompatible) {
+      activeId = "neutral";
+    }
+
     set({
       activeId,
       ...(stored.scheme !== undefined && { scheme: stored.scheme }),
