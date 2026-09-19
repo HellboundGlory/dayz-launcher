@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { cn } from "@/lib/utils";
 import { useElementContext } from "./context";
 
 export function NoticeStorage({ className, style }: { className?: string; style?: CSSProperties }) {
@@ -118,7 +119,26 @@ export function NoticeModsOutdated(props?: { className?: string; style?: CSSProp
   return null;
 }
 
-export function ServerActionNotice(props?: { className?: string; style?: CSSProperties }) {
-  if (props === undefined) return null;
-  return null;
+export function ServerActionNotice({ className, style }: { className?: string; style?: CSSProperties }) {
+  const { subjectContext, selectedServer } = useElementContext();
+  const server = (subjectContext?.kind === "server" ? subjectContext.data : selectedServer) as import("@/types/server").Server | null;
+  if (!server || !server.modded) return null;
+
+  return (
+    <div
+      data-el="server.actionNotice"
+      className={cn(
+        "border border-warn/70 bg-surface2/60 p-3 my-2",
+        className,
+      )}
+      style={style}
+    >
+      <div data-part="title" className="text-warn font-bold text-xs uppercase tracking-wider">
+        2 MODS NEED UPDATING
+      </div>
+      <div data-part="message" className="text-xs text-muted2 mt-1">
+        1 not subscribed · 1.6 GB to download before you can join
+      </div>
+    </div>
+  );
 }

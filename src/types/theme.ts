@@ -50,6 +50,8 @@ export interface ThemeSummary {
   previews?: ThemePreview[];
 }
 
+import type { LayoutFile } from "@/theme/renderer/types";
+
 /** One theme, fully. The backend flattens the manifest, so this isn't nested at the wire level. */
 export type ThemeFile = ThemeManifest & {
   tokens: unknown;
@@ -57,6 +59,7 @@ export type ThemeFile = ThemeManifest & {
   settingsSchema: unknown | null;
   /** Keyed by slot id — any slot may be a key; a missing key means the theme ships no such tree. */
   components: Record<string, unknown>;
+  layouts?: Record<string, LayoutFile>;
 };
 
 /** A theme's `layout.json`. The backend checks the envelope and nothing else —

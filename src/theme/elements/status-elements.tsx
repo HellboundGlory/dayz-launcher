@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { cn } from "@/lib/utils";
 import { useElementContext } from "./context";
 
 export function StatusSteam({
@@ -29,10 +30,13 @@ export function StatusSteam({
       {showDot && (
         <span
           data-part="dot"
-          className="size-[var(--t-space-stateDotSize)] [border-radius:var(--t-radius-pill)]"
+          className={cn(
+            "size-2 [border-radius:var(--t-radius-pill)] shrink-0",
+            steamConnected ? "bg-success shadow-[0_0_6px_var(--success)]" : "bg-danger",
+          )}
         />
       )}
-      {showLabel && <span data-part="label">{text}</span>}
+      {showLabel && <span data-part="label" className="text-xs text-muted font-mono-data">{text}</span>}
     </div>
   );
 }

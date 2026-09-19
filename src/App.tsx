@@ -31,6 +31,9 @@ import { useUpdateStore } from "./stores/update-store";
 import { useModsStore } from "./stores/mods-store";
 import { watchDayz } from "./stores/launch-store";
 import { useThemeStore, watchHotReload, watchThemeActivationReverted } from "./theme/theme-store";
+import { ElementContextProvider } from "./theme/elements/context";
+import { LayoutRenderer } from "./theme/renderer";
+import { useServerDataLoader } from "./hooks/use-server-data-loader";
 import type { Server } from "./types/server";
 import {
   steamInit,
@@ -264,6 +267,21 @@ export function App() {
   useEffect(() => watchHotReload(), []);
 
   const activeId = useThemeStore((s) => s.activeId);
+  const themeFiles = useThemeStore((s) => s.themeFiles);
+  const settingsValues = useThemeStore((s) => s.settingsValues);
+  const servers = useServerStore((s) => s.servers);
+  const selectedServer = useServerStore((s) => s.selectedServer);
+  const setSelectedServer = useServerStore((s) => s.setSelectedServer);
+  useServerDataLoader();
+
+  const shellLayout = themeFiles[activeId]?.layouts?.["layout/shell.json"];
+  const browserLayout = themeFiles[activeId]?.layouts?.["layout/views/browser.json"];
+
+  useEffect(() => {
+    if (shellLayout && !selectedServer && servers.length > 0) {
+      setSelectedServer(servers[0]);
+    }
+  }, [shellLayout, selectedServer, servers, setSelectedServer]);
 
   // Dev Mode's watch: the cleanup stops the previous one, so turning Dev Mode
   // off or switching theme replaces rather than accumulates.
@@ -768,138 +786,226 @@ export function App() {
     />
   );
 
+  const elementContextValue = {
+    activeView,
+    onViewChange: handleViewChange,
+    settingsOpen,
+    onOpenSettings: () => setSettingsOpen(true),
+    onCloseSettings: () => setSettingsOpen(false),
+    error,
+    dismissError: () => setError(null),
+    storageDegraded,
+    serverCounts: counts,
+    refreshedAt,
+    steamConnected,
+    listSource,
+    updateAvailable,
+    updateBannerDismissed,
+    dismissUpdateBanner: () => setUpdateBannerDismissed(true),
+    openUpdateModal: () => setUpdateOpen(true),
+    selectedServer,
+  };
+
   return (
-    <div
-      className="relative flex h-screen flex-col overflow-hidden [border-radius:var(--t-radius-window)] border border-line bg-bg"
-      style={{ "--side-w": sideWidthValue } as CSSProperties}
-    >
-      <WindowResizeHandles />
+    <ElementContextProvider value={elementContextValue}>
+      <div
+        className="relative flex h-screen flex-col overflow-hidden [border-radius:var(--t-radius-window)] border border-line bg-bg"
+        style={{ "--side-w": sideWidthValue } as CSSProperties}
+      >
+        <WindowResizeHandles />
 
-      <div className="flex min-h-0 flex-1">
-        {!sidebarRight && sidebar}
-        <div className="flex min-w-0 flex-1 flex-col">
-          <WindowControls />
-
-          {/* "Later" dismisses for this session only. */}
-          {updateAvailable && !updateBannerDismissed && (
-            <div className="flex items-center gap-[var(--t-space-stackGap)] border-b border-accent-line bg-accent-soft px-[var(--t-space-rowX)] py-[var(--t-space-controlY)]">
-              <span className="[font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-accent">
-                Update available
-              </span>
-              <span className="min-w-0 flex-1 truncate [font-size:var(--t-type-body-size)] text-ink">
-                Tetra Launcher v{updateAvailable.version} is ready to install.
-              </span>
-              <button
-                onClick={() => {
-                  setUpdateBannerDismissed(true);
-                  setUpdateOpen(true);
-                }}
-                className="shrink-0 [border-radius:var(--t-radius-controlSmall)] bg-accent px-[var(--t-space-controlSmallX)] py-[var(--t-space-controlSmallY)] [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-button-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-bg transition-[filter] [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:brightness-110"
-              >
-                Update
-              </button>
-              <button
-                onClick={() => setUpdateBannerDismissed(true)}
-                className="shrink-0 [border-radius:var(--t-radius-controlSmall)] px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlSmallY)] [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:text-ink"
-              >
-                Later
-              </button>
-            </div>
-          )}
-
-          {activeView === "mods" ? (
-            /* Mods tab replaces the whole server-browser stack while active. */
-            <ModsTab />
-          ) : (
-            <div className="flex min-h-0 flex-1 flex-col">
-              <FilterBar
-                onRefresh={handleRefresh}
-                refreshing={refreshing}
-                onOpenModFilter={() => setModFilterOpen(true)}
-                modFilterOpen={modFilterOpen}
-              />
-
-              {/* Not dismissible — favourites/recent are not being saved. */}
-              {storageDegraded && (
-                <div className="flex items-center gap-[var(--t-space-inlineGapWide)] border-b border-warn bg-warn-soft px-[var(--t-space-rowX)] py-[var(--t-space-controlY)]">
-                  <span className="[font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase text-warn">
-                    STORAGE
-                  </span>
-                  <span className="[font-size:var(--t-type-body-size)] text-ink">
-                    The server database could not be opened, so this session is
-                    running from memory — favourites and recently-played will
-                    not be saved.
-                  </span>
-                </div>
-              )}
-
-              {error && (
-                <div className="flex items-center gap-[var(--t-space-inlineGapWide)] border-b border-danger bg-surface2 px-[var(--t-space-rowX)] py-[var(--t-space-controlY)]">
-                  <span className="[font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase text-danger">
-                    ERROR
-                  </span>
-                  <span className="truncate [font-size:var(--t-type-body-size)] text-ink">{error}</span>
-                  <button
-                    onClick={() => setError(null)}
-                    className="ml-auto shrink-0 [font-size:var(--t-type-label-size)] text-muted hover:text-ink"
-                  >
-                    DISMISS
-                  </button>
-                </div>
-              )}
-
-              <ServerList view={activeView} onMoreInfo={setInfoServer} />
-            </div>
-          )}
-
-          <FooterBar
-            servers={counts.total}
-            populated={counts.populated}
-            refreshedAt={refreshedAt}
-            steamConnected={steamConnected}
-            listSource={listSource}
+        {shellLayout ? (
+          <LayoutRenderer
+            file={shellLayout}
+            themeId={activeId}
+            settings={settingsValues[activeId]}
+            outlets={{
+              view:
+                activeView === "mods" ? (
+                  <ModsTab />
+                ) : browserLayout ? (
+                  <LayoutRenderer
+                    file={browserLayout}
+                    themeId={activeId}
+                    settings={settingsValues[activeId]}
+                  />
+                ) : (
+                  <div className="flex min-h-0 flex-1 flex-col">
+                    <FilterBar
+                      onRefresh={handleRefresh}
+                      refreshing={refreshing}
+                      onOpenModFilter={() => setModFilterOpen(true)}
+                      modFilterOpen={modFilterOpen}
+                    />
+                    <ServerList view={activeView} onMoreInfo={setInfoServer} />
+                  </div>
+                ),
+              modals: (
+                <>
+                  {settingsOpen && (
+                    <SettingsView
+                      onClose={() => setSettingsOpen(false)}
+                      devMode={devMode}
+                      onDevModeChange={setDevMode}
+                    />
+                  )}
+                  {devMode && <DevModeInspector />}
+                  {devMode && <DevModeValidationPanel />}
+                  {showOnboarding && steamConnected && (
+                    <OnboardingModal onDone={() => setShowOnboarding(false)} />
+                  )}
+                  <UpdateModal open={updateOpen} onClose={() => setUpdateOpen(false)} />
+                  {infoServer && (
+                    <ServerInfoModal
+                      server={infoServer}
+                      onClose={() => setInfoServer(null)}
+                    />
+                  )}
+                  {modFilterOpen && (
+                    <ModFilterModal onClose={() => setModFilterOpen(false)} />
+                  )}
+                  {!steamConnected && steamError && (
+                    <SteamRequiredModal
+                      error={steamError}
+                      checking={connecting}
+                      exhausted={autoRetryExhausted}
+                      onRetry={() => void connectSteam(true)}
+                    />
+                  )}
+                </>
+              ),
+            }}
           />
-        </div>
-        {sidebarRight && sidebar}
+        ) : (
+          <>
+            <div className="flex min-h-0 flex-1">
+              {!sidebarRight && sidebar}
+              <div className="flex min-w-0 flex-1 flex-col">
+                <WindowControls />
+
+                {/* "Later" dismisses for this session only. */}
+                {updateAvailable && !updateBannerDismissed && (
+                  <div className="flex items-center gap-[var(--t-space-stackGap)] border-b border-accent-line bg-accent-soft px-[var(--t-space-rowX)] py-[var(--t-space-controlY)]">
+                    <span className="[font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-accent">
+                      Update available
+                    </span>
+                    <span className="min-w-0 flex-1 truncate [font-size:var(--t-type-body-size)] text-ink">
+                      Tetra Launcher v{updateAvailable.version} is ready to install.
+                    </span>
+                    <button
+                      onClick={() => {
+                        setUpdateBannerDismissed(true);
+                        setUpdateOpen(true);
+                      }}
+                      className="shrink-0 [border-radius:var(--t-radius-controlSmall)] bg-accent px-[var(--t-space-controlSmallX)] py-[var(--t-space-controlSmallY)] [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-button-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-bg transition-[filter] [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:brightness-110"
+                    >
+                      Update
+                    </button>
+                    <button
+                      onClick={() => setUpdateBannerDismissed(true)}
+                      className="shrink-0 [border-radius:var(--t-radius-controlSmall)] px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlSmallY)] [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:text-ink"
+                    >
+                      Later
+                    </button>
+                  </div>
+                )}
+
+                {activeView === "mods" ? (
+                  /* Mods tab replaces the whole server-browser stack while active. */
+                  <ModsTab />
+                ) : (
+                  <div className="flex min-h-0 flex-1 flex-col">
+                    <FilterBar
+                      onRefresh={handleRefresh}
+                      refreshing={refreshing}
+                      onOpenModFilter={() => setModFilterOpen(true)}
+                      modFilterOpen={modFilterOpen}
+                    />
+
+                    {/* Not dismissible — favourites/recent are not being saved. */}
+                    {storageDegraded && (
+                      <div className="flex items-center gap-[var(--t-space-inlineGapWide)] border-b border-warn bg-warn-soft px-[var(--t-space-rowX)] py-[var(--t-space-controlY)]">
+                        <span className="[font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase text-warn">
+                          STORAGE
+                        </span>
+                        <span className="[font-size:var(--t-type-body-size)] text-ink">
+                          The server database could not be opened, so this session is
+                          running from memory — favourites and recently-played will
+                          not be saved.
+                        </span>
+                      </div>
+                    )}
+
+                    {error && (
+                      <div className="flex items-center gap-[var(--t-space-inlineGapWide)] border-b border-danger bg-surface2 px-[var(--t-space-rowX)] py-[var(--t-space-controlY)]">
+                        <span className="[font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase text-danger">
+                          ERROR
+                        </span>
+                        <span className="truncate [font-size:var(--t-type-body-size)] text-ink">{error}</span>
+                        <button
+                          onClick={() => setError(null)}
+                          className="ml-auto shrink-0 [font-size:var(--t-type-label-size)] text-muted hover:text-ink"
+                        >
+                          DISMISS
+                        </button>
+                      </div>
+                    )}
+
+                    <ServerList view={activeView} onMoreInfo={setInfoServer} />
+                  </div>
+                )}
+
+                <FooterBar
+                  servers={counts.total}
+                  populated={counts.populated}
+                  refreshedAt={refreshedAt}
+                  steamConnected={steamConnected}
+                  listSource={listSource}
+                />
+              </div>
+              {sidebarRight && sidebar}
+            </div>
+
+            {settingsOpen && (
+              <SettingsView
+                onClose={() => setSettingsOpen(false)}
+                devMode={devMode}
+                onDevModeChange={setDevMode}
+              />
+            )}
+
+            {devMode && <DevModeInspector />}
+            {devMode && <DevModeValidationPanel />}
+
+            {showOnboarding && steamConnected && (
+              <OnboardingModal onDone={() => setShowOnboarding(false)} />
+            )}
+
+            <UpdateModal open={updateOpen} onClose={() => setUpdateOpen(false)} />
+
+            {infoServer && (
+              <ServerInfoModal
+                server={infoServer}
+                onClose={() => setInfoServer(null)}
+              />
+            )}
+
+            {modFilterOpen && (
+              <ModFilterModal onClose={() => setModFilterOpen(false)} />
+            )}
+
+            {/* Blocking: nothing works without Steam. */}
+            {!steamConnected && steamError && (
+              <SteamRequiredModal
+                error={steamError}
+                checking={connecting}
+                exhausted={autoRetryExhausted}
+                onRetry={() => void connectSteam(true)}
+              />
+            )}
+          </>
+        )}
       </div>
-
-      {settingsOpen && (
-        <SettingsView
-          onClose={() => setSettingsOpen(false)}
-          devMode={devMode}
-          onDevModeChange={setDevMode}
-        />
-      )}
-
-      {devMode && <DevModeInspector />}
-      {devMode && <DevModeValidationPanel />}
-
-      {showOnboarding && steamConnected && (
-        <OnboardingModal onDone={() => setShowOnboarding(false)} />
-      )}
-
-      <UpdateModal open={updateOpen} onClose={() => setUpdateOpen(false)} />
-
-      {infoServer && (
-        <ServerInfoModal
-          server={infoServer}
-          onClose={() => setInfoServer(null)}
-        />
-      )}
-
-      {modFilterOpen && (
-        <ModFilterModal onClose={() => setModFilterOpen(false)} />
-      )}
-
-      {/* Blocking: nothing works without Steam. */}
-      {!steamConnected && steamError && (
-        <SteamRequiredModal
-          error={steamError}
-          checking={connecting}
-          exhausted={autoRetryExhausted}
-          onRetry={() => void connectSteam(true)}
-        />
-      )}
-    </div>
+    </ElementContextProvider>
   );
 }

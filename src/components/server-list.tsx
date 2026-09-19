@@ -1,7 +1,5 @@
 import {
   Fragment,
-  useCallback,
-  useEffect,
   useRef,
   useState,
   type ReactNode,
@@ -9,14 +7,7 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useServerStore } from "@/stores/server-store";
 import { Star } from "lucide-react";
-import {
-  getServerList,
-  getMapList,
-  logClient,
-  toggleFavourite,
-  type FilterParams,
-  type SortParams,
-} from "@/lib/tauri";
+import { toggleFavourite } from "@/lib/tauri";
 import type { Server } from "@/types/server";
 import type { ViewId } from "./sidebar";
 import { cn, formatGameTime, formatLastPlayed, regionName } from "@/lib/utils";
@@ -252,22 +243,12 @@ function renderStats(
   return groupedNodes(ids, nodes).map(({ id, node }) => <Fragment key={id}>{node}</Fragment>);
 }
 
-/** How often the distinct-maps dropdown is refetched — decoupled from the row-reload cadence. */
-const MAP_LIST_REFRESH_MS = 10_000;
 
 // Rich-row server list: data loading, sort/filter wiring, favourite handling.
 export function ServerList({ view, onMoreInfo }: ServerListProps) {
   const servers = useServerStore((s) => s.servers);
-  const setServers = useServerStore((s) => s.setServers);
   const selectedServer = useServerStore((s) => s.selectedServer);
   const setSelectedServer = useServerStore((s) => s.setSelectedServer);
-  const filter = useServerStore((s) => s.filter);
-  const sortKey = useServerStore((s) => s.sortKey);
-  const sortDir = useServerStore((s) => s.sortDir);
-  const loadVersion = useServerStore((s) => s.loadVersion);
-  const setLoading = useServerStore((s) => s.setLoading);
-  const setMaps = useServerStore((s) => s.setMaps);
-  const setHasLoadedOnce = useServerStore((s) => s.setHasLoadedOnce);
   const toggleFavouriteLocal = useServerStore((s) => s.toggleFavourite);
   const modPending = useServerStore((s) => s.modPending);
   const hasLoadedOnce = useServerStore((s) => s.hasLoadedOnce);
@@ -275,119 +256,6 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
   // Row whose ⋯ menu is open — lifted above siblings since virtualized rows
   // are each their own stacking context.
   const [menuOpenKey, setMenuOpenKey] = useState<string | null>(null);
-
-  // One load at a time, and a bump that lands mid-load is remembered rather
-  // than pre-empting it. Cancelling the in-flight run on every bump starved
-  // it outright: a 40k-row read takes longer than the reload cadence during
-  // discovery, so every run was superseded before it could apply and the
-  // table stayed empty (splash up) for the whole pass.
-  const loadInFlight = useRef(false);
-  const reloadQueued = useRef(false);
-  // Read at run time, so a coalesced re-run uses the newest filter/sort
-  // rather than whatever was current when it was queued.
-  const queryRef = useRef<{
-    filterParams: FilterParams;
-    sortParams: SortParams;
-  } | null>(null);
-
-  const runLoad = useCallback(async () => {
-    if (loadInFlight.current) {
-      reloadQueued.current = true;
-      return;
-    }
-    loadInFlight.current = true;
-    setLoading(true);
-    try {
-      do {
-        reloadQueued.current = false;
-        const query = queryRef.current;
-        if (!query) break;
-        const t0 = performance.now();
-        void logClient("servers", "load: start", true);
-        try {
-          const rows = await getServerList(
-            query.filterParams,
-            query.sortParams,
-          );
-          setServers(rows);
-          void logClient(
-            "servers",
-            `load: ${rows.length} rows in ${Math.round(performance.now() - t0)}ms`,
-            true,
-          );
-        } catch (e) {
-          void logClient("servers", `load: failed: ${String(e)}`);
-          console.error("Failed to load servers:", e);
-        }
-      } while (reloadQueued.current);
-    } finally {
-      loadInFlight.current = false;
-      setLoading(false);
-      setHasLoadedOnce();
-    }
-  }, [setLoading, setServers, setHasLoadedOnce]);
-
-  useEffect(() => {
-    queryRef.current = {
-      filterParams: {
-        maps: filter.maps,
-        countries: filter.countries,
-        hide_empty: filter.hide_empty,
-        hide_full: filter.hide_full,
-        hide_locked: filter.hide_locked,
-        hide_offline: filter.hide_offline,
-        max_ping: filter.max_ping,
-        search: filter.search,
-        favourites_only: filter.favourites_only,
-        recent_only: filter.recent_only,
-        official: filter.official,
-        modded: filter.modded,
-        first_person: filter.first_person,
-        mod_ids: filter.mod_ids,
-        mod_match: filter.mod_match,
-        mod_ids_exclude: filter.mod_ids_exclude,
-      },
-      sortParams: {
-        sort_key: sortKey,
-        sort_dir: sortDir,
-        // Covers the whole DayZ browser (~30k servers) rather than a slice:
-        // at 5000, with the default players-descending sort, empty servers
-        // (most of the browser) fell off the end. The list is virtualised;
-        // REFRESH still probes only the first PROBE_WINDOW rows.
-        limit: 40000,
-      },
-    };
-    void runLoad();
-  }, [
-    filter,
-    sortKey,
-    sortDir,
-    loadVersion,
-    runLoad,
-  ]);
-
-  // Distinct maps for the filter dropdown, decoupled from loadVersion so a
-  // discovery storm doesn't mean a GROUP BY several times a second.
-  useEffect(() => {
-    let cancelled = false;
-    const fetchMaps = () => {
-      getMapList()
-        .then((maps) => {
-          if (!cancelled) setMaps(maps);
-        })
-        .catch((e) => {
-          if (!cancelled)
-            void logClient("servers", `getMapList failed: ${String(e)}`);
-        });
-    };
-    fetchMaps();
-    const id = window.setInterval(fetchMaps, MAP_LIST_REFRESH_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Optimistic: flip it locally so the star responds instantly, then persist.
   // On failure, flip back rather than leaving the UI asserting something the

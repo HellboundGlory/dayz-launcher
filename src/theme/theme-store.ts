@@ -46,6 +46,8 @@ import {
   validateTheme,
 } from "@/lib/tauri";
 import type { LegacyTheme, ThemeFile, ThemeManifest, ThemeSummary, ValidationIssue } from "@/types/theme";
+import { getNeutralLayout } from "./neutral";
+import type { LayoutFile } from "./renderer/types";
 
 export type SettingsValue = string | number | boolean;
 
@@ -756,3 +758,11 @@ export function watchHotReload(): () => void {
     void pending.then((unlisten) => unlisten());
   };
 }
+
+export function getActiveLayout(path: string): LayoutFile | undefined {
+  const { activeId, themeFiles } = useThemeStore.getState();
+  const file = themeFiles[activeId]?.layouts?.[path];
+  if (file) return file;
+  return getNeutralLayout(path);
+}
+

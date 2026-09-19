@@ -96,6 +96,31 @@ impl ThemeSummary {
     }
 }
 
+/// Every path the v2 `layout/` allowlist admits.
+pub const LAYOUT_ALLOWLIST: &[&str] = &[
+    "layout/shell.json",
+    "layout/settings.json",
+    "layout/views/browser.json",
+    "layout/views/mods.json",
+    "layout/modals/serverInfo.json",
+    "layout/modals/modFilter.json",
+    "layout/modals/update.json",
+    "layout/lists/servers.json",
+    "layout/lists/mods.json",
+    "layout/lists/modFilterResults.json",
+    "layout/lists/serverMods.json",
+    "layout/lists/modServers.json",
+    "layout/popups/mapFilter.json",
+    "layout/popups/modsUnique.json",
+    "layout/popups/regionFilter.json",
+    "layout/popups/sort.json",
+    "layout/popups/tagsFilter.json",
+    "layout/popups/serverActions.json",
+    "layout/popups/serverLoad.json",
+    "layout/popups/modActions.json",
+    "layout/popups/settingsNav.json",
+];
+
 /// One theme, fully: its manifest flattened with its raw optional content —
 /// `tokens.json` and whatever else the theme ships.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -110,6 +135,8 @@ pub struct ThemeFile {
     /// Keyed by slot id, one entry per `components/<slot id>.json` the theme
     /// ships. Absent from the map is "this theme ships none", not an error.
     pub components: std::collections::BTreeMap<String, serde_json::Value>,
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub layouts: std::collections::BTreeMap<String, serde_json::Value>,
 }
 
 /// A scan's result: themes found, and one skip message per directory that failed.
@@ -268,6 +295,23 @@ fn read_components(dir: &Path) -> Result<std::collections::BTreeMap<String, Valu
     Ok(components)
 }
 
+/// Reads every layout file a theme ships from [`LAYOUT_ALLOWLIST`].
+fn read_layouts(dir: &Path) -> Result<std::collections::BTreeMap<String, Value>, String> {
+    let mut layouts = std::collections::BTreeMap::new();
+    for rel_path in LAYOUT_ALLOWLIST {
+        let file = dir.join(rel_path);
+        if !file.is_file() {
+            continue;
+        }
+        let raw = std::fs::read_to_string(&file)
+            .map_err(|e| format!("Could not read {}: {e}", file.display()))?;
+        let value: Value = serde_json::from_str(&raw)
+            .map_err(|e| format!("{} is not valid JSON: {e}", file.display()))?;
+        layouts.insert((*rel_path).to_string(), value);
+    }
+    Ok(layouts)
+}
+
 /// One theme's manifest, tokens, and whichever optional content files it ships.
 pub fn get(themes_root: &Path, id: &str) -> Result<ThemeFile, String> {
     let dir = theme_dir(themes_root, id)?;
@@ -295,6 +339,7 @@ pub fn get(themes_root: &Path, id: &str) -> Result<ThemeFile, String> {
     let layout = read_optional_json(&dir, LAYOUT_FILE, validate_layout)?;
     let settings_schema = read_optional_json(&dir, SETTINGS_SCHEMA_FILE, validate_settings_schema)?;
     let components = read_components(&dir)?;
+    let layouts = read_layouts(&dir)?;
 
     Ok(ThemeFile {
         manifest,
@@ -302,6 +347,7 @@ pub fn get(themes_root: &Path, id: &str) -> Result<ThemeFile, String> {
         layout,
         settings_schema,
         components,
+        layouts,
     })
 }
 

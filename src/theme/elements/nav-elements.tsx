@@ -76,13 +76,14 @@ function NavItem({
       type="button"
       data-el={id}
       data-state={state}
+      aria-selected={!isSettings && isActive ? "true" : undefined}
       aria-current={!isSettings && isActive ? "page" : undefined}
       aria-pressed={isSettings ? isActive : undefined}
       onClick={handleClick}
       onKeyDown={onNavKeyDown}
       title={display === "icon" ? label : undefined}
       aria-label={label}
-      className={className ?? "flex items-center gap-[var(--t-space-sidebarItemGap)] px-[var(--t-space-controlSmallX)] py-[var(--t-space-rowY)]"}
+      className={className ?? "flex items-center gap-[var(--t-space-sidebarItemGap)] px-3 py-1 text-xs font-bold uppercase tracking-wider transition-colors"}
       style={style}
     >
       {showIcon && (
