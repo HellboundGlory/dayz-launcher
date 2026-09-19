@@ -1864,14 +1864,21 @@ mod builtin_themes {
     }
 
     #[test]
-    fn every_bundled_builtin_theme_is_listed_with_its_declared_tier() {
+    fn every_bundled_builtin_theme_is_listed_with_its_declared_capabilities() {
         let scan = theme::scan(&shipped());
 
         assert!(scan.skipped.is_empty(), "{:?}", scan.skipped);
         let ids: Vec<&str> = scan.themes.iter().map(|t| t.id.as_str()).collect();
         assert_eq!(ids, BUILTIN_THEME_IDS, "the shipped set, sorted by id");
-        let tiers: Vec<&str> = scan.themes.iter().map(|t| t.tier.as_str()).collect();
-        assert_eq!(tiers, ["expert"]);
+        let tactical = scan
+            .themes
+            .iter()
+            .find(|t| t.id == "builtin.tactical")
+            .expect("builtin.tactical is present");
+        assert_eq!(
+            tactical.capabilities,
+            ["tokens", "css", "layout", "settings"]
+        );
     }
 
     /// Each builtin theme's own files, through the validators the rest of the
@@ -1883,9 +1890,9 @@ mod builtin_themes {
 
             let file = theme::get(&shipped(), id).unwrap_or_else(|e| panic!("{id}: {e}"));
             assert_eq!(file.manifest.id, id, "{id}: directory name is its id");
-            assert_eq!(file.manifest.tier, "expert", "{id}: is an Expert package");
+            assert_eq!(file.manifest.schema_version, 2, "{id}: is a v2 package");
             assert_eq!(
-                file.manifest.theme_api, "1.0",
+                file.manifest.theme_api, "2.0",
                 "{id}: speaks this build's theme API"
             );
 
@@ -1897,7 +1904,7 @@ mod builtin_themes {
                     "bg", "surface", "surface2", "border", "text", "muted", "muted2", "accent",
                     "accent2", "success", "warn", "danger",
                 ] {
-                    let value = &file.tokens[scheme][token];
+                    let value = &file.tokens["colors"][scheme][token];
                     let hex = value.as_str().unwrap_or_else(|| {
                         panic!("{id}: {scheme}.{token} is not a string ({value})")
                     });
@@ -1921,19 +1928,17 @@ mod builtin_themes {
         }
     }
 
-    /// Composition is the whole point of the Expert tier: a builtin with an
-    /// empty `components/` would be a showcase of nothing.
+    /// A builtin showcase theme must actually compose something: it ships layout files.
     #[test]
-    fn each_builtin_theme_ships_a_components_directory() {
+    fn each_builtin_theme_ships_a_layout_directory() {
         for id in BUILTIN_THEME_IDS {
-            let components = shipped().join(id).join(theme::COMPONENTS_DIR);
-            assert!(components.is_dir(), "{id}: ships a components directory");
-            let count = std::fs::read_dir(&components)
-                .unwrap()
-                .filter_map(|e| e.ok())
-                .filter(|e| e.path().is_file())
+            let layout_dir = shipped().join(id).join("layout");
+            assert!(layout_dir.is_dir(), "{id}: ships a layout directory");
+            let count = files_under(&layout_dir)
+                .into_iter()
+                .filter(|(name, _)| name.ends_with(".json"))
                 .count();
-            assert!(count > 0, "{id}: its components directory is not empty");
+            assert!(count > 0, "{id}: its layout directory is not empty");
         }
     }
 
@@ -1963,7 +1968,7 @@ mod builtin_themes {
                     "accent2", "success", "warn", "danger",
                 ] {
                     assert!(
-                        file.tokens[scheme][token]
+                        file.tokens["colors"][scheme][token]
                             .as_str()
                             .is_some_and(|h| h.len() == 7),
                         "{id}: {scheme}.{token} is missing from the seeded palette"
@@ -1971,8 +1976,7 @@ mod builtin_themes {
                 }
             }
         }
-        // The copy is a full one: every file, `components/` included, travels
-        // byte for byte.
+        // The copy is a full one: every file in the package travels byte for byte.
         for (name, bytes) in files_under(&source_root.join("builtin.tactical")) {
             assert_eq!(
                 std::fs::read(themes_root.join("builtin.tactical").join(&name)).unwrap(),
