@@ -1537,18 +1537,25 @@ mod starter_templates {
     }
 
     /// Every template this build ships, in the id order `theme::scan` reports.
-    const TEMPLATES: [&str; 3] = ["starter.advanced", "starter.basic", "starter.expert"];
+    const TEMPLATES: [&str; 3] = ["starter.colours", "starter.expert", "starter.styled"];
 
+    /// `starter.colours` and `starter.styled` are v2 packages; `starter.expert`
+    /// is still v1 until the next dispatch replaces it with `starter.layout`.
     #[test]
-    fn every_bundled_template_is_listed_with_its_declared_tier() {
+    fn every_bundled_template_is_listed_and_only_expert_is_still_v1() {
         let scan = theme::scan(&bundled());
 
         assert!(scan.skipped.is_empty(), "{:?}", scan.skipped);
         let ids: Vec<&str> = scan.themes.iter().map(|t| t.id.as_str()).collect();
         assert_eq!(ids, TEMPLATES, "the shipped set, sorted by id");
-        let tiers: Vec<&str> = scan.themes.iter().map(|t| t.tier.as_str()).collect();
-        assert_eq!(tiers, ["advanced", "basic", "expert"]);
-        assert!(scan.themes.iter().all(|theme| theme.incompatible));
+        for theme in &scan.themes {
+            let expect_incompatible = theme.id == "starter.expert";
+            assert_eq!(
+                theme.incompatible, expect_incompatible,
+                "{}: incompatible flag",
+                theme.id
+            );
+        }
     }
 
     /// Each template's own files, through the validators the rest of the
@@ -1574,13 +1581,19 @@ mod starter_templates {
 
             // A palette must be complete: every token the frontend reads, in both
             // schemes, as a hex string — an absent one silently falls back to
-            // neutral, which would make the template barely a theme.
+            // neutral, which would make the template barely a theme. v1's
+            // `starter.expert` keeps its flat shape; v2 nests colours under `colors`.
+            let is_v2 = file.tokens["schemaVersion"] == 2;
             for scheme in ["dark", "light"] {
                 for token in [
                     "bg", "surface", "surface2", "border", "text", "muted", "muted2", "accent",
                     "accent2", "success", "warn", "danger",
                 ] {
-                    let value = &file.tokens[scheme][token];
+                    let value = if is_v2 {
+                        &file.tokens["colors"][scheme][token]
+                    } else {
+                        &file.tokens[scheme][token]
+                    };
                     let hex = value.as_str().unwrap_or_else(|| {
                         panic!("{id}: {scheme}.{token} is not a string ({value})")
                     });
@@ -1604,19 +1617,34 @@ mod starter_templates {
         }
     }
 
-    // Package 4.6 replaces these templates together with the v1 renderer.
+    // The next dispatch replaces `starter.expert` with `starter.layout`, which
+    // will be v2; until then it stays the one bundled v1 holdout.
     #[test]
-    fn bundled_v1_templates_are_refused_at_import() {
-        for id in TEMPLATES {
-            let root = scratch(id);
+    fn the_bundled_v1_template_is_refused_at_import() {
+        let id = "starter.expert";
+        let root = scratch(id);
+        let zip_path = root.join(format!("{id}.zip"));
+        zip_template(&bundled().join(id), &zip_path);
+        let error = archive::stage_for_preview(&root, &zip_path, &[]).unwrap_err();
+        assert!(error.contains("ADR-0003"), "{id}: {error}");
+        assert!(
+            error.contains("v1 packages cannot be imported; theme system v2 is required"),
+            "{id}: {error}"
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    /// The two v2 starters are ordinary user-importable packages: staged and
+    /// installed through the same pipeline a downloaded theme goes through.
+    #[test]
+    fn the_bundled_v2_templates_import_successfully() {
+        for id in ["starter.colours", "starter.styled"] {
+            let root = scratch(&format!("import-{id}"));
             let zip_path = root.join(format!("{id}.zip"));
             zip_template(&bundled().join(id), &zip_path);
-            let error = archive::stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-            assert!(error.contains("ADR-0003"), "{id}: {error}");
-            assert!(
-                error.contains("v1 packages cannot be imported; theme system v2 is required"),
-                "{id}: {error}"
-            );
+            let staged = archive::stage_for_preview(&root, &zip_path, &[])
+                .unwrap_or_else(|e| panic!("{id}: {e}"));
+            assert_eq!(staged.manifest.id, id);
             std::fs::remove_dir_all(root).unwrap();
         }
     }
@@ -1627,28 +1655,29 @@ mod starter_templates {
 
         // All three, so the Expert package's nested `components/` directory is
         // covered as well as the flat pair — it is the one a shallow copy would
-        // silently drop.
-        for (template_id, tier) in [
-            ("starter.basic", "basic"),
-            ("starter.advanced", "advanced"),
-            ("starter.expert", "expert"),
+        // silently drop. The v2 starters omit `tier` (a v1 leftover the struct
+        // defaults to empty), so only Expert's is nonempty.
+        for (template_id, slug, tier) in [
+            ("starter.colours", "colours", ""),
+            ("starter.styled", "styled", ""),
+            ("starter.expert", "expert", "expert"),
         ] {
-            let themes_root = scratch(&format!("scaffold-{tier}"));
-            let new_id = format!("local.my-{tier}");
+            let themes_root = scratch(&format!("scaffold-{slug}"));
+            let new_id = format!("local.my-{slug}");
 
             let id = scaffold_from_template(
                 &bundled,
                 &themes_root,
                 template_id,
                 &new_id,
-                &format!("My {tier}"),
+                &format!("My {slug}"),
             )
             .expect("scaffold");
 
             assert_eq!(id, new_id);
             let created = theme::get(&themes_root, &new_id).expect("the new theme loads");
             assert_eq!(created.manifest.id, new_id);
-            assert_eq!(created.manifest.name, format!("My {tier}"));
+            assert_eq!(created.manifest.name, format!("My {slug}"));
             assert_eq!(created.manifest.tier, tier);
             assert_eq!(
                 created.manifest.author, "Tetra Launcher",
@@ -1714,7 +1743,7 @@ mod starter_templates {
         let error = scaffold_from_template(
             &bundled(),
             &themes_root,
-            "starter.basic",
+            "starter.colours",
             "local.taken",
             "Overwrite Me",
         )
@@ -1752,7 +1781,7 @@ mod starter_templates {
         assert!(error.contains("no.such.template"), "{error}");
 
         let error =
-            scaffold_from_template(&bundled, &themes_root, "starter.basic", "../escape", "X")
+            scaffold_from_template(&bundled, &themes_root, "starter.colours", "../escape", "X")
                 .expect_err("a path is not a usable id");
         assert!(error.contains("not a usable theme id"), "{error}");
 
@@ -1764,14 +1793,25 @@ mod starter_templates {
     /// The command's own file-count guard: a template's structure is what the
     /// picker's "what this demonstrates" text promises.
     #[test]
-    fn each_template_ships_exactly_the_files_its_tier_declares() {
+    fn each_template_ships_exactly_the_files_its_capabilities_declare() {
         let bundled = bundled();
 
-        let expected: [(&str, &[&str]); 3] = [
-            ("starter.basic", &["theme.json", "tokens.json"]),
+        let expected: [(&str, &[&str], &[&str]); 3] = [
             (
-                "starter.advanced",
-                &["theme.json", "tokens.json", "layout.json", "styles.css"],
+                "starter.colours",
+                &["theme.json", "tokens.json", "README.md"],
+                &["tokens"],
+            ),
+            (
+                "starter.styled",
+                &[
+                    "theme.json",
+                    "tokens.json",
+                    "styles.css",
+                    "settings.schema.json",
+                    "README.md",
+                ],
+                &["tokens", "css", "settings"],
             ),
             (
                 "starter.expert",
@@ -1783,9 +1823,10 @@ mod starter_templates {
                     "components/server.row.json",
                     "settings.schema.json",
                 ],
+                &["tokens", "layout", "css", "components", "settings"],
             ),
         ];
-        for (id, files) in expected {
+        for (id, files, capabilities) in expected {
             let dir = bundled.join(id);
             let mut present: Vec<String> = files_under(&dir)
                 .into_iter()
@@ -1795,9 +1836,9 @@ mod starter_templates {
             let mut expected: Vec<String> = files.iter().map(|f| f.to_string()).collect();
             expected.sort();
             assert_eq!(present, expected, "{id} ships exactly its declared content");
-            // The tier in the manifest agrees with the files that are there.
+            // The declared capabilities agree with the files that are there.
             let manifest = theme::get(&bundled, id).unwrap().manifest;
-            assert_eq!(manifest.tier, id.trim_start_matches("starter."));
+            assert_eq!(manifest.capabilities, capabilities, "{id}: capabilities");
         }
     }
 
