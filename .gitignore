@@ -31,3 +31,6 @@ deploy/.env
 
 # Local backend index URL for debug builds — the host is not published here
 /src-tauri/.cargo/
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
