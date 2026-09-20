@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ServerModsList, loadServerMods } from "./list-elements";
-import type { ModReadinessEntry, Server } from "@/types/server";
+import { ServerModsList, loadServerMods, resolveModsListDisplay } from "./list-elements";
+import type { ModReadinessEntry, Server, ServerModReadiness } from "@/types/server";
 
 vi.mock("@/lib/tauri", () => ({
   serverModReadiness: vi.fn(),
@@ -67,5 +67,58 @@ describe("loadServerMods", () => {
     const result = await loadServerMods(moddedServer);
     expect(result.state).toBe("stale");
     expect(result.mods).toEqual([]);
+  });
+});
+
+describe("resolveModsListDisplay", () => {
+  const readyModded: Pick<Server, "modded"> = { modded: true };
+  const readinessWithMods: ServerModReadiness = { stale: false, mods: [oneMod] };
+  const readinessEmpty: ServerModReadiness = { stale: false, mods: [] };
+  const readinessStale: ServerModReadiness = { stale: true, mods: [oneMod] };
+
+  it("maps no selected server to empty with no mods", () => {
+    expect(resolveModsListDisplay(null, false, null, [oneMod])).toEqual({ state: "empty", mods: [] });
+  });
+
+  it("maps an unmodded server to empty with no mods", () => {
+    expect(resolveModsListDisplay({ modded: false }, false, null, [oneMod])).toEqual({
+      state: "empty",
+      mods: [],
+    });
+  });
+
+  it("maps a loading fetch to loading with no mods", () => {
+    expect(resolveModsListDisplay(readyModded, true, null, [oneMod])).toEqual({
+      state: "loading",
+      mods: [],
+    });
+  });
+
+  it("maps a null readiness (failed fetch) to stale, keeping the previously rendered mods", () => {
+    expect(resolveModsListDisplay(readyModded, false, null, [oneMod])).toEqual({
+      state: "stale",
+      mods: [oneMod],
+    });
+  });
+
+  it("maps a stale readiness to stale, keeping the previously rendered mods", () => {
+    expect(resolveModsListDisplay(readyModded, false, readinessStale, [oneMod])).toEqual({
+      state: "stale",
+      mods: [oneMod],
+    });
+  });
+
+  it("maps a resolved readiness with mods to undefined state with those mods", () => {
+    expect(resolveModsListDisplay(readyModded, false, readinessWithMods, [])).toEqual({
+      state: undefined,
+      mods: [oneMod],
+    });
+  });
+
+  it("maps a resolved readiness with no mods to empty with no mods", () => {
+    expect(resolveModsListDisplay(readyModded, false, readinessEmpty, [oneMod])).toEqual({
+      state: "empty",
+      mods: [],
+    });
   });
 });

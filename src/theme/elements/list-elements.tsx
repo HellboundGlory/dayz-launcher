@@ -1,11 +1,12 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useRef, type CSSProperties } from "react";
 import { useServerStore } from "@/stores/server-store";
 import { ListHost } from "../lists/list-host";
 import { ListRow } from "../lists/list-row";
 import { getActiveLayout } from "../theme-store";
 import { SERVERS_LIST } from "../neutral";
 import { serverModReadiness } from "@/lib/tauri";
-import type { Server, ModReadinessEntry } from "@/types/server";
+import { useSelectionReadiness } from "./use-selection-readiness";
+import type { Server, ModReadinessEntry, ServerModReadiness } from "@/types/server";
 import type { LayoutFile } from "../renderer/types";
 
 export function ServerListHost({
@@ -120,6 +121,28 @@ export function ServerModsList({
   );
 }
 
+/** Pure mapping from selection + readiness to what `ServerModsList` should render. */
+export function resolveModsListDisplay(
+  server: Pick<Server, "modded"> | null,
+  loading: boolean,
+  readiness: ServerModReadiness | null,
+  lastMods: ModReadinessEntry[],
+): { state: ServerModsListState; mods: ModReadinessEntry[] } {
+  if (!server || !server.modded) {
+    return { state: "empty", mods: [] };
+  }
+  if (loading) {
+    return { state: "loading", mods: [] };
+  }
+  if (readiness === null || readiness.stale) {
+    // Keep whatever list is already on screen; only flag it as possibly out of date.
+    return { state: "stale", mods: lastMods };
+  }
+  return readiness.mods.length > 0
+    ? { state: undefined, mods: readiness.mods }
+    : { state: "empty", mods: [] };
+}
+
 export function ServerModsListHost({
   className,
   style,
@@ -128,26 +151,14 @@ export function ServerModsListHost({
   style?: CSSProperties;
 }) {
   const selectedServer = useServerStore((s) => s.selectedServer);
-  const [state, setState] = useState<ServerModsListState>("empty");
-  const [mods, setMods] = useState<ModReadinessEntry[]>([]);
+  const { readiness, loading } = useSelectionReadiness();
+  const lastModsRef = useRef<ModReadinessEntry[]>([]);
 
-  useEffect(() => {
-    let cancelled = false;
-    setState("loading");
-    loadServerMods(selectedServer).then((result) => {
-      if (cancelled) return;
-      if (result.state === "stale") {
-        // Keep whatever list is already on screen; only flag it as possibly out of date.
-        setState("stale");
-      } else {
-        setState(result.state);
-        setMods(result.mods);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedServer?.addr, selectedServer?.query_port, selectedServer?.modded]);
+  const { state, mods } = resolveModsListDisplay(selectedServer, loading, readiness, lastModsRef.current);
+  const isFreshResult = !!selectedServer?.modded && !loading && readiness !== null && !readiness.stale;
+  if (isFreshResult) {
+    lastModsRef.current = mods;
+  }
 
   const listLayout = getActiveLayout("layout/lists/serverMods.json") as LayoutFile | undefined;
 
