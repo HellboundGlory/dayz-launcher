@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 2,
+  "presentation": {
+    "mode": "panel",
+    "region": "r-main"
+  },
+  "root": {
+    "type": "stack",
+    "direction": "column",
+    "id": "r-settings",
+    "width": "420px",
+    "height": "100%",
+    "shrink": 0,
+    "children": [
+      {
+        "type": "stack",
+        "id": "r-settings-header",
+        "direction": "row",
+        "align": "center",
+        "children": [
+          { "element": "settings.back", "options": { "display": "iconLabel" } },
+          { "type": "text", "role": "heading", "value": "SETTINGS", "class": "t-settings-title" }
+        ]
+      },
+      {
+        "type": "scroll",
+        "id": "r-settings-body",
+        "axis": "y",
+        "grow": 1,
+        "children": [
+          {
+            "type": "stack",
+            "direction": "column",
+            "class": "t-settings-section",
+            "children": [
+              { "type": "text", "role": "label", "value": "GAME", "class": "t-settings-heading" },
+              { "element": "settings.profileName" },
+              { "element": "settings.dayzPath" },
+              { "element": "settings.detectPaths" },
+              { "element": "settings.workshopPath" },
+              { "element": "settings.launchParams" },
+              { "element": "settings.onJoin" }
+            ]
+          },
+          {
+            "type": "stack",
+            "direction": "column",
+            "class": "t-settings-section",
+            "children": [
+              { "type": "text", "role": "label", "value": "LAUNCHER", "class": "t-settings-heading" },
+              { "element": "settings.minimiseToTray" },
+              { "element": "settings.closeToTray" },
+              { "element": "settings.startWithWindows" },
+              { "element": "settings.startMinimised" },
+              { "element": "settings.discordPresence" },
+              { "element": "settings.dataFolder" },
+              { "element": "settings.openDataFolder" },
+              { "element": "settings.autoRefresh" }
+            ]
+          },
+          {
+            "type": "stack",
+            "direction": "column",
+            "class": "t-settings-section",
+            "children": [
+              { "type": "text", "role": "label", "value": "THEME", "class": "t-settings-heading" },
+              { "element": "settings.themeManagement" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
