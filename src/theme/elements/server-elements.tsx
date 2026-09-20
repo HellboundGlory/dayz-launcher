@@ -156,7 +156,7 @@ export function ServerTags({ className, style }: { className?: string; style?: C
 }
 
 export function ServerFavourite({
-  options: _options,
+  options,
   className,
   style,
 }: {
@@ -171,6 +171,10 @@ export function ServerFavourite({
   const handleClick = (e: MouseEvent) => {
     e.stopPropagation();
   };
+
+  const display = (options?.display as string) ?? "icon";
+  const showLabel = display === "iconLabel";
+  const label = (options?.label as string) ?? (server.favourite ? "Favourited" : "Favourite");
 
   if (contextName === "selection") {
     return (
@@ -210,6 +214,7 @@ export function ServerFavourite({
           fill={server.favourite ? "currentColor" : "none"}
         />
       </span>
+      {showLabel && <span data-part="label">{label}</span>}
     </button>
   );
 }

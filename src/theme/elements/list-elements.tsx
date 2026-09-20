@@ -1,5 +1,6 @@
 import { useRef, type CSSProperties } from "react";
 import { useServerStore } from "@/stores/server-store";
+import type { SortKey } from "@/types/filters";
 import { ListHost } from "../lists/list-host";
 import { ListRow } from "../lists/list-row";
 import { getActiveLayout } from "../theme-store";
@@ -39,7 +40,7 @@ export function ServerListHost({
           direction: sortDir === "asc" ? "ascending" : "descending",
         }}
         onSortChange={(key) =>
-          setSort(key as any, sortKey === key && sortDir === "desc" ? "asc" : "desc")
+          setSort(key as SortKey, sortKey === key && sortDir === "desc" ? "asc" : "desc")
         }
         computeRowStates={(server, isSelected) =>
           [

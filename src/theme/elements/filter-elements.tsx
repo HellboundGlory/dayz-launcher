@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { useServerStore } from "@/stores/server-store";
 
 export function FilterSearch({
-  options: _options,
+  options,
   className,
   style,
 }: {
@@ -15,6 +15,7 @@ export function FilterSearch({
   const filter = useServerStore((s) => s.filter);
   const setFilter = useServerStore((s) => s.setFilter);
   const [text, setText] = useState(filter.search ?? "");
+  const showIcon = options?.showIcon !== false;
 
   useEffect(() => {
     setText(filter.search ?? "");
@@ -33,7 +34,7 @@ export function FilterSearch({
       className={className ?? "flex items-center gap-2 border border-border bg-surface2 px-2.5 py-1 text-sm text-text"}
       style={style}
     >
-      <Search className="size-3.5 text-muted shrink-0" />
+      {showIcon && <Search className="size-3.5 text-muted shrink-0" />}
       <input
         type="text"
         placeholder="Search name or description"
@@ -46,7 +47,7 @@ export function FilterSearch({
 }
 
 export function FilterMap({
-  options: _options,
+  options,
   className,
   style,
 }: {
@@ -57,6 +58,8 @@ export function FilterMap({
   const filter = useServerStore((s) => s.filter);
   const setFilter = useServerStore((s) => s.setFilter);
   const maps = useServerStore((s) => s.maps);
+  const showLabel = options?.showLabel !== false;
+  const label = (options?.label as string) ?? "MAP";
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -81,7 +84,7 @@ export function FilterMap({
         onClick={() => setOpen(!open)}
         className={className ?? "flex items-center gap-1.5 border border-border bg-surface2 px-2.5 py-1 text-xs text-text transition-colors hover:border-accent"}
       >
-        <span className="text-muted text-[10px] font-bold">MAP</span>
+        {showLabel && <span className="text-muted text-[10px] font-bold">{label}</span>}
         <span className="font-semibold">{mapName}</span>
         <ChevronDown className="size-3 text-muted ml-0.5" />
       </button>
@@ -124,7 +127,7 @@ export function FilterMap({
 }
 
 export function FilterTags({
-  options: _options,
+  options,
   className,
   style,
 }: {
@@ -136,6 +139,8 @@ export function FilterTags({
   const setFilter = useServerStore((s) => s.setFilter);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const showLabel = options?.showLabel !== false;
+  const label = (options?.label as string) ?? "TAGS";
 
   useEffect(() => {
     if (!open) return;
@@ -157,7 +162,7 @@ export function FilterTags({
         onClick={() => setOpen(!open)}
         className={className ?? "flex items-center gap-1.5 border border-border bg-surface2 px-2.5 py-1 text-xs text-text transition-colors hover:border-accent"}
       >
-        <span className="text-muted text-[10px] font-bold">TAGS</span>
+        {showLabel && <span className="text-muted text-[10px] font-bold">{label}</span>}
         <span className="font-semibold">{summary}</span>
         <ChevronDown className="size-3 text-muted ml-0.5" />
       </button>
