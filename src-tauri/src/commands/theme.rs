@@ -876,8 +876,86 @@ fn builtin_themes_dir(app: &AppHandle) -> Result<PathBuf, String> {
         .map_err(|e| format!("Could not locate the bundled builtin themes: {e}"))
 }
 
+/// Provenance recorded beside an installed builtin, naming the exact bundled
+/// version it came from and a content fingerprint. The only way to tell a
+/// pristine copy from one edited by the user or a theme author.
+const SEED_PROVENANCE_FILE: &str = ".tetra-seed";
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SeedProvenance {
+    version: String,
+    fingerprint: String,
+}
+
+/// A stable hash over every file under `dir` (relative path + bytes), the
+/// provenance file itself excluded. Sorted so file-system iteration order
+/// never changes the result.
+fn fingerprint_theme_dir(dir: &Path) -> Result<String, String> {
+    let mut files: Vec<(PathBuf, Vec<u8>)> = Vec::new();
+    let mut stack = vec![(dir.to_path_buf(), PathBuf::new())];
+    while let Some((current, relative)) = stack.pop() {
+        let entries = std::fs::read_dir(&current)
+            .map_err(|e| format!("Could not read {}: {e}", current.display()))?;
+        for entry in entries.flatten() {
+            let at = relative.join(entry.file_name());
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push((path, at));
+                continue;
+            }
+            if at == Path::new(SEED_PROVENANCE_FILE) {
+                continue;
+            }
+            let bytes = std::fs::read(&path)
+                .map_err(|e| format!("Could not read {}: {e}", path.display()))?;
+            files.push((at, bytes));
+        }
+    }
+    files.sort_by(|a, b| a.0.cmp(&b.0));
+
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    for (path, bytes) in &files {
+        hasher.update(path.to_string_lossy().as_bytes());
+        hasher.update(b"\0");
+        hasher.update(bytes);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+fn write_seed_provenance(target: &Path, version: &str) -> Result<(), String> {
+    let fingerprint = fingerprint_theme_dir(target)?;
+    let json = serde_json::to_vec_pretty(&SeedProvenance {
+        version: version.to_string(),
+        fingerprint,
+    })
+    .map_err(|e| format!("Could not serialise seed provenance: {e}"))?;
+    let path = target.join(SEED_PROVENANCE_FILE);
+    crate::atomic_write::write_atomically(&path, &json)
+        .map_err(|e| format!("Could not write {}: {e}", path.display()))
+}
+
+fn read_seed_provenance(dir: &Path) -> Option<SeedProvenance> {
+    let bytes = std::fs::read(dir.join(SEED_PROVENANCE_FILE)).ok()?;
+    serde_json::from_slice(&bytes).ok()
+}
+
+/// Semver-ish comparison so `"2.10.0"` beats `"2.9.0"`, not lexical — the
+/// same `semver::Version` parse-and-compare `theme::archive`'s manifest
+/// version gate uses, rather than a hand-rolled comparator.
+fn bundled_version_is_newer(bundled: &str, installed: &str) -> bool {
+    match (
+        semver::Version::parse(bundled.trim()),
+        semver::Version::parse(installed.trim()),
+    ) {
+        (Ok(bundled), Ok(installed)) => bundled > installed,
+        _ => false,
+    }
+}
+
 /// Copies the bundled theme `id` into `themes_root/<id>` with its manifest
-/// unchanged, unlike [`scaffold_from_template`].
+/// unchanged, unlike [`scaffold_from_template`], and records seed provenance
+/// for it.
 fn install_builtin_theme(
     source_root: &Path,
     themes_root: &Path,
@@ -908,7 +986,13 @@ fn install_builtin_theme(
         _ => format!("Could not create {}: {e}", target.display()),
     })?;
 
-    match copy_template(&source, &target, &manifest_json) {
+    let install = copy_template(&source, &target, &manifest_json).and_then(|()| {
+        let manifest: ThemeManifest = serde_json::from_slice(&manifest_json)
+            .map_err(|e| format!("Could not parse the bundled manifest for `{id}`: {e}"))?;
+        write_seed_provenance(&target, &manifest.version)
+    });
+
+    match install {
         Ok(()) => Ok(id.to_string()),
         Err(e) => {
             // A half-copied theme would list as one that can't load.
@@ -918,13 +1002,61 @@ fn install_builtin_theme(
     }
 }
 
+/// Outcome of checking one already-installed builtin against the bundled copy.
+enum RefreshOutcome {
+    Replaced { from: String, to: String },
+    Kept(&'static str),
+}
+
+/// An installed builtin is only ever replaced when it's provably unmodified —
+/// its seed record's fingerprint matches its current files — and the bundled
+/// version is strictly newer. Anything else (no record, a changed
+/// fingerprint, or no version gain) is left exactly as it is.
+fn refresh_builtin_theme(
+    source_root: &Path,
+    themes_root: &Path,
+    id: &str,
+) -> Result<Option<RefreshOutcome>, String> {
+    let target = themes_root.join(id);
+    let Some(provenance) = read_seed_provenance(&target) else {
+        return Ok(Some(RefreshOutcome::Kept(
+            "no seed record — treated as the user's own copy",
+        )));
+    };
+    let fingerprint = fingerprint_theme_dir(&target)?;
+    if fingerprint != provenance.fingerprint {
+        return Ok(Some(RefreshOutcome::Kept(
+            "its files were changed since install",
+        )));
+    }
+
+    let manifest_json = std::fs::read(source_root.join(id).join(theme::MANIFEST_FILE))
+        .map_err(|e| format!("Could not read the bundled builtin theme `{id}`: {e}"))?;
+    let bundled: ThemeManifest = serde_json::from_slice(&manifest_json)
+        .map_err(|e| format!("Could not parse the bundled manifest for `{id}`: {e}"))?;
+    if !bundled_version_is_newer(&bundled.version, &provenance.version) {
+        return Ok(None);
+    }
+
+    std::fs::remove_dir_all(&target)
+        .map_err(|e| format!("Could not remove {}: {e}", target.display()))?;
+    install_builtin_theme(source_root, themes_root, id)?;
+    Ok(Some(RefreshOutcome::Replaced {
+        from: provenance.version,
+        to: bundled.version,
+    }))
+}
+
 /// Never fatal: every outcome is logged and startup carries on.
 pub fn seed_builtin_themes(app: &AppHandle) {
     let Ok(source_root) = builtin_themes_dir(app) else {
         return;
     };
     let themes_root = crate::paths::themes_dir(app);
-    for result in seed_from(&source_root, &themes_root) {
+    let results = seed_from(&source_root, &themes_root, |line| {
+        crate::log::log_line(app, "theme", line)
+    });
+    for result in results {
         match result {
             Ok(id) => crate::log::log_line(app, "theme", &format!("Seeded builtin theme `{id}`")),
             Err(e) => crate::log::log_line(app, "theme", &format!("Could not seed: {e}")),
@@ -932,12 +1064,31 @@ pub fn seed_builtin_themes(app: &AppHandle) {
     }
 }
 
-/// Installs every builtin id that doesn't already load. An existing copy is
-/// never overwritten, even if edited; a deleted one comes back next launch.
-fn seed_from(source_root: &Path, themes_root: &Path) -> Vec<Result<String, String>> {
+/// Installs every builtin id that doesn't already load. An already-installed
+/// id is replaced by the bundled copy only when it's unmodified (fingerprint
+/// matches its seed record) and the bundled version is newer; an edited copy,
+/// or one with no seed record, is left alone. A deleted one comes back next
+/// launch. `log` receives one line for every outcome besides a fresh install
+/// or replace, which the caller logs itself from the returned results.
+fn seed_from(
+    source_root: &Path,
+    themes_root: &Path,
+    mut log: impl FnMut(&str),
+) -> Vec<Result<String, String>> {
     let mut results = Vec::with_capacity(BUILTIN_THEME_IDS.len());
     for id in BUILTIN_THEME_IDS {
         if theme::get(themes_root, id).is_ok() {
+            match refresh_builtin_theme(source_root, themes_root, id) {
+                Ok(Some(RefreshOutcome::Replaced { from, to })) => {
+                    log(&format!("Replaced builtin theme `{id}` {from} -> {to}"));
+                    results.push(Ok(id.to_string()));
+                }
+                Ok(Some(RefreshOutcome::Kept(reason))) => {
+                    log(&format!("Kept installed builtin theme `{id}`: {reason}"));
+                }
+                Ok(None) => {}
+                Err(e) => results.push(Err(format!("{id}: {e}"))),
+            }
             continue;
         }
         results.push(
@@ -1918,7 +2069,7 @@ mod builtin_themes {
         let source_root = shipped();
         let themes_root = scratch("empty");
 
-        let results = seed_from(&source_root, &themes_root);
+        let results = seed_from(&source_root, &themes_root, |_| {});
 
         assert_eq!(
             results
@@ -1957,14 +2108,15 @@ mod builtin_themes {
     }
 
     /// The user-editability guarantee behind seeding: an already-installed
-    /// builtin is never overwritten — not even a hand-edited manifest — and
-    /// its files are left exactly as the user's copy has them.
+    /// builtin whose files were changed after install is never overwritten —
+    /// not even a hand-edited manifest — and its files are left exactly as
+    /// the user's copy has them.
     #[test]
-    fn seeding_twice_leaves_an_installed_builtin_theme_untouched() {
+    fn seeding_twice_leaves_a_modified_installed_builtin_theme_untouched() {
         let source_root = shipped();
         let themes_root = scratch("twice");
 
-        let first = seed_from(&source_root, &themes_root);
+        let first = seed_from(&source_root, &themes_root, |_| {});
         assert!(first.iter().all(Result::is_ok), "{first:?}");
 
         // Simulate the user's own tweak: a renamed Tactical.
@@ -1981,11 +2133,18 @@ mod builtin_themes {
         .unwrap();
         let before = files_under(&themes_root.join("builtin.tactical"));
 
-        let second = seed_from(&source_root, &themes_root);
+        let mut logs = Vec::new();
+        let second = seed_from(&source_root, &themes_root, |line| {
+            logs.push(line.to_string())
+        });
 
         assert!(
             second.is_empty(),
-            "an installed builtin is skipped, not re-seeded: {second:?}"
+            "a modified installed builtin is skipped, not re-seeded: {second:?}"
+        );
+        assert!(
+            logs.iter().any(|l| l.contains("changed since install")),
+            "{logs:?}"
         );
         let reloaded = theme::get(&themes_root, "builtin.tactical").unwrap();
         assert_eq!(reloaded.manifest.name, "My Tactical", "the edit survives");
@@ -1997,18 +2156,144 @@ mod builtin_themes {
         let _ = std::fs::remove_dir_all(&themes_root);
     }
 
+    /// A pristine copy already at the bundled version is left untouched.
+    #[test]
+    fn seeding_twice_with_no_changes_and_no_version_gain_does_nothing() {
+        let source_root = shipped();
+        let themes_root = scratch("pristine-current");
+
+        let first = seed_from(&source_root, &themes_root, |_| {});
+        assert!(first.iter().all(Result::is_ok), "{first:?}");
+        let before = files_under(&themes_root.join("builtin.tactical"));
+
+        let mut logs = Vec::new();
+        let second = seed_from(&source_root, &themes_root, |line| {
+            logs.push(line.to_string())
+        });
+
+        assert!(second.is_empty(), "nothing to do: {second:?}");
+        assert!(logs.is_empty(), "no version gain, nothing to log: {logs:?}");
+        assert_eq!(
+            files_under(&themes_root.join("builtin.tactical")),
+            before,
+            "the pristine copy is untouched"
+        );
+        let _ = std::fs::remove_dir_all(&themes_root);
+    }
+
+    /// No `.tetra-seed` at all (e.g. an install from before this file
+    /// existed) is treated as the user's own copy and left alone.
+    #[test]
+    fn an_installed_builtin_with_no_provenance_file_is_kept() {
+        let source_root = shipped();
+        let themes_root = scratch("no-provenance");
+
+        let first = seed_from(&source_root, &themes_root, |_| {});
+        assert!(first.iter().all(Result::is_ok), "{first:?}");
+        std::fs::remove_file(
+            themes_root
+                .join("builtin.tactical")
+                .join(SEED_PROVENANCE_FILE),
+        )
+        .unwrap();
+        let before = files_under(&themes_root.join("builtin.tactical"));
+
+        let mut logs = Vec::new();
+        let second = seed_from(&source_root, &themes_root, |line| {
+            logs.push(line.to_string())
+        });
+
+        assert!(second.is_empty(), "{second:?}");
+        assert!(
+            logs.iter().any(|l| l.contains("no seed record")),
+            "{logs:?}"
+        );
+        assert_eq!(
+            files_under(&themes_root.join("builtin.tactical")),
+            before,
+            "left exactly as it was"
+        );
+        let _ = std::fs::remove_dir_all(&themes_root);
+    }
+
+    /// A pristine installed copy with an older recorded version is replaced
+    /// by the bundled copy.
+    #[test]
+    fn a_pristine_installed_builtin_with_an_older_recorded_version_is_replaced() {
+        let source_root = shipped();
+        let themes_root = scratch("older-version");
+
+        let first = seed_from(&source_root, &themes_root, |_| {});
+        assert!(first.iter().all(Result::is_ok), "{first:?}");
+        let bundled_version = theme::get(&source_root, "builtin.tactical")
+            .unwrap()
+            .manifest
+            .version;
+
+        // Roll the recorded version back without touching any theme content,
+        // so the fingerprint still matches — a pristine copy of an older release.
+        let provenance_path = themes_root
+            .join("builtin.tactical")
+            .join(SEED_PROVENANCE_FILE);
+        let mut provenance: SeedProvenance =
+            serde_json::from_slice(&std::fs::read(&provenance_path).unwrap()).unwrap();
+        provenance.version = "0.1.0".to_string();
+        std::fs::write(
+            &provenance_path,
+            serde_json::to_vec_pretty(&provenance).unwrap(),
+        )
+        .unwrap();
+
+        let mut logs = Vec::new();
+        let second = seed_from(&source_root, &themes_root, |line| {
+            logs.push(line.to_string())
+        });
+
+        assert_eq!(
+            second
+                .iter()
+                .map(|r| r.as_ref().map(String::as_str))
+                .collect::<Vec<_>>(),
+            vec![Ok("builtin.tactical")],
+            "the stale copy is replaced: {second:?}"
+        );
+        assert!(
+            logs.iter()
+                .any(|l| l.contains("0.1.0") && l.contains(&bundled_version)),
+            "{logs:?}"
+        );
+        for (name, bytes) in files_under(&source_root.join("builtin.tactical")) {
+            assert_eq!(
+                std::fs::read(themes_root.join("builtin.tactical").join(&name)).unwrap(),
+                bytes,
+                "`{name}` should match the freshly installed bundled copy"
+            );
+        }
+        let reloaded: SeedProvenance = serde_json::from_slice(
+            &std::fs::read(
+                themes_root
+                    .join("builtin.tactical")
+                    .join(SEED_PROVENANCE_FILE),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(reloaded.version, bundled_version);
+        let _ = std::fs::remove_dir_all(&themes_root);
+    }
+
     /// A deleted builtin is filled back in on the next seed.
     #[test]
     fn seeding_after_a_delete_restores_the_deleted_builtin() {
         let source_root = shipped();
         let themes_root = scratch("gap");
 
-        let results = seed_from(&source_root, &themes_root);
+        let results = seed_from(&source_root, &themes_root, |_| {});
         assert!(results.iter().all(Result::is_ok), "{results:?}");
         std::fs::remove_dir_all(themes_root.join("builtin.tactical")).unwrap();
         assert!(theme::get(&themes_root, "builtin.tactical").is_err());
 
-        let refilled = seed_from(&source_root, &themes_root);
+        let refilled = seed_from(&source_root, &themes_root, |_| {});
 
         assert_eq!(
             refilled
@@ -2022,6 +2307,12 @@ mod builtin_themes {
             theme::get(&themes_root, id).unwrap_or_else(|e| panic!("{id}: {e}"));
         }
         let _ = std::fs::remove_dir_all(&themes_root);
+    }
+
+    #[test]
+    fn a_higher_minor_or_patch_beats_a_higher_first_digit_of_a_later_segment() {
+        assert!(bundled_version_is_newer("2.10.0", "2.9.0"));
+        assert!(!bundled_version_is_newer("2.9.0", "2.10.0"));
     }
 
     /// A missing source directory must surface as an `Err`, never a panic —
