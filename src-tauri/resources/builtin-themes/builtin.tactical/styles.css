@@ -279,6 +279,18 @@
   background-color: var(--accent2);
 }
 
+/* Row join stays hidden until the row is selected or keyboard-focused (ADR-0010) */
+[data-list="servers"] [data-row] [data-el="server.join"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+[data-list="servers"] [data-row][data-state~="selected"] [data-el="server.join"],
+[data-list="servers"] [data-row]:hover [data-el="server.join"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 [data-el="server.checkMods"],
 [data-el="server.subscribeAll"],
 [data-el="server.unsubscribeUnique"],
