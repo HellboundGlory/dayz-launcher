@@ -369,22 +369,34 @@ export function ServerMenu({ className, style }: { className?: string; style?: C
   );
 }
 
-export function ServerAddress({ className, style }: { className?: string; style?: CSSProperties }) {
+export function ServerAddress({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
   const { contextName } = useElementContext();
   const server = useServerSubject();
   if (!server) return null;
 
+  // `addr` already carries the query port, so appending one built a three-part address.
+  const showGamePort = options?.showGamePort === true;
+
   if (contextName === "selection") {
     return (
       <div data-el="server.address" className={className ?? "text-xs text-muted font-mono-data mb-3"} style={style}>
-        {server.addr}:{server.game_port} · game port {server.game_port} · DayZ {server.version}
+        {server.addr} · game port {server.game_port} · DayZ {server.version}
       </div>
     );
   }
 
   return (
     <span data-el="server.address" className={className ?? "font-mono-data text-muted"} style={style}>
-      {server.addr}:{server.game_port}
+      {server.addr}
+      {showGamePort && `:${server.game_port}`}
     </span>
   );
 }

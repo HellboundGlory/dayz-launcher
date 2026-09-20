@@ -11,6 +11,7 @@
 
 [data-region="r-footer"] {
   border-top: 1px solid var(--border);
+  gap: 16px;
   padding: 6px 16px;
   background-color: var(--surface);
   font-size: 11px;
@@ -249,6 +250,9 @@
   border-radius: 0;
   border-bottom: 1px solid var(--border);
   letter-spacing: 0.01em;
+  /* Match the header's own rowX padding, or the two grids sit offset. */
+  padding-left: var(--t-space-rowX);
+  padding-right: var(--t-space-rowX);
 }
 
 [data-list="servers"] [data-row]:hover,
@@ -282,6 +286,7 @@
 [data-region="r-detail"] {
   width: 360px;
   flex-shrink: 0;
+  min-width: 0;
   border-left: 1px solid var(--border);
   padding: 16px;
   background-color: var(--surface);
@@ -490,4 +495,16 @@
 [data-surface],
 [data-region] {
   border-radius: 0;
+}
+
+/* Footer status group: the counts ran together as one string. */
+[data-region="r-footer"] [data-el="status.serverTotal"],
+[data-region="r-footer"] [data-el="status.populated"],
+[data-region="r-footer"] [data-el="status.lastRefreshed"] {
+  padding-right: 14px;
+}
+
+[data-region="r-footer"] [data-el="status.serverTotal"],
+[data-region="r-footer"] [data-el="status.populated"] {
+  border-right: 1px solid var(--border);
 }

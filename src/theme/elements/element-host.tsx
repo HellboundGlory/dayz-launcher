@@ -179,7 +179,7 @@ export function ElementHost({
     case "server.menu":
       return <ServerMenu className={mergedClass} style={style} />;
     case "server.address":
-      return <ServerAddress className={mergedClass} style={style} />;
+      return <ServerAddress options={node.options} className={mergedClass} style={style} />;
     case "server.lastPlayed":
       return <ServerLastPlayed className={mergedClass} style={style} />;
     case "server.modCount":

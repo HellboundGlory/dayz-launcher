@@ -277,9 +277,7 @@ export function App() {
   const activeId = useThemeStore((s) => s.activeId);
   const themeFiles = useThemeStore((s) => s.themeFiles);
   const settingsValues = useThemeStore((s) => s.settingsValues);
-  const servers = useServerStore((s) => s.servers);
   const selectedServer = useServerStore((s) => s.selectedServer);
-  const setSelectedServer = useServerStore((s) => s.setSelectedServer);
   useServerDataLoader();
 
   const shellLayout = themeFiles[activeId]?.layouts?.["layout/shell.json"];
@@ -288,12 +286,6 @@ export function App() {
     SETTINGS_LAYOUT) as SettingsLayoutFile;
   const settingsMode = settingsLayout.presentation?.mode ?? "overlay";
   const closeSettings = () => setSettingsOpen(false);
-
-  useEffect(() => {
-    if (shellLayout && !selectedServer && servers.length > 0) {
-      setSelectedServer(servers[0]);
-    }
-  }, [shellLayout, selectedServer, servers, setSelectedServer]);
 
   // Dev Mode's watch: the cleanup stops the previous one, so turning Dev Mode
   // off or switching theme replaces rather than accumulates.

@@ -1,17 +1,78 @@
 {
   "schemaVersion": 2,
   "columns": [
-    { "id": "favourite", "width": "28px", "align": "center" },
-    { "id": "name", "width": "1fr", "align": "start", "sort": "name" },
-    { "id": "address", "width": "150px", "align": "start", "label": "ADDRESS" },
-    { "id": "time", "width": "64px", "align": "start", "label": "TIME" },
-    { "id": "last-played", "width": "88px", "align": "start", "sort": "lastPlayed", "label": "LAST PLAYED" },
-    { "id": "map", "width": "96px", "align": "start", "sort": "map", "label": "MAP" },
-    { "id": "players", "width": "64px", "align": "end", "sort": "players", "label": "PLAYERS" },
-    { "id": "mods", "width": "52px", "align": "end", "sort": "mods", "label": "MODS" },
-    { "id": "cc", "width": "34px", "align": "end", "label": "CC" },
-    { "id": "ping", "width": "52px", "align": "end", "sort": "ping", "label": "PING" },
-    { "id": "actions", "width": "auto", "align": "end" }
+    {
+      "id": "favourite",
+      "width": "28px",
+      "align": "center",
+      "label": ""
+    },
+    {
+      "id": "name",
+      "width": "1fr",
+      "align": "start",
+      "sort": "name",
+      "label": "SERVER NAME"
+    },
+    {
+      "id": "address",
+      "width": "172px",
+      "align": "start",
+      "label": "ADDRESS"
+    },
+    {
+      "id": "time",
+      "width": "64px",
+      "align": "start",
+      "label": "TIME"
+    },
+    {
+      "id": "last-played",
+      "width": "88px",
+      "align": "start",
+      "sort": "lastPlayed",
+      "label": "LAST PLAYED"
+    },
+    {
+      "id": "map",
+      "width": "96px",
+      "align": "start",
+      "sort": "map",
+      "label": "MAP"
+    },
+    {
+      "id": "players",
+      "width": "72px",
+      "align": "end",
+      "sort": "players",
+      "label": "PLAYERS"
+    },
+    {
+      "id": "mods",
+      "width": "52px",
+      "align": "end",
+      "sort": "mods",
+      "label": "MODS"
+    },
+    {
+      "id": "cc",
+      "width": "34px",
+      "align": "end",
+      "label": "CC"
+    },
+    {
+      "id": "ping",
+      "width": "52px",
+      "align": "end",
+      "sort": "ping",
+      "label": "PING"
+    },
+    {
+      "id": "actions",
+      "width": "auto",
+      "align": "end",
+      "label": ""
+    }
   ],
   "row": {
     "type": "grid",
@@ -22,12 +83,18 @@
       },
       {
         "type": "stack",
-        "direction": "column",
+        "direction": "row",
         "column": "name",
         "children": [
-          { "element": "server.name" },
-          { "element": "server.tags" }
-        ]
+          {
+            "element": "server.name"
+          },
+          {
+            "element": "server.tags"
+          }
+        ],
+        "align": "center",
+        "gap": "space.6"
       },
       {
         "element": "server.address",
