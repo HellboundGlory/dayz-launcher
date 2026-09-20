@@ -120,9 +120,30 @@ export function NoticeModsOutdated(props?: { className?: string; style?: CSSProp
 }
 
 export function ServerActionNotice({ className, style }: { className?: string; style?: CSSProperties }) {
-  const { subjectContext, selectedServer } = useElementContext();
+  const { subjectContext, selectedServer, contextName } = useElementContext();
   const server = (subjectContext?.kind === "server" ? subjectContext.data : selectedServer) as import("@/types/server").Server | null;
   if (!server || !server.modded) return null;
+
+  // In a row, the notice sits on the row's single line — no border/padding/margin.
+  if (contextName === "row") {
+    return (
+      <div
+        data-el="server.actionNotice"
+        className={cn(
+          "flex min-w-0 items-center gap-[var(--t-space-inlineGapWide)] [font-size:var(--t-type-label-size)]",
+          className,
+        )}
+        style={style}
+      >
+        <span data-part="title" className="shrink-0 font-bold uppercase tracking-wider text-warn">
+          2 MODS NEED UPDATING
+        </span>
+        <span data-part="message" className="truncate text-muted2">
+          1 not subscribed · 1.6 GB to download before you can join
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div
