@@ -66,7 +66,7 @@ import {
   ServersRefresh,
 } from "./filter-elements";
 import { ServerListHost, ServerModsListHost } from "./list-elements";
-import { ServerReadiness } from "./readiness-elements";
+import { ServerDownloadSize, ServerReadiness } from "./readiness-elements";
 import {
   ModActions,
   ModAuthor,
@@ -194,6 +194,8 @@ export function ElementHost({
       return <ServerUnsubscribeUnique options={node.options} className={mergedClass} style={style} />;
     case "server.readiness":
       return <ServerReadiness options={node.options} className={mergedClass} style={style} />;
+    case "server.downloadSize":
+      return <ServerDownloadSize className={mergedClass} style={style} />;
 
     case "filter.search":
       return <FilterSearch options={node.options} className={mergedClass} style={style} />;

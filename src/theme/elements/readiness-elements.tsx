@@ -117,3 +117,39 @@ export function ServerReadiness({
     </div>
   );
 }
+
+export function ServerDownloadSize({
+  className,
+  style,
+}: {
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const { readiness, loading } = useSelectionReadiness();
+  const view = computeReadinessView(readiness, loading);
+
+  let dataState: "checking" | "none" | "upperBound" | undefined;
+  let qualifier: string | null = null;
+  let value: string;
+
+  if (view.dataState === "checking") {
+    dataState = "checking";
+    value = "Checking…";
+  } else if (view.sizeBytes === null) {
+    dataState = "none";
+    value = "Nothing to download";
+  } else if (view.sizeIsUpperBound) {
+    dataState = "upperBound";
+    qualifier = "up to";
+    value = formatBytes(view.sizeBytes);
+  } else {
+    value = formatBytes(view.sizeBytes);
+  }
+
+  return (
+    <div data-el="server.downloadSize" data-state={dataState} className={className} style={style}>
+      {qualifier && <span data-part="qualifier">{qualifier}</span>}
+      <span data-part="value">{value}</span>
+    </div>
+  );
+}

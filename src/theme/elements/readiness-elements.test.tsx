@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ModReadinessEntry, ServerModReadiness } from "@/types/server";
+import { formatBytes } from "@/lib/utils";
 import { computeReadinessView } from "./readiness-elements";
 
 const mod = (overrides: Partial<ModReadinessEntry>): ModReadinessEntry => ({
@@ -169,5 +170,51 @@ describe("ServerReadiness", () => {
     const { ServerReadiness } = await import("./readiness-elements");
     const html = renderToStaticMarkup(<ServerReadiness options={{ showSize: false }} />);
     expect(html).not.toContain('data-part="size"');
+  });
+});
+
+describe("ServerDownloadSize", () => {
+  async function renderWith(readinessValue: ServerModReadiness | null, loading: boolean) {
+    const { useSelectionReadiness } = await import("./use-selection-readiness");
+    vi.mocked(useSelectionReadiness).mockReturnValue({ readiness: readinessValue, loading });
+    const { ServerDownloadSize } = await import("./readiness-elements");
+    return renderToStaticMarkup(<ServerDownloadSize />);
+  }
+
+  it("renders checking with no qualifier while the fetch is in flight", async () => {
+    const html = await renderWith(null, true);
+    expect(html).toContain('data-el="server.downloadSize"');
+    expect(html).toContain('data-state="checking"');
+    expect(html).not.toContain('data-part="qualifier"');
+    expect(html).toContain('data-part="value"');
+    expect(html).toContain("Checking…");
+  });
+
+  it("renders none with no qualifier when there is nothing outstanding", async () => {
+    const html = await renderWith(readiness([mod({ state: "ready" })]), false);
+    expect(html).toContain('data-state="none"');
+    expect(html).not.toContain('data-part="qualifier"');
+    expect(html).toContain("Nothing to download");
+  });
+
+  it("renders upperBound with a qualifier when any outstanding size is an estimate", async () => {
+    const html = await renderWith(
+      readiness([mod({ state: "needs_update", size_bytes: 5000, size_is_upper_bound: true })]),
+      false,
+    );
+    expect(html).toContain('data-state="upperBound"');
+    expect(html).toContain('data-part="qualifier"');
+    expect(html).toContain("up to");
+    expect(html).toContain(formatBytes(5000));
+  });
+
+  it("renders an exact size with no data-state attribute and no qualifier", async () => {
+    const html = await renderWith(
+      readiness([mod({ state: "not_installed", size_bytes: 3000, size_is_upper_bound: false })]),
+      false,
+    );
+    expect(html).not.toContain("data-state=");
+    expect(html).not.toContain('data-part="qualifier"');
+    expect(html).toContain(formatBytes(3000));
   });
 });
