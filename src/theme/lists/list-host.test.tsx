@@ -161,6 +161,57 @@ describe("ListRow", () => {
   });
 });
 
+describe("ListRow column placement", () => {
+  it("derives grid-template-columns from the list's columns when the row grid declares none", () => {
+    const html = renderToStaticMarkup(
+      <ListRow
+        columns={sampleColumns}
+        item={mockServer}
+        subjectKind="server"
+        rowNode={{
+          type: "grid",
+          children: [{ type: "text", value: mockServer.name, column: "name" }],
+        }}
+      />,
+    );
+
+    expect(html).toContain("grid-template-columns:40px 1fr 80px 60px");
+  });
+
+  it("places a column-carrying child at the matching grid-column and align", () => {
+    const html = renderToStaticMarkup(
+      <ListRow
+        columns={sampleColumns}
+        item={mockServer}
+        subjectKind="server"
+        rowNode={{
+          type: "grid",
+          children: [{ type: "text", value: String(mockServer.ping), column: "ping" }],
+        }}
+      />,
+    );
+
+    expect(html).toContain("grid-column:4");
+    expect(html).toContain("justify-self:end");
+  });
+
+  it("leaves an unknown column id unplaced", () => {
+    const html = renderToStaticMarkup(
+      <ListRow
+        columns={sampleColumns}
+        item={mockServer}
+        subjectKind="server"
+        rowNode={{
+          type: "grid",
+          children: [{ type: "text", value: "orphan", column: "does-not-exist" }],
+        }}
+      />,
+    );
+
+    expect(html).not.toContain("grid-column");
+  });
+});
+
 describe("keyboard navigation", () => {
   it("navigates down and up, bounds correctly, and prevents Enter launch", () => {
     const onSelectIndex = vi.fn();

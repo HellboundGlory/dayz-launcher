@@ -2,6 +2,7 @@ import type { MouseEvent, ReactNode } from "react";
 import { SubjectContextProvider } from "../elements/context";
 import { LayoutNodeRenderer } from "../renderer/node-renderer";
 import type { LayoutNode } from "../renderer/types";
+import { ListColumnsContext } from "./column-context";
 import type { ColumnDef } from "./types";
 
 export function ListRow({
@@ -56,6 +57,13 @@ export function ListRow({
   let renderedContent: ReactNode = defaultRow;
 
   if (rowNode) {
+    // Theme-declared columns on the row itself win; otherwise derive the
+    // track list from the list's own columns so cells line up with the header.
+    let effectiveRow = rowNode;
+    if ("type" in rowNode && rowNode.type === "grid" && rowNode.columns === undefined && columns && columns.length > 0) {
+      effectiveRow = { ...rowNode, columns: columns.map((col) => col.width || "auto") };
+    }
+
     renderedContent = (
       <div
         data-row=""
@@ -64,7 +72,9 @@ export function ListRow({
         onClick={handleClick}
         className="w-full transition-colors hover:bg-surface2"
       >
-        <LayoutNodeRenderer node={rowNode} />
+        <ListColumnsContext.Provider value={columns}>
+          <LayoutNodeRenderer node={effectiveRow} />
+        </ListColumnsContext.Provider>
       </div>
     );
   }

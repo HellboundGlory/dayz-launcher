@@ -3,10 +3,10 @@
 // node carries — hidden checks, region id, theme classes, landmark tag,
 // positioning — and hands off to the right container or leaf.
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, type CSSProperties, type ReactNode } from "react";
 import { Box, Grid, Scroll, Stack } from "./containers";
 import { ImageLeaf, OutletLeaf, TextLeaf } from "./leaves";
-import { commonAttrs, isHidden, LANDMARK_TAGS, positionStyle, type SettingsValues } from "./props";
+import { commonAttrs, isHidden, LANDMARK_TAGS, positionStyle, withStyle, type SettingsValues } from "./props";
 import type { ContainerNode, HostNode, LayoutNode } from "./types";
 import { ElementHost } from "../elements/element-host";
 import { SurfaceHost } from "../elements/surface-host";
@@ -15,6 +15,7 @@ import { Tabs } from "../interaction/tabs";
 import { Accordion } from "../interaction/accordion";
 import { ResizableHandle } from "../interaction/resizable";
 import { getPersistedCollapsed, getPersistedSize } from "../interaction/store";
+import { useColumnPlacement } from "../lists/column-context";
 
 export interface RenderContextValue {
   settings: SettingsValues;
@@ -38,6 +39,7 @@ function isHostNode(node: LayoutNode): node is HostNode {
 
 export function LayoutNodeRenderer({ node }: { node: LayoutNode }) {
   const ctx = useContext(RenderContext);
+  const columnStyle = useColumnPlacement(node.column);
 
   if (isHidden(node.hidden, ctx.settings)) return null;
 
@@ -49,23 +51,27 @@ export function LayoutNodeRenderer({ node }: { node: LayoutNode }) {
       ) : (
         <SurfaceHost node={node} />
       ));
-    if (node.position === undefined) return <>{content}</>;
-    return <div style={positionStyle(node.position)}>{content}</div>;
+    const style: CSSProperties | undefined =
+      node.position === undefined && columnStyle === undefined
+        ? undefined
+        : { ...(node.position !== undefined ? positionStyle(node.position) : undefined), ...columnStyle };
+    if (style === undefined) return <>{content}</>;
+    return <div style={style}>{content}</div>;
   }
 
   switch (node.type) {
     case "text":
-      return <TextLeaf node={node} attrs={commonAttrs(node)} />;
+      return <TextLeaf node={node} attrs={withStyle(commonAttrs(node), columnStyle)} />;
     case "image":
-      return <ImageLeaf node={node} themeId={ctx.themeId} attrs={commonAttrs(node)} />;
+      return <ImageLeaf node={node} themeId={ctx.themeId} attrs={withStyle(commonAttrs(node), columnStyle)} />;
     case "outlet":
-      return <OutletLeaf node={node} outlets={ctx.outlets} attrs={commonAttrs(node)} />;
+      return <OutletLeaf node={node} outlets={ctx.outlets} attrs={withStyle(commonAttrs(node), columnStyle)} />;
     default:
-      return <ContainerRenderer node={node} />;
+      return <ContainerRenderer node={node} columnStyle={columnStyle} />;
   }
 }
 
-function ContainerRenderer({ node }: { node: ContainerNode }) {
+function ContainerRenderer({ node, columnStyle }: { node: ContainerNode; columnStyle?: CSSProperties }) {
   const ctx = useContext(RenderContext);
   const elementCtx = useElementContext();
 
@@ -96,25 +102,26 @@ function ContainerRenderer({ node }: { node: ContainerNode }) {
         subject={{ kind: subjectKind, data: subjectData }}
         contextName={node.context}
       >
-        {renderContainer(node, ctx, elementCtx)}
+        {renderContainer(node, ctx, elementCtx, columnStyle)}
       </SubjectContextProvider>
     );
   }
 
-  return renderContainer(node, ctx, elementCtx);
+  return renderContainer(node, ctx, elementCtx, columnStyle);
 }
 
 function renderContainer(
   node: ContainerNode,
   ctx: RenderContextValue,
   elementCtx: ElementContextValue,
+  columnStyle?: CSSProperties,
 ) {
   const hasPositionedChildren =
     "children" in node && Array.isArray(node.children)
       ? node.children.some((child) => child.position !== undefined)
       : false;
   const hostsPositioned = node.position === undefined && hasPositionedChildren;
-  const attrs = commonAttrs(node, hostsPositioned);
+  const attrs = withStyle(commonAttrs(node, hostsPositioned), columnStyle);
   const As = node.landmark !== undefined ? LANDMARK_TAGS[node.landmark] : "div";
   const regionId = node.id ?? "";
 

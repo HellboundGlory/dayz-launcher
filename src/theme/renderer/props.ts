@@ -127,6 +127,12 @@ export interface RenderedAttrs {
   "data-region"?: string;
 }
 
+/** Merges an extra style (e.g. column placement) into already-computed attrs. */
+export function withStyle(attrs: RenderedAttrs, extra?: CSSProperties): RenderedAttrs {
+  if (extra === undefined) return attrs;
+  return { ...attrs, style: { ...attrs.style, ...extra } };
+}
+
 /** The id, class and non-layout style every node shares. `hostsPositioned`
  * makes a container the containing block for its anchored children. */
 export function commonAttrs(node: CommonProps, hostsPositioned = false): RenderedAttrs {
