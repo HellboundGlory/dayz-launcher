@@ -1,8 +1,11 @@
 import type { CSSProperties, MouseEvent } from "react";
 import { Star, Play, Info, MoreHorizontal } from "lucide-react";
 import type { Server } from "@/types/server";
-import { formatLastPlayed, regionName } from "@/lib/utils";
+import { formatLastPlayed, formatBytes, regionName } from "@/lib/utils";
 import { useElementContext } from "./context";
+import { useServerActions, phaseLabel } from "@/hooks/use-server-actions";
+import { useSelectionReadiness } from "./use-selection-readiness";
+import { computeReadinessView } from "./readiness-elements";
 
 function useServerSubject(): Server | null {
   const { subjectContext, selectedServer } = useElementContext();
@@ -211,6 +214,49 @@ export function ServerFavourite({
   );
 }
 
+/** The panel form only. Split out so the readiness hook never runs per list row,
+ * where `server.readiness` is banned for the same reason (ELEMENTS.md). */
+function ServerJoinSelection({
+  server,
+  label,
+  busy,
+  onClick,
+  className,
+  style,
+}: {
+  server: Server;
+  label: string;
+  busy: boolean;
+  onClick: (e: MouseEvent) => void;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const { selectedServer } = useElementContext();
+  const { readiness, loading } = useSelectionReadiness();
+
+  const view = selectedServer?.addr === server.addr ? computeReadinessView(readiness, loading) : null;
+  const sizeText =
+    view && view.sizeBytes !== null
+      ? `${view.sizeIsUpperBound ? "up to " : ""}${formatBytes(view.sizeBytes)} first`
+      : null;
+
+  return (
+    <button
+      type="button"
+      data-el="server.join"
+      data-state={busy ? "busy" : undefined}
+      disabled={busy}
+      onClick={onClick}
+      aria-label="Fix and join"
+      className={className ?? "flex items-center justify-between w-full bg-accent px-4 py-2.5 font-bold text-bg uppercase tracking-wider transition-colors hover:brightness-110 my-1"}
+      style={style}
+    >
+      <span data-part="label">{label}</span>
+      {sizeText && <span data-part="sublabel" className="text-xs font-semibold opacity-90">{sizeText}</span>}
+    </button>
+  );
+}
+
 export function ServerJoin({
   options,
   className,
@@ -222,33 +268,34 @@ export function ServerJoin({
 }) {
   const { contextName } = useElementContext();
   const server = useServerSubject();
+  const { op, verifyAndJoin } = useServerActions();
   if (!server) return null;
 
   const wording = (options?.wording as string) ?? "join";
   const display = (options?.display as string) ?? "iconLabel";
   const isFixAndJoin = wording === "fixAndJoin";
-  const labelText = isFixAndJoin ? "FIX AND JOIN" : "Join";
+
+  const activeOp = op && op.addr === server.addr ? op : null;
+  const labelText = activeOp ? phaseLabel(activeOp) : isFixAndJoin ? "FIX AND JOIN" : "Join";
 
   const showIcon = display === "iconLabel" || display === "icon";
   const showLabel = display === "iconLabel" || display === "label";
 
   const handleClick = (e: MouseEvent) => {
     e.stopPropagation();
+    void verifyAndJoin(server);
   };
 
   if (contextName === "selection" && isFixAndJoin) {
     return (
-      <button
-        type="button"
-        data-el="server.join"
+      <ServerJoinSelection
+        server={server}
+        label={labelText}
+        busy={activeOp !== null}
         onClick={handleClick}
-        aria-label="Fix and join"
-        className={className ?? "flex items-center justify-between w-full bg-accent px-4 py-2.5 font-bold text-bg uppercase tracking-wider transition-colors hover:brightness-110 my-1"}
+        className={className}
         style={style}
-      >
-        <span data-part="label">{labelText}</span>
-        <span data-part="sublabel" className="text-xs font-semibold opacity-90">1.6 GB first</span>
-      </button>
+      />
     );
   }
 
@@ -256,6 +303,8 @@ export function ServerJoin({
     <button
       type="button"
       data-el="server.join"
+      data-state={activeOp ? "busy" : undefined}
+      disabled={activeOp !== null}
       onClick={handleClick}
       aria-label={labelText}
       className={className ?? "flex items-center gap-1.5 bg-accent px-3 py-1 font-semibold text-bg"}
