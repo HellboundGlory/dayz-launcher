@@ -1,6 +1,8 @@
 import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 import { useElementContext } from "./context";
+import { useLaunchStore, type ServerNotice, type LaunchResult } from "@/stores/launch-store";
+import { NOTICES } from "@/hooks/use-server-actions";
 
 export function NoticeStorage({ className, style }: { className?: string; style?: CSSProperties }) {
   const { storageDegraded } = useElementContext();
@@ -119,28 +121,71 @@ export function NoticeModsOutdated(props?: { className?: string; style?: CSSProp
   return null;
 }
 
+type ActionNoticeContent = {
+  title: string;
+  message?: string;
+  state: "warning" | "error" | "success";
+};
+
+function resolveActionNoticeContent(
+  addr: string,
+  storeNotice: ServerNotice | null,
+  result: LaunchResult | null,
+): ActionNoticeContent | null {
+  if (storeNotice && storeNotice.addr === addr) {
+    const notice = storeNotice.notice;
+    if (notice.kind === "code") {
+      const entry = NOTICES[notice.code];
+      return {
+        title: entry.text,
+        message: notice.extra ? `${entry.detail} ${notice.extra}` : entry.detail,
+        state: notice.code.startsWith("E") ? "error" : "warning",
+      };
+    }
+    return { title: notice.text, state: "warning" };
+  }
+
+  if (result && result.addr === addr && (result.message || result.error)) {
+    if (result.error) return { title: result.error, state: "error" };
+    return { title: result.message!, state: "success" };
+  }
+
+  return null;
+}
+
 export function ServerActionNotice({ className, style }: { className?: string; style?: CSSProperties }) {
   const { subjectContext, selectedServer, contextName } = useElementContext();
+  const storeNotice = useLaunchStore((s) => s.notice);
+  const result = useLaunchStore((s) => s.result);
   const server = (subjectContext?.kind === "server" ? subjectContext.data : selectedServer) as import("@/types/server").Server | null;
-  if (!server || !server.modded) return null;
+  if (!server) return null;
+
+  const content = resolveActionNoticeContent(server.addr, storeNotice, result);
+  if (!content) return null;
+
+  const stateClass = content.state === "error" ? "text-danger" : "text-warn";
+  const borderClass = content.state === "error" ? "border-danger/70" : "border-warn/70";
 
   // In a row, the notice sits on the row's single line — no border/padding/margin.
   if (contextName === "row") {
     return (
       <div
         data-el="server.actionNotice"
+        data-state={content.state}
         className={cn(
           "flex min-w-0 items-center gap-[var(--t-space-inlineGapWide)] [font-size:var(--t-type-label-size)]",
           className,
         )}
         style={style}
       >
-        <span data-part="title" className="shrink-0 font-bold uppercase tracking-wider text-warn">
-          2 MODS NEED UPDATING
+        <span data-part="title" className={cn("shrink-0 font-bold uppercase tracking-wider", stateClass)}>
+          {content.title}
         </span>
-        <span data-part="message" className="truncate text-muted2">
-          1 not subscribed · 1.6 GB to download before you can join
-        </span>
+        {content.message && (
+          <span data-part="message" className="truncate text-muted2">
+            {content.message}
+          </span>
+        )}
       </div>
     );
   }
@@ -148,18 +193,22 @@ export function ServerActionNotice({ className, style }: { className?: string; s
   return (
     <div
       data-el="server.actionNotice"
+      data-state={content.state}
       className={cn(
-        "border border-warn/70 bg-surface2/60 p-3 my-2",
+        "border bg-surface2/60 p-3 my-2",
+        borderClass,
         className,
       )}
       style={style}
     >
-      <div data-part="title" className="text-warn font-bold text-xs uppercase tracking-wider">
-        2 MODS NEED UPDATING
+      <div data-part="title" className={cn("font-bold text-xs uppercase tracking-wider", stateClass)}>
+        {content.title}
       </div>
-      <div data-part="message" className="text-xs text-muted2 mt-1">
-        1 not subscribed · 1.6 GB to download before you can join
-      </div>
+      {content.message && (
+        <div data-part="message" className="text-xs text-muted2 mt-1">
+          {content.message}
+        </div>
+      )}
     </div>
   );
 }
