@@ -28,3 +28,6 @@ screenshots/
 
 # Backend deployment secrets — holds the Steam Web API key
 deploy/.env
+
+# Local backend index URL for debug builds — the host is not published here
+/src-tauri/.cargo/
