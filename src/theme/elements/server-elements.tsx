@@ -394,7 +394,7 @@ export function ServerAddress({
   }
 
   return (
-    <span data-el="server.address" className={className ?? "font-mono-data text-muted"} style={style}>
+    <span data-el="server.address" className={className ?? "block truncate font-mono-data text-muted"} style={style}>
       {server.addr}
       {showGamePort && `:${server.game_port}`}
     </span>
