@@ -490,6 +490,10 @@ describe("Theme Interaction & Presentation (Package 4.4)", () => {
       expect(html).toContain('data-presentation="overlay"');
       expect(html).toContain('data-region="r-main"');
       expect(html).toContain("Overlay Settings");
+      expect(html).toContain("position:absolute");
+      expect(html).toContain("inset:0");
+      expect(html).toContain("width:100%");
+      expect(html).toContain("height:100%");
     });
 
     it("renders view and panel presentation modes", () => {
@@ -502,8 +506,11 @@ describe("Theme Interaction & Presentation (Package 4.4)", () => {
           }}
         />,
       );
+      expect(viewHtml).toContain('data-settings-host=""');
       expect(viewHtml).toContain('data-presentation="view"');
       expect(viewHtml).toContain("View Settings");
+      expect(viewHtml).toContain("width:100%");
+      expect(viewHtml).toContain("height:100%");
 
       const panelHtml = renderToStaticMarkup(
         <SettingsHost
@@ -514,9 +521,13 @@ describe("Theme Interaction & Presentation (Package 4.4)", () => {
           }}
         />,
       );
+      expect(panelHtml).toContain('data-settings-host=""');
       expect(panelHtml).toContain('data-presentation="panel"');
       expect(panelHtml).toContain('data-region="r-side"');
       expect(panelHtml).toContain("Panel Settings");
+      expect(panelHtml).toContain("display:contents");
+      expect(panelHtml).not.toContain("width:100%");
+      expect(panelHtml).not.toContain("height:100%");
     });
 
     it("defaults to overlay presentation when the file omits it", () => {
