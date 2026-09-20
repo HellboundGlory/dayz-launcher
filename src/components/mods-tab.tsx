@@ -335,7 +335,7 @@ export function ModsTab() {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {/* ── Filter / toolbar strip ── */}
       <div className="filterbar flex shrink-0 items-center gap-1.5 border-b border-line bg-surface px-2.5 py-2">
         {toolbarNodes.searchInput}

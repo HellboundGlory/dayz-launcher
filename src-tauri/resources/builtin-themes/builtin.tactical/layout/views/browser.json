@@ -5,6 +5,7 @@
     "direction": "column",
     "height": "100%",
     "grow": 1,
+    "minWidth": "0px",
     "children": [
       {
         "type": "stack",
