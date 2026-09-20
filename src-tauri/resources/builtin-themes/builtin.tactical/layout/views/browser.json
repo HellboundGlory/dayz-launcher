@@ -88,10 +88,13 @@
         "type": "stack",
         "direction": "row",
         "grow": 1,
+        "minHeight": "0px",
         "children": [
           {
             "element": "list.servers",
-            "grow": 1
+            "grow": 1,
+            "minWidth": "0px",
+            "minHeight": "0px"
           },
           {
             "type": "stack",
