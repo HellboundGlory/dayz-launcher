@@ -233,7 +233,7 @@ export function ServerRowActions({
             onClick={() => runItem(id)}
           />
         ))}
-        {actions.notice && noticeBlock()}
+        {actions.notice && actions.noticeAddr === server.addr && noticeBlock()}
       </div>
     );
   }
@@ -247,7 +247,7 @@ export function ServerRowActions({
       mergeModPending([{ addr: server.addr, pending: hasPending }]);
       triggerReload();
     } catch (e) {
-      actions.setNotice({ kind: "plain", text: String(e) });
+      actions.setNotice({ kind: "plain", text: String(e) }, server.addr);
     }
   }
 
@@ -260,18 +260,21 @@ export function ServerRowActions({
         action: async () => {
           try {
             const outcome = await unsubscribeUniqueMods(server.addr, server.query_port);
-            actions.setNotice({
-              kind: "plain",
-              text: `Unsubscribed ${outcome.count} unique mod${outcome.count === 1 ? "" : "s"} (${formatBytes(outcome.total_size_bytes, 1)})`,
-            });
+            actions.setNotice(
+              {
+                kind: "plain",
+                text: `Unsubscribed ${outcome.count} unique mod${outcome.count === 1 ? "" : "s"} (${formatBytes(outcome.total_size_bytes, 1)})`,
+              },
+              server.addr,
+            );
             triggerReload();
           } catch (e) {
-            actions.setNotice({ kind: "plain", text: String(e) });
+            actions.setNotice({ kind: "plain", text: String(e) }, server.addr);
           }
         },
       });
     } catch (e) {
-      actions.setNotice({ kind: "plain", text: String(e) });
+      actions.setNotice({ kind: "plain", text: String(e) }, server.addr);
     }
   }
 
@@ -279,10 +282,10 @@ export function ServerRowActions({
     try {
       await copyServerAddress(server);
       setCopied(true);
-      actions.setNotice({ kind: "plain", text: "Address copied" });
+      actions.setNotice({ kind: "plain", text: "Address copied" }, server.addr);
       setTimeout(() => setCopied(false), 2000);
     } catch (e) {
-      actions.setNotice({ kind: "plain", text: String(e) });
+      actions.setNotice({ kind: "plain", text: String(e) }, server.addr);
     }
   }
 
@@ -312,7 +315,7 @@ export function ServerRowActions({
   }
 
   function noticeInline(): React.ReactNode {
-    if (!actions.notice) return null;
+    if (!actions.notice || actions.noticeAddr !== server.addr) return null;
     const isError =
       actions.notice.kind === "code" &&
       (actions.notice.code.startsWith("E") || NOTICES[actions.notice.code].text.startsWith("E"));
