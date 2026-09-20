@@ -3,7 +3,7 @@
   "id": "builtin.tactical",
   "name": "Tactical",
   "author": "Tetra Launcher",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "themeApi": "2.0",
   "minimumLauncherVersion": "2.6.0",
   "description": "A dense HUD-style browser: a column-header server table, a persistent detail panel with per-mod readiness, square corners throughout.",

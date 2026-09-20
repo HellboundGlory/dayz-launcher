@@ -40,7 +40,8 @@
       { "element": "notice.error" },
       { "element": "notice.storage" },
       {
-        "type": "box",
+        "type": "stack",
+        "direction": "row",
         "id": "r-main",
         "landmark": "main",
         "grow": 1,
