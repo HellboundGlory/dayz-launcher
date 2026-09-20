@@ -9,6 +9,7 @@ const mockServerActions = {
   dayzUp: false,
   launchResult: null,
   notice: null as { kind: "code"; code: "W01" | "W02" | "W03" | "W04" | "E01"; extra?: string } | { kind: "plain"; text: string } | null,
+  noticeAddr: null as string | null,
   setNotice: vi.fn(),
   verifyAndJoin: vi.fn(),
   subscribeOnly: vi.fn(),
@@ -70,6 +71,7 @@ const baseServer: Server = {
 describe("ServerRowActions", () => {
   beforeEach(() => {
     mockServerActions.notice = null;
+    mockServerActions.noticeAddr = null;
     useServerStore.setState({ modPending: {} });
   });
 
@@ -107,6 +109,7 @@ describe("ServerRowActions", () => {
   describe("Notice rendering in default and composed paths", () => {
     it("renders notice in default path", () => {
       mockServerActions.notice = { kind: "code", code: "W01" };
+      mockServerActions.noticeAddr = baseServer.addr;
       const html = renderToStaticMarkup(
         <ServerRowActions server={baseServer} onMoreInfo={() => {}} />,
       );
@@ -116,11 +119,21 @@ describe("ServerRowActions", () => {
 
     it("renders error code notice with text-danger", () => {
       mockServerActions.notice = { kind: "code", code: "E01" };
+      mockServerActions.noticeAddr = baseServer.addr;
       const html = renderToStaticMarkup(
         <ServerRowActions server={baseServer} onMoreInfo={() => {}} />,
       );
       expect(html).toContain("Could not subscribe");
       expect(html).toContain("text-danger");
+    });
+
+    it("does not render a notice tagged for a different server", () => {
+      mockServerActions.notice = { kind: "code", code: "W01" };
+      mockServerActions.noticeAddr = "10.0.0.1";
+      const html = renderToStaticMarkup(
+        <ServerRowActions server={baseServer} onMoreInfo={() => {}} />,
+      );
+      expect(html).not.toContain("Mod versions not checked");
     });
   });
 

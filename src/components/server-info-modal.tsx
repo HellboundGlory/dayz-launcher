@@ -386,7 +386,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
       mergeModPending([{ addr: server.addr, pending: hasPending }]);
       triggerReload();
     } catch (e) {
-      actions.setNotice({ kind: "plain", text: String(e) });
+      actions.setNotice({ kind: "plain", text: String(e) }, server.addr);
     } finally {
       setCheckingMods(false);
     }
@@ -401,20 +401,23 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
         action: async () => {
           try {
             const outcome = await unsubscribeUniqueMods(server.addr, server.query_port);
-            actions.setNotice({
-              kind: "plain",
-              text: `Unsubscribed ${outcome.count} mod${outcome.count === 1 ? "" : "s"} (${formatBytes(outcome.total_size_bytes, 1)})`,
-            });
+            actions.setNotice(
+              {
+                kind: "plain",
+                text: `Unsubscribed ${outcome.count} mod${outcome.count === 1 ? "" : "s"} (${formatBytes(outcome.total_size_bytes, 1)})`,
+              },
+              server.addr,
+            );
             const fresh = await serverModReadiness(server.addr, server.query_port);
             setReadinessData(fresh);
             triggerReload();
           } catch (e) {
-            actions.setNotice({ kind: "plain", text: String(e) });
+            actions.setNotice({ kind: "plain", text: String(e) }, server.addr);
           }
         },
       });
     } catch (e) {
-      actions.setNotice({ kind: "plain", text: String(e) });
+      actions.setNotice({ kind: "plain", text: String(e) }, server.addr);
     }
   }
 
@@ -424,7 +427,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
       setCopiedAddress(true);
       setTimeout(() => setCopiedAddress(false), 2000);
     } catch (e) {
-      actions.setNotice({ kind: "plain", text: String(e) });
+      actions.setNotice({ kind: "plain", text: String(e) }, server.addr);
     }
   }
 
@@ -575,7 +578,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
   }
 
   function noticeLine(): React.ReactNode {
-    if (!actions.notice) return null;
+    if (!actions.notice || actions.noticeAddr !== server.addr) return null;
     return (
       <p
         title={actions.notice.kind === "code" ? NOTICES[actions.notice.code].detail : undefined}

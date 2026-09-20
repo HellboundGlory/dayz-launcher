@@ -8,6 +8,7 @@ const mockServerActions = {
   dayzUp: false,
   launchResult: null,
   notice: null,
+  noticeAddr: null,
   setNotice: vi.fn(),
   verifyAndJoin: vi.fn(),
   subscribeOnly: vi.fn(),
