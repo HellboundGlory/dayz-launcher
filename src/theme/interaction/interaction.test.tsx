@@ -18,7 +18,7 @@ import {
 import { handleResizeKey, parseLengthPx, ResizableHandle } from "./resizable";
 import { ModalHost } from "./modal-host";
 import { PopupHost } from "./popup-host";
-import { SettingsHost } from "./settings-host";
+import { SettingsHost, SettingsRegionPortal } from "./settings-host";
 
 
 const file = (root: LayoutNode): LayoutFile => ({ schemaVersion: 2, root });
@@ -517,6 +517,72 @@ describe("Theme Interaction & Presentation (Package 4.4)", () => {
       expect(panelHtml).toContain('data-presentation="panel"');
       expect(panelHtml).toContain('data-region="r-side"');
       expect(panelHtml).toContain("Panel Settings");
+    });
+
+    it("defaults to overlay presentation when the file omits it", () => {
+      const html = renderToStaticMarkup(
+        <SettingsHost file={{ schemaVersion: 2, root: { type: "text", value: "Untagged" } }} />,
+      );
+      expect(html).toContain('data-presentation="overlay"');
+    });
+  });
+
+  describe("SettingsRegionPortal", () => {
+    // No DOM is available to resolve a target region in these tests (they run
+    // under react-dom/server, which never fires effects), so every case here
+    // exercises the exact path SPEC §9.4 requires: an overlay/panel whose
+    // region can't be found renders nothing instead of covering the window.
+    it("renders nothing for overlay presentation until its region resolves", () => {
+      const html = renderToStaticMarkup(
+        <SettingsRegionPortal
+          file={{
+            schemaVersion: 2,
+            presentation: { mode: "overlay", region: "r-main" },
+            root: { type: "text", value: "Overlay Settings" },
+          }}
+        />,
+      );
+      expect(html).toBe("");
+    });
+
+    it("renders nothing for panel presentation until its region resolves", () => {
+      const html = renderToStaticMarkup(
+        <SettingsRegionPortal
+          file={{
+            schemaVersion: 2,
+            presentation: { mode: "panel", region: "r-side" },
+            root: { type: "text", value: "Panel Settings" },
+          }}
+        />,
+      );
+      expect(html).toBe("");
+    });
+
+    it("stays inactive for view presentation — the caller owns that mode", () => {
+      const html = renderToStaticMarkup(
+        <SettingsRegionPortal
+          file={{
+            schemaVersion: 2,
+            presentation: { mode: "view" },
+            root: { type: "text", value: "View Settings" },
+          }}
+        />,
+      );
+      expect(html).toBe("");
+    });
+
+    it("renders nothing when isOpen is false", () => {
+      const html = renderToStaticMarkup(
+        <SettingsRegionPortal
+          file={{
+            schemaVersion: 2,
+            presentation: { mode: "overlay", region: "r-main" },
+            root: { type: "text", value: "Overlay Settings" },
+          }}
+          isOpen={false}
+        />,
+      );
+      expect(html).toBe("");
     });
   });
 });
