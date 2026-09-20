@@ -104,6 +104,18 @@ URL simply runs its own Steam pass; the launcher falls back to it
 automatically whenever the backend is unreachable or stale. The URL is
 scheme + host, no path — the client appends the `/v1/...` paths itself.
 
+For day-to-day local work, put it in an untracked cargo config instead of
+retyping the prefix on every build:
+
+```toml
+# src-tauri/.cargo/config.toml — gitignored; this repo is public
+[env]
+TETRA_INDEX_URL = "https://index.example.com"
+```
+
+Cargo tracks the value, so changing it rebuilds what reads it. With this in
+place a plain `npx tauri build --debug` uses the same backend a release does.
+
 ## TLS / reverse proxy
 
 The container publishes `127.0.0.1:8080` only. Terminate TLS in front of it.
