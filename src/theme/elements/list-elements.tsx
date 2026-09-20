@@ -22,13 +22,6 @@ export function ServerListHost({
   const sortDir = useServerStore((s) => s.sortDir);
   const setSort = useServerStore((s) => s.setSort);
 
-  // Auto-select first server if none selected, so Tactical detail pane shows data immediately
-  useEffect(() => {
-    if (servers.length > 0 && !selectedServer) {
-      setSelectedServer(servers[0]);
-    }
-  }, [servers, selectedServer, setSelectedServer]);
-
   const listLayout = (getActiveLayout("layout/lists/servers.json") ?? SERVERS_LIST) as LayoutFile;
 
   return (
