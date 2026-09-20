@@ -348,6 +348,74 @@
   margin-top: 4px;
 }
 
+/* Readiness Box */
+[data-el="server.readiness"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #785a28;
+  background-color: #1a1710;
+  padding: 10px 12px;
+  border-radius: 2px;
+}
+
+[data-el="server.readiness"] [data-part="dot"] {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background-color: var(--muted);
+}
+
+[data-el="server.readiness"] [data-part="label"] {
+  color: #f59e0b;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+[data-el="server.readiness"] [data-part="size"] {
+  color: #94a3b8;
+  font-size: 11px;
+  margin-left: auto;
+}
+
+[data-el="server.readiness"][data-state~="ready"] {
+  border-color: var(--success);
+  background-color: #0f1f16;
+}
+
+[data-el="server.readiness"][data-state~="ready"] [data-part="dot"] {
+  background-color: var(--success);
+}
+
+[data-el="server.readiness"][data-state~="ready"] [data-part="label"] {
+  color: var(--success);
+}
+
+[data-el="server.readiness"][data-state~="checking"] [data-part="dot"],
+[data-el="server.readiness"][data-state~="unchecked"] [data-part="dot"],
+[data-el="server.readiness"][data-state~="noMods"] [data-part="dot"],
+[data-el="server.readiness"][data-state~="stale"] [data-part="dot"] {
+  background-color: var(--muted);
+}
+
+[data-el="server.readiness"][data-state~="checking"],
+[data-el="server.readiness"][data-state~="unchecked"],
+[data-el="server.readiness"][data-state~="noMods"],
+[data-el="server.readiness"][data-state~="stale"] {
+  border-color: var(--border);
+  background-color: var(--surface2);
+}
+
+[data-el="server.readiness"][data-state~="checking"] [data-part="label"],
+[data-el="server.readiness"][data-state~="unchecked"] [data-part="label"],
+[data-el="server.readiness"][data-state~="noMods"] [data-part="label"],
+[data-el="server.readiness"][data-state~="stale"] [data-part="label"] {
+  color: var(--muted2);
+}
+
 /* Mod Readiness List */
 [data-el="list.serverMods"],
 [data-list="serverMods"] {
