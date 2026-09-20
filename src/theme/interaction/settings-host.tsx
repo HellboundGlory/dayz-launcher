@@ -44,17 +44,22 @@ export function SettingsHost({
 
   if (!isOpen) return null;
 
-  let style: CSSProperties = {
-    width: "100%",
-    height: "100%",
-  };
+  let style: CSSProperties;
 
-  if (mode === "overlay") {
+  if (mode === "panel") {
+    style = { display: "contents" };
+  } else if (mode === "overlay") {
     style = {
       position: "absolute",
       inset: 0,
       zIndex: 30,
-      ...style,
+      width: "100%",
+      height: "100%",
+    };
+  } else {
+    style = {
+      width: "100%",
+      height: "100%",
     };
   }
 
