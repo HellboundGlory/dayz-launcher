@@ -19,6 +19,9 @@ import { ModFilterModal } from "./components/mod-filter-modal";
 import { ModsTab } from "./components/mods-tab";
 import { FooterBar } from "./components/footer-bar";
 import { SettingsView } from "./components/settings-view";
+import { SettingsHost, SettingsRegionPortal } from "./theme/interaction/settings-host";
+import { SETTINGS_LAYOUT } from "./theme/neutral";
+import type { SettingsLayoutFile } from "./theme/renderer/types";
 import { DevModeInspector } from "./components/themes-page/DevModeInspector";
 import { DevModeValidationPanel } from "./components/themes-page/DevModeValidationPanel";
 import { OnboardingModal } from "./components/onboarding-modal";
@@ -30,7 +33,12 @@ import { useSettingsStore } from "./stores/settings-store";
 import { useUpdateStore } from "./stores/update-store";
 import { useModsStore } from "./stores/mods-store";
 import { watchDayz } from "./stores/launch-store";
-import { useThemeStore, watchHotReload, watchThemeActivationReverted } from "./theme/theme-store";
+import {
+  useThemeStore,
+  watchHotReload,
+  watchThemeActivationReverted,
+  getActiveLayout,
+} from "./theme/theme-store";
 import { ElementContextProvider } from "./theme/elements/context";
 import { LayoutRenderer } from "./theme/renderer";
 import { useServerDataLoader } from "./hooks/use-server-data-loader";
@@ -276,6 +284,10 @@ export function App() {
 
   const shellLayout = themeFiles[activeId]?.layouts?.["layout/shell.json"];
   const browserLayout = themeFiles[activeId]?.layouts?.["layout/views/browser.json"];
+  const settingsLayout = (getActiveLayout("layout/settings.json") ??
+    SETTINGS_LAYOUT) as SettingsLayoutFile;
+  const settingsMode = settingsLayout.presentation?.mode ?? "overlay";
+  const closeSettings = () => setSettingsOpen(false);
 
   useEffect(() => {
     if (shellLayout && !selectedServer && servers.length > 0) {
@@ -815,67 +827,67 @@ export function App() {
         <WindowResizeHandles />
 
         {shellLayout ? (
-          <LayoutRenderer
-            file={shellLayout}
-            themeId={activeId}
-            settings={settingsValues[activeId]}
-            outlets={{
-              view:
-                activeView === "mods" ? (
-                  <ModsTab />
-                ) : browserLayout ? (
-                  <LayoutRenderer
-                    file={browserLayout}
-                    themeId={activeId}
-                    settings={settingsValues[activeId]}
-                  />
-                ) : (
-                  <div className="flex min-h-0 flex-1 flex-col">
-                    <FilterBar
-                      onRefresh={handleRefresh}
-                      refreshing={refreshing}
-                      onOpenModFilter={() => setModFilterOpen(true)}
-                      modFilterOpen={modFilterOpen}
+          <>
+            <LayoutRenderer
+              file={shellLayout}
+              themeId={activeId}
+              settings={settingsValues[activeId]}
+              outlets={{
+                view:
+                  activeView === "mods" ? (
+                    <ModsTab />
+                  ) : settingsOpen && settingsMode === "view" ? (
+                    <SettingsHost file={settingsLayout} onClose={closeSettings} />
+                  ) : browserLayout ? (
+                    <LayoutRenderer
+                      file={browserLayout}
+                      themeId={activeId}
+                      settings={settingsValues[activeId]}
                     />
-                    <ServerList view={activeView} onMoreInfo={setInfoServer} />
-                  </div>
+                  ) : (
+                    <div className="flex min-h-0 flex-1 flex-col">
+                      <FilterBar
+                        onRefresh={handleRefresh}
+                        refreshing={refreshing}
+                        onOpenModFilter={() => setModFilterOpen(true)}
+                        modFilterOpen={modFilterOpen}
+                      />
+                      <ServerList view={activeView} onMoreInfo={setInfoServer} />
+                    </div>
+                  ),
+                modals: (
+                  <>
+                    {devMode && <DevModeInspector />}
+                    {devMode && <DevModeValidationPanel />}
+                    {showOnboarding && steamConnected && (
+                      <OnboardingModal onDone={() => setShowOnboarding(false)} />
+                    )}
+                    <UpdateModal open={updateOpen} onClose={() => setUpdateOpen(false)} />
+                    {infoServer && (
+                      <ServerInfoModal
+                        server={infoServer}
+                        onClose={() => setInfoServer(null)}
+                      />
+                    )}
+                    {modFilterOpen && (
+                      <ModFilterModal onClose={() => setModFilterOpen(false)} />
+                    )}
+                    {!steamConnected && steamError && (
+                      <SteamRequiredModal
+                        error={steamError}
+                        checking={connecting}
+                        exhausted={autoRetryExhausted}
+                        onRetry={() => void connectSteam(true)}
+                      />
+                    )}
+                  </>
                 ),
-              modals: (
-                <>
-                  {settingsOpen && (
-                    <SettingsView
-                      onClose={() => setSettingsOpen(false)}
-                      devMode={devMode}
-                      onDevModeChange={setDevMode}
-                    />
-                  )}
-                  {devMode && <DevModeInspector />}
-                  {devMode && <DevModeValidationPanel />}
-                  {showOnboarding && steamConnected && (
-                    <OnboardingModal onDone={() => setShowOnboarding(false)} />
-                  )}
-                  <UpdateModal open={updateOpen} onClose={() => setUpdateOpen(false)} />
-                  {infoServer && (
-                    <ServerInfoModal
-                      server={infoServer}
-                      onClose={() => setInfoServer(null)}
-                    />
-                  )}
-                  {modFilterOpen && (
-                    <ModFilterModal onClose={() => setModFilterOpen(false)} />
-                  )}
-                  {!steamConnected && steamError && (
-                    <SteamRequiredModal
-                      error={steamError}
-                      checking={connecting}
-                      exhausted={autoRetryExhausted}
-                      onRetry={() => void connectSteam(true)}
-                    />
-                  )}
-                </>
-              ),
-            }}
-          />
+              }}
+            />
+            {settingsOpen && settingsMode !== "view" && (
+              <SettingsRegionPortal file={settingsLayout} onClose={closeSettings} />
+            )}
+          </>
         ) : (
           <>
             <div className="flex min-h-0 flex-1">
