@@ -508,3 +508,16 @@
 [data-region="r-footer"] [data-el="status.populated"] {
   border-right: 1px solid var(--border);
 }
+
+/* The original table padded every cell (px-2), so columns never touched.
+   Row cells carry no data-column, so the gutter goes on the elements. */
+[data-list="servers"] [data-row] [data-el="server.name"],
+[data-list="servers"] [data-row] [data-el="server.address"],
+[data-list="servers"] [data-row] [data-el="server.gameTime"],
+[data-list="servers"] [data-row] [data-el="server.lastPlayed"],
+[data-list="servers"] [data-row] [data-el="server.map"],
+[data-list="servers"] [data-row] [data-el="server.players"],
+[data-list="servers"] [data-row] [data-el="server.modCount"],
+[data-list="servers"] [data-row] [data-el="server.ping"] {
+  padding-right: 10px;
+}

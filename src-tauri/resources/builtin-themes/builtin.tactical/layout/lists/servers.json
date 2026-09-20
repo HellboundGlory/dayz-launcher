@@ -16,7 +16,7 @@
     },
     {
       "id": "address",
-      "width": "172px",
+      "width": "186px",
       "align": "start",
       "label": "ADDRESS"
     },
@@ -53,12 +53,6 @@
       "align": "end",
       "sort": "mods",
       "label": "MODS"
-    },
-    {
-      "id": "cc",
-      "width": "34px",
-      "align": "end",
-      "label": "CC"
     },
     {
       "id": "ping",
@@ -128,13 +122,6 @@
         "column": "mods",
         "options": {
           "showCaption": false
-        }
-      },
-      {
-        "element": "server.region",
-        "column": "cc",
-        "options": {
-          "format": "code"
         }
       },
       {
