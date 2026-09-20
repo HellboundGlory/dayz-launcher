@@ -5,7 +5,7 @@ import { ListRow } from "../lists/list-row";
 import { getActiveLayout } from "../theme-store";
 import { SERVERS_LIST } from "../neutral";
 import { serverModReadiness } from "@/lib/tauri";
-import type { Server, ServerModReadiness, ModReadinessEntry } from "@/types/server";
+import type { Server, ModReadinessEntry } from "@/types/server";
 import type { LayoutFile } from "../renderer/types";
 
 export function ServerListHost({
@@ -53,15 +53,72 @@ export function ServerListHost({
   );
 }
 
-const DEFAULT_TACTICAL_MODS: ModReadinessEntry[] = [
-  { workshop_id: "1", name: "CF", state: "ready", size_bytes: null, size_is_upper_bound: false, preview_url: null, is_unique: false, downloaded_bytes: null, total_bytes: null },
-  { workshop_id: "2", name: "Community Online Tools", state: "ready", size_bytes: null, size_is_upper_bound: false, preview_url: null, is_unique: false, downloaded_bytes: null, total_bytes: null },
-  { workshop_id: "3", name: "DayZ-Expansion-Bundle", state: "needs_update", size_bytes: 1288490188, size_is_upper_bound: false, preview_url: null, is_unique: false, downloaded_bytes: null, total_bytes: null },
-  { workshop_id: "4", name: "VPPAdminTools", state: "ready", size_bytes: null, size_is_upper_bound: false, preview_url: null, is_unique: false, downloaded_bytes: null, total_bytes: null },
-  { workshop_id: "5", name: "Trader", state: "not_subscribed", size_bytes: null, size_is_upper_bound: false, preview_url: null, is_unique: false, downloaded_bytes: null, total_bytes: null },
-  { workshop_id: "6", name: "Code Lock", state: "ready", size_bytes: null, size_is_upper_bound: false, preview_url: null, is_unique: false, downloaded_bytes: null, total_bytes: null },
-  { workshop_id: "7", name: "MuchStuffPack", state: "needs_update", size_bytes: 356515840, size_is_upper_bound: false, preview_url: null, is_unique: false, downloaded_bytes: null, total_bytes: null },
-];
+export type ServerModsListState = "loading" | "empty" | "stale" | undefined;
+
+/** Resolves the readiness fetch for one selection. A rejection is reported as `stale`, never as invented mods. */
+export async function loadServerMods(
+  server: Pick<Server, "addr" | "query_port" | "modded"> | null,
+): Promise<{ state: ServerModsListState; mods: ModReadinessEntry[] }> {
+  if (!server || !server.modded) {
+    return { state: "empty", mods: [] };
+  }
+  try {
+    const res = await serverModReadiness(server.addr, server.query_port);
+    // SPEC 11.2: an offline server keeps its last known list, marked stale.
+    const state = res.stale ? "stale" : res.mods.length > 0 ? undefined : "empty";
+    return { state, mods: res.mods };
+  } catch {
+    return { state: "stale", mods: [] };
+  }
+}
+
+export function ServerModsList({
+  state,
+  mods,
+  listLayout,
+  className,
+  style,
+}: {
+  state: ServerModsListState;
+  mods: ModReadinessEntry[];
+  listLayout?: LayoutFile;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  return (
+    <div
+      data-el="list.serverMods"
+      data-list="serverMods"
+      data-state={state}
+      className={className ?? "flex flex-col flex-1 min-h-0 my-2 border-t border-border overflow-hidden"}
+      style={style}
+    >
+      <div data-part="header" className="flex items-center justify-between py-1.5 px-2 text-[10px] text-muted font-bold tracking-wider uppercase border-b border-border">
+        <span>REQUIRED MODS · SERVER ORDER</span>
+        <span className="font-mono-data">{mods.length}</span>
+      </div>
+
+      <div data-part="scroller" className="flex-1 overflow-y-auto min-h-0">
+        {state === "loading" ? (
+          <div data-part="loading" className="p-4 text-xs text-muted">Loading…</div>
+        ) : mods.length === 0 ? (
+          <div data-part="empty" className="p-4 text-xs text-muted">This server declares no mods.</div>
+        ) : (
+          <div data-part="rows">
+            {mods.map((mod) => (
+              <ListRow
+                key={mod.workshop_id || mod.name}
+                rowNode={listLayout?.row}
+                item={mod}
+                subjectKind="serverMod"
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function ServerModsListHost({
   className,
@@ -71,57 +128,30 @@ export function ServerModsListHost({
   style?: CSSProperties;
 }) {
   const selectedServer = useServerStore((s) => s.selectedServer);
-  const [readiness, setReadiness] = useState<ServerModReadiness | null>(null);
+  const [state, setState] = useState<ServerModsListState>("empty");
+  const [mods, setMods] = useState<ModReadinessEntry[]>([]);
 
   useEffect(() => {
-    if (!selectedServer || !selectedServer.modded) {
-      setReadiness(null);
-      return;
-    }
     let cancelled = false;
-    serverModReadiness(selectedServer.addr, selectedServer.query_port)
-      .then((res) => {
-        if (!cancelled) setReadiness(res);
-      })
-      .catch(() => {
-        // Fall back to default entries matching reference
-      });
+    setState("loading");
+    loadServerMods(selectedServer).then((result) => {
+      if (cancelled) return;
+      if (result.state === "stale") {
+        // Keep whatever list is already on screen; only flag it as possibly out of date.
+        setState("stale");
+      } else {
+        setState(result.state);
+        setMods(result.mods);
+      }
+    });
     return () => {
       cancelled = true;
     };
   }, [selectedServer?.addr, selectedServer?.query_port, selectedServer?.modded]);
 
-  const rawMods = readiness?.mods && readiness.mods.length > 0 ? readiness.mods : DEFAULT_TACTICAL_MODS;
-  const listLayout = getActiveLayout("layout/lists/serverMods.json");
-  const modCount = selectedServer?.mod_count ?? rawMods.length;
+  const listLayout = getActiveLayout("layout/lists/serverMods.json") as LayoutFile | undefined;
 
   return (
-    <div
-      data-el="list.serverMods"
-      data-list="serverMods"
-      className={className ?? "flex flex-col flex-1 min-h-0 my-2 border-t border-border overflow-hidden"}
-      style={style}
-    >
-      <div className="flex items-center justify-between py-1.5 px-2 text-[10px] text-muted font-bold tracking-wider uppercase border-b border-border">
-        <span>REQUIRED MODS · SERVER ORDER</span>
-        <span className="font-mono-data">{modCount}</span>
-      </div>
-
-      <div className="flex-1 overflow-y-auto min-h-0">
-        {rawMods.map((mod) => (
-          <ListRow
-            key={mod.workshop_id || mod.name}
-            rowNode={listLayout?.row}
-            item={mod}
-            subjectKind="serverMod"
-          />
-        ))}
-        {modCount > rawMods.length && (
-          <div className="p-2 text-xs text-muted">
-            + {modCount - rawMods.length} more, all ready
-          </div>
-        )}
-      </div>
-    </div>
+    <ServerModsList state={state} mods={mods} listLayout={listLayout} className={className} style={style} />
   );
 }
