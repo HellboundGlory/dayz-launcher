@@ -30,7 +30,6 @@ pub fn get_theme(app: AppHandle, id: String) -> Result<ThemeFile, String> {
     theme::get(&crate::paths::themes_dir(&app), &id)
 }
 
-
 /// Run the v2 validators against every file an installed theme ships, for Dev
 /// Mode's validation panel. Order: layout issues, then settings, then CSS.
 #[tauri::command]
@@ -2042,7 +2041,10 @@ mod builtin_themes {
 
             let issues = validate_theme_at(&shipped(), id).unwrap_or_else(|e| panic!("{id}: {e}"));
             for issue in &issues {
-                println!("VALIDATION ISSUE: {id} {:?} {} {} {}: {}", issue.severity, issue.rule_id, issue.file, issue.pointer, issue.message);
+                println!(
+                    "VALIDATION ISSUE: {id} {:?} {} {} {}: {}",
+                    issue.severity, issue.rule_id, issue.file, issue.pointer, issue.message
+                );
             }
             assert!(issues.is_empty(), "{id} has validation issues: {issues:#?}");
         }
