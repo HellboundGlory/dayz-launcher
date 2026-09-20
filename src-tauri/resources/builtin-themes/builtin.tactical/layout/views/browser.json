@@ -116,6 +116,13 @@
                   { "element": "server.modCount" }
                 ]
               },
+              {
+                "element": "server.readiness",
+                "options": {
+                  "showDot": true,
+                  "showSize": true
+                }
+              },
               { "element": "server.actionNotice" },
               { "element": "list.serverMods" },
               {
