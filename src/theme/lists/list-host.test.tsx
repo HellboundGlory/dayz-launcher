@@ -178,7 +178,7 @@ describe("ListRow column placement", () => {
     expect(html).toContain("grid-template-columns:40px 1fr 80px 60px");
   });
 
-  it("places a column-carrying child at the matching grid-column and align", () => {
+  it("places a column-carrying child at the matching grid-column and aligns its content", () => {
     const html = renderToStaticMarkup(
       <ListRow
         columns={sampleColumns}
@@ -192,7 +192,10 @@ describe("ListRow column placement", () => {
     );
 
     expect(html).toContain("grid-column:4");
-    expect(html).toContain("justify-self:end");
+    expect(html).not.toContain("justify-self");
+    expect(html).toContain("justify-content:flex-end");
+    expect(html).toContain("text-align:end");
+    expect(html).toContain("min-width:0");
   });
 
   it("leaves an unknown column id unplaced", () => {
