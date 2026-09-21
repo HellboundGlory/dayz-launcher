@@ -208,6 +208,7 @@ mod tests {
             "externalLink",
             "fileArchive",
             "fileOutput",
+            "filter",
             "folder",
             "folderOpen",
             "gamepad",
