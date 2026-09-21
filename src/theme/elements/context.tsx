@@ -37,6 +37,9 @@ export interface ElementContextValue {
   selectedServer: Server | null;
   selectedMod: unknown | null;
   previewMod: unknown | null;
+  onRefresh: () => void;
+  refreshing: boolean;
+  discovering: boolean;
 }
 
 const ElementContext = createContext<ElementContextValue>({
@@ -63,6 +66,9 @@ const ElementContext = createContext<ElementContextValue>({
   selectedServer: null,
   selectedMod: null,
   previewMod: null,
+  onRefresh: () => {},
+  refreshing: false,
+  discovering: false,
 });
 
 export const useElementContext = () => useContext(ElementContext);
@@ -116,6 +122,9 @@ export function ElementContextProvider({
     selectedServer: null,
     selectedMod: null,
     previewMod: null,
+    onRefresh: () => {},
+    refreshing: false,
+    discovering: false,
     ...value,
     collapsedRegions: value?.collapsedRegions ?? collapsedRegions,
     toggleCollapsed: value?.toggleCollapsed ?? toggleCollapsed,
