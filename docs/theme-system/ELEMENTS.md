@@ -603,12 +603,12 @@ A column may name a sort key only from its own list's set. Clicking that column'
 
 ### Row states
 
-Every row carries `data-state`, and rows are not focusable themselves; Tab moves into their elements (SPEC §8.4).
+Every row carries `data-state`, and rows are not focusable themselves; Tab moves into their elements (SPEC §8.4). In the server and Mods lists, every second row (by position in the list, not in the DOM) also carries `even`, for zebra striping.
 
 | List | Row states |
 |---|---|
-| `list.servers` | `selected`, `focused`, `offline`, `favourite`, `modded`, `official`, `firstPerson`, `locked`, `full`, `empty`, `modsPending`, `busy` |
-| `list.mods` | `selected`, `focused`, `checked`, `disabled`, `ready`, `update`, `downloading`, `missing`, `notSubscribed`, `serverSide` |
+| `list.servers` | `selected`, `focused`, `offline`, `favourite`, `modded`, `official`, `firstPerson`, `locked`, `full`, `empty`, `modsPending`, `busy`, `even` |
+| `list.mods` | `selected`, `focused`, `checked`, `disabled`, `ready`, `update`, `downloading`, `missing`, `notSubscribed`, `serverSide`, `even` |
 | `list.modFilterResults` | `previewed`, `focused`, `included`, `excluded`, `subscribed` |
 | `list.serverMods` | `ready`, `needsUpdate`, `downloading`, `notInstalled`, `notSubscribed`, `serverSide`, `unique` |
 | `list.modServers` | `favourite`, `played` |
