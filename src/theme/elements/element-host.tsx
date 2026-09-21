@@ -37,6 +37,7 @@ import {
 import {
   ServerAddress,
   ServerCancel,
+  ServerDeselect,
   ServerCheckMods,
   ServerFavourite,
   ServerGameTime,
@@ -217,6 +218,8 @@ export function ElementHost({
       return <ServerCancel options={node.options} className={mergedClass} style={style} />;
     case "server.manageMods":
       return <ServerManageMods options={node.options} className={mergedClass} style={style} />;
+    case "server.deselect":
+      return <ServerDeselect options={node.options} className={mergedClass} style={style} />;
     case "server.refresh":
       return <ServerRefresh className={mergedClass} style={style} />;
     case "server.address":

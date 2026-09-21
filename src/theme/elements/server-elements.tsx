@@ -1130,3 +1130,35 @@ export function ServerUnsubscribeUnique({
     </button>
   );
 }
+
+export function ServerDeselect({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const server = useServerSubject();
+  const setSelectedServer = useServerStore((s) => s.setSelectedServer);
+  if (!server) return null;
+  const label = typeof options?.label === "string" ? options.label : "Close details";
+
+  return (
+    <button
+      type="button"
+      data-el="server.deselect"
+      data-state={server.online ? undefined : "offline"}
+      onClick={() => setSelectedServer(null)}
+      aria-label={label}
+      title={label}
+      className={className ?? "flex shrink-0 items-center justify-center text-muted hover:text-ink"}
+      style={style}
+    >
+      <span data-part="icon">
+        <X className="size-4" />
+      </span>
+    </button>
+  );
+}

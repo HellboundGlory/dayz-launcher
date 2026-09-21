@@ -10,6 +10,7 @@ import { ElementContextProvider, type ElementContextValue } from "./context";
 import {
   ServerAddress,
   ServerCancel,
+  ServerDeselect,
   ServerFavourite,
   ServerGameTime,
   ServerLastPlayed,
@@ -726,6 +727,22 @@ describe("ServerManageMods", () => {
     const onClick = captured["server.manageMods"].onClick as (e: { stopPropagation: () => void }) => void;
     onClick({ stopPropagation: vi.fn() });
     expect(onViewChange).toHaveBeenCalledWith("mods");
+  });
+});
+
+describe("ServerDeselect", () => {
+  it("clears the selection when clicked", () => {
+    useServerStore.setState({ selectedServer: server });
+    renderInteractive(<ServerDeselect />, { subjectContext: { kind: "server", data: server } });
+    const onClick = captured["server.deselect"].onClick as () => void;
+    onClick();
+    expect(useServerStore.getState().selectedServer).toBeNull();
+  });
+
+  it("reads Close details by default", () => {
+    const html = renderInteractive(<ServerDeselect />, { subjectContext: { kind: "server", data: server } });
+    expect(html).toContain('aria-label="Close details"');
+    expect(html).toContain('data-part="icon"');
   });
 });
 
