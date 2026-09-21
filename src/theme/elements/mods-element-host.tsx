@@ -37,7 +37,17 @@ import {
   ModsCount,
   ModsRefresh,
   ModsSearch,
+  ModsSelectUnique,
   ModsStatusFilter,
+  ModsUnsubscribe,
+  ModsUnsubscribeAll,
+  ModsUnsubscribeMenu,
+  ModsUnsubscribeSelected,
+  ModsUpdateOutdated,
+  ModsVerify,
+  ModsVerifyAll,
+  ModsVerifyMenu,
+  ModsVerifySelected,
 } from "./mods-toolbar-elements";
 
 /** Checked while every visible mod is checked; a click checks or clears them all. */
@@ -149,6 +159,26 @@ export function renderModsElement(
       return <ModsClearSelection className={className} style={style} />;
     case "mods.cleanupRemoved":
       return <ModsCleanupRemoved className={className} style={style} />;
+    case "mods.unsubscribe":
+      return <ModsUnsubscribe options={node.options} className={className} style={style} />;
+    case "mods.unsubscribeMenu":
+      return <ModsUnsubscribeMenu options={node.options} className={className} style={style} />;
+    case "mods.unsubscribeSelected":
+      return <ModsUnsubscribeSelected options={node.options} className={className} style={style} />;
+    case "mods.unsubscribeAll":
+      return <ModsUnsubscribeAll options={node.options} className={className} style={style} />;
+    case "mods.verify":
+      return <ModsVerify options={node.options} className={className} style={style} />;
+    case "mods.verifyMenu":
+      return <ModsVerifyMenu options={node.options} className={className} style={style} />;
+    case "mods.verifySelected":
+      return <ModsVerifySelected options={node.options} className={className} style={style} />;
+    case "mods.verifyAll":
+      return <ModsVerifyAll options={node.options} className={className} style={style} />;
+    case "mods.updateOutdated":
+      return <ModsUpdateOutdated options={node.options} className={className} style={style} />;
+    case "mods.selectUnique":
+      return <ModsSelectUnique options={node.options} className={className} style={style} />;
     default:
       return undefined;
   }
