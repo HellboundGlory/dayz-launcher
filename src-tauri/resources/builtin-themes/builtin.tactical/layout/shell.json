@@ -69,6 +69,7 @@
         "direction": "row",
         "landmark": "main",
         "grow": 1,
+        "minHeight": "0px",
         "children": [
           { "type": "outlet", "name": "view" }
         ]

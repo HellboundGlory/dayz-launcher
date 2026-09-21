@@ -19,6 +19,12 @@
   background: rgba(117, 137, 163, 0.4);
 }
 
+/* Shell */
+[data-region="r-main"] {
+  min-height: 0;
+  overflow: hidden;
+}
+
 /* Title bar */
 [data-region="r-header"] {
   height: 40px;
