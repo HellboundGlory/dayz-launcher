@@ -165,13 +165,12 @@ export function useColumnWidths(
 
   const resetColumn = useCallback(
     (columnId: string) => {
-      setOverrides((prev) => {
-        if (!(columnId in prev)) return prev;
-        const next = { ...prev };
-        delete next[columnId];
-        persist(next);
-        return next;
-      });
+      const prev = overridesRef.current;
+      if (!(columnId in prev)) return;
+      const next = { ...prev };
+      delete next[columnId];
+      setOverrides(next);
+      persist(next);
     },
     [persist],
   );

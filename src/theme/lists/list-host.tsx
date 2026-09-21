@@ -92,10 +92,7 @@ export function ListHost<T = unknown>({
   const listDef = REGISTRY.lists[listId];
   const subjectKind = listDef?.subject ?? "server";
 
-  // The sticky header lives inside the scroller in scroll mode, so its height
-  // has to feed the virtualizer as `scrollMargin` — otherwise visible-range
-  // maths and `scrollToIndex` both treat row 0 as if it started at the top of
-  // the scroll container instead of just below the header.
+  // The sticky header sits inside the scroller, so rows start below it.
   useEffect(() => {
     if (!isScroll) {
       setHeaderHeight(0);
