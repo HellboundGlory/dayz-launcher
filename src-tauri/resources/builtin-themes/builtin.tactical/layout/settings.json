@@ -48,7 +48,7 @@
             "id": "r-settings-body",
             "direction": "row",
             "grow": 1,
-            "minHeight": "0px",
+            "minHeight": "480px",
             "children": [
               {
                 "type": "tabs",
@@ -87,7 +87,7 @@
                         {
                           "type": "stack",
                           "direction": "row",
-                          "align": "end",
+                          "align": "start",
                           "class": "t-settings-pair",
                           "children": [
                             {
@@ -194,7 +194,7 @@
                         {
                           "type": "stack",
                           "direction": "row",
-                          "align": "end",
+                          "align": "start",
                           "class": "t-settings-pair",
                           "children": [
                             {
