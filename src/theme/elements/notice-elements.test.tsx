@@ -1,9 +1,38 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { NoticeError, NoticeStorage, NoticeUpdate, ServerActionNotice } from "./notice-elements";
+import {
+  NoticeError,
+  NoticeModsCached,
+  NoticeModsError,
+  NoticeModsOutdated,
+  NoticeModsResult,
+  NoticeStorage,
+  NoticeUpdate,
+  ServerActionNotice,
+} from "./notice-elements";
 import { ElementContextProvider, type ElementContextValue } from "./context";
 import type { LaunchResult, Notice, ServerNotice } from "@/stores/launch-store";
 import type { Server } from "@/types/server";
+
+function liveHook<T extends { getState: () => S }, S>(store: T) {
+  return Object.assign(<R,>(sel: (s: S) => R) => sel(store.getState()), store);
+}
+
+vi.mock("@/stores/mods-store", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/stores/mods-store")>();
+  return { ...actual, useModsStore: liveHook(actual.useModsStore) };
+});
+
+async function withModsStore<T>(overrides: Record<string, unknown>, fn: () => T): Promise<T> {
+  const { useModsStore } = await import("@/stores/mods-store");
+  const prior = useModsStore.getState();
+  useModsStore.setState({ ...prior, ...overrides });
+  try {
+    return fn();
+  } finally {
+    useModsStore.setState(prior, true);
+  }
+}
 
 // The store is mocked rather than driven for real: `renderToStaticMarkup` takes
 // zustand's server snapshot, which is always the store's initial state.
@@ -189,5 +218,111 @@ describe("NoticeError", () => {
     expect(html).toContain('data-part="message"');
     expect(html).toContain("Something broke.");
     expect(html).toContain('data-part="dismiss"');
+  });
+});
+
+describe("NoticeModsError", () => {
+  it("renders nothing when the mods store has no error", async () => {
+    const html = await withModsStore({ error: null }, () => renderToStaticMarkup(<NoticeModsError />));
+    expect(html).toBe("");
+  });
+
+  it("renders the mods store's error message", async () => {
+    const html = await withModsStore({ error: "Steam refused." }, () =>
+      renderToStaticMarkup(<NoticeModsError />),
+    );
+    expect(html).toContain('data-el="notice.modsError"');
+    expect(html).toContain('data-part="message"');
+    expect(html).toContain("Steam refused.");
+  });
+});
+
+describe("NoticeModsCached", () => {
+  it("renders nothing when not showing a cached list", async () => {
+    const html = await withModsStore({ fromCache: false }, () =>
+      renderToStaticMarkup(<NoticeModsCached />),
+    );
+    expect(html).toBe("");
+  });
+
+  it("renders the cached-list message", async () => {
+    const html = await withModsStore({ fromCache: true }, () =>
+      renderToStaticMarkup(<NoticeModsCached />),
+    );
+    expect(html).toContain('data-el="notice.modsCached"');
+    expect(html).toContain("Steam unreachable — showing last known mod list");
+  });
+});
+
+describe("NoticeModsOutdated", () => {
+  it("renders nothing when nothing is outdated", async () => {
+    const html = await withModsStore({ rows: [] }, () => renderToStaticMarkup(<NoticeModsOutdated />));
+    expect(html).toBe("");
+  });
+
+  it("renders the outdated count and an updateAll part", async () => {
+    const html = await withModsStore(
+      {
+        rows: [
+          { workshop_id: "1", state: "needs_update", removed: false },
+          { workshop_id: "2", state: "ready", removed: false },
+        ],
+      },
+      () => renderToStaticMarkup(<NoticeModsOutdated />),
+    );
+    expect(html).toContain('data-el="notice.modsOutdated"');
+    expect(html).toContain("1 mod needs updating");
+    expect(html).toContain('data-part="updateAll"');
+  });
+
+  it("marks busy while an update op is running", async () => {
+    const html = await withModsStore(
+      {
+        rows: [{ workshop_id: "1", state: "needs_update", removed: false }],
+        op: { kind: "update", note: "UPDATING 1…" },
+      },
+      () => renderToStaticMarkup(<NoticeModsOutdated />),
+    );
+    expect(html).toContain('data-state="busy"');
+    expect(html).toContain("UPDATING 1…");
+  });
+});
+
+describe("NoticeModsResult", () => {
+  it("renders nothing when there is no result to show", async () => {
+    const html = await withModsStore(
+      { verifyResult: null, mutationFailures: null, uniqueResult: null },
+      () => renderToStaticMarkup(<NoticeModsResult />),
+    );
+    expect(html).toBe("");
+  });
+
+  it("renders the verify result with a success state", async () => {
+    const html = await withModsStore(
+      { verifyResult: { checked: 10, outdated: 2, queued: 2 } },
+      () => renderToStaticMarkup(<NoticeModsResult />),
+    );
+    expect(html).toContain('data-state="success"');
+    expect(html).toContain("10 checked");
+    expect(html).toContain("2 outdated");
+    expect(html).toContain("2 re-downloading");
+    expect(html).toContain('data-part="dismiss"');
+  });
+
+  it("renders a failure state when a mutation failed", async () => {
+    const html = await withModsStore(
+      { mutationFailures: [["1", "Steam refused"]] },
+      () => renderToStaticMarkup(<NoticeModsResult />),
+    );
+    expect(html).toContain('data-state="failure"');
+    expect(html).toContain("could not be removed: Steam refused");
+  });
+
+  it("renders 'Removed ok' when unsubscribe/cleanup had no failures", async () => {
+    const html = await withModsStore({ mutationFailures: [] }, () =>
+      renderToStaticMarkup(<NoticeModsResult />),
+    );
+    expect(html).toContain('data-state="success"');
+    expect(html).toContain("Removed ok");
   });
 });
