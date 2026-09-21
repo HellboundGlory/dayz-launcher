@@ -121,6 +121,7 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   get_mod_usage: () => [],
   get_unique_mods_summary: () => [],
   get_known_mods: () => [],
+  "plugin:window|get_all_windows": () => ["main", "splash"],
 };
 
 // Paint uncaught errors onto the page so a crash is visible in the screenshot.
