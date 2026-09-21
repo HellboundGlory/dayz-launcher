@@ -109,6 +109,27 @@ impl Validator<'_> {
                 self.issue("LAY-01", "", "List templates use row, not root or variants");
             }
             self.columns(fields, list);
+            if let Some(overflow) = fields.get("overflowX") {
+                if !matches!(overflow.as_str(), Some("clip") | Some("scroll")) {
+                    self.issue(
+                        "LAY-01",
+                        "/overflowX",
+                        "overflowX must be \"clip\" or \"scroll\"",
+                    );
+                }
+            }
+            if let Some(height) = fields.get("estimatedRowHeight") {
+                if !height
+                    .as_str()
+                    .is_some_and(|value| value.strip_suffix("px").is_some_and(|n| number(n, false)))
+                {
+                    self.issue(
+                        "LAY-04",
+                        "/estimatedRowHeight",
+                        "estimatedRowHeight must be a pixel length",
+                    );
+                }
+            }
             if let Some(row) = fields.get("row") {
                 let row_context = Context {
                     subject: list.map(|list| list.subject),
@@ -735,6 +756,15 @@ impl Validator<'_> {
                     list.is_some_and(|list| list.sort_keys.iter().any(|allowed| allowed == key))
                 }) {
                     self.issue("LST-04", &child(&pointer, "sort"), "Unknown list sort key");
+                }
+            }
+            if let Some(resizable) = column.get("resizable") {
+                if !resizable.is_boolean() {
+                    self.issue(
+                        "LAY-01",
+                        &child(&pointer, "resizable"),
+                        "resizable must be a boolean",
+                    );
                 }
             }
             if let Some(label) = column.get("label").and_then(Value::as_str) {
