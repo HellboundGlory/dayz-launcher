@@ -116,8 +116,6 @@ impl<'a> Visibility<'a, '_> {
         }
         let mut expanded = BTreeSet::new();
         let mut collapsed = None;
-        let mut first_tab = BTreeSet::new();
-        let mut other_tabs = BTreeSet::new();
         for (child, path) in rules::descendants(props, pointer) {
             if path == format!("{pointer}/empty") {
                 continue;
@@ -128,17 +126,8 @@ impl<'a> Visibility<'a, '_> {
                 collapsed = Some(child_elements);
             } else if suffix.starts_with("/children/") {
                 expanded.extend(child_elements);
-            } else if suffix == "/tabs/0/content" {
-                first_tab.extend(child_elements);
-            } else if suffix.starts_with("/tabs/") {
-                other_tabs.extend(child_elements);
             } else {
                 elements.extend(child_elements);
-            }
-        }
-        for id in &other_tabs {
-            if self.required.contains(id) && !first_tab.contains(id) {
-                self.missing(id, &format!("{pointer}/tabs/0/content"), "the default tab");
             }
         }
         if let Some(collapsed) = collapsed {
@@ -157,7 +146,6 @@ impl<'a> Visibility<'a, '_> {
             }
         }
         elements.extend(expanded);
-        elements.extend(first_tab);
         elements
     }
 
