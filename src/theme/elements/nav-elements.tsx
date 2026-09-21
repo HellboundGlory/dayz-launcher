@@ -80,6 +80,8 @@ function NavItem({
       aria-current={!isSettings && isActive ? "page" : undefined}
       aria-pressed={isSettings ? isActive : undefined}
       onClick={handleClick}
+      // A mouse click shouldn't leave the keyboard focus ring on the tab (WebKitGTK shows it).
+      onMouseDown={(e) => e.preventDefault()}
       onKeyDown={onNavKeyDown}
       title={display === "icon" ? label : undefined}
       aria-label={label}
