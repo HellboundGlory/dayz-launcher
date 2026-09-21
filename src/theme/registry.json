@@ -487,6 +487,27 @@
       "since": "2.0",
       "aliases": []
     },
+    "status.activity": {
+      "kind": "display",
+      "where": [
+        "app"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "dot",
+        "label"
+      ],
+      "states": [
+        "discovering",
+        "refreshing",
+        "live"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
     "notice.update": {
       "kind": "notice",
       "where": [
@@ -671,7 +692,14 @@
       "parts": [
         "label",
         "value",
-        "chevron"
+        "chevron",
+        "trigger",
+        "popup",
+        "option",
+        "box",
+        "indicator",
+        "clear",
+        "empty"
       ],
       "states": [
         "active",
@@ -700,7 +728,14 @@
       "parts": [
         "label",
         "value",
-        "chevron"
+        "chevron",
+        "trigger",
+        "popup",
+        "option",
+        "box",
+        "indicator",
+        "clear",
+        "empty"
       ],
       "states": [
         "active",
@@ -729,7 +764,14 @@
       "parts": [
         "label",
         "value",
-        "chevron"
+        "chevron",
+        "trigger",
+        "popup",
+        "option",
+        "box",
+        "indicator",
+        "clear",
+        "empty"
       ],
       "states": [
         "active",
@@ -1108,6 +1150,8 @@
       "options": {},
       "freeLabel": false,
       "parts": [
+        "code",
+        "title",
         "message"
       ],
       "states": [
@@ -1266,7 +1310,10 @@
       },
       "freeLabel": true,
       "parts": [
-        "icon"
+        "icon",
+        "trigger",
+        "popup",
+        "item"
       ],
       "states": [
         "open",
@@ -1309,6 +1356,42 @@
         "offline"
       ],
       "since": "2.0",
+      "aliases": []
+    },
+    "server.refresh": {
+      "kind": "action",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "icon"
+        },
+        "icon": {
+          "type": "icon",
+          "default": "refresh"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "busy",
+        "disabled",
+        "offline"
+      ],
+      "since": "2.1",
       "aliases": []
     },
     "server.subscribeAll": {
@@ -1759,6 +1842,10 @@
           "type": "boolean",
           "default": false
         },
+        "showNever": {
+          "type": "boolean",
+          "default": false
+        },
         "label": {
           "type": "text"
         }
@@ -1827,8 +1914,8 @@
       "states": [
         "offline",
         "official",
-        "modded",
         "firstPerson",
+        "modded",
         "locked",
         "battleye",
         "modUpdate"
@@ -1921,6 +2008,41 @@
         "offline"
       ],
       "since": "2.0",
+      "aliases": []
+    },
+    "server.manageMods": {
+      "kind": "action",
+      "subject": "server",
+      "where": [
+        "server-panel"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon",
+          "default": "externalLink"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon",
+        "label",
+        "count"
+      ],
+      "states": [
+        "offline"
+      ],
+      "since": "2.1",
       "aliases": []
     },
     "serverMod.order": {
