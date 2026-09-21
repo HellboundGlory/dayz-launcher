@@ -1,9 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { KeyboardEvent } from "react";
 import { ListRow } from "./list-row";
 import { ListHost } from "./list-host";
 import { handleListKeyDown } from "./keyboard";
+import { clearColumnWidthMemory, setStoredWidths } from "./use-column-widths";
 import type { ColumnDef } from "./types";
 import type { Server } from "@/types/server";
 
@@ -251,6 +252,10 @@ describe("keyboard navigation", () => {
 });
 
 describe("ListHost", () => {
+  beforeEach(() => {
+    clearColumnWidthMemory();
+  });
+
   it("renders empty state when items list is empty", () => {
     const html = renderToStaticMarkup(
       <ListHost
@@ -319,5 +324,52 @@ describe("ListHost", () => {
     );
 
     expect(html).toContain("height:74px");
+  });
+});
+
+describe("ListHost column widths", () => {
+  beforeEach(() => {
+    clearColumnWidthMemory();
+  });
+
+  it("gives the header and rows the same grid template when there is a stored override", () => {
+    setStoredWidths("neutral", "list.serverMods", { players: 200 });
+
+    const html = renderToStaticMarkup(
+      <ListHost
+        listId="list.serverMods"
+        items={[mockServer]}
+        columns={sampleColumns}
+        rowNode={{
+          type: "grid",
+          children: [{ type: "text", value: String(mockServer.players), column: "players" }],
+        }}
+      />,
+    );
+
+    expect(html).toContain("grid-template-columns:40px 1fr 200px 60px");
+    // Only one grid-template-columns should appear across header + row.
+    expect(html.match(/grid-template-columns:40px 1fr 200px 60px/g)).toHaveLength(2);
+  });
+
+  it("clamps a stored override below the column's floor", () => {
+    setStoredWidths("neutral", "list.serverMods", { players: 1 });
+
+    const html = renderToStaticMarkup(
+      <ListHost listId="list.serverMods" items={[mockServer]} columns={sampleColumns} />,
+    );
+
+    // No declared minWidth on "players" in sampleColumns, so the floor is 48px.
+    expect(html).toContain("grid-template-columns:40px 1fr 48px 60px");
+  });
+
+  it("renders a resize handle only for the resizable px column", () => {
+    const html = renderToStaticMarkup(
+      <ListHost listId="list.serverMods" items={[mockServer]} columns={sampleColumns} />,
+    );
+
+    const matches = html.match(/data-part="resizeHandle"/g) ?? [];
+    // fav (40px), players (80px) and ping (60px) are resizable; name (1fr) is not.
+    expect(matches).toHaveLength(3);
   });
 });

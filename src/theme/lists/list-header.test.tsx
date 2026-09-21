@@ -58,3 +58,37 @@ describe("ListHeader", () => {
     expect(html).toContain("padding-right:calc(var(--t-space-rowX) + 12px)");
   });
 });
+
+describe("ListHeader resize handles", () => {
+  const resizableColumns: ColumnDef[] = [
+    { id: "fav", width: "40px", align: "center" },
+    { id: "flex", label: "Name", width: "1fr" },
+    { id: "auto", label: "Auto", width: "auto" },
+    { id: "locked", label: "Locked", width: "64px", resizable: false },
+  ];
+
+  it("renders no handle at all when no onResizeStart is supplied", () => {
+    const html = renderToStaticMarkup(<ListHeader columns={resizableColumns} />);
+    expect(html).not.toContain('data-part="resizeHandle"');
+  });
+
+  it("renders a handle only for px-width columns with resizable !== false", () => {
+    const html = renderToStaticMarkup(
+      <ListHeader columns={resizableColumns} onResizeStart={() => {}} onResizeReset={() => {}} />,
+    );
+
+    const matches = html.match(/data-part="resizeHandle"/g) ?? [];
+    expect(matches).toHaveLength(1);
+  });
+
+  it("gives the handle a separator role, vertical orientation, and a reset title", () => {
+    const html = renderToStaticMarkup(
+      <ListHeader columns={resizableColumns} onResizeStart={() => {}} onResizeReset={() => {}} />,
+    );
+
+    expect(html).toContain('role="separator"');
+    expect(html).toContain('aria-orientation="vertical"');
+    expect(html).toContain('aria-valuenow="40"');
+    expect(html).toContain("Drag to resize");
+  });
+});
