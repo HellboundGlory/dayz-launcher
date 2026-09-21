@@ -166,6 +166,18 @@ describe("ListRow column placement", () => {
     expect(html).toContain("min-width:0");
   });
 
+  it("tags an element placed in a column with data-column", () => {
+    const html = renderToStaticMarkup(
+      <ListRow
+        columns={sampleColumns}
+        item={mockServer}
+        subjectKind="server"
+        rowNode={{ type: "grid", children: [{ element: "server.name", column: "ping" }] }}
+      />,
+    );
+    expect(html).toMatch(/<div data-column="ping" style="grid-column:4/);
+  });
+
   it("leaves an unknown column id unplaced", () => {
     const html = renderToStaticMarkup(
       <ListRow
