@@ -1158,6 +1158,7 @@
         "warning",
         "error",
         "success",
+        "refused",
         "offline"
       ],
       "since": "2.0",

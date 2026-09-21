@@ -1201,7 +1201,7 @@
   color: var(--danger);
 }
 
-[data-region="r-actions"] [data-el="server.actionNotice"][data-state~="error"] {
+[data-region="r-actions"] [data-el="server.actionNotice"][data-state~="refused"] {
   border-radius: 6px;
   background-color: rgba(239, 68, 68, 0.1);
   box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.3);
@@ -1209,7 +1209,7 @@
   text-align: left;
 }
 
-[data-region="r-actions"] [data-el="server.actionNotice"][data-state~="error"] [data-part="message"] {
+[data-region="r-actions"] [data-el="server.actionNotice"][data-state~="refused"] [data-part="message"] {
   font-size: 10px;
   line-height: 1.625;
   color: var(--text);

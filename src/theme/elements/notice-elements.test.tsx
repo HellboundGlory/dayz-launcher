@@ -115,7 +115,7 @@ describe("ServerActionNotice", () => {
   it("renders a launch refusal with a title and the full error message", () => {
     setResult({ addr: moddedServer.addr, error: "Steam refused to launch DayZ." });
     const html = render({ contextName: "row", selectedServer: moddedServer });
-    expect(html).toContain('data-state="error"');
+    expect(html).toContain('data-state="error refused"');
     expect(html).toContain('data-part="title"');
     expect(html).toContain("Launch refused");
     expect(html).toContain('data-part="message"');
@@ -142,7 +142,7 @@ describe("ServerActionNotice", () => {
     const unmodded: Server = { ...moddedServer, modded: false };
     setResult({ addr: unmodded.addr, error: "Failed to launch." });
     const html = render({ contextName: "row", selectedServer: unmodded });
-    expect(html).toContain('data-state="error"');
+    expect(html).toContain('data-state="error refused"');
     expect(html).toContain("Launch refused");
     expect(html).toContain("Failed to launch.");
   });

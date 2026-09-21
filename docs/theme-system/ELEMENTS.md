@@ -227,7 +227,7 @@ A notice renders only while its condition holds. The visibility check measures i
 | Id | Kind | Where | Req | × | Options | Parts | States |
 |---|---|---|---|---|---|---|---|
 | `server.join` | action | server | row of `list.servers`; modal `serverInfo` | 1/ctx | `wording: join / fixAndJoin (join)`, `display: iconLabel / label / icon (iconLabel)`, `icon` | icon, label, spinner | `busy`, `disabled`, `playing`, `modded`, `needsMods` |
-| `server.actionNotice` | notice | server | with join | 1/ctx | — | code, title, message | `warning`, `error`, `success` |
+| `server.actionNotice` | notice | server | with join | 1/ctx | — | code, title, message | `warning`, `error`, `success`, `refused` |
 | `server.cancel` | action | server | — | 1/ctx | `display: iconLabel / label / icon (label)`, `icon`, `label` | icon, label | — |
 | `server.loadToMenu` | action | server | — | 1/ctx | `display: iconLabel / label / icon (iconLabel)`, `icon`, `label` | icon, label | `disabled`, `busy` |
 | `server.info` | action | server, not the server info modal | — | 1/ctx | as `server.loadToMenu` | icon, label | — |
@@ -253,7 +253,7 @@ A notice renders only while its condition holds. The visibility check measures i
   - **Disabled:** during any operation, or while DayZ is running. The tooltip reads "DayZ is running. Quit the game before joining another server."
   - **Icon:** Download for modded servers, Play otherwise.
   - **Selection:** clicking Join never selects its row.
-- **`server.actionNotice`:** shows this server's current join warning or error (W01–W04, E01) or the last launch result. It is placed automatically right after `server.join` wherever a theme omits it (SPEC §6.8).
+- **`server.actionNotice`:** shows this server's current join warning or error (W01–W04, E01) or the last launch result; a refused launch also carries `refused`. It is placed automatically right after `server.join` wherever a theme omits it (SPEC §6.8).
 - **`server.cancel`:** renders only while this server has a wait that can be cancelled.
 - **`server.loadToMenu`:** reads "Load to menu" and verifies the mod list, then starts DayZ at the main menu without joining. It is disabled under the same conditions as Join.
 - **`server.info`:** reads "More info" and opens the server info modal.
