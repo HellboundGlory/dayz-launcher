@@ -22,7 +22,7 @@ export interface ElementDef {
   freeLabel: boolean;
   parts: string[];
   states: string[];
-  since: "2.0";
+  since: "2.0" | "2.1";
   aliases: string[];
   fallbackPlacement?: Record<string, FallbackPlacement>;
 }
