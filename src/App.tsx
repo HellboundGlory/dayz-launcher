@@ -811,6 +811,8 @@ export function App() {
     onRefresh: handleRefresh,
     refreshing,
     discovering,
+    devMode,
+    onDevModeChange: setDevMode,
   };
 
   return (

@@ -5,36 +5,7 @@ import { useSettingsStore } from "@/stores/settings-store";
 import { discoverSteamPaths, dataFolderPath, openDataFolder } from "@/lib/tauri";
 import { SettingsAccordion } from "./settings-accordion";
 import { ThemesSection } from "./themes-page/ThemesSection";
-
-type SecId = "game" | "launcher" | "theme";
-
-const SECS: { id: SecId; icon: typeof Gamepad2; title: string; description: string }[] = [
-  { id: "game", icon: Gamepad2, title: "Game", description: "DayZ path, launch params, join behaviour" },
-  {
-    id: "launcher",
-    icon: AppWindow,
-    title: "Launcher",
-    description: "Tray, startup, refresh cadence, Discord presence",
-  },
-  { id: "theme", icon: Palette, title: "Theme", description: "Palette, bloom, custom skins" },
-];
-
-/** The auto-refresh choices, in seconds. `0` is off. */
-const REFRESH_INTERVALS: { value: number; label: string }[] = [
-  { value: 0, label: "Never" },
-  { value: 30, label: "Every 30 seconds" },
-  { value: 60, label: "Every minute" },
-  { value: 300, label: "Every 5 minutes" },
-  { value: 600, label: "Every 10 minutes" },
-];
-
-/** The shared text-input / select styling (board `.field input`). */
-const INPUT_CLASS =
-  "w-full [border-radius:var(--t-radius-input)] border border-line bg-bg px-2.5 py-2 text-xs text-ink placeholder-muted outline-none transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:border-line-weak focus:border-accent-line";
-
-/** Small secondary button (Detect / Open) sitting next to an input. */
-const BUTTON_CLASS =
-  "flex shrink-0 items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-2 [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider text-muted2 transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:text-ink disabled:opacity-50";
+import { type SecId, SECS, REFRESH_INTERVALS, INPUT_CLASS, BUTTON_CLASS, Field, CheckboxRow } from "./settings-controls";
 
 // Full-page overlay; the sidebar stays interactive. Four accordions, one open at a time.
 export function SettingsView({
@@ -383,52 +354,5 @@ export function SettingsView({
         </SettingsAccordion>
       </div>
     </div>
-  );
-}
-
-/** A labelled control with an optional explanatory line beneath it. */
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="field mb-3.5">
-      <div className="fb [font-size:var(--t-type-label-size)] font-semibold text-ink">{label}</div>
-      {hint && <div className="fh mt-0.5 [font-size:var(--t-type-caption-size)] leading-[1.4] text-muted">{hint}</div>}
-      <div className="mt-1.5">{children}</div>
-    </div>
-  );
-}
-
-/** A checkbox with a label and a one-line explanation. */
-function CheckboxRow({
-  checked,
-  onChange,
-  label,
-  hint,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-  hint?: string;
-}) {
-  return (
-    <label className="chk flex cursor-pointer items-start gap-2 py-1.5">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="mt-0.5 size-3.5 shrink-0 accent-accent"
-      />
-      <span className="min-w-0">
-        <span className="cl block [font-size:var(--t-type-body-size)] text-ink">{label}</span>
-        {hint && <span className="ch mt-0.5 block [font-size:var(--t-type-caption-size)] leading-[1.4] text-muted">{hint}</span>}
-      </span>
-    </label>
   );
 }
