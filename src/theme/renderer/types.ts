@@ -158,6 +158,7 @@ export interface TabsNode extends CommonProps {
   type: "tabs";
   id: string;
   tabs: TabDef[];
+  orientation?: "horizontal" | "vertical";
 }
 
 export interface AccordionSectionDef {
@@ -254,6 +255,7 @@ export interface PopupLayoutFile {
 export interface SettingsPresentation {
   mode: "overlay" | "view" | "panel";
   region?: string;
+  backdropClose?: boolean;
 }
 
 export interface SettingsLayoutFile {

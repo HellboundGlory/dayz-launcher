@@ -16,9 +16,10 @@ import {
   setPersistedTab,
 } from "./store";
 import { handleResizeKey, parseLengthPx, ResizableHandle } from "./resizable";
+import { nextTabIndex } from "./tabs";
 import { ModalHost } from "./modal-host";
 import { PopupHost } from "./popup-host";
-import { SettingsHost, SettingsRegionPortal } from "./settings-host";
+import { isBackdropRootMousedown, SettingsHost, SettingsRegionPortal } from "./settings-host";
 
 
 const file = (root: LayoutNode): LayoutFile => ({ schemaVersion: 2, root });
@@ -107,12 +108,16 @@ describe("Theme Interaction & Presentation (Package 4.4)", () => {
       const html = renderLayout(tabsNode, { themeId: "theme-a" });
 
       expect(html).toContain('data-tabs="r-detail"');
+      expect(html).toContain('data-region="r-detail"');
       expect(html).toContain('role="tablist"');
+      expect(html).toContain('data-part="tablist"');
       expect(html).toContain('aria-orientation="horizontal"');
 
       expect(html).toContain('id="r-detail-tab-info"');
       expect(html).toContain('role="tab"');
+      expect(html).toContain('data-part="tab"');
       expect(html).toContain('aria-selected="true"');
+      expect(html).toContain('data-state="selected"');
       expect(html).toContain('aria-controls="r-detail-panel-info"');
       expect(html).toContain('tabindex="0"');
       expect(html).toContain("Information");
@@ -124,10 +129,43 @@ describe("Theme Interaction & Presentation (Package 4.4)", () => {
       expect(html).toContain("Mods List");
 
       expect(html).toContain('role="tabpanel"');
+      expect(html).toContain('data-part="panel"');
       expect(html).toContain('id="r-detail-panel-info"');
       expect(html).toContain('aria-labelledby="r-detail-tab-info"');
       expect(html).toContain("Server Info Content");
       expect(html).not.toContain("Mods Content");
+    });
+
+    it("publishes data-context from a context container", () => {
+      const selectedServer = { addr: "1.2.3.4:2303", name: "x" } as unknown as ElementContextValue["selectedServer"];
+      const html = renderLayout({ ...tabsNode, context: "selection" }, {
+        themeId: "theme-a",
+        elementCtx: { selectedServer },
+      });
+      expect(html).toContain('data-context="selection"');
+    });
+
+    it("defaults to horizontal orientation and moves with Left/Right and Home/End", () => {
+      expect(nextTabIndex({ key: "ArrowRight", currentIndex: 0, count: 3, vertical: false })).toBe(1);
+      expect(nextTabIndex({ key: "ArrowLeft", currentIndex: 0, count: 3, vertical: false })).toBe(2);
+      expect(nextTabIndex({ key: "Home", currentIndex: 2, count: 3, vertical: false })).toBe(0);
+      expect(nextTabIndex({ key: "End", currentIndex: 0, count: 3, vertical: false })).toBe(2);
+      expect(nextTabIndex({ key: "ArrowUp", currentIndex: 0, count: 3, vertical: false })).toBeNull();
+      expect(nextTabIndex({ key: "ArrowDown", currentIndex: 0, count: 3, vertical: false })).toBeNull();
+    });
+
+    it("vertical orientation moves with Up/Down, not Left/Right", () => {
+      expect(nextTabIndex({ key: "ArrowDown", currentIndex: 0, count: 3, vertical: true })).toBe(1);
+      expect(nextTabIndex({ key: "ArrowUp", currentIndex: 0, count: 3, vertical: true })).toBe(2);
+      expect(nextTabIndex({ key: "Home", currentIndex: 2, count: 3, vertical: true })).toBe(0);
+      expect(nextTabIndex({ key: "End", currentIndex: 0, count: 3, vertical: true })).toBe(2);
+      expect(nextTabIndex({ key: "ArrowLeft", currentIndex: 0, count: 3, vertical: true })).toBeNull();
+      expect(nextTabIndex({ key: "ArrowRight", currentIndex: 0, count: 3, vertical: true })).toBeNull();
+    });
+
+    it("renders aria-orientation=vertical and a vertical tablist", () => {
+      const html = renderLayout({ ...tabsNode, orientation: "vertical" }, { themeId: "theme-a" });
+      expect(html).toContain('aria-orientation="vertical"');
     });
 
     it("respects persisted active tab", () => {
@@ -535,6 +573,29 @@ describe("Theme Interaction & Presentation (Package 4.4)", () => {
         <SettingsHost file={{ schemaVersion: 2, root: { type: "text", value: "Untagged" } }} />,
       );
       expect(html).toContain('data-presentation="overlay"');
+    });
+
+    describe("backdropClose", () => {
+      // No DOM is available under this project's node test environment, so
+      // these fake just enough of the Element shape isBackdropRootMousedown reads.
+      const fakeElement = () => ({}) as Element;
+
+      it("closes on a mousedown that targets the overlay's rendered root", () => {
+        const root = fakeElement();
+        const host = { firstElementChild: root } as unknown as Element;
+        expect(isBackdropRootMousedown(root, host)).toBe(true);
+      });
+
+      it("does not close on a mousedown that starts inside a descendant", () => {
+        const root = fakeElement();
+        const child = fakeElement();
+        const host = { firstElementChild: root } as unknown as Element;
+        expect(isBackdropRootMousedown(child, host)).toBe(false);
+      });
+
+      it("does not close without a host element", () => {
+        expect(isBackdropRootMousedown(fakeElement(), null)).toBe(false);
+      });
     });
   });
 
