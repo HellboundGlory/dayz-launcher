@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ServerActionNotice } from "./notice-elements";
+import { NoticeError, NoticeStorage, NoticeUpdate, ServerActionNotice } from "./notice-elements";
 import { ElementContextProvider, type ElementContextValue } from "./context";
 import type { LaunchResult, Notice, ServerNotice } from "@/stores/launch-store";
 import type { Server } from "@/types/server";
@@ -75,12 +75,13 @@ describe("ServerActionNotice", () => {
     const html = render({ contextName: "row", selectedServer: moddedServer });
     expect(html).toContain('data-el="server.actionNotice"');
     expect(html).toContain('data-state="warning"');
-    expect(html).toContain('data-part="title"');
-    expect(html).toContain("Downloads stalled");
+    expect(html).toContain('data-part="code"');
+    expect(html).toContain("W02");
     expect(html).toContain('data-part="message"');
+    expect(html).toContain("Downloads stalled");
     expect(html).toContain("Allow downloads during gameplay");
     expect(html).not.toContain("p-3");
-    expect(html).not.toContain("border");
+    expect(html).not.toContain("border bg-surface2");
   });
 
   it("renders an E-code notice with data-state=error, in the bordered panel form", () => {
@@ -88,6 +89,8 @@ describe("ServerActionNotice", () => {
     const html = render({ contextName: "selection", selectedServer: moddedServer });
     expect(html).toContain('data-el="server.actionNotice"');
     expect(html).toContain('data-state="error"');
+    expect(html).toContain('data-part="code"');
+    expect(html).toContain("E01");
     expect(html).toContain("Could not subscribe");
     expect(html).toContain("p-3");
   });
@@ -103,7 +106,30 @@ describe("ServerActionNotice", () => {
     const html = render({ contextName: "row", selectedServer: moddedServer });
     expect(html).toContain('data-el="server.actionNotice"');
     expect(html).toContain('data-state="success"');
+    expect(html).toContain('data-part="message"');
     expect(html).toContain("Launched.");
+    expect(html).not.toContain('data-part="title"');
+    expect(html).not.toContain('data-part="code"');
+  });
+
+  it("renders a launch refusal with a title and the full error message", () => {
+    setResult({ addr: moddedServer.addr, error: "Steam refused to launch DayZ." });
+    const html = render({ contextName: "row", selectedServer: moddedServer });
+    expect(html).toContain('data-state="error"');
+    expect(html).toContain('data-part="title"');
+    expect(html).toContain("Launch refused");
+    expect(html).toContain('data-part="message"');
+    expect(html).toContain("Steam refused to launch DayZ.");
+  });
+
+  it("renders a plain notice with only a message part", () => {
+    setNotice(moddedServer.addr, { kind: "plain", text: "Waiting for Steam." });
+    const html = render({ contextName: "row", selectedServer: moddedServer });
+    expect(html).toContain('data-state="warning"');
+    expect(html).toContain('data-part="message"');
+    expect(html).toContain("Waiting for Steam.");
+    expect(html).not.toContain('data-part="title"');
+    expect(html).not.toContain('data-part="code"');
   });
 
   it("renders nothing for an unmodded server with no notice or result", () => {
@@ -117,6 +143,51 @@ describe("ServerActionNotice", () => {
     setResult({ addr: unmodded.addr, error: "Failed to launch." });
     const html = render({ contextName: "row", selectedServer: unmodded });
     expect(html).toContain('data-state="error"');
+    expect(html).toContain("Launch refused");
     expect(html).toContain("Failed to launch.");
+  });
+});
+
+describe("NoticeUpdate", () => {
+  it("renders title, message, update and later parts", () => {
+    const html = renderToStaticMarkup(
+      <ElementContextProvider value={{ updateAvailable: { version: "2.7.0" } }}>
+        <NoticeUpdate />
+      </ElementContextProvider>,
+    );
+    expect(html).toContain('data-part="title"');
+    expect(html).toContain("Update available");
+    expect(html).toContain('data-part="message"');
+    expect(html).toContain("2.7.0");
+    expect(html).toContain('data-part="update"');
+    expect(html).toContain('data-part="later"');
+  });
+});
+
+describe("NoticeStorage", () => {
+  it("renders a tag and message part", () => {
+    const html = renderToStaticMarkup(
+      <ElementContextProvider value={{ storageDegraded: true }}>
+        <NoticeStorage />
+      </ElementContextProvider>,
+    );
+    expect(html).toContain('data-part="tag"');
+    expect(html).toContain("STORAGE");
+    expect(html).toContain('data-part="message"');
+  });
+});
+
+describe("NoticeError", () => {
+  it("renders a tag, message and dismiss part", () => {
+    const html = renderToStaticMarkup(
+      <ElementContextProvider value={{ error: "Something broke." }}>
+        <NoticeError />
+      </ElementContextProvider>,
+    );
+    expect(html).toContain('data-part="tag"');
+    expect(html).toContain("ERROR");
+    expect(html).toContain('data-part="message"');
+    expect(html).toContain("Something broke.");
+    expect(html).toContain('data-part="dismiss"');
   });
 });

@@ -108,19 +108,62 @@ export function StatusListSource({
 }
 
 export function StatusLastRefreshed({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const { steamConnected, refreshedAt } = useElementContext();
+  if (!steamConnected || !refreshedAt) return null;
+  const label = typeof options?.label === "string" ? options.label : "Updated";
+
+  return (
+    <span data-el="status.lastRefreshed" className={className} style={style}>
+      <span data-part="label">{label} </span>
+      <span data-part="value">{refreshedAt}</span>
+    </span>
+  );
+}
+
+export function StatusActivity({
   className,
   style,
 }: {
   className?: string;
   style?: CSSProperties;
 }) {
-  const { steamConnected, refreshedAt } = useElementContext();
-  if (!steamConnected || !refreshedAt) return null;
+  const { discovering, refreshing, refreshedAt } = useElementContext();
+  const state = discovering ? "discovering" : refreshing ? "refreshing" : "live";
+  const dotClass =
+    state === "discovering"
+      ? "bg-warn animate-pulse"
+      : state === "refreshing"
+        ? "bg-accent animate-pulse"
+        : "bg-success";
+  const label =
+    state === "discovering"
+      ? "Discovering servers from Steam…"
+      : state === "refreshing"
+        ? "Probing server details…"
+        : `Live · ${refreshedAt ?? "waiting"}`;
 
   return (
-    <span data-el="status.lastRefreshed" className={className} style={style}>
-      <span data-part="label">Updated </span>
-      <span data-part="value">{refreshedAt}</span>
-    </span>
+    <div
+      data-el="status.activity"
+      data-state={state}
+      className={className ?? "flex items-center gap-[var(--t-space-inlineGap)]"}
+      style={style}
+    >
+      <span
+        data-part="dot"
+        className={cn("size-2 [border-radius:var(--t-radius-pill)] shrink-0", dotClass)}
+      />
+      <span data-part="label" className="text-xs text-muted">
+        {label}
+      </span>
+    </div>
   );
 }
