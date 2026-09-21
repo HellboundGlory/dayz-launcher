@@ -33,6 +33,7 @@ export function ServerListHost({
         items={servers}
         columns={listLayout?.columns}
         rowNode={listLayout?.row}
+        overflowX={listLayout?.overflowX}
         selectedItem={selectedServer}
         onSelect={(server) => setSelectedServer(server)}
         sortState={{
@@ -49,7 +50,7 @@ export function ServerListHost({
             server.favourite ? "favourite" : "",
           ].filter(Boolean)
         }
-        estimatedRowHeight={40}
+        estimatedRowHeight={listLayout?.estimatedRowHeight ?? 40}
       />
     </div>
   );
