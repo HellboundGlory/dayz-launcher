@@ -570,6 +570,8 @@ One model covers every list (ADR-0018). `ELEMENTS.md` lists each list's subject,
 
 `columns` and `row` are both optional; a file may restyle rows without declaring columns, in which case the row root lays its children out itself.
 
+A list file may also declare `"overflowX": "clip" | "scroll"` (default `clip`) and `"estimatedRowHeight": "<n>px"`. With `scroll`, the header moves inside the scroller (sticky), rows are at least the sum of the fixed-length column widths wide, a trailing `fr` column absorbs any surplus, and the list scrolls sideways (Shift+wheel anywhere, or plain wheel over the header).
+
 ### 7.2 Columns
 
 | Field | Rules |
@@ -580,10 +582,13 @@ One model covers every list (ADR-0018). `ELEMENTS.md` lists each list's subject,
 | `minWidth`, `maxWidth` | Lengths |
 | `align` | `start`, `center` or `end` |
 | `sort` | A sort key from that list's set. An unknown key is an import error |
+| `resizable` | Boolean, default `true`. Only a column with a px `width` resizes; `fr` and `auto` columns never do |
+
+Columns are drag-resizable in every list that declares them. The drag floor is the column's `minWidth` (default 48px). Widths persist per theme and list; double-clicking a heading's resize handle resets that column to its declared width.
 
 ### 7.3 The header
 
-The launcher renders the header from `columns`, above the scroll area, with the scrollbar's width reserved so the columns line up with the rows. It is the list's `header` part, and each column heading is a `column` part carrying `data-column="<id>"`. A sortable heading is a button with `aria-sort`; clicking it sorts by that key, and clicking again reverses the direction. `header: false` hides it.
+The launcher renders the header from `columns`, above the scroll area, with the scrollbar's width reserved so the columns line up with the rows. It is the list's `header` part, and each column heading is a `column` part carrying `data-column="<id>"`, with nested `label` and `sortIndicator` parts. A sortable heading is a button with `aria-sort`; clicking it sorts by that key, and clicking again reverses the direction, and the `sortIndicator` reads "↓" descending or "↑" ascending. Each resizable column also exposes a `resizeHandle` part. `header: false` hides it.
 
 ### 7.4 Sorting
 
@@ -818,6 +823,7 @@ Allowed:
 | Structure | `:not()`, `:is()`, `:where()`, `:first-child`, `:last-child`, `:nth-child()` |
 | Generated boxes | `::before` and `::after`, with `content: ""` only |
 | Combinators | Descendant, `>`, `+`, `~` |
+| Scrollbars and sliders | `::-webkit-scrollbar`, `::-webkit-scrollbar-thumb`, `::-webkit-scrollbar-track`, `::-webkit-scrollbar-corner`, `::-webkit-slider-thumb`, `::-webkit-slider-runnable-track`, optionally scoped by an allowed selector |
 
 Refused: type selectors (`div`), id selectors, class names that aren't the theme's own, any other attribute selector, and `!important`. A theme's class names must match `t-[a-z0-9-]+`, which Tailwind never generates, and must be declared on one of the theme's own layout nodes.
 

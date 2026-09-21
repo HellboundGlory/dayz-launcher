@@ -2,7 +2,7 @@
 
 This file lists every piece of core content a v2 theme can place, and the rules the validator enforces for each. It is the readable form of `src/theme/registry.json` (ADR-0007). The two must agree, and a test fails the build if they don't. Terms follow `CONTEXT.md`; the rules behind each column are specified in `SPEC.md`.
 
-Every entry below is introduced in theme API 2.0 (`since: "2.0"`) and has no aliases yet.
+Every entry below is introduced in theme API 2.0 (`since: "2.0"`) and has no aliases yet, except `status.activity`, `server.manageMods` and `server.refresh`, introduced in 2.1.
 
 ## How to read the tables
 
@@ -143,12 +143,14 @@ A singular prefix (`server.`) acts on one subject; a plural prefix (`servers.`) 
 | `status.populated` | display | app | — | n | `showLabel: true / false (true)` | value, label | — |
 | `status.listSource` | display | app | — | n | — | label | `index`, `steam` |
 | `status.lastRefreshed` | display | app | — | n | — | label, value | — |
+| `status.activity` | display | app | — | n | — | dot, label | `discovering`, `refreshing`, `live` |
 
 - **`status.steam`:** reads "Steam connected" or "Steam not connected". With `display: dot`, that text becomes the accessible name and the tooltip.
 - **`status.serverTotal`, `status.populated`, `status.listSource` and `status.lastRefreshed`:**
   - all four render nothing while Steam is disconnected;
   - `status.listSource` also renders nothing until the list source is known;
   - `status.lastRefreshed` also renders nothing before the first refresh.
+- **`status.activity`:** the `dot` and `label` share one state. `discovering` reads "Discovering servers from Steam…"; `refreshing` reads "Probing server details…"; otherwise `live` reads "Live · {time}", or "Live · waiting" before the first refresh.
 - **Wording and tooltips:** unchanged from today.
 
 ## notice: launcher messages
@@ -176,9 +178,9 @@ A notice renders only while its condition holds. The visibility check measures i
 | Id | Kind | Where | Req | × | Options | Parts | States |
 |---|---|---|---|---|---|---|---|
 | `filter.search` | input | browser | browser | 1 | `showIcon: true / false (true)` | icon, input | `filled` |
-| `filter.map` | input | browser | — | 1 | `showLabel: true / false (true)`, `label` | label, value, chevron | `active`, `open` |
-| `filter.tags` | input | browser | — | 1 | as `filter.map` | label, value, chevron | `active`, `open` |
-| `filter.region` | input | browser | — | 1 | as `filter.map` | label, value, chevron | `active`, `open` |
+| `filter.map` | input | browser | — | 1 | `showLabel: true / false (true)`, `label` | label, value, chevron, trigger, popup, option, box, indicator, clear, empty | `active`, `open` |
+| `filter.tags` | input | browser | — | 1 | as `filter.map` | label, value, chevron, trigger, popup, option, box, indicator, clear, empty | `active`, `open` |
+| `filter.region` | input | browser | — | 1 | as `filter.map` | label, value, chevron, trigger, popup, option, box, indicator, clear, empty | `active`, `open` |
 | `filter.mods` | action | browser | — | 1 | as `filter.map` | label, value, chevron | `active` |
 | `filter.sort` | input | browser | — | 1 | as `filter.map` | label, value, direction, chevron | `active`, `open` |
 | `filter.maxPing` | input | browser | — | 1 | `showLabel: true / false (true)`, `showValue: true / false (true)`, `label` | label, track, knob, value | `active` |
@@ -188,8 +190,9 @@ A notice renders only while its condition holds. The visibility check measures i
 | `filter.hideOffline` | input | browser | — | 1 | as `filter.hideEmpty` | label, box, icon | `on` |
 | `filter.reset` | action | browser | — | 1 | `display: iconLabel / label / icon (iconLabel)`, `icon`, `label` | icon, label | — |
 
-- **`filter.search`:** writes the search filter after a 250 ms trailing debounce. Its placeholder is "Search servers…".
-- **Popup triggers:** `filter.map`, `filter.tags`, `filter.region` and `filter.sort` open `popup.mapFilter`, `popup.tagsFilter`, `popup.regionFilter` and `popup.sort`, with `aria-haspopup="listbox"` and `aria-expanded`.
+- **`filter.search`:** writes the search filter after a 250 ms trailing debounce. Its placeholder is "Search name or description".
+- **Popup triggers:** `filter.map`, `filter.tags`, `filter.region` and `filter.sort` open `popup.mapFilter`, `popup.tagsFilter`, `popup.regionFilter` and `popup.sort`, with `aria-haspopup="listbox"` and `aria-expanded`. The `trigger` part is the chip that opens the popup.
+- **Filter popups:** while open, `filter.map`, `filter.tags` and `filter.region` render an inline `popup` part holding one `option` part per row: a checkbox `box` (map), a tri-state `indicator` (tags), or a leading `clear` row (region). `filter.map`'s `empty` part renders "Loading maps…" while its list is still loading.
 - **`filter.mods`:** opens the mod filter modal.
 - **Label and value wording:** labels are MAP, TAGS, REGION, MODS, SORT and PING. Values:
 
@@ -224,12 +227,14 @@ A notice renders only while its condition holds. The visibility check measures i
 | Id | Kind | Where | Req | × | Options | Parts | States |
 |---|---|---|---|---|---|---|---|
 | `server.join` | action | server | row of `list.servers`; modal `serverInfo` | 1/ctx | `wording: join / fixAndJoin (join)`, `display: iconLabel / label / icon (iconLabel)`, `icon` | icon, label, spinner | `busy`, `disabled`, `playing`, `modded`, `needsMods` |
-| `server.actionNotice` | notice | server | with join | 1/ctx | — | message | `warning`, `error`, `success` |
+| `server.actionNotice` | notice | server | with join | 1/ctx | — | code, title, message | `warning`, `error`, `success` |
 | `server.cancel` | action | server | — | 1/ctx | `display: iconLabel / label / icon (label)`, `icon`, `label` | icon, label | — |
 | `server.loadToMenu` | action | server | — | 1/ctx | `display: iconLabel / label / icon (iconLabel)`, `icon`, `label` | icon, label | `disabled`, `busy` |
 | `server.info` | action | server, not the server info modal | — | 1/ctx | as `server.loadToMenu` | icon, label | — |
-| `server.menu` | action | server, not a popup | — | 1/ctx | `menu: serverActions / serverLoad (serverActions)`, `icon`, `label` | icon | `open` |
+| `server.menu` | action | server, not a popup | — | 1/ctx | `menu: serverActions / serverLoad (serverActions)`, `icon`, `label` | icon, trigger, popup, item | `open` |
 | `server.favourite` | action | server | — | 1/ctx | `display: icon / iconLabel (icon)`, `icon`, `label` | icon, label | `on` |
+| `server.refresh` | action | server | — | 1/ctx | `display: iconLabel / label / icon (icon)`, `icon` | icon, label | `busy`, `disabled` |
+| `server.manageMods` | action | server-panel | — | 1/ctx | `display: iconLabel / label / icon (iconLabel)`, `icon` | icon, label, count | — |
 | `server.subscribeAll` | action | server | — | 1/ctx | as `server.loadToMenu` | icon, label | `disabled`, `busy` |
 | `server.checkMods` | action | server | — | 1/ctx | as `server.loadToMenu` | icon, label | `busy` |
 | `server.unsubscribeUnique` | action | server | — | 1/ctx | as `server.loadToMenu` | icon, label | `disabled`, `busy` |
@@ -254,6 +259,8 @@ A notice renders only while its condition holds. The visibility check measures i
 - **`server.info`:** reads "More info" and opens the server info modal.
 - **`server.menu`:** opens `popup.serverActions` or `popup.serverLoad`, with `aria-haspopup="menu"`. Its accessible name is "More actions for {server}".
 - **`server.favourite`:** reads "Add to favourites" or "Remove from favourites". The change is applied optimistically and reverted if saving fails.
+- **`server.refresh`:** reads "Refresh this server" and re-probes only this server. Only one row probes at a time app-wide: the probing row is `busy`, and every other row's `server.refresh` is `disabled` until it finishes.
+- **`server.manageMods`:** reads "Manage mods"; once the mod count is known, its `count` part reads "· {n} declared". Opens the Mods view.
 - **`server.subscribeAll`:** reads "Download mods" and subscribes to every mod the server declares.
 - **`server.checkMods`:** reads "Check mods". It re-reads the server's mod list and each mod's state, and never queues a download (SPEC §11.3).
 - **`server.unsubscribeUnique`:** reads "Unsubscribe unique mods". It opens the launcher's confirmation (ADR-0020, ADR-0024), and is disabled when no mod is unique to this server.
@@ -273,8 +280,8 @@ A notice renders only while its condition holds. The visibility check measures i
 | `server.ping` | display | server | — | n | `showUnit: true / false (false)`, `showCaption: true / false (true)` | value, unit, caption | `good`, `fair`, `poor`, `unknown`, `offline` |
 | `server.modCount` | display | server | — | n | `showCaption: true / false (true)` | value, caption | `none`, `unprobed` |
 | `server.version` | display | server | — | n | — | text | `unknown` |
-| `server.lastPlayed` | display | server | — | n | `format: relative / date (relative)`, `recentOnly: true / false (false)` | label, value | — |
-| `server.tags` | display | server | — | n | `officialWording: vanilla / official (vanilla)`, and booleans `showOffline`, `showOfficial`, `showModded`, `showFirstPerson`, `showLocked`, `showModUpdate` (true) and `showBattleye` (false) | chip | per chip: `offline`, `official`, `modded`, `firstPerson`, `locked`, `battleye`, `modUpdate` |
+| `server.lastPlayed` | display | server | — | n | `format: relative / date (relative)`, `recentOnly: true / false (false)`, `showNever: true / false (false)` | label, value | — |
+| `server.tags` | display | server | — | n | `officialWording: vanilla / official (vanilla)`, and booleans `showOffline`, `showOfficial`, `showModded`, `showFirstPerson`, `showLocked`, `showModUpdate` (true) and `showBattleye` (false) | chip | per chip: `offline`, `official`, `firstPerson`, `modded`, `locked`, `battleye`, `modUpdate` |
 | `server.modUpdate` | display | server | — | n | — | label | — |
 | `server.readiness` | display | server-panel | — | n | `showDot: true / false (true)`, `showSize: true / false (true)` | dot, label, size | `checking`, `ready`, `needsDownload`, `needsUpdate`, `downloading`, `unchecked`, `noMods`, `stale` |
 | `server.downloadSize` | display | server-panel | — | n | — | qualifier, value | `upperBound`, `none`, `checking` |
@@ -287,10 +294,10 @@ A notice renders only while its condition holds. The visibility check measures i
   | `server.players` | "{players}/{max}", with "+{queue}" when queued |
   | `server.ping` | A number, or "—"; `good` ≤ 80, `fair` ≤ 120, `poor` above 120 |
   | `server.modCount` | The count, "—" for none, or "?" when modded but not yet probed |
-  | `server.lastPlayed` | "played {relative time}" or a date; renders nothing when the server was never played. With `recentOnly`, it also renders nothing outside the Recent scope |
+  | `server.lastPlayed` | "played {relative time}" or a date; renders nothing when the server was never played, or "—" with `showNever`. With `recentOnly`, it also renders nothing outside the Recent scope. With `label: ""`, the "played" prefix is dropped |
   | `server.region` | Europe, North America, South America, Asia, Oceania, the raw code if unmapped, or "Unknown region" |
 
-- **`server.tags`:** renders chips in the order offline, official (VANILLA or OFFICIAL), modded, first person (1PP), locked, BattlEye, mod update.
+- **`server.tags`:** renders chips in the order offline, official (VANILLA or OFFICIAL), first person (1PP), modded, locked, BattlEye, mod update.
 - **`server.modUpdate`:** renders "UPDATE" only while a declared mod has a pending Steam update.
 - **Readiness data:** `server.readiness` and `server.downloadSize` read the data fetched for the selection and the server info modal (SPEC §11.2). They are not allowed in rows, where fetching per visible row would flood Steam. Wording and size rules are in SPEC §11.2.
 - **Offline servers:** `offline` is added to every server element's states while the server didn't answer the last refresh. Its figures are then the last known values.

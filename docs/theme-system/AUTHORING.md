@@ -162,7 +162,7 @@ Everything below is checked by the CSS validator (`src-tauri/src/theme/validator
 
 - **Allowed attribute selectors:** `[data-el]`, `[data-part]`, `[data-state]`, `[data-context]`, `[data-list]`, `[data-row]`, `[data-column]`. Nothing else — `[href]`, `[title]`, `[class]` and so on are all refused (`CSS-01`).
 - **Allowed pseudo-classes:** `:hover`, `:focus-visible`, `:active`, `:disabled`, `:checked`, `:first-child`, `:last-child`, plus the structural functions `:not()`, `:is()`, `:where()` and `:nth-child()`. Anything else, including `:focus` (use `:focus-visible`) and `::placeholder`, is refused.
-- **Allowed pseudo-elements:** `::before` and `::after` only.
+- **Allowed pseudo-elements:** `::before` and `::after`, plus the scrollbar and slider pseudo-elements `::-webkit-scrollbar`, `::-webkit-scrollbar-thumb`, `::-webkit-scrollbar-track`, `::-webkit-scrollbar-corner`, `::-webkit-slider-thumb` and `::-webkit-slider-runnable-track`, bare or scoped by an allowed selector.
 - **Refused outright:** a bare type selector (`div`), an id selector (`#foo`), the universal selector (`*`), and any class that isn't your own `t-[a-z0-9-]+` class declared on one of your layout nodes — a class must exist in the layout before CSS can target it, or import fails with `CSS-02`. A malformed `t-` class (uppercase, an underscore, or just `t-`) fails with `CSS-03`.
 
 ### 4.2 Cascade layers, properties and values
