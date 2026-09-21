@@ -55,7 +55,7 @@ impl NodeKind {
                     | "justifyItems"
             ),
             Self::Scroll => prop == "axis",
-            Self::Tabs => prop == "tabs",
+            Self::Tabs => matches!(prop, "tabs" | "orientation"),
             Self::Accordion => matches!(prop, "sections" | "mode" | "initial"),
             Self::Element => matches!(prop, "element" | "options" | "label"),
             Self::Surface => prop == "surface",

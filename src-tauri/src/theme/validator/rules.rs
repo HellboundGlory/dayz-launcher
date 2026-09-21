@@ -73,11 +73,25 @@ impl Validator<'_> {
         if fields.get("schemaVersion").and_then(Value::as_u64) != Some(2) {
             self.issue("LAY-01", "/schemaVersion", "schemaVersion must be 2");
         }
-        let list = self
+        if let Some(backdrop_close) = fields
+            .get("presentation")
+            .and_then(|presentation| presentation.get("backdropClose"))
+        {
+            if !backdrop_close.is_boolean() {
+                self.issue(
+                    "LAY-01",
+                    "/presentation/backdropClose",
+                    "backdropClose must be a boolean",
+                );
+            }
+        }
+        let list_entry = self
             .registry
             .lists
-            .values()
-            .find(|list| list.template == self.file);
+            .iter()
+            .find(|(_, list)| list.template == self.file);
+        let list = list_entry.map(|(_, list)| list);
+        let list_id = list_entry.map(|(id, _)| id.as_str());
         let list_file = self.file.starts_with("layout/lists/");
         if list_file && list.is_none() {
             self.issue("LST-01", "", "Unknown list template file");
@@ -108,7 +122,7 @@ impl Validator<'_> {
             if fields.contains_key("root") || fields.contains_key("variants") {
                 self.issue("LAY-01", "", "List templates use row, not root or variants");
             }
-            self.columns(fields, list);
+            self.columns(fields, list, list_id);
             if let Some(overflow) = fields.get("overflowX") {
                 if !matches!(overflow.as_str(), Some("clip") | Some("scroll")) {
                     self.issue(
@@ -523,6 +537,14 @@ impl Validator<'_> {
                     );
                 }
             }
+        } else if let Some(orientation) = props.get("orientation") {
+            if !matches!(orientation.as_str(), Some("horizontal") | Some("vertical")) {
+                self.issue(
+                    "LAY-01",
+                    &child(pointer, "orientation"),
+                    "orientation must be \"horizontal\" or \"vertical\"",
+                );
+            }
         }
         let path = child(pointer, key);
         let Some(sections) = props
@@ -721,6 +743,7 @@ impl Validator<'_> {
         &mut self,
         fields: &Map<String, Value>,
         list: Option<&crate::theme::registry::ListDef>,
+        list_id: Option<&str>,
     ) {
         let Some(columns) = fields.get("columns") else {
             return;
@@ -730,6 +753,7 @@ impl Validator<'_> {
             return;
         };
         let mut ids = HashSet::new();
+        let mut header_elements = HashSet::new();
         for (index, column) in columns.iter().enumerate() {
             let pointer = format!("/columns/{index}");
             if let Some(id) = column.get("id").and_then(Value::as_str) {
@@ -774,6 +798,42 @@ impl Validator<'_> {
                         &child(&pointer, "label"),
                         "Column label exceeds 24 characters",
                     );
+                }
+            }
+            if let Some(header_element) = column.get("headerElement") {
+                let path = child(&pointer, "headerElement");
+                match header_element.as_str() {
+                    Some(id) => match self.registry.elements.get(id) {
+                        Some(def) => {
+                            let list_where: &[String] = list_id
+                                .and_then(|list_id| self.registry.elements.get(list_id))
+                                .map(|list_def| list_def.r#where.as_slice())
+                                .unwrap_or(&[]);
+                            if !def.r#where.iter().any(|code| list_where.contains(code)) {
+                                self.issue(
+                                    "ELE-02",
+                                    &path,
+                                    format!("Element {id:?} cannot render in this list's header"),
+                                );
+                            } else if def.multiplicity != Multiplicity::Many
+                                && !header_elements.insert(id.to_string())
+                            {
+                                self.issue(
+                                    "ELE-04",
+                                    &path,
+                                    format!(
+                                        "Element {id:?} is duplicated in its multiplicity scope"
+                                    ),
+                                );
+                            }
+                        }
+                        None => {
+                            self.issue("ELE-01", &path, format!("Unknown element {id:?}"));
+                        }
+                    },
+                    None => {
+                        self.issue("LAY-01", &path, "headerElement must be a string");
+                    }
                 }
             }
         }
