@@ -180,7 +180,7 @@ mod tests {
     fn shared_registry_parses_without_losing_fields() {
         let registry = parse_registry().unwrap();
         assert_eq!(registry.registry_version, "2.0");
-        assert_eq!(registry.elements.len(), 175);
+        assert_eq!(registry.elements.len(), 178);
         assert_eq!(
             serde_json::to_value(&registry).unwrap(),
             serde_json::from_str::<serde_json::Value>(REGISTRY_JSON).unwrap()

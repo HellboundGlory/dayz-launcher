@@ -406,7 +406,10 @@ fn parse_selector_and_validate(
                             parser.next_including_whitespace_and_comments()
                         {
                             let lower = pseudo_el.to_ascii_lowercase();
-                            if lower != "before" && lower != "after" {
+                            if lower != "before"
+                                && lower != "after"
+                                && !is_allowed_pseudo_element(&lower)
+                            {
                                 issues.push(ValidationIssue {
                                     rule_id: "CSS-01".into(),
                                     severity: Severity::Error,
@@ -514,6 +517,18 @@ fn is_allowed_pseudo_class(pseudo: &str) -> bool {
             | "checked"
             | "first-child"
             | "last-child"
+    )
+}
+
+fn is_allowed_pseudo_element(pseudo: &str) -> bool {
+    matches!(
+        pseudo,
+        "-webkit-scrollbar"
+            | "-webkit-scrollbar-thumb"
+            | "-webkit-scrollbar-track"
+            | "-webkit-scrollbar-corner"
+            | "-webkit-slider-thumb"
+            | "-webkit-slider-runnable-track"
     )
 }
 
@@ -895,6 +910,21 @@ mod tests {
     }
 
     #[test]
+    fn scrollbar_and_slider_pseudo_elements_pass_bare_or_scoped() {
+        let css = r#"
+            ::-webkit-scrollbar { width: 6px; }
+            ::-webkit-scrollbar-thumb { background: red; }
+            ::-webkit-scrollbar-track { background: transparent; }
+            ::-webkit-scrollbar-corner { background: transparent; }
+            ::-webkit-slider-thumb { background: var(--accent); }
+            ::-webkit-slider-runnable-track { background: var(--border); }
+            [data-list="servers"] ::-webkit-scrollbar { width: 10px; }
+        "#;
+        let issues = validate_css_stylesheet("styles.css", css, None);
+        assert!(issues.is_empty(), "Expected 0 issues, got: {issues:#?}");
+    }
+
+    #[test]
     fn test_css_01_refused_selectors_and_important() {
         let css = r#"
             div { color: red; }
@@ -911,6 +941,14 @@ mod tests {
             rules.iter().all(|r| *r == "CSS-01"),
             "Expected all CSS-01, got: {rules:?}"
         );
+    }
+
+    #[test]
+    fn test_css_01_unrelated_pseudo_element_still_refused() {
+        let css = "::selection { color: red; }";
+        let issues = validate_css_stylesheet("styles.css", css, None);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].rule_id, "CSS-01");
     }
 
     #[test]

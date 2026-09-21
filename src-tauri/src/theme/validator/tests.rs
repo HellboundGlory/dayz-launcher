@@ -241,6 +241,36 @@ fn list_rules_report_exact_pointers() {
         "LST-06",
         "/root/children/0/children/0",
     );
+    check(
+        LIST,
+        json!({"schemaVersion":2,"overflowX":"auto"}),
+        "LAY-01",
+        "/overflowX",
+    );
+    check(
+        LIST,
+        json!({"schemaVersion":2,"estimatedRowHeight":"40"}),
+        "LAY-04",
+        "/estimatedRowHeight",
+    );
+    check(
+        LIST,
+        json!({"schemaVersion":2,"columns":[{"id":"x","width":"auto","resizable":"yes"}]}),
+        "LAY-01",
+        "/columns/0/resizable",
+    );
+    assert_eq!(
+        validate_layout_value(
+            LIST,
+            &json!({
+                "schemaVersion":2,
+                "overflowX":"scroll",
+                "estimatedRowHeight":"40px",
+                "columns":[{"id":"x","width":"64px","resizable":false}],
+            }),
+        ),
+        vec![]
+    );
 }
 
 #[test]
