@@ -206,7 +206,7 @@ export function ElementHost({
     case "filter.region":
       return <FilterRegion options={node.options} className={mergedClass} style={style} />;
     case "filter.maxPing":
-      return <FilterMaxPing className={mergedClass} style={style} />;
+      return <FilterMaxPing options={node.options} className={mergedClass} style={style} />;
     case "filter.hideEmpty":
       return <FilterHideEmpty options={node.options} className={mergedClass} style={style} />;
     case "filter.hideFull":
@@ -218,7 +218,7 @@ export function ElementHost({
     case "servers.refresh":
       return <ServersRefresh options={node.options} className={mergedClass} style={style} />;
     case "filter.reset":
-      return <FilterReset className={mergedClass} style={style} />;
+      return <FilterReset options={node.options} className={mergedClass} style={style} />;
 
     case "list.servers":
       return <ServerListHost className={mergedClass} style={style} />;
