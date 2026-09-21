@@ -6,7 +6,7 @@
 import { createContext, useContext, type CSSProperties, type ReactNode } from "react";
 import { Box, Grid, Scroll, Stack } from "./containers";
 import { ImageLeaf, OutletLeaf, TextLeaf } from "./leaves";
-import { commonAttrs, isHidden, LANDMARK_TAGS, positionStyle, withStyle, type SettingsValues } from "./props";
+import { commonAttrs, isHidden, LANDMARK_TAGS, positionStyle, sizingStyle, withStyle, type SettingsValues } from "./props";
 import type { ContainerNode, HostNode, LayoutNode } from "./types";
 import { ElementHost } from "../elements/element-host";
 import { SurfaceHost } from "../elements/surface-host";
@@ -44,12 +44,14 @@ export function LayoutNodeRenderer({ node }: { node: LayoutNode }) {
   if (isHidden(node.hidden, ctx.settings)) return null;
 
   if (isHostNode(node)) {
+    const sizing = sizingStyle(node);
+    const hostStyle = Object.keys(sizing).length > 0 ? sizing : undefined;
     const content =
       ctx.renderElement?.(node) ??
       ("element" in node ? (
-        <ElementHost node={node} />
+        <ElementHost node={node} style={hostStyle} />
       ) : (
-        <SurfaceHost node={node} />
+        <SurfaceHost node={node} style={hostStyle} />
       ));
     const style: CSSProperties | undefined =
       node.position === undefined && columnStyle === undefined
