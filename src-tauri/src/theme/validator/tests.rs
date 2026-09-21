@@ -5,6 +5,7 @@ use super::{validate_layout_file, validate_layout_value, Severity, ValidationIss
 const SHELL: &str = "layout/shell.json";
 const BROWSER: &str = "layout/views/browser.json";
 const LIST: &str = "layout/lists/servers.json";
+const MODS_LIST: &str = "layout/lists/mods.json";
 
 fn layout(root: Value) -> Value {
     json!({"schemaVersion": 2, "root": root})
@@ -133,6 +134,13 @@ fn layout_rules_report_exact_pointers() {
             layout(json!({"type":"tabs","tabs":[{"id":"ok","content":{"type":"box"}}]})),
             "LAY-11",
             "/root/tabs/0/label",
+        ),
+        (
+            layout(
+                json!({"type":"tabs","orientation":"diagonal","tabs":[{"id":"ok","label":{"type":"text","value":"OK"},"content":{"type":"box"}}]}),
+            ),
+            "LAY-01",
+            "/root/orientation",
         ),
         (
             layout(json!({"type":"accordion","mode":"bad","initial":"none","sections":[]})),
@@ -271,6 +279,47 @@ fn list_rules_report_exact_pointers() {
         ),
         vec![]
     );
+    check(
+        MODS_LIST,
+        json!({"schemaVersion":2,"columns":[{"id":"x","width":"auto","headerElement":"not.real"}]}),
+        "ELE-01",
+        "/columns/0/headerElement",
+    );
+    check(
+        LIST,
+        json!({"schemaVersion":2,"columns":[{"id":"x","width":"auto","headerElement":"mods.selectAll"}]}),
+        "ELE-02",
+        "/columns/0/headerElement",
+    );
+    check(
+        MODS_LIST,
+        json!({"schemaVersion":2,"columns":[
+            {"id":"a","width":"auto","headerElement":"mods.selectAll"},
+            {"id":"b","width":"auto","headerElement":"mods.selectAll"}
+        ]}),
+        "ELE-04",
+        "/columns/1/headerElement",
+    );
+    assert!(validate_layout_value(
+        MODS_LIST,
+        &json!({"schemaVersion":2,"columns":[{"id":"x","width":"auto","headerElement":"mods.selectAll"}]}),
+    )
+    .is_empty());
+}
+
+#[test]
+fn settings_presentation_backdrop_close_must_be_boolean() {
+    check(
+        "layout/settings.json",
+        json!({"schemaVersion":2,"presentation":{"mode":"overlay","region":"r-main","backdropClose":"yes"},"root":{"type":"box"}}),
+        "LAY-01",
+        "/presentation/backdropClose",
+    );
+    assert!(validate_layout_value(
+        "layout/settings.json",
+        &json!({"schemaVersion":2,"presentation":{"mode":"overlay","region":"r-main","backdropClose":true},"root":{"type":"box"}}),
+    )
+    .is_empty());
 }
 
 #[test]
