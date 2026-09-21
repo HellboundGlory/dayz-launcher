@@ -1,75 +1,87 @@
 {
   "schemaVersion": 2,
+  "overflowX": "scroll",
+  "estimatedRowHeight": "37px",
   "columns": [
     {
       "id": "favourite",
-      "width": "28px",
+      "width": "32px",
       "align": "center",
-      "label": ""
+      "label": "",
+      "resizable": false
     },
     {
       "id": "name",
-      "width": "1fr",
+      "width": "420px",
       "align": "start",
       "sort": "name",
-      "label": "SERVER NAME"
+      "label": "SERVER NAME",
+      "minWidth": "120px"
     },
     {
       "id": "address",
-      "width": "186px",
+      "width": "156px",
       "align": "start",
-      "label": "ADDRESS"
+      "label": "ADDRESS",
+      "minWidth": "90px"
     },
     {
       "id": "time",
-      "width": "64px",
+      "width": "108px",
       "align": "start",
-      "label": "TIME"
+      "label": "TIME",
+      "minWidth": "78px"
     },
     {
       "id": "last-played",
-      "width": "88px",
+      "width": "104px",
       "align": "start",
       "sort": "lastPlayed",
-      "label": "LAST PLAYED"
+      "label": "LAST PLAYED",
+      "minWidth": "70px"
     },
     {
       "id": "map",
-      "width": "96px",
+      "width": "148px",
       "align": "start",
       "sort": "map",
-      "label": "MAP"
+      "label": "MAP",
+      "minWidth": "70px"
     },
     {
       "id": "players",
-      "width": "72px",
+      "width": "104px",
       "align": "end",
       "sort": "players",
-      "label": "PLAYERS"
+      "label": "PLAYERS",
+      "minWidth": "76px"
     },
     {
       "id": "mods",
-      "width": "52px",
+      "width": "64px",
       "align": "end",
       "sort": "mods",
-      "label": "MODS"
+      "label": "MODS",
+      "minWidth": "48px"
     },
     {
       "id": "ping",
-      "width": "52px",
+      "width": "68px",
       "align": "end",
       "sort": "ping",
-      "label": "PING"
+      "label": "PING",
+      "minWidth": "52px"
     },
     {
       "id": "actions",
-      "width": "auto",
-      "align": "end",
+      "width": "1fr",
+      "align": "start",
       "label": ""
     }
   ],
   "row": {
     "type": "grid",
+    "class": "t-row",
     "children": [
       {
         "element": "server.favourite",
@@ -78,17 +90,17 @@
       {
         "type": "stack",
         "direction": "row",
+        "align": "center",
+        "gap": "space.6",
+        "class": "t-name-cell",
         "column": "name",
         "children": [
+          { "element": "server.name" },
           {
-            "element": "server.name"
-          },
-          {
-            "element": "server.tags"
+            "element": "server.tags",
+            "options": { "officialWording": "official" }
           }
-        ],
-        "align": "center",
-        "gap": "space.6"
+        ]
       },
       {
         "element": "server.address",
@@ -96,15 +108,12 @@
       },
       {
         "element": "server.gameTime",
-        "column": "time",
-        "options": {
-          "showIcon": false,
-          "showMultiplier": false
-        }
+        "column": "time"
       },
       {
         "element": "server.lastPlayed",
-        "column": "last-played"
+        "column": "last-played",
+        "options": { "label": "", "showNever": true }
       },
       {
         "element": "server.map",
@@ -113,38 +122,31 @@
       {
         "element": "server.players",
         "column": "players",
-        "options": {
-          "showCaption": false
-        }
+        "options": { "showCaption": false }
       },
       {
         "element": "server.modCount",
         "column": "mods",
-        "options": {
-          "showCaption": false
-        }
+        "options": { "showCaption": false }
       },
       {
         "element": "server.ping",
         "column": "ping",
-        "options": {
-          "showCaption": false
-        }
+        "options": { "showCaption": false }
       },
       {
         "type": "stack",
         "direction": "row",
+        "align": "center",
+        "class": "t-row-actions",
         "column": "actions",
         "children": [
+          { "element": "server.refresh" },
           {
             "element": "server.join",
-            "options": {
-              "display": "icon"
-            }
+            "options": { "display": "icon" }
           },
-          {
-            "element": "server.actionNotice"
-          }
+          { "element": "server.actionNotice" }
         ]
       }
     ]

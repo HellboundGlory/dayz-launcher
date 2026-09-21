@@ -12,37 +12,61 @@
         "align": "center",
         "landmark": "banner",
         "children": [
-          { "element": "app.logo" },
           {
             "type": "stack",
-            "direction": "row",
-            "landmark": "navigation",
-            "children": [
-              { "element": "nav.servers", "options": { "display": "label" } },
-              { "element": "nav.favourites", "options": { "display": "label" } },
-              { "element": "nav.recent", "options": { "display": "label" } }
-            ]
-          },
-          { "element": "app.dragRegion", "grow": 1 },
-          {
-            "type": "stack",
+            "id": "r-brand",
             "direction": "row",
             "align": "center",
             "children": [
-              { "element": "nav.mods", "options": { "display": "icon" } },
-              { "element": "nav.settings", "options": { "display": "icon" } },
-              { "element": "status.steam" },
-              { "surface": "surface.windowControls" }
+              { "element": "app.logo" },
+              {
+                "type": "text",
+                "value": "Launcher",
+                "role": "subheading",
+                "class": "t-brand-suffix"
+              }
             ]
-          }
+          },
+          {
+            "type": "stack",
+            "id": "r-nav",
+            "direction": "row",
+            "landmark": "navigation",
+            "children": [
+              {
+                "element": "nav.servers",
+                "options": { "display": "iconLabel" }
+              },
+              {
+                "element": "nav.favourites",
+                "options": { "display": "iconLabel" }
+              },
+              {
+                "element": "nav.recent",
+                "options": { "display": "iconLabel" }
+              },
+              {
+                "element": "nav.mods",
+                "options": { "display": "iconLabel" }
+              }
+            ]
+          },
+          { "element": "app.dragRegion", "grow": 1 },
+          { "element": "status.steam" },
+          {
+            "element": "nav.settings",
+            "options": { "display": "icon" }
+          },
+          { "surface": "surface.windowControls" }
         ]
       },
+      { "element": "notice.update" },
       { "element": "notice.error" },
       { "element": "notice.storage" },
       {
         "type": "stack",
-        "direction": "row",
         "id": "r-main",
+        "direction": "row",
         "landmark": "main",
         "grow": 1,
         "children": [
@@ -59,18 +83,21 @@
         "children": [
           {
             "type": "stack",
+            "id": "r-footer-stats",
             "direction": "row",
             "align": "center",
             "children": [
               { "element": "status.serverTotal" },
               { "element": "status.populated" },
-              { "element": "status.lastRefreshed" }
+              {
+                "element": "status.lastRefreshed",
+                "options": { "label": "refreshed" }
+              }
             ]
           },
           {
-            "type": "text",
-            "value": "Verify = Steam reports installed & current · not a checksum",
-            "role": "caption"
+            "element": "app.uiScale",
+            "options": { "label": "Scale" }
           }
         ]
       },
