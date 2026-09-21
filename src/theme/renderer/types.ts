@@ -216,6 +216,8 @@ export interface LayoutFile {
   placement?: ModalPlacement | PopupPlacement;
   backdrop?: "dim" | "none";
   presentation?: SettingsPresentation;
+  overflowX?: "clip" | "scroll";
+  estimatedRowHeight?: string;
 }
 
 export interface ModalPlacement {

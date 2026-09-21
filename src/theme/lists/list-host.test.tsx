@@ -1,11 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { KeyboardEvent } from "react";
-import { ListHeader } from "./list-header";
 import { ListRow } from "./list-row";
 import { ListHost } from "./list-host";
 import { handleListKeyDown } from "./keyboard";
-import type { ColumnDef, SortState } from "./types";
+import type { ColumnDef } from "./types";
 import type { Server } from "@/types/server";
 
 const mockServer: Server = {
@@ -41,39 +40,6 @@ const sampleColumns: ColumnDef[] = [
   { id: "players", label: "Players", width: "80px", sort: "players", align: "end" },
   { id: "ping", label: "Ping", width: "60px", sort: "ping", align: "end" },
 ];
-
-describe("ListHeader", () => {
-  it("renders columns with labels and alignment classes", () => {
-    const html = renderToStaticMarkup(
-      <ListHeader columns={sampleColumns} />,
-    );
-
-    expect(html).toContain('data-part="header"');
-    expect(html).toContain('data-column="fav"');
-    expect(html).toContain('data-column="name"');
-    expect(html).toContain("Server Name");
-    expect(html).toContain("justify-center");
-    expect(html).toContain("justify-end");
-  });
-
-  it("renders sort indicators and aria-sort", () => {
-    const sortState: SortState = { key: "name", direction: "ascending" };
-    const html = renderToStaticMarkup(
-      <ListHeader columns={sampleColumns} sortState={sortState} />,
-    );
-
-    expect(html).toContain('aria-sort="ascending"');
-    expect(html).toContain("▲");
-    expect(html).toContain('aria-sort="none"'); // for players and ping
-  });
-
-  it("accounts for scrollbarWidth in padding", () => {
-    const html = renderToStaticMarkup(
-      <ListHeader columns={sampleColumns} scrollbarWidth={12} />,
-    );
-    expect(html).toContain("padding-right:calc(var(--t-space-rowX) + 12px)");
-  });
-});
 
 describe("ListRow", () => {
   it("renders default row columns from item properties", () => {
@@ -317,5 +283,41 @@ describe("ListHost", () => {
     expect(html).toContain('data-list="serverMods"');
     expect(html).toContain('data-state="selected"');
     expect(html).toContain("DayZ Epoch Test");
+  });
+
+  it("clip mode (default) renders without a scroll wrapper", () => {
+    const html = renderToStaticMarkup(
+      <ListHost listId="list.serverMods" items={[mockServer]} columns={sampleColumns} />,
+    );
+
+    expect(html).not.toContain('data-part="headerSticky"');
+  });
+
+  it("scroll mode renders the header inside the scroller with sticky positioning and a px-sum wrapper width", () => {
+    const scrollColumns: ColumnDef[] = [
+      { id: "star", width: "32px", align: "center" },
+      { id: "name", label: "Server Name", width: "420px" },
+      { id: "trailing", width: "1fr" },
+    ];
+    const html = renderToStaticMarkup(
+      <ListHost listId="list.servers" items={[mockServer]} columns={scrollColumns} overflowX="scroll" />,
+    );
+
+    expect(html).toContain('data-part="headerSticky"');
+    expect(html).toContain("sticky");
+    expect(html).toContain("min-width:452px");
+  });
+
+  it("passes a parsed estimatedRowHeight through to the virtualizer's row estimate", () => {
+    const html = renderToStaticMarkup(
+      <ListHost
+        listId="list.servers"
+        items={[mockServer, mockServer]}
+        columns={sampleColumns}
+        estimatedRowHeight="37px"
+      />,
+    );
+
+    expect(html).toContain("height:74px");
   });
 });

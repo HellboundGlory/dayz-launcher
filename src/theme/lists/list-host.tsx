@@ -1,4 +1,4 @@
-import { useRef, type CSSProperties, type KeyboardEvent } from "react";
+import { useRef, type CSSProperties, type KeyboardEvent, type WheelEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ListHeader } from "./list-header";
 import { ListRow } from "./list-row";
@@ -7,6 +7,29 @@ import type { ColumnDef, ListId, SortState } from "./types";
 import type { LayoutNode } from "../renderer/types";
 import { LayoutNodeRenderer } from "../renderer/node-renderer";
 import { REGISTRY } from "../registry";
+
+const DEFAULT_ROW_HEIGHT = 44;
+
+function resolveRowHeight(estimatedRowHeight: number | string): number {
+  if (typeof estimatedRowHeight === "number") return estimatedRowHeight;
+  const parsed = Number.parseInt(estimatedRowHeight, 10);
+  return Number.isFinite(parsed) ? parsed : DEFAULT_ROW_HEIGHT;
+}
+
+function pxColumnWidthSum(columns: ColumnDef[] = []): number {
+  return columns.reduce((sum, col) => {
+    const match = /^(\d+(?:\.\d+)?)px$/.exec(col.width ?? "");
+    return match ? sum + Number.parseFloat(match[1]) : sum;
+  }, 0);
+}
+
+// Port of `scrollHorizontally` from the pre-overhaul server-table: a normal
+// vertical wheel redirected sideways, only once there's something to scroll.
+function scrollElementHorizontally(el: HTMLDivElement, deltaY: number): boolean {
+  if (el.scrollWidth <= el.clientWidth) return false;
+  el.scrollLeft += deltaY;
+  return true;
+}
 
 export interface ListHostProps<T = unknown> {
   listId: ListId;
@@ -20,7 +43,8 @@ export interface ListHostProps<T = unknown> {
   sortState?: SortState;
   onSortChange?: (key: string) => void;
   computeRowStates?: (item: T, isSelected: boolean) => string[];
-  estimatedRowHeight?: number;
+  estimatedRowHeight?: number | string;
+  overflowX?: "clip" | "scroll";
   className?: string;
   style?: CSSProperties;
 }
@@ -37,11 +61,15 @@ export function ListHost<T = unknown>({
   sortState,
   onSortChange,
   computeRowStates,
-  estimatedRowHeight = 44,
+  estimatedRowHeight = DEFAULT_ROW_HEIGHT,
+  overflowX = "clip",
   className,
   style,
 }: ListHostProps<T>) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const rowHeightPx = resolveRowHeight(estimatedRowHeight);
+  const isScroll = overflowX === "scroll";
+  const wrapperMinWidth = isScroll ? pxColumnWidthSum(columns) : undefined;
 
   const isVirtualized =
     listId === "list.servers" ||
@@ -54,7 +82,7 @@ export function ListHost<T = unknown>({
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => estimatedRowHeight,
+    estimateSize: () => rowHeightPx,
     overscan: 5,
   });
 
@@ -90,6 +118,89 @@ export function ListHost<T = unknown>({
 
   const listName = listId.replace("list.", "");
 
+  const onScrollerWheel = (e: WheelEvent<HTMLDivElement>) => {
+    if (!e.shiftKey || !scrollRef.current) return;
+    if (scrollElementHorizontally(scrollRef.current, e.deltaY)) {
+      e.preventDefault();
+    }
+  };
+
+  const onHeaderWheel = (e: WheelEvent<HTMLDivElement>) => {
+    if (!scrollRef.current) return;
+    if (scrollElementHorizontally(scrollRef.current, e.deltaY)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
+
+  const headerNode =
+    header && columns && columns.length > 0 ? (
+      <ListHeader columns={columns} sortState={sortState} onSortChange={onSortChange} />
+    ) : null;
+
+  const emptyState = (
+    <div data-part="empty" className="flex flex-1 items-center justify-center p-8 text-muted">
+      {emptyNode ? <LayoutNodeRenderer node={emptyNode} /> : <span>Nothing here</span>}
+    </div>
+  );
+
+  const rowList = isVirtualized ? (
+    <div
+      style={{
+        height: `${virtualizer.getTotalSize()}px`,
+        width: "100%",
+        position: "relative",
+      }}
+    >
+      {virtualizer.getVirtualItems().map((virtualRow) => {
+        const item = items[virtualRow.index];
+        if (!item) return null;
+        const isSelected = item === selectedItem;
+
+        return (
+          <div
+            key={virtualRow.index}
+            ref={virtualizer.measureElement}
+            data-index={virtualRow.index}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              transform: `translateY(${virtualRow.start}px)`,
+            }}
+          >
+            <ListRow
+              rowNode={rowNode}
+              columns={columns}
+              item={item}
+              subjectKind={subjectKind}
+              states={getStates(item, isSelected)}
+              onSelect={onSelect as (item: unknown) => void}
+            />
+          </div>
+        );
+      })}
+    </div>
+  ) : (
+    <>
+      {items.map((item, index) => {
+        const isSelected = item === selectedItem;
+        return (
+          <ListRow
+            key={index}
+            rowNode={rowNode}
+            columns={columns}
+            item={item}
+            subjectKind={subjectKind}
+            states={getStates(item, isSelected)}
+            onSelect={onSelect as (item: unknown) => void}
+          />
+        );
+      })}
+    </>
+  );
+
   return (
     <div
       data-list={listName}
@@ -99,85 +210,40 @@ export function ListHost<T = unknown>({
       className={className ?? "flex h-full w-full flex-col overflow-hidden outline-none"}
       style={style}
     >
-      {header && columns && columns.length > 0 && (
-        <ListHeader
-          columns={columns}
-          sortState={sortState}
-          onSortChange={onSortChange}
-        />
-      )}
-
-      {items.length === 0 ? (
-        <div data-part="empty" className="flex flex-1 items-center justify-center p-8 text-muted">
-          {emptyNode ? (
-            <LayoutNodeRenderer node={emptyNode} />
-          ) : (
-            <span>Nothing here</span>
-          )}
-        </div>
-      ) : isVirtualized ? (
-        <div
-          ref={scrollRef}
-          className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
-        >
+      {isScroll ? (
+        <div ref={scrollRef} onWheel={onScrollerWheel} className="relative min-h-0 flex-1 overflow-auto">
           <div
             style={{
-              height: `${virtualizer.getTotalSize()}px`,
+              minWidth: wrapperMinWidth ? `${wrapperMinWidth}px` : undefined,
               width: "100%",
-              position: "relative",
             }}
           >
-            {virtualizer.getVirtualItems().map((virtualRow) => {
-              const item = items[virtualRow.index];
-              if (!item) return null;
-              const isSelected = item === selectedItem;
-
-              return (
-                <div
-                  key={virtualRow.index}
-                  ref={virtualizer.measureElement}
-                  data-index={virtualRow.index}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    transform: `translateY(${virtualRow.start}px)`,
-                  }}
-                >
-                  <ListRow
-                    rowNode={rowNode}
-                    columns={columns}
-                    item={item}
-                    subjectKind={subjectKind}
-                    states={getStates(item, isSelected)}
-                    onSelect={onSelect as (item: unknown) => void}
-                  />
-                </div>
-              );
-            })}
+            {headerNode && (
+              <div data-part="headerSticky" onWheel={onHeaderWheel} className="sticky top-0 z-10 bg-surface">
+                {headerNode}
+              </div>
+            )}
+            {items.length === 0 ? emptyState : rowList}
           </div>
         </div>
       ) : (
-        <div
-          ref={scrollRef}
-          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
-        >
-          {items.map((item, index) => {
-            const isSelected = item === selectedItem;
-            return (
-              <ListRow
-                key={index}
-                rowNode={rowNode}
-                columns={columns}
-                item={item}
-                subjectKind={subjectKind}
-                states={getStates(item, isSelected)}
-                onSelect={onSelect as (item: unknown) => void}
-              />
-            );
-          })}
-        </div>
+        <>
+          {headerNode}
+          {items.length === 0 ? (
+            emptyState
+          ) : (
+            <div
+              ref={scrollRef}
+              className={
+                isVirtualized
+                  ? "relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
+                  : "min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
+              }
+            >
+              {rowList}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

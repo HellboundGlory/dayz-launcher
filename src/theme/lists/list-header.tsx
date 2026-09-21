@@ -54,18 +54,19 @@ export function ListHeader({
               <button
                 type="button"
                 aria-sort={ariaSort}
+                data-state={isCurrentSort ? "active" : undefined}
                 onClick={() => handleSort(col.sort)}
                 className="flex items-center gap-1 hover:text-ink transition-colors"
               >
-                <span>{col.label ?? col.id}</span>
+                <span data-part="label">{col.label ?? col.id}</span>
                 {isCurrentSort && (
-                  <span aria-hidden="true" className="text-accent text-[10px]">
-                    {sortDirection === "ascending" ? "▲" : "▼"}
+                  <span data-part="sortIndicator" aria-hidden="true" className="text-accent">
+                    {sortDirection === "ascending" ? "↑" : "↓"}
                   </span>
                 )}
               </button>
             ) : (
-              <span>{col.label ?? col.id}</span>
+              <span data-part="label">{col.label ?? col.id}</span>
             )}
           </div>
         );
