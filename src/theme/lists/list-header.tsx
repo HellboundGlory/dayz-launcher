@@ -1,16 +1,21 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, PointerEvent } from "react";
 import type { ColumnDef, SortState } from "./types";
+import { isColumnResizable } from "./use-column-widths";
 
 export function ListHeader({
   columns,
   sortState,
   onSortChange,
   scrollbarWidth = 0,
+  onResizeStart,
+  onResizeReset,
 }: {
   columns: ColumnDef[];
   sortState?: SortState;
   onSortChange?: (key: string) => void;
   scrollbarWidth?: number;
+  onResizeStart?: (e: PointerEvent, columnId: string) => void;
+  onResizeReset?: (columnId: string) => void;
 }) {
   const gridTemplate = columns.map((col) => col.width || "auto").join(" ");
 
@@ -40,7 +45,10 @@ export function ListHeader({
         const colStyle: CSSProperties = {
           minWidth: col.minWidth,
           maxWidth: col.maxWidth,
+          position: "relative",
         };
+
+        const showHandle = isColumnResizable(col) && !!onResizeStart;
 
         return (
           <div
@@ -67,6 +75,32 @@ export function ListHeader({
               </button>
             ) : (
               <span data-part="label">{col.label ?? col.id}</span>
+            )}
+            {showHandle && (
+              <div
+                data-part="resizeHandle"
+                role="separator"
+                aria-orientation="vertical"
+                aria-valuenow={parseInt(col.width, 10) || undefined}
+                title="Drag to resize · double-click to reset"
+                className="absolute top-0 bottom-0 z-10 w-[7px] cursor-col-resize"
+                style={{ right: 0, transform: "translateX(3px)" }}
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onResizeStart?.(e, col.id);
+                }}
+                onDoubleClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onResizeReset?.(col.id);
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-line hover:bg-accent"
+                />
+              </div>
             )}
           </div>
         );

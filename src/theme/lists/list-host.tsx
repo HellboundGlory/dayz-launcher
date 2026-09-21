@@ -1,12 +1,14 @@
-import { useRef, type CSSProperties, type KeyboardEvent, type WheelEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type WheelEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ListHeader } from "./list-header";
 import { ListRow } from "./list-row";
 import { handleListKeyDown } from "./keyboard";
+import { useColumnWidths } from "./use-column-widths";
 import type { ColumnDef, ListId, SortState } from "./types";
 import type { LayoutNode } from "../renderer/types";
 import { LayoutNodeRenderer } from "../renderer/node-renderer";
 import { REGISTRY } from "../registry";
+import { useThemeStore } from "../theme-store";
 
 const DEFAULT_ROW_HEIGHT = 44;
 
@@ -67,9 +69,20 @@ export function ListHost<T = unknown>({
   style,
 }: ListHostProps<T>) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
   const rowHeightPx = resolveRowHeight(estimatedRowHeight);
   const isScroll = overflowX === "scroll";
-  const wrapperMinWidth = isScroll ? pxColumnWidthSum(columns) : undefined;
+
+  const activeThemeId = useThemeStore((s) => s.activeId);
+  const {
+    columns: effectiveColumns,
+    startResize,
+    resetColumn,
+  } = useColumnWidths(activeThemeId, listId, columns ?? []);
+  const hasColumns = effectiveColumns.length > 0;
+  const wrapperMinWidth = isScroll ? pxColumnWidthSum(effectiveColumns) : undefined;
+
+  const [headerHeight, setHeaderHeight] = useState(0);
 
   const isVirtualized =
     listId === "list.servers" ||
@@ -79,11 +92,33 @@ export function ListHost<T = unknown>({
   const listDef = REGISTRY.lists[listId];
   const subjectKind = listDef?.subject ?? "server";
 
+  // The sticky header lives inside the scroller in scroll mode, so its height
+  // has to feed the virtualizer as `scrollMargin` — otherwise visible-range
+  // maths and `scrollToIndex` both treat row 0 as if it started at the top of
+  // the scroll container instead of just below the header.
+  useEffect(() => {
+    if (!isScroll) {
+      setHeaderHeight(0);
+      return;
+    }
+    const el = headerRef.current;
+    if (!el) return;
+    const measure = () => setHeaderHeight(el.offsetHeight);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isScroll, header, hasColumns]);
+
+  const scrollMargin = isScroll ? headerHeight : 0;
+
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeightPx,
     overscan: 5,
+    scrollMargin,
   });
 
   const selectedIndex = selectedItem ? items.indexOf(selectedItem) : -1;
@@ -134,8 +169,14 @@ export function ListHost<T = unknown>({
   };
 
   const headerNode =
-    header && columns && columns.length > 0 ? (
-      <ListHeader columns={columns} sortState={sortState} onSortChange={onSortChange} />
+    header && hasColumns ? (
+      <ListHeader
+        columns={effectiveColumns}
+        sortState={sortState}
+        onSortChange={onSortChange}
+        onResizeStart={startResize}
+        onResizeReset={resetColumn}
+      />
     ) : null;
 
   const emptyState = (
@@ -167,12 +208,12 @@ export function ListHost<T = unknown>({
               top: 0,
               left: 0,
               width: "100%",
-              transform: `translateY(${virtualRow.start}px)`,
+              transform: `translateY(${virtualRow.start - scrollMargin}px)`,
             }}
           >
             <ListRow
               rowNode={rowNode}
-              columns={columns}
+              columns={effectiveColumns}
               item={item}
               subjectKind={subjectKind}
               states={getStates(item, isSelected)}
@@ -190,7 +231,7 @@ export function ListHost<T = unknown>({
           <ListRow
             key={index}
             rowNode={rowNode}
-            columns={columns}
+            columns={effectiveColumns}
             item={item}
             subjectKind={subjectKind}
             states={getStates(item, isSelected)}
@@ -219,7 +260,12 @@ export function ListHost<T = unknown>({
             }}
           >
             {headerNode && (
-              <div data-part="headerSticky" onWheel={onHeaderWheel} className="sticky top-0 z-10 bg-surface">
+              <div
+                ref={headerRef}
+                data-part="headerSticky"
+                onWheel={onHeaderWheel}
+                className="sticky top-0 z-10 bg-surface"
+              >
                 {headerNode}
               </div>
             )}

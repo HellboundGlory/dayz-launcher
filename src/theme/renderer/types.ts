@@ -203,6 +203,8 @@ export interface ColumnDef {
   maxWidth?: string;
   align?: "start" | "center" | "end";
   sort?: string;
+  /** Default `true`. Only a column with a px `width` resizes. */
+  resizable?: boolean;
 }
 
 export interface LayoutFile {
