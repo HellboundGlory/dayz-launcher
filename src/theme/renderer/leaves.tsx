@@ -55,7 +55,7 @@ import type { RenderedAttrs } from "./props";
 import type { ImageNode, OutletNode, TextNode, TextRole } from "./types";
 
 /** The §6.5 allowlist, keyed by the launcher icon name a theme writes. */
-const ICONS: Record<string, LucideIcon> = {
+export const ICONS: Record<string, LucideIcon> = {
   alertTriangle: AlertTriangle,
   appWindow: AppWindow,
   arrowRight: ArrowRight,

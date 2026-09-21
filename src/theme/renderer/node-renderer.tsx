@@ -193,7 +193,7 @@ function renderContainer(
 
   const children = (
     <>
-      {node.children.map((child, index) => (
+      {(node.children ?? []).map((child, index) => (
         <LayoutNodeRenderer key={index} node={child} />
       ))}
       {node.resizable && <ResizableHandle node={node} />}
