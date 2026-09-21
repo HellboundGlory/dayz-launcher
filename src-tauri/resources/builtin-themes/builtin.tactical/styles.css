@@ -1506,10 +1506,6 @@
   height: 16px;
 }
 
-[data-region="r-settings-body"] {
-  min-height: 480px;
-}
-
 [data-region="r-settings-tabs"] {
   display: flex;
   flex-direction: row;
@@ -1610,6 +1606,11 @@
   gap: 8px;
 }
 
+/* Clears the field label so the button sits beside the input. */
+[data-region="r-settings-body"] .t-settings-pair > :is([data-el="settings.detectPaths"], [data-el="settings.openDataFolder"]) {
+  margin-top: 27px;
+}
+
 [data-region="r-settings-body"] [data-el^="settings."] {
   margin: 0;
   font-family: var(--font-ui);
@@ -1619,6 +1620,7 @@
   display: block;
   margin-bottom: 6px;
   font-size: 10px;
+  line-height: 15px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
