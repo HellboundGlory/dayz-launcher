@@ -620,21 +620,31 @@
 [data-list="servers"] [data-part="column"] {
   padding: 6px 8px;
   gap: 4px;
-  box-shadow: 1px 0 0 var(--border);
+}
+
+[data-list="servers"] [data-part="resizeHandle"]:hover > :first-child {
+  background-color: var(--accent);
 }
 
 [data-list="servers"] [data-column="favourite"],
 [data-list="servers"] [data-column="actions"] {
   padding: 0;
-  box-shadow: none;
 }
 
-[data-list="servers"] [data-part="label"] {
+[data-list="servers"] [data-part="header"] [data-part="label"] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--muted);
+}
+
+[data-list="servers"] [data-part="header"] [aria-sort] {
+  min-width: 0;
 }
 
 [data-list="servers"] [aria-sort]:hover [data-part="label"] {
