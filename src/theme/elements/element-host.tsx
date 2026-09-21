@@ -51,6 +51,7 @@ import {
   ServerSubscribeAll,
   ServerTags,
   ServerUnsubscribeUnique,
+  ServerVersion,
 } from "./server-elements";
 import {
   FilterHideEmpty,
@@ -162,14 +163,14 @@ export function ElementHost({
     case "server.players":
       return <ServerPlayers options={node.options} className={mergedClass} style={style} />;
     case "server.ping":
-      return <ServerPing className={mergedClass} style={style} />;
+      return <ServerPing options={node.options} className={mergedClass} style={style} />;
     case "server.map":
       return <ServerMap className={mergedClass} style={style} />;
     case "server.gameTime":
     case "server.time":
-      return <ServerGameTime className={mergedClass} style={style} />;
+      return <ServerGameTime options={node.options} className={mergedClass} style={style} />;
     case "server.tags":
-      return <ServerTags className={mergedClass} style={style} />;
+      return <ServerTags options={node.options} className={mergedClass} style={style} />;
     case "server.favourite":
       return <ServerFavourite options={node.options} className={mergedClass} style={style} />;
     case "server.join":
@@ -181,11 +182,13 @@ export function ElementHost({
     case "server.address":
       return <ServerAddress options={node.options} className={mergedClass} style={style} />;
     case "server.lastPlayed":
-      return <ServerLastPlayed className={mergedClass} style={style} />;
+      return <ServerLastPlayed options={node.options} className={mergedClass} style={style} />;
     case "server.modCount":
       return <ServerModCount options={node.options} className={mergedClass} style={style} />;
     case "server.region":
       return <ServerRegion options={node.options} className={mergedClass} style={style} />;
+    case "server.version":
+      return <ServerVersion className={mergedClass} style={style} />;
     case "server.checkMods":
       return <ServerCheckMods options={node.options} className={mergedClass} style={style} />;
     case "server.subscribeAll":

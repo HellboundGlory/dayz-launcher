@@ -87,7 +87,7 @@ describe("ListRow", () => {
     expect(html).toContain('data-state="favourite"');
     expect(html).toContain('data-el="server.tags"');
     expect(html).toContain('data-state="modded"');
-    expect(html).toContain('data-state="1pp"');
+    expect(html).toContain('data-state="firstPerson"');
     expect(html).toContain('data-el="server.join"');
   });
 
