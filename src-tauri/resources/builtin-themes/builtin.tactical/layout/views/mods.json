@@ -1,0 +1,402 @@
+{
+  "schemaVersion": 2,
+  "root": {
+    "type": "stack",
+    "id": "r-mods",
+    "direction": "column",
+    "height": "100%",
+    "grow": 1,
+    "minWidth": "0px",
+    "children": [
+      {
+        "type": "stack",
+        "id": "r-mods-toolbar",
+        "direction": "row",
+        "align": "center",
+        "children": [
+          {
+            "element": "mods.search",
+            "grow": 1
+          },
+          {
+            "element": "mods.statusFilter"
+          },
+          {
+            "element": "mods.refresh"
+          }
+        ]
+      },
+      {
+        "element": "notice.modsError"
+      },
+      {
+        "element": "notice.modsCached"
+      },
+      {
+        "element": "notice.modsOutdated"
+      },
+      {
+        "type": "stack",
+        "id": "r-mods-body",
+        "direction": "row",
+        "grow": 1,
+        "minHeight": "0px",
+        "children": [
+          {
+            "element": "list.mods",
+            "grow": 1,
+            "minWidth": "0px",
+            "minHeight": "0px"
+          },
+          {
+            "type": "stack",
+            "id": "r-mod-detail",
+            "context": "modSelection",
+            "direction": "column",
+            "empty": {
+              "type": "stack",
+              "direction": "column",
+              "align": "center",
+              "justify": "center",
+              "class": "t-mod-empty-pane",
+              "children": [
+                {
+                  "type": "text",
+                  "value": "Select a mod to see its details",
+                  "role": "body",
+                  "class": "t-mod-empty"
+                }
+              ]
+            },
+            "children": [
+              {
+                "type": "stack",
+                "id": "r-mod-hero",
+                "direction": "row",
+                "children": [
+                  {
+                    "element": "mod.thumbnail"
+                  },
+                  {
+                    "element": "mod.disabledBadge"
+                  }
+                ]
+              },
+              {
+                "type": "stack",
+                "id": "r-mod-content",
+                "direction": "column",
+                "children": [
+                  {
+                    "element": "mod.deselect"
+                  },
+                  {
+                    "element": "mod.name"
+                  },
+                  {
+                    "type": "stack",
+                    "id": "r-mod-status",
+                    "direction": "row",
+                    "align": "center",
+                    "children": [
+                      {
+                        "element": "mod.status"
+                      }
+                    ]
+                  },
+                  {
+                    "element": "mod.tags",
+                    "options": {
+                      "style": "chips"
+                    }
+                  },
+                  {
+                    "element": "mod.description",
+                    "options": {
+                      "clamp": 6
+                    }
+                  },
+                  {
+                    "type": "stack",
+                    "id": "r-mod-props",
+                    "direction": "column",
+                    "children": [
+                      {
+                        "type": "stack",
+                        "direction": "row",
+                        "align": "baseline",
+                        "class": "t-mod-prop",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "SUBSCRIBED",
+                            "role": "label",
+                            "class": "t-mod-prop-label"
+                          },
+                          {
+                            "element": "mod.subscribed"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "stack",
+                        "direction": "row",
+                        "align": "baseline",
+                        "class": "t-mod-prop",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "UPDATED",
+                            "role": "label",
+                            "class": "t-mod-prop-label"
+                          },
+                          {
+                            "element": "mod.updated"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "stack",
+                        "direction": "row",
+                        "align": "baseline",
+                        "class": "t-mod-prop",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "CREATED",
+                            "role": "label",
+                            "class": "t-mod-prop-label"
+                          },
+                          {
+                            "element": "mod.created"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "stack",
+                        "direction": "row",
+                        "align": "baseline",
+                        "class": "t-mod-prop",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "SIZE ON DISK",
+                            "role": "label",
+                            "class": "t-mod-prop-label"
+                          },
+                          {
+                            "element": "mod.size"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "stack",
+                        "direction": "row",
+                        "align": "baseline",
+                        "class": "t-mod-prop",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "PUBLISHED SIZE",
+                            "role": "label",
+                            "class": "t-mod-prop-label"
+                          },
+                          {
+                            "element": "mod.publishedSize"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "stack",
+                        "direction": "row",
+                        "align": "baseline",
+                        "class": "t-mod-prop",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "SUBSCRIBERS",
+                            "role": "label",
+                            "class": "t-mod-prop-label"
+                          },
+                          {
+                            "element": "mod.subscribers"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "stack",
+                        "direction": "row",
+                        "align": "baseline",
+                        "class": "t-mod-prop",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "RATING",
+                            "role": "label",
+                            "class": "t-mod-prop-label"
+                          },
+                          {
+                            "element": "mod.rating"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "stack",
+                        "direction": "row",
+                        "align": "baseline",
+                        "class": "t-mod-prop",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "WORKSHOP ID",
+                            "role": "label",
+                            "class": "t-mod-prop-label"
+                          },
+                          {
+                            "element": "mod.workshopId"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "stack",
+                        "direction": "row",
+                        "align": "baseline",
+                        "class": "t-mod-prop",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "FOLDER",
+                            "role": "label",
+                            "class": "t-mod-prop-label"
+                          },
+                          {
+                            "element": "mod.folder"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "stack",
+                    "id": "r-mod-needed",
+                    "direction": "column",
+                    "children": [
+                      {
+                        "element": "mod.neededBy"
+                      },
+                      {
+                        "element": "list.modServers"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "stack",
+                    "id": "r-mod-actions",
+                    "direction": "column",
+                    "children": [
+                      {
+                        "element": "mod.openInSteam",
+                        "options": {
+                          "display": "iconLabel"
+                        }
+                      },
+                      {
+                        "type": "stack",
+                        "id": "r-mod-action-row",
+                        "direction": "row",
+                        "children": [
+                          {
+                            "element": "mod.openFolder",
+                            "options": {
+                              "display": "iconLabel"
+                            },
+                            "grow": 1
+                          },
+                          {
+                            "element": "mod.reinstall",
+                            "options": {
+                              "display": "iconLabel"
+                            },
+                            "grow": 1
+                          }
+                        ]
+                      },
+                      {
+                        "element": "mod.update",
+                        "options": {
+                          "display": "iconLabel"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "element": "notice.modsResult"
+      },
+      {
+        "type": "stack",
+        "id": "r-mods-actions",
+        "direction": "row",
+        "align": "center",
+        "children": [
+          {
+            "element": "mods.count"
+          },
+          {
+            "element": "mods.clearSelection"
+          },
+          {
+            "type": "stack",
+            "id": "r-mods-actions-right",
+            "direction": "row",
+            "align": "center",
+            "children": [
+              {
+                "element": "mods.selectUnique"
+              },
+              {
+                "element": "mods.cleanupRemoved"
+              },
+              {
+                "element": "mods.updateOutdated"
+              },
+              {
+                "type": "stack",
+                "id": "r-mods-unsubscribe",
+                "direction": "row",
+                "gap": "space.0",
+                "children": [
+                  {
+                    "element": "mods.unsubscribe"
+                  },
+                  {
+                    "element": "mods.unsubscribeMenu"
+                  }
+                ]
+              },
+              {
+                "type": "stack",
+                "id": "r-mods-verify",
+                "direction": "row",
+                "gap": "space.0",
+                "children": [
+                  {
+                    "element": "mods.verify"
+                  },
+                  {
+                    "element": "mods.verifyMenu"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
