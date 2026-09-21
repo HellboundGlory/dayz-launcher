@@ -42,28 +42,52 @@ export function formatMultiplier(n: number): string {
   return `${trimmed}x`;
 }
 
+export interface GameTimeParts {
+  /** "☀"/"☾", or null when the clock is unreadable. */
+  icon: string | null;
+  /** "3:15 PM", or "--:--" when unknown. */
+  time: string;
+  /** "4x", or null when no multiplier applies. */
+  multiplier: string | null;
+  state: "day" | "night" | "unknown";
+}
+
+/** Splits a server's in-game clock into its display pieces; `formatGameTime` joins them back into one string. */
+export function gameTimeParts(
+  inGameTime: string | null,
+  dayMultiplier: number | null,
+  nightMultiplier: number | null,
+): GameTimeParts {
+  const m = inGameTime ? /^(\d{1,2}):(\d{2})$/.exec(inGameTime) : null;
+  if (!m) return { icon: null, time: "--:--", multiplier: null, state: "unknown" };
+
+  const hour = Number(m[1]);
+  const minute = m[2];
+
+  const isDay = hour >= DAY_START && hour < DAY_END;
+  const period = hour < 12 ? "AM" : "PM";
+  const h12 = hour % 12 === 0 ? 12 : hour % 12;
+
+  const mult = (isDay ? dayMultiplier : nightMultiplier) ?? dayMultiplier ?? nightMultiplier;
+
+  return {
+    icon: isDay ? "☀" : "☾",
+    time: `${h12}:${minute} ${period}`,
+    multiplier: mult != null ? formatMultiplier(mult) : null,
+    state: isDay ? "day" : "night",
+  };
+}
+
 /** Formats a server's in-game clock for the TIME column, e.g. `☀ 3:15 PM · 4x`. `"--:--"` when there's no clock to read. */
 export function formatGameTime(
   inGameTime: string | null,
   dayMultiplier: number | null,
   nightMultiplier: number | null,
 ): string {
-  if (!inGameTime) return "--:--";
-  const m = /^(\d{1,2}):(\d{2})$/.exec(inGameTime);
-  if (!m) return "--:--";
-  const hour = Number(m[1]);
-  const minute = m[2];
-
-  const isDay = hour >= DAY_START && hour < DAY_END;
-  const glyph = isDay ? "☀" : "☾";
-
-  const period = hour < 12 ? "AM" : "PM";
-  const h12 = hour % 12 === 0 ? 12 : hour % 12;
-
-  const mult = (isDay ? dayMultiplier : nightMultiplier) ?? dayMultiplier ?? nightMultiplier;
-  const accel = mult != null ? ` · ${formatMultiplier(mult)}` : "";
-
-  return `${glyph} ${h12}:${minute} ${period}${accel}`;
+  const p = gameTimeParts(inGameTime, dayMultiplier, nightMultiplier);
+  if (!p.icon) return p.time;
+  const accel = p.multiplier ? ` · ${p.multiplier}` : "";
+  return `${p.icon} ${p.time}${accel}`;
 }
 
 /** Region code (EU/NA/OC/SA/AS) to a full name for tooltips. */
