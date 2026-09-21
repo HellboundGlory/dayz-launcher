@@ -231,10 +231,7 @@ export function ServerTags({
   style?: CSSProperties;
 }) {
   const server = useServerSubject();
-  const modPendingLive = useServerStore((s) => s.modPending);
-  // SSR (server-elements.test.tsx renders outside a window) doesn't replay a store update through
-  // useSyncExternalStore, so fall back to a direct read the way server-row-actions.tsx does.
-  const modPending = typeof window === "undefined" ? useServerStore.getState().modPending : modPendingLive;
+  const modPending = useServerStore((s) => s.modPending);
   if (!server) return null;
 
   const offline = !server.online;
@@ -380,9 +377,7 @@ function ServerJoinSelection({
   );
 }
 
-// The `autoJoinAfterDownload` setting was removed in v2.2.0 — verifyAndJoin
-// now always joins once downloads finish, so this is fixed rather than read
-// from settings.
+// verifyAndJoin always joins once downloads finish (the setting went in v2.2.0).
 const AUTO_JOIN_AFTER_DOWNLOAD = true;
 
 function ServerJoinIdleButton({
@@ -874,10 +869,7 @@ export function ServerManageMods({
 
 export function ServerRefresh({ className, style }: { className?: string; style?: CSSProperties }) {
   const server = useServerSubject();
-  const probingKeyLive = useRowProbeStore((s) => s.probingKey);
-  // SSR (server-elements.test.tsx renders outside a window) doesn't replay a store update through
-  // useSyncExternalStore, so fall back to a direct read the way ServerTags does.
-  const probingKey = typeof window === "undefined" ? useRowProbeStore.getState().probingKey : probingKeyLive;
+  const probingKey = useRowProbeStore((s) => s.probingKey);
   const startProbe = useRowProbeStore((s) => s.startProbe);
   const endProbe = useRowProbeStore((s) => s.endProbe);
   if (!server) return null;

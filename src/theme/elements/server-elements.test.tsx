@@ -69,6 +69,21 @@ const mockServerActions = {
   NOTICES: {},
 };
 
+// SSR takes zustand's initial-state snapshot, so route the hooks through the live state.
+function liveHook<T extends { getState: () => S }, S>(store: T) {
+  return Object.assign(<R,>(sel: (s: S) => R) => sel(store.getState()), store);
+}
+
+vi.mock("@/stores/server-store", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/stores/server-store")>();
+  return { ...actual, useServerStore: liveHook(actual.useServerStore) };
+});
+
+vi.mock("./row-probe-store", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./row-probe-store")>();
+  return { ...actual, useRowProbeStore: liveHook(actual.useRowProbeStore) };
+});
+
 vi.mock("@/hooks/use-server-actions", () => ({
   useServerActions: () => mockServerActions,
   phaseLabel: (op: { note: string | null }) => op.note ?? "DOWNLOADING…",
