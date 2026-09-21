@@ -145,7 +145,7 @@ export function ThemeGrid({
 
   return (
     <div className="relative">
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
         {visible.map((entry) => {
           const dark = resolvedPair(entry.id, themeFiles).dark;
           const custom = !entry.builtin;

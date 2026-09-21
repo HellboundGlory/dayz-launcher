@@ -128,7 +128,7 @@ export function ThemeCard({
             <button
               type="button"
               onClick={onActivate}
-              className="flex-1 [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface2 px-2 py-1 [font-size:var(--t-type-label-size)] font-semibold text-ink transition-colors hover:border-accent-line hover:text-accent"
+              className="inline-flex h-[22px] min-w-0 flex-1 items-center justify-center truncate [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface2 px-2 [font-size:var(--t-type-label-size)] font-semibold text-ink transition-colors hover:border-accent-line hover:text-accent"
             >
               Activate
             </button>
