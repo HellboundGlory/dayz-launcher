@@ -84,7 +84,7 @@ describe("ListRow", () => {
     expect(html).toContain("42");
     expect(html).toContain("60");
     expect(html).toContain('data-el="server.favourite"');
-    expect(html).toContain('data-state="favourite"');
+    expect(html).toContain('data-state="on"');
     expect(html).toContain('data-el="server.tags"');
     expect(html).toContain('data-state="modded"');
     expect(html).toContain('data-state="firstPerson"');

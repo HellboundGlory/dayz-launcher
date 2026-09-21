@@ -36,18 +36,22 @@ import {
 } from "./notice-elements";
 import {
   ServerAddress,
+  ServerCancel,
   ServerCheckMods,
   ServerFavourite,
   ServerGameTime,
   ServerInfo,
   ServerJoin,
   ServerLastPlayed,
+  ServerLoadToMenu,
+  ServerManageMods,
   ServerMap,
   ServerMenu,
   ServerModCount,
   ServerName,
   ServerPing,
   ServerPlayers,
+  ServerRefresh,
   ServerRegion,
   ServerSubscribeAll,
   ServerTags,
@@ -183,7 +187,15 @@ export function ElementHost({
     case "server.info":
       return <ServerInfo className={mergedClass} style={style} />;
     case "server.menu":
-      return <ServerMenu className={mergedClass} style={style} />;
+      return <ServerMenu options={node.options} className={mergedClass} style={style} />;
+    case "server.loadToMenu":
+      return <ServerLoadToMenu options={node.options} className={mergedClass} style={style} />;
+    case "server.cancel":
+      return <ServerCancel options={node.options} className={mergedClass} style={style} />;
+    case "server.manageMods":
+      return <ServerManageMods options={node.options} className={mergedClass} style={style} />;
+    case "server.refresh":
+      return <ServerRefresh className={mergedClass} style={style} />;
     case "server.address":
       return <ServerAddress options={node.options} className={mergedClass} style={style} />;
     case "server.lastPlayed":
