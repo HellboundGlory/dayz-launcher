@@ -24,6 +24,7 @@ import { SETTINGS_LAYOUT } from "./theme/neutral";
 import type { SettingsLayoutFile } from "./theme/renderer/types";
 import { DevModeInspector } from "./components/themes-page/DevModeInspector";
 import { DevModeValidationPanel } from "./components/themes-page/DevModeValidationPanel";
+import { ConfirmDialog } from "./components/confirm-dialog";
 import { OnboardingModal } from "./components/onboarding-modal";
 import { UpdateModal } from "./components/update-modal";
 import { SteamRequiredModal } from "./components/steam-required-modal";
@@ -869,6 +870,7 @@ export function App() {
                   ),
                 modals: (
                   <>
+                    <ConfirmDialog />
                     {devMode && <DevModeInspector />}
                     {devMode && <DevModeValidationPanel />}
                     {showOnboarding && steamConnected && (
@@ -998,6 +1000,7 @@ export function App() {
               />
             )}
 
+            <ConfirmDialog />
             {devMode && <DevModeInspector />}
             {devMode && <DevModeValidationPanel />}
 
