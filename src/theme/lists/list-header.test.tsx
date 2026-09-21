@@ -3,6 +3,29 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ListHeader } from "./list-header";
 import type { ColumnDef, SortState } from "./types";
 
+describe("ListHeader headerElement", () => {
+  it("renders the registry element instead of the column's label", () => {
+    const columns: ColumnDef[] = [
+      { id: "select", width: "40px", label: "Select", headerElement: "mods.selectAll" },
+      { id: "name", label: "Name", width: "1fr", sort: "name" },
+    ];
+    const html = renderToStaticMarkup(<ListHeader columns={columns} />);
+
+    expect(html).toContain('data-el="mods.selectAll"');
+    expect(html).not.toContain(">Select<");
+  });
+
+  it("skips the sort button for a column that carries both sort and headerElement", () => {
+    const columns: ColumnDef[] = [
+      { id: "select", width: "40px", sort: "name", headerElement: "mods.selectAll" },
+    ];
+    const html = renderToStaticMarkup(<ListHeader columns={columns} />);
+
+    expect(html).toContain('data-el="mods.selectAll"');
+    expect(html).not.toContain("aria-sort");
+  });
+});
+
 const sampleColumns: ColumnDef[] = [
   { id: "fav", width: "40px", align: "center" },
   { id: "name", label: "Server Name", width: "1fr", sort: "name" },

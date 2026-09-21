@@ -32,8 +32,6 @@ import {
   type ModSortDir,
 } from "@/stores/mods-store";
 import {
-  steamModStates,
-  steamDownloadProgress,
   reinstallSubscribedMod,
   openModFolder,
   openWorkshopInSteam,
@@ -41,6 +39,7 @@ import {
   type SubscribedMod,
 } from "@/lib/tauri";
 import { cn, formatBytes, formatLastPlayed } from "@/lib/utils";
+import { useModsLifecycle } from "@/hooks/use-mods-lifecycle";
 
 // Shared with the list's own right padding below: the inspector overlays the
 // list rather than sitting in normal flow, so nothing shrinks the list's rows
@@ -111,6 +110,47 @@ const STATUS_RANK: Record<ModState, number> = {
   not_on_workshop: 5,
 };
 
+/** The visible rows after search, status filter and sort — what both Mods views list. */
+export function filterAndSortMods(
+  rows: SubscribedMod[],
+  {
+    search,
+    statusFilter,
+    sortKey,
+    sortDir,
+    states,
+  }: {
+    search: string;
+    statusFilter: ModStatusFilter;
+    sortKey: ModSortKey;
+    sortDir: ModSortDir;
+    states: Record<string, ModState>;
+  },
+): SubscribedMod[] {
+    let visible = visibleRows(rows);
+    const q = search.trim().toLowerCase();
+    if (q) {
+      visible = visible.filter(
+        (r) =>
+          (r.title ?? "").toLowerCase().includes(q) ||
+          (r.tags ?? []).some((t) => t.toLowerCase().includes(q)) ||
+          (r.workshop_id ?? "").includes(q),
+      );
+    }
+    if (statusFilter !== "all") {
+      visible = visible.filter((r) => {
+        const state = effectiveModState(r.state, states[r.workshop_id]);
+        switch (statusFilter) {
+          case "outdated":
+            return state === "needs_update";
+          case "downloading":
+            return state === "downloading";
+        }
+      });
+    }
+    return sortMods(visible, sortKey, sortDir, states);
+}
+
 export function sortMods(
   mods: SubscribedMod[],
   sortKey: ModSortKey,
@@ -160,9 +200,6 @@ function useModsTabSlice() {
       selectedModId: s.selectedModId,
       op: s.op,
       load: s.load,
-      loadCaredServers: s.loadCaredServers,
-      setLive: s.setLive,
-      setProgress: s.setProgress,
       setSearch: s.setSearch,
       setStatusFilter: s.setStatusFilter,
       updateAllOutdated: s.updateAllOutdated,
@@ -185,97 +222,26 @@ export function ModsTab() {
     selectedModId,
     op,
     load,
-    loadCaredServers,
-    setLive,
-    setProgress,
     setSearch,
     setStatusFilter,
     updateAllOutdated,
   } = useModsTabSlice();
+
+  useModsLifecycle();
 
   const outdatedCount = useMemo(
     () => visibleRows(rows).filter((r) => r.state === "needs_update").length,
     [rows],
   );
 
-  const mods = useMemo(() => {
-    let visible = visibleRows(rows);
-    const q = search.trim().toLowerCase();
-    if (q) {
-      visible = visible.filter(
-        (r) =>
-          (r.title ?? "").toLowerCase().includes(q) ||
-          (r.tags ?? []).some((t) => t.toLowerCase().includes(q)) ||
-          (r.workshop_id ?? "").includes(q),
-      );
-    }
-    if (statusFilter !== "all") {
-      visible = visible.filter((r) => {
-        const state = effectiveModState(r.state, states[r.workshop_id]);
-        switch (statusFilter) {
-          case "outdated":
-            return state === "needs_update";
-          case "downloading":
-            return state === "downloading";
-        }
-      });
-    }
-    return sortMods(visible, sortKey, sortDir, states);
-  }, [rows, states, search, statusFilter, sortKey, sortDir]);
+  const mods = useMemo(
+    () => filterAndSortMods(rows, { search, statusFilter, sortKey, sortDir, states }),
+    [rows, states, search, statusFilter, sortKey, sortDir],
+  );
 
   const removedCount = rows.filter((r) => r.removed).length;
 
-  // Load the tab on first mount, then poll live state + progress.
-  useEffect(() => {
-    void load();
-    void loadCaredServers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    const ids = visibleRows(rows).map((r) => r.workshop_id);
-    if (ids.length === 0) return;
-    let cancelled = false;
-    let prevStates: Record<string, ModState> = {};
-    async function poll() {
-      try {
-        const [entries, progress] = await Promise.all([
-          steamModStates(ids),
-          steamDownloadProgress(ids),
-        ]);
-        if (cancelled) return;
-        const nextStates = Object.fromEntries(entries.map((e) => [e.workshop_id, e.state]));
-        const finishedDownload = entries.some(
-          (e) => e.state === "ready" && prevStates[e.workshop_id] === "downloading",
-        );
-        prevStates = nextStates;
-        setLive(nextStates);
-        setProgress(
-          Object.fromEntries(
-            progress.map((p) => [
-              p.workshop_id,
-              { downloaded: p.downloaded, total: p.total },
-            ]),
-          ),
-        );
-        if (finishedDownload) {
-          void load(true);
-        }
-      } catch {
-        /* next tick */
-      }
-    }
-    void poll();
-    const timer = setInterval(() => void poll(), 1500);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [rows, setLive, setProgress, load]);
-
   const selectedMod = rows.find((r) => r.workshop_id === selectedModId) ?? null;
-
-
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({

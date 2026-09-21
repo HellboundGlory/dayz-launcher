@@ -40,6 +40,7 @@ import {
   getActiveLayout,
 } from "./theme/theme-store";
 import { ElementContextProvider } from "./theme/elements/context";
+import { ModsViewHost } from "./theme/elements/mods-view-host";
 import { LayoutRenderer } from "./theme/renderer";
 import { useServerDataLoader } from "./hooks/use-server-data-loader";
 import type { Server } from "./types/server";
@@ -278,10 +279,14 @@ export function App() {
   const themeFiles = useThemeStore((s) => s.themeFiles);
   const settingsValues = useThemeStore((s) => s.settingsValues);
   const selectedServer = useServerStore((s) => s.selectedServer);
+  const modsRows = useModsStore((s) => s.rows);
+  const selectedModId = useModsStore((s) => s.selectedModId);
+  const selectedModRow = modsRows.find((r) => r.workshop_id === selectedModId) ?? null;
   useServerDataLoader();
 
   const shellLayout = themeFiles[activeId]?.layouts?.["layout/shell.json"];
   const browserLayout = themeFiles[activeId]?.layouts?.["layout/views/browser.json"];
+  const modsLayout = themeFiles[activeId]?.layouts?.["layout/views/mods.json"];
   const settingsLayout = (getActiveLayout("layout/settings.json") ??
     SETTINGS_LAYOUT) as SettingsLayoutFile;
   const settingsMode = settingsLayout.presentation?.mode ?? "overlay";
@@ -809,6 +814,7 @@ export function App() {
     openUpdateModal: () => setUpdateOpen(true),
     // A panel-mode Settings covers the detail panel, so hide it until Settings closes.
     selectedServer: settingsOpen && settingsMode === "panel" ? null : selectedServer,
+    selectedMod: settingsOpen && settingsMode === "panel" ? null : selectedModRow,
     onRefresh: handleRefresh,
     refreshing,
     discovering,
@@ -832,10 +838,18 @@ export function App() {
               settings={settingsValues[activeId]}
               outlets={{
                 view:
-                  activeView === "mods" ? (
-                    <ModsTab />
-                  ) : settingsOpen && settingsMode === "view" ? (
+                  settingsOpen && settingsMode === "view" ? (
                     <SettingsHost file={settingsLayout} onClose={closeSettings} />
+                  ) : activeView === "mods" ? (
+                    modsLayout ? (
+                      <ModsViewHost
+                        file={modsLayout}
+                        themeId={activeId}
+                        settings={settingsValues[activeId]}
+                      />
+                    ) : (
+                      <ModsTab />
+                    )
                   ) : browserLayout ? (
                     <LayoutRenderer
                       file={browserLayout}

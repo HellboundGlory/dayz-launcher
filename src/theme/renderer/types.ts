@@ -206,6 +206,8 @@ export interface ColumnDef {
   sort?: string;
   /** Default `true`. Only a column with a px `width` resizes. */
   resizable?: boolean;
+  /** A registry element id rendered in the header cell instead of the label. */
+  headerElement?: string;
 }
 
 export interface LayoutFile {

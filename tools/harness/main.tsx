@@ -193,6 +193,18 @@ async function runScenario() {
     const list = useServerStore.getState().servers;
     useServerStore.getState().setSelectedServer(list[Number(select)] ?? null);
   }
+  const selectMod = params.get("selectMod");
+  if (selectMod !== null) {
+    const { useModsStore, visibleRows } = await import("@/stores/mods-store");
+    const { filterAndSortMods } = await import("@/components/mods-tab");
+    const start = Date.now();
+    while (visibleRows(useModsStore.getState().rows).length === 0 && Date.now() - start < 8000) {
+      await sleep(50);
+    }
+    const mods = useModsStore.getState();
+    const list = filterAndSortMods(mods.rows, mods);
+    useModsStore.getState().openMod(list[Number(selectMod)]?.workshop_id ?? null);
+  }
   if (params.get("settings") === "1") {
     (await waitFor('[data-el="nav.settings"]'))?.click();
     const settingsTab = params.get("settingsTab");
