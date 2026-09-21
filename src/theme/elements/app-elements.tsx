@@ -192,7 +192,7 @@ export function AppUiScale({
     setSetting("uiScale", next);
   };
 
-  const pct = Math.round(((uiScale - UI_SCALE_MIN) / (UI_SCALE_MAX - UI_SCALE_MIN)) * 100);
+  const pct = Math.round(uiScale * 100);
 
   return (
     <div data-el="app.uiScale" className={className ?? "flex items-center gap-[var(--t-space-inlineGap)]"} style={style}>

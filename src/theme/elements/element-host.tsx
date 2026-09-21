@@ -17,6 +17,7 @@ import {
   NavSettings,
 } from "./nav-elements";
 import {
+  StatusActivity,
   StatusLastRefreshed,
   StatusListSource,
   StatusPopulated,
@@ -139,7 +140,11 @@ export function ElementHost({
     case "status.listSource":
       return <StatusListSource className={mergedClass} style={style} />;
     case "status.lastRefreshed":
-      return <StatusLastRefreshed className={mergedClass} style={style} />;
+      return (
+        <StatusLastRefreshed options={node.options} className={mergedClass} style={style} />
+      );
+    case "status.activity":
+      return <StatusActivity className={mergedClass} style={style} />;
 
     case "notice.storage":
       return <NoticeStorage className={mergedClass} style={style} />;

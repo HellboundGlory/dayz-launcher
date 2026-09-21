@@ -15,7 +15,7 @@ export function NoticeStorage({ className, style }: { className?: string; style?
       className={className ?? "flex items-center gap-[var(--t-space-inlineGapWide)] border-b border-warn bg-warn-soft px-[var(--t-space-rowX)] py-[var(--t-space-controlY)]"}
       style={style}
     >
-      <span data-part="label" className="[font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase text-warn">
+      <span data-part="tag" className="[font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase text-warn">
         STORAGE
       </span>
       <span data-part="message" className="[font-size:var(--t-type-body-size)] text-ink">
@@ -36,7 +36,7 @@ export function NoticeError({ className, style }: { className?: string; style?: 
       className={className ?? "flex items-center gap-[var(--t-space-inlineGapWide)] border-b border-danger bg-surface2 px-[var(--t-space-rowX)] py-[var(--t-space-controlY)]"}
       style={style}
     >
-      <span data-part="label" className="[font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase text-danger">
+      <span data-part="tag" className="[font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase text-danger">
         ERROR
       </span>
       <span data-part="message" className="truncate [font-size:var(--t-type-body-size)] text-ink">
@@ -66,7 +66,7 @@ export function NoticeUpdate({ className, style }: { className?: string; style?:
       className={className ?? "flex items-center gap-[var(--t-space-stackGap)] border-b border-accent-line bg-accent-soft px-[var(--t-space-rowX)] py-[var(--t-space-controlY)]"}
       style={style}
     >
-      <span data-part="label" className="[font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase text-accent">
+      <span data-part="title" className="[font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase text-accent">
         Update available
       </span>
       <span data-part="message" className="min-w-0 flex-1 truncate [font-size:var(--t-type-body-size)] text-ink">
@@ -74,7 +74,7 @@ export function NoticeUpdate({ className, style }: { className?: string; style?:
       </span>
       <button
         type="button"
-        data-part="action"
+        data-part="update"
         onClick={() => {
           dismissUpdateBanner();
           openUpdateModal();
@@ -85,7 +85,7 @@ export function NoticeUpdate({ className, style }: { className?: string; style?:
       </button>
       <button
         type="button"
-        data-part="dismiss"
+        data-part="later"
         onClick={dismissUpdateBanner}
         className="shrink-0 [border-radius:var(--t-radius-controlSmall)] px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlSmallY)] [font-size:var(--t-type-label-size)] uppercase text-muted hover:text-ink"
       >
@@ -121,11 +121,10 @@ export function NoticeModsOutdated(props?: { className?: string; style?: CSSProp
   return null;
 }
 
-type ActionNoticeContent = {
-  title: string;
-  message?: string;
-  state: "warning" | "error" | "success";
-};
+type ActionNoticeContent =
+  | { kind: "code"; code: string; message: string; detail: string; state: "warning" | "error" }
+  | { kind: "plain"; message: string; state: "warning" | "success" }
+  | { kind: "refusal"; title: string; message: string; state: "error" };
 
 function resolveActionNoticeContent(
   addr: string,
@@ -137,17 +136,21 @@ function resolveActionNoticeContent(
     if (notice.kind === "code") {
       const entry = NOTICES[notice.code];
       return {
-        title: entry.text,
-        message: notice.extra ? `${entry.detail} ${notice.extra}` : entry.detail,
+        kind: "code",
+        code: notice.code,
+        message: notice.extra ? `${entry.text} · ${notice.extra}` : entry.text,
+        detail: entry.detail,
         state: notice.code.startsWith("E") ? "error" : "warning",
       };
     }
-    return { title: notice.text, state: "warning" };
+    return { kind: "plain", message: notice.text, state: "warning" };
   }
 
   if (result && result.addr === addr && (result.message || result.error)) {
-    if (result.error) return { title: result.error, state: "error" };
-    return { title: result.message!, state: "success" };
+    if (result.error) {
+      return { kind: "refusal", title: "Launch refused", message: result.error, state: "error" };
+    }
+    return { kind: "plain", message: result.message!, state: "success" };
   }
 
   return null;
@@ -163,8 +166,33 @@ export function ServerActionNotice({ className, style }: { className?: string; s
   const content = resolveActionNoticeContent(server.addr, storeNotice, result);
   if (!content) return null;
 
-  const stateClass = content.state === "error" ? "text-danger" : "text-warn";
-  const borderClass = content.state === "error" ? "border-danger/70" : "border-warn/70";
+  const stateClass =
+    content.state === "error" ? "text-danger" : content.state === "success" ? "text-success" : "text-warn";
+  const borderClass =
+    content.state === "error"
+      ? "border-danger/70"
+      : content.state === "success"
+        ? "border-success/70"
+        : "border-warn/70";
+
+  const leading =
+    content.kind === "code" ? (
+      <span
+        data-part="code"
+        title={content.detail}
+        className={cn(
+          "shrink-0 [border-radius:var(--t-radius-controlSmall)] px-1 font-mono-data text-[9px] font-semibold uppercase",
+          stateClass,
+          content.state === "error" ? "bg-danger/15" : "bg-warn/15",
+        )}
+      >
+        {content.code}
+      </span>
+    ) : content.kind === "refusal" ? (
+      <span data-part="title" className={cn("shrink-0 font-bold uppercase tracking-wider", stateClass)}>
+        {content.title}
+      </span>
+    ) : null;
 
   // In a row, the notice sits on the row's single line — no border/padding/margin.
   if (contextName === "row") {
@@ -178,14 +206,10 @@ export function ServerActionNotice({ className, style }: { className?: string; s
         )}
         style={style}
       >
-        <span data-part="title" className={cn("shrink-0 font-bold uppercase tracking-wider", stateClass)}>
-          {content.title}
+        {leading}
+        <span data-part="message" className="truncate text-muted2">
+          {content.message}
         </span>
-        {content.message && (
-          <span data-part="message" className="truncate text-muted2">
-            {content.message}
-          </span>
-        )}
       </div>
     );
   }
@@ -194,21 +218,13 @@ export function ServerActionNotice({ className, style }: { className?: string; s
     <div
       data-el="server.actionNotice"
       data-state={content.state}
-      className={cn(
-        "border bg-surface2/60 p-3 my-2",
-        borderClass,
-        className,
-      )}
+      className={cn("border bg-surface2/60 p-3 my-2", borderClass, className)}
       style={style}
     >
-      <div data-part="title" className={cn("font-bold text-xs uppercase tracking-wider", stateClass)}>
-        {content.title}
+      {leading && <div className="mb-1">{leading}</div>}
+      <div data-part="message" className="text-xs text-muted2">
+        {content.message}
       </div>
-      {content.message && (
-        <div data-part="message" className="text-xs text-muted2 mt-1">
-          {content.message}
-        </div>
-      )}
     </div>
   );
 }
