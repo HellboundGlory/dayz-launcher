@@ -355,6 +355,27 @@ export const MODS_LIST: LayoutFile = {
   },
 };
 
+export const MOD_SERVERS_LIST: LayoutFile = {
+  schemaVersion: 2,
+  row: {
+    type: "stack",
+    direction: "row",
+    align: "center",
+    justify: "spaceBetween",
+    children: [
+      {
+        type: "stack",
+        direction: "column",
+        children: [
+          { element: "modServer.name" },
+          { element: "modServer.address" },
+        ],
+      },
+      { element: "modServer.lastPlayed" },
+    ],
+  },
+};
+
 export const MOD_FILTER_RESULTS_LIST: LayoutFile = {
   schemaVersion: 2,
   row: {
@@ -376,6 +397,7 @@ export const NEUTRAL_LAYOUTS: Record<string, LayoutFile> = {
   "layout/lists/servers.json": SERVERS_LIST,
   "layout/lists/mods.json": MODS_LIST,
   "layout/lists/modFilterResults.json": MOD_FILTER_RESULTS_LIST,
+  "layout/lists/modServers.json": MOD_SERVERS_LIST,
 };
 
 export function getNeutralLayout(file: string): LayoutFile | undefined {

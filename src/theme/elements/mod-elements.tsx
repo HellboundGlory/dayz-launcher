@@ -1,11 +1,19 @@
-import type { CSSProperties } from "react";
-import { Check, Package } from "lucide-react";
+import { useState, type CSSProperties, type MouseEvent } from "react";
+import { Check, Download, ExternalLink, FolderOpen, Package, RefreshCw, X } from "lucide-react";
 import { cn, formatBytes, formatLastPlayed } from "@/lib/utils";
 import { useModsStore } from "@/stores/mods-store";
 import { effectiveModState } from "@/components/mods-tab";
-import type { ModState, SubscribedMod } from "@/lib/tauri";
+import {
+  openModFolder,
+  openWorkshopInSteam,
+  reinstallSubscribedMod,
+  type ModState,
+  type ServerNeeding,
+  type SubscribedMod,
+} from "@/lib/tauri";
 import { useElementContext } from "./context";
 import { MOD_STATE_NAME } from "./list-elements";
+import { OptionIcon } from "./option-icon";
 
 function useModSubject(): SubscribedMod | null {
   const { subjectContext, selectedMod } = useElementContext();
@@ -362,6 +370,301 @@ export function ModDescription({
     >
       <span data-part="text">{empty ? "" : mod.description}</span>
     </p>
+  );
+}
+
+function modDisplayOptions(options: Record<string, unknown> | undefined, fallbackLabel: string) {
+  const display = (options?.display as string | undefined) ?? "label";
+  const label = (options?.label as string | undefined) ?? fallbackLabel;
+  return {
+    label,
+    showIcon: display === "iconLabel" || display === "icon",
+    showLabel: display === "iconLabel" || display === "label",
+  };
+}
+
+export function ModUpdate({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const mod = useModSubject();
+  const live = useModLiveState(mod);
+  const op = useModsStore((s) => s.op);
+  const updateMods = useModsStore((s) => s.updateMods);
+  if (!mod) return null;
+  if (effectiveModState(mod.state, live) !== "needs_update") return null;
+
+  const { label, showIcon, showLabel } = modDisplayOptions(options, "Update");
+  const busy = op?.kind === "update";
+
+  const handleClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    void updateMods([mod.workshop_id]);
+  };
+
+  return (
+    <button
+      type="button"
+      data-el="mod.update"
+      data-state={modStates(mod, busy && "busy", busy && "disabled")}
+      disabled={busy}
+      aria-label={label}
+      onClick={handleClick}
+      className={className}
+      style={style}
+    >
+      {showIcon && (
+        <span data-part="icon">
+          <OptionIcon icon={options?.icon} fallback={Download} className={cn("size-3", busy && "animate-pulse")} />
+        </span>
+      )}
+      {showLabel && <span data-part="label">{label}</span>}
+    </button>
+  );
+}
+
+export function ModOpenInSteam({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const mod = useModSubject();
+  if (!mod) return null;
+
+  const { label, showIcon, showLabel } = modDisplayOptions(options, "Open in Steam");
+
+  const handleClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    void openWorkshopInSteam(mod.workshop_id).catch((err) => console.error(err));
+  };
+
+  return (
+    <button
+      type="button"
+      data-el="mod.openInSteam"
+      data-state={modStates(mod)}
+      aria-label={label}
+      onClick={handleClick}
+      className={className}
+      style={style}
+    >
+      {showIcon && (
+        <span data-part="icon">
+          <OptionIcon icon={options?.icon} fallback={ExternalLink} className="size-3" />
+        </span>
+      )}
+      {showLabel && <span data-part="label">{label}</span>}
+    </button>
+  );
+}
+
+export function ModOpenFolder({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const mod = useModSubject();
+  if (!mod) return null;
+
+  const { label, showIcon, showLabel } = modDisplayOptions(options, "Open folder");
+  const disabled = !mod.folder;
+
+  const handleClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    if (mod.folder) void openModFolder(mod.folder);
+  };
+
+  return (
+    <button
+      type="button"
+      data-el="mod.openFolder"
+      data-state={modStates(mod, disabled && "disabled")}
+      disabled={disabled}
+      aria-label={label}
+      onClick={handleClick}
+      className={className}
+      style={style}
+    >
+      {showIcon && (
+        <span data-part="icon">
+          <OptionIcon icon={options?.icon} fallback={FolderOpen} className="size-3" />
+        </span>
+      )}
+      {showLabel && <span data-part="label">{label}</span>}
+    </button>
+  );
+}
+
+export function ModReinstall({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const mod = useModSubject();
+  const load = useModsStore((s) => s.load);
+  const [busy, setBusy] = useState(false);
+  if (!mod) return null;
+
+  const { label, showIcon, showLabel } = modDisplayOptions(options, "Reinstall");
+
+  const handleClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    setBusy(true);
+    void reinstallSubscribedMod(mod.workshop_id)
+      .catch((err) => console.error(err))
+      .finally(() => {
+        setBusy(false);
+        void load(true);
+      });
+  };
+
+  return (
+    <button
+      type="button"
+      data-el="mod.reinstall"
+      data-state={modStates(mod, busy && "busy", busy && "disabled")}
+      disabled={busy}
+      aria-label={label}
+      onClick={handleClick}
+      className={className}
+      style={style}
+    >
+      {showIcon && (
+        <span data-part="icon">
+          <OptionIcon icon={options?.icon} fallback={RefreshCw} className={cn("size-3", busy && "animate-spin")} />
+        </span>
+      )}
+      {showLabel && <span data-part="label">{label}</span>}
+    </button>
+  );
+}
+
+export function ModDeselect({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const mod = useModSubject();
+  const openMod = useModsStore((s) => s.openMod);
+  if (!mod) return null;
+
+  const label = (options?.label as string | undefined) ?? "Close details";
+
+  const handleClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    openMod(null);
+  };
+
+  return (
+    <button
+      type="button"
+      data-el="mod.deselect"
+      data-state={modStates(mod)}
+      aria-label={label}
+      onClick={handleClick}
+      className={className}
+      style={style}
+    >
+      <span data-part="icon">
+        <OptionIcon icon={options?.icon} fallback={X} className="size-3" />
+      </span>
+    </button>
+  );
+}
+
+export function ModNeededBy({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const mod = useModSubject();
+  const needing = useModsStore((s) => s.needing);
+  if (!mod || needing.length === 0) return null;
+
+  const label = (options?.label as string | undefined) ?? "Needed by";
+
+  return (
+    <span data-el="mod.neededBy" data-state={modStates(mod)} className={className} style={style}>
+      <span data-part="label">{label}</span>
+      <span data-part="value">{needing.length}</span>
+    </span>
+  );
+}
+
+function useModServerSubject(): ServerNeeding | null {
+  const { subjectContext } = useElementContext();
+  if (subjectContext?.kind === "modServer") {
+    return subjectContext.data as ServerNeeding;
+  }
+  return null;
+}
+
+export function ModServerName({ className, style }: { className?: string; style?: CSSProperties }) {
+  const srv = useModServerSubject();
+  if (!srv) return null;
+  return (
+    <span data-el="modServer.name" className={className ?? "truncate"} style={style}>
+      <span data-part="text">{srv.name || `${srv.addr}:${srv.query_port}`}</span>
+    </span>
+  );
+}
+
+export function ModServerAddress({ className, style }: { className?: string; style?: CSSProperties }) {
+  const srv = useModServerSubject();
+  if (!srv) return null;
+  return (
+    <span data-el="modServer.address" className={className ?? "truncate font-mono-data"} style={style}>
+      <span data-part="text">{`${srv.addr}:${srv.query_port}`}</span>
+    </span>
+  );
+}
+
+export function ModServerLastPlayed({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const srv = useModServerSubject();
+  if (!srv) return null;
+
+  const label = options?.label !== undefined ? String(options.label) : undefined;
+  const never = srv.last_played === null;
+  const value = never ? "never" : formatModTime(srv.last_played!, options?.format ?? "relative");
+
+  return (
+    <span data-el="modServer.lastPlayed" data-state={never ? "never" : undefined} className={className} style={style}>
+      {label && <span data-part="label">{label}</span>}
+      <span data-part="value">{value}</span>
+    </span>
   );
 }
 

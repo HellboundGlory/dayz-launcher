@@ -14,6 +14,17 @@ vi.mock("@/stores/mods-store", async (importOriginal) => {
   return { ...actual, useModsStore: liveHook(actual.useModsStore) };
 });
 
+const tauriMocks = {
+  openWorkshopInSteam: vi.fn(() => Promise.resolve()),
+  openModFolder: vi.fn(() => Promise.resolve()),
+  reinstallSubscribedMod: vi.fn(() => Promise.resolve()),
+};
+
+vi.mock("@/lib/tauri", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/tauri")>();
+  return { ...actual, ...tauriMocks };
+});
+
 // Captures the props of interactive elements as they are created, keyed by
 // `data-el`, since renderToStaticMarkup discards event handlers from its HTML output.
 let captured: Record<string, Record<string, unknown>> = {};
@@ -377,5 +388,177 @@ describe("ModDescription", () => {
     const mod = makeMod("1", { description: "Some text" });
     const html = renderWithMod(<ModDescription options={{ clamp: "none" }} />, mod);
     expect(html).not.toContain("--t-line-clamp");
+  });
+});
+
+describe("ModUpdate", () => {
+  it("renders nothing when the mod doesn't need an update", async () => {
+    const { ModUpdate } = await import("./mod-elements");
+    const mod = makeMod("1", { state: "ready" });
+    expect(renderWithMod(<ModUpdate />, mod)).toBe("");
+  });
+
+  it("renders and calls store.updateMods with the mod id when clicked", async () => {
+    const { ModUpdate } = await import("./mod-elements");
+    const mod = makeMod("1", { state: "needs_update" });
+    const updateMods = vi.fn();
+
+    await withStore({ updateMods }, () => {
+      resetCaptured();
+      const html = renderWithMod(<ModUpdate />, mod);
+      expect(html).toContain("Update");
+      const onClick = captured["mod.update"].onClick as (e: { stopPropagation: () => void }) => void;
+      const stopPropagation = vi.fn();
+      onClick({ stopPropagation });
+      expect(stopPropagation).toHaveBeenCalled();
+      expect(updateMods).toHaveBeenCalledWith(["1"]);
+    });
+  });
+
+  it("shows the busy and disabled state while an update is in flight", async () => {
+    const { ModUpdate } = await import("./mod-elements");
+    const mod = makeMod("1", { state: "needs_update" });
+    await withStore({ op: { kind: "update", note: null } }, () => {
+      const html = renderWithMod(<ModUpdate />, mod);
+      expect(html).toContain("busy");
+      expect(html).toContain("disabled");
+    });
+  });
+});
+
+describe("ModOpenInSteam", () => {
+  it("calls openWorkshopInSteam with the workshop id and stops propagation", async () => {
+    const mod = makeMod("42");
+    await withStore({}, async () => {
+      const { ModOpenInSteam } = await import("./mod-elements");
+      resetCaptured();
+      renderWithMod(<ModOpenInSteam />, mod);
+      const onClick = captured["mod.openInSteam"].onClick as (e: { stopPropagation: () => void }) => void;
+      const stopPropagation = vi.fn();
+      onClick({ stopPropagation });
+      expect(stopPropagation).toHaveBeenCalled();
+      expect(tauriMocks.openWorkshopInSteam).toHaveBeenCalledWith("42");
+    });
+  });
+});
+
+describe("ModOpenFolder", () => {
+  it("is disabled without a folder and never calls openModFolder", async () => {
+    const { ModOpenFolder } = await import("./mod-elements");
+    const mod = makeMod("1", { folder: null });
+    resetCaptured();
+    const html = renderWithMod(<ModOpenFolder />, mod);
+    expect(html).toContain("disabled");
+    const onClick = captured["mod.openFolder"].onClick as (e: { stopPropagation: () => void }) => void;
+    onClick({ stopPropagation: vi.fn() });
+    expect(tauriMocks.openModFolder).not.toHaveBeenCalled();
+  });
+
+  it("calls openModFolder with the mod's folder when present", async () => {
+    const { ModOpenFolder } = await import("./mod-elements");
+    const mod = makeMod("1", { folder: "@MyMod" });
+    resetCaptured();
+    const html = renderWithMod(<ModOpenFolder />, mod);
+    expect(html).not.toContain("disabled");
+    const onClick = captured["mod.openFolder"].onClick as (e: { stopPropagation: () => void }) => void;
+    onClick({ stopPropagation: vi.fn() });
+    expect(tauriMocks.openModFolder).toHaveBeenCalledWith("@MyMod");
+  });
+});
+
+describe("ModReinstall", () => {
+  it("calls reinstallSubscribedMod with the workshop id and stops propagation", async () => {
+    const { ModReinstall } = await import("./mod-elements");
+    const mod = makeMod("7");
+    resetCaptured();
+    const html = renderWithMod(<ModReinstall />, mod);
+    expect(html).not.toContain("busy");
+    const onClick = captured["mod.reinstall"].onClick as (e: { stopPropagation: () => void }) => void;
+    const stopPropagation = vi.fn();
+    onClick({ stopPropagation });
+    expect(stopPropagation).toHaveBeenCalled();
+    expect(tauriMocks.reinstallSubscribedMod).toHaveBeenCalledWith("7");
+  });
+});
+
+describe("ModDeselect", () => {
+  it("clears the open mod on click and stops propagation", async () => {
+    const { ModDeselect } = await import("./mod-elements");
+    const { useModsStore } = await import("@/stores/mods-store");
+    const mod = makeMod("1");
+    await withStore({ selectedModId: "1" }, () => {
+      resetCaptured();
+      renderWithMod(<ModDeselect />, mod);
+      const onClick = captured["mod.deselect"].onClick as (e: { stopPropagation: () => void }) => void;
+      const stopPropagation = vi.fn();
+      onClick({ stopPropagation });
+      expect(stopPropagation).toHaveBeenCalled();
+      expect(useModsStore.getState().selectedModId).toBeNull();
+    });
+  });
+});
+
+describe("ModNeededBy", () => {
+  it("renders nothing when no server needs the mod", async () => {
+    const { ModNeededBy } = await import("./mod-elements");
+    const mod = makeMod("1");
+    await withStore({ needing: [] }, () => {
+      expect(renderWithMod(<ModNeededBy />, mod)).toBe("");
+    });
+  });
+
+  it("shows the label and the count when servers need the mod", async () => {
+    const { ModNeededBy } = await import("./mod-elements");
+    const mod = makeMod("1");
+    await withStore(
+      {
+        needing: [
+          { addr: "1.2.3.4", query_port: 2305, name: "Server A", last_played: 100 },
+          { addr: "5.6.7.8", query_port: 2305, name: "Server B", last_played: null },
+        ],
+      },
+      () => {
+        const html = renderWithMod(<ModNeededBy />, mod);
+        expect(html).toContain("Needed by");
+        expect(html).toContain(">2<");
+      },
+    );
+  });
+});
+
+describe("ModServer displays", () => {
+  function renderWithServer(node: React.ReactNode, srv: unknown): string {
+    return renderToStaticMarkup(
+      <ElementContextProvider value={{ subjectContext: { kind: "modServer", data: srv } }}>
+        {node}
+      </ElementContextProvider>,
+    );
+  }
+
+  it("modServer.name falls back to addr:port without a name", async () => {
+    const { ModServerName } = await import("./mod-elements");
+    const html = renderWithServer(<ModServerName />, { addr: "1.2.3.4", query_port: 2305, name: "", last_played: null });
+    expect(html).toContain("1.2.3.4:2305");
+  });
+
+  it("modServer.address always renders addr:port", async () => {
+    const { ModServerAddress } = await import("./mod-elements");
+    const html = renderWithServer(<ModServerAddress />, { addr: "1.2.3.4", query_port: 2305, name: "Server A", last_played: null });
+    expect(html).toContain("1.2.3.4:2305");
+  });
+
+  it("modServer.lastPlayed shows 'never' and the never state without a timestamp", async () => {
+    const { ModServerLastPlayed } = await import("./mod-elements");
+    const html = renderWithServer(<ModServerLastPlayed />, { addr: "1.2.3.4", query_port: 2305, name: "Server A", last_played: null });
+    expect(html).toContain("never");
+    expect(html).toContain('data-state="never"');
+  });
+
+  it("modServer.lastPlayed formats a known timestamp relatively by default", async () => {
+    const { ModServerLastPlayed } = await import("./mod-elements");
+    const ts = Math.floor(Date.now() / 1000) - 120;
+    const html = renderWithServer(<ModServerLastPlayed />, { addr: "1.2.3.4", query_port: 2305, name: "Server A", last_played: ts });
+    expect(html).toContain("ago");
+    expect(html).not.toContain('data-state="never"');
   });
 });
