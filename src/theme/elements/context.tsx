@@ -40,6 +40,8 @@ export interface ElementContextValue {
   onRefresh: () => void;
   refreshing: boolean;
   discovering: boolean;
+  devMode: boolean;
+  onDevModeChange: (on: boolean) => void;
 }
 
 const ElementContext = createContext<ElementContextValue>({
@@ -69,6 +71,8 @@ const ElementContext = createContext<ElementContextValue>({
   onRefresh: () => {},
   refreshing: false,
   discovering: false,
+  devMode: false,
+  onDevModeChange: () => {},
 });
 
 export const useElementContext = () => useContext(ElementContext);
@@ -125,6 +129,8 @@ export function ElementContextProvider({
     onRefresh: () => {},
     refreshing: false,
     discovering: false,
+    devMode: false,
+    onDevModeChange: () => {},
     ...value,
     collapsedRegions: value?.collapsedRegions ?? collapsedRegions,
     toggleCollapsed: value?.toggleCollapsed ?? toggleCollapsed,

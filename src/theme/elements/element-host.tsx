@@ -85,6 +85,29 @@ import {
   ServerModSize,
   ServerModState,
 } from "./mod-elements";
+import {
+  SettingsBack,
+  SettingsTitle,
+  SettingsProfileName,
+  SettingsDayzPath,
+  SettingsDetectPaths,
+  SettingsWorkshopPath,
+  SettingsLaunchParams,
+  SettingsOnJoin,
+  SettingsMinimiseToTray,
+  SettingsCloseToTray,
+  SettingsStartWithWindows,
+  SettingsStartMinimised,
+  SettingsDiscordPresence,
+  SettingsDataFolder,
+  SettingsOpenDataFolder,
+  SettingsAutoRefresh,
+  SettingsThemeManagement,
+  SettingsSectionTitle,
+  SettingsSectionDescription,
+  SettingsSectionIcon,
+  SettingsGroupTitle,
+} from "./settings-elements";
 import { useElementContext } from "./context";
 import type { ElementNode } from "../renderer/types";
 
@@ -266,6 +289,49 @@ export function ElementHost({
       return <ModAuthor className={mergedClass} style={style} />;
     case "mod.subscribed":
       return <ModSubscribed className={mergedClass} style={style} />;
+
+    case "settings.back":
+      return <SettingsBack options={node.options} className={mergedClass} style={style} />;
+    case "settings.title":
+      return <SettingsTitle className={mergedClass} style={style} />;
+    case "settings.profileName":
+      return <SettingsProfileName options={node.options} className={mergedClass} style={style} />;
+    case "settings.dayzPath":
+      return <SettingsDayzPath options={node.options} className={mergedClass} style={style} />;
+    case "settings.detectPaths":
+      return <SettingsDetectPaths className={mergedClass} style={style} />;
+    case "settings.workshopPath":
+      return <SettingsWorkshopPath options={node.options} className={mergedClass} style={style} />;
+    case "settings.launchParams":
+      return <SettingsLaunchParams options={node.options} className={mergedClass} style={style} />;
+    case "settings.onJoin":
+      return <SettingsOnJoin options={node.options} className={mergedClass} style={style} />;
+    case "settings.minimiseToTray":
+      return <SettingsMinimiseToTray options={node.options} className={mergedClass} style={style} />;
+    case "settings.closeToTray":
+      return <SettingsCloseToTray options={node.options} className={mergedClass} style={style} />;
+    case "settings.startWithWindows":
+      return <SettingsStartWithWindows options={node.options} className={mergedClass} style={style} />;
+    case "settings.startMinimised":
+      return <SettingsStartMinimised options={node.options} className={mergedClass} style={style} />;
+    case "settings.discordPresence":
+      return <SettingsDiscordPresence options={node.options} className={mergedClass} style={style} />;
+    case "settings.dataFolder":
+      return <SettingsDataFolder options={node.options} className={mergedClass} style={style} />;
+    case "settings.openDataFolder":
+      return <SettingsOpenDataFolder className={mergedClass} style={style} />;
+    case "settings.autoRefresh":
+      return <SettingsAutoRefresh options={node.options} className={mergedClass} style={style} />;
+    case "settings.themeManagement":
+      return <SettingsThemeManagement className={mergedClass} style={style} />;
+    case "settings.sectionTitle":
+      return <SettingsSectionTitle options={node.options} className={mergedClass} style={style} />;
+    case "settings.sectionDescription":
+      return <SettingsSectionDescription options={node.options} className={mergedClass} style={style} />;
+    case "settings.sectionIcon":
+      return <SettingsSectionIcon options={node.options} className={mergedClass} style={style} />;
+    case "settings.groupTitle":
+      return <SettingsGroupTitle options={node.options} className={mergedClass} style={style} />;
 
     default:
       return (
