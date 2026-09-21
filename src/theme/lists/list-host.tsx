@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type WheelEvent } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { observeElementRect, useVirtualizer, type Virtualizer } from "@tanstack/react-virtual";
 import { ListHeader } from "./list-header";
 import { ListRow } from "./list-row";
 import { handleListKeyDown } from "./keyboard";
@@ -31,6 +31,17 @@ function scrollElementHorizontally(el: HTMLDivElement, deltaY: number): boolean 
   if (el.scrollWidth <= el.clientWidth) return false;
   el.scrollLeft += deltaY;
   return true;
+}
+
+// A theme that leaves the list's height unbounded must not make it mount every row.
+export function observeBoundedRect(
+  instance: Virtualizer<HTMLDivElement, Element>,
+  cb: (rect: { width: number; height: number }) => void,
+) {
+  return observeElementRect(instance, (rect) => {
+    const cap = instance.targetWindow?.innerHeight;
+    cb({ width: rect.width, height: cap ? Math.min(rect.height, cap) : rect.height });
+  });
 }
 
 export interface ListHostProps<T = unknown> {
@@ -116,6 +127,7 @@ export function ListHost<T = unknown>({
     estimateSize: () => rowHeightPx,
     overscan: 5,
     scrollMargin,
+    observeElementRect: observeBoundedRect,
   });
 
   const selectedIndex = selectedItem ? items.indexOf(selectedItem) : -1;

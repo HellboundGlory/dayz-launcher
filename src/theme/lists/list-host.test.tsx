@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { KeyboardEvent } from "react";
 import { ListRow } from "./list-row";
-import { ListHost } from "./list-host";
+import { ListHost, observeBoundedRect } from "./list-host";
 import { handleListKeyDown } from "./keyboard";
 import { clearColumnWidthMemory, setStoredWidths } from "./use-column-widths";
 import type { ColumnDef } from "./types";
@@ -371,5 +371,27 @@ describe("ListHost column widths", () => {
     const matches = html.match(/data-part="resizeHandle"/g) ?? [];
     // fav (40px), players (80px) and ping (60px) are resizable; name (1fr) is not.
     expect(matches).toHaveLength(3);
+  });
+});
+
+describe("observeBoundedRect", () => {
+  it("caps an unbounded scroller's height at the window height", () => {
+    const cb = vi.fn();
+    const instance = {
+      scrollElement: { offsetWidth: 900, offsetHeight: 1_480_000 },
+      targetWindow: { innerHeight: 800 },
+    } as unknown as Parameters<typeof observeBoundedRect>[0];
+    observeBoundedRect(instance, cb);
+    expect(cb).toHaveBeenCalledWith({ width: 900, height: 800 });
+  });
+
+  it("leaves a bounded scroller's height alone", () => {
+    const cb = vi.fn();
+    const instance = {
+      scrollElement: { offsetWidth: 900, offsetHeight: 500 },
+      targetWindow: { innerHeight: 800 },
+    } as unknown as Parameters<typeof observeBoundedRect>[0];
+    observeBoundedRect(instance, cb);
+    expect(cb).toHaveBeenCalledWith({ width: 900, height: 500 });
   });
 });
