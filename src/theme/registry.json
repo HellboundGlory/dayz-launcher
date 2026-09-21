@@ -2743,7 +2743,8 @@
       "freeLabel": false,
       "parts": [
         "label",
-        "progress"
+        "progress",
+        "dot"
       ],
       "states": [
         "ready",
@@ -2936,6 +2937,75 @@
       "since": "2.0",
       "aliases": []
     },
+    "mod.created": {
+      "kind": "display",
+      "subject": "mod",
+      "where": [
+        "mod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {
+        "format": {
+          "type": "enum",
+          "values": [
+            "date",
+            "relative"
+          ],
+          "default": "date"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "value"
+      ],
+      "states": [
+        "unknown",
+        "disabled"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
+    "mod.publishedSize": {
+      "kind": "display",
+      "subject": "mod",
+      "where": [
+        "mod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "value"
+      ],
+      "states": [
+        "unknown",
+        "disabled"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
+    "mod.subscribers": {
+      "kind": "display",
+      "subject": "mod",
+      "where": [
+        "mod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "value"
+      ],
+      "states": [
+        "unknown",
+        "disabled"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
     "mod.rating": {
       "kind": "display",
       "subject": "mod",
@@ -2973,6 +3043,26 @@
         "disabled"
       ],
       "since": "2.0",
+      "aliases": []
+    },
+    "mod.folder": {
+      "kind": "display",
+      "subject": "mod",
+      "where": [
+        "mod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [
+        "unknown",
+        "disabled"
+      ],
+      "since": "2.1",
       "aliases": []
     },
     "mod.description": {
@@ -3957,6 +4047,37 @@
       ],
       "states": [],
       "since": "2.0",
+      "aliases": []
+    },
+    "settings.done": {
+      "kind": "action",
+      "where": [
+        "settings"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "label"
+        },
+        "icon": {
+          "type": "icon",
+          "default": "check"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [],
+      "since": "2.1",
       "aliases": []
     },
     "settings.themeManagement": {
