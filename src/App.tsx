@@ -807,7 +807,8 @@ export function App() {
     updateBannerDismissed,
     dismissUpdateBanner: () => setUpdateBannerDismissed(true),
     openUpdateModal: () => setUpdateOpen(true),
-    selectedServer,
+    // A panel-mode Settings covers the detail panel, so hide it until Settings closes.
+    selectedServer: settingsOpen && settingsMode === "panel" ? null : selectedServer,
     onRefresh: handleRefresh,
     refreshing,
     discovering,

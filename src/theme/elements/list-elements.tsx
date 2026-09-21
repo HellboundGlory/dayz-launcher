@@ -35,7 +35,9 @@ export function ServerListHost({
         rowNode={listLayout?.row}
         overflowX={listLayout?.overflowX}
         selectedItem={selectedServer}
-        onSelect={(server) => setSelectedServer(server)}
+        onSelect={(server) =>
+          setSelectedServer(server && selectedServer && server.addr === selectedServer.addr ? null : server)
+        }
         sortState={{
           key: sortKey,
           direction: sortDir === "asc" ? "ascending" : "descending",
