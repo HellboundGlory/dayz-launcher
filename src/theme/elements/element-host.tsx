@@ -74,18 +74,8 @@ import {
 } from "./filter-elements";
 import { ServerListHost, ServerModsListHost } from "./list-elements";
 import { ServerDownloadSize, ServerReadiness } from "./readiness-elements";
-import {
-  ModActions,
-  ModAuthor,
-  ModName,
-  ModSize,
-  ModStatus,
-  ModSubscribed,
-  ModUpdated,
-  ServerModName,
-  ServerModSize,
-  ServerModState,
-} from "./mod-elements";
+import { ServerModName, ServerModSize, ServerModState } from "./mod-elements";
+import { renderModsElement } from "./mods-element-host";
 import {
   SettingsBack,
   SettingsDone,
@@ -124,6 +114,9 @@ export function ElementHost({
 }): ReactNode {
   const { contextName } = useElementContext();
   const mergedClass = [node.class, className].filter(Boolean).join(" ") || undefined;
+
+  const modsElement = renderModsElement(node, { className: mergedClass, style });
+  if (modsElement !== undefined) return modsElement;
 
   switch (node.element) {
     case "app.minimize":
@@ -278,21 +271,6 @@ export function ElementHost({
       return <ServerModName className={mergedClass} style={style} />;
     case "serverMod.size":
       return <ServerModSize className={mergedClass} style={style} />;
-
-    case "mod.name":
-      return <ModName className={mergedClass} style={style} />;
-    case "mod.status":
-      return <ModStatus className={mergedClass} style={style} />;
-    case "mod.size":
-      return <ModSize className={mergedClass} style={style} />;
-    case "mod.updated":
-      return <ModUpdated className={mergedClass} style={style} />;
-    case "mod.actions":
-      return <ModActions className={mergedClass} style={style} />;
-    case "mod.author":
-      return <ModAuthor className={mergedClass} style={style} />;
-    case "mod.subscribed":
-      return <ModSubscribed className={mergedClass} style={style} />;
 
     case "settings.back":
       return <SettingsBack options={node.options} className={mergedClass} style={style} />;

@@ -1,6 +1,7 @@
 import type { CSSProperties, PointerEvent } from "react";
 import type { ColumnDef, SortState } from "./types";
 import { isColumnResizable } from "./use-column-widths";
+import { ElementHost } from "../elements/element-host";
 
 export function ListHeader({
   columns,
@@ -58,7 +59,9 @@ export function ListHeader({
             className={`flex items-center gap-1 min-w-0 ${alignClass}`}
             style={colStyle}
           >
-            {isSortable ? (
+            {col.headerElement ? (
+              <ElementHost node={{ element: col.headerElement }} />
+            ) : isSortable ? (
               <button
                 type="button"
                 aria-sort={ariaSort}

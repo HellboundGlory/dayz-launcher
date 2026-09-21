@@ -1,12 +1,15 @@
-import { useRef, type CSSProperties } from "react";
+import { useMemo, useRef, type CSSProperties } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useServerStore } from "@/stores/server-store";
+import { useModsStore, type ModSortKey } from "@/stores/mods-store";
 import type { SortKey } from "@/types/filters";
 import { ListHost } from "../lists/list-host";
 import { ListRow } from "../lists/list-row";
 import { getActiveLayout } from "../theme-store";
-import { SERVERS_LIST } from "../neutral";
-import { serverModReadiness } from "@/lib/tauri";
+import { SERVERS_LIST, MODS_LIST } from "../neutral";
+import { serverModReadiness, type ModState, type SubscribedMod } from "@/lib/tauri";
 import { useSelectionReadiness } from "./use-selection-readiness";
+import { effectiveModState, filterAndSortMods } from "@/components/mods-tab";
 import type { Server, ModReadinessEntry, ServerModReadiness } from "@/types/server";
 import type { LayoutFile } from "../renderer/types";
 
@@ -168,5 +171,76 @@ export function ServerModsListHost({
 
   return (
     <ServerModsList state={state} mods={mods} listLayout={listLayout} className={className} style={style} />
+  );
+}
+
+const MOD_STATE_NAME: Record<ModState, string> = {
+  ready: "ready",
+  needs_update: "update",
+  downloading: "downloading",
+  not_installed: "missing",
+  not_subscribed: "notSubscribed",
+  not_on_workshop: "serverSide",
+};
+
+export function ModsListHost({
+  className,
+  style,
+}: {
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const { rows, search, statusFilter, sortKey, sortDir, states, selectedModId, selectedIds, openMod, setSort } =
+    useModsStore(
+      useShallow((s) => ({
+        rows: s.rows,
+        search: s.search,
+        statusFilter: s.statusFilter,
+        sortKey: s.sortKey,
+        sortDir: s.sortDir,
+        states: s.states,
+        selectedModId: s.selectedModId,
+        selectedIds: s.selectedIds,
+        openMod: s.openMod,
+        setSort: s.setSort,
+      })),
+    );
+
+  const mods = useMemo(
+    () => filterAndSortMods(rows, { search, statusFilter, sortKey, sortDir, states }),
+    [rows, states, search, statusFilter, sortKey, sortDir],
+  );
+
+  const selectedMod = mods.find((m) => m.workshop_id === selectedModId) ?? null;
+  const listLayout = (getActiveLayout("layout/lists/mods.json") ?? MODS_LIST) as LayoutFile;
+
+  return (
+    <div data-el="list.mods" className={className ?? "flex-1 min-h-0 w-full"} style={style}>
+      <ListHost<SubscribedMod>
+        listId="list.mods"
+        items={mods}
+        columns={listLayout?.columns}
+        rowNode={listLayout?.row}
+        overflowX={listLayout?.overflowX}
+        selectedItem={selectedMod}
+        onSelect={(mod) =>
+          openMod(mod && mod.workshop_id === selectedModId ? null : (mod?.workshop_id ?? null))
+        }
+        sortState={{
+          key: sortKey,
+          direction: sortDir === "asc" ? "ascending" : "descending",
+        }}
+        onSortChange={(key) => setSort(key as ModSortKey)}
+        computeRowStates={(mod, isSelected) =>
+          [
+            isSelected ? "selected" : "",
+            selectedIds.has(mod.workshop_id) ? "checked" : "",
+            mod.locally_disabled ? "disabled" : "",
+            MOD_STATE_NAME[effectiveModState(mod.state, states[mod.workshop_id])],
+          ].filter(Boolean)
+        }
+        estimatedRowHeight={listLayout?.estimatedRowHeight ?? 54}
+      />
+    </div>
   );
 }

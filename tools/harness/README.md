@@ -23,6 +23,7 @@ PNG as `<out>.log`; uncaught errors are also painted onto the page.
 | `servers=<n>` | Fixture server count (default 120) |
 | `view=favourites\|recent\|mods` | Click that nav tab |
 | `select=<index>` | Select that server |
+| `selectMod=<index>` | Open that mod (by visible-list index) once it's loaded |
 | `settings=1` | Open Settings |
 | `settingsTab=<id>` | Click the Settings tab matching that `data-tab` id or label text (with `settings=1`) |
 | `popup=map\|tags\|region` | Open that filter dropdown |
