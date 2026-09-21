@@ -307,12 +307,14 @@ describe("Neutral layouts", () => {
 
     it("renders mods view without throwing", () => {
       const mockMod = {
-        name: "Community Framework",
-        status: "Ready",
-        size: 5242880,
-        updated: "2026-09-18",
-        author: "CF Team",
-        subscribed: true,
+        workshop_id: "1",
+        title: "Community Framework",
+        state: "ready",
+        size_on_disk: "5242880",
+        time_updated: Math.floor(Date.now() / 1000) - 3600,
+        time_added_to_user_list: Math.floor(Date.now() / 1000) - 3600,
+        install_timestamp: 0,
+        locally_disabled: false,
       };
 
       const html = renderToStaticMarkup(

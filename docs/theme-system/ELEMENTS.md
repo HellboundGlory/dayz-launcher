@@ -408,17 +408,17 @@ These elements are placed in the row template of `list.serverMods`. Rows keep th
   - `mod.select` checks the mod for bulk actions; it doesn't select it for detail panels. Its accessible name is "Select {title}".
   - `mod.select`'s header-cell counterpart, `mods.selectAll`, may also render inside `list.mods`'s header via a column's `headerElement` (SPEC §7.2).
   - Clicking elsewhere on a row selects the mod (SPEC §8.3).
-- **`mod.status` wording:** "Ready", "Update", "Downloading", "Missing", "Not subscribed" or "Server-side". The `progress` part renders only while downloading with a known total, and the state follows a 1.5 s live poll. The `dot` part carries the same status as the label.
-- **`mod.thumbnail`:** shows the preview image. Without one, it shows "⏸" when the mod is locally disabled, otherwise "—".
+- **`mod.status` wording:** "Installed", "Update available", "Downloading", "Not downloaded", "Not subscribed" or "Server-side". While downloading with a known total, the `label` part instead reads "{downloaded} / {total}" (one decimal place) and the `progress` part renders as a bar with an inline width percentage; the state follows a 1.5 s live poll, but a live "ready" poll never downgrades an authoritative "Update available" row. The `dot` part carries the same status as the label.
+- **`mod.thumbnail`:** shows the preview image. Without one, it shows the placeholder (Package icon) and carries the `missing` state.
 - **`mod.disabledBadge`:** reads "Disabled" and renders only while the mod is locally disabled. `disabled` is also added to every mod element's states then.
 - **Formats:**
   - `mod.tags` falls back to the Workshop id when the mod has no tags;
   - `mod.size` shows the size on disk to one decimal place;
-  - `mod.rating` shows "{up}▲ / {down}▼".
+  - `mod.rating` shows "{up}▲ / {down}▼", or "—" when both are zero.
 - **`mod.created`:** reads "Created", the date the Workshop item was published.
 - **`mod.publishedSize`:** reads "Published size", the Workshop item's published download size.
-- **`mod.subscribers`:** reads "Subscribers", the Workshop subscriber count for this mod.
-- **`mod.folder`:** reads "Folder", the mod's install folder name; renders nothing without a folder on disk.
+- **`mod.subscribers`:** reads "Subscribers", the localised Workshop subscriber count for this mod.
+- **`mod.folder`:** reads "Folder", the mod's install folder name; shows "—" with the `unknown` state without a folder on disk.
 - **`mod.neededBy`:** reads "Needed by {n} servers" for the selected mod, counting the entries of `list.modServers`.
 - **Actions:**
   - `mod.update` reads "Update" and renders only while the mod needs an update;

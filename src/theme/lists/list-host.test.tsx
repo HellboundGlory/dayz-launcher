@@ -93,13 +93,14 @@ describe("ListRow", () => {
 
   it("renders mod elements in custom row template", () => {
     const mod = {
-      id: "123",
-      name: "Community-Online-Tools",
-      status: "Updated",
-      size: 10485760,
-      updated: "Yesterday",
-      author: "Arkensor",
-      subscribed: true,
+      workshop_id: "123",
+      title: "Community-Online-Tools",
+      state: "needs_update",
+      size_on_disk: "10485760",
+      time_updated: Math.floor(Date.now() / 1000) - 3600,
+      time_added_to_user_list: Math.floor(Date.now() / 1000) - 3600,
+      install_timestamp: 0,
+      locally_disabled: false,
     };
 
     const html = renderToStaticMarkup(
@@ -123,7 +124,7 @@ describe("ListRow", () => {
     expect(html).toContain("Community-Online-Tools");
     expect(html).toContain('data-el="mod.size"');
     expect(html).toContain('data-el="mod.status"');
-    expect(html).toContain("Updated");
+    expect(html).toContain("Update available");
     expect(html).toContain('data-el="mod.subscribed"');
   });
 });
