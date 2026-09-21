@@ -199,7 +199,7 @@ export function ServerActionNotice({ className, style }: { className?: string; s
     return (
       <div
         data-el="server.actionNotice"
-        data-state={content.state}
+        data-state={content.kind === "refusal" ? "error refused" : content.state}
         className={cn(
           "flex min-w-0 items-center gap-[var(--t-space-inlineGapWide)] [font-size:var(--t-type-label-size)]",
           className,
@@ -217,7 +217,7 @@ export function ServerActionNotice({ className, style }: { className?: string; s
   return (
     <div
       data-el="server.actionNotice"
-      data-state={content.state}
+      data-state={content.kind === "refusal" ? "error refused" : content.state}
       className={cn("border bg-surface2/60 p-3 my-2", borderClass, className)}
       style={style}
     >
