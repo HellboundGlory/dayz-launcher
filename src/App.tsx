@@ -808,6 +808,9 @@ export function App() {
     dismissUpdateBanner: () => setUpdateBannerDismissed(true),
     openUpdateModal: () => setUpdateOpen(true),
     selectedServer,
+    onRefresh: handleRefresh,
+    refreshing,
+    discovering,
   };
 
   return (
