@@ -3,7 +3,7 @@ import { observeElementRect, useVirtualizer, type Virtualizer } from "@tanstack/
 import { ListHeader } from "./list-header";
 import { ListRow } from "./list-row";
 import { handleListKeyDown } from "./keyboard";
-import { useColumnWidths } from "./use-column-widths";
+import { fitColumns, useColumnWidths } from "./use-column-widths";
 import type { ColumnDef, ListId, SortState } from "./types";
 import type { LayoutNode } from "../renderer/types";
 import { LayoutNodeRenderer } from "../renderer/node-renderer";
@@ -86,14 +86,27 @@ export function ListHost<T = unknown>({
 
   const activeThemeId = useThemeStore((s) => s.activeId);
   const {
-    columns: effectiveColumns,
+    columns: resizedColumns,
     startResize,
     resetColumn,
   } = useColumnWidths(activeThemeId, listId, columns ?? []);
+  const [availableWidth, setAvailableWidth] = useState(0);
+  const effectiveColumns = isScroll ? fitColumns(resizedColumns, availableWidth) : resizedColumns;
   const hasColumns = effectiveColumns.length > 0;
   const wrapperMinWidth = isScroll ? pxColumnWidthSum(effectiveColumns) : undefined;
 
   const [headerHeight, setHeaderHeight] = useState(0);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!isScroll || !el) return;
+    const measure = () => setAvailableWidth(el.clientWidth);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isScroll]);
 
   const isVirtualized =
     listId === "list.servers" ||
@@ -139,7 +152,7 @@ export function ListHost<T = unknown>({
       selectedIndex,
       onSelectIndex: (index) => {
         const target = items[index];
-        if (target) {
+        if (target && index !== selectedIndex) {
           onSelect?.(target);
           if (isVirtualized) {
             virtualizer.scrollToIndex(index, { align: "auto" });

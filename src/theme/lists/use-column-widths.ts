@@ -187,3 +187,23 @@ export function useColumnWidths(
     resetAll,
   };
 }
+
+/** Shrinks resizable px columns toward their floors, in proportion to how far
+ * each sits above its floor, until they fit `available`; past that the list scrolls. */
+export function fitColumns(columns: ColumnDef[], available: number): ColumnDef[] {
+  if (!(available > 0)) return columns;
+  const widths = columns.map((col) => parseLengthPx(col.width, 0));
+  const total = columns.reduce(
+    (sum, col, i) => (/^\d+(?:\.\d+)?px$/.test(col.width ?? "") ? sum + widths[i] : sum),
+    0,
+  );
+  const deficit = total - available;
+  if (deficit <= 0) return columns;
+  const slack = columns.map((col, i) => (isColumnResizable(col) ? Math.max(0, widths[i] - columnFloor(col)) : 0));
+  const totalSlack = slack.reduce((a, b) => a + b, 0);
+  if (totalSlack <= 0) return columns;
+  const ratio = Math.min(1, deficit / totalSlack);
+  return columns.map((col, i) =>
+    slack[i] > 0 ? { ...col, width: `${Math.round(widths[i] - slack[i] * ratio)}px` } : col,
+  );
+}
