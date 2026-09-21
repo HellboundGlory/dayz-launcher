@@ -5,6 +5,37 @@ import { LayoutNodeRenderer, RenderContext } from "../renderer/node-renderer";
 import { getPersistedTab, setPersistedTab } from "./store";
 import { ResizableHandle } from "./resizable";
 
+/** Which tab index a key press moves to, or `null` if the key is not one of
+ * the tab navigation keys for the given orientation. */
+export function nextTabIndex({
+  key,
+  currentIndex,
+  count,
+  vertical,
+}: {
+  key: string;
+  currentIndex: number;
+  count: number;
+  vertical: boolean;
+}): number | null {
+  if (count === 0) return null;
+  const forwardKey = vertical ? "ArrowDown" : "ArrowRight";
+  const backwardKey = vertical ? "ArrowUp" : "ArrowLeft";
+
+  switch (key) {
+    case forwardKey:
+      return (currentIndex + 1) % count;
+    case backwardKey:
+      return (currentIndex - 1 + count) % count;
+    case "Home":
+      return 0;
+    case "End":
+      return count - 1;
+    default:
+      return null;
+  }
+}
+
 export function Tabs({
   node,
   attrs,
@@ -26,39 +57,18 @@ export function Tabs({
     setPersistedTab(themeCtx.themeId, node.id, tabId);
   };
 
+  const vertical = node.orientation === "vertical";
+
   const handleKeyDown = (e: KeyboardEvent<HTMLButtonElement>, currentIndex: number) => {
-    const count = node.tabs.length;
-    if (count === 0) return;
-    let nextIndex = -1;
+    const nextIndex = nextTabIndex({ key: e.key, currentIndex, count: node.tabs.length, vertical });
+    if (nextIndex === null) return;
+    e.preventDefault();
 
-    switch (e.key) {
-      case "ArrowRight":
-      case "ArrowDown":
-        e.preventDefault();
-        nextIndex = (currentIndex + 1) % count;
-        break;
-      case "ArrowLeft":
-      case "ArrowUp":
-        e.preventDefault();
-        nextIndex = (currentIndex - 1 + count) % count;
-        break;
-      case "Home":
-        e.preventDefault();
-        nextIndex = 0;
-        break;
-      case "End":
-        e.preventDefault();
-        nextIndex = count - 1;
-        break;
-    }
-
-    if (nextIndex >= 0) {
-      const target = node.tabs[nextIndex];
-      selectTab(target.id);
-      if (typeof document !== "undefined") {
-        const el = document.getElementById(`${node.id}-tab-${target.id}`);
-        el?.focus();
-      }
+    const target = node.tabs[nextIndex];
+    selectTab(target.id);
+    if (typeof document !== "undefined") {
+      const el = document.getElementById(`${node.id}-tab-${target.id}`);
+      el?.focus();
     }
   };
 
@@ -70,9 +80,11 @@ export function Tabs({
       className={attrs.className}
       style={attrs.style}
       data-tabs={node.id}
+      data-region={attrs["data-region"]}
+      data-context={attrs["data-context"]}
       data-state={attrs["data-state"]}
     >
-      <div role="tablist" aria-orientation="horizontal">
+      <div role="tablist" data-part="tablist" aria-orientation={vertical ? "vertical" : "horizontal"}>
         {node.tabs.map((tab, idx) => {
           const isActive = tab.id === activeTabDef?.id;
           const tabBtnId = `${node.id}-tab-${tab.id}`;
@@ -83,7 +95,9 @@ export function Tabs({
               type="button"
               id={tabBtnId}
               role="tab"
+              data-part="tab"
               aria-selected={isActive}
+              data-state={isActive ? "selected" : undefined}
               aria-controls={panelId}
               tabIndex={isActive ? 0 : -1}
               data-tab={tab.id}
@@ -98,6 +112,7 @@ export function Tabs({
       {activeTabDef && (
         <div
           role="tabpanel"
+          data-part="panel"
           id={`${node.id}-panel-${activeTabDef.id}`}
           aria-labelledby={`${node.id}-tab-${activeTabDef.id}`}
           tabIndex={0}

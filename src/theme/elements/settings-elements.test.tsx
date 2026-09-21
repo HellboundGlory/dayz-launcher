@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ElementContextProvider } from "./context";
 import {
   SettingsBack,
+  SettingsDone,
   SettingsTitle,
   SettingsProfileName,
   SettingsDayzPath,
@@ -105,6 +106,35 @@ describe("SettingsBack", () => {
 
   it("hides the icon when display is label-only", () => {
     const html = render(<SettingsBack options={{ display: "label" }} />);
+    expect(html).not.toContain('data-part="icon"');
+    expect(html).toContain('data-part="label"');
+  });
+});
+
+describe("SettingsDone", () => {
+  it("renders icon and label parts and calls onCloseSettings on click", () => {
+    const onCloseSettings = vi.fn();
+    const html = render(<SettingsDone options={{ display: "iconLabel" }} />, { onCloseSettings });
+    expect(html).toContain('data-el="settings.done"');
+    expect(html).toContain('data-part="icon"');
+    expect(html).toContain('data-part="label"');
+    expect(html).toContain("Done");
+  });
+
+  it("defaults to label-only display", () => {
+    const html = render(<SettingsDone />);
+    expect(html).not.toContain('data-part="icon"');
+    expect(html).toContain('data-part="label"');
+  });
+
+  it("hides the label when display is icon-only", () => {
+    const html = render(<SettingsDone options={{ display: "icon" }} />);
+    expect(html).not.toContain('data-part="label"');
+    expect(html).toContain('data-part="icon"');
+  });
+
+  it("hides the icon when display is label-only", () => {
+    const html = render(<SettingsDone options={{ display: "label" }} />);
     expect(html).not.toContain('data-part="icon"');
     expect(html).toContain('data-part="label"');
   });

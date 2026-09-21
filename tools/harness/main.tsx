@@ -193,7 +193,17 @@ async function runScenario() {
     const list = useServerStore.getState().servers;
     useServerStore.getState().setSelectedServer(list[Number(select)] ?? null);
   }
-  if (params.get("settings") === "1") (await waitFor('[data-el="nav.settings"]'))?.click();
+  if (params.get("settings") === "1") {
+    (await waitFor('[data-el="nav.settings"]'))?.click();
+    const settingsTab = params.get("settingsTab");
+    if (settingsTab) {
+      await sleep(200);
+      const tab = [...document.querySelectorAll<HTMLElement>('[data-part="tab"]')].find(
+        (el) => el.dataset.tab === settingsTab || el.textContent?.trim() === settingsTab,
+      );
+      tab?.click();
+    }
+  }
   const popup = params.get("popup");
   if (popup) (await waitFor(`[data-el="filter.${popup}"] [data-part="trigger"]`))?.click();
   for (const selector of params.getAll("click")) {

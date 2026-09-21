@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type CSSProperties } from "react";
-import { ChevronLeft, Folder } from "lucide-react";
+import { Check, ChevronLeft, Folder } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSettingsStore } from "@/stores/settings-store";
 import { discoverSteamPaths, dataFolderPath, openDataFolder } from "@/lib/tauri";
@@ -41,6 +41,33 @@ export function SettingsBack({ options, className, style }: ElementProps) {
         </span>
       )}
       {showLabel && <span data-part="label">Back</span>}
+    </button>
+  );
+}
+
+export function SettingsDone({ options, className, style }: ElementProps) {
+  const { onCloseSettings } = useElementContext();
+  const display = (options?.display as string) ?? "label";
+  const showIcon = display === "iconLabel" || display === "icon";
+  const showLabel = display === "iconLabel" || display === "label";
+
+  return (
+    <button
+      type="button"
+      data-el="settings.done"
+      onClick={onCloseSettings}
+      className={
+        className ??
+        "s-done flex items-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-2.5 py-1.5 [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wide text-bg transition-[filter] hover:brightness-110"
+      }
+      style={style}
+    >
+      {showIcon && (
+        <span data-part="icon">
+          <Check className="h-3 w-3" />
+        </span>
+      )}
+      {showLabel && <span data-part="label">Done</span>}
     </button>
   );
 }

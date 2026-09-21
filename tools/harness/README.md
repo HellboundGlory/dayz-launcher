@@ -24,6 +24,7 @@ PNG as `<out>.log`; uncaught errors are also painted onto the page.
 | `view=favourites\|recent\|mods` | Click that nav tab |
 | `select=<index>` | Select that server |
 | `settings=1` | Open Settings |
+| `settingsTab=<id>` | Click the Settings tab matching that `data-tab` id or label text (with `settings=1`) |
 | `popup=map\|tags\|region` | Open that filter dropdown |
 | `click=<css selector>` | Click an element; repeatable, run in order |
 | `dayz=1` | Report DayZ as running |

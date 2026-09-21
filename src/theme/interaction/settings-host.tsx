@@ -1,8 +1,15 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { HostNode, SettingsLayoutFile } from "../renderer/types";
 import { type SettingsValues } from "../renderer/props";
 import { LayoutNodeRenderer, RenderContextProvider } from "../renderer/node-renderer";
+
+/** A mousedown closes the overlay only when it targets the overlay's own
+ * rendered root, not a click that started inside a descendant. */
+export function isBackdropRootMousedown(target: EventTarget | null, hostEl: Element | null): boolean {
+  if (!hostEl) return false;
+  return target === hostEl.firstElementChild;
+}
 
 export interface SettingsHostProps {
   file: SettingsLayoutFile;
@@ -42,6 +49,15 @@ export function SettingsHost({
     };
   }, [isOpen, mode, onClose]);
 
+  const hostRef = useRef<HTMLDivElement>(null);
+  const backdropClose = mode === "overlay" && presentation.backdropClose === true;
+
+  const onMouseDown = (e: MouseEvent<HTMLDivElement>) => {
+    if (backdropClose && onClose && isBackdropRootMousedown(e.target, hostRef.current)) {
+      onClose();
+    }
+  };
+
   if (!isOpen) return null;
 
   let style: CSSProperties;
@@ -72,10 +88,12 @@ export function SettingsHost({
 
   return (
     <div
+      ref={hostRef}
       data-settings-host=""
       data-presentation={mode}
       data-region={presentation.region}
       style={style}
+      onMouseDown={backdropClose ? onMouseDown : undefined}
     >
       <RenderContextProvider value={renderCtx}>
         <LayoutNodeRenderer node={file.root} />

@@ -88,6 +88,7 @@ import {
 } from "./mod-elements";
 import {
   SettingsBack,
+  SettingsDone,
   SettingsTitle,
   SettingsProfileName,
   SettingsDayzPath,
@@ -295,6 +296,8 @@ export function ElementHost({
 
     case "settings.back":
       return <SettingsBack options={node.options} className={mergedClass} style={style} />;
+    case "settings.done":
+      return <SettingsDone options={node.options} className={mergedClass} style={style} />;
     case "settings.title":
       return <SettingsTitle className={mergedClass} style={style} />;
     case "settings.profileName":
