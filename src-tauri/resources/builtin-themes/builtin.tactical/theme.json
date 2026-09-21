@@ -3,7 +3,7 @@
   "id": "builtin.tactical",
   "name": "Tactical",
   "author": "Tetra Launcher",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "themeApi": "2.0",
   "minimumLauncherVersion": "2.6.0",
   "description": "The classic Tetra browser: a column table with a server detail panel.",

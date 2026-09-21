@@ -2,6 +2,7 @@
   "schemaVersion": 2,
   "root": {
     "type": "stack",
+    "id": "r-shell",
     "direction": "column",
     "height": "100%",
     "children": [
