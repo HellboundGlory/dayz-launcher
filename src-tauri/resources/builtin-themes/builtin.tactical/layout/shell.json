@@ -18,12 +18,8 @@
             "direction": "row",
             "align": "center",
             "children": [
-              { "element": "app.logo" },
               {
-                "type": "text",
-                "value": "Launcher",
-                "role": "subheading",
-                "class": "t-brand-suffix"
+                "element": "app.logo"
               }
             ]
           },
@@ -35,34 +31,58 @@
             "children": [
               {
                 "element": "nav.servers",
-                "options": { "display": "iconLabel" }
+                "options": {
+                  "display": "iconLabel"
+                }
               },
               {
                 "element": "nav.favourites",
-                "options": { "display": "iconLabel" }
+                "options": {
+                  "display": "iconLabel"
+                }
               },
               {
                 "element": "nav.recent",
-                "options": { "display": "iconLabel" }
+                "options": {
+                  "display": "iconLabel"
+                }
               },
               {
                 "element": "nav.mods",
-                "options": { "display": "iconLabel" }
+                "options": {
+                  "display": "iconLabel"
+                }
               }
             ]
           },
-          { "element": "app.dragRegion", "grow": 1 },
-          { "element": "status.steam" },
+          {
+            "element": "app.dragRegion",
+            "grow": 1
+          },
+          {
+            "element": "status.steam"
+          },
           {
             "element": "nav.settings",
-            "options": { "display": "icon" }
+            "options": {
+              "display": "icon"
+            }
           },
-          { "surface": "surface.windowControls" }
-        ]
+          {
+            "surface": "surface.windowControls"
+          }
+        ],
+        "shrink": 0
       },
-      { "element": "notice.update" },
-      { "element": "notice.error" },
-      { "element": "notice.storage" },
+      {
+        "element": "notice.update"
+      },
+      {
+        "element": "notice.error"
+      },
+      {
+        "element": "notice.storage"
+      },
       {
         "type": "stack",
         "id": "r-main",
@@ -71,7 +91,10 @@
         "grow": 1,
         "minHeight": "0px",
         "children": [
-          { "type": "outlet", "name": "view" }
+          {
+            "type": "outlet",
+            "name": "view"
+          }
         ]
       },
       {
@@ -88,21 +111,33 @@
             "direction": "row",
             "align": "center",
             "children": [
-              { "element": "status.serverTotal" },
-              { "element": "status.populated" },
+              {
+                "element": "status.serverTotal"
+              },
+              {
+                "element": "status.populated"
+              },
               {
                 "element": "status.lastRefreshed",
-                "options": { "label": "refreshed" }
+                "options": {
+                  "label": "refreshed"
+                }
               }
             ]
           },
           {
             "element": "app.uiScale",
-            "options": { "label": "Scale" }
+            "options": {
+              "label": "Scale"
+            }
           }
-        ]
+        ],
+        "shrink": 0
       },
-      { "type": "outlet", "name": "modals" }
+      {
+        "type": "outlet",
+        "name": "modals"
+      }
     ]
   }
 }

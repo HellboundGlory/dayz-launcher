@@ -68,12 +68,6 @@
   white-space: nowrap;
 }
 
-.t-brand-suffix {
-  color: var(--text);
-  margin: 0;
-  white-space: nowrap;
-}
-
 [data-region="r-nav"] {
   height: 100%;
   align-items: center;
@@ -312,7 +306,7 @@
   gap: 8px;
   background-color: var(--bg);
   border-bottom: 1px solid var(--border);
-  overflow: hidden;
+  flex-shrink: 0;
   white-space: nowrap;
 }
 
@@ -369,6 +363,8 @@
   background-color: var(--surface2);
   box-shadow: 0 0 0 1px var(--border);
   border: none;
+  padding: 0;
+  font-size: 10px;
 }
 
 [data-el="filter.map"] [data-part="trigger"],
@@ -608,51 +604,6 @@
   background-color: transparent;
   color: #475569;
   cursor: not-allowed;
-}
-
-/* Status line */
-[data-region="r-status"] {
-  padding: 6px 12px;
-  gap: 8px;
-  background-color: var(--bg);
-  border-bottom: 1px solid var(--border);
-}
-
-[data-el="status.activity"] {
-  display: flex;
-  gap: 8px;
-}
-
-[data-el="status.activity"] [data-part="dot"] {
-  width: 6px;
-  height: 6px;
-  border-radius: 9999px;
-  background-color: var(--success);
-}
-
-[data-el="status.activity"][data-state~="discovering"] [data-part="dot"] {
-  background-color: var(--warn);
-  animation: t-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-[data-el="status.activity"][data-state~="refreshing"] [data-part="dot"] {
-  background-color: var(--accent);
-  animation: t-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-@keyframes t-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
-[data-el="status.activity"] [data-part="label"] {
-  font-size: 10px;
-  color: var(--muted);
 }
 
 /* Server list */
@@ -1009,6 +960,20 @@
   overflow: hidden;
   min-height: 0;
   flex-direction: column;
+  animation: t-detail-slide-in 180ms ease-out;
+}
+
+@keyframes t-detail-slide-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+[data-region="r-browser"] {
+  overflow: hidden;
 }
 
 [data-region="r-identity"] {
@@ -1532,7 +1497,7 @@
 .t-settings-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 16px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border);
 }
@@ -1551,14 +1516,95 @@
 }
 
 [data-region="r-settings-body"] [data-el^="settings."] {
-  border-radius: 2px;
-  border: 1px solid var(--border);
-  background-color: var(--surface2);
-  color: var(--text);
-  font-size: 12px;
-  padding: 8px 10px;
+  margin: 0;
+  font-family: var(--font-ui);
 }
 
-[data-region="r-settings-body"] [data-el^="settings."]:hover {
-  border-color: var(--accent);
+[data-region="r-settings-body"] [data-el^="settings."] [data-part="label"] {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text);
+}
+
+[data-region="r-settings-body"] [data-el^="settings."] > [data-part="label"] {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted2);
+}
+
+[data-region="r-settings-body"] [data-el^="settings."] [data-part="hint"],
+[data-region="r-settings-body"] [data-el^="settings."] [data-part="note"] {
+  margin-top: 2px;
+  font-size: 10px;
+  line-height: 1.625;
+  color: #7c8ba1;
+}
+
+[data-region="r-settings-body"] [data-part="control"] {
+  margin-top: 6px;
+}
+
+[data-region="r-settings-body"] [data-part="control"] > :first-child {
+  width: 100%;
+  border: none;
+  border-radius: 6px;
+  background-color: #0d131d;
+  box-shadow: 0 0 0 1px var(--border);
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+[data-region="r-settings-body"] [data-part="control"] > :first-child:hover {
+  box-shadow: 0 0 0 1px #2b3a4f;
+}
+
+[data-region="r-settings-body"] [data-part="control"] > :first-child:focus {
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+[data-region="r-settings-body"] [data-part="box"] {
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+
+[data-region="r-settings-body"] :is([data-el="settings.minimiseToTray"], [data-el="settings.closeToTray"], [data-el="settings.startMinimised"], [data-el="settings.discordPresence"]) {
+  gap: 10px;
+  margin: 0 -8px;
+  padding: 8px;
+}
+
+[data-region="r-settings-body"] :is([data-el="settings.minimiseToTray"], [data-el="settings.closeToTray"], [data-el="settings.discordPresence"]):hover {
+  background-color: rgba(22, 32, 46, 0.6);
+}
+
+[data-el="settings.detectPaths"],
+[data-el="settings.openDataFolder"] {
+  flex-shrink: 0;
+  gap: 6px;
+  border: none;
+  border-radius: 6px;
+  background-color: var(--surface2);
+  box-shadow: 0 0 0 1px var(--border);
+  padding: 8px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted2);
+}
+
+[data-el="settings.detectPaths"]:hover,
+[data-el="settings.openDataFolder"]:hover {
+  color: var(--text);
+}
+
+.t-settings-pair {
+  gap: 8px;
 }

@@ -15,42 +15,56 @@
         "children": [
           {
             "element": "filter.search",
-            "options": { "showIcon": true }
+            "options": {
+              "showIcon": true
+            }
           },
-          { "element": "filter.map" },
-          { "element": "filter.tags" },
-          { "element": "filter.region" },
-          { "element": "filter.maxPing" },
+          {
+            "element": "filter.map"
+          },
+          {
+            "element": "filter.tags"
+          },
+          {
+            "element": "filter.region"
+          },
+          {
+            "element": "filter.maxPing"
+          },
           {
             "type": "stack",
             "id": "r-hides",
             "direction": "row",
             "align": "center",
             "children": [
-              { "element": "filter.hideEmpty" },
-              { "element": "filter.hideOffline" },
-              { "element": "filter.hideFull" },
-              { "element": "filter.hideLocked" }
+              {
+                "element": "filter.hideEmpty"
+              },
+              {
+                "element": "filter.hideOffline"
+              },
+              {
+                "element": "filter.hideFull"
+              },
+              {
+                "element": "filter.hideLocked"
+              }
             ]
           },
           {
             "element": "filter.reset",
-            "options": { "display": "iconLabel" }
+            "options": {
+              "display": "iconLabel"
+            }
           },
           {
             "element": "servers.refresh",
-            "options": { "display": "iconLabel" }
+            "options": {
+              "display": "iconLabel"
+            }
           }
-        ]
-      },
-      {
-        "type": "stack",
-        "id": "r-status",
-        "direction": "row",
-        "align": "center",
-        "children": [
-          { "element": "status.activity" }
-        ]
+        ],
+        "shrink": 0
       },
       {
         "type": "stack",
@@ -81,13 +95,19 @@
                     "direction": "row",
                     "align": "start",
                     "children": [
-                      { "element": "server.name" },
-                      { "element": "server.favourite" }
+                      {
+                        "element": "server.name"
+                      },
+                      {
+                        "element": "server.favourite"
+                      }
                     ]
                   },
                   {
                     "element": "server.address",
-                    "options": { "showGamePort": true }
+                    "options": {
+                      "showGamePort": true
+                    }
                   },
                   {
                     "element": "server.tags",
@@ -104,13 +124,21 @@
                 "id": "r-stats",
                 "direction": "row",
                 "children": [
-                  { "element": "server.players" },
+                  {
+                    "element": "server.players"
+                  },
                   {
                     "element": "server.ping",
-                    "options": { "showUnit": true }
+                    "options": {
+                      "showUnit": true
+                    }
                   },
-                  { "element": "server.gameTime" },
-                  { "element": "server.modCount" }
+                  {
+                    "element": "server.gameTime"
+                  },
+                  {
+                    "element": "server.modCount"
+                  }
                 ]
               },
               {
@@ -130,7 +158,9 @@
                         "role": "label",
                         "class": "t-prop-label"
                       },
-                      { "element": "server.map" }
+                      {
+                        "element": "server.map"
+                      }
                     ]
                   },
                   {
@@ -145,7 +175,9 @@
                         "role": "label",
                         "class": "t-prop-label"
                       },
-                      { "element": "server.version" }
+                      {
+                        "element": "server.version"
+                      }
                     ]
                   },
                   {
@@ -160,7 +192,9 @@
                         "role": "label",
                         "class": "t-prop-label"
                       },
-                      { "element": "server.region" }
+                      {
+                        "element": "server.region"
+                      }
                     ]
                   }
                 ]
@@ -170,7 +204,9 @@
                 "id": "r-actions",
                 "direction": "column",
                 "children": [
-                  { "element": "server.actionNotice" },
+                  {
+                    "element": "server.actionNotice"
+                  },
                   {
                     "type": "stack",
                     "id": "r-join",
@@ -178,22 +214,32 @@
                     "children": [
                       {
                         "element": "server.join",
-                        "options": { "wording": "join" }
+                        "options": {
+                          "wording": "join"
+                        }
                       },
-                      { "element": "server.cancel" },
+                      {
+                        "element": "server.cancel"
+                      },
                       {
                         "element": "server.menu",
-                        "options": { "menu": "serverLoad", "icon": "chevronDown" }
+                        "options": {
+                          "menu": "serverLoad",
+                          "icon": "chevronDown"
+                        }
                       }
                     ]
                   },
-                  { "element": "server.manageMods" }
+                  {
+                    "element": "server.manageMods"
+                  }
                 ]
               }
             ]
           }
         ]
       }
-    ]
+    ],
+    "id": "r-browser"
   }
 }
