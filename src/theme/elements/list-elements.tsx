@@ -6,7 +6,7 @@ import type { SortKey } from "@/types/filters";
 import { ListHost } from "../lists/list-host";
 import { ListRow } from "../lists/list-row";
 import { getActiveLayout } from "../theme-store";
-import { SERVERS_LIST, MODS_LIST } from "../neutral";
+import { SERVERS_LIST, MODS_LIST, MOD_SERVERS_LIST } from "../neutral";
 import { serverModReadiness, type ModState, type SubscribedMod } from "@/lib/tauri";
 import { useSelectionReadiness } from "./use-selection-readiness";
 import { effectiveModState, filterAndSortMods } from "@/components/mods-tab";
@@ -171,6 +171,47 @@ export function ServerModsListHost({
 
   return (
     <ServerModsList state={state} mods={mods} listLayout={listLayout} className={className} style={style} />
+  );
+}
+
+export function ModServersListHost({
+  className,
+  style,
+}: {
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const needing = useModsStore((s) => s.needing);
+  const listLayout = (getActiveLayout("layout/lists/modServers.json") ?? MOD_SERVERS_LIST) as LayoutFile;
+
+  const items = needing.slice(0, 8);
+  const more = needing.length - items.length;
+
+  return (
+    <div
+      data-el="list.modServers"
+      data-list="modServers"
+      data-state={needing.length === 0 ? "empty" : undefined}
+      className={className ?? "flex flex-col gap-0.5"}
+      style={style}
+    >
+      <div data-part="rows">
+        {items.map((srv) => (
+          <ListRow
+            key={`${srv.addr}:${srv.query_port}`}
+            rowNode={listLayout?.row}
+            item={srv}
+            subjectKind="modServer"
+            states={[srv.last_played != null ? "played" : ""].filter(Boolean)}
+          />
+        ))}
+      </div>
+      {more > 0 && (
+        <span data-part="more" className="text-muted">
+          +{more} more
+        </span>
+      )}
+    </div>
   );
 }
 

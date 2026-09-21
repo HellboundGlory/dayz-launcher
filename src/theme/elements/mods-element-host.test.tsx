@@ -85,6 +85,25 @@ describe("renderModsElement", () => {
     }
   });
 
+  it("delegates the details-pane actions, neededBy and modServer/list.modServers ids", async () => {
+    const { renderModsElement } = await import("./mods-element-host");
+    const known = [
+      "mod.update",
+      "mod.openInSteam",
+      "mod.openFolder",
+      "mod.reinstall",
+      "mod.deselect",
+      "mod.neededBy",
+      "modServer.name",
+      "modServer.address",
+      "modServer.lastPlayed",
+      "list.modServers",
+    ];
+    for (const element of known) {
+      expect(renderModsElement({ element }, {})).not.toBeUndefined();
+    }
+  });
+
   it("returns undefined for anything it doesn't own", async () => {
     const { renderModsElement } = await import("./mods-element-host");
     expect(renderModsElement({ element: "server.name" }, {})).toBeUndefined();

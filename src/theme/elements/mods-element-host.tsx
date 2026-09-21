@@ -6,22 +6,31 @@ import type { ElementNode } from "../renderer/types";
 import {
   ModCreated,
   ModDescription,
+  ModDeselect,
   ModDisabledBadge,
   ModFolder,
   ModName,
+  ModNeededBy,
+  ModOpenFolder,
+  ModOpenInSteam,
   ModPublishedSize,
   ModRating,
+  ModReinstall,
   ModSelect,
+  ModServerAddress,
+  ModServerLastPlayed,
+  ModServerName,
   ModSize,
   ModStatus,
   ModSubscribed,
   ModSubscribers,
   ModTags,
   ModThumbnail,
+  ModUpdate,
   ModUpdated,
   ModWorkshopId,
 } from "./mod-elements";
-import { ModsListHost } from "./list-elements";
+import { ModsListHost, ModServersListHost } from "./list-elements";
 import {
   ModsCleanupRemoved,
   ModsClearSelection,
@@ -104,8 +113,28 @@ export function renderModsElement(
       return <ModFolder className={className} style={style} />;
     case "mod.description":
       return <ModDescription options={node.options} className={className} style={style} />;
+    case "mod.update":
+      return <ModUpdate options={node.options} className={className} style={style} />;
+    case "mod.openInSteam":
+      return <ModOpenInSteam options={node.options} className={className} style={style} />;
+    case "mod.openFolder":
+      return <ModOpenFolder options={node.options} className={className} style={style} />;
+    case "mod.reinstall":
+      return <ModReinstall options={node.options} className={className} style={style} />;
+    case "mod.deselect":
+      return <ModDeselect options={node.options} className={className} style={style} />;
+    case "mod.neededBy":
+      return <ModNeededBy options={node.options} className={className} style={style} />;
+    case "modServer.name":
+      return <ModServerName className={className} style={style} />;
+    case "modServer.address":
+      return <ModServerAddress className={className} style={style} />;
+    case "modServer.lastPlayed":
+      return <ModServerLastPlayed options={node.options} className={className} style={style} />;
     case "list.mods":
       return <ModsListHost className={className} style={style} />;
+    case "list.modServers":
+      return <ModServersListHost className={className} style={style} />;
     case "mods.selectAll":
       return <ModsSelectAll className={className} style={style} />;
     case "mods.search":
