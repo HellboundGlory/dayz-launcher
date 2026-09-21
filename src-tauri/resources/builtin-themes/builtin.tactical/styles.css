@@ -1627,6 +1627,15 @@
   color: var(--text);
 }
 
+[data-region="r-settings-body"] :is([data-el="settings.detectPaths"], [data-el="settings.openDataFolder"]) > [data-part="label"] {
+  display: inline;
+  margin: 0 -0.05em 0 0;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  color: inherit;
+}
+
 .t-settings-pair {
   gap: 8px;
 }
