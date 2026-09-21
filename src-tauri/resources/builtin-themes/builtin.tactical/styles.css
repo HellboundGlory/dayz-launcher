@@ -20,6 +20,10 @@
 }
 
 /* Shell */
+[data-region="r-shell"] {
+  position: relative;
+}
+
 [data-region="r-main"] {
   min-height: 0;
   overflow: hidden;
@@ -1456,102 +1460,159 @@
   color: var(--muted2);
 }
 
-/* Settings Panel */
-[data-region="r-settings"] {
-  width: 420px;
-  flex-shrink: 0;
-  border-left: 1px solid var(--border);
-  padding: 16px;
-  background-color: var(--surface);
-  border-radius: 0;
-  overflow: hidden;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  animation: t-settings-slide-in 180ms ease-out;
+/* Settings dialog */
+[data-region="r-settings-scrim"] {
+  background-color: rgba(0, 0, 0, 0.7);
+  padding: 24px;
 }
 
-@keyframes t-settings-slide-in {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
+[data-region="r-settings"] {
+  width: 640px;
+  max-height: 82vh;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
 }
 
 [data-region="r-settings-header"] {
-  gap: 8px;
-  padding-bottom: 12px;
+  padding: 14px 20px;
   border-bottom: 1px solid var(--border);
+}
+
+[data-el="settings.title"] {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
 }
 
 [data-el="settings.back"] {
-  border-radius: 2px;
-  border: 1px solid var(--border);
-  background-color: var(--surface2);
-  color: #cbd5e1;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 6px 10px;
+  padding: 4px;
+  border-radius: 6px;
+  border: none;
+  background: none;
+  color: var(--muted);
 }
 
 [data-el="settings.back"]:hover {
-  border-color: var(--accent);
-  color: #f8fafc;
+  background-color: var(--surface2);
+  color: var(--text);
 }
 
-.t-settings-title {
-  color: #f8fafc;
-  font-size: 13px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+[data-el="settings.back"] [data-part="icon"] > :first-child {
+  width: 16px;
+  height: 16px;
 }
 
 [data-region="r-settings-body"] {
+  min-height: 480px;
+}
+
+[data-region="r-settings-tabs"] {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+[data-region="r-settings-tabs"] [data-part="tablist"] {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 176px;
+  gap: 2px;
+  padding: 10px;
+  background-color: var(--bg);
+  border-right: 1px solid var(--border);
+}
+
+[data-region="r-settings-tabs"] [data-part="tab"] {
+  width: 100%;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--muted2);
+}
+
+[data-region="r-settings-tabs"] [data-part="tab"]:hover {
+  background-color: rgba(22, 32, 46, 0.5);
+  color: var(--text);
+}
+
+[data-region="r-settings-tabs"] [data-part="tab"][data-state~="selected"] {
+  background-color: var(--surface2);
+  color: var(--text);
+}
+
+.t-settings-tab {
+  gap: 10px;
+}
+
+.t-settings-tab-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+}
+
+[data-region="r-settings-tabs"] [data-part="tab"][data-state~="selected"] .t-settings-tab-icon {
+  color: var(--accent);
+}
+
+.t-settings-tab-label {
+  --t-type-body-size: 12px;
+}
+
+[data-region="r-settings-tabs"] [data-part="tab"][data-state~="selected"] .t-settings-tab-label {
+  --t-type-body-weight: 500;
+}
+
+[data-region="r-settings-tabs"] [data-part="panel"] {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.t-settings-pane {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  padding: 2px 14px 2px 10px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
+  padding: 16px 20px;
 }
 
-.t-settings-section {
+.t-settings-group {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
 }
 
-.t-settings-section:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
+.t-settings-group:first-child {
+  padding-top: 0;
+  border-top: none;
 }
 
-.t-settings-heading {
-  color: #64748b;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+[data-el="settings.groupTitle"] [data-part="text"] {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.t-settings-pair {
+  gap: 8px;
 }
 
 [data-region="r-settings-body"] [data-el^="settings."] {
   margin: 0;
   font-family: var(--font-ui);
-}
-
-[data-region="r-settings-body"] [data-el^="settings."] [data-part="label"] {
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--text);
 }
 
 [data-region="r-settings-body"] [data-el^="settings."] > [data-part="label"] {
@@ -1566,13 +1627,33 @@
 
 [data-region="r-settings-body"] [data-el^="settings."] [data-part="hint"],
 [data-region="r-settings-body"] [data-el^="settings."] [data-part="note"] {
-  margin-top: 2px;
   font-size: 10px;
   line-height: 1.625;
   color: #7c8ba1;
 }
 
+/* Field renders label -> hint -> control; flex order puts the hint back
+   below the control to match the pre-overhaul layout. */
+[data-region="r-settings-body"] :is(
+  [data-el="settings.profileName"],
+  [data-el="settings.dayzPath"],
+  [data-el="settings.workshopPath"],
+  [data-el="settings.launchParams"],
+  [data-el="settings.onJoin"],
+  [data-el="settings.dataFolder"],
+  [data-el="settings.autoRefresh"]
+) {
+  display: flex;
+  flex-direction: column;
+}
+
 [data-region="r-settings-body"] [data-part="control"] {
+  order: 1;
+  margin-top: 6px;
+}
+
+[data-region="r-settings-body"] [data-el^="settings."] [data-part="hint"] {
+  order: 2;
   margin-top: 6px;
 }
 
@@ -1597,6 +1678,10 @@
   box-shadow: 0 0 0 1px var(--accent);
 }
 
+[data-el="settings.launchParams"] [data-part="control"] > :first-child {
+  font-family: var(--font-data);
+}
+
 [data-region="r-settings-body"] [data-part="box"] {
   width: 14px;
   height: 14px;
@@ -1608,10 +1693,15 @@
   gap: 10px;
   margin: 0 -8px;
   padding: 8px;
+  border-radius: 6px;
 }
 
 [data-region="r-settings-body"] :is([data-el="settings.minimiseToTray"], [data-el="settings.closeToTray"], [data-el="settings.discordPresence"]):hover {
   background-color: rgba(22, 32, 46, 0.6);
+}
+
+[data-el="settings.startMinimised"][data-state~="disabled"] {
+  opacity: 0.4;
 }
 
 [data-el="settings.detectPaths"],
@@ -1646,6 +1736,23 @@
   color: inherit;
 }
 
-.t-settings-pair {
-  gap: 8px;
+[data-region="r-settings-footer"] {
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+}
+
+[data-el="settings.done"] {
+  border-radius: 6px;
+  background-color: var(--accent);
+  padding: 6px 20px;
+  border: none;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #0b0f17;
+}
+
+[data-el="settings.done"]:hover {
+  background-color: var(--accent2);
 }
