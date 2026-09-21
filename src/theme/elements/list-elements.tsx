@@ -174,7 +174,7 @@ export function ServerModsListHost({
   );
 }
 
-const MOD_STATE_NAME: Record<ModState, string> = {
+export const MOD_STATE_NAME: Record<ModState, string> = {
   ready: "ready",
   needs_update: "update",
   downloading: "downloading",

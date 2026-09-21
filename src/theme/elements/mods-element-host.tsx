@@ -3,7 +3,24 @@ import { CheckSquare } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useModsStore, visibleRows } from "@/stores/mods-store";
 import type { ElementNode } from "../renderer/types";
-import { ModActions, ModAuthor, ModName, ModSize, ModStatus, ModSubscribed, ModUpdated } from "./mod-elements";
+import {
+  ModCreated,
+  ModDescription,
+  ModDisabledBadge,
+  ModFolder,
+  ModName,
+  ModPublishedSize,
+  ModRating,
+  ModSelect,
+  ModSize,
+  ModStatus,
+  ModSubscribed,
+  ModSubscribers,
+  ModTags,
+  ModThumbnail,
+  ModUpdated,
+  ModWorkshopId,
+} from "./mod-elements";
 import { ModsListHost } from "./list-elements";
 
 /** Checked while every visible mod is checked; a click checks or clears them all. */
@@ -47,20 +64,38 @@ export function renderModsElement(
   { className, style }: { className?: string; style?: CSSProperties },
 ): ReactNode | undefined {
   switch (node.element) {
-    case "mod.name":
-      return <ModName className={className} style={style} />;
+    case "mod.select":
+      return <ModSelect className={className} style={style} />;
     case "mod.status":
       return <ModStatus className={className} style={style} />;
+    case "mod.thumbnail":
+      return <ModThumbnail className={className} style={style} />;
+    case "mod.name":
+      return <ModName className={className} style={style} />;
+    case "mod.disabledBadge":
+      return <ModDisabledBadge options={node.options} className={className} style={style} />;
+    case "mod.tags":
+      return <ModTags options={node.options} className={className} style={style} />;
     case "mod.size":
       return <ModSize className={className} style={style} />;
+    case "mod.publishedSize":
+      return <ModPublishedSize className={className} style={style} />;
     case "mod.updated":
-      return <ModUpdated className={className} style={style} />;
-    case "mod.actions":
-      return <ModActions className={className} style={style} />;
-    case "mod.author":
-      return <ModAuthor className={className} style={style} />;
+      return <ModUpdated options={node.options} className={className} style={style} />;
     case "mod.subscribed":
-      return <ModSubscribed className={className} style={style} />;
+      return <ModSubscribed options={node.options} className={className} style={style} />;
+    case "mod.created":
+      return <ModCreated options={node.options} className={className} style={style} />;
+    case "mod.subscribers":
+      return <ModSubscribers className={className} style={style} />;
+    case "mod.rating":
+      return <ModRating className={className} style={style} />;
+    case "mod.workshopId":
+      return <ModWorkshopId className={className} style={style} />;
+    case "mod.folder":
+      return <ModFolder className={className} style={style} />;
+    case "mod.description":
+      return <ModDescription options={node.options} className={className} style={style} />;
     case "list.mods":
       return <ModsListHost className={className} style={style} />;
     case "mods.selectAll":
