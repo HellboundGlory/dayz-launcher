@@ -383,6 +383,8 @@ Validation checks every settings combination, so a required element can't be hid
 - The theme composes each label and each pane.
 - Required elements must sit in the first tab, which is the default pane (ADR-0011).
 - Tab ids match `[a-z0-9-]+` and are unique within their container.
+- A tabs node may declare `"orientation": "horizontal" | "vertical"` (default `horizontal`). Vertical tabs move with Up and Down (and Home and End) instead of Left and Right.
+- The tabs root publishes `data-region` with its id. The tab list is the `tablist` part; each tab button is a `tab` part carrying `data-state="selected"` when active; the active pane is the `panel` part.
 
 ### 5.12 Accordion
 
@@ -583,6 +585,7 @@ A list file may also declare `"overflowX": "clip" | "scroll"` (default `clip`) a
 | `align` | `start`, `center` or `end` |
 | `sort` | A sort key from that list's set. An unknown key is an import error |
 | `resizable` | Boolean, default `true`. Only a column with a px `width` resizes; `fr` and `auto` columns never do |
+| `headerElement` | A registry element id to render in the header cell instead of the label. Allowed only for elements whose `where` includes the list's view (initially `mods.selectAll`). Counts as a placement for that element's multiplicity |
 
 Columns are drag-resizable in every list that declares them. The drag floor is the column's `minWidth` (default 48px). Widths persist per theme and list; double-clicking a heading's resize handle resets that column to its declared width.
 
@@ -677,6 +680,8 @@ One file holding `list.mods`, the `mods.*` controls, and any `modSelection` pane
 | `panel` | Settings renders inside the named region, alongside the current view |
 
 `region` is required for `overlay` and `panel`, and must name a region in the shell. Neutral keeps today's overlay over the main column. Whatever the mode, every Settings control must be present, and the window controls and drag region must stay uncovered.
+
+An `overlay` presentation may also declare `"backdropClose": true`. When set, a mouse-down whose target is the overlay's root node itself, not a descendant, closes Settings.
 
 ### 9.5 Modals
 

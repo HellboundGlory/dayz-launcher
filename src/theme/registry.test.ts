@@ -65,7 +65,7 @@ function documentedElements(doc: string): Record<string, ElementDef> {
     expect(required.length > 0 || requirement === "—", `Unparsed requirement: ${requirement}`).toBe(true);
     const options = optionsFromTable(rawOptions, result);
     const parts = rawParts === "—" ? [] : rawParts.split(", ");
-    const fixedLabel = ["status.activity", "server.manageMods", "server.refresh"].includes(id);
+    const fixedLabel = ["status.activity", "server.manageMods", "server.refresh", "settings.done"].includes(id);
     const freeLabel = !fixedLabel && required.length === 0 && (parts.includes("label") || "label" in options);
     if (freeLabel) options.label ??= { type: "text" };
     if (required.length) delete options.label;
@@ -74,6 +74,7 @@ function documentedElements(doc: string): Record<string, ElementDef> {
     if (id === "server.join") options.icon = { type: "icon", default: "play" };
     if (id === "server.manageMods") options.icon = { type: "icon", default: "externalLink" };
     if (id === "server.refresh") options.icon = { type: "icon", default: "refresh" };
+    if (id === "settings.done") options.icon = { type: "icon", default: "check" };
     const states = code(rawStates);
     const prefix = id.split(".")[0];
     const subject = subjects.includes(prefix) ? prefix : id === "list.serverMods" ? "server" : id === "list.modServers" ? "mod" : undefined;
@@ -84,7 +85,7 @@ function documentedElements(doc: string): Record<string, ElementDef> {
       where, required, multiplicity: ({ n: "many", "1": "perComposition", "1/ctx": "perContext", "1 per target region": "perComposition" } as const)[count as "n" | "1" | "1/ctx" | "1 per target region"],
       options, freeLabel, parts, states, since: "2.0", aliases: [],
     };
-    if (["status.activity", "server.manageMods", "server.refresh"].includes(id)) result[id].since = "2.1";
+    if (["status.activity", "server.manageMods", "server.refresh", "settings.done", "mod.created", "mod.publishedSize", "mod.subscribers", "mod.folder"].includes(id)) result[id].since = "2.1";
     if (placement.includes("not the server info modal")) result[id].excludedWhere = ["modal:serverInfo"];
     if (placement.includes("not a popup")) result[id].excludedWhere = ["popup"];
     if (count === "1 per target region") result[id].multiplicityScope = "region";
@@ -114,7 +115,7 @@ function assertParity(registry: Registry, doc = elementsDoc) {
 
 describe("shared v2 registry", () => {
   it("matches every element definition and surface in ELEMENTS.md, in both directions", () => {
-    expect(elementRows).toHaveLength(178);
+    expect(elementRows).toHaveLength(183);
     assertParity(REGISTRY);
   });
 

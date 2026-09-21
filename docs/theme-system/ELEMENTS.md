@@ -2,7 +2,7 @@
 
 This file lists every piece of core content a v2 theme can place, and the rules the validator enforces for each. It is the readable form of `src/theme/registry.json` (ADR-0007). The two must agree, and a test fails the build if they don't. Terms follow `CONTEXT.md`; the rules behind each column are specified in `SPEC.md`.
 
-Every entry below is introduced in theme API 2.0 (`since: "2.0"`) and has no aliases yet, except `status.activity`, `server.manageMods` and `server.refresh`, introduced in 2.1.
+Every entry below is introduced in theme API 2.0 (`since: "2.0"`) and has no aliases yet, except `status.activity`, `server.manageMods`, `server.refresh`, `settings.done`, `mod.created`, `mod.publishedSize`, `mod.subscribers` and `mod.folder`, introduced in 2.1.
 
 ## How to read the tables
 
@@ -381,7 +381,7 @@ These elements are placed in the row template of `list.serverMods`. Rows keep th
 | Id | Kind | Where | Req | × | Options | Parts | States |
 |---|---|---|---|---|---|---|---|
 | `mod.select` | input | mod | row of `list.mods` | 1/ctx | — | box | `checked` |
-| `mod.status` | display | mod | row of `list.mods` | n | — | label, progress | `ready`, `update`, `downloading`, `missing`, `notSubscribed`, `serverSide` |
+| `mod.status` | display | mod | row of `list.mods` | n | — | label, progress, dot | `ready`, `update`, `downloading`, `missing`, `notSubscribed`, `serverSide` |
 | `mod.thumbnail` | display | mod | — | n | — | image, placeholder | `missing`, `disabled` |
 | `mod.name` | display | mod | — | n | — | text | — |
 | `mod.disabledBadge` | display | mod | — | n | — | label | — |
@@ -389,8 +389,12 @@ These elements are placed in the row template of `list.serverMods`. Rows keep th
 | `mod.size` | display | mod | — | n | — | value | `unknown` |
 | `mod.updated` | display | mod | — | n | `format: relative / date (relative)` | value | `unknown` |
 | `mod.subscribed` | display | mod | — | n | `format: relative / date (relative)` | value | `unknown` |
+| `mod.created` | display | mod | — | n | `format: date / relative (date)` | value | `unknown`, `disabled` |
+| `mod.publishedSize` | display | mod | — | n | — | value | `unknown`, `disabled` |
+| `mod.subscribers` | display | mod | — | n | — | value | `unknown`, `disabled` |
 | `mod.rating` | display | mod | — | n | — | up, down | — |
 | `mod.workshopId` | display | mod | — | n | — | text | — |
+| `mod.folder` | display | mod | — | n | — | text | `unknown`, `disabled` |
 | `mod.description` | display | mod | — | n | `clamp: none / 3 / 6 (6)` | text | `empty` |
 | `mod.neededBy` | display | mod-panel | — | n | — | value, label | — |
 | `mod.update` | action | mod | — | 1/ctx | `display: iconLabel / label / icon (label)`, `icon`, `label` | icon, label | `busy` |
@@ -401,14 +405,19 @@ These elements are placed in the row template of `list.serverMods`. Rows keep th
 
 - **Selection:**
   - `mod.select` checks the mod for bulk actions; it doesn't select it for detail panels. Its accessible name is "Select {title}".
+  - `mod.select`'s header-cell counterpart, `mods.selectAll`, may also render inside `list.mods`'s header via a column's `headerElement` (SPEC §7.2).
   - Clicking elsewhere on a row selects the mod (SPEC §8.3).
-- **`mod.status` wording:** "Ready", "Update", "Downloading", "Missing", "Not subscribed" or "Server-side". The `progress` part renders only while downloading with a known total, and the state follows a 1.5 s live poll.
+- **`mod.status` wording:** "Ready", "Update", "Downloading", "Missing", "Not subscribed" or "Server-side". The `progress` part renders only while downloading with a known total, and the state follows a 1.5 s live poll. The `dot` part carries the same status as the label.
 - **`mod.thumbnail`:** shows the preview image. Without one, it shows "⏸" when the mod is locally disabled, otherwise "—".
 - **`mod.disabledBadge`:** reads "Disabled" and renders only while the mod is locally disabled. `disabled` is also added to every mod element's states then.
 - **Formats:**
   - `mod.tags` falls back to the Workshop id when the mod has no tags;
   - `mod.size` shows the size on disk to one decimal place;
   - `mod.rating` shows "{up}▲ / {down}▼".
+- **`mod.created`:** reads "Created", the date the Workshop item was published.
+- **`mod.publishedSize`:** reads "Published size", the Workshop item's published download size.
+- **`mod.subscribers`:** reads "Subscribers", the Workshop subscriber count for this mod.
+- **`mod.folder`:** reads "Folder", the mod's install folder name; renders nothing without a folder on disk.
 - **`mod.neededBy`:** reads "Needed by {n} servers" for the selected mod, counting the entries of `list.modServers`.
 - **Actions:**
   - `mod.update` reads "Update" and renders only while the mod needs an update;
@@ -516,6 +525,7 @@ These elements are placed in the row template of `list.modServers`. Entries are 
 | Id | Kind | Where | Req | × | Options | Parts | States |
 |---|---|---|---|---|---|---|---|
 | `settings.back` | action | settings | settings | 1 | `display: iconLabel / label / icon (label)`, `icon` | icon, label | — |
+| `settings.done` | action | settings | — | 1 | `display: iconLabel / label / icon (label)`, `icon` | icon, label | — |
 | `settings.themeManagement` | block | settings | settings | 1 | — | — | — |
 | `settings.profileName` | input | settings | settings | 1 | `showHint: true / false (true)` | label, hint, control | — |
 | `settings.dayzPath` | input | settings | settings | 1 | `showHint: true / false (true)` | label, hint, control | — |
@@ -541,6 +551,7 @@ These elements are placed in the row template of `list.modServers`. Entries are 
   - They may sit in closed sections (ADR-0011).
   - Labels, hints, placeholders and choices are the launcher's current wording.
 - **`settings.back`:** reads "Back" and closes Settings. When Settings is presented as a view, it returns to the previous view. Its accessible name is "Back to the launcher".
+- **`settings.done`:** reads "Done" and closes Settings. It is optional, since `settings.back` and an overlay's `backdropClose` (SPEC §9.4) also close it.
 - **`settings.themeManagement`:** the launcher-owned theme management block (ADR-0024):
   - installed themes, Import, New theme and pagination;
   - the active theme strip, the token customiser (SPEC §4.6) and theme settings;
