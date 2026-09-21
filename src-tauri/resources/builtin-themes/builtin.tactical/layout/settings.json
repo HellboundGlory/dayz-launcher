@@ -18,8 +18,18 @@
         "direction": "row",
         "align": "center",
         "children": [
-          { "element": "settings.back", "options": { "display": "iconLabel" } },
-          { "type": "text", "role": "heading", "value": "SETTINGS", "class": "t-settings-title" }
+          {
+            "element": "settings.back",
+            "options": {
+              "display": "iconLabel"
+            }
+          },
+          {
+            "type": "text",
+            "role": "heading",
+            "value": "SETTINGS",
+            "class": "t-settings-title"
+          }
         ]
       },
       {
@@ -33,13 +43,39 @@
             "direction": "column",
             "class": "t-settings-section",
             "children": [
-              { "type": "text", "role": "label", "value": "GAME", "class": "t-settings-heading" },
-              { "element": "settings.profileName" },
-              { "element": "settings.dayzPath" },
-              { "element": "settings.detectPaths" },
-              { "element": "settings.workshopPath" },
-              { "element": "settings.launchParams" },
-              { "element": "settings.onJoin" }
+              {
+                "type": "text",
+                "role": "label",
+                "value": "GAME",
+                "class": "t-settings-heading"
+              },
+              {
+                "element": "settings.profileName"
+              },
+              {
+                "type": "stack",
+                "direction": "row",
+                "align": "end",
+                "class": "t-settings-pair",
+                "children": [
+                  {
+                    "element": "settings.dayzPath",
+                    "grow": 1
+                  },
+                  {
+                    "element": "settings.detectPaths"
+                  }
+                ]
+              },
+              {
+                "element": "settings.workshopPath"
+              },
+              {
+                "element": "settings.launchParams"
+              },
+              {
+                "element": "settings.onJoin"
+              }
             ]
           },
           {
@@ -47,15 +83,45 @@
             "direction": "column",
             "class": "t-settings-section",
             "children": [
-              { "type": "text", "role": "label", "value": "LAUNCHER", "class": "t-settings-heading" },
-              { "element": "settings.minimiseToTray" },
-              { "element": "settings.closeToTray" },
-              { "element": "settings.startWithWindows" },
-              { "element": "settings.startMinimised" },
-              { "element": "settings.discordPresence" },
-              { "element": "settings.dataFolder" },
-              { "element": "settings.openDataFolder" },
-              { "element": "settings.autoRefresh" }
+              {
+                "type": "text",
+                "role": "label",
+                "value": "LAUNCHER",
+                "class": "t-settings-heading"
+              },
+              {
+                "element": "settings.minimiseToTray"
+              },
+              {
+                "element": "settings.closeToTray"
+              },
+              {
+                "element": "settings.startWithWindows"
+              },
+              {
+                "element": "settings.startMinimised"
+              },
+              {
+                "element": "settings.discordPresence"
+              },
+              {
+                "type": "stack",
+                "direction": "row",
+                "align": "end",
+                "class": "t-settings-pair",
+                "children": [
+                  {
+                    "element": "settings.dataFolder",
+                    "grow": 1
+                  },
+                  {
+                    "element": "settings.openDataFolder"
+                  }
+                ]
+              },
+              {
+                "element": "settings.autoRefresh"
+              }
             ]
           },
           {
@@ -63,8 +129,15 @@
             "direction": "column",
             "class": "t-settings-section",
             "children": [
-              { "type": "text", "role": "label", "value": "THEME", "class": "t-settings-heading" },
-              { "element": "settings.themeManagement" }
+              {
+                "type": "text",
+                "role": "label",
+                "value": "THEME",
+                "class": "t-settings-heading"
+              },
+              {
+                "element": "settings.themeManagement"
+              }
             ]
           }
         ]
