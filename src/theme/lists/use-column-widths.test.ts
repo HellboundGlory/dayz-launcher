@@ -3,6 +3,7 @@ import {
   clearColumnWidthMemory,
   columnFloor,
   columnWidthsKey,
+  fitColumns,
   getStoredWidths,
   isColumnResizable,
   mergeColumnWidths,
@@ -120,5 +121,33 @@ describe("stored widths round-trip (in-memory fallback)", () => {
     delete overrides.name;
     const merged = mergeColumnWidths(columns, overrides);
     expect(merged.find((c) => c.id === "name")?.width).toBe("420px");
+  });
+});
+
+describe("fitColumns", () => {
+  const cols: ColumnDef[] = [
+    { id: "star", width: "32px", resizable: false },
+    { id: "name", width: "420px", minWidth: "120px" },
+    { id: "ping", width: "68px", minWidth: "52px" },
+    { id: "rest", width: "1fr" },
+  ];
+
+  it("leaves columns alone when they already fit", () => {
+    expect(fitColumns(cols, 600)).toBe(cols);
+  });
+
+  it("shrinks resizable columns in proportion to their slack", () => {
+    const fitted = fitColumns(cols, 420);
+    // deficit 100 over slack 300 + 16
+    expect(fitted.map((c) => c.width)).toEqual(["32px", "325px", "63px", "1fr"]);
+  });
+
+  it("stops at the floors and leaves the rest to scrolling", () => {
+    const fitted = fitColumns(cols, 100);
+    expect(fitted.map((c) => c.width)).toEqual(["32px", "120px", "52px", "1fr"]);
+  });
+
+  it("does nothing before the width is known", () => {
+    expect(fitColumns(cols, 0)).toBe(cols);
   });
 });
