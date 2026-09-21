@@ -109,6 +109,17 @@ describe("containers", () => {
   });
 });
 
+describe("host nodes", () => {
+  it("applies an element node's sizing props to the element itself", () => {
+    const html = render({ element: "app.dragRegion", grow: 1, minWidth: "0px", minHeight: "0px", shrink: 0 });
+    expect(html).toContain('data-el="app.dragRegion"');
+    expect(html).toContain("flex-grow:1");
+    expect(html).toContain("min-width:0px");
+    expect(html).toContain("min-height:0px");
+    expect(html).toContain("flex-shrink:0");
+  });
+});
+
 describe("leaves", () => {
   it("renders text with its role tag and type variables", () => {
     const html = render({ type: "text", value: "REQUIRED MODS", role: "heading" });
