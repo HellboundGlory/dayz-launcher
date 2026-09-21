@@ -1,7 +1,9 @@
 import type { CSSProperties } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { cn } from "@/lib/utils";
 import { useElementContext } from "./context";
 import { useLaunchStore, type ServerNotice, type LaunchResult } from "@/stores/launch-store";
+import { useModsStore, visibleRows } from "@/stores/mods-store";
 import { NOTICES } from "@/hooks/use-server-actions";
 
 export function NoticeStorage({ className, style }: { className?: string; style?: CSSProperties }) {
@@ -96,29 +98,149 @@ export function NoticeUpdate({ className, style }: { className?: string; style?:
 }
 
 export function NoticeModsError({ className, style }: { className?: string; style?: CSSProperties }) {
-  const { error } = useElementContext();
+  const error = useModsStore((s) => s.error);
   if (!error) return null;
   return (
-    <div data-el="notice.modsError" role="alert" className={className} style={style}>
-      <span data-part="label">MODS ERROR</span>
+    <div
+      data-el="notice.modsError"
+      role="alert"
+      className={className ?? "border-b border-danger-line bg-danger-soft px-3 py-1.5 [font-size:var(--t-type-body-size)] text-danger"}
+      style={style}
+    >
       <span data-part="message">{error}</span>
     </div>
   );
 }
 
-export function NoticeModsCached(props?: { className?: string; style?: CSSProperties }) {
-  if (props === undefined) return null;
-  return null;
+export function NoticeModsCached({ className, style }: { className?: string; style?: CSSProperties }) {
+  const fromCache = useModsStore((s) => s.fromCache);
+  if (!fromCache) return null;
+  return (
+    <div
+      data-el="notice.modsCached"
+      className={className ?? "border-b border-warn bg-warn-soft px-3 py-1.5 [font-size:var(--t-type-label-size)] uppercase tracking-wider text-warn"}
+      style={style}
+    >
+      <span data-part="message">Steam unreachable — showing last known mod list</span>
+    </div>
+  );
 }
 
-export function NoticeModsResult(props?: { className?: string; style?: CSSProperties }) {
-  if (props === undefined) return null;
-  return null;
+/** Mirrors ModsActionBar's result strip wording: the last VERIFY / unsubscribe / unique-select outcome. */
+export function NoticeModsResult({ className, style }: { className?: string; style?: CSSProperties }) {
+  const store = useModsStore(
+    useShallow((s) => ({
+      verifyResult: s.verifyResult,
+      mutationFailures: s.mutationFailures,
+      uniqueResult: s.uniqueResult,
+      clearVerifyResult: s.clearVerifyResult,
+      clearMutationFailures: s.clearMutationFailures,
+      clearUniqueResult: s.clearUniqueResult,
+    })),
+  );
+  const { verifyResult, mutationFailures, uniqueResult } = store;
+  if (!verifyResult && !mutationFailures && !uniqueResult) return null;
+
+  const failed = !!mutationFailures && mutationFailures.length > 0;
+
+  function dismiss() {
+    store.clearVerifyResult();
+    store.clearMutationFailures();
+    store.clearUniqueResult();
+  }
+
+  return (
+    <div
+      data-el="notice.modsResult"
+      data-state={failed ? "failure" : "success"}
+      className={className ?? "flex items-center gap-2 border-b border-line bg-surface2 px-3 py-1"}
+      style={style}
+    >
+      <span data-part="message" className="[font-size:var(--t-type-label-size)] text-muted2">
+        {verifyResult && (
+          <span>
+            <span className="font-semibold text-ink">{verifyResult.checked} checked</span>
+            <span className="text-muted"> · </span>
+            <span className="font-semibold text-warn">{verifyResult.outdated} outdated</span>
+            <span className="text-muted"> · </span>
+            <span className="font-semibold text-accent">{verifyResult.queued} re-downloading</span>
+          </span>
+        )}
+        {mutationFailures &&
+          (failed ? (
+            <span className="text-danger">
+              {mutationFailures.length} mod{mutationFailures.length === 1 ? "" : "s"} could not be
+              removed: {mutationFailures[0][1]}
+            </span>
+          ) : (
+            <span className="text-success">Removed ok</span>
+          ))}
+        {uniqueResult &&
+          (uniqueResult.totalUnique === 0 ? (
+            <span className="text-warn">
+              No mods are unique to {uniqueResult.server} — every mod it uses is shared with
+              another favourite/recent server.
+            </span>
+          ) : uniqueResult.selected === 0 ? (
+            <span className="text-warn">
+              {uniqueResult.totalUnique} mod{uniqueResult.totalUnique === 1 ? " is" : "s are"}{" "}
+              unique to {uniqueResult.server}, but none are in your subscribed library — nothing
+              was selected.
+            </span>
+          ) : uniqueResult.selected === uniqueResult.totalUnique ? (
+            <span>
+              <span className="font-semibold text-ink">{uniqueResult.selected}</span> unique mod
+              {uniqueResult.selected === 1 ? "" : "s"} for {uniqueResult.server} selected
+            </span>
+          ) : (
+            <span>
+              <span className="font-semibold text-ink">{uniqueResult.selected}</span> of{" "}
+              {uniqueResult.totalUnique} unique mods for {uniqueResult.server} selected (
+              {uniqueResult.totalUnique - uniqueResult.selected} not in your library)
+            </span>
+          ))}
+      </span>
+      <button
+        type="button"
+        data-part="dismiss"
+        onClick={dismiss}
+        className="ml-auto shrink-0 [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider text-muted hover:text-ink"
+      >
+        DISMISS
+      </button>
+    </div>
+  );
 }
 
-export function NoticeModsOutdated(props?: { className?: string; style?: CSSProperties }) {
-  if (props === undefined) return null;
-  return null;
+export function NoticeModsOutdated({ className, style }: { className?: string; style?: CSSProperties }) {
+  const { rows, op, updateAllOutdated } = useModsStore(
+    useShallow((s) => ({ rows: s.rows, op: s.op, updateAllOutdated: s.updateAllOutdated })),
+  );
+  const outdatedCount = visibleRows(rows).filter((r) => r.state === "needs_update").length;
+  if (outdatedCount === 0) return null;
+  const busy = op?.kind === "update";
+
+  return (
+    <div
+      data-el="notice.modsOutdated"
+      data-state={busy ? "busy" : undefined}
+      className={className ?? "flex items-center gap-2 border-b border-warn-line bg-warn-soft px-3 py-1.5 [font-size:var(--t-type-compactBody-size)] font-semibold text-warn"}
+      style={style}
+    >
+      <span data-part="message">
+        {outdatedCount} mod{outdatedCount === 1 ? "" : "s"} need{outdatedCount === 1 ? "s" : ""} updating
+      </span>
+      <button
+        type="button"
+        data-part="updateAll"
+        onClick={() => void updateAllOutdated()}
+        disabled={!!op}
+        className="ml-auto shrink-0 [border-radius:var(--t-radius-controlCompact)] bg-warn px-2 py-1 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {busy ? op?.note ?? "Updating…" : "Update all"}
+      </button>
+    </div>
+  );
 }
 
 type ActionNoticeContent =
