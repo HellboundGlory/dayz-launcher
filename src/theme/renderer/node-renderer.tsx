@@ -58,7 +58,11 @@ export function LayoutNodeRenderer({ node }: { node: LayoutNode }) {
         ? undefined
         : { ...(node.position !== undefined ? positionStyle(node.position) : undefined), ...columnStyle };
     if (style === undefined) return <>{content}</>;
-    return <div style={style}>{content}</div>;
+    return (
+      <div data-column={columnStyle !== undefined ? node.column : undefined} style={style}>
+        {content}
+      </div>
+    );
   }
 
   switch (node.type) {
