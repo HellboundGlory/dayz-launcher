@@ -2369,7 +2369,8 @@
         "label"
       ],
       "states": [
-        "disabled"
+        "disabled",
+        "checked"
       ],
       "since": "2.0",
       "aliases": []

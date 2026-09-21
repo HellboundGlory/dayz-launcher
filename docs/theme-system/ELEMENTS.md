@@ -345,7 +345,7 @@ These elements are placed in the row template of `list.serverMods`. Rows keep th
 | `mods.statusFilter` | input | mods | — | 1 | — | option | per option: `selected` |
 | `mods.refresh` | action | mods | — | 1 | `display: iconLabel / label / icon (iconLabel)`, `icon`, `label` | icon, label | `busy` |
 | `mods.count` | display | mods | — | n | — | value, label | `selecting` |
-| `mods.selectAll` | action | mods | — | 1 | as `mods.refresh` | icon, label | `disabled` |
+| `mods.selectAll` | action | mods | — | 1 | as `mods.refresh` | icon, label | `disabled`, `checked` |
 | `mods.clearSelection` | action | mods | — | 1 | as `mods.refresh` | icon, label | — |
 | `mods.selectUnique` | input | mods | — | 1 | `label` | label, value, chevron | `open`, `disabled` |
 | `mods.cleanupRemoved` | action | mods | — | 1 | as `mods.refresh` | icon, label | `disabled` |
@@ -364,6 +364,7 @@ These elements are placed in the row template of `list.serverMods`. Rows keep th
 - **`mods.refresh`:** re-reads the mod list and refreshes Workshop details.
 - **`mods.count`:** reads "{s} of {n} selected" while anything is selected, otherwise "{n} mod(s)".
 - **`mods.selectAll` and `mods.clearSelection`:** read "Select all" and "Clear". They render only when they would change the checked set.
+- **`mods.selectAll` in a list header** (a column's `headerElement`) always renders, as a toggle: `checked` while every visible mod is checked, and a click checks all visible mods or clears them. Its accessible name is "Select all visible" or "Deselect all".
 - **`mods.selectUnique`:**
   - reads "Select unique…", or "Unique: {server}" with the name truncated to 24 characters;
   - opens `popup.modsUnique`;
