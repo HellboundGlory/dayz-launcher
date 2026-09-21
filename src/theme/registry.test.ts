@@ -205,6 +205,6 @@ describe("shared v2 registry", () => {
     expect(REGISTRY.popups).toEqual(popups);
     const iconLine = specDoc.split("\n").find((line: string) => line.trimStart().startsWith("`alertTriangle`"))!;
     expect(REGISTRY.icons).toEqual(code(iconLine));
-    expect(new Set(REGISTRY.icons).size).toBe(44);
+    expect(new Set(REGISTRY.icons).size).toBe(45);
   });
 });

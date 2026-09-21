@@ -516,7 +516,7 @@ A surface counts as one placement of every element inside it, so `surface.filter
 The `icon` option takes one of:
 
 - **a launcher icon name**, from the set the interface already uses (`lucide-react`):
-  `alertTriangle`, `appWindow`, `arrowRight`, `ban`, `check`, `checkCircle`, `chevronDown`, `chevronLeft`, `chevronRight`, `chevronsLeft`, `chevronsRight`, `clock`, `copy`, `download`, `externalLink`, `fileArchive`, `fileOutput`, `folder`, `folderOpen`, `gamepad`, `globe`, `inbox`, `info`, `listTree`, `loader`, `minus`, `moon`, `moreHorizontal`, `package`, `palette`, `play`, `plus`, `refresh`, `rotateCcw`, `search`, `settings`, `square`, `star`, `sun`, `thumbsUp`, `trash`, `upload`, `users`, `x`;
+  `alertTriangle`, `appWindow`, `arrowRight`, `ban`, `check`, `checkCircle`, `chevronDown`, `chevronLeft`, `chevronRight`, `chevronsLeft`, `chevronsRight`, `clock`, `copy`, `download`, `externalLink`, `fileArchive`, `fileOutput`, `filter`, `folder`, `folderOpen`, `gamepad`, `globe`, `inbox`, `info`, `listTree`, `loader`, `minus`, `moon`, `moreHorizontal`, `package`, `palette`, `play`, `plus`, `refresh`, `rotateCcw`, `search`, `settings`, `square`, `star`, `sun`, `thumbsUp`, `trash`, `upload`, `users`, `x`;
 - **a package image**, `images/<name>.svg|png|webp`, rendered as a decorative `<img alt="">`, so it can't run scripts;
 - **`"none"`**, allowed only when the element still renders a label.
 
