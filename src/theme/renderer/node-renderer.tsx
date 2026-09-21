@@ -176,7 +176,7 @@ function renderContainer(
         return <Box node={node} attrs={attrs} as={As}>{collapsedContent}</Box>;
       default:
         return (
-          <As id={attrs.id} data-region={attrs["data-region"]} className={attrs.className} style={attrs.style} data-state={attrs["data-state"]}>
+          <As id={attrs.id} data-region={attrs["data-region"]} data-context={attrs["data-context"]} className={attrs.className} style={attrs.style} data-state={attrs["data-state"]}>
             {collapsedContent}
           </As>
         );

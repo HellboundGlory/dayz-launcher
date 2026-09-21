@@ -125,6 +125,7 @@ export interface RenderedAttrs {
   style?: CSSProperties;
   "data-state"?: string;
   "data-region"?: string;
+  "data-context"?: string;
 }
 
 /** Merges an extra style (e.g. column placement) into already-computed attrs. */
@@ -143,6 +144,7 @@ export function commonAttrs(node: CommonProps, hostsPositioned = false): Rendere
   return {
     id: node.id,
     "data-region": node.id,
+    "data-context": node.context,
     className: node.class,
     style: Object.keys(style).length > 0 ? style : undefined,
   };

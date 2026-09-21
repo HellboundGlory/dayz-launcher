@@ -6,6 +6,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactNode } from "react";
 import { useDevStore } from "@/theme/dev/dev-store";
 import { LayoutRenderer } from "./layout-renderer";
+import { ElementContextProvider } from "../elements/context";
+import type { Server } from "@/types/server";
 import { resolveVariant } from "./variant";
 import type { LayoutFile, LayoutNode, SettingValue } from "./types";
 
@@ -106,6 +108,19 @@ describe("containers", () => {
       ],
     });
     expect(html.indexOf("first")).toBeLessThan(html.indexOf("second"));
+  });
+});
+
+describe("contexts", () => {
+  it("publishes data-context on a context container", () => {
+    const selectedServer = { addr: "1.2.3.4:2303", name: "S" } as unknown as Server;
+    const html = renderToStaticMarkup(
+      <ElementContextProvider value={{ selectedServer }}>
+        <LayoutRenderer file={file({ type: "stack", id: "r-detail", context: "selection", children: [] })} />
+      </ElementContextProvider>,
+    );
+    expect(html).toContain('data-region="r-detail"');
+    expect(html).toContain('data-context="selection"');
   });
 });
 
