@@ -41,6 +41,11 @@
   border-right: 1px solid var(--border);
 }
 
+[data-region="r-brand"],
+[data-el="app.logo"] {
+  flex-shrink: 0;
+}
+
 [data-el="app.logo"] {
   gap: 8px;
 }
@@ -58,11 +63,15 @@
   font-weight: 700;
   letter-spacing: 0.025em;
   color: var(--accent);
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
 }
 
 .t-brand-suffix {
   color: var(--text);
   margin: 0;
+  white-space: nowrap;
 }
 
 [data-region="r-nav"] {
@@ -132,6 +141,8 @@
 [data-el="status.steam"] {
   padding: 0 12px;
   gap: 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 [data-el="status.steam"] [data-part="dot"] {
@@ -301,11 +312,19 @@
   gap: 8px;
   background-color: var(--bg);
   border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+[data-region="r-filterbar"] > :not([data-el="filter.search"]),
+[data-region="r-hides"] > [data-el] {
+  flex-shrink: 0;
 }
 
 [data-el="filter.search"] {
   position: relative;
   flex: 1 1 auto;
+  min-width: 120px;
   max-width: 240px;
   padding: 0;
   border: none;
@@ -830,6 +849,7 @@
 }
 
 .t-row [data-el="server.gameTime"] {
+  display: block;
   font-family: var(--font-data);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
