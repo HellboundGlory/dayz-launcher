@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, type CSSProperties } from "react";
 import { Check, ChevronLeft, Folder } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { OptionIcon } from "./option-icon";
 import { useSettingsStore } from "@/stores/settings-store";
 import { discoverSteamPaths, dataFolderPath, openDataFolder } from "@/lib/tauri";
 import { ThemesSection } from "@/components/themes-page/ThemesSection";
@@ -37,7 +38,7 @@ export function SettingsBack({ options, className, style }: ElementProps) {
     >
       {showIcon && (
         <span data-part="icon">
-          <ChevronLeft className="h-3 w-3" />
+          <OptionIcon icon={options?.icon} fallback={ChevronLeft} className="h-3 w-3" />
         </span>
       )}
       {showLabel && <span data-part="label">Back</span>}
@@ -64,7 +65,7 @@ export function SettingsDone({ options, className, style }: ElementProps) {
     >
       {showIcon && (
         <span data-part="icon">
-          <Check className="h-3 w-3" />
+          <OptionIcon icon={options?.icon} fallback={Check} className="h-3 w-3" />
         </span>
       )}
       {showLabel && <span data-part="label">Done</span>}

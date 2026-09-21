@@ -109,6 +109,11 @@ describe("SettingsBack", () => {
     expect(html).not.toContain('data-part="icon"');
     expect(html).toContain('data-part="label"');
   });
+
+  it("honours the icon option", () => {
+    expect(render(<SettingsBack options={{ display: "icon", icon: "x" }} />)).toContain("lucide-x");
+    expect(render(<SettingsBack options={{ display: "icon" }} />)).toContain("lucide-chevron-left");
+  });
 });
 
 describe("SettingsDone", () => {

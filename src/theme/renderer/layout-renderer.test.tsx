@@ -52,6 +52,10 @@ describe("resolveVariant", () => {
 });
 
 describe("containers", () => {
+  it("renders a childless stack, which the validator allows", () => {
+    expect(render({ type: "stack", grow: 1 } as never)).toContain("display:flex");
+  });
+
   it("lays a stack out as flex with direction, align, justify, wrap and gap", () => {
     const html = render({
       type: "stack",
