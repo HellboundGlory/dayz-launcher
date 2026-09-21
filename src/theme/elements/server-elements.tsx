@@ -1,5 +1,18 @@
-import type { CSSProperties, MouseEvent, ReactNode } from "react";
-import { Star, Play, Info, MoreHorizontal } from "lucide-react";
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
+import {
+  Star,
+  Play,
+  Info,
+  MoreHorizontal,
+  Loader2,
+  Check,
+  Download,
+  ChevronDown,
+  ExternalLink,
+  RefreshCw,
+  X,
+  Home,
+} from "lucide-react";
 import type { Server } from "@/types/server";
 import { cn, formatLastPlayed, formatBytes, formatMultiplier, gameTimeParts, regionName } from "@/lib/utils";
 import { useElementContext } from "./context";
@@ -7,6 +20,9 @@ import { useServerActions, phaseLabel } from "@/hooks/use-server-actions";
 import { useSelectionReadiness } from "./use-selection-readiness";
 import { computeReadinessView } from "./readiness-elements";
 import { useServerStore } from "@/stores/server-store";
+import { joinAction } from "@/lib/join-action";
+import { toggleFavourite as toggleFavouriteRemote, refreshVisibleServers } from "@/lib/tauri";
+import { useRowProbeStore, probeKey } from "./row-probe-store";
 
 function useServerSubject(): Server | null {
   const { subjectContext, selectedServer } = useElementContext();
@@ -281,53 +297,40 @@ export function ServerFavourite({
 }) {
   const { contextName } = useElementContext();
   const server = useServerSubject();
+  const toggleFavouriteLocal = useServerStore((s) => s.toggleFavourite);
   if (!server) return null;
 
-  const handleClick = (e: MouseEvent) => {
-    e.stopPropagation();
-  };
-
+  const on = server.favourite;
   const display = (options?.display as string) ?? "icon";
   const showLabel = display === "iconLabel";
-  const label = (options?.label as string) ?? (server.favourite ? "Favourited" : "Favourite");
+  const label = (options?.label as string) ?? (on ? "Favourited" : "Favourite");
 
-  if (contextName === "selection") {
-    return (
-      <button
-        type="button"
-        data-el="server.favourite"
-        data-state={server.favourite ? "favourite" : undefined}
-        aria-label={server.favourite ? "Remove from favourites" : "Add to favourites"}
-        aria-pressed={server.favourite}
-        onClick={handleClick}
-        className={className ?? "flex-1 py-2 px-3 text-xs font-semibold text-center border border-border bg-surface2 hover:border-accent text-text transition-colors flex items-center justify-center gap-1.5"}
-        style={style}
-      >
-        <Star
-          className="size-3.5"
-          fill={server.favourite ? "currentColor" : "none"}
-        />
-        <span>{server.favourite ? "Favourited" : "Favourite"}</span>
-      </button>
-    );
-  }
+  // Optimistic: flip locally so the star responds instantly, revert on failure.
+  const handleClick = async (e: MouseEvent) => {
+    e.stopPropagation();
+    const next = !on;
+    toggleFavouriteLocal(server.addr);
+    try {
+      await toggleFavouriteRemote(server.addr, server.query_port, next);
+    } catch (err) {
+      console.error("Failed to persist favourite:", err);
+      toggleFavouriteLocal(server.addr);
+    }
+  };
 
   return (
     <button
       type="button"
       data-el="server.favourite"
-      data-state={server.favourite ? "favourite" : undefined}
-      aria-label={server.favourite ? "Remove from favourites" : "Add to favourites"}
-      aria-pressed={server.favourite}
+      data-state={serverStates(!server.online, on && "on")}
+      aria-label={on ? "Remove from favourites" : "Add to favourites"}
+      aria-pressed={on}
       onClick={handleClick}
       className={className ?? "flex items-center justify-center text-muted hover:text-warn"}
       style={style}
     >
       <span data-part="icon">
-        <Star
-          className="size-3.5"
-          fill={server.favourite ? "currentColor" : "none"}
-        />
+        <Star className={contextName === "selection" ? "size-4" : "size-3.5"} fill={on ? "currentColor" : "none"} />
       </span>
       {showLabel && <span data-part="label">{label}</span>}
     </button>
@@ -377,6 +380,103 @@ function ServerJoinSelection({
   );
 }
 
+// The `autoJoinAfterDownload` setting was removed in v2.2.0 — verifyAndJoin
+// now always joins once downloads finish, so this is fixed rather than read
+// from settings.
+const AUTO_JOIN_AFTER_DOWNLOAD = true;
+
+function ServerJoinIdleButton({
+  server,
+  label,
+  icon,
+  needsMods,
+  disabled,
+  showIcon,
+  showLabel,
+  onClick,
+  className,
+  style,
+}: {
+  server: Server;
+  label: string;
+  icon: "download" | "play";
+  needsMods: boolean;
+  disabled: boolean;
+  showIcon: boolean;
+  showLabel: boolean;
+  onClick: (e: MouseEvent) => void;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  return (
+    <button
+      type="button"
+      data-el="server.join"
+      data-state={serverStates(!server.online, disabled && "disabled", server.modded && "modded", needsMods && "needsMods")}
+      disabled={disabled}
+      onClick={onClick}
+      aria-label={label}
+      className={className ?? "flex items-center gap-1.5 bg-accent px-3 py-1 font-semibold text-bg"}
+      style={style}
+    >
+      {showIcon && (
+        <span data-part="icon">
+          {icon === "download" ? <Download className="size-3" /> : <Play className="size-3 fill-current" />}
+        </span>
+      )}
+      {showLabel && <span data-part="label">{label}</span>}
+    </button>
+  );
+}
+
+/** The selection idle-join form only, so `useSelectionReadiness` never runs per row — see the panel-only split above. */
+function ServerJoinIdleSelection({
+  server,
+  disabled,
+  showIcon,
+  showLabel,
+  onClick,
+  className,
+  style,
+}: {
+  server: Server;
+  disabled: boolean;
+  showIcon: boolean;
+  showLabel: boolean;
+  onClick: (e: MouseEvent) => void;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const { selectedServer } = useElementContext();
+  const { readiness } = useSelectionReadiness();
+
+  let missingCount = 0;
+  let arrivingCount = 0;
+  if (selectedServer?.addr === server.addr && readiness) {
+    missingCount = readiness.mods.filter((m) => m.state === "not_subscribed").length;
+    arrivingCount = readiness.mods.filter(
+      (m) => m.state === "downloading" || m.state === "needs_update" || m.state === "not_installed",
+    ).length;
+  }
+
+  const idle = joinAction({ missingCount, arrivingCount, autoJoinAfterDownload: AUTO_JOIN_AFTER_DOWNLOAD });
+
+  return (
+    <ServerJoinIdleButton
+      server={server}
+      label={idle.label}
+      icon={idle.icon}
+      needsMods={missingCount + arrivingCount > 0}
+      disabled={disabled}
+      showIcon={showIcon}
+      showLabel={showLabel}
+      onClick={onClick}
+      className={className}
+      style={style}
+    />
+  );
+}
+
 export function ServerJoin({
   options,
   className,
@@ -388,16 +488,15 @@ export function ServerJoin({
 }) {
   const { contextName } = useElementContext();
   const server = useServerSubject();
-  const { op, verifyAndJoin } = useServerActions();
+  const { op, dayzUp, verifyAndJoin } = useServerActions();
   if (!server) return null;
 
   const wording = (options?.wording as string) ?? "join";
   const display = (options?.display as string) ?? "iconLabel";
   const isFixAndJoin = wording === "fixAndJoin";
+  const isSelectionJoin = contextName === "selection" && wording === "join";
 
   const activeOp = op && op.addr === server.addr ? op : null;
-  const labelText = activeOp ? phaseLabel(activeOp) : isFixAndJoin ? "FIX AND JOIN" : "Join";
-
   const showIcon = display === "iconLabel" || display === "icon";
   const showLabel = display === "iconLabel" || display === "label";
 
@@ -407,6 +506,7 @@ export function ServerJoin({
   };
 
   if (contextName === "selection" && isFixAndJoin) {
+    const labelText = activeOp ? phaseLabel(activeOp) : "FIX AND JOIN";
     return (
       <ServerJoinSelection
         server={server}
@@ -419,24 +519,79 @@ export function ServerJoin({
     );
   }
 
+  if (activeOp) {
+    return (
+      <button
+        type="button"
+        data-el="server.join"
+        data-state={serverStates(!server.online, "busy")}
+        disabled
+        onClick={handleClick}
+        aria-label={phaseLabel(activeOp)}
+        className={className ?? "flex items-center gap-1.5 bg-accent px-3 py-1 font-semibold text-bg"}
+        style={style}
+      >
+        {showIcon && (
+          <span data-part="spinner">
+            <Loader2 className="size-3 animate-spin" />
+          </span>
+        )}
+        {showLabel && <span data-part="label">{phaseLabel(activeOp)}</span>}
+      </button>
+    );
+  }
+
+  if (dayzUp) {
+    return (
+      <button
+        type="button"
+        data-el="server.join"
+        data-state={serverStates(!server.online, "playing")}
+        disabled
+        title="DayZ is running. Quit the game before joining another server."
+        aria-label="Playing"
+        className={className ?? "flex items-center gap-1.5 bg-accent px-3 py-1 font-semibold text-bg"}
+        style={style}
+      >
+        {showIcon && (
+          <span data-part="icon">
+            <Check className="size-3" />
+          </span>
+        )}
+        {showLabel && <span data-part="label">Playing</span>}
+      </button>
+    );
+  }
+
+  const disabled = op !== null || dayzUp;
+
+  if (isSelectionJoin) {
+    return (
+      <ServerJoinIdleSelection
+        server={server}
+        disabled={disabled}
+        showIcon={showIcon}
+        showLabel={showLabel}
+        onClick={handleClick}
+        className={className}
+        style={style}
+      />
+    );
+  }
+
   return (
-    <button
-      type="button"
-      data-el="server.join"
-      data-state={activeOp ? "busy" : undefined}
-      disabled={activeOp !== null}
+    <ServerJoinIdleButton
+      server={server}
+      label="Join"
+      icon="play"
+      needsMods={false}
+      disabled={disabled}
+      showIcon={showIcon}
+      showLabel={showLabel}
       onClick={handleClick}
-      aria-label={labelText}
-      className={className ?? "flex items-center gap-1.5 bg-accent px-3 py-1 font-semibold text-bg"}
+      className={className}
       style={style}
-    >
-      {showIcon && (
-        <span data-part="icon">
-          <Play className="size-3 fill-current" />
-        </span>
-      )}
-      {showLabel && <span data-part="label">{labelText}</span>}
-    </button>
+    />
   );
 }
 
@@ -462,24 +617,298 @@ export function ServerInfo({ className, style }: { className?: string; style?: C
   );
 }
 
-export function ServerMenu({ className, style }: { className?: string; style?: CSSProperties }) {
+/** Exported so the open/closed rendering is directly testable without simulating a click. */
+export function ServerLoadMenuPopup({
+  open,
+  onLoad,
+}: {
+  open: boolean;
+  onLoad: (e: MouseEvent) => void;
+}) {
+  if (!open) return null;
+  return (
+    <div
+      data-part="popup"
+      role="menu"
+      className="absolute right-0 top-full mt-1 min-w-[140px] rounded border border-border bg-surface py-1 shadow-xl"
+    >
+      <button
+        type="button"
+        data-part="item"
+        role="menuitem"
+        onClick={onLoad}
+        className="block w-full px-3 py-1.5 text-left text-xs hover:bg-surface2"
+      >
+        Load to menu
+      </button>
+    </div>
+  );
+}
+
+export function ServerMenu({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
   const server = useServerSubject();
+  const { op, dayzUp, verifyAndJoin } = useServerActions();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onMouseDown = (e: globalThis.MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
   if (!server) return null;
+
+  const menuKind = (options?.menu as string) ?? "serverActions";
+  if (menuKind !== "serverLoad") {
+    const handleClick = (e: MouseEvent) => {
+      e.stopPropagation();
+    };
+    return (
+      <button
+        type="button"
+        data-el="server.menu"
+        onClick={handleClick}
+        aria-label="Server actions"
+        className={className ?? "text-muted hover:text-ink"}
+        style={style}
+      >
+        <MoreHorizontal className="size-3.5" />
+      </button>
+    );
+  }
+
+  const disabled = op !== null || dayzUp;
+
+  const handleTriggerClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    setOpen((o) => !o);
+  };
+
+  const handleLoad = (e: MouseEvent) => {
+    e.stopPropagation();
+    setOpen(false);
+    void verifyAndJoin(server, true);
+  };
+
+  return (
+    <div
+      ref={rootRef}
+      data-el="server.menu"
+      data-state={serverStates(!server.online, open && "open", disabled && "disabled")}
+      className={className ?? "relative"}
+      style={style}
+    >
+      <button
+        type="button"
+        data-part="trigger"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        disabled={disabled}
+        onClick={handleTriggerClick}
+        className="text-muted hover:text-ink"
+      >
+        <span data-part="icon">
+          <ChevronDown className="size-3.5" />
+        </span>
+      </button>
+      <ServerLoadMenuPopup open={open} onLoad={handleLoad} />
+    </div>
+  );
+}
+
+export function ServerLoadToMenu({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const server = useServerSubject();
+  const { op, dayzUp, verifyAndJoin } = useServerActions();
+  if (!server) return null;
+
+  const display = (options?.display as string) ?? "iconLabel";
+  const label = (options?.label as string) ?? "Load to menu";
+  const showIcon = display === "iconLabel" || display === "icon";
+  const showLabel = display === "iconLabel" || display === "label";
+  const disabled = op !== null || dayzUp;
 
   const handleClick = (e: MouseEvent) => {
     e.stopPropagation();
+    void verifyAndJoin(server, true);
   };
 
   return (
     <button
       type="button"
-      data-el="server.menu"
+      data-el="server.loadToMenu"
+      data-state={serverStates(!server.online, op?.addr === server.addr ? "busy" : disabled && "disabled")}
+      disabled={disabled}
       onClick={handleClick}
-      aria-label="Server actions"
-      className={className ?? "text-muted hover:text-ink"}
+      aria-label={label}
+      className={className ?? "flex items-center gap-1.5 text-muted hover:text-ink"}
       style={style}
     >
-      <MoreHorizontal className="size-3.5" />
+      {showIcon && (
+        <span data-part="icon">
+          <Home className="size-3.5" />
+        </span>
+      )}
+      {showLabel && <span data-part="label">{label}</span>}
+    </button>
+  );
+}
+
+export function ServerCancel({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const server = useServerSubject();
+  const { op, cancelWait } = useServerActions();
+  if (!server) return null;
+  if (!op || op.addr !== server.addr) return null;
+  if (op.phase === "launching" || op.phase === "starting") return null;
+
+  const label = (options?.label as string) ?? "Cancel";
+  const display = (options?.display as string) ?? "label";
+  const showIcon = display === "iconLabel" || display === "icon";
+  const showLabel = display === "iconLabel" || display === "label";
+
+  const handleClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    cancelWait();
+  };
+
+  return (
+    <button
+      type="button"
+      data-el="server.cancel"
+      data-state={serverStates(!server.online)}
+      onClick={handleClick}
+      aria-label={label}
+      className={className ?? "text-muted hover:text-danger"}
+      style={style}
+    >
+      {showIcon && (
+        <span data-part="icon">
+          <X className="size-3" />
+        </span>
+      )}
+      {showLabel && <span data-part="label">{label}</span>}
+    </button>
+  );
+}
+
+export function ServerManageMods({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const { onViewChange } = useElementContext();
+  const server = useServerSubject();
+  const { readiness, loading } = useSelectionReadiness();
+  if (!server) return null;
+
+  const display = (options?.display as string) ?? "iconLabel";
+  const label = (options?.label as string) ?? "Manage mods";
+  const showIcon = display === "iconLabel" || display === "icon";
+  const showLabel = display === "iconLabel" || display === "label";
+
+  const count = !loading && readiness ? readiness.mods.length : server.mod_count;
+
+  const handleClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    onViewChange("mods");
+  };
+
+  return (
+    <button
+      type="button"
+      data-el="server.manageMods"
+      data-state={serverStates(!server.online)}
+      onClick={handleClick}
+      aria-label={label}
+      className={className ?? "flex items-center gap-1.5 text-accent hover:brightness-110"}
+      style={style}
+    >
+      {showIcon && (
+        <span data-part="icon">
+          <ExternalLink className="size-3" />
+        </span>
+      )}
+      {showLabel && <span data-part="label">{label}</span>}
+      {count !== null && <span data-part="count"> · {count} declared</span>}
+    </button>
+  );
+}
+
+export function ServerRefresh({ className, style }: { className?: string; style?: CSSProperties }) {
+  const server = useServerSubject();
+  const probingKeyLive = useRowProbeStore((s) => s.probingKey);
+  // SSR (server-elements.test.tsx renders outside a window) doesn't replay a store update through
+  // useSyncExternalStore, so fall back to a direct read the way ServerTags does.
+  const probingKey = typeof window === "undefined" ? useRowProbeStore.getState().probingKey : probingKeyLive;
+  const startProbe = useRowProbeStore((s) => s.startProbe);
+  const endProbe = useRowProbeStore((s) => s.endProbe);
+  if (!server) return null;
+
+  const busy = probingKey === probeKey(server.addr, server.query_port);
+  const disabled = probingKey !== null && !busy;
+
+  const handleClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    if (probingKey !== null) return;
+    startProbe(server.addr, server.query_port);
+    void refreshVisibleServers([{ addr: server.addr, query_port: server.query_port }], "row").finally(() =>
+      endProbe(server.addr, server.query_port),
+    );
+  };
+
+  return (
+    <button
+      type="button"
+      data-el="server.refresh"
+      data-state={serverStates(!server.online, busy && "busy", disabled && "disabled")}
+      disabled={disabled}
+      onClick={handleClick}
+      aria-label="Refresh this server"
+      title={`Re-probe ${server.name || server.addr}`}
+      className={className ?? "flex items-center justify-center text-muted hover:text-ink"}
+      style={style}
+    >
+      <span data-part="icon">
+        <RefreshCw className={busy ? "size-3 animate-spin" : "size-3"} />
+      </span>
     </button>
   );
 }
