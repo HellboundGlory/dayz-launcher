@@ -291,6 +291,17 @@ describe("ListHost", () => {
     expect(html).toContain("DayZ Epoch Test");
   });
 
+  it("marks every second row even by its list position", () => {
+    const html = renderToStaticMarkup(
+      <ListHost
+        listId="list.serverMods"
+        items={[mockServer, { ...mockServer }, { ...mockServer }]}
+        columns={sampleColumns}
+      />,
+    );
+    expect(html.match(/data-state="even"/g)).toHaveLength(1);
+  });
+
   it("clip mode (default) renders without a scroll wrapper", () => {
     const html = renderToStaticMarkup(
       <ListHost listId="list.serverMods" items={[mockServer]} columns={sampleColumns} />,

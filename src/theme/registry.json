@@ -5087,7 +5087,8 @@
         "full",
         "empty",
         "modsPending",
-        "busy"
+        "busy",
+        "even"
       ],
       "defaultSort": {
         "key": "players",
@@ -5114,7 +5115,8 @@
         "downloading",
         "missing",
         "notSubscribed",
-        "serverSide"
+        "serverSide",
+        "even"
       ],
       "defaultSort": {
         "key": "name",

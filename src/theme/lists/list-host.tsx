@@ -165,12 +165,11 @@ export function ListHost<T = unknown>({
     });
   };
 
-  const getStates = (item: T, isSelected: boolean) => {
+  const getStates = (item: T, isSelected: boolean, index: number) => {
     const custom = computeRowStates ? computeRowStates(item, isSelected) : [];
-    if (isSelected && !custom.includes("selected")) {
-      return ["selected", ...custom];
-    }
-    return custom;
+    const states = isSelected && !custom.includes("selected") ? ["selected", ...custom] : custom;
+    // Parity comes from the item index: virtual rows mount mid-list, so :nth-child can't stripe them.
+    return index % 2 === 1 ? [...states, "even"] : states;
   };
 
   const listName = listId.replace("list.", "");
@@ -238,7 +237,7 @@ export function ListHost<T = unknown>({
               columns={effectiveColumns}
               item={item}
               subjectKind={subjectKind}
-              states={getStates(item, isSelected)}
+              states={getStates(item, isSelected, virtualRow.index)}
               onSelect={onSelect as (item: unknown) => void}
             />
           </div>
@@ -256,7 +255,7 @@ export function ListHost<T = unknown>({
             columns={effectiveColumns}
             item={item}
             subjectKind={subjectKind}
-            states={getStates(item, isSelected)}
+            states={getStates(item, isSelected, index)}
             onSelect={onSelect as (item: unknown) => void}
           />
         );
