@@ -7,7 +7,7 @@ A CSS rule forbidding hiding properties on required elements was rejected: it wo
 ## Consequences
 
 - Settings controls may sit in closed sections; validation proves they are placed, and the visibility check measures them only while their section is open.
-- A collapsed region must still place every required element it holds, and a required element inside tabs must sit in the default pane.
+- A collapsed region must still place every required element it holds, and a required element may sit in any tab or accordion section; it is measured once that part opens.
 - A filter or sort popup must contain its list of options, and a popup opened into a region or inline must offer a way to close it. Action menus have no required items.
 
 Settled in the 2026-09-15 design session: Q24, Q25, Q44, Q45, Q56, Q71, Q73.

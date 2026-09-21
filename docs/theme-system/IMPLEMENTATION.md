@@ -166,7 +166,7 @@ Package 3.3 implements manifest and archive v2: `ThemeManifest` schemaVersion 2 
 - Expand every breakpoint variant against every settings combination, capped at 4 × 64, and validate each.
 - Collapsed subtrees, tab panes and accordion sections are checked locally, so they don't multiply the count.
 
-Package 3.4 adds `validator::settings::{validate_settings_schema, extract_settings_combinations}` for `SET-01`–`SET-05`, including bounded numeric defaults, discrete option validation, and the 64-combination cap. Composition validation evaluates inherited `hidden` conditions for every overlapping screen/shell responsive root and discrete settings combination; `REQ-06` distinguishes elements missing in an alternative from elements absent entirely (`REQ-01`–`REQ-05`). Collapsible subtrees must preserve required elements on both sides, tabs must supply them in the default pane, and accordion bodies count as placed without expanding open states.
+Package 3.4 adds `validator::settings::{validate_settings_schema, extract_settings_combinations}` for `SET-01`–`SET-05`, including bounded numeric defaults, discrete option validation, and the 64-combination cap. Composition validation evaluates inherited `hidden` conditions for every overlapping screen/shell responsive root and discrete settings combination; `REQ-06` distinguishes elements missing in an alternative from elements absent entirely (`REQ-01`–`REQ-05`). Collapsible subtrees must preserve required elements on both sides, tab panes and accordion bodies count as placed without expanding open states.
 
 ## Stage 4: the layout renderer
 

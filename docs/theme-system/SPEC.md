@@ -381,7 +381,7 @@ Validation checks every settings combination, so a required element can't be hid
 
 - The launcher owns the active tab, the ARIA tablist semantics, the arrow keys and Home and End, and persists the active tab per theme.
 - The theme composes each label and each pane.
-- Required elements must sit in the first tab, which is the default pane (ADR-0011).
+- Required elements may sit in any tab. Validation proves they are placed, and the visibility check measures them once their tab is selected (ADR-0011).
 - Tab ids match `[a-z0-9-]+` and are unique within their container.
 - A tabs node may declare `"orientation": "horizontal" | "vertical"` (default `horizontal`). Vertical tabs move with Up and Down (and Home and End) instead of Left and Right.
 - The tabs root publishes `data-region` with its id. The tab list is the `tablist` part; each tab button is a `tab` part carrying `data-state="selected"` when active; the active pane is the `panel` part.

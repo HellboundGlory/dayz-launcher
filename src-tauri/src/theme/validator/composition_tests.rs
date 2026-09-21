@@ -345,7 +345,7 @@ fn hidden_rejects_malformed_or_non_discrete_references() {
 }
 
 #[test]
-fn collapsible_requires_both_subtrees_and_tabs_require_default_content() {
+fn collapsible_requires_both_subtrees_and_any_tab_places_required_content() {
     let mut files = theme();
     let content = files[BROWSER]["root"].clone();
     files.get_mut(BROWSER).unwrap()["root"]["collapsible"] =
@@ -363,10 +363,6 @@ fn collapsible_requires_both_subtrees_and_tabs_require_default_content() {
         {"id":"first","label":{"type":"text","value":"First"},"content":{"type":"box"}},
         {"id":"second","label":{"type":"text","value":"Second"},"content":content}
     ]});
-    assert!(validate_theme_layouts(&files)
-        .iter()
-        .any(|i| i.rule_id == "REQ-06" && i.pointer == "/root/tabs/0/content"));
-    files.get_mut(BROWSER).unwrap()["root"]["tabs"][0]["content"] = content;
     assert!(!validate_theme_layouts(&files)
         .iter()
         .any(|i| i.rule_id.starts_with("REQ-")));
