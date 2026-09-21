@@ -3,17 +3,16 @@
   "id": "builtin.tactical",
   "name": "Tactical",
   "author": "Tetra Launcher",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "themeApi": "2.0",
   "minimumLauncherVersion": "2.6.0",
-  "description": "A dense HUD-style browser: a column-header server table, a persistent detail panel with per-mod readiness, square corners throughout.",
+  "description": "The classic Tetra browser: a column table with a server detail panel.",
   "license": "PolyForm-Noncommercial-1.0.0",
   "homepage": "https://tetralauncher.com/",
   "tags": [
     "builtin",
     "dark",
-    "dense",
-    "hud"
+    "dense"
   ],
   "capabilities": [
     "tokens",
