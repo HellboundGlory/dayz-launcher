@@ -68,7 +68,18 @@ async function withStore<T>(overrides: Record<string, unknown>, fn: () => T): Pr
 describe("renderModsElement", () => {
   it("delegates mod.name/mod.size/list.mods/mods.selectAll to their own components", async () => {
     const { renderModsElement } = await import("./mods-element-host");
-    const known = ["mod.name", "mod.size", "list.mods", "mods.selectAll"];
+    const known = [
+      "mod.name",
+      "mod.size",
+      "list.mods",
+      "mods.selectAll",
+      "mods.search",
+      "mods.statusFilter",
+      "mods.refresh",
+      "mods.count",
+      "mods.clearSelection",
+      "mods.cleanupRemoved",
+    ];
     for (const element of known) {
       expect(renderModsElement({ element }, {})).not.toBeUndefined();
     }

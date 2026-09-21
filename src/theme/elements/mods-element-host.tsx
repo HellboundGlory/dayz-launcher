@@ -22,6 +22,14 @@ import {
   ModWorkshopId,
 } from "./mod-elements";
 import { ModsListHost } from "./list-elements";
+import {
+  ModsCleanupRemoved,
+  ModsClearSelection,
+  ModsCount,
+  ModsRefresh,
+  ModsSearch,
+  ModsStatusFilter,
+} from "./mods-toolbar-elements";
 
 /** Checked while every visible mod is checked; a click checks or clears them all. */
 function ModsSelectAll({ className, style }: { className?: string; style?: CSSProperties }) {
@@ -100,6 +108,18 @@ export function renderModsElement(
       return <ModsListHost className={className} style={style} />;
     case "mods.selectAll":
       return <ModsSelectAll className={className} style={style} />;
+    case "mods.search":
+      return <ModsSearch className={className} style={style} />;
+    case "mods.statusFilter":
+      return <ModsStatusFilter className={className} style={style} />;
+    case "mods.refresh":
+      return <ModsRefresh className={className} style={style} />;
+    case "mods.count":
+      return <ModsCount className={className} style={style} />;
+    case "mods.clearSelection":
+      return <ModsClearSelection className={className} style={style} />;
+    case "mods.cleanupRemoved":
+      return <ModsCleanupRemoved className={className} style={style} />;
     default:
       return undefined;
   }
