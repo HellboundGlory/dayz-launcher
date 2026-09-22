@@ -673,6 +673,11 @@ export interface ServerModData {
   name?: string;
   state?: string;
   size_bytes?: number | null;
+  preview_url?: string | null;
+  is_unique?: boolean;
+  order?: number;
+  downloaded_bytes?: number | null;
+  total_bytes?: number | null;
 }
 
 function useServerModSubject(): ServerModData | null {
@@ -744,5 +749,115 @@ export function ServerModSize({ className, style }: { className?: string; style?
     <span data-el="serverMod.size" className={className ?? "font-mono-data text-xs text-muted mr-2"} style={style}>
       {formatBytes(mod.size_bytes)}
     </span>
+  );
+}
+
+export function ServerModOrder({ className, style }: { className?: string; style?: CSSProperties }) {
+  const mod = useServerModSubject();
+  if (!mod) return null;
+  return (
+    <span data-el="serverMod.order" className={className} style={style}>
+      <span data-part="value">{mod.order ?? "—"}</span>
+    </span>
+  );
+}
+
+export function ServerModThumbnail({ className, style }: { className?: string; style?: CSSProperties }) {
+  const mod = useServerModSubject();
+  if (!mod) return null;
+
+  const missing = !mod.preview_url;
+  return (
+    <span data-el="serverMod.thumbnail" data-state={missing ? "missing" : undefined} className={className} style={style}>
+      {mod.preview_url ? (
+        <img data-part="image" src={mod.preview_url} alt="" loading="lazy" draggable={false} className="h-full w-full object-cover" />
+      ) : (
+        <Package data-part="image" className="size-full text-muted" />
+      )}
+    </span>
+  );
+}
+
+export function ServerModProgress({ className, style }: { className?: string; style?: CSSProperties }) {
+  const mod = useServerModSubject();
+  if (!mod || mod.state !== "downloading") return null;
+
+  const downloaded = mod.downloaded_bytes ?? 0;
+  const total = mod.total_bytes;
+  const known = total != null && total > 0;
+  const pct = known ? Math.min(100, (downloaded / total) * 100) : 0;
+  const value = known ? `${formatBytes(downloaded, 1)} / ${formatBytes(total, 1)}` : formatBytes(downloaded, 1);
+
+  return (
+    <span data-el="serverMod.progress" data-state={known ? undefined : "indeterminate"} className={className} style={style}>
+      <span data-part="bar" style={{ width: known ? `${pct}%` : undefined }} />
+      <span data-part="value">{value}</span>
+    </span>
+  );
+}
+
+export function ServerModUnique({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const mod = useServerModSubject();
+  if (!mod || !mod.is_unique) return null;
+
+  const label = options?.label !== undefined ? String(options.label) : "Only this server";
+  return (
+    <span data-el="serverMod.unique" className={className} style={style}>
+      <span data-part="label">{label}</span>
+    </span>
+  );
+}
+
+export function ServerModOpenInSteam({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const mod = useServerModSubject();
+  if (!mod) return null;
+
+  const disabled = mod.state === "not_on_workshop";
+  const display = (options?.display as string | undefined) ?? "icon";
+  const label = (options?.label as string | undefined) ?? "Open in Steam";
+  const showIcon = display === "iconLabel" || display === "icon";
+  const showLabel = display === "iconLabel" || display === "label";
+
+  const handleClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    if (disabled || !mod.workshop_id) return;
+    void openWorkshopInSteam(mod.workshop_id).catch((err) => console.error(err));
+  };
+
+  return (
+    <button
+      type="button"
+      data-el="serverMod.openInSteam"
+      data-state={disabled ? "disabled" : undefined}
+      disabled={disabled}
+      aria-label={label}
+      title={showLabel ? undefined : label}
+      onClick={handleClick}
+      className={className}
+      style={style}
+    >
+      {showIcon && (
+        <span data-part="icon">
+          <OptionIcon icon={options?.icon} fallback={ExternalLink} className="size-3" />
+        </span>
+      )}
+      {showLabel && <span data-part="label">{label}</span>}
+    </button>
   );
 }

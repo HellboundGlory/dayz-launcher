@@ -113,11 +113,11 @@ export function ServerModsList({
           <div data-part="empty" className="p-4 text-xs text-muted">This server declares no mods.</div>
         ) : (
           <div data-part="rows">
-            {mods.map((mod) => (
+            {mods.map((mod, index) => (
               <ListRow
                 key={mod.workshop_id || mod.name}
                 rowNode={listLayout?.row}
-                item={mod}
+                item={{ ...mod, order: index + 1 }}
                 subjectKind="serverMod"
               />
             ))}

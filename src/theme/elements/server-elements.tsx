@@ -6,6 +6,7 @@ import {
   MoreHorizontal,
   Loader2,
   Check,
+  Copy,
   Download,
   ChevronDown,
   ExternalLink,
@@ -30,6 +31,7 @@ import {
   checkServerMods,
   getUniqueModsSummary,
   unsubscribeUniqueMods,
+  copyServerAddress,
 } from "@/lib/tauri";
 import { useRowProbeStore, probeKey } from "./row-probe-store";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -1366,5 +1368,78 @@ export function ServerDeselect({
         <OptionIcon icon={options?.icon} fallback={X} className="size-4" />
       </span>
     </button>
+  );
+}
+
+const COPY_ADDRESS_RESET_MS = 1500;
+
+export function ServerCopyAddress({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const server = useServerSubject();
+  const [copied, setCopied] = useState(false);
+  if (!server) return null;
+
+  const display = (options?.display as string | undefined) ?? "iconLabel";
+  const label = (options?.label as string | undefined) ?? (copied ? "Copied" : "Copy address");
+  const showIcon = display === "iconLabel" || display === "icon";
+  const showLabel = display === "iconLabel" || display === "label";
+
+  const handleClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    void copyServerAddress(server)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), COPY_ADDRESS_RESET_MS);
+      })
+      .catch((err) => console.error("Failed to copy server address:", err));
+  };
+
+  return (
+    <button
+      type="button"
+      data-el="server.copyAddress"
+      data-state={serverStates(!server.online, copied && "copied")}
+      onClick={handleClick}
+      aria-label={label}
+      title={showLabel ? undefined : label}
+      className={className ?? "flex items-center gap-1.5 text-muted hover:text-ink"}
+      style={style}
+    >
+      {showIcon && (
+        <span data-part="icon">
+          <OptionIcon icon={options?.icon} fallback={copied ? Check : Copy} className="size-3" />
+        </span>
+      )}
+      {showLabel && <span data-part="label">{label}</span>}
+    </button>
+  );
+}
+
+export function ServerModUpdate({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const server = useServerSubject();
+  const modPending = useServerStore((s) => s.modPending);
+  if (!server) return null;
+  if (!modPending[server.addr]) return null;
+
+  const label = (options?.label as string | undefined) ?? "UPDATE";
+  return (
+    <span data-el="server.modUpdate" data-state={serverStates(!server.online)} className={className} style={style}>
+      <span data-part="label">{label}</span>
+    </span>
   );
 }

@@ -562,3 +562,122 @@ describe("ModServer displays", () => {
     expect(html).not.toContain('data-state="never"');
   });
 });
+
+describe("serverMod elements", () => {
+
+  function renderWithServerMod(
+    node: React.ReactNode,
+    mod: import("./mod-elements").ServerModData,
+    value?: Partial<ElementContextValue>,
+  ): string {
+    return renderToStaticMarkup(
+      <ElementContextProvider value={{ subjectContext: { kind: "serverMod", data: mod }, ...value }}>
+        {node}
+      </ElementContextProvider>,
+    );
+  }
+
+  describe("ServerModOrder", () => {
+    it("renders the mod's 1-based position in the server's list", async () => {
+      const { ServerModOrder } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModOrder />, { workshop_id: "2", order: 2 });
+      expect(html).toContain('data-part="value">2<');
+    });
+
+    it("renders — without a position", async () => {
+      const { ServerModOrder } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModOrder />, { workshop_id: "2" });
+      expect(html).toContain('data-part="value">—<');
+    });
+  });
+
+  describe("ServerModThumbnail", () => {
+    it("renders the preview image when present", async () => {
+      const { ServerModThumbnail } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModThumbnail />, { preview_url: "https://example.com/x.jpg" });
+      expect(html).toContain("https://example.com/x.jpg");
+      expect(html).not.toContain('data-state="missing"');
+    });
+
+    it("renders the missing state and placeholder without a preview url", async () => {
+      const { ServerModThumbnail } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModThumbnail />, { preview_url: null });
+      expect(html).toContain('data-state="missing"');
+      expect(html).not.toContain("<img");
+    });
+  });
+
+  describe("ServerModProgress", () => {
+    it("renders nothing while not downloading", async () => {
+      const { ServerModProgress } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModProgress />, { state: "ready" });
+      expect(html).toBe("");
+    });
+
+    it("is indeterminate until Steam reports a total", async () => {
+      const { ServerModProgress } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModProgress />, {
+        state: "downloading",
+        downloaded_bytes: 1024,
+        total_bytes: null,
+      });
+      expect(html).toContain('data-state="indeterminate"');
+    });
+
+    it("renders the bar width and '{got} / {total}' value once a total is known", async () => {
+      const { ServerModProgress } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModProgress />, {
+        state: "downloading",
+        downloaded_bytes: 50 * 1024 * 1024,
+        total_bytes: 100 * 1024 * 1024,
+      });
+      expect(html).not.toContain('data-state="indeterminate"');
+      expect(html).toContain("width:50%");
+      expect(html).toContain(`${formatBytes(50 * 1024 * 1024, 1)} / ${formatBytes(100 * 1024 * 1024, 1)}`);
+    });
+  });
+
+  describe("ServerModUnique", () => {
+    it("renders nothing when the mod isn't unique", async () => {
+      const { ServerModUnique } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModUnique />, { is_unique: false });
+      expect(html).toBe("");
+    });
+
+    it("reads 'Only this server' by default", async () => {
+      const { ServerModUnique } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModUnique />, { is_unique: true });
+      expect(html).toContain("Only this server");
+    });
+
+    it("honours the label option", async () => {
+      const { ServerModUnique } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModUnique options={{ label: "Unique" }} />, { is_unique: true });
+      expect(html).toContain(">Unique<");
+    });
+  });
+
+  describe("ServerModOpenInSteam", () => {
+    it("calls openWorkshopInSteam with the workshop id and stops propagation", async () => {
+      const { ServerModOpenInSteam } = await import("./mod-elements");
+      resetCaptured();
+      renderWithServerMod(<ServerModOpenInSteam />, { workshop_id: "77", state: "ready" });
+      const onClick = captured["serverMod.openInSteam"].onClick as (e: { stopPropagation: () => void }) => void;
+      const stopPropagation = vi.fn();
+      onClick({ stopPropagation });
+      expect(stopPropagation).toHaveBeenCalled();
+      expect(tauriMocks.openWorkshopInSteam).toHaveBeenCalledWith("77");
+    });
+
+    it("is disabled for server-side mods and never calls openWorkshopInSteam", async () => {
+      const { ServerModOpenInSteam } = await import("./mod-elements");
+      resetCaptured();
+      tauriMocks.openWorkshopInSteam.mockClear();
+      const html = renderWithServerMod(<ServerModOpenInSteam />, { workshop_id: "77", state: "not_on_workshop" });
+      expect(html).toContain("disabled");
+      const onClick = captured["serverMod.openInSteam"].onClick as (e: { stopPropagation: () => void }) => void;
+      onClick({ stopPropagation: vi.fn() });
+      expect(tauriMocks.openWorkshopInSteam).not.toHaveBeenCalled();
+    });
+  });
+});

@@ -11,6 +11,7 @@ import {
   ServerAddress,
   ServerCancel,
   ServerCheckMods,
+  ServerCopyAddress,
   ServerDeselect,
   ServerFavourite,
   ServerGameTime,
@@ -21,6 +22,7 @@ import {
   ServerManageMods,
   ServerMenu,
   ServerModCount,
+  ServerModUpdate,
   ServerName,
   ServerPing,
   ServerPlayers,
@@ -114,6 +116,7 @@ vi.mock("@/lib/tauri", async (importOriginal) => {
     checkServerMods: vi.fn(),
     getUniqueModsSummary: vi.fn(),
     unsubscribeUniqueMods: vi.fn(),
+    copyServerAddress: vi.fn(),
   };
 });
 
@@ -1044,5 +1047,100 @@ describe("ServerUnsubscribeUnique", () => {
 
     expect(mockServerActions.setNotice).toHaveBeenCalledWith({ kind: "plain", text: "Error: boom" }, server.addr);
     expect(askConfirmCalls).toHaveLength(0);
+  });
+});
+
+describe("ServerCopyAddress", () => {
+  beforeEach(async () => {
+    const { copyServerAddress } = await import("@/lib/tauri");
+    vi.mocked(copyServerAddress).mockReset();
+    vi.mocked(copyServerAddress).mockResolvedValue(undefined);
+  });
+
+  it("reads 'Copy address' idle, with a Copy icon", () => {
+    const html = renderInteractive(<ServerCopyAddress />, { subjectContext: { kind: "server", data: server } });
+    expect(html).toContain(">Copy address<");
+    expect(html).not.toContain('data-state="copied"');
+  });
+
+  it("calls copyServerAddress with the subject server, stopping propagation", async () => {
+    const { copyServerAddress } = await import("@/lib/tauri");
+    renderInteractive(<ServerCopyAddress />, { subjectContext: { kind: "server", data: server } });
+    const onClick = captured["server.copyAddress"].onClick as (e: { stopPropagation: () => void }) => void;
+    const stopPropagation = vi.fn();
+    onClick({ stopPropagation });
+
+    expect(stopPropagation).toHaveBeenCalled();
+    expect(copyServerAddress).toHaveBeenCalledWith(server);
+  });
+
+  it("schedules the copied-state reset 1.5s after a successful copy", async () => {
+    const { copyServerAddress } = await import("@/lib/tauri");
+    vi.useFakeTimers();
+    try {
+      const setTimeoutSpy = vi.spyOn(global, "setTimeout");
+      renderInteractive(<ServerCopyAddress />, { subjectContext: { kind: "server", data: server } });
+      const onClick = captured["server.copyAddress"].onClick as (e: { stopPropagation: () => void }) => void;
+      onClick({ stopPropagation: vi.fn() });
+
+      await vi.advanceTimersByTimeAsync(0);
+      expect(copyServerAddress).toHaveBeenCalledWith(server);
+      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 1500);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("logs, rather than throws, when the copy fails", async () => {
+    const { copyServerAddress } = await import("@/lib/tauri");
+    vi.mocked(copyServerAddress).mockRejectedValueOnce(new Error("clipboard denied"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    renderInteractive(<ServerCopyAddress />, { subjectContext: { kind: "server", data: server } });
+    const onClick = captured["server.copyAddress"].onClick as (e: { stopPropagation: () => void }) => void;
+    onClick({ stopPropagation: vi.fn() });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  it("honours the label option", () => {
+    const html = renderInteractive(<ServerCopyAddress options={{ label: "Copy" }} />, {
+      subjectContext: { kind: "server", data: server },
+    });
+    expect(html).toContain(">Copy<");
+  });
+});
+
+describe("ServerModUpdate", () => {
+  beforeEach(() => {
+    useServerStore.setState({ modPending: {} });
+  });
+
+  it("renders nothing without a pending mod update", () => {
+    const html = renderNode(<ServerModUpdate />, { subjectContext: { kind: "server", data: server } });
+    expect(html).toBe("");
+  });
+
+  it("renders UPDATE while this server has a pending mod update", () => {
+    useServerStore.setState({ modPending: { [server.addr]: true } });
+    const html = renderNode(<ServerModUpdate />, { subjectContext: { kind: "server", data: server } });
+    expect(html).toContain(">UPDATE<");
+  });
+
+  it("ignores another server's pending update", () => {
+    useServerStore.setState({ modPending: { [otherServer.addr]: true } });
+    const html = renderNode(<ServerModUpdate />, { subjectContext: { kind: "server", data: server } });
+    expect(html).toBe("");
+  });
+
+  it("honours the label option", () => {
+    useServerStore.setState({ modPending: { [server.addr]: true } });
+    const html = renderNode(<ServerModUpdate options={{ label: "Update available" }} />, {
+      subjectContext: { kind: "server", data: server },
+    });
+    expect(html).toContain(">Update available<");
   });
 });
