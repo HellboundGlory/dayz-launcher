@@ -1,40 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X, Search, Check, Ban, Star, ExternalLink, ThumbsUp, Users, Loader2, Inbox } from "lucide-react";
-import { useServerStore } from "@/stores/server-store";
-import { useModsStore, visibleRows } from "@/stores/mods-store";
+import { useModsStore } from "@/stores/mods-store";
 import {
-  getKnownMods,
-  getModUsage,
-  searchWorkshopMods,
-  type KnownMod,
-  type SubscribedMod,
-  type WorkshopSearchResult,
-} from "@/lib/tauri";
+  useModFilterStore,
+  subscribedForDayz,
+  activeEntries,
+  pickSummary,
+  type ModFilterEntry,
+} from "@/stores/mod-filter-store";
+import { getModUsage } from "@/lib/tauri";
 import { cn, formatBytes, formatLastPlayed } from "@/lib/utils";
-
-type Tab = "subscribed" | "seen" | "workshop";
-
-/** A mod is required, kept off the list, or neither — never both at once. */
-type Pick = "include" | "exclude";
-
-/** How long typing pauses before the Workshop search re-queries — same budget as the server search box. */
-const SEARCH_DEBOUNCE_MS = 350;
-
-/** One mod, whichever tab it came from, in the shape the list row and preview pane render. */
-interface Entry {
-  id: string;
-  title: string;
-  previewUrl: string | null;
-  subscribed: boolean;
-  serverCount: number | null;
-  description: string | null;
-  tags: string[];
-  numSubscriptions: string | null;
-  score: number | null;
-  fileSize: number | null;
-  timeUpdated: number | null;
-  workshopUrl: string | null;
-}
 
 function hashHue(id: string): number {
   let h = 0;
@@ -83,61 +58,53 @@ interface ModFilterModalProps {
   onClose: () => void;
 }
 
+const TABS: { key: "subscribed" | "seen" | "workshop"; label: string }[] = [
+  { key: "subscribed", label: "Subscribed" },
+  { key: "seen", label: "Seen on servers" },
+  { key: "workshop", label: "Search Workshop" },
+];
+
 // "Filter by mod" modal, opened from the filter bar's MODS trigger. Three
 // pools — Subscribed / Seen on servers / Search Workshop — feeding one
 // split list+preview layout. Focus trapped; Escape, ✕ and backdrop close
 // without applying, same contract as ServerInfoModal.
 export function ModFilterModal({ onClose }: ModFilterModalProps) {
-  const filter = useServerStore((s) => s.filter);
-  const setFilter = useServerStore((s) => s.setFilter);
   const modsRows = useModsStore((s) => s.rows);
   const modsLoading = useModsStore((s) => s.loading);
   const loadSubscribedMods = useModsStore((s) => s.load);
 
-  const [tab, setTab] = useState<Tab>("subscribed");
-  const [query, setQuery] = useState("");
-  const [selection, setSelection] = useState<Record<string, Pick>>(() => {
-    const init: Record<string, Pick> = {};
-    for (const id of filter.mod_ids) init[id] = "include";
-    for (const id of filter.mod_ids_exclude) init[id] = "exclude";
-    return init;
-  });
-  const [mode, setMode] = useState<"any" | "all">(filter.mod_match);
-  const [previewId, setPreviewId] = useState<string | null>(null);
-  const [meta, setMeta] = useState<Record<string, { title: string; previewUrl: string | null }>>({});
+  const tab = useModFilterStore((s) => s.tab);
+  const query = useModFilterStore((s) => s.query);
+  const selection = useModFilterStore((s) => s.selection);
+  const mode = useModFilterStore((s) => s.mode);
+  const previewId = useModFilterStore((s) => s.previewId);
+  const meta = useModFilterStore((s) => s.meta);
+  const known = useModFilterStore((s) => s.known);
+  const knownLoading = useModFilterStore((s) => s.knownLoading);
+  const searchResults = useModFilterStore((s) => s.searchResults);
+  const searchLoading = useModFilterStore((s) => s.searchLoading);
+  const searchError = useModFilterStore((s) => s.searchError);
+  const usage = useModFilterStore((s) => s.usage);
 
-  const [known, setKnown] = useState<KnownMod[] | null>(null);
-  const [knownLoading, setKnownLoading] = useState(false);
-
-  const [searchResults, setSearchResults] = useState<WorkshopSearchResult[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-
-  const [usage, setUsage] = useState<Record<string, number>>({});
+  const begin = useModFilterStore((s) => s.begin);
+  const applyFilter = useModFilterStore((s) => s.apply);
+  const setTab = useModFilterStore((s) => s.setTab);
+  const setQuery = useModFilterStore((s) => s.setQuery);
+  const setMode = useModFilterStore((s) => s.setMode);
+  const setPreviewId = useModFilterStore((s) => s.setPreviewId);
+  const cycle = useModFilterStore((s) => s.cycle);
+  const setPick = useModFilterStore((s) => s.setPick);
+  const clearSelection = useModFilterStore((s) => s.clearSelection);
+  const loadKnownMods = useModFilterStore((s) => s.loadKnownMods);
+  const mergeUsage = useModFilterStore((s) => s.mergeUsage);
 
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    begin();
     void loadSubscribedMods();
+    void loadKnownMods();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    setKnownLoading(true);
-    getKnownMods()
-      .then((rows) => {
-        if (!cancelled) setKnown(rows);
-      })
-      .catch(() => {
-        if (!cancelled) setKnown([]);
-      })
-      .finally(() => {
-        if (!cancelled) setKnownLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   useEffect(() => {
@@ -176,114 +143,19 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
     if (e.target === e.currentTarget) onClose();
   }
 
-  const subscribedForDayz = useMemo(
-    () =>
-      visibleRows(modsRows)
-        .filter((m) => m.for_dayz)
-        .sort((a, b) => (a.title ?? "").localeCompare(b.title ?? "")),
-    [modsRows],
+  const subscribedRows = useMemo(() => subscribedForDayz(modsRows), [modsRows]);
+
+  const activeList: ModFilterEntry[] = useMemo(
+    () => activeEntries({ tab, query, subscribedRows, known, searchResults, usage }),
+    [tab, query, subscribedRows, known, searchResults, usage],
   );
-  const subscribedIds = useMemo(() => new Set(subscribedForDayz.map((m) => m.workshop_id)), [subscribedForDayz]);
-
-  useEffect(() => {
-    setPreviewId(null);
-    setSearchError(null);
-  }, [tab]);
-
-  // Debounced Workshop text search — only the "workshop" tab drives it, and
-  // it stays empty (a prompt, not a list) until the user actually types.
-  useEffect(() => {
-    if (tab !== "workshop") return;
-    const q = query.trim();
-    if (!q) {
-      setSearchResults([]);
-      setSearchLoading(false);
-      setSearchError(null);
-      return;
-    }
-    setSearchLoading(true);
-    const timer = window.setTimeout(() => {
-      searchWorkshopMods(q)
-        .then((rows) => {
-          setSearchResults(rows);
-          setSearchError(null);
-        })
-        .catch((e) => {
-          setSearchResults([]);
-          setSearchError(String(e));
-        })
-        .finally(() => setSearchLoading(false));
-    }, SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [tab, query]);
-
-  function fromSubscribed(m: SubscribedMod): Entry {
-    return {
-      id: m.workshop_id,
-      title: m.title || `Workshop item ${m.workshop_id}`,
-      previewUrl: m.preview_url,
-      subscribed: true,
-      serverCount: usage[m.workshop_id] ?? null,
-      description: m.description,
-      tags: m.tags,
-      numSubscriptions: m.num_subscriptions || null,
-      score: m.score || null,
-      fileSize: m.file_size || null,
-      timeUpdated: m.time_updated || null,
-      workshopUrl: m.workshop_url,
-    };
-  }
-  function fromKnown(m: KnownMod): Entry {
-    return {
-      id: m.workshop_id,
-      title: m.name || `Workshop item ${m.workshop_id}`,
-      previewUrl: null,
-      subscribed: subscribedIds.has(m.workshop_id),
-      serverCount: m.server_count,
-      description: null,
-      tags: [],
-      numSubscriptions: null,
-      score: null,
-      fileSize: null,
-      timeUpdated: null,
-      workshopUrl: null,
-    };
-  }
-  function fromSearch(m: WorkshopSearchResult): Entry {
-    return {
-      id: m.workshop_id,
-      title: m.title,
-      previewUrl: m.preview_url,
-      subscribed: subscribedIds.has(m.workshop_id),
-      serverCount: usage[m.workshop_id] ?? null,
-      description: m.description || null,
-      tags: m.tags,
-      numSubscriptions: m.num_subscriptions,
-      score: m.score,
-      fileSize: m.file_size,
-      timeUpdated: m.time_updated,
-      workshopUrl: m.workshop_url,
-    };
-  }
-
-  const activeList: Entry[] = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (tab === "subscribed") {
-      return subscribedForDayz.filter((m) => !q || (m.title ?? "").toLowerCase().includes(q)).map(fromSubscribed);
-    }
-    if (tab === "seen") {
-      return (known ?? []).filter((m) => !q || m.name.toLowerCase().includes(q)).map(fromKnown);
-    }
-    return searchResults.map(fromSearch);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, query, subscribedForDayz, known, searchResults, usage, subscribedIds]);
 
   // Server counts for tabs whose source doesn't already carry one ("seen"
   // gets it straight from the registry query).
   useEffect(() => {
     const ids =
       tab === "subscribed"
-        ? subscribedForDayz.map((m) => m.workshop_id)
+        ? subscribedRows.map((m) => m.workshop_id)
         : tab === "workshop"
           ? searchResults.map((m) => m.workshop_id)
           : [];
@@ -292,67 +164,22 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
     let cancelled = false;
     getModUsage(missing).then((rows) => {
       if (cancelled) return;
-      setUsage((prev) => {
-        const next = { ...prev };
-        for (const r of rows) next[r.workshop_id] = r.total_servers;
-        return next;
-      });
+      mergeUsage(rows);
     });
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, subscribedForDayz, searchResults]);
+  }, [tab, subscribedRows, searchResults]);
 
   const preview = activeList.find((e) => e.id === previewId) ?? null;
 
-  const included = useMemo(
-    () => Object.keys(selection).filter((id) => selection[id] === "include"),
-    [selection],
-  );
-  const excluded = useMemo(
-    () => Object.keys(selection).filter((id) => selection[id] === "exclude"),
-    [selection],
-  );
-
-  function remember(entry: Entry) {
-    setMeta((m) => ({ ...m, [entry.id]: { title: entry.title, previewUrl: entry.previewUrl } }));
-  }
-
-  /** Row checkbox: cycles none → include → exclude → none. */
-  function cycle(entry: Entry) {
-    setSelection((s) => {
-      const next = { ...s };
-      if (next[entry.id] === "include") next[entry.id] = "exclude";
-      else if (next[entry.id] === "exclude") delete next[entry.id];
-      else next[entry.id] = "include";
-      return next;
-    });
-    remember(entry);
-  }
-
-  /** Preview pane's Include/Exclude buttons: pick a specific state, or clear it
-      if that state is already active — same result as cycling back to none. */
-  function setPick(entry: Entry, pick: Pick) {
-    setSelection((s) => {
-      const next = { ...s };
-      if (next[entry.id] === pick) delete next[entry.id];
-      else next[entry.id] = pick;
-      return next;
-    });
-    remember(entry);
-  }
+  const { included, excluded } = useMemo(() => pickSummary(selection), [selection]);
 
   function apply() {
-    setFilter({ mod_ids: included, mod_match: mode, mod_ids_exclude: excluded });
+    applyFilter();
     onClose();
   }
-
-  const TABS: { key: Tab; label: string }[] = [
-    { key: "subscribed", label: "Subscribed" },
-    { key: "seen", label: "Seen on servers" },
-    { key: "workshop", label: "Search Workshop" },
-  ];
 
   return (
     <div
@@ -396,7 +223,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
 
         <div className="mt-2.5 flex min-h-0 flex-1">
           <div className="flex min-w-0 w-[380px] shrink-0 flex-col overflow-y-auto border-r border-line px-2.5 pb-2.5">
-            {tab === "subscribed" && modsLoading && subscribedForDayz.length === 0 && <ListSpinner />}
+            {tab === "subscribed" && modsLoading && subscribedRows.length === 0 && <ListSpinner />}
             {tab === "seen" && knownLoading && <ListSpinner />}
             {tab === "workshop" && searchLoading && <ListSpinner />}
             {tab === "workshop" && !query.trim() && !searchLoading && (
@@ -408,7 +235,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
               <p className="px-1.5 py-6 text-center [font-size:var(--t-type-compactBody-size)] leading-relaxed text-danger">{searchError}</p>
             )}
             {!searchLoading &&
-              !(tab === "subscribed" && modsLoading && subscribedForDayz.length === 0) &&
+              !(tab === "subscribed" && modsLoading && subscribedRows.length === 0) &&
               !(tab === "seen" && knownLoading) &&
               activeList.length === 0 &&
               !(tab === "workshop" && !query.trim()) &&
@@ -520,7 +347,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
                   {excluded.length > 0 && `${excluded.length} excluded`}
                 </span>
                 <button
-                  onClick={() => setSelection({})}
+                  onClick={() => clearSelection()}
                   className="ml-2.5 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.05em] text-muted transition-colors hover:text-ink"
                 >
                   Clear
