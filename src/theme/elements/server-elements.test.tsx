@@ -1155,3 +1155,20 @@ describe("ServerModUpdate", () => {
     expect(html).toContain(">Update available<");
   });
 });
+
+describe("ServerAddress outside the selection panel", () => {
+  it("labels the game port instead of appending it to the query-port address", async () => {
+    const { ServerAddress } = await import("./server-elements");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { ElementContextProvider } = await import("./context");
+    const server = { addr: "1.2.3.4:2303", game_port: 2302, online: true } as unknown as import("@/types/server").Server;
+    const html = renderToStaticMarkup(
+      <ElementContextProvider value={{ subjectContext: { kind: "server", data: server } } as never}>
+        <ServerAddress options={{ showGamePort: true }} />
+      </ElementContextProvider>,
+    );
+    expect(html).toContain("1.2.3.4:2303");
+    expect(html).toContain("game port 2302");
+    expect(html).not.toContain(":2303:");
+  });
+});

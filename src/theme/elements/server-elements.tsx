@@ -1037,7 +1037,7 @@ export function ServerAddress({
   return (
     <span data-el="server.address" data-state={states} className={className ?? "block truncate font-mono-data text-muted"} style={style}>
       <span data-part="address">{server.addr}</span>
-      {showGamePort && <span data-part="gamePort">:{server.game_port}</span>}
+      {showGamePort && server.game_port > 0 && <span data-part="gamePort"> game port {server.game_port}</span>}
     </span>
   );
 }
