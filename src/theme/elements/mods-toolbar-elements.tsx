@@ -9,12 +9,27 @@ import {
   Search,
   Star,
   Trash2,
+  X,
 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useModsStore, visibleRows, type ModStatusFilter } from "@/stores/mods-store";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/confirm-dialog";
 import { OptionIcon } from "./option-icon";
+
+function toolbarDisplayOptions(
+  options: Record<string, unknown> | undefined,
+  fallbackLabel: string,
+  defaultDisplay: "iconLabel" | "label" | "icon",
+) {
+  const display = (options?.display as string | undefined) ?? defaultDisplay;
+  const label = (options?.label as string | undefined) ?? fallbackLabel;
+  return {
+    label,
+    showIcon: display === "iconLabel" || display === "icon",
+    showLabel: display === "iconLabel" || display === "label",
+  };
+}
 
 const STATUS_FILTERS: { key: ModStatusFilter; label: string }[] = [
   { key: "all", label: "All" },
@@ -112,11 +127,12 @@ export function ModsStatusFilter({ className, style }: { className?: string; sty
   );
 }
 
-export function ModsRefresh({ className, style }: { className?: string; style?: CSSProperties }) {
+export function ModsRefresh({ options, className, style }: { options?: Record<string, unknown>; className?: string; style?: CSSProperties }) {
   const loading = useModsStore((s) => s.loading);
   const op = useModsStore((s) => s.op);
   const load = useModsStore((s) => s.load);
   const busy = loading || !!op;
+  const { label, showIcon, showLabel } = toolbarDisplayOptions(options, "Refresh", "iconLabel");
 
   return (
     <button
@@ -129,10 +145,12 @@ export function ModsRefresh({ className, style }: { className?: string; style?: 
       className={className ?? "flex shrink-0 items-center gap-1 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2 py-[5px] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"}
       style={style}
     >
-      <span data-part="icon" className="flex">
-        <RefreshCw className={cn("size-3", loading && "animate-spin")} />
-      </span>
-      <span data-part="label">Refresh</span>
+      {showIcon && (
+        <span data-part="icon" className="flex">
+          <OptionIcon icon={options?.icon} fallback={RefreshCw} className={cn("size-3", loading && "animate-spin")} />
+        </span>
+      )}
+      {showLabel && <span data-part="label">{label}</span>}
     </button>
   );
 }
@@ -171,9 +189,10 @@ export function ModsCount({ className, style }: { className?: string; style?: CS
   );
 }
 
-export function ModsClearSelection({ className, style }: { className?: string; style?: CSSProperties }) {
+export function ModsClearSelection({ options, className, style }: { options?: Record<string, unknown>; className?: string; style?: CSSProperties }) {
   const selectedCount = useModsStore((s) => s.selectedIds.size);
   const clearSelection = useModsStore((s) => s.clearSelection);
+  const { label, showIcon, showLabel } = toolbarDisplayOptions(options, "Clear", "label");
 
   return (
     <button
@@ -184,18 +203,27 @@ export function ModsClearSelection({ className, style }: { className?: string; s
       className={className ?? "shrink-0 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.06em] text-muted transition-colors hover:text-ink disabled:opacity-40"}
       style={style}
     >
-      <span data-part="label">Clear</span>
+      {showIcon && (
+        <span data-part="icon">
+          <OptionIcon icon={options?.icon} fallback={X} className="size-3" />
+        </span>
+      )}
+      {showLabel && <span data-part="label">{label}</span>}
     </button>
   );
 }
 
-export function ModsCleanupRemoved({ className, style }: { className?: string; style?: CSSProperties }) {
+export function ModsCleanupRemoved({ options, className, style }: { options?: Record<string, unknown>; className?: string; style?: CSSProperties }) {
   const rows = useModsStore((s) => s.rows);
   const op = useModsStore((s) => s.op);
   const cleanupRemoved = useModsStore((s) => s.cleanupRemoved);
   const askConfirm = useConfirm();
   const removedCount = rows.filter((r) => r.removed).length;
   const busy = !!op;
+  const baseLabel = (options?.label as string | undefined) ?? "Clean up";
+  const display = (options?.display as string | undefined) ?? "iconLabel";
+  const showIcon = display === "iconLabel" || display === "icon";
+  const showLabel = display === "iconLabel" || display === "label";
 
   if (removedCount === 0) return null;
 
@@ -217,10 +245,12 @@ export function ModsCleanupRemoved({ className, style }: { className?: string; s
       className={className ?? "flex items-center gap-1 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2 py-[5px] [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-[0.04em] text-warn transition-[filter] hover:brightness-110 disabled:opacity-50"}
       style={style}
     >
-      <span data-part="icon" className="flex">
-        <Trash2 className="size-3" />
-      </span>
-      <span data-part="label">Clean up {removedCount}</span>
+      {showIcon && (
+        <span data-part="icon" className="flex">
+          <OptionIcon icon={options?.icon} fallback={Trash2} className="size-3" />
+        </span>
+      )}
+      {showLabel && <span data-part="label">{baseLabel} {removedCount}</span>}
     </button>
   );
 }

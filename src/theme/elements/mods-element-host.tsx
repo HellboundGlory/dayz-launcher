@@ -3,6 +3,7 @@ import { CheckSquare } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useModsStore, visibleRows } from "@/stores/mods-store";
 import type { ElementNode } from "../renderer/types";
+import { OptionIcon } from "./option-icon";
 import {
   ModCreated,
   ModDescription,
@@ -50,8 +51,16 @@ import {
   ModsVerifySelected,
 } from "./mods-toolbar-elements";
 
-/** Checked while every visible mod is checked; a click checks or clears them all. */
-function ModsSelectAll({ className, style }: { className?: string; style?: CSSProperties }) {
+/** Checked while every visible mod is checked; options only apply outside a list header. */
+function ModsSelectAll({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
   const { rows, selectedIds, setAllSelected } = useModsStore(
     useShallow((s) => ({
       rows: s.rows,
@@ -61,6 +70,37 @@ function ModsSelectAll({ className, style }: { className?: string; style?: CSSPr
   );
   const visible = visibleRows(rows);
   const allSelected = visible.length > 0 && visible.every((r) => selectedIds.has(r.workshop_id));
+  const defaultLabel = allSelected ? "Deselect all" : "Select all visible";
+  const hasOptions = options?.icon !== undefined || options?.display !== undefined || options?.label !== undefined;
+
+  if (!hasOptions) {
+    return (
+      <button
+        type="button"
+        data-el="mods.selectAll"
+        aria-pressed={allSelected}
+        data-state={allSelected ? "checked" : undefined}
+        title={defaultLabel}
+        aria-label={defaultLabel}
+        onClick={() => setAllSelected(!allSelected)}
+        className={className ?? "flex items-center justify-center text-accent hover:text-accent2"}
+        style={style}
+      >
+        <span data-part="icon" className="flex">
+          {allSelected ? (
+            <CheckSquare className="size-3.5" />
+          ) : (
+            <span className="size-3.5 [border-radius:var(--t-radius-badge)] border border-line" />
+          )}
+        </span>
+      </button>
+    );
+  }
+
+  const label = (options?.label as string | undefined) ?? defaultLabel;
+  const display = (options?.display as string | undefined) ?? "iconLabel";
+  const showIcon = display === "iconLabel" || display === "icon";
+  const showLabel = display === "iconLabel" || display === "label";
 
   return (
     <button
@@ -68,19 +108,18 @@ function ModsSelectAll({ className, style }: { className?: string; style?: CSSPr
       data-el="mods.selectAll"
       aria-pressed={allSelected}
       data-state={allSelected ? "checked" : undefined}
-      title={allSelected ? "Deselect all" : "Select all visible"}
-      aria-label={allSelected ? "Deselect all" : "Select all visible"}
+      title={label}
+      aria-label={label}
       onClick={() => setAllSelected(!allSelected)}
-      className={className ?? "flex items-center justify-center text-accent hover:text-accent2"}
+      className={className ?? "flex items-center gap-1 text-accent hover:text-accent2"}
       style={style}
     >
-      <span data-part="icon" className="flex">
-        {allSelected ? (
-          <CheckSquare className="size-3.5" />
-        ) : (
-          <span className="size-3.5 [border-radius:var(--t-radius-badge)] border border-line" />
-        )}
-      </span>
+      {showIcon && (
+        <span data-part="icon" className="flex">
+          <OptionIcon icon={options?.icon} fallback={CheckSquare} className="size-3.5" />
+        </span>
+      )}
+      {showLabel && <span data-part="label">{label}</span>}
     </button>
   );
 }
@@ -146,19 +185,19 @@ export function renderModsElement(
     case "list.modServers":
       return <ModServersListHost className={className} style={style} />;
     case "mods.selectAll":
-      return <ModsSelectAll className={className} style={style} />;
+      return <ModsSelectAll options={node.options} className={className} style={style} />;
     case "mods.search":
       return <ModsSearch className={className} style={style} />;
     case "mods.statusFilter":
       return <ModsStatusFilter className={className} style={style} />;
     case "mods.refresh":
-      return <ModsRefresh className={className} style={style} />;
+      return <ModsRefresh options={node.options} className={className} style={style} />;
     case "mods.count":
       return <ModsCount className={className} style={style} />;
     case "mods.clearSelection":
-      return <ModsClearSelection className={className} style={style} />;
+      return <ModsClearSelection options={node.options} className={className} style={style} />;
     case "mods.cleanupRemoved":
-      return <ModsCleanupRemoved className={className} style={style} />;
+      return <ModsCleanupRemoved options={node.options} className={className} style={style} />;
     case "mods.unsubscribe":
       return <ModsUnsubscribe options={node.options} className={className} style={style} />;
     case "mods.unsubscribeMenu":

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
-import { Search, RefreshCw, RotateCcw, ChevronDown, X } from "lucide-react";
+import { Search, RefreshCw, RotateCcw, ChevronDown, X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useServerStore } from "@/stores/server-store";
 import { useElementContext } from "./context";
+import { OptionIcon } from "./option-icon";
 
 const SEARCH_DEBOUNCE_MS = 250;
 
@@ -133,7 +134,7 @@ export function FilterSearch({
     >
       {showIcon && (
         <span data-part="icon">
-          <Search className="size-3.5 text-muted shrink-0" />
+          <OptionIcon icon={options?.icon} fallback={Search} className="size-3.5 text-muted shrink-0" />
         </span>
       )}
       <input
@@ -499,6 +500,12 @@ function HideToggle({
     <span data-part="label">{label}</span>
   );
 
+  const iconSpan = options?.icon !== undefined && options.icon !== "none" && (
+    <span data-part="icon">
+      <OptionIcon icon={options.icon} fallback={Check} className="size-3" />
+    </span>
+  );
+
   if (control === "checkbox" || control === "switch") {
     return (
       <div
@@ -510,6 +517,7 @@ function HideToggle({
         <span data-part="box" className="size-3 border border-border inline-flex items-center justify-center">
           {on && <span className="size-1.5 bg-accent" />}
         </span>
+        {iconSpan}
         {labelSpan}
       </div>
     );
@@ -517,6 +525,7 @@ function HideToggle({
 
   return (
     <button type="button" {...commonProps} aria-pressed={on}>
+      {iconSpan}
       {labelSpan}
     </button>
   );
@@ -564,7 +573,7 @@ export function ServersRefresh({
     >
       {display !== "label" && (
         <span data-part="icon">
-          <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} />
+          <OptionIcon icon={options?.icon} fallback={RefreshCw} className={cn("size-3.5", refreshing && "animate-spin")} />
         </span>
       )}
       {display !== "icon" && (
@@ -600,7 +609,7 @@ export function FilterReset({
     >
       {display !== "label" && (
         <span data-part="icon">
-          <RotateCcw className="size-3" />
+          <OptionIcon icon={options?.icon} fallback={RotateCcw} className="size-3" />
         </span>
       )}
       {display !== "icon" && (

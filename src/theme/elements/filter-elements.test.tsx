@@ -181,6 +181,11 @@ describe("FilterSearch", () => {
     const html = renderToStaticMarkup(<FilterSearch options={{ showIcon: false }} />);
     expect(html).not.toContain('data-part="icon"');
   });
+
+  it("honours the icon option", () => {
+    expect(renderToStaticMarkup(<FilterSearch />)).toContain("lucide-search");
+    expect(renderToStaticMarkup(<FilterSearch options={{ icon: "globe" }} />)).toContain("lucide-globe");
+  });
 });
 
 describe("FilterMap", () => {
@@ -291,6 +296,13 @@ describe("hide toggles", () => {
     const html = renderToStaticMarkup(<FilterHideEmpty options={{ control: "switch" }} />);
     expect(html).toContain('role="switch"');
   });
+
+  it("omits the icon part with no option, and honours it when set", () => {
+    expect(renderToStaticMarkup(<FilterHideEmpty />)).not.toContain('data-part="icon"');
+    const html = renderToStaticMarkup(<FilterHideEmpty options={{ icon: "check" }} />);
+    expect(html).toContain('data-part="icon"');
+    expect(html).toContain("lucide-check");
+  });
 });
 
 describe("FilterReset", () => {
@@ -309,6 +321,11 @@ describe("FilterReset", () => {
   it("honours a label override", () => {
     const html = renderToStaticMarkup(<FilterReset options={{ label: "Clear filters" }} />);
     expect(html).toContain("Clear filters");
+  });
+
+  it("honours the icon option", () => {
+    expect(renderToStaticMarkup(<FilterReset />)).toContain("lucide-rotate-ccw");
+    expect(renderToStaticMarkup(<FilterReset options={{ icon: "x" }} />)).toContain("lucide-x");
   });
 });
 
@@ -344,5 +361,14 @@ describe("ServersRefresh", () => {
     );
     expect(html).not.toContain('data-state="busy"');
     expect(html).toContain(">Refresh<");
+  });
+
+  it("honours the icon option", () => {
+    const html = renderToStaticMarkup(
+      <ElementContextProvider value={{ onRefresh: vi.fn(), refreshing: false }}>
+        <ServersRefresh options={{ icon: "check" }} />
+      </ElementContextProvider>,
+    );
+    expect(html).toContain("lucide-check");
   });
 });

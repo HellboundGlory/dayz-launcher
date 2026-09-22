@@ -6,8 +6,15 @@ import { useThemeStore } from "@/theme/theme-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { setUiScale, UI_SCALE_MAX, UI_SCALE_MIN, UI_SCALE_STEP } from "@/lib/tauri";
 import { useElementContext } from "./context";
+import { OptionIcon } from "./option-icon";
 
-export function AppMinimize({ className, style }: { className?: string; style?: CSSProperties }) {
+interface OptionsProps {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}
+
+export function AppMinimize({ options, className, style }: OptionsProps) {
   const minimize = () => {
     getCurrentWindow().minimize().catch(() => {});
   };
@@ -22,13 +29,13 @@ export function AppMinimize({ className, style }: { className?: string; style?: 
       style={style}
     >
       <span data-part="icon">
-        <Minus className="size-[var(--t-space-iconMedium)]" />
+        <OptionIcon icon={options?.icon} fallback={Minus} className="size-[var(--t-space-iconMedium)]" />
       </span>
     </button>
   );
 }
 
-export function AppMaximize({ className, style }: { className?: string; style?: CSSProperties }) {
+export function AppMaximize({ options, className, style }: OptionsProps) {
   const [maximized, setMaximized] = useState(false);
 
   useEffect(() => {
@@ -66,13 +73,13 @@ export function AppMaximize({ className, style }: { className?: string; style?: 
       style={style}
     >
       <span data-part="icon">
-        <Square className="size-[var(--t-space-iconSmall)]" />
+        <OptionIcon icon={options?.icon} fallback={Square} className="size-[var(--t-space-iconSmall)]" />
       </span>
     </button>
   );
 }
 
-export function AppClose({ className, style }: { className?: string; style?: CSSProperties }) {
+export function AppClose({ options, className, style }: OptionsProps) {
   const close = () => {
     getCurrentWindow().close().catch(() => {});
   };
@@ -87,7 +94,7 @@ export function AppClose({ className, style }: { className?: string; style?: CSS
       style={style}
     >
       <span data-part="icon">
-        <X className="size-[var(--t-space-iconMedium)]" />
+        <OptionIcon icon={options?.icon} fallback={X} className="size-[var(--t-space-iconMedium)]" />
       </span>
     </button>
   );
@@ -162,11 +169,11 @@ export function AppCollapseToggle({
       style={style}
     >
       <span data-part="icon">
-        {collapsed ? (
-          <ChevronsRight className="size-[var(--t-space-iconSmall)]" />
-        ) : (
-          <ChevronsLeft className="size-[var(--t-space-iconSmall)]" />
-        )}
+        <OptionIcon
+          icon={options?.icon}
+          fallback={collapsed ? ChevronsRight : ChevronsLeft}
+          className="size-[var(--t-space-iconSmall)]"
+        />
       </span>
     </button>
   );
@@ -223,7 +230,7 @@ export function AppUiScale({
   );
 }
 
-export function AppSchemeToggle({ className, style }: { className?: string; style?: CSSProperties }) {
+export function AppSchemeToggle({ options, className, style }: OptionsProps) {
   const scheme = useThemeStore((s) => s.scheme);
   const setScheme = useThemeStore((s) => s.setScheme);
 
@@ -243,11 +250,11 @@ export function AppSchemeToggle({ className, style }: { className?: string; styl
       style={style}
     >
       <span data-part="icon">
-        {scheme === "dark" ? (
-          <Sun className="size-[var(--t-space-iconSmall)]" />
-        ) : (
-          <Moon className="size-[var(--t-space-iconSmall)]" />
-        )}
+        <OptionIcon
+          icon={options?.icon}
+          fallback={scheme === "dark" ? Sun : Moon}
+          className="size-[var(--t-space-iconSmall)]"
+        />
       </span>
     </button>
   );
