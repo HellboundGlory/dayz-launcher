@@ -20,8 +20,9 @@ import { ModsTab } from "./components/mods-tab";
 import { FooterBar } from "./components/footer-bar";
 import { SettingsView } from "./components/settings-view";
 import { SettingsHost, SettingsRegionPortal } from "./theme/interaction/settings-host";
+import { ModalHost } from "./theme/interaction/modal-host";
 import { SETTINGS_LAYOUT } from "./theme/neutral";
-import type { SettingsLayoutFile } from "./theme/renderer/types";
+import type { ModalLayoutFile, SettingsLayoutFile } from "./theme/renderer/types";
 import { DevModeInspector } from "./components/themes-page/DevModeInspector";
 import { DevModeValidationPanel } from "./components/themes-page/DevModeValidationPanel";
 import { ConfirmDialog } from "./components/confirm-dialog";
@@ -33,14 +34,16 @@ import { useServerStore } from "./stores/server-store";
 import { useSettingsStore } from "./stores/settings-store";
 import { useUpdateStore } from "./stores/update-store";
 import { useModsStore } from "./stores/mods-store";
+import { useModFilterStore } from "./stores/mod-filter-store";
 import { watchDayz } from "./stores/launch-store";
 import {
   useThemeStore,
   watchHotReload,
   watchThemeActivationReverted,
   getActiveLayout,
+  getThemeOwnedLayout,
 } from "./theme/theme-store";
-import { ElementContextProvider } from "./theme/elements/context";
+import { ElementContextProvider, SubjectContextProvider } from "./theme/elements/context";
 import { ModsViewHost } from "./theme/elements/mods-view-host";
 import { LayoutRenderer } from "./theme/renderer";
 import { useServerDataLoader } from "./hooks/use-server-data-loader";
@@ -290,6 +293,15 @@ export function App() {
   const modsLayout = themeFiles[activeId]?.layouts?.["layout/views/mods.json"];
   const settingsLayout = (getActiveLayout("layout/settings.json") ??
     SETTINGS_LAYOUT) as SettingsLayoutFile;
+  const themedServerInfoModal = getThemeOwnedLayout("layout/modals/serverInfo.json") as
+    | ModalLayoutFile
+    | undefined;
+  const themedModFilterModal = getThemeOwnedLayout("layout/modals/modFilter.json") as
+    | ModalLayoutFile
+    | undefined;
+  const themedUpdateModal = getThemeOwnedLayout("layout/modals/update.json") as
+    | ModalLayoutFile
+    | undefined;
   const settingsMode = settingsLayout.presentation?.mode ?? "overlay";
   const closeSettings = () => setSettingsOpen(false);
 
@@ -796,6 +808,17 @@ export function App() {
     />
   );
 
+  const openModFilter = () => {
+    useModFilterStore.getState().begin();
+    setModFilterOpen(true);
+  };
+
+  const closeModal = () => {
+    if (infoServer) setInfoServer(null);
+    else if (modFilterOpen) setModFilterOpen(false);
+    else if (updateOpen) setUpdateOpen(false);
+  };
+
   const elementContextValue = {
     activeView,
     onViewChange: handleViewChange,
@@ -821,7 +844,23 @@ export function App() {
     discovering,
     devMode,
     onDevModeChange: setDevMode,
+    openServerInfo: setInfoServer,
+    openModFilter,
+    modFilterOpen,
+    closeModal,
   };
+
+  // Harness-only: the headless UI harness has no other way to reach this state.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    (window as unknown as { __harness?: Record<string, unknown> }).__harness = {
+      openServerInfo: setInfoServer,
+      openModFilter,
+      openUpdateModal: () => setUpdateOpen(true),
+      closeModal,
+    };
+  });
 
   return (
     <ElementContextProvider value={elementContextValue}>
@@ -876,15 +915,49 @@ export function App() {
                     {showOnboarding && steamConnected && (
                       <OnboardingModal onDone={() => setShowOnboarding(false)} />
                     )}
-                    <UpdateModal open={updateOpen} onClose={() => setUpdateOpen(false)} />
+                    {themedUpdateModal ? (
+                      updateOpen && (
+                        <ModalHost
+                          file={themedUpdateModal}
+                          themeId={activeId}
+                          settings={settingsValues[activeId]}
+                          onClose={() => setUpdateOpen(false)}
+                        />
+                      )
+                    ) : (
+                      <UpdateModal open={updateOpen} onClose={() => setUpdateOpen(false)} />
+                    )}
                     {infoServer && (
-                      <ServerInfoModal
-                        server={infoServer}
-                        onClose={() => setInfoServer(null)}
-                      />
+                      themedServerInfoModal ? (
+                        <SubjectContextProvider
+                          subject={{ kind: "server", data: infoServer }}
+                          contextName="modal"
+                        >
+                          <ModalHost
+                            file={themedServerInfoModal}
+                            themeId={activeId}
+                            settings={settingsValues[activeId]}
+                            onClose={() => setInfoServer(null)}
+                          />
+                        </SubjectContextProvider>
+                      ) : (
+                        <ServerInfoModal
+                          server={infoServer}
+                          onClose={() => setInfoServer(null)}
+                        />
+                      )
                     )}
                     {modFilterOpen && (
-                      <ModFilterModal onClose={() => setModFilterOpen(false)} />
+                      themedModFilterModal ? (
+                        <ModalHost
+                          file={themedModFilterModal}
+                          themeId={activeId}
+                          settings={settingsValues[activeId]}
+                          onClose={() => setModFilterOpen(false)}
+                        />
+                      ) : (
+                        <ModFilterModal onClose={() => setModFilterOpen(false)} />
+                      )
                     )}
                     {!steamConnected && steamError && (
                       <SteamRequiredModal
