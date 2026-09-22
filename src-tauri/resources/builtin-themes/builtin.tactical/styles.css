@@ -481,7 +481,7 @@
   color: var(--danger);
 }
 
-[data-el="filter.region"] [data-part="clear"] {
+[data-el="filter.region"] [data-el="popup.clear"] {
   font-size: 10px;
   font-weight: 600;
   color: var(--muted);

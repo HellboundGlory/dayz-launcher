@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   ChevronDown,
-  ChevronRight,
   Download,
   Globe,
   Loader2,
@@ -15,6 +14,9 @@ import { useShallow } from "zustand/react/shallow";
 import { useModsStore, visibleRows, type ModStatusFilter } from "@/stores/mods-store";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/confirm-dialog";
+import { getThemeOwnedLayout } from "../theme-store";
+import type { PopupLayoutFile } from "../renderer/types";
+import { FilterPopup, UniqueServerOptionsList, useTriggerRect } from "./popup-elements";
 import { OptionIcon } from "./option-icon";
 
 function toolbarDisplayOptions(
@@ -639,30 +641,7 @@ export function ModsSelectUniquePopup({
       role="menu"
       className="absolute bottom-full left-0 mb-1 max-h-64 w-80 overflow-y-auto [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)]"
     >
-      {caredServers.length === 0 ? (
-        <p data-part="empty" className="px-3 py-2 [font-size:var(--t-type-label-size)] text-muted">
-          No favourites or recently played servers yet.
-        </p>
-      ) : (
-        caredServers.map((srv) => {
-          const label = srv.name || `${srv.addr}:${srv.query_port}`;
-          return (
-            <button
-              type="button"
-              key={`${srv.addr}:${srv.query_port}`}
-              data-part="option"
-              title={label}
-              onClick={() => onSelect(srv.addr, srv.query_port, srv.name)}
-              className="flex w-full items-center gap-2 [border-radius:var(--t-radius-controlCompact)] px-3 py-2 text-left transition-colors hover:bg-surface"
-            >
-              <ChevronRight className="size-3 shrink-0 text-muted" />
-              <span className="min-w-0 whitespace-normal break-words [font-size:var(--t-type-body-size)] leading-snug text-ink">
-                {label}
-              </span>
-            </button>
-          );
-        })
-      )}
+      <UniqueServerOptionsList caredServers={caredServers} onSelect={onSelect} />
     </div>
   );
 }
@@ -674,6 +653,8 @@ export function ModsSelectUnique({ options, className, style }: { options?: Reco
   const { open, setOpen, ref } = useModsMenu();
   const baseLabel = (options?.label as string) ?? "Select unique…";
   const disabled = caredServers.length === 0;
+  const themedPopup = getThemeOwnedLayout("layout/popups/modsUnique.json") as PopupLayoutFile | undefined;
+  const triggerRect = useTriggerRect(ref, open && !!themedPopup);
 
   return (
     <div
@@ -710,14 +691,23 @@ export function ModsSelectUnique({ options, className, style }: { options?: Reco
           <ChevronDown className={cn("size-3 transition-transform", open && "rotate-180")} />
         </span>
       </button>
-      <ModsSelectUniquePopup
+      <FilterPopup
         open={open}
-        caredServers={caredServers}
-        onSelect={(addr, queryPort, name) => {
-          setOpen(false);
-          void selectUniqueTo(addr, queryPort, name);
-        }}
-      />
+        popupId="modsUnique"
+        close={() => setOpen(false)}
+        themedPopup={themedPopup}
+        triggerRect={triggerRect}
+        triggerRef={ref}
+      >
+        <ModsSelectUniquePopup
+          open={open}
+          caredServers={caredServers}
+          onSelect={(addr, queryPort, name) => {
+            setOpen(false);
+            void selectUniqueTo(addr, queryPort, name);
+          }}
+        />
+      </FilterPopup>
     </div>
   );
 }

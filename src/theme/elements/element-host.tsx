@@ -72,6 +72,7 @@ import {
   FilterRegion,
   FilterReset,
   FilterSearch,
+  FilterSort,
   FilterTags,
   ServersRefresh,
 } from "./filter-elements";
@@ -87,6 +88,7 @@ import {
   UpdateViewRelease,
 } from "./update-elements";
 import { ServerListHost, ServerModsListHost, ModFilterResultsListHost } from "./list-elements";
+import { renderPopupElement } from "./popup-elements";
 import { ServerDownloadSize, ServerReadiness } from "./readiness-elements";
 import {
   ServerModName,
@@ -144,6 +146,8 @@ export function ElementHost({
 
   const modFilterElement = renderModFilterElement(node, { className: mergedClass, style });
   if (modFilterElement !== undefined) return modFilterElement;
+  const popupElement = renderPopupElement(node, { className: mergedClass, style });
+  if (popupElement !== undefined) return popupElement;
 
   switch (node.element) {
     case "app.minimize":
@@ -276,6 +280,8 @@ export function ElementHost({
       return <FilterTags options={node.options} className={mergedClass} style={style} />;
     case "filter.region":
       return <FilterRegion options={node.options} className={mergedClass} style={style} />;
+    case "filter.sort":
+      return <FilterSort options={node.options} className={mergedClass} style={style} />;
     case "filter.maxPing":
       return <FilterMaxPing options={node.options} className={mergedClass} style={style} />;
     case "filter.hideEmpty":
