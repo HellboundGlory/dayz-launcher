@@ -16,6 +16,8 @@ const LAYOUTS = [
   "layout/views/browser.json",
   "layout/views/mods.json",
   "layout/modals/serverInfo.json",
+  "layout/modals/modFilter.json",
+  "layout/modals/update.json",
   "layout/lists/servers.json",
   "layout/lists/mods.json",
   "layout/lists/serverMods.json",
@@ -218,6 +220,18 @@ async function runScenario() {
   }
   const popup = params.get("popup");
   if (popup) (await waitFor(`[data-el="filter.${popup}"] [data-part="trigger"]`))?.click();
+  const modal = params.get("modal");
+  if (modal) {
+    const harness = (window as unknown as { __harness?: Record<string, (...args: unknown[]) => unknown> }).__harness;
+    if (modal === "serverInfo") {
+      const list = useServerStore.getState().servers;
+      harness?.openServerInfo(list[Number(select ?? 0)] ?? list[0]);
+    } else if (modal === "modFilter") {
+      harness?.openModFilter();
+    } else if (modal === "update") {
+      harness?.openUpdateModal();
+    }
+  }
   for (const selector of params.getAll("click")) {
     await sleep(200);
     (await waitFor(selector))?.click();

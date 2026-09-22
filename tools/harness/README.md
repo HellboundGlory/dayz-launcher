@@ -27,6 +27,7 @@ PNG as `<out>.log`; uncaught errors are also painted onto the page.
 | `settings=1` | Open Settings |
 | `settingsTab=<id>` | Click the Settings tab matching that `data-tab` id or label text (with `settings=1`) |
 | `popup=map\|tags\|region` | Open that filter dropdown |
+| `modal=serverInfo\|modFilter\|update` | Open that modal (`serverInfo` uses the selected server, or server 0) |
 | `click=<css selector>` | Click an element; repeatable, run in order |
 | `dayz=1` | Report DayZ as running |
 
