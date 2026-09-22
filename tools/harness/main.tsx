@@ -21,6 +21,8 @@ const LAYOUTS = [
   "layout/lists/servers.json",
   "layout/lists/mods.json",
   "layout/lists/serverMods.json",
+  "layout/lists/modServers.json",
+  "layout/lists/modFilterResults.json",
 ];
 
 async function readJson(path: string): Promise<unknown> {
