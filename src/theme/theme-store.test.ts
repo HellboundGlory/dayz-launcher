@@ -6,6 +6,7 @@ import { useDevStore } from "./dev/dev-store";
 import { DEFAULT_RADII, DEFAULT_SPACING, DEFAULT_TYPOGRAPHY, type Palette } from "./palette";
 import {
   effectiveExtras,
+  getThemeOwnedLayout,
   mergeSettingsValues,
   resolvedExtras,
   useThemeStore,
@@ -13,6 +14,7 @@ import {
   watchThemeActivationReverted,
 } from "./theme-store";
 import type { ThemeFile, ValidationIssue } from "@/types/theme";
+import type { LayoutFile } from "./renderer/types";
 
 const backend = vi.hoisted(() => ({
   /** What `migrate_legacy_custom_themes` reports back, in input order. */
@@ -754,5 +756,36 @@ describe("hot reload listener", () => {
 
     expect(backend.themeCalls).toEqual(["local.second"]);
     expect(writtenProps["--bg"]).toBe("#654321");
+  });
+});
+
+describe("getThemeOwnedLayout", () => {
+  it("returns the active theme's own file", () => {
+    const modal: LayoutFile = { schemaVersion: 1, root: { type: "stack", children: [] } };
+    useThemeStore.setState({
+      activeId: "local.aurora",
+      themeFiles: {
+        "local.aurora": {
+          layouts: { "layout/modals/serverInfo.json": modal },
+        } as unknown as ThemeFile,
+      },
+    });
+
+    expect(getThemeOwnedLayout("layout/modals/serverInfo.json")).toBe(modal);
+  });
+
+  it("ignores Neutral, unlike getActiveLayout", () => {
+    useThemeStore.setState({ activeId: "local.aurora", themeFiles: {} });
+
+    expect(getThemeOwnedLayout("layout/modals/serverInfo.json")).toBeUndefined();
+  });
+
+  it("returns undefined when the active theme doesn't ship the file", () => {
+    useThemeStore.setState({
+      activeId: "local.aurora",
+      themeFiles: { "local.aurora": { layouts: {} } as unknown as ThemeFile },
+    });
+
+    expect(getThemeOwnedLayout("layout/modals/serverInfo.json")).toBeUndefined();
   });
 });

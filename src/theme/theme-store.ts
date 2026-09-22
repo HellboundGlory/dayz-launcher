@@ -766,3 +766,9 @@ export function getActiveLayout(path: string): LayoutFile | undefined {
   return getNeutralLayout(path);
 }
 
+/** Like `getActiveLayout`, but only the active theme's own file — never Neutral. */
+export function getThemeOwnedLayout(path: string): LayoutFile | undefined {
+  const { activeId, themeFiles } = useThemeStore.getState();
+  return themeFiles[activeId]?.layouts?.[path];
+}
+
