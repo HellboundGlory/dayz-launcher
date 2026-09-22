@@ -5,6 +5,7 @@ import { useServerStore } from "@/stores/server-store";
 import { useElementContext } from "./context";
 import { OptionIcon } from "./option-icon";
 
+
 const SEARCH_DEBOUNCE_MS = 250;
 
 function useDropdown() {
@@ -581,6 +582,56 @@ export function ServersRefresh({
           {labelText}
         </span>
       )}
+    </button>
+  );
+}
+
+export function modsFilterValue(included: number, excluded: number): string {
+  if (included === 0 && excluded === 0) return "Any";
+  if (excluded === 0) return `${included} mod${included === 1 ? "" : "s"}`;
+  if (included === 0) return `${excluded} excluded`;
+  return `${included} in, ${excluded} out`;
+}
+
+export function FilterMods({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const filter = useServerStore((s) => s.filter);
+  const { openModFilter, modFilterOpen } = useElementContext();
+  const showLabel = options?.showLabel !== false;
+  const label = (options?.label as string) ?? "MODS";
+
+  const included = filter.mod_ids.length;
+  const excluded = filter.mod_ids_exclude.length;
+  const value = modsFilterValue(included, excluded);
+  const active = included + excluded > 0;
+
+  return (
+    <button
+      type="button"
+      data-el="filter.mods"
+      data-state={active ? "active" : undefined}
+      onClick={openModFilter}
+      aria-haspopup="dialog"
+      aria-expanded={modFilterOpen}
+      className={className ?? "flex items-center gap-1.5 border border-border bg-surface2 px-2.5 py-1 text-xs text-text transition-colors hover:border-accent"}
+      style={style}
+    >
+      {showLabel && (
+        <span data-part="label" className="text-muted text-[10px] font-bold">
+          {label}
+        </span>
+      )}
+      <span data-part="value" className={cn("font-semibold", active && "text-accent")}>
+        {value}
+      </span>
+      <ChevronDown data-part="chevron" className="size-3 text-muted ml-0.5" />
     </button>
   );
 }

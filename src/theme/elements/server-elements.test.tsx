@@ -843,6 +843,17 @@ describe("ServerInfo options", () => {
     });
     expect(html).toContain('aria-label="Details"');
   });
+
+  it("clicking calls openServerInfo with its subject server", () => {
+    const openServerInfo = vi.fn();
+    renderInteractive(<ServerInfo />, {
+      subjectContext: { kind: "server", data: server },
+      openServerInfo,
+    });
+    const onClick = captured["server.info"].onClick as (e: { stopPropagation: () => void }) => void;
+    onClick({ stopPropagation: vi.fn() });
+    expect(openServerInfo).toHaveBeenCalledWith(server);
+  });
 });
 
 describe("ServerMenu options", () => {

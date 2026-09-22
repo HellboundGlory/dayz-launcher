@@ -42,6 +42,10 @@ export interface ElementContextValue {
   discovering: boolean;
   devMode: boolean;
   onDevModeChange: (on: boolean) => void;
+  openServerInfo: (server: Server) => void;
+  openModFilter: () => void;
+  modFilterOpen: boolean;
+  closeModal: () => void;
 }
 
 const ElementContext = createContext<ElementContextValue>({
@@ -73,6 +77,10 @@ const ElementContext = createContext<ElementContextValue>({
   discovering: false,
   devMode: false,
   onDevModeChange: () => {},
+  openServerInfo: () => {},
+  openModFilter: () => {},
+  modFilterOpen: false,
+  closeModal: () => {},
 });
 
 export const useElementContext = () => useContext(ElementContext);
@@ -131,6 +139,10 @@ export function ElementContextProvider({
     discovering: false,
     devMode: false,
     onDevModeChange: () => {},
+    openServerInfo: () => {},
+    openModFilter: () => {},
+    modFilterOpen: false,
+    closeModal: () => {},
     ...value,
     collapsedRegions: value?.collapsedRegions ?? collapsedRegions,
     toggleCollapsed: value?.toggleCollapsed ?? toggleCollapsed,

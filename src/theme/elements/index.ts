@@ -10,3 +10,4 @@ export * from "./filter-elements";
 export * from "./list-elements";
 export * from "./mod-elements";
 export * from "./readiness-elements";
+export * from "./modal-elements";

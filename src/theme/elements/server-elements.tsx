@@ -659,12 +659,14 @@ export function ServerInfo({
   style?: CSSProperties;
 }) {
   const server = useServerSubject();
+  const { openServerInfo } = useElementContext();
   if (!server) return null;
 
   const { label, showIcon, showLabel } = serverDisplayOptions(options, "Server information", "icon");
 
   const handleClick = (e: MouseEvent) => {
     e.stopPropagation();
+    openServerInfo(server);
   };
 
   return (

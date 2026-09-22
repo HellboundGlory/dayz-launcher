@@ -68,12 +68,14 @@ import {
   FilterHideOffline,
   FilterMap,
   FilterMaxPing,
+  FilterMods,
   FilterRegion,
   FilterReset,
   FilterSearch,
   FilterTags,
   ServersRefresh,
 } from "./filter-elements";
+import { ModalClose } from "./modal-elements";
 import { ServerListHost, ServerModsListHost } from "./list-elements";
 import { ServerDownloadSize, ServerReadiness } from "./readiness-elements";
 import {
@@ -274,6 +276,11 @@ export function ElementHost({
       return <ServersRefresh options={node.options} className={mergedClass} style={style} />;
     case "filter.reset":
       return <FilterReset options={node.options} className={mergedClass} style={style} />;
+    case "filter.mods":
+      return <FilterMods options={node.options} className={mergedClass} style={style} />;
+
+    case "modal.close":
+      return <ModalClose options={node.options} className={mergedClass} style={style} />;
 
     case "list.servers":
       return <ServerListHost className={mergedClass} style={style} />;

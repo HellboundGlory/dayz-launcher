@@ -60,6 +60,7 @@ import {
   FilterTags,
   FilterRegion,
   FilterMaxPing,
+  FilterMods,
   FilterHideEmpty,
   FilterHideFull,
   FilterHideLocked,
@@ -75,6 +76,7 @@ import {
   pingDisplayValue,
   pingSliderValue,
   nextPingFilter,
+  modsFilterValue,
 } from "./filter-elements";
 
 beforeEach(() => {
@@ -326,6 +328,84 @@ describe("FilterReset", () => {
   it("honours the icon option", () => {
     expect(renderToStaticMarkup(<FilterReset />)).toContain("lucide-rotate-ccw");
     expect(renderToStaticMarkup(<FilterReset options={{ icon: "x" }} />)).toContain("lucide-x");
+  });
+});
+
+describe("modsFilterValue", () => {
+  it("reads Any with nothing selected", () => {
+    expect(modsFilterValue(0, 0)).toBe("Any");
+  });
+
+  it("reads a singular/plural mod count when only included", () => {
+    expect(modsFilterValue(1, 0)).toBe("1 mod");
+    expect(modsFilterValue(2, 0)).toBe("2 mods");
+  });
+
+  it("reads an excluded count when only excluded", () => {
+    expect(modsFilterValue(0, 3)).toBe("3 excluded");
+  });
+
+  it("reads combined in/out counts when both are set", () => {
+    expect(modsFilterValue(2, 1)).toBe("2 in, 1 out");
+  });
+});
+
+describe("FilterMods", () => {
+  it("shows Any and no active state with nothing selected", () => {
+    const html = renderToStaticMarkup(<FilterMods />);
+    expect(html).toContain('data-el="filter.mods"');
+    expect(html).not.toContain('data-state="active"');
+    expect(html).toContain('data-part="value"');
+    expect(html).toContain(">Any<");
+  });
+
+  it("shows active state and the mod count once mods are selected", () => {
+    mockStore.filter = makeFilter({ mod_ids: ["1", "2"] });
+    const html = renderToStaticMarkup(<FilterMods />);
+    expect(html).toContain('data-state="active"');
+    expect(html).toContain('data-part="value"');
+    expect(html).toContain(">2 mods<");
+    expect(html).toContain("text-accent");
+  });
+
+  it("honours showLabel and a label override", () => {
+    const withLabel = renderToStaticMarkup(<FilterMods />);
+    expect(withLabel).toContain('data-part="label"');
+    expect(withLabel).toContain(">MODS<");
+
+    const noLabel = renderToStaticMarkup(<FilterMods options={{ showLabel: false }} />);
+    expect(noLabel).not.toContain('data-part="label"');
+
+    const customLabel = renderToStaticMarkup(<FilterMods options={{ label: "WORKSHOP" }} />);
+    expect(customLabel).toContain(">WORKSHOP<");
+  });
+
+  it("reflects modFilterOpen through aria-expanded", () => {
+    const open = renderToStaticMarkup(
+      <ElementContextProvider value={{ modFilterOpen: true }}>
+        <FilterMods />
+      </ElementContextProvider>,
+    );
+    expect(open).toContain('aria-expanded="true"');
+
+    const closed = renderToStaticMarkup(
+      <ElementContextProvider value={{ modFilterOpen: false }}>
+        <FilterMods />
+      </ElementContextProvider>,
+    );
+    expect(closed).toContain('aria-expanded="false"');
+  });
+
+  it("calls context openModFilter when clicked", () => {
+    const openModFilter = vi.fn();
+    captureDataEl = "filter.mods";
+    renderToStaticMarkup(
+      <ElementContextProvider value={{ openModFilter }}>
+        <FilterMods />
+      </ElementContextProvider>,
+    );
+    (capturedProps?.onClick as () => void)?.();
+    expect(openModFilter).toHaveBeenCalledTimes(1);
   });
 });
 
