@@ -313,7 +313,8 @@
   flex-shrink: 0;
   white-space: nowrap;
   min-width: 0;
-  overflow: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
 }
 
 [data-region="r-filterbar"] > :not([data-el="filter.search"]),
