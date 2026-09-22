@@ -4,24 +4,55 @@
     "type": "stack",
     "direction": "row",
     "align": "center",
+    "class": "t-mod-row",
     "children": [
+      { "element": "serverMod.order" },
+      { "element": "serverMod.thumbnail" },
       {
-        "element": "serverMod.state",
+        "type": "stack",
+        "direction": "column",
+        "grow": 1,
+        "minWidth": "0px",
+        "class": "t-mod-main",
+        "children": [
+          {
+            "type": "stack",
+            "direction": "row",
+            "align": "center",
+            "class": "t-mod-name-row",
+            "children": [
+              { "element": "serverMod.name" },
+              { "element": "serverMod.unique" }
+            ]
+          },
+          {
+            "type": "stack",
+            "direction": "row",
+            "align": "center",
+            "class": "t-mod-meta-row",
+            "children": [
+              {
+                "element": "serverMod.state",
+                "options": {
+                  "display": "dot"
+                }
+              },
+              { "element": "serverMod.size" },
+              {
+                "element": "serverMod.state",
+                "options": {
+                  "display": "label"
+                }
+              },
+              { "element": "serverMod.progress" }
+            ]
+          }
+        ]
+      },
+      {
+        "element": "serverMod.openInSteam",
         "options": {
-          "display": "dot"
-        }
-      },
-      {
-        "element": "serverMod.name",
-        "grow": 1
-      },
-      {
-        "element": "serverMod.size"
-      },
-      {
-        "element": "serverMod.state",
-        "options": {
-          "display": "label"
+          "display": "icon"
         }
       }
     ]

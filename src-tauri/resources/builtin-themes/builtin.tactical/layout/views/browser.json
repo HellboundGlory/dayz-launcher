@@ -29,6 +29,9 @@
             "element": "filter.region"
           },
           {
+            "element": "filter.mods"
+          },
+          {
             "element": "filter.maxPing"
           },
           {
@@ -97,6 +100,12 @@
                     "children": [
                       {
                         "element": "server.name"
+                      },
+                      {
+                        "element": "server.info",
+                        "options": {
+                          "display": "icon"
+                        }
                       },
                       {
                         "element": "server.favourite"
