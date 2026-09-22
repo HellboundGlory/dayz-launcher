@@ -32,6 +32,10 @@ vi.mock("@/components/confirm-dialog", () => ({
   },
 }));
 
+vi.mock("../theme-store", () => ({
+  getThemeOwnedLayout: () => undefined,
+}));
+
 const makeMod = (id: string, overrides: Partial<SubscribedMod> = {}): SubscribedMod => ({
   workshop_id: id,
   title: `Mod ${id}`,
@@ -205,5 +209,23 @@ describe("ModsRefresh", () => {
       renderToStaticMarkup(<ModsRefresh options={{ label: "Reload" }} />),
     );
     expect(labelled).toContain(">Reload<");
+  });
+});
+
+describe("ModsSelectUnique", () => {
+  it("is disabled with no cared servers", async () => {
+    const { ModsSelectUnique } = await import("./mods-toolbar-elements");
+    const html = await withStore({ caredServers: [] }, () => renderToStaticMarkup(<ModsSelectUnique />));
+    expect(html).toContain('data-el="mods.selectUnique"');
+    expect(html).toContain('data-state="disabled"');
+  });
+
+  it("shows the active unique source once selected", async () => {
+    const { ModsSelectUnique } = await import("./mods-toolbar-elements");
+    const html = await withStore(
+      { caredServers: [{ addr: "1.2.3.4", query_port: 2303, name: "Some Server" }], uniqueSource: "Some Server" },
+      () => renderToStaticMarkup(<ModsSelectUnique />),
+    );
+    expect(html).toContain("Unique: Some Server");
   });
 });

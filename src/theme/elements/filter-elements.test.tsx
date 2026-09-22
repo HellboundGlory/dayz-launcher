@@ -28,12 +28,23 @@ function makeFilter(overrides: Partial<ServerFilter> = {}): ServerFilter {
 const mockStore = {
   filter: makeFilter(),
   maps: [] as [string, string][],
+  sortKey: "players" as "players" | "ping" | "mod_count" | "name" | "map" | "last_played",
+  sortDir: "desc" as "asc" | "desc",
   setFilter: vi.fn((patch: Partial<ServerFilter>) => Object.assign(mockStore.filter, patch)),
+  setSort: vi.fn((key: typeof mockStore.sortKey, dir: typeof mockStore.sortDir) => {
+    mockStore.sortKey = key;
+    mockStore.sortDir = dir;
+  }),
   resetFilter: vi.fn(),
 };
 
 vi.mock("@/stores/server-store", () => ({
   useServerStore: (selector: (s: typeof mockStore) => unknown) => selector(mockStore),
+}));
+
+let themedPopupFile: unknown = undefined;
+vi.mock("../theme-store", () => ({
+  getThemeOwnedLayout: () => themedPopupFile,
 }));
 
 // Captures a button's props as it is created, since renderToStaticMarkup
@@ -59,6 +70,7 @@ import {
   FilterMap,
   FilterTags,
   FilterRegion,
+  FilterSort,
   FilterMaxPing,
   FilterMods,
   FilterHideEmpty,
@@ -82,8 +94,12 @@ import {
 beforeEach(() => {
   mockStore.filter = makeFilter();
   mockStore.maps = [];
+  mockStore.sortKey = "players";
+  mockStore.sortDir = "desc";
   mockStore.setFilter.mockClear();
+  mockStore.setSort.mockClear();
   mockStore.resetFilter.mockClear();
+  themedPopupFile = undefined;
   capturedProps = null;
   captureDataEl = null;
 });
@@ -248,6 +264,41 @@ describe("FilterRegion", () => {
     const html = renderToStaticMarkup(<FilterRegion />);
     expect(html).toContain("2 regions");
     expect(html).toContain('data-state="active"');
+  });
+});
+
+describe("FilterSort", () => {
+  it("defaults to Players, descending, and not active", () => {
+    const html = renderToStaticMarkup(<FilterSort />);
+    expect(html).toContain('data-el="filter.sort"');
+    expect(html).toContain(">SORT<");
+    expect(html).toContain(">Players<");
+    expect(html).toContain("↓");
+    expect(html).not.toContain('data-state="active"');
+  });
+
+  it("is active for any sort other than Players descending", () => {
+    mockStore.sortKey = "ping";
+    mockStore.sortDir = "desc";
+    const html = renderToStaticMarkup(<FilterSort />);
+    expect(html).toContain('data-state="active"');
+    expect(html).toContain(">Ping<");
+  });
+
+  it("is active for Players ascending", () => {
+    mockStore.sortKey = "players";
+    mockStore.sortDir = "asc";
+    const html = renderToStaticMarkup(<FilterSort />);
+    expect(html).toContain('data-state="active"');
+    expect(html).toContain("↑");
+  });
+
+  it("honours showLabel and a label override", () => {
+    const noLabel = renderToStaticMarkup(<FilterSort options={{ showLabel: false }} />);
+    expect(noLabel).not.toContain(">SORT<");
+
+    const custom = renderToStaticMarkup(<FilterSort options={{ label: "ORDER" }} />);
+    expect(custom).toContain(">ORDER<");
   });
 });
 

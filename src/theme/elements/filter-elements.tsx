@@ -1,9 +1,33 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
-import { Search, RefreshCw, RotateCcw, ChevronDown, X, Check } from "lucide-react";
+import { Search, RefreshCw, RotateCcw, ChevronDown, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useServerStore } from "@/stores/server-store";
 import { useElementContext } from "./context";
 import { OptionIcon } from "./option-icon";
+import { getThemeOwnedLayout } from "../theme-store";
+import type { PopupLayoutFile } from "../renderer/types";
+import {
+  FilterPopup,
+  PopupClear,
+  PopupMapOptions,
+  PopupRegionOptions,
+  PopupSortOptions,
+  PopupTagOptions,
+  mapDisplayValue,
+  regionDisplayValue,
+  sortValueLabel,
+  tagsDisplayValue,
+  useTriggerRect,
+} from "./popup-elements";
+
+export {
+  REGIONS,
+  cycleTagValue,
+  mapDisplayValue,
+  regionDisplayValue,
+  tagsDisplayValue,
+  toggleInList,
+} from "./popup-elements";
 
 
 const SEARCH_DEBOUNCE_MS = 250;
@@ -37,12 +61,14 @@ function DropdownTrigger({
   active,
   open,
   onClick,
+  extra,
 }: {
   label: string | null;
   value: string;
   active: boolean;
   open: boolean;
   onClick: () => void;
+  extra?: ReactNode;
 }) {
   return (
     <button
@@ -61,13 +87,10 @@ function DropdownTrigger({
       <span data-part="value" className={cn("font-semibold", active && "text-accent")}>
         {value}
       </span>
+      {extra}
       <ChevronDown data-part="chevron" className="size-3 text-muted ml-0.5" />
     </button>
   );
-}
-
-export function toggleInList(list: string[], value: string): string[] {
-  return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 }
 
 function DropdownRoot({
@@ -160,17 +183,16 @@ export function FilterMap({
   style?: CSSProperties;
 }) {
   const filter = useServerStore((s) => s.filter);
-  const setFilter = useServerStore((s) => s.setFilter);
   const maps = useServerStore((s) => s.maps);
   const showLabel = options?.showLabel !== false;
   const label = (options?.label as string) ?? "MAP";
   const { open, setOpen, ref } = useDropdown();
+  const themedPopup = getThemeOwnedLayout("layout/popups/mapFilter.json") as PopupLayoutFile | undefined;
+  const triggerRect = useTriggerRect(ref, open && !!themedPopup);
 
   const selected = filter.maps ?? [];
   const value = mapDisplayValue(selected, maps);
   const active = selected.length > 0;
-
-  const toggle = (norm: string) => setFilter({ maps: toggleInList(selected, norm) });
 
   const states = [active && "active", open && "open"].filter(Boolean) as string[];
 
@@ -183,58 +205,23 @@ export function FilterMap({
         open={open}
         onClick={() => setOpen(!open)}
       />
-      {open && (
+      <FilterPopup
+        open={open}
+        popupId="mapFilter"
+        close={() => setOpen(false)}
+        themedPopup={themedPopup}
+        triggerRect={triggerRect}
+        triggerRef={ref}
+      >
         <div
           data-part="popup"
           className="absolute left-0 top-full mt-1 z-30 max-h-64 min-w-[224px] overflow-y-auto border border-border bg-surface2 p-1 shadow-lg text-xs"
         >
-          {maps.length === 0 && (
-            <div data-part="empty" className="px-2 py-1.5 text-[10px] text-muted">
-              Loading maps...
-            </div>
-          )}
-          {maps.map(([norm, disp]) => (
-            <label
-              key={norm}
-              data-part="option"
-              className="flex items-center gap-2 px-2 py-1.5 hover:bg-surface cursor-pointer"
-            >
-              <input
-                data-part="box"
-                type="checkbox"
-                checked={selected.includes(norm)}
-                onChange={() => toggle(norm)}
-                className="size-3 accent-accent"
-              />
-              {disp}
-            </label>
-          ))}
+          <PopupMapOptions />
         </div>
-      )}
+      </FilterPopup>
     </DropdownRoot>
   );
-}
-
-export function mapDisplayValue(selected: string[], maps: [string, string][]): string {
-  if (selected.length === 0) return "Any";
-  if (selected.length === 1) return maps.find(([norm]) => norm === selected[0])?.[1] ?? selected[0];
-  return `${selected.length} maps`;
-}
-
-type TagField = "official" | "modded" | "first_person";
-
-const TAG_OPTIONS: { label: string; field: TagField }[] = [
-  { label: "OFFICIAL", field: "official" },
-  { label: "MODDED", field: "modded" },
-  { label: "1PP ONLY", field: "first_person" },
-];
-
-export function tagsDisplayValue(activeCount: number): string {
-  return activeCount === 0 ? "Any" : `${activeCount} tag${activeCount > 1 ? "s" : ""}`;
-}
-
-export function cycleTagValue(cur: boolean | null): boolean | null {
-  return cur === null ? true : cur === true ? false : null;
 }
 
 export function FilterTags({
@@ -247,26 +234,15 @@ export function FilterTags({
   style?: CSSProperties;
 }) {
   const filter = useServerStore((s) => s.filter);
-  const setFilter = useServerStore((s) => s.setFilter);
   const showLabel = options?.showLabel !== false;
   const label = (options?.label as string) ?? "TAGS";
   const { open, setOpen, ref } = useDropdown();
+  const themedPopup = getThemeOwnedLayout("layout/popups/tagsFilter.json") as PopupLayoutFile | undefined;
+  const triggerRect = useTriggerRect(ref, open && !!themedPopup);
 
-  const values: Record<TagField, boolean | null> = {
-    official: filter.official,
-    modded: filter.modded,
-    first_person: filter.first_person,
-  };
-  const activeCount = Object.values(values).filter((v) => v !== null).length;
+  const activeCount = [filter.official, filter.modded, filter.first_person].filter((v) => v !== null).length;
   const value = tagsDisplayValue(activeCount);
   const active = activeCount > 0;
-
-  const cycle = (field: TagField) => {
-    setFilter({ [field]: cycleTagValue(values[field]) });
-  };
-
-  const indicatorState = (val: boolean | null) => (val === true ? "include" : val === false ? "exclude" : undefined);
-  const indicatorText = (val: boolean | null) => (val === true ? "✓" : val === false ? "✗" : "");
 
   const states = [active && "active", open && "open"].filter(Boolean) as string[];
 
@@ -279,50 +255,23 @@ export function FilterTags({
         open={open}
         onClick={() => setOpen(!open)}
       />
-      {open && (
+      <FilterPopup
+        open={open}
+        popupId="tagsFilter"
+        close={() => setOpen(false)}
+        themedPopup={themedPopup}
+        triggerRect={triggerRect}
+        triggerRef={ref}
+      >
         <div
           data-part="popup"
           className="absolute left-0 top-full mt-1 z-30 min-w-[208px] border border-border bg-surface2 p-1.5 shadow-lg text-xs space-y-1"
         >
-          {TAG_OPTIONS.map((opt) => {
-            const val = values[opt.field];
-            return (
-              <button
-                key={opt.field}
-                type="button"
-                data-part="option"
-                onClick={() => cycle(opt.field)}
-                className="flex w-full items-center justify-between px-2 py-1 hover:bg-surface transition-colors"
-              >
-                <span>{opt.label}</span>
-                <span
-                  data-part="indicator"
-                  data-state={indicatorState(val)}
-                  className="font-mono-data text-[10px]"
-                >
-                  {indicatorText(val)}
-                </span>
-              </button>
-            );
-          })}
+          <PopupTagOptions />
         </div>
-      )}
+      </FilterPopup>
     </DropdownRoot>
   );
-}
-
-export const REGIONS: { code: string; label: string }[] = [
-  { code: "EU", label: "Europe" },
-  { code: "NA", label: "North America" },
-  { code: "AS", label: "Asia" },
-  { code: "OC", label: "Oceania" },
-  { code: "SA", label: "South America" },
-];
-
-export function regionDisplayValue(selected: string[]): string {
-  if (selected.length === 0) return "Any";
-  if (selected.length === 1) return REGIONS.find((r) => r.code === selected[0])?.label ?? selected[0];
-  return `${selected.length} regions`;
 }
 
 export function FilterRegion({
@@ -335,16 +284,15 @@ export function FilterRegion({
   style?: CSSProperties;
 }) {
   const filter = useServerStore((s) => s.filter);
-  const setFilter = useServerStore((s) => s.setFilter);
   const showLabel = options?.showLabel !== false;
   const label = (options?.label as string) ?? "REGION";
   const { open, setOpen, ref } = useDropdown();
+  const themedPopup = getThemeOwnedLayout("layout/popups/regionFilter.json") as PopupLayoutFile | undefined;
+  const triggerRect = useTriggerRect(ref, open && !!themedPopup);
 
   const selected = filter.countries ?? [];
   const value = regionDisplayValue(selected);
   const active = selected.length > 0;
-
-  const toggle = (code: string) => setFilter({ countries: toggleInList(selected, code) });
 
   const states = [active && "active", open && "open"].filter(Boolean) as string[];
 
@@ -357,38 +305,22 @@ export function FilterRegion({
         open={open}
         onClick={() => setOpen(!open)}
       />
-      {open && (
+      <FilterPopup
+        open={open}
+        popupId="regionFilter"
+        close={() => setOpen(false)}
+        themedPopup={themedPopup}
+        triggerRect={triggerRect}
+        triggerRef={ref}
+      >
         <div
           data-part="popup"
           className="absolute left-0 top-full mt-1 z-30 min-w-[176px] max-h-64 overflow-y-auto border border-border bg-surface2 p-1.5 shadow-lg text-xs space-y-1"
         >
-          <button
-            type="button"
-            data-part="clear"
-            onClick={() => setFilter({ countries: [] })}
-            className="flex w-full items-center gap-2 px-2 py-1 text-muted font-semibold hover:bg-surface transition-colors"
-          >
-            <X className="size-3" />
-            CLEAR
-          </button>
-          {REGIONS.map((region) => (
-            <label
-              key={region.code}
-              data-part="option"
-              className="flex items-center gap-2 px-2 py-1 hover:bg-surface cursor-pointer"
-            >
-              <input
-                data-part="box"
-                type="checkbox"
-                checked={selected.includes(region.code)}
-                onChange={() => toggle(region.code)}
-                className="size-3 accent-accent"
-              />
-              {region.label}
-            </label>
-          ))}
+          <PopupClear />
+          <PopupRegionOptions />
         </div>
-      )}
+      </FilterPopup>
     </DropdownRoot>
   );
 }
@@ -633,6 +565,61 @@ export function FilterMods({
       </span>
       <ChevronDown data-part="chevron" className="size-3 text-muted ml-0.5" />
     </button>
+  );
+}
+
+export function FilterSort({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const sortKey = useServerStore((s) => s.sortKey);
+  const sortDir = useServerStore((s) => s.sortDir);
+  const showLabel = options?.showLabel !== false;
+  const label = (options?.label as string) ?? "SORT";
+  const { open, setOpen, ref } = useDropdown();
+  const themedPopup = getThemeOwnedLayout("layout/popups/sort.json") as PopupLayoutFile | undefined;
+  const triggerRect = useTriggerRect(ref, open && !!themedPopup);
+
+  const value = sortValueLabel(sortKey);
+  const active = !(sortKey === "players" && sortDir === "desc");
+
+  const states = [active && "active", open && "open"].filter(Boolean) as string[];
+
+  return (
+    <DropdownRoot el="filter.sort" states={states} className={className} style={style} innerRef={ref}>
+      <DropdownTrigger
+        label={showLabel ? label : null}
+        value={value}
+        active={active}
+        open={open}
+        onClick={() => setOpen(!open)}
+        extra={
+          <span data-part="direction" className="text-[10px] text-muted">
+            {sortDir === "asc" ? "↑" : "↓"}
+          </span>
+        }
+      />
+      <FilterPopup
+        open={open}
+        popupId="sort"
+        close={() => setOpen(false)}
+        themedPopup={themedPopup}
+        triggerRect={triggerRect}
+        triggerRef={ref}
+      >
+        <div
+          data-part="popup"
+          className="absolute left-0 top-full mt-1 z-30 min-w-[176px] border border-border bg-surface2 p-1.5 shadow-lg text-xs space-y-1"
+        >
+          <PopupSortOptions />
+        </div>
+      </FilterPopup>
+    </DropdownRoot>
   );
 }
 
