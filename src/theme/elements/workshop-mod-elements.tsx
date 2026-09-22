@@ -112,7 +112,7 @@ function WorkshopModSubscribed({
   return (
     <span data-el="workshopMod.subscribed" className={className} style={style}>
       <span data-part="icon">
-        <OptionIcon icon={options?.icon} fallback={Star} className="size-full" />
+        <OptionIcon icon={options?.icon} fallback={Star} className="size-full fill-current" />
       </span>
     </span>
   );
