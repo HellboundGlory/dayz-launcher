@@ -379,7 +379,7 @@ describe("Neutral layouts", () => {
         ),
       );
       expect(updateHtml).toContain("Update Available");
-      expect(updateHtml).toContain('data-el="update.install"');
+      expect(updateHtml).toContain('data-el="update.viewRelease"');
 
       const modFilterHtml = renderToStaticMarkup(
         createElement(

@@ -6,7 +6,28 @@ import { useUpdateStore } from "@/stores/update-store";
 
 /** Where the "View Release" link sends a portable user for a manual download —
     the project's own download page, not a raw link into GitHub's releases list. */
-const DOWNLOAD_URL = "https://tetralauncher.com/download";
+export const DOWNLOAD_URL = "https://tetralauncher.com/download";
+
+/** A plain <a> would navigate this webview away with no way back. */
+export function UpdateChangelogMarkdown({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      components={{
+        a: ({ href, children }) => (
+          <button
+            type="button"
+            onClick={() => href && void openLink(href)}
+            className="text-accent underline decoration-dotted underline-offset-2 hover:brightness-110"
+          >
+            {children}
+          </button>
+        ),
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+}
 
 interface UpdateModalProps {
   open: boolean;
@@ -77,22 +98,7 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
 
               {available.body || changelog ? (
                 <div className="update-changelog mt-3">
-                  {/* A plain <a> would navigate this webview away with no way back. */}
-                  <ReactMarkdown
-                    components={{
-                      a: ({ href, children }) => (
-                        <button
-                          type="button"
-                          onClick={() => href && void openLink(href)}
-                          className="text-accent underline decoration-dotted underline-offset-2 hover:brightness-110"
-                        >
-                          {children}
-                        </button>
-                      ),
-                    }}
-                  >
-                    {available.body || changelog}
-                  </ReactMarkdown>
+                  <UpdateChangelogMarkdown content={available.body || changelog || ""} />
                 </div>
               ) : (
                 <p className="mt-3 [font-size:var(--t-type-label-size)] text-muted">
