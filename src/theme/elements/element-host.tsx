@@ -76,6 +76,16 @@ import {
   ServersRefresh,
 } from "./filter-elements";
 import { ModalClose } from "./modal-elements";
+import {
+  UpdateChangelog,
+  UpdateInstall,
+  UpdateLater,
+  UpdatePortableNote,
+  UpdateProgress,
+  UpdateSummary,
+  UpdateTitle,
+  UpdateViewRelease,
+} from "./update-elements";
 import { ServerListHost, ServerModsListHost } from "./list-elements";
 import { ServerDownloadSize, ServerReadiness } from "./readiness-elements";
 import {
@@ -281,6 +291,23 @@ export function ElementHost({
 
     case "modal.close":
       return <ModalClose options={node.options} className={mergedClass} style={style} />;
+
+    case "update.install":
+      return <UpdateInstall className={mergedClass} style={style} />;
+    case "update.viewRelease":
+      return <UpdateViewRelease options={node.options} className={mergedClass} style={style} />;
+    case "update.later":
+      return <UpdateLater options={node.options} className={mergedClass} style={style} />;
+    case "update.title":
+      return <UpdateTitle className={mergedClass} style={style} />;
+    case "update.summary":
+      return <UpdateSummary className={mergedClass} style={style} />;
+    case "update.changelog":
+      return <UpdateChangelog className={mergedClass} style={style} />;
+    case "update.progress":
+      return <UpdateProgress options={node.options} className={mergedClass} style={style} />;
+    case "update.portableNote":
+      return <UpdatePortableNote className={mergedClass} style={style} />;
 
     case "list.servers":
       return <ServerListHost className={mergedClass} style={style} />;
