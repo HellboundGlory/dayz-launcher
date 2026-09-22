@@ -2,11 +2,17 @@ import { useMemo, useRef, type CSSProperties } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useServerStore } from "@/stores/server-store";
 import { useModsStore, type ModSortKey } from "@/stores/mods-store";
+import {
+  useModFilterStore,
+  subscribedForDayz,
+  activeEntries,
+  type ModFilterEntry,
+} from "@/stores/mod-filter-store";
 import type { SortKey } from "@/types/filters";
 import { ListHost } from "../lists/list-host";
 import { ListRow } from "../lists/list-row";
 import { getActiveLayout } from "../theme-store";
-import { SERVERS_LIST, MODS_LIST, MOD_SERVERS_LIST } from "../neutral";
+import { SERVERS_LIST, MODS_LIST, MOD_SERVERS_LIST, MOD_FILTER_RESULTS_LIST } from "../neutral";
 import { serverModReadiness, type ModState, type SubscribedMod } from "@/lib/tauri";
 import { useSelectionReadiness } from "./use-selection-readiness";
 import { effectiveModState, filterAndSortMods } from "@/components/mods-tab";
@@ -281,6 +287,85 @@ export function ModsListHost({
           ].filter(Boolean)
         }
         estimatedRowHeight={listLayout?.estimatedRowHeight ?? 54}
+      />
+    </div>
+  );
+}
+
+function modFilterResultsEmptyText(loading: boolean, tab: string, query: string): string {
+  if (loading) return "Loading…";
+  if (tab === "workshop" && !query.trim()) return "Type a mod name above to search the Workshop.";
+  if (tab === "subscribed") return "No subscribed DayZ mods.";
+  return "No mods match.";
+}
+
+export function ModFilterResultsListHost({
+  className,
+  style,
+}: {
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const modsRows = useModsStore((s) => s.rows);
+  const modsLoading = useModsStore((s) => s.loading);
+  const { tab, query, selection, previewId, known, knownLoading, searchResults, searchLoading, usage, setPreviewId } =
+    useModFilterStore(
+      useShallow((s) => ({
+        tab: s.tab,
+        query: s.query,
+        selection: s.selection,
+        previewId: s.previewId,
+        known: s.known,
+        knownLoading: s.knownLoading,
+        searchResults: s.searchResults,
+        searchLoading: s.searchLoading,
+        usage: s.usage,
+        setPreviewId: s.setPreviewId,
+      })),
+    );
+
+  const subscribedRows = useMemo(() => subscribedForDayz(modsRows), [modsRows]);
+  const items = useMemo(
+    () => activeEntries({ tab, query, subscribedRows, known, searchResults, usage }),
+    [tab, query, subscribedRows, known, searchResults, usage],
+  );
+
+  const loading =
+    (tab === "subscribed" && modsLoading && subscribedRows.length === 0) ||
+    (tab === "seen" && knownLoading) ||
+    (tab === "workshop" && searchLoading);
+
+  const listState: "empty" | "loading" | "searching" | undefined = loading
+    ? tab === "workshop"
+      ? "searching"
+      : "loading"
+    : items.length === 0
+      ? "empty"
+      : undefined;
+
+  const selectedItem = items.find((e) => e.id === previewId) ?? null;
+  const listLayout = (getActiveLayout("layout/lists/modFilterResults.json") ?? MOD_FILTER_RESULTS_LIST) as LayoutFile;
+
+  return (
+    <div data-el="list.modFilterResults" data-state={listState} className={className ?? "flex-1 min-h-0 w-full"} style={style}>
+      <ListHost<ModFilterEntry>
+        listId="list.modFilterResults"
+        items={loading ? [] : items}
+        columns={listLayout?.columns}
+        rowNode={listLayout?.row}
+        emptyNode={{ type: "text", value: modFilterResultsEmptyText(loading, tab, query) }}
+        overflowX={listLayout?.overflowX}
+        selectedItem={selectedItem}
+        onSelect={(entry) => setPreviewId(entry ? entry.id : null)}
+        computeRowStates={(entry) =>
+          [
+            entry.id === previewId ? "previewed" : "",
+            selection[entry.id] === "include" ? "included" : "",
+            selection[entry.id] === "exclude" ? "excluded" : "",
+            entry.subscribed ? "subscribed" : "",
+          ].filter(Boolean)
+        }
+        estimatedRowHeight={listLayout?.estimatedRowHeight ?? 44}
       />
     </div>
   );

@@ -3,12 +3,11 @@ import { X, Search, Check, Ban, Star, ExternalLink, ThumbsUp, Users, Loader2, In
 import { useModsStore } from "@/stores/mods-store";
 import {
   useModFilterStore,
-  subscribedForDayz,
   activeEntries,
   pickSummary,
   type ModFilterEntry,
 } from "@/stores/mod-filter-store";
-import { getModUsage } from "@/lib/tauri";
+import { useModFilterLifecycle } from "@/hooks/use-mod-filter-lifecycle";
 import { cn, formatBytes, formatLastPlayed } from "@/lib/utils";
 
 function hashHue(id: string): number {
@@ -69,9 +68,7 @@ const TABS: { key: "subscribed" | "seen" | "workshop"; label: string }[] = [
 // split list+preview layout. Focus trapped; Escape, ✕ and backdrop close
 // without applying, same contract as ServerInfoModal.
 export function ModFilterModal({ onClose }: ModFilterModalProps) {
-  const modsRows = useModsStore((s) => s.rows);
   const modsLoading = useModsStore((s) => s.loading);
-  const loadSubscribedMods = useModsStore((s) => s.load);
 
   const tab = useModFilterStore((s) => s.tab);
   const query = useModFilterStore((s) => s.query);
@@ -95,15 +92,13 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
   const cycle = useModFilterStore((s) => s.cycle);
   const setPick = useModFilterStore((s) => s.setPick);
   const clearSelection = useModFilterStore((s) => s.clearSelection);
-  const loadKnownMods = useModFilterStore((s) => s.loadKnownMods);
-  const mergeUsage = useModFilterStore((s) => s.mergeUsage);
+
+  const { subscribedRows } = useModFilterLifecycle();
 
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     begin();
-    void loadSubscribedMods();
-    void loadKnownMods();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -143,34 +138,10 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
     if (e.target === e.currentTarget) onClose();
   }
 
-  const subscribedRows = useMemo(() => subscribedForDayz(modsRows), [modsRows]);
-
   const activeList: ModFilterEntry[] = useMemo(
     () => activeEntries({ tab, query, subscribedRows, known, searchResults, usage }),
     [tab, query, subscribedRows, known, searchResults, usage],
   );
-
-  // Server counts for tabs whose source doesn't already carry one ("seen"
-  // gets it straight from the registry query).
-  useEffect(() => {
-    const ids =
-      tab === "subscribed"
-        ? subscribedRows.map((m) => m.workshop_id)
-        : tab === "workshop"
-          ? searchResults.map((m) => m.workshop_id)
-          : [];
-    const missing = ids.filter((id) => !(id in usage));
-    if (missing.length === 0) return;
-    let cancelled = false;
-    getModUsage(missing).then((rows) => {
-      if (cancelled) return;
-      mergeUsage(rows);
-    });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, subscribedRows, searchResults]);
 
   const preview = activeList.find((e) => e.id === previewId) ?? null;
 

@@ -3,6 +3,7 @@ import {
   useEffect,
   useCallback,
   useRef,
+  useMemo,
   type CSSProperties,
 } from "react";
 import { WindowResizeHandles } from "./components/window-resize-handles";
@@ -34,7 +35,10 @@ import { useServerStore } from "./stores/server-store";
 import { useSettingsStore } from "./stores/settings-store";
 import { useUpdateStore } from "./stores/update-store";
 import { useModsStore } from "./stores/mods-store";
-import { useModFilterStore } from "./stores/mod-filter-store";
+import { useShallow } from "zustand/react/shallow";
+import { useModFilterStore, activeEntries } from "./stores/mod-filter-store";
+import { useModFilterLifecycle } from "./hooks/use-mod-filter-lifecycle";
+import type { SettingsValues } from "./theme/renderer/props";
 import { watchDayz } from "./stores/launch-store";
 import {
   useThemeStore,
@@ -43,7 +47,7 @@ import {
   getActiveLayout,
   getThemeOwnedLayout,
 } from "./theme/theme-store";
-import { ElementContextProvider, SubjectContextProvider } from "./theme/elements/context";
+import { ElementContextProvider, SubjectContextProvider, useElementContext } from "./theme/elements/context";
 import { ModsViewHost } from "./theme/elements/mods-view-host";
 import { LayoutRenderer } from "./theme/renderer";
 import { useServerDataLoader } from "./hooks/use-server-data-loader";
@@ -949,7 +953,7 @@ export function App() {
                     )}
                     {modFilterOpen && (
                       themedModFilterModal ? (
-                        <ModalHost
+                        <ThemedModFilterModal
                           file={themedModFilterModal}
                           themeId={activeId}
                           settings={settingsValues[activeId]}
@@ -1106,6 +1110,49 @@ export function App() {
           </>
         )}
       </div>
+    </ElementContextProvider>
+  );
+}
+
+/** Owns the mod filter's lifecycle and preview subject so typing in it re-renders only the modal. */
+function ThemedModFilterModal({
+  file,
+  themeId,
+  settings,
+  onClose,
+}: {
+  file: ModalLayoutFile;
+  themeId: string;
+  settings?: SettingsValues;
+  onClose: () => void;
+}) {
+  const { subscribedRows } = useModFilterLifecycle();
+  const parent = useElementContext();
+  const { tab, query, previewId, known, searchResults, usage } = useModFilterStore(
+    useShallow((s) => ({
+      tab: s.tab,
+      query: s.query,
+      previewId: s.previewId,
+      known: s.known,
+      searchResults: s.searchResults,
+      usage: s.usage,
+    })),
+  );
+  const previewMod = useMemo(
+    () =>
+      activeEntries({ tab, query, subscribedRows, known, searchResults, usage }).find(
+        (entry) => entry.id === previewId,
+      ) ?? null,
+    [tab, query, subscribedRows, known, searchResults, usage, previewId],
+  );
+
+  useEffect(() => {
+    document.querySelector<HTMLInputElement>('[data-el="modFilter.search"] input')?.focus();
+  }, []);
+
+  return (
+    <ElementContextProvider value={{ ...parent, previewMod }}>
+      <ModalHost file={file} themeId={themeId} settings={settings} onClose={onClose} />
     </ElementContextProvider>
   );
 }
