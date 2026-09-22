@@ -37,6 +37,7 @@ import {
 import {
   ServerAddress,
   ServerCancel,
+  ServerCopyAddress,
   ServerDeselect,
   ServerCheckMods,
   ServerFavourite,
@@ -49,6 +50,7 @@ import {
   ServerMap,
   ServerMenu,
   ServerModCount,
+  ServerModUpdate,
   ServerName,
   ServerPing,
   ServerPlayers,
@@ -74,7 +76,16 @@ import {
 } from "./filter-elements";
 import { ServerListHost, ServerModsListHost } from "./list-elements";
 import { ServerDownloadSize, ServerReadiness } from "./readiness-elements";
-import { ServerModName, ServerModSize, ServerModState } from "./mod-elements";
+import {
+  ServerModName,
+  ServerModOpenInSteam,
+  ServerModOrder,
+  ServerModProgress,
+  ServerModSize,
+  ServerModState,
+  ServerModThumbnail,
+  ServerModUnique,
+} from "./mod-elements";
 import { renderModsElement } from "./mods-element-host";
 import {
   SettingsBack,
@@ -236,6 +247,10 @@ export function ElementHost({
       return <ServerReadiness options={node.options} className={mergedClass} style={style} />;
     case "server.downloadSize":
       return <ServerDownloadSize className={mergedClass} style={style} />;
+    case "server.copyAddress":
+      return <ServerCopyAddress options={node.options} className={mergedClass} style={style} />;
+    case "server.modUpdate":
+      return <ServerModUpdate options={node.options} className={mergedClass} style={style} />;
 
     case "filter.search":
       return <FilterSearch options={node.options} className={mergedClass} style={style} />;
@@ -271,6 +286,16 @@ export function ElementHost({
       return <ServerModName className={mergedClass} style={style} />;
     case "serverMod.size":
       return <ServerModSize className={mergedClass} style={style} />;
+    case "serverMod.order":
+      return <ServerModOrder className={mergedClass} style={style} />;
+    case "serverMod.thumbnail":
+      return <ServerModThumbnail className={mergedClass} style={style} />;
+    case "serverMod.progress":
+      return <ServerModProgress className={mergedClass} style={style} />;
+    case "serverMod.unique":
+      return <ServerModUnique options={node.options} className={mergedClass} style={style} />;
+    case "serverMod.openInSteam":
+      return <ServerModOpenInSteam options={node.options} className={mergedClass} style={style} />;
 
     case "settings.back":
       return <SettingsBack options={node.options} className={mergedClass} style={style} />;
