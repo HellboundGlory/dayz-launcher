@@ -86,7 +86,7 @@ import {
   UpdateTitle,
   UpdateViewRelease,
 } from "./update-elements";
-import { ServerListHost, ServerModsListHost } from "./list-elements";
+import { ServerListHost, ServerModsListHost, ModFilterResultsListHost } from "./list-elements";
 import { ServerDownloadSize, ServerReadiness } from "./readiness-elements";
 import {
   ServerModName,
@@ -99,6 +99,7 @@ import {
   ServerModUnique,
 } from "./mod-elements";
 import { renderModsElement } from "./mods-element-host";
+import { renderModFilterElement } from "./mod-filter-elements";
 import {
   SettingsBack,
   SettingsDone,
@@ -140,6 +141,9 @@ export function ElementHost({
 
   const modsElement = renderModsElement(node, { className: mergedClass, style });
   if (modsElement !== undefined) return modsElement;
+
+  const modFilterElement = renderModFilterElement(node, { className: mergedClass, style });
+  if (modFilterElement !== undefined) return modFilterElement;
 
   switch (node.element) {
     case "app.minimize":
@@ -313,6 +317,8 @@ export function ElementHost({
       return <ServerListHost className={mergedClass} style={style} />;
     case "list.serverMods":
       return <ServerModsListHost className={mergedClass} style={style} />;
+    case "list.modFilterResults":
+      return <ModFilterResultsListHost className={mergedClass} style={style} />;
 
     case "serverMod.state":
       return <ServerModState options={node.options} className={mergedClass} style={style} />;
