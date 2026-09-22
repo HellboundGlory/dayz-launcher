@@ -9,21 +9,7 @@ import {
 } from "@/stores/mod-filter-store";
 import { useModFilterLifecycle } from "@/hooks/use-mod-filter-lifecycle";
 import { cn, formatBytes, formatLastPlayed } from "@/lib/utils";
-
-function hashHue(id: string): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return h % 360;
-}
-
-function initials(title: string): string {
-  return title
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .join("");
-}
+import { hashHue, initials } from "@/theme/elements/mod-thumbnail";
 
 /** A real Workshop thumbnail, falling back to a generated initials tile — for a mod
     the registry only knows the id and name of, or whose image failed to load. */
