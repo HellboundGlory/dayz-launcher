@@ -1,6 +1,7 @@
 import type { CSSProperties, KeyboardEvent } from "react";
 import { Globe, Star, Clock, Package, Settings, type LucideIcon } from "lucide-react";
 import { useElementContext, type ViewId } from "./context";
+import { OptionIcon } from "./option-icon";
 
 export function onNavKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
   const container = e.currentTarget.closest('nav, [data-landmark="navigation"]');
@@ -90,7 +91,7 @@ function NavItem({
     >
       {showIcon && (
         <span data-part="icon" className="flex shrink-0 items-center justify-center">
-          <DefaultIcon className="size-[var(--t-space-iconMedium)]" />
+          <OptionIcon icon={options?.icon} fallback={DefaultIcon} className="size-[var(--t-space-iconMedium)]" />
         </span>
       )}
       {showLabel && <span data-part="label" className="truncate">{label}</span>}

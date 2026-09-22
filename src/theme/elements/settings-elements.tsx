@@ -538,11 +538,10 @@ export function SettingsSectionDescription({ options, className, style }: Elemen
 export function SettingsSectionIcon({ options, className, style }: ElementProps) {
   const sec = SECS.find((s) => s.id === options?.section);
   if (!sec) return null;
-  const Icon = sec.icon;
   return (
     <div data-el="settings.sectionIcon" className={className} style={style}>
       <span data-part="icon">
-        <Icon className="h-[17px] w-[17px]" />
+        <OptionIcon icon={options?.icon} fallback={sec.icon} className="h-[17px] w-[17px]" />
       </span>
     </div>
   );

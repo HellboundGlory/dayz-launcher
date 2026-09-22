@@ -120,11 +120,11 @@ export function ElementHost({
 
   switch (node.element) {
     case "app.minimize":
-      return <AppMinimize className={mergedClass} style={style} />;
+      return <AppMinimize options={node.options} className={mergedClass} style={style} />;
     case "app.maximize":
-      return <AppMaximize className={mergedClass} style={style} />;
+      return <AppMaximize options={node.options} className={mergedClass} style={style} />;
     case "app.close":
-      return <AppClose className={mergedClass} style={style} />;
+      return <AppClose options={node.options} className={mergedClass} style={style} />;
     case "app.dragRegion":
       return <AppDragRegion className={mergedClass} style={style} />;
     case "app.logo":
@@ -136,7 +136,7 @@ export function ElementHost({
     case "app.uiScale":
       return <AppUiScale options={node.options} className={mergedClass} style={style} />;
     case "app.schemeToggle":
-      return <AppSchemeToggle className={mergedClass} style={style} />;
+      return <AppSchemeToggle options={node.options} className={mergedClass} style={style} />;
 
     case "nav.servers":
       return <NavServers options={node.options} className={mergedClass} style={style} />;

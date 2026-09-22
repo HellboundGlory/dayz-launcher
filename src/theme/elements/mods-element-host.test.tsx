@@ -185,6 +185,43 @@ describe("mods.selectAll", () => {
       expect(useModsStore.getState().selectedIds.size).toBe(0);
     });
   });
+
+  it("keeps the checkbox markup untouched with no options, matching today's markup", async () => {
+    const { renderModsElement } = await import("./mods-element-host");
+    const html = await withStore(
+      { rows: [makeMod("1")], selectedIds: new Set() },
+      () => renderToStaticMarkup(<>{renderModsElement({ element: "mods.selectAll" }, {})}</>),
+    );
+    expect(html).not.toContain("lucide-check-square");
+    expect(html).not.toContain('data-part="label"');
+  });
+
+  it("honours icon/display/label options when placed outside a list header", async () => {
+    const { renderModsElement } = await import("./mods-element-host");
+    const html = await withStore(
+      { rows: [makeMod("1")], selectedIds: new Set() },
+      () =>
+        renderToStaticMarkup(
+          <>{renderModsElement({ element: "mods.selectAll", options: { display: "iconLabel", icon: "check", label: "Select all" } }, {})}</>,
+        ),
+    );
+    expect(html).toContain("lucide-check");
+    expect(html).toContain('data-part="label"');
+    expect(html).toContain(">Select all<");
+  });
+
+  it("hides the label with display: icon, keeping the accessible name", async () => {
+    const { renderModsElement } = await import("./mods-element-host");
+    const html = await withStore(
+      { rows: [makeMod("1")], selectedIds: new Set() },
+      () =>
+        renderToStaticMarkup(
+          <>{renderModsElement({ element: "mods.selectAll", options: { display: "icon" } }, {})}</>,
+        ),
+    );
+    expect(html).not.toContain('data-part="label"');
+    expect(html).toContain('aria-label="Select all visible"');
+  });
 });
 
 describe("mods.unsubscribe", () => {

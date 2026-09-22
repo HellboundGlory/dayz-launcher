@@ -325,6 +325,12 @@ describe("SettingsSectionTitle / sectionDescription / sectionIcon", () => {
     expect(render(<SettingsSectionDescription options={{ section: "nope" }} />)).toBe("");
     expect(render(<SettingsSectionIcon options={{ section: "nope" }} />)).toBe("");
   });
+
+  it("defaults to the section's own icon and honours the icon option", () => {
+    expect(render(<SettingsSectionIcon options={{ section: "theme" }} />)).toContain("lucide-palette");
+    expect(render(<SettingsSectionIcon options={{ section: "theme", icon: "star" }} />)).toContain("lucide-star");
+    expect(render(<SettingsSectionIcon options={{ section: "theme", icon: "none" }} />)).not.toContain("<svg");
+  });
 });
 
 describe("SettingsGroupTitle", () => {

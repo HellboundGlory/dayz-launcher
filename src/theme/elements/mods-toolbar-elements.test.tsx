@@ -123,6 +123,25 @@ describe("ModsClearSelection", () => {
     );
     expect(html).not.toContain(" disabled=");
   });
+
+  it("shows no icon by default, matching today's markup", async () => {
+    const { ModsClearSelection } = await import("./mods-toolbar-elements");
+    const html = await withStore({ selectedIds: new Set() }, () =>
+      renderToStaticMarkup(<ModsClearSelection />),
+    );
+    expect(html).not.toContain('data-part="icon"');
+    expect(html).toContain(">Clear<");
+  });
+
+  it("honours the icon and label options", async () => {
+    const { ModsClearSelection } = await import("./mods-toolbar-elements");
+    const html = await withStore({ selectedIds: new Set() }, () =>
+      renderToStaticMarkup(<ModsClearSelection options={{ display: "iconLabel", icon: "check", label: "Reset" }} />),
+    );
+    expect(html).toContain('data-part="icon"');
+    expect(html).toContain("lucide-check");
+    expect(html).toContain(">Reset<");
+  });
 });
 
 describe("ModsCleanupRemoved", () => {
@@ -147,5 +166,44 @@ describe("ModsCleanupRemoved", () => {
     onClick();
     expect(askConfirmCalls).toHaveLength(1);
     expect(askConfirmCalls[0].title).toBe("Clean up removed mods");
+  });
+
+  it("honours the icon option and display: icon", async () => {
+    const { ModsCleanupRemoved } = await import("./mods-toolbar-elements");
+    const withDefault = await withStore(
+      { rows: [makeMod("1", { removed: true })] },
+      () => renderToStaticMarkup(<ModsCleanupRemoved />),
+    );
+    expect(withDefault).toContain("lucide-trash2");
+
+    const iconOnly = await withStore(
+      { rows: [makeMod("1", { removed: true })] },
+      () => renderToStaticMarkup(<ModsCleanupRemoved options={{ display: "icon", icon: "check" }} />),
+    );
+    expect(iconOnly).not.toContain('data-part="label"');
+    expect(iconOnly).toContain("lucide-check");
+  });
+});
+
+describe("ModsRefresh", () => {
+  it("renders icon and label by default, matching today's markup", async () => {
+    const { ModsRefresh } = await import("./mods-toolbar-elements");
+    const html = await withStore({}, () => renderToStaticMarkup(<ModsRefresh />));
+    expect(html).toContain("lucide-refresh-cw");
+    expect(html).toContain(">Refresh<");
+  });
+
+  it("honours the icon, display and label options", async () => {
+    const { ModsRefresh } = await import("./mods-toolbar-elements");
+    const iconOnly = await withStore({}, () =>
+      renderToStaticMarkup(<ModsRefresh options={{ display: "icon", icon: "check" }} />),
+    );
+    expect(iconOnly).not.toContain('data-part="label"');
+    expect(iconOnly).toContain("lucide-check");
+
+    const labelled = await withStore({}, () =>
+      renderToStaticMarkup(<ModsRefresh options={{ label: "Reload" }} />),
+    );
+    expect(labelled).toContain(">Reload<");
   });
 });
