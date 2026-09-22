@@ -4,6 +4,8 @@ import { useModFilterStore, pickSummary, type ModFilterTab } from "@/stores/mod-
 import { useElementContext } from "./context";
 import { OptionIcon } from "./option-icon";
 import { nextTabIndex } from "../interaction/tabs";
+import { hashHue, initials } from "./mod-thumbnail";
+import { renderWorkshopModElement } from "./workshop-mod-elements";
 import type { ElementNode } from "../renderer/types";
 
 const SOURCE_TABS: { key: ModFilterTab; label: string }[] = [
@@ -16,21 +18,6 @@ function searchPlaceholder(tab: ModFilterTab): string {
   if (tab === "workshop") return "Search the Workshop by name…";
   if (tab === "subscribed") return "Filter your subscribed mods…";
   return "Filter mods seen on these servers…";
-}
-
-function hashHue(id: string): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return h % 360;
-}
-
-function initials(title: string): string {
-  return title
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .join("");
 }
 
 function SummaryThumb({ id, title, previewUrl }: { id: string; title: string; previewUrl: string | null }) {
@@ -306,6 +293,9 @@ export function renderModFilterElement(
     case "modFilter.matchMode":
       return <ModFilterMatchMode className={className} style={style} />;
     default:
+      if (node.element.startsWith("workshopMod.")) {
+        return renderWorkshopModElement(node, { className, style });
+      }
       return undefined;
   }
 }
