@@ -10,6 +10,9 @@ import {
   ChevronDown,
   ExternalLink,
   RefreshCw,
+  Trash2,
+  Sun,
+  Moon,
   X,
   Home,
 } from "lucide-react";
@@ -21,8 +24,16 @@ import { useSelectionReadiness } from "./use-selection-readiness";
 import { computeReadinessView } from "./readiness-elements";
 import { useServerStore } from "@/stores/server-store";
 import { joinAction } from "@/lib/join-action";
-import { toggleFavourite as toggleFavouriteRemote, refreshVisibleServers } from "@/lib/tauri";
+import {
+  toggleFavourite as toggleFavouriteRemote,
+  refreshVisibleServers,
+  checkServerMods,
+  getUniqueModsSummary,
+  unsubscribeUniqueMods,
+} from "@/lib/tauri";
 import { useRowProbeStore, probeKey } from "./row-probe-store";
+import { useConfirm } from "@/components/confirm-dialog";
+import { OptionIcon } from "./option-icon";
 
 function useServerSubject(): Server | null {
   const { subjectContext, selectedServer } = useElementContext();
@@ -41,6 +52,22 @@ function serverStates(offline: boolean, ...states: (string | false | null | unde
 /** Interleaves rendered parts with a single space, so joined text content matches the plain-string format. */
 function joinParts(nodes: ReactNode[]): ReactNode[] {
   return nodes.flatMap((node, i) => (i === 0 ? [node] : [" ", node]));
+}
+
+/** `display`/`label` resolution shared by the option-honouring action elements below.
+ * `fallbackDisplay` reproduces each element's markup from before its options were wired up. */
+function serverDisplayOptions(
+  options: Record<string, unknown> | undefined,
+  fallbackLabel: string,
+  fallbackDisplay: "iconLabel" | "label" | "icon",
+) {
+  const display = (options?.display as string | undefined) ?? fallbackDisplay;
+  const label = (options?.label as string | undefined) ?? fallbackLabel;
+  return {
+    label,
+    showIcon: display === "iconLabel" || display === "icon",
+    showLabel: display === "iconLabel" || display === "label",
+  };
 }
 
 export function ServerName({ className, style }: { className?: string; style?: CSSProperties }) {
@@ -197,7 +224,19 @@ export function ServerGameTime({
     : undefined;
 
   const nodes: ReactNode[] = [];
-  if (showIcon && gt.icon) nodes.push(<span key="icon" data-part="icon">{gt.icon}</span>);
+  if (showIcon && gt.icon) {
+    const iconContent =
+      options?.icon !== undefined ? (
+        <OptionIcon icon={options.icon} fallback={gt.state === "day" ? Sun : Moon} className="inline-block size-3" />
+      ) : (
+        gt.icon
+      );
+    nodes.push(
+      <span key="icon" data-part="icon">
+        {iconContent}
+      </span>,
+    );
+  }
   nodes.push(<span key="time" data-part="time">{gt.time}</span>);
   if (showMultiplier && gt.multiplier) nodes.push(<span key="mult" data-part="multiplier">· {gt.multiplier}</span>);
   const content = joinParts(nodes);
@@ -315,19 +354,26 @@ export function ServerFavourite({
     }
   };
 
+  const accessibleLabel = on ? "Remove from favourites" : "Add to favourites";
+
   return (
     <button
       type="button"
       data-el="server.favourite"
       data-state={serverStates(!server.online, on && "on")}
-      aria-label={on ? "Remove from favourites" : "Add to favourites"}
+      aria-label={accessibleLabel}
+      title={showLabel ? undefined : accessibleLabel}
       aria-pressed={on}
       onClick={handleClick}
       className={className ?? "flex items-center justify-center text-muted hover:text-warn"}
       style={style}
     >
       <span data-part="icon">
-        <Star className={contextName === "selection" ? "size-4" : "size-3.5"} fill={on ? "currentColor" : "none"} />
+        <OptionIcon
+          icon={options?.icon}
+          fallback={Star}
+          className={cn(contextName === "selection" ? "size-4" : "size-3.5", on && "fill-current")}
+        />
       </span>
       {showLabel && <span data-part="label">{label}</span>}
     </button>
@@ -384,6 +430,7 @@ function ServerJoinIdleButton({
   server,
   label,
   icon,
+  optionIcon,
   needsMods,
   disabled,
   showIcon,
@@ -395,6 +442,7 @@ function ServerJoinIdleButton({
   server: Server;
   label: string;
   icon: "download" | "play";
+  optionIcon: unknown;
   needsMods: boolean;
   disabled: boolean;
   showIcon: boolean;
@@ -416,7 +464,11 @@ function ServerJoinIdleButton({
     >
       {showIcon && (
         <span data-part="icon">
-          {icon === "download" ? <Download className="size-3" /> : <Play className="size-3 fill-current" />}
+          <OptionIcon
+            icon={optionIcon}
+            fallback={icon === "download" ? Download : Play}
+            className={icon === "download" ? "size-3" : "size-3 fill-current"}
+          />
         </span>
       )}
       {showLabel && <span data-part="label">{label}</span>}
@@ -430,6 +482,7 @@ function ServerJoinIdleSelection({
   disabled,
   showIcon,
   showLabel,
+  optionIcon,
   onClick,
   className,
   style,
@@ -438,6 +491,7 @@ function ServerJoinIdleSelection({
   disabled: boolean;
   showIcon: boolean;
   showLabel: boolean;
+  optionIcon: unknown;
   onClick: (e: MouseEvent) => void;
   className?: string;
   style?: CSSProperties;
@@ -461,6 +515,7 @@ function ServerJoinIdleSelection({
       server={server}
       label={idle.label}
       icon={idle.icon}
+      optionIcon={optionIcon}
       needsMods={missingCount + arrivingCount > 0}
       disabled={disabled}
       showIcon={showIcon}
@@ -567,6 +622,7 @@ export function ServerJoin({
         disabled={disabled}
         showIcon={showIcon}
         showLabel={showLabel}
+        optionIcon={options?.icon}
         onClick={handleClick}
         className={className}
         style={style}
@@ -579,6 +635,7 @@ export function ServerJoin({
       server={server}
       label="Join"
       icon="play"
+      optionIcon={options?.icon}
       needsMods={false}
       disabled={disabled}
       showIcon={showIcon}
@@ -590,9 +647,19 @@ export function ServerJoin({
   );
 }
 
-export function ServerInfo({ className, style }: { className?: string; style?: CSSProperties }) {
+export function ServerInfo({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
   const server = useServerSubject();
   if (!server) return null;
+
+  const { label, showIcon, showLabel } = serverDisplayOptions(options, "Server information", "icon");
 
   const handleClick = (e: MouseEvent) => {
     e.stopPropagation();
@@ -603,11 +670,17 @@ export function ServerInfo({ className, style }: { className?: string; style?: C
       type="button"
       data-el="server.info"
       onClick={handleClick}
-      aria-label="Server information"
+      aria-label={label}
+      title={showLabel ? undefined : label}
       className={className ?? "text-muted hover:text-ink"}
       style={style}
     >
-      <Info className="size-3.5" />
+      {showIcon && (
+        <span data-part="icon">
+          <OptionIcon icon={options?.icon} fallback={Info} className="size-3.5" />
+        </span>
+      )}
+      {showLabel && <span data-part="label">{label}</span>}
     </button>
   );
 }
@@ -673,6 +746,7 @@ export function ServerMenu({
   if (!server) return null;
 
   const menuKind = (options?.menu as string) ?? "serverActions";
+  const label = (options?.label as string | undefined) ?? "Server actions";
   if (menuKind !== "serverLoad") {
     const handleClick = (e: MouseEvent) => {
       e.stopPropagation();
@@ -682,11 +756,14 @@ export function ServerMenu({
         type="button"
         data-el="server.menu"
         onClick={handleClick}
-        aria-label="Server actions"
+        aria-label={label}
+        title={label}
         className={className ?? "text-muted hover:text-ink"}
         style={style}
       >
-        <MoreHorizontal className="size-3.5" />
+        <span data-part="icon">
+          <OptionIcon icon={options?.icon} fallback={MoreHorizontal} className="size-3.5" />
+        </span>
       </button>
     );
   }
@@ -717,12 +794,14 @@ export function ServerMenu({
         data-part="trigger"
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-label={label}
+        title={label}
         disabled={disabled}
         onClick={handleTriggerClick}
         className="text-muted hover:text-ink"
       >
         <span data-part="icon">
-          <ChevronDown className="size-3.5" />
+          <OptionIcon icon={options?.icon} fallback={ChevronDown} className="size-3.5" />
         </span>
       </button>
       <ServerLoadMenuPopup open={open} onLoad={handleLoad} />
@@ -762,12 +841,13 @@ export function ServerLoadToMenu({
       disabled={disabled}
       onClick={handleClick}
       aria-label={label}
+      title={showLabel ? undefined : label}
       className={className ?? "flex items-center gap-1.5 text-muted hover:text-ink"}
       style={style}
     >
       {showIcon && (
         <span data-part="icon">
-          <Home className="size-3.5" />
+          <OptionIcon icon={options?.icon} fallback={Home} className="size-3.5" />
         </span>
       )}
       {showLabel && <span data-part="label">{label}</span>}
@@ -807,12 +887,13 @@ export function ServerCancel({
       data-state={serverStates(!server.online)}
       onClick={handleClick}
       aria-label={label}
+      title={showLabel ? undefined : label}
       className={className ?? "text-muted hover:text-danger"}
       style={style}
     >
       {showIcon && (
         <span data-part="icon">
-          <X className="size-3" />
+          <OptionIcon icon={options?.icon} fallback={X} className="size-3" />
         </span>
       )}
       {showLabel && <span data-part="label">{label}</span>}
@@ -835,7 +916,7 @@ export function ServerManageMods({
   if (!server) return null;
 
   const display = (options?.display as string) ?? "iconLabel";
-  const label = (options?.label as string) ?? "Manage mods";
+  const label = "Manage mods";
   const showIcon = display === "iconLabel" || display === "icon";
   const showLabel = display === "iconLabel" || display === "label";
 
@@ -853,12 +934,13 @@ export function ServerManageMods({
       data-state={serverStates(!server.online)}
       onClick={handleClick}
       aria-label={label}
+      title={showLabel ? undefined : label}
       className={className ?? "flex items-center gap-1.5 text-accent hover:brightness-110"}
       style={style}
     >
       {showIcon && (
         <span data-part="icon">
-          <ExternalLink className="size-3" />
+          <OptionIcon icon={options?.icon} fallback={ExternalLink} className="size-3" />
         </span>
       )}
       {showLabel && <span data-part="label">{label}</span>}
@@ -867,7 +949,15 @@ export function ServerManageMods({
   );
 }
 
-export function ServerRefresh({ className, style }: { className?: string; style?: CSSProperties }) {
+export function ServerRefresh({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
   const server = useServerSubject();
   const probingKey = useRowProbeStore((s) => s.probingKey);
   const startProbe = useRowProbeStore((s) => s.startProbe);
@@ -876,6 +966,7 @@ export function ServerRefresh({ className, style }: { className?: string; style?
 
   const busy = probingKey === probeKey(server.addr, server.query_port);
   const disabled = probingKey !== null && !busy;
+  const { showIcon, showLabel } = serverDisplayOptions(options, "Refresh", "icon");
 
   const handleClick = (e: MouseEvent) => {
     e.stopPropagation();
@@ -898,9 +989,12 @@ export function ServerRefresh({ className, style }: { className?: string; style?
       className={className ?? "flex items-center justify-center text-muted hover:text-ink"}
       style={style}
     >
-      <span data-part="icon">
-        <RefreshCw className={busy ? "size-3 animate-spin" : "size-3"} />
-      </span>
+      {showIcon && (
+        <span data-part="icon">
+          <OptionIcon icon={options?.icon} fallback={RefreshCw} className={busy ? "size-3 animate-spin" : "size-3"} />
+        </span>
+      )}
+      {showLabel && <span data-part="label">Refresh</span>}
     </button>
   );
 }
@@ -1074,15 +1168,50 @@ export function ServerCheckMods({
   className?: string;
   style?: CSSProperties;
 }) {
-  const label = (options?.label as string) ?? "Verify mods";
+  const server = useServerSubject();
+  const { op, setNotice } = useServerActions();
+  const mergeModPending = useServerStore((s) => s.mergeModPending);
+  const triggerReload = useServerStore((s) => s.triggerReload);
+  const [busy, setBusy] = useState(false);
+  if (!server) return null;
+
+  const { label, showIcon, showLabel } = serverDisplayOptions(options, "Check mods", "label");
+  const disabled = busy || op !== null;
+
+  const handleClick = async (e: MouseEvent) => {
+    e.stopPropagation();
+    if (disabled) return;
+    setBusy(true);
+    try {
+      const res = await checkServerMods(server.addr, server.query_port);
+      const hasPending = res.mods.some((m) => m.state !== "ready" && m.state !== "not_on_workshop");
+      mergeModPending([{ addr: server.addr, pending: hasPending }]);
+      triggerReload();
+    } catch (err) {
+      setNotice({ kind: "plain", text: String(err) }, server.addr);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <button
       type="button"
       data-el="server.checkMods"
+      data-state={serverStates(!server.online, busy && "busy")}
+      disabled={disabled}
+      onClick={handleClick}
+      aria-label={label}
+      title={showLabel ? undefined : label}
       className={className ?? "flex-1 py-2 px-3 text-xs font-semibold text-center border border-border bg-surface2 hover:border-accent text-text transition-colors"}
       style={style}
     >
-      <span data-part="label">{label}</span>
+      {showIcon && (
+        <span data-part="icon">
+          {busy ? <Loader2 className="size-3 animate-spin" /> : <OptionIcon icon={options?.icon} fallback={RefreshCw} className="size-3" />}
+        </span>
+      )}
+      {showLabel && <span data-part="label">{label}</span>}
     </button>
   );
 }
@@ -1096,15 +1225,38 @@ export function ServerSubscribeAll({
   className?: string;
   style?: CSSProperties;
 }) {
-  const label = (options?.label as string) ?? "Subscribe all";
+  const server = useServerSubject();
+  const { op, dayzUp, subscribeOnly } = useServerActions();
+  if (!server) return null;
+
+  const { label, showIcon, showLabel } = serverDisplayOptions(options, "Download mods", "label");
+  const busy = op?.addr === server.addr;
+  const disabled = op !== null || dayzUp;
+
+  const handleClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    if (disabled) return;
+    void subscribeOnly(server);
+  };
+
   return (
     <button
       type="button"
       data-el="server.subscribeAll"
+      data-state={serverStates(!server.online, busy ? "busy" : disabled && "disabled")}
+      disabled={disabled}
+      onClick={handleClick}
+      aria-label={label}
+      title={showLabel ? undefined : label}
       className={className ?? "flex-1 py-2 px-3 text-xs font-semibold text-center border border-border bg-surface2 hover:border-accent text-text transition-colors"}
       style={style}
     >
-      <span data-part="label">{label}</span>
+      {showIcon && (
+        <span data-part="icon">
+          {busy ? <Loader2 className="size-3 animate-spin" /> : <OptionIcon icon={options?.icon} fallback={Download} className="size-3" />}
+        </span>
+      )}
+      {showLabel && <span data-part="label">{label}</span>}
     </button>
   );
 }
@@ -1118,15 +1270,69 @@ export function ServerUnsubscribeUnique({
   className?: string;
   style?: CSSProperties;
 }) {
-  const label = (options?.label as string) ?? "Unsubscribe all";
+  const subject = useServerSubject();
+  const { op, setNotice } = useServerActions();
+  const triggerReload = useServerStore((s) => s.triggerReload);
+  const askConfirm = useConfirm();
+  const [busy, setBusy] = useState(false);
+  if (!subject) return null;
+  const server = subject;
+
+  const { label, showIcon, showLabel } = serverDisplayOptions(options, "Unsubscribe unique mods", "label");
+  const disabled = busy || op !== null;
+
+  async function performUnsubscribe() {
+    setBusy(true);
+    try {
+      const outcome = await unsubscribeUniqueMods(server.addr, server.query_port);
+      setNotice(
+        {
+          kind: "plain",
+          text: `Unsubscribed ${outcome.count} mod${outcome.count === 1 ? "" : "s"} (${formatBytes(outcome.total_size_bytes, 1)})`,
+        },
+        server.addr,
+      );
+      triggerReload();
+    } catch (err) {
+      setNotice({ kind: "plain", text: String(err) }, server.addr);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const handleClick = async (e: MouseEvent) => {
+    e.stopPropagation();
+    if (disabled) return;
+    try {
+      const summary = await getUniqueModsSummary(server.addr, server.query_port);
+      askConfirm(
+        "Unsubscribe unique mods",
+        `Unsubscribe ${summary.count} unique mod${summary.count === 1 ? "" : "s"} (${formatBytes(summary.total_size_bytes, 1)}) only used by this server?`,
+        () => void performUnsubscribe(),
+      );
+    } catch (err) {
+      setNotice({ kind: "plain", text: String(err) }, server.addr);
+    }
+  };
+
   return (
     <button
       type="button"
       data-el="server.unsubscribeUnique"
+      data-state={serverStates(!server.online, busy ? "busy" : disabled && "disabled")}
+      disabled={disabled}
+      onClick={handleClick}
+      aria-label={label}
+      title={showLabel ? undefined : label}
       className={className ?? "flex-1 py-2 px-3 text-xs font-semibold text-center border border-border bg-surface2 hover:border-accent text-text transition-colors"}
       style={style}
     >
-      <span data-part="label">{label}</span>
+      {showIcon && (
+        <span data-part="icon">
+          {busy ? <Loader2 className="size-3 animate-spin" /> : <OptionIcon icon={options?.icon} fallback={Trash2} className="size-3" />}
+        </span>
+      )}
+      {showLabel && <span data-part="label">{label}</span>}
     </button>
   );
 }
@@ -1157,7 +1363,7 @@ export function ServerDeselect({
       style={style}
     >
       <span data-part="icon">
-        <X className="size-4" />
+        <OptionIcon icon={options?.icon} fallback={X} className="size-4" />
       </span>
     </button>
   );

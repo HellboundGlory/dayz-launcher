@@ -10,9 +10,11 @@ import { ElementContextProvider, type ElementContextValue } from "./context";
 import {
   ServerAddress,
   ServerCancel,
+  ServerCheckMods,
   ServerDeselect,
   ServerFavourite,
   ServerGameTime,
+  ServerInfo,
   ServerLastPlayed,
   ServerLoadMenuPopup,
   ServerLoadToMenu,
@@ -24,7 +26,9 @@ import {
   ServerPlayers,
   ServerRefresh,
   ServerRegion,
+  ServerSubscribeAll,
   ServerTags,
+  ServerUnsubscribeUnique,
   ServerVersion,
 } from "./server-elements";
 
@@ -94,12 +98,22 @@ vi.mock("./use-selection-readiness", () => ({
   useSelectionReadiness: vi.fn(),
 }));
 
+const askConfirmCalls: { title: string; message: string; action: () => void }[] = [];
+vi.mock("@/components/confirm-dialog", () => ({
+  useConfirm: () => (title: string, message: string, action: () => void) => {
+    askConfirmCalls.push({ title, message, action });
+  },
+}));
+
 vi.mock("@/lib/tauri", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/tauri")>();
   return {
     ...actual,
     toggleFavourite: vi.fn(() => Promise.resolve()),
     refreshVisibleServers: vi.fn(() => Promise.resolve()),
+    checkServerMods: vi.fn(),
+    getUniqueModsSummary: vi.fn(),
+    unsubscribeUniqueMods: vi.fn(),
   };
 });
 
@@ -787,5 +801,248 @@ describe("ServerRefresh", () => {
     const html = renderInteractive(<ServerRefresh />, { subjectContext: { kind: "server", data: server } });
     expect(html).toContain('data-state="busy"');
     expect(html).toContain("animate-spin");
+  });
+});
+
+describe("ServerInfo options", () => {
+  it("defaults to icon-only with the launcher wording as aria-label and title", () => {
+    const html = renderInteractive(<ServerInfo />, { subjectContext: { kind: "server", data: server } });
+    expect(html).toContain('aria-label="Server information"');
+    expect(html).toContain('title="Server information"');
+    expect(html).not.toContain('data-part="label"');
+  });
+
+  it("an icon option swaps the icon", () => {
+    const html = renderInteractive(<ServerInfo options={{ icon: "x" }} />, {
+      subjectContext: { kind: "server", data: server },
+    });
+    expect(html).toContain("lucide-x");
+  });
+
+  it("icon: none removes the rendered icon", () => {
+    const html = renderInteractive(<ServerInfo options={{ icon: "none" }} />, {
+      subjectContext: { kind: "server", data: server },
+    });
+    expect(html).not.toMatch(/lucide-/);
+  });
+
+  it("display: iconLabel shows the label part and drops the title", () => {
+    const html = renderInteractive(<ServerInfo options={{ display: "iconLabel" }} />, {
+      subjectContext: { kind: "server", data: server },
+    });
+    expect(html).toContain('data-part="label">Server information</span>');
+    expect(html).not.toContain("title=");
+  });
+
+  it("a label option replaces the accessible name", () => {
+    const html = renderInteractive(<ServerInfo options={{ label: "Details" }} />, {
+      subjectContext: { kind: "server", data: server },
+    });
+    expect(html).toContain('aria-label="Details"');
+  });
+});
+
+describe("ServerMenu options", () => {
+  it("an icon option swaps the serverActions trigger icon", () => {
+    const html = renderInteractive(<ServerMenu options={{ icon: "x" }} />, {
+      subjectContext: { kind: "server", data: server },
+    });
+    expect(html).toContain("lucide-x");
+  });
+
+  it("a label option overrides the default aria-label and title", () => {
+    const html = renderInteractive(<ServerMenu options={{ label: "Row actions" }} />, {
+      subjectContext: { kind: "server", data: server },
+    });
+    expect(html).toContain('aria-label="Row actions"');
+    expect(html).toContain('title="Row actions"');
+  });
+
+  it("an icon option swaps the serverLoad trigger's chevron", () => {
+    const html = renderInteractive(<ServerMenu options={{ menu: "serverLoad", icon: "x" }} />, {
+      subjectContext: { kind: "server", data: server },
+    });
+    expect(html).toContain("lucide-x");
+  });
+});
+
+describe("ServerFavourite options", () => {
+  it("an icon option swaps the star", () => {
+    const html = renderInteractive(<ServerFavourite options={{ icon: "x" }} />, {
+      subjectContext: { kind: "server", data: server },
+    });
+    expect(html).toContain("lucide-x");
+  });
+});
+
+describe("ServerDeselect options", () => {
+  it("an icon option swaps the close icon", () => {
+    const html = renderInteractive(<ServerDeselect options={{ icon: "x" }} />, {
+      subjectContext: { kind: "server", data: server },
+    });
+    expect(html).toContain("lucide-x");
+  });
+});
+
+describe("ServerManageMods options", () => {
+  it("ignores a label option (not declared by the registry) and keeps 'Manage mods'", () => {
+    const html = renderInteractive(<ServerManageMods options={{ label: "Mods" }} />, {
+      subjectContext: { kind: "server", data: server },
+    });
+    expect(html).toContain('data-part="label">Manage mods</span>');
+  });
+
+  it("an icon option swaps the icon", () => {
+    const html = renderInteractive(<ServerManageMods options={{ icon: "x" }} />, {
+      subjectContext: { kind: "server", data: server },
+    });
+    expect(html).toContain("lucide-x");
+  });
+});
+
+describe("ServerGameTime icon option", () => {
+  it("no option keeps the glyph", () => {
+    const day: Server = { ...server, in_game_time: "14:00", day_multiplier: 1, night_multiplier: 1 };
+    const html = renderNode(<ServerGameTime />, { subjectContext: { kind: "server", data: day } });
+    expect(html).toContain("☀");
+  });
+
+  it("an icon option swaps the glyph for the lucide icon", () => {
+    const day: Server = { ...server, in_game_time: "14:00", day_multiplier: 1, night_multiplier: 1 };
+    const html = renderNode(<ServerGameTime options={{ icon: "x" }} />, { subjectContext: { kind: "server", data: day } });
+    expect(html).toContain("lucide-x");
+    expect(html).not.toContain("☀");
+  });
+});
+
+const uniqueSummary = { count: 2, total_size_bytes: 4_000_000 };
+const unsubscribeOutcome = { count: 2, total_size_bytes: 4_000_000 };
+
+describe("ServerCheckMods", () => {
+  beforeEach(async () => {
+    mockServerActions.op = null;
+    mockServerActions.setNotice.mockClear();
+    const { checkServerMods } = await import("@/lib/tauri");
+    vi.mocked(checkServerMods).mockClear();
+  });
+
+  it("calls checkServerMods for the subject server, showing busy while running", async () => {
+    const { checkServerMods } = await import("@/lib/tauri");
+    let resolveCheck: (v: ServerModReadiness) => void = () => {};
+    vi.mocked(checkServerMods).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveCheck = resolve;
+      }),
+    );
+    useServerStore.setState({ modPending: {} });
+
+    const html = renderInteractive(<ServerCheckMods />, { subjectContext: { kind: "server", data: server } });
+    const onClick = captured["server.checkMods"].onClick as (e: { stopPropagation: () => void }) => Promise<void>;
+    const pending = onClick({ stopPropagation: vi.fn() });
+
+    expect(checkServerMods).toHaveBeenCalledWith(server.addr, server.query_port);
+    void html;
+
+    resolveCheck(readiness([mod({ state: "not_subscribed" })]));
+    await pending;
+
+    expect(useServerStore.getState().modPending[server.addr]).toBe(true);
+  });
+
+  it("reports an error via setNotice on failure", async () => {
+    const { checkServerMods } = await import("@/lib/tauri");
+    vi.mocked(checkServerMods).mockRejectedValueOnce(new Error("boom"));
+
+    renderInteractive(<ServerCheckMods />, { subjectContext: { kind: "server", data: server } });
+    const onClick = captured["server.checkMods"].onClick as (e: { stopPropagation: () => void }) => Promise<void>;
+    await onClick({ stopPropagation: vi.fn() });
+
+    expect(mockServerActions.setNotice).toHaveBeenCalledWith({ kind: "plain", text: "Error: boom" }, server.addr);
+  });
+});
+
+describe("ServerSubscribeAll", () => {
+  beforeEach(() => {
+    mockServerActions.op = null;
+    mockServerActions.dayzUp = false;
+    mockServerActions.subscribeOnly.mockClear();
+  });
+
+  it("calls subscribeOnly with the subject server", () => {
+    renderInteractive(<ServerSubscribeAll />, { subjectContext: { kind: "server", data: server } });
+    const onClick = captured["server.subscribeAll"].onClick as (e: { stopPropagation: () => void }) => void;
+    onClick({ stopPropagation: vi.fn() });
+    expect(mockServerActions.subscribeOnly).toHaveBeenCalledWith(server);
+  });
+
+  it("shows busy while this server's subscribe op is active", () => {
+    mockServerActions.op = { addr: server.addr, serverName: server.name, phase: "subscribing", note: null };
+    const html = renderInteractive(<ServerSubscribeAll />, { subjectContext: { kind: "server", data: server } });
+    expect(html).toContain('data-state="busy"');
+    expect(captured["server.subscribeAll"].disabled).toBe(true);
+  });
+
+  it("is disabled without the busy state for a different server's op", () => {
+    mockServerActions.op = { addr: otherServer.addr, serverName: otherServer.name, phase: "subscribing", note: null };
+    const html = renderInteractive(<ServerSubscribeAll />, { subjectContext: { kind: "server", data: server } });
+    expect(html).not.toContain('data-state="busy"');
+    expect(html).toContain('data-state="disabled"');
+  });
+});
+
+describe("ServerUnsubscribeUnique", () => {
+  beforeEach(async () => {
+    mockServerActions.op = null;
+    mockServerActions.setNotice.mockClear();
+    askConfirmCalls.length = 0;
+    const { getUniqueModsSummary, unsubscribeUniqueMods } = await import("@/lib/tauri");
+    vi.mocked(getUniqueModsSummary).mockClear();
+    vi.mocked(unsubscribeUniqueMods).mockClear();
+  });
+
+  it("fetches the unique-mods summary, then confirms before unsubscribing", async () => {
+    const { getUniqueModsSummary, unsubscribeUniqueMods } = await import("@/lib/tauri");
+    vi.mocked(getUniqueModsSummary).mockResolvedValueOnce(uniqueSummary);
+    vi.mocked(unsubscribeUniqueMods).mockResolvedValueOnce(unsubscribeOutcome);
+
+    renderInteractive(<ServerUnsubscribeUnique />, { subjectContext: { kind: "server", data: server } });
+    const onClick = captured["server.unsubscribeUnique"].onClick as (e: { stopPropagation: () => void }) => Promise<void>;
+    await onClick({ stopPropagation: vi.fn() });
+
+    expect(getUniqueModsSummary).toHaveBeenCalledWith(server.addr, server.query_port);
+    expect(unsubscribeUniqueMods).not.toHaveBeenCalled();
+    expect(askConfirmCalls).toHaveLength(1);
+
+    await askConfirmCalls[0].action();
+
+    expect(unsubscribeUniqueMods).toHaveBeenCalledWith(server.addr, server.query_port);
+    expect(mockServerActions.setNotice).toHaveBeenCalledWith(
+      { kind: "plain", text: `Unsubscribed 2 mods (${formatBytes(unsubscribeOutcome.total_size_bytes, 1)})` },
+      server.addr,
+    );
+  });
+
+  it("never calls unsubscribeUniqueMods when the confirm is never resolved true", async () => {
+    const { getUniqueModsSummary, unsubscribeUniqueMods } = await import("@/lib/tauri");
+    vi.mocked(getUniqueModsSummary).mockResolvedValueOnce(uniqueSummary);
+
+    renderInteractive(<ServerUnsubscribeUnique />, { subjectContext: { kind: "server", data: server } });
+    const onClick = captured["server.unsubscribeUnique"].onClick as (e: { stopPropagation: () => void }) => Promise<void>;
+    await onClick({ stopPropagation: vi.fn() });
+
+    expect(askConfirmCalls).toHaveLength(1);
+    expect(unsubscribeUniqueMods).not.toHaveBeenCalled();
+  });
+
+  it("reports an error via setNotice when the summary fetch fails", async () => {
+    const { getUniqueModsSummary } = await import("@/lib/tauri");
+    vi.mocked(getUniqueModsSummary).mockRejectedValueOnce(new Error("boom"));
+
+    renderInteractive(<ServerUnsubscribeUnique />, { subjectContext: { kind: "server", data: server } });
+    const onClick = captured["server.unsubscribeUnique"].onClick as (e: { stopPropagation: () => void }) => Promise<void>;
+    await onClick({ stopPropagation: vi.fn() });
+
+    expect(mockServerActions.setNotice).toHaveBeenCalledWith({ kind: "plain", text: "Error: boom" }, server.addr);
+    expect(askConfirmCalls).toHaveLength(0);
   });
 });

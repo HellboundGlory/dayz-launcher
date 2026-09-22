@@ -203,7 +203,7 @@ export function ElementHost({
     case "server.join":
       return <ServerJoin options={node.options} className={mergedClass} style={style} />;
     case "server.info":
-      return <ServerInfo className={mergedClass} style={style} />;
+      return <ServerInfo options={node.options} className={mergedClass} style={style} />;
     case "server.menu":
       return <ServerMenu options={node.options} className={mergedClass} style={style} />;
     case "server.loadToMenu":
@@ -215,7 +215,7 @@ export function ElementHost({
     case "server.deselect":
       return <ServerDeselect options={node.options} className={mergedClass} style={style} />;
     case "server.refresh":
-      return <ServerRefresh className={mergedClass} style={style} />;
+      return <ServerRefresh options={node.options} className={mergedClass} style={style} />;
     case "server.address":
       return <ServerAddress options={node.options} className={mergedClass} style={style} />;
     case "server.lastPlayed":
