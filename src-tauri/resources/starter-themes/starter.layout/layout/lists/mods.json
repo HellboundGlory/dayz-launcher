@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 2,
+  "overflowX": "scroll",
+  "estimatedRowHeight": "41px",
+  "columns": [
+    {
+      "id": "select",
+      "width": "22px",
+      "align": "center",
+      "label": "",
+      "resizable": false,
+      "headerElement": "mods.selectAll"
+    },
+    {
+      "id": "img",
+      "width": "34px",
+      "align": "center",
+      "label": "IMG",
+      "resizable": false
+    },
+    {
+      "id": "name",
+      "width": "1fr",
+      "align": "start",
+      "sort": "name",
+      "label": "NAME",
+      "minWidth": "96px"
+    },
+    {
+      "id": "status",
+      "width": "92px",
+      "align": "start",
+      "sort": "status",
+      "label": "STATUS"
+    },
+    {
+      "id": "subscribed",
+      "width": "78px",
+      "align": "start",
+      "sort": "subscribed",
+      "label": "SUBSCRIBED"
+    },
+    {
+      "id": "updated",
+      "width": "78px",
+      "align": "start",
+      "sort": "updated",
+      "label": "UPDATED"
+    },
+    {
+      "id": "size",
+      "width": "62px",
+      "align": "end",
+      "sort": "size",
+      "label": "SIZE"
+    }
+  ],
+  "row": {
+    "type": "grid",
+    "class": "t-mod-row",
+    "children": [
+      { "element": "mod.select", "column": "select" },
+      { "element": "mod.thumbnail", "column": "img" },
+      {
+        "type": "stack",
+        "direction": "column",
+        "column": "name",
+        "class": "t-mod-name-cell",
+        "children": [
+          {
+            "type": "stack",
+            "direction": "row",
+            "align": "center",
+            "class": "t-mod-name-line",
+            "children": [
+              { "element": "mod.status" },
+              { "element": "mod.name" },
+              { "element": "mod.disabledBadge" }
+            ]
+          },
+          { "element": "mod.tags" }
+        ]
+      },
+      { "element": "mod.status", "column": "status" },
+      { "element": "mod.subscribed", "column": "subscribed" },
+      { "element": "mod.updated", "column": "updated" },
+      { "element": "mod.size", "column": "size" }
+    ]
+  }
+}

@@ -2,29 +2,19 @@
   "schemaVersion": 2,
   "fields": [
     {
-      "id": "panelWidth",
+      "id": "accentHue",
       "type": "number",
-      "label": "Detail panel width",
-      "min": 220,
-      "max": 420,
-      "step": 10,
-      "default": 280
+      "label": "Accent hue",
+      "min": 0,
+      "max": 360,
+      "step": 1,
+      "default": 176
     },
     {
       "id": "compactRows",
       "type": "boolean",
       "label": "Compact server rows",
-      "default": false
-    },
-    {
-      "id": "accentStyle",
-      "type": "choice",
-      "label": "Accent style",
-      "options": [
-        { "value": "solid", "label": "Solid" },
-        { "value": "soft", "label": "Soft" }
-      ],
-      "default": "solid"
+      "default": true
     }
   ]
 }

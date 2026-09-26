@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 2,
+  "placement": {
+    "mode": "center"
+  },
+  "backdrop": "dim",
+  "root": {
+    "type": "stack",
+    "id": "r-update",
+    "direction": "column",
+    "children": [
+      {
+        "type": "stack",
+        "id": "r-update-header",
+        "direction": "row",
+        "align": "center",
+        "justify": "spaceBetween",
+        "shrink": 0,
+        "children": [
+          { "element": "update.title" },
+          { "element": "modal.close" }
+        ]
+      },
+      {
+        "surface": "surface.updateBody",
+        "grow": 1,
+        "minHeight": "0px"
+      },
+      {
+        "type": "stack",
+        "id": "r-update-footer",
+        "direction": "row",
+        "justify": "end",
+        "shrink": 0,
+        "children": [
+          { "element": "update.later" },
+          { "element": "update.install" },
+          { "element": "update.viewRelease" }
+        ]
+      }
+    ]
+  }
+}

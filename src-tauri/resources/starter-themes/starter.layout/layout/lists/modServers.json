@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 2,
+  "row": {
+    "type": "stack",
+    "direction": "row",
+    "align": "center",
+    "justify": "spaceBetween",
+    "class": "t-modserver-row",
+    "children": [
+      { "element": "modServer.name" },
+      { "element": "modServer.lastPlayed" }
+    ]
+  }
+}

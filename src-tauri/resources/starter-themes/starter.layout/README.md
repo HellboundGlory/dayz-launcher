@@ -1,43 +1,51 @@
 # Custom layout
 
-Builds on a palette and a stylesheet with the fourth v2 capability: `layout`.
-Copy this folder as the start of a theme that wants to rearrange the window
-itself, not just restyle it.
+A copy of the built-in **Tactical** theme: top tabs, a filter bar, a column
+table for the server list with the selected server's detail panel beside it,
+a mods view, its modals and the Settings screen. Every file is kept as the
+launcher ships it, so it is a complete, working layout you can rearrange —
+copy this folder and change what you want, the rest keeps working.
 
 ## Files
 
-- **`theme.json`** — the manifest. `capabilities` lists `tokens`, `css`,
-  `layout` and `settings`; add or remove a capability only together with the
-  files it covers, or import fails (MAN-07/MAN-08).
-- **`tokens.json`**, **`styles.css`**, **`settings.schema.json`** — as in the
-  Styled starter: a palette, element-level CSS keyed by `[data-el="..."]`,
-  and this theme's own Settings fields, reached from CSS as `--setting-<id>`.
-- **`layout/`** — the four files that place content into regions (SPEC §7):
-  - **`shell.json`** — the window frame: header, footer and the `r-main`
-    region every view renders into. This copy puts the window controls on
-    the left and groups footer status into two clusters instead of one row.
-  - **`views/browser.json`** — the server browser. This copy puts the
-    selected server's detail panel on the *left* of the list instead of the
-    right, and groups its fields into paired rows (players/ping, map/game
-    time) instead of one long column.
-  - **`lists/servers.json`** — the server list's columns and row template.
-    This copy merges the map and ping columns into one "Map / Ping" column
-    instead of giving each its own.
-  - **`modals/serverInfo.json`** — the server info modal, opened from a row
-    or the detail panel. This copy moves the close button before the name
-    and mirrors the browser's paired-row grouping.
+- **`theme.json`** — the manifest. `capabilities` names what the folder ships
+  (`tokens`, `css`, `layout`, `settings`); a capability declared without its
+  files, or files without the capability, fails the import.
+- **`tokens.json`** — the palette: dark and light schemes plus bloom, scales
+  and roles. A colour token reaches CSS as a custom property of the same name
+  (`--bg`, `--surface`, `--accent`).
+- **`styles.css`** — the stylesheet, keyed by `[data-el="..."]` for elements
+  and `[data-region="..."]` for regions. Sizes, gaps and borders live here.
+- **`settings.schema.json`** — this theme's own Settings fields. Each one
+  reaches CSS as `--setting-<id>` on the window root.
+- **`layout/`** — where everything is placed:
+  - **`shell.json`** — the window frame: the header with the nav tabs, the
+    `r-main` region a view renders into, and the footer.
+  - **`settings.json`** — the Settings screen.
+  - **`views/browser.json`** — the filter bar above a row holding the server
+    list and `r-detail`.
+  - **`views/mods.json`** — the mods view.
+  - **`lists/*.json`** — one per list: `servers`, `mods`, `serverMods`,
+    `modServers`, `modFilterResults`. Each holds its row template; `servers`
+    and `mods` also declare the `columns` their table draws.
+  - **`modals/*.json`** — `serverInfo`, `modFilter` and `update`.
 
-Every `element`/`surface` id placed in `layout/` must exist in
-`src/theme/registry.json`; an id the registry doesn't know fails import with
-rule ELE-01. `docs/theme-system/ELEMENTS.md` lists which elements each
-composition, modal and list row requires, and which surfaces bundle several
-elements as one placement.
+`shell.json` and `views/browser.json` carry a `variants` list, one entry per
+window width (`minWidth`), so a change to one belongs in every variant.
+Element and surface ids come from the launcher's element list; an id the
+launcher does not know fails the import.
 
-## Editing the layout
+## First edits to try
 
-Move an `{ "element": "..." }` or `{ "surface": "..." }` node between
-`children` arrays to relocate it; wrap a group in a `"stack"` with
-`"direction": "row"` or `"column"` to change how it's arranged. A list row's
-elements need a `"column"` matching one of the list's declared `columns`
-entries. Keep every element required by SPEC/ELEMENTS.md present somewhere
-in the composition — the validator rejects an import that drops one.
+1. **Widen the detail panel.** In `styles.css`, `[data-region="r-detail"]`
+   sets the panel's width — change it and the table beside it reflows.
+2. **Reorder the server list.** In `layout/lists/servers.json`, move an entry
+   in `columns`; the header and every row follow that order.
+3. **Move an element.** In `layout/views/browser.json`, move an
+   `{ "element": "..." }` node into another region's `children`, in each
+   variant, and it renders there instead.
+
+## Docs
+
+- Theme guide: <https://tetralauncher.com/docs/themes/>
+- Element list: <https://tetralauncher.com/docs/themes/elements>
