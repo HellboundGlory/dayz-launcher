@@ -4,7 +4,7 @@
     "type": "stack",
     "direction": "row",
     "align": "center",
-    "class": "t-mod-row",
+    "class": "t-server-mod-row",
     "children": [
       { "element": "serverMod.order" },
       { "element": "serverMod.thumbnail" },

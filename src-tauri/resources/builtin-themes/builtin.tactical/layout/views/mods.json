@@ -53,21 +53,6 @@
             "id": "r-mod-detail",
             "context": "modSelection",
             "direction": "column",
-            "empty": {
-              "type": "stack",
-              "direction": "column",
-              "align": "center",
-              "justify": "center",
-              "class": "t-mod-empty-pane",
-              "children": [
-                {
-                  "type": "text",
-                  "value": "Select a mod to see its details",
-                  "role": "body",
-                  "class": "t-mod-empty"
-                }
-              ]
-            },
             "children": [
               {
                 "type": "stack",
