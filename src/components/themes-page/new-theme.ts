@@ -4,18 +4,18 @@
 // is testable without rendering anything.
 import { slugify } from "@/theme/theme-store";
 import type { ThemeSummary } from "@/types/theme";
+import { capabilityLabel } from "./capability-labels";
 
 /**
- * The tiers in the order they build on each other — the order a starter set is
- * meant to be read in, which id-alphabetical (`starter.advanced`, `starter.basic`)
- * is not. Unknown tiers sort last rather than being dropped, so a template this
- * build does not recognise still appears.
+ * The starters in the order they build on each other — the order a starter set
+ * is meant to be read in, which id-alphabetical (`starter.colours`,
+ * `starter.layout`, `starter.styled`) is not.
  */
-const TIER_RANK: Record<string, number> = { basic: 0, advanced: 1, expert: 2 };
+const LABEL_RANK: Record<string, number> = { Colours: 0, Styled: 1, "Custom layout": 2 };
 
-/** The templates in tier order, for the picker. */
-export function byTier(templates: ThemeSummary[]): ThemeSummary[] {
-  const rank = (template: ThemeSummary) => TIER_RANK[template.tier] ?? Number.MAX_SAFE_INTEGER;
+/** The templates in capability order, for the picker. */
+export function byCapability(templates: ThemeSummary[]): ThemeSummary[] {
+  const rank = (template: ThemeSummary) => LABEL_RANK[capabilityLabel(template.capabilities)];
   return [...templates].sort((a, b) => rank(a) - rank(b) || a.id.localeCompare(b.id));
 }
 

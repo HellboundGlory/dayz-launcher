@@ -236,39 +236,24 @@ export const STORE_KEY = "tetra.customThemes";
 /** Editor overrides: a partial palette per scheme. */
 export type CustomOverrides = { dark: Partial<Palette>; light: Partial<Palette> };
 
-// ── Non-colour design tokens: spacing / radii / typography ─────────
-// Plain data, like the colour palette above. Defaults mirror main.css's
-// existing static values, so applying them is a no-op until overridden.
+// ── Editor role overrides: the v2 roles the customiser edits ───────
+// Plain data, like the colour palette above, and not per-scheme — none of
+// these vary by mode.
 
-export interface Spacing {
-  xs: string;
-  sm: string;
-  md: string;
-  lg: string;
-}
+/** Neutral's `type.family.ui`, and the stack `main.css`'s `@font-face` rules provide. Mirrored byte-for-byte in `src-tauri/src/theme/tokens.rs`. */
+export const UI_FONT_STACK = '"Inter", "Segoe UI", system-ui, sans-serif';
 
-export interface Radii {
-  control: string;
-  row: string;
-  chip: string;
-  pill: string;
-}
+/** Neutral's `type.family.data`, the stack every number, address, timestamp and size renders in. Mirrored in `src-tauri/src/theme/tokens.rs`. */
+export const DATA_FONT_STACK = '"JetBrains Mono", "Fira Code", "Consolas", monospace';
 
-export interface Typography {
-  uiFont: string;
-  dataFont: string;
-}
+/** The `radius` roles the token customiser edits (SPEC §4.6). */
+export type RadiusRole = "window" | "panel" | "row" | "control";
 
-export const DEFAULT_SPACING: Spacing = { xs: "2px", sm: "4px", md: "8px", lg: "16px" };
-export const DEFAULT_RADII: Radii = { control: "6px", row: "8px", chip: "3px", pill: "999px" };
-export const DEFAULT_TYPOGRAPHY: Typography = {
-  uiFont: '"Inter", "Segoe UI", system-ui, sans-serif',
-  dataFont: '"JetBrains Mono", "Fira Code", "Consolas", monospace',
-};
+/** The `type.family` steps the token customiser edits (SPEC §4.6). */
+export type FontFamilyRole = "ui" | "data";
 
-/** Editor overrides for the non-colour tokens. Plain, not per-scheme — none of these vary by mode. */
+/** Editor overrides for those roles, each a raw CSS length or font stack. */
 export interface CustomExtrasOverrides {
-  spacing: Partial<Spacing>;
-  radii: Partial<Radii>;
-  typography: Partial<Typography>;
+  radius: Partial<Record<RadiusRole, string>>;
+  family: Partial<Record<FontFamilyRole, string>>;
 }

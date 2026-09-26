@@ -1,0 +1,295 @@
+{
+  "schemaVersion": 2,
+  "presentation": {
+    "mode": "overlay",
+    "region": "r-main",
+    "backdropClose": true
+  },
+  "root": {
+    "type": "stack",
+    "id": "r-settings-scrim",
+    "direction": "column",
+    "align": "center",
+    "justify": "center",
+    "width": "100%",
+    "height": "100%",
+    "children": [
+      {
+        "type": "stack",
+        "id": "r-settings",
+        "direction": "column",
+        "children": [
+          {
+            "type": "stack",
+            "id": "r-settings-header",
+            "direction": "row",
+            "align": "center",
+            "shrink": 0,
+            "children": [
+              {
+                "element": "settings.title"
+              },
+              {
+                "type": "stack",
+                "direction": "row",
+                "grow": 1
+              },
+              {
+                "element": "settings.back",
+                "options": {
+                  "display": "icon",
+                  "icon": "x"
+                }
+              }
+            ]
+          },
+          {
+            "type": "stack",
+            "id": "r-settings-body",
+            "direction": "row",
+            "grow": 1,
+            "children": [
+              {
+                "type": "tabs",
+                "id": "r-settings-tabs",
+                "orientation": "vertical",
+                "tabs": [
+                  {
+                    "id": "game",
+                    "label": {
+                      "type": "stack",
+                      "direction": "row",
+                      "align": "center",
+                      "class": "t-settings-tab",
+                      "children": [
+                        {
+                          "type": "image",
+                          "icon": "gamepad",
+                          "class": "t-settings-tab-icon"
+                        },
+                        {
+                          "type": "text",
+                          "role": "body",
+                          "value": "Game",
+                          "class": "t-settings-tab-label"
+                        }
+                      ]
+                    },
+                    "content": {
+                      "type": "scroll",
+                      "axis": "y",
+                      "class": "t-settings-pane",
+                      "children": [
+                        {
+                          "element": "settings.profileName"
+                        },
+                        {
+                          "type": "stack",
+                          "direction": "row",
+                          "align": "start",
+                          "class": "t-settings-pair",
+                          "children": [
+                            {
+                              "element": "settings.dayzPath",
+                              "grow": 1
+                            },
+                            {
+                              "element": "settings.detectPaths"
+                            }
+                          ]
+                        },
+                        {
+                          "element": "settings.workshopPath"
+                        },
+                        {
+                          "element": "settings.launchParams"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "launcher",
+                    "label": {
+                      "type": "stack",
+                      "direction": "row",
+                      "align": "center",
+                      "class": "t-settings-tab",
+                      "children": [
+                        {
+                          "type": "image",
+                          "icon": "appWindow",
+                          "class": "t-settings-tab-icon"
+                        },
+                        {
+                          "type": "text",
+                          "role": "body",
+                          "value": "Launcher",
+                          "class": "t-settings-tab-label"
+                        }
+                      ]
+                    },
+                    "content": {
+                      "type": "scroll",
+                      "axis": "y",
+                      "class": "t-settings-pane",
+                      "children": [
+                        {
+                          "type": "stack",
+                          "direction": "column",
+                          "class": "t-settings-group",
+                          "children": [
+                            {
+                              "element": "settings.groupTitle",
+                              "options": {
+                                "group": "window"
+                              }
+                            },
+                            {
+                              "element": "settings.minimiseToTray"
+                            },
+                            {
+                              "element": "settings.closeToTray"
+                            },
+                            {
+                              "element": "settings.onJoin"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "stack",
+                          "direction": "column",
+                          "class": "t-settings-group",
+                          "children": [
+                            {
+                              "element": "settings.groupTitle",
+                              "options": {
+                                "group": "startup"
+                              }
+                            },
+                            {
+                              "element": "settings.startWithWindows"
+                            },
+                            {
+                              "element": "settings.startMinimised"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "stack",
+                          "direction": "column",
+                          "class": "t-settings-group",
+                          "children": [
+                            {
+                              "element": "settings.groupTitle",
+                              "options": {
+                                "group": "discord"
+                              }
+                            },
+                            {
+                              "element": "settings.discordPresence"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "stack",
+                          "direction": "row",
+                          "align": "start",
+                          "class": "t-settings-pair",
+                          "children": [
+                            {
+                              "element": "settings.dataFolder",
+                              "grow": 1
+                            },
+                            {
+                              "element": "settings.openDataFolder"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "browser",
+                    "label": {
+                      "type": "stack",
+                      "direction": "row",
+                      "align": "center",
+                      "class": "t-settings-tab",
+                      "children": [
+                        {
+                          "type": "image",
+                          "icon": "filter",
+                          "class": "t-settings-tab-icon"
+                        },
+                        {
+                          "type": "text",
+                          "role": "body",
+                          "value": "Server Browser",
+                          "class": "t-settings-tab-label"
+                        }
+                      ]
+                    },
+                    "content": {
+                      "type": "scroll",
+                      "axis": "y",
+                      "class": "t-settings-pane",
+                      "children": [
+                        {
+                          "element": "settings.autoRefresh"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "themes",
+                    "label": {
+                      "type": "stack",
+                      "direction": "row",
+                      "align": "center",
+                      "class": "t-settings-tab",
+                      "children": [
+                        {
+                          "type": "image",
+                          "icon": "palette",
+                          "class": "t-settings-tab-icon"
+                        },
+                        {
+                          "type": "text",
+                          "role": "body",
+                          "value": "Themes",
+                          "class": "t-settings-tab-label"
+                        }
+                      ]
+                    },
+                    "content": {
+                      "type": "scroll",
+                      "axis": "y",
+                      "class": "t-settings-pane",
+                      "children": [
+                        {
+                          "element": "settings.themeManagement"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "stack",
+            "id": "r-settings-footer",
+            "direction": "row",
+            "justify": "end",
+            "shrink": 0,
+            "children": [
+              {
+                "element": "settings.done"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

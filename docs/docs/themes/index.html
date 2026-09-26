@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Making a theme — Tetra Launcher</title>
+    <meta
+      name="description"
+      content="How to build a Tetra Launcher theme: palettes, CSS, custom layouts and theme settings, with the rules the launcher checks."
+    />
+    <link rel="icon" href="../../assets/tetra-logo.png" />
+    <link rel="stylesheet" href="../../style-v2.css" />
+    <link rel="stylesheet" href="../../docs.css" />
+  </head>
+  <body>
+    <header class="site-nav">
+      <div class="container">
+        <a class="brand" href="/">
+          <img src="../../assets/tetra-logo.png" alt="" />
+          <span><span class="tetra">TETRA</span> <span class="launcher">LAUNCHER</span></span>
+        </a>
+        <nav class="links">
+          <a href="/">Home</a>
+          <a href="/download">Download</a>
+          <a href="/docs/themes/" class="active">Themes</a>
+          <a href="https://github.com/HellboundGlory/dayz-launcher">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <div class="docs">
+      <aside class="docs-nav" aria-label="Theme docs">
+        <details open>
+          <summary>On this page</summary>
+          <h2>Guide</h2>
+          <ol>
+            <li><a href="#overview">What a theme can change</a></li>
+            <li><a href="#recolour">Recolour without code</a></li>
+            <li><a href="#first-theme">Your first theme</a></li>
+            <li><a href="#package">The package</a></li>
+            <li><a href="#tokens">Colours and tokens</a></li>
+            <li><a href="#css">Styling with CSS</a></li>
+            <li><a href="#layout">Custom layouts</a></li>
+            <li><a href="#settings">Theme settings</a></li>
+            <li><a href="#checking">Checking your work</a></li>
+            <li><a href="#limits">Limits</a></li>
+          </ol>
+          <h2>Reference</h2>
+          <ol>
+            <li><a href="/docs/themes/elements">Elements</a></li>
+            <li><a href="/docs/themes/reference">Manifest, tokens and rules</a></li>
+          </ol>
+        </details>
+      </aside>
+
+      <main class="prose">
+        <h1>Making a theme</h1>
+        <p class="lede">
+          A theme can recolour Tetra Launcher, restyle any part of it, or rearrange the
+          whole window. It's a folder of JSON and CSS, and the launcher checks every
+          file, so a mistake shows up as a clear error instead of a broken window.
+        </p>
+
+        <div class="pair">
+          <figure class="shot">
+            <img src="../../assets/themes/neutral.webp" alt="Tetra Launcher in the default Neutral theme: a sidebar on the left and card-style server rows" loading="lazy" />
+            <figcaption><strong>Neutral</strong>, the default</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="../../assets/themes/tactical.webp" alt="The same server list in the Tactical theme: tabs across the top, a dense table and a detail panel on the right" loading="lazy" />
+            <figcaption><strong>Tactical</strong>, built-in: same launcher, new layout</figcaption>
+          </figure>
+        </div>
+
+        <h2 id="overview">What a theme can change</h2>
+        <p>
+          Themes come in three levels. Each one is a working theme on its own, so start
+          with the smallest one that does what you want.
+        </p>
+
+        <div class="ladder">
+          <div class="rung">
+            <h3>Colours only</h3>
+            <span class="id">starter.colours</span>
+            <p>A new palette for dark and light mode. Nothing else to learn.</p>
+            <div class="caps"><span class="cap new">tokens</span></div>
+          </div>
+          <div class="rung">
+            <h3>Styled</h3>
+            <span class="id">starter.styled</span>
+            <p>Your own CSS for any element, plus settings users can tune.</p>
+            <div class="caps"><span class="cap">tokens</span><span class="cap new">css</span><span class="cap new">settings</span></div>
+          </div>
+          <div class="rung">
+            <h3>Custom layout</h3>
+            <span class="id">starter.layout</span>
+            <p>Move things around: panels, columns, navigation, window controls.</p>
+            <div class="caps"><span class="cap">tokens</span><span class="cap">css</span><span class="cap">settings</span><span class="cap new">layout</span></div>
+          </div>
+        </div>
+
+        <div class="pair">
+          <figure class="shot">
+            <img src="../../assets/themes/colours-crop.webp" alt="The Colours only starter: Neutral's sidebar and server rows in an amber palette" loading="lazy" />
+            <figcaption><strong>Colours only</strong>: Neutral's layout in an amber palette</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="../../assets/themes/styled-crop.webp" alt="The Styled starter: an indigo palette with CSS adjusting the server rows" loading="lazy" />
+            <figcaption><strong>Styled</strong>: a palette plus CSS, with a row-indent setting</figcaption>
+          </figure>
+        </div>
+
+        <h2 id="recolour">Recolour without code</h2>
+        <p>
+          To change colours only, you don't need to touch any files. This works on
+          Neutral, Tactical or any theme you've installed:
+        </p>
+        <ol>
+          <li>Open <strong>Settings → Themes</strong> and activate the theme you want to recolour.</li>
+          <li>Press <strong>Customize tokens</strong>. Pick colours for dark and light mode, and adjust glow, corner roundness and fonts if you like.</li>
+          <li>Type a name and press <strong>Save theme</strong>.</li>
+        </ol>
+        <p>
+          Your theme keeps the original's layout and styling with your colours, and shows
+          up in the theme list. Later edits save with <strong>Save changes</strong>, and
+          <strong>Export</strong> shares it.
+        </p>
+
+        <h2 id="first-theme">Your first theme</h2>
+        <ol>
+          <li>
+            Open <strong>Settings → Themes</strong> and press <strong>New theme</strong>.
+            Pick the starter closest to what you want. The launcher copies it into a new
+            theme of your own and switches to it.
+          </li>
+          <li>
+            Open <strong>Settings → Launcher → Open data folder</strong>. Your theme is in
+            <code>themes/&lt;your-theme-id&gt;/</code>.
+          </li>
+          <li>
+            Turn on <strong>Dev Mode</strong> in Settings → Themes. It reloads your theme
+            every time you save a file and lists anything the launcher rejected.
+          </li>
+          <li>Edit, save, look. When you're happy, use <strong>Export</strong> to share it.</li>
+        </ol>
+
+        <figure class="shot">
+          <img src="../../assets/themes/settings-themes.webp" alt="Settings, Themes page: installed themes, New theme and Import buttons, and the active theme's Customize tokens, Theme settings and Dev Mode buttons" loading="lazy" />
+          <figcaption>Settings → Themes. New theme, Import and Dev Mode all live here.</figcaption>
+        </figure>
+
+        <h2 id="package">The package</h2>
+        <p>
+          A theme is a folder named after its id. Only <code>theme.json</code> is
+          required. A layout file you leave out keeps Neutral's version of that screen.
+          Each file below needs the capability next to it declared in
+          <code>theme.json</code>.
+        </p>
+
+        <ul class="tree" aria-label="Theme package files">
+          <li><a href="#manifest"><span class="path">theme.json</span><span class="what"><span class="req">required</span> · name, version, capabilities</span></a></li>
+          <li><a href="#tokens"><span class="path">tokens.json</span><span class="what">tokens · colours, sizes, fonts</span></a></li>
+          <li><a href="#css"><span class="path">styles.css</span><span class="what">css · your stylesheet</span></a></li>
+          <li><a href="#settings"><span class="path">settings.schema.json</span><span class="what">settings · options users tune</span></a></li>
+          <li><a href="#layout"><span class="path">layout/</span><span class="what">layout · one file per screen</span></a></li>
+          <li><a href="#layout"><span class="path" style="--depth: 1">shell.json</span><span class="what">the window frame</span></a></li>
+          <li><a href="#layout"><span class="path" style="--depth: 1">views/browser.json · views/mods.json</span><span class="what">the two main views</span></a></li>
+          <li><a href="#layout"><span class="path" style="--depth: 1">lists/servers.json · lists/mods.json …</span><span class="what">list columns and rows</span></a></li>
+          <li><a href="#layout"><span class="path" style="--depth: 1">modals/ · popups/ · settings.json</span><span class="what">dialogs and Settings</span></a></li>
+          <li><a href="#css"><span class="path">fonts/ · images/</span><span class="what">fonts · images</span></a></li>
+          <li><a href="#manifest"><span class="path">previews/</span><span class="what">up to 5 preview images</span></a></li>
+        </ul>
+
+        <h3 id="manifest">theme.json</h3>
+        <div class="code">
+          <div class="code-head">theme.json<button class="copy" type="button">Copy</button></div>
+<pre>{
+  <span class="k">"schemaVersion"</span>: 2,
+  <span class="k">"themeApi"</span>: <span class="s">"2.0"</span>,
+  <span class="k">"id"</span>: <span class="s">"midnight-ops"</span>,
+  <span class="k">"name"</span>: <span class="s">"Midnight Ops"</span>,
+  <span class="k">"author"</span>: <span class="s">"you"</span>,
+  <span class="k">"version"</span>: <span class="s">"1.0.0"</span>,
+  <span class="k">"minimumLauncherVersion"</span>: <span class="s">"2.6.0"</span>,
+  <span class="k">"capabilities"</span>: [<span class="s">"tokens"</span>, <span class="s">"css"</span>]
+}</pre>
+        </div>
+        <p>
+          <strong>Capabilities must match your files exactly.</strong> Declaring
+          <code>css</code> without a <code>styles.css</code>, or shipping one without
+          declaring it, is an import error. The id must match the folder name, and ids
+          starting <code>builtin.</code> are reserved.
+        </p>
+
+        <h2 id="tokens">Colours and tokens</h2>
+        <p>
+          <code>tokens.json</code> holds your palette and, optionally, sizes and fonts.
+          Every key is optional. Anything you leave out keeps Neutral's value, so you can
+          change one thing at a time.
+        </p>
+        <div class="code">
+          <div class="code-head">tokens.json<button class="copy" type="button">Copy</button></div>
+<pre>{
+  <span class="k">"schemaVersion"</span>: 2,
+  <span class="k">"colors"</span>: {
+    <span class="k">"dark"</span>:  { <span class="k">"bg"</span>: <span class="s">"#0e1016"</span>, <span class="k">"surface"</span>: <span class="s">"#151824"</span>, <span class="k">"accent"</span>: <span class="s">"#7c9cff"</span>, <span class="k">"text"</span>: <span class="s">"#e5e9f5"</span> },
+    <span class="k">"light"</span>: { <span class="k">"bg"</span>: <span class="s">"#f2f3fa"</span>, <span class="k">"surface"</span>: <span class="s">"#ffffff"</span>, <span class="k">"accent"</span>: <span class="s">"#3a4fbf"</span>, <span class="k">"text"</span>: <span class="s">"#171a2b"</span> }
+  },
+  <span class="k">"scales"</span>: { <span class="k">"radius"</span>: { <span class="k">"md"</span>: <span class="s">"8px"</span> } },
+  <span class="k">"roles"</span>:  { <span class="k">"color"</span>: { <span class="k">"onAccent"</span>: <span class="s">"#0e1016"</span> } }
+}</pre>
+        </div>
+        <ul>
+          <li>
+            <code>colors.dark</code> and <code>colors.light</code> take the same twelve
+            colours: <code>bg</code>, <code>surface</code>, <code>surface2</code>,
+            <code>border</code>, <code>text</code>, <code>muted</code>,
+            <code>muted2</code>, <code>accent</code>, <code>accent2</code>,
+            <code>success</code>, <code>warn</code>, <code>danger</code>. Hover states and
+            soft fills are worked out from these.
+          </li>
+          <li>A <code>scales</code> entry changes one step of a scale. The rest keep their defaults.</li>
+          <li>A <code>roles</code> entry points a role at a scale step (<code>"md"</code>) or a value (<code>"8px"</code>).</li>
+        </ul>
+        <div class="note warn">
+          <p>
+            <strong>Colours are per mode, roles are not.</strong> <code>onAccent</code> is
+            used on top of both your dark and your light accent. Check it against both, or
+            it may be unreadable in the mode you didn't test.
+          </p>
+        </div>
+
+        <h2 id="css">Styling with CSS</h2>
+        <p>
+          Every part of the launcher carries a stable <code>data-el</code> name, and those
+          names are what your CSS targets. Your rules always win over the launcher's
+          defaults, so you never need <code>!important</code> (it's refused anyway).
+        </p>
+        <div class="code">
+          <div class="code-head">styles.css<button class="copy" type="button">Copy</button></div>
+<pre><span class="c">/* An element */</span>
+[data-el=<span class="s">"server.join"</span>] { border-radius: var(--t-radius-control); }
+
+<span class="c">/* A part inside it, and a state */</span>
+[data-el=<span class="s">"server.players"</span>] [data-part=<span class="s">"caption"</span>] { color: var(--muted); }
+[data-el=<span class="s">"server.join"</span>][data-state~=<span class="s">"busy"</span>] { opacity: 0.6; }
+
+<span class="c">/* Only the copy in the selected-server panel */</span>
+[data-context=<span class="s">"selection"</span>] [data-el=<span class="s">"server.name"</span>] { color: var(--accent); }</pre>
+        </div>
+        <p>A few things are off limits so a theme can't break the launcher or reach the network:</p>
+        <div class="code">
+          <div class="code-head">styles.css — refused<button class="copy" type="button">Copy</button></div>
+<pre>[data-el=<span class="s">"server.join"</span>] { z-index: 5; }                 <span class="refused">CSS-04</span>
+[data-el=<span class="s">"server.join"</span>] { color: red !important; }      <span class="refused">CSS-01</span>
+@import url(<span class="s">"other.css"</span>);                               <span class="refused">CSS-06</span>
+.box { background: url(<span class="s">"https://example.com/x.png"</span>); }  <span class="refused">CSS-07</span></pre>
+        </div>
+        <p>
+          Colours are <code>--bg</code>, <code>--accent</code> and friends; everything else
+          is prefixed <code>--t-</code>, like <code>--t-radius-row</code> and
+          <code>--t-type-family-ui</code>. The <a href="/docs/themes/reference">reference</a>
+          lists every selector, property and variable you can use.
+        </p>
+
+        <h2 id="layout">Custom layouts</h2>
+        <p>
+          With the <code>layout</code> capability, each screen is one JSON file: a tree of
+          containers (<code>stack</code>, <code>grid</code>, <code>scroll</code>,
+          <code>tabs</code> …) holding the launcher's elements. This one puts the server
+          details on the left of the list:
+        </p>
+        <div class="code">
+          <div class="code-head">layout/views/browser.json<button class="copy" type="button">Copy</button></div>
+<pre>{
+  <span class="k">"schemaVersion"</span>: 2,
+  <span class="k">"root"</span>: {
+    <span class="k">"type"</span>: <span class="s">"stack"</span>, <span class="k">"direction"</span>: <span class="s">"row"</span>,
+    <span class="k">"children"</span>: [
+      { <span class="k">"type"</span>: <span class="s">"stack"</span>, <span class="k">"context"</span>: <span class="s">"selection"</span>, <span class="k">"direction"</span>: <span class="s">"column"</span>,
+        <span class="k">"children"</span>: [
+          { <span class="k">"element"</span>: <span class="s">"server.name"</span> },
+          { <span class="k">"element"</span>: <span class="s">"list.serverMods"</span> },
+          { <span class="k">"element"</span>: <span class="s">"server.join"</span> },
+          { <span class="k">"element"</span>: <span class="s">"server.actionNotice"</span> }
+        ] },
+      { <span class="k">"element"</span>: <span class="s">"list.servers"</span>, <span class="k">"grow"</span>: 1 }
+    ]
+  }
+}</pre>
+        </div>
+        <ul>
+          <li>Every <code>element</code> must be one the launcher knows. The <a href="/docs/themes/elements">element list</a> has all of them.</li>
+          <li>Some elements are required: window controls, navigation, and a notice beside every Join button. A file that drops one is replaced by Neutral's version of that screen.</li>
+          <li><strong>Tab order is file order.</strong> Keyboard users move through your layout in the order you wrote it.</li>
+        </ul>
+
+        <h2 id="settings">Theme settings</h2>
+        <p>
+          <code>settings.schema.json</code> adds your own options under your theme in
+          Settings: numbers, on/off switches, choices and colours. A saved value reaches
+          your CSS as <code>--setting-&lt;id&gt;</code>, and can show or hide parts of your
+          layout.
+        </p>
+        <div class="code">
+          <div class="code-head">settings.schema.json<button class="copy" type="button">Copy</button></div>
+<pre>{
+  <span class="k">"schemaVersion"</span>: 2,
+  <span class="k">"fields"</span>: [
+    { <span class="k">"id"</span>: <span class="s">"compactRows"</span>, <span class="k">"type"</span>: <span class="s">"boolean"</span>, <span class="k">"label"</span>: <span class="s">"Compact rows"</span>, <span class="k">"default"</span>: false },
+    { <span class="k">"id"</span>: <span class="s">"panelWidth"</span>, <span class="k">"type"</span>: <span class="s">"number"</span>, <span class="k">"label"</span>: <span class="s">"Panel width"</span>,
+      <span class="k">"min"</span>: 240, <span class="k">"max"</span>: 420, <span class="k">"default"</span>: 300 }
+  ]
+}</pre>
+        </div>
+
+        <h2 id="checking">Checking your work</h2>
+        <p>
+          Dev Mode shows what the launcher thinks of your theme while you edit it:
+          outlines on every element, a click-to-pin inspector, contrast warnings, and a
+          switcher to preview each window width and settings combination.
+        </p>
+        <figure class="shot">
+          <img src="../../assets/themes/devmode.webp" alt="Dev Mode's validation panel over the Tactical theme, listing width and settings switchers and one contrast warning" loading="lazy" />
+          <figcaption>Dev Mode on Tactical: one contrast warning, nothing fell back.</figcaption>
+        </figure>
+        <p>
+          If a required element is hidden, off-screen or covered, only the file it lives
+          in falls back to Neutral, and the panel names the element and the reason. Your
+          colours and CSS stay in effect.
+        </p>
+
+        <h2 id="limits">Limits</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Limit</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td>Files per package</td><td class="num">64</td></tr>
+              <tr><td>Package size, uncompressed</td><td class="num">8 MB</td></tr>
+              <tr><td><code>styles.css</code></td><td class="num">256 KB</td></tr>
+              <tr><td>Image size</td><td class="num">4096 × 4096</td></tr>
+              <tr><td>Nodes per layout file</td><td class="num">2,000</td></tr>
+              <tr><td>Width variants per file</td><td class="num">4</td></tr>
+              <tr><td>Preview images</td><td class="num">5</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <nav class="next" aria-label="More theme docs">
+          <a href="/docs/themes/elements">Element reference<span>Every element you can place and style</span></a>
+          <a href="/docs/themes/reference">Manifest, tokens and rules<span>Every field, variable and error code</span></a>
+        </nav>
+      </main>
+    </div>
+
+    <footer>
+      <div class="container">
+        <p>
+          TETRA LAUNCHER — free and source-available.
+          <a href="https://github.com/HellboundGlory/dayz-launcher">Source on GitHub</a>.
+          Not affiliated with Bohemia Interactive.
+        </p>
+      </div>
+    </footer>
+
+    <script>
+      for (const btn of document.querySelectorAll(".code .copy")) {
+        btn.addEventListener("click", async () => {
+          const text = btn.closest(".code").querySelector("pre").innerText;
+          try {
+            await navigator.clipboard.writeText(text);
+            btn.textContent = "Copied";
+          } catch {
+            btn.textContent = "Select and copy";
+          }
+          setTimeout(() => (btn.textContent = "Copy"), 1600);
+        });
+      }
+
+      if (matchMedia("(max-width: 900px)").matches) {
+        document.querySelector(".docs-nav details").open = false;
+      }
+
+      const links = [...document.querySelectorAll('.docs-nav a[href^="#"]')];
+      const byId = new Map(links.map((a) => [a.getAttribute("href").slice(1), a]));
+      const spy = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (!e.isIntersecting) continue;
+            for (const a of links) a.removeAttribute("aria-current");
+            byId.get(e.target.id)?.setAttribute("aria-current", "true");
+          }
+        },
+        { rootMargin: "-80px 0px -70% 0px" },
+      );
+      for (const id of byId.keys()) {
+        const h = document.getElementById(id);
+        if (h) spy.observe(h);
+      }
+    </script>
+  </body>
+</html>

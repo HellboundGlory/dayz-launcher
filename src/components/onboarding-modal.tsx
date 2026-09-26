@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { cn } from "@/lib/utils";
-import { SlotChild } from "@/theme/slot-render";
 import { useSettingsStore } from "@/stores/settings-store";
 import { discoverSteamPaths, validateDayzPath } from "@/lib/tauri";
 import tetraLogo from "@/assets/tetra-logo.png";
@@ -99,11 +98,10 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
   return (
     <div className="absolute inset-0 z-[90] flex items-center justify-center bg-[rgba(5,8,13,0.7)]">
       <div
-        data-tetra-slot="modal.onboarding"
         className="w-[min(360px,calc(100%-40px))] overflow-hidden rounded-[10px] border border-line bg-surface shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
       >
         <div className="flex items-start gap-2.5 border-b border-line p-4">
-          <img src={tetraLogo} alt="" className="size-9 shrink-0 rounded-[7px] shadow-[var(--glow)]" />
+          <img src={tetraLogo} alt="" className="size-9 shrink-0 rounded-[7px] [box-shadow:var(--t-glow-rest)]" />
           <div>
             <h2 className="text-[13.5px] font-bold text-ink">Set up your survivor</h2>
             <p className="mt-0.5 text-[10.5px] leading-relaxed text-muted">
@@ -192,18 +190,16 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
                   placeholder="C:\Program Files (x86)\Steam\steamapps\common\DayZ"
                   className={cn(INPUT_CLASS, "font-mono-data text-[10px]")}
                 />
-                <SlotChild slotId="modal.onboarding" id="pathBrowser">
-                  <button
-                    data-tetra-el="pathBrowser"
-                    onClick={browseForFolder}
-                    disabled={browsing}
-                    title="Browse for your DayZ install folder"
-                    className={cn(GHOST_BUTTON_CLASS, "py-2")}
-                  >
-                    <FolderOpen className="size-3" />
-                    Browse
-                  </button>
-                </SlotChild>
+                <button
+                  data-tetra-el="pathBrowser"
+                  onClick={browseForFolder}
+                  disabled={browsing}
+                  title="Browse for your DayZ install folder"
+                  className={cn(GHOST_BUTTON_CLASS, "py-2")}
+                >
+                  <FolderOpen className="size-3" />
+                  Browse
+                </button>
                 <button
                   onClick={() => void scan()}
                   title="Scan the Steam registry again"
@@ -226,7 +222,7 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
             data-tetra-el="primaryAction"
             onClick={finish}
             disabled={!canContinue}
-            className="flex w-full items-center justify-center gap-1.5 rounded-[6px] bg-accent py-2 text-[10.5px] font-bold uppercase tracking-wider text-[#10131a] shadow-[var(--glow)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none disabled:hover:brightness-100"
+            className="flex w-full items-center justify-center gap-1.5 rounded-[6px] bg-accent py-2 text-[10.5px] font-bold uppercase tracking-wider text-[#10131a] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none disabled:hover:brightness-100"
           >
             <span>Continue</span>
             {canContinue && <ArrowRight className="size-3" />}

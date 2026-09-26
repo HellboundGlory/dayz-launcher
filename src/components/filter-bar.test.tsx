@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 import { useServerStore } from "@/stores/server-store";
-import { SLOTS } from "@/theme/slots";
 import { buildFilterBarControls, FilterBar } from "./filter-bar";
 
 vi.stubGlobal("localStorage", {
@@ -10,6 +9,21 @@ vi.stubGlobal("localStorage", {
   setItem: () => {},
   removeItem: () => {},
 });
+const EXPECTED_CONTROL_IDS = [
+  "countryFilter",
+  "hideEmptyToggle",
+  "hideFullToggle",
+  "hideLockedToggle",
+  "hideOfflineToggle",
+  "mapFilter",
+  "modsFilter",
+  "pingSlider",
+  "refreshAction",
+  "resetAction",
+  "searchInput",
+  "sortControl",
+  "tagsFilter",
+];
 
 function getControls() {
   const state = useServerStore.getState();
@@ -28,17 +42,9 @@ function getControls() {
 }
 
 describe("FilterBar controls node map", () => {
-  it("covers every registered child ID of filterBar from SLOTS in slots.ts", () => {
-    const slot = SLOTS.find((s) => s.id === "filterBar");
-    expect(slot).toBeDefined();
-
+  it("covers every registered filterBar control ID", () => {
     const controls = getControls();
-    const registeredIds = slot!.children.map((c) => c.id);
-
-    for (const child of slot!.children) {
-      expect(controls[child.id], `Missing control for child: ${child.id}`).toBeDefined();
-    }
-    expect(Object.keys(controls).sort()).toEqual(registeredIds.sort());
+    expect(Object.keys(controls).sort()).toEqual(EXPECTED_CONTROL_IDS.sort());
   });
 });
 

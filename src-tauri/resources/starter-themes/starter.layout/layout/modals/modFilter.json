@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 2,
+  "placement": {
+    "mode": "center"
+  },
+  "backdrop": "dim",
+  "root": {
+    "type": "stack",
+    "id": "r-modfilter",
+    "direction": "column",
+    "children": [
+      {
+        "type": "stack",
+        "id": "r-modfilter-header",
+        "direction": "row",
+        "align": "start",
+        "justify": "spaceBetween",
+        "shrink": 0,
+        "children": [
+          {
+            "type": "stack",
+            "id": "r-modfilter-identity",
+            "direction": "column",
+            "minWidth": "0px",
+            "grow": 1,
+            "children": [
+              {
+                "type": "text",
+                "value": "Filter by mod",
+                "role": "heading",
+                "class": "t-modfilter-title"
+              },
+              {
+                "type": "text",
+                "value": "Require or exclude servers by the mods they run",
+                "role": "label",
+                "class": "t-modfilter-subtitle"
+              }
+            ]
+          },
+          { "element": "modal.close", "shrink": 0 }
+        ]
+      },
+      {
+        "element": "modFilter.source",
+        "id": "r-modfilter-tabs",
+        "shrink": 0
+      },
+      {
+        "element": "modFilter.search",
+        "id": "r-modfilter-search",
+        "shrink": 0,
+        "options": {
+          "showIcon": true
+        }
+      },
+      {
+        "type": "stack",
+        "id": "r-modfilter-body",
+        "direction": "row",
+        "grow": 1,
+        "minHeight": "0px",
+        "children": [
+          {
+            "element": "list.modFilterResults",
+            "grow": 1,
+            "minWidth": "0px",
+            "minHeight": "0px"
+          },
+          {
+            "type": "stack",
+            "id": "r-modfilter-preview",
+            "context": "modFilterPreview",
+            "direction": "column",
+            "shrink": 0,
+            "empty": {
+              "type": "stack",
+              "direction": "column",
+              "align": "center",
+              "justify": "center",
+              "class": "t-modfilter-preview-empty",
+              "children": [
+                {
+                  "type": "text",
+                  "value": "Click a mod on the left to see its details here.",
+                  "role": "body",
+                  "class": "t-modfilter-preview-empty-text"
+                }
+              ]
+            },
+            "children": [
+              { "element": "workshopMod.thumbnail" },
+              {
+                "type": "stack",
+                "id": "r-modfilter-preview-name",
+                "direction": "row",
+                "align": "start",
+                "justify": "spaceBetween",
+                "children": [
+                  { "element": "workshopMod.name", "grow": 1, "minWidth": "0px" },
+                  { "element": "workshopMod.subscribed" }
+                ]
+              },
+              {
+                "type": "stack",
+                "id": "r-modfilter-preview-meta",
+                "direction": "row",
+                "align": "center",
+                "wrap": true,
+                "children": [
+                  { "element": "workshopMod.score" },
+                  { "element": "workshopMod.subscribers" },
+                  { "element": "workshopMod.size" },
+                  { "element": "workshopMod.updated" }
+                ]
+              },
+              { "element": "workshopMod.tags" },
+              {
+                "element": "workshopMod.description",
+                "options": {
+                  "clamp": 6
+                }
+              },
+              { "element": "workshopMod.serverNote" },
+              {
+                "type": "stack",
+                "id": "r-modfilter-preview-picks",
+                "direction": "row",
+                "children": [
+                  { "element": "workshopMod.include", "grow": 1 },
+                  { "element": "workshopMod.exclude", "grow": 1 }
+                ]
+              },
+              { "element": "workshopMod.viewOnSteam" }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "stack",
+        "id": "r-modfilter-footer",
+        "direction": "row",
+        "align": "center",
+        "shrink": 0,
+        "children": [
+          { "element": "modFilter.summary", "grow": 1, "minWidth": "0px" },
+          { "element": "modFilter.clear" },
+          { "element": "modFilter.matchMode" },
+          { "element": "modFilter.cancel" },
+          { "element": "modFilter.apply" }
+        ]
+      }
+    ]
+  }
+}

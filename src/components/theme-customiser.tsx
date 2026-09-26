@@ -6,39 +6,40 @@ import {
   activePreset,
   activeInstalled,
   effective,
-  effectiveExtras,
+  effectiveRoleValues,
+  isUserTheme,
   resolvedPair,
 } from "@/theme/theme-store";
 import {
   GROUP_DEF,
   PRESETS,
-  type Radii,
-  type Spacing,
-  type Typography,
+  type FontFamilyRole,
+  type RadiusRole,
 } from "@/theme/palette";
 
-const SPACING_ROWS: { key: keyof Spacing; label: string }[] = [
-  { key: "xs", label: "Extra small" },
-  { key: "sm", label: "Small" },
-  { key: "md", label: "Medium" },
-  { key: "lg", label: "Large" },
-];
-
-const RADII_ROWS: { key: keyof Radii; label: string }[] = [
-  { key: "control", label: "Control" },
+const RADIUS_ROWS: { key: RadiusRole; label: string }[] = [
+  { key: "window", label: "Window" },
+  { key: "panel", label: "Panel" },
   { key: "row", label: "Row" },
-  { key: "chip", label: "Chip" },
-  { key: "pill", label: "Pill" },
+  { key: "control", label: "Control" },
 ];
 
-const TYPOGRAPHY_ROWS: { key: keyof Typography; label: string }[] = [
-  { key: "uiFont", label: "UI font" },
-  { key: "dataFont", label: "Data font" },
+const FAMILY_ROWS: { key: FontFamilyRole; label: string }[] = [
+  { key: "ui", label: "UI font" },
+  { key: "data", label: "Data font" },
 ];
 
 /** Raw CSS length/font-family value, same posture as the colour hex readout. */
 const EXTRAS_INPUT_CLASS =
-  "min-w-0 flex-1 rounded-[5px] border border-line bg-surface px-1.5 py-[3px] text-right font-mono-data text-[9px] text-ink outline-none transition-colors focus:border-accent-line";
+  "min-w-0 flex-1 [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface px-1.5 py-[3px] text-right font-mono-data [font-size:var(--t-type-caption-size)] text-ink outline-none transition-colors focus:border-accent-line";
+
+/** The accent save control, shared by "Save changes" and "Save theme". */
+const SAVE_BUTTON_CLASS =
+  "shrink-0 [border-radius:var(--t-radius-control)] border-none bg-accent px-3 py-[7px] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-[0.05em] [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-[filter] hover:brightness-110";
+
+/** The quieter control beside the accent save — the name-based "Save as new". */
+const SECONDARY_BUTTON_CLASS =
+  "shrink-0 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-[7px] [font-size:var(--t-type-caption-size)] font-semibold uppercase tracking-[0.04em] text-muted2 transition-colors hover:text-ink";
 
 // Theme accordion body. Owns only local dropdown/save-input state — every
 // colour decision writes straight to the theme store.
@@ -55,10 +56,10 @@ export function ThemeCustomiser() {
   const pickTheme = useThemeStore((s) => s.pickTheme);
   const setBloom = useThemeStore((s) => s.setBloom);
   const setColorOverride = useThemeStore((s) => s.setColorOverride);
-  const setSpacingOverride = useThemeStore((s) => s.setSpacingOverride);
-  const setRadiusOverride = useThemeStore((s) => s.setRadiusOverride);
-  const setTypographyOverride = useThemeStore((s) => s.setTypographyOverride);
+  const setRadiusRoleOverride = useThemeStore((s) => s.setRadiusRoleOverride);
+  const setFontFamilyOverride = useThemeStore((s) => s.setFontFamilyOverride);
   const saveTheme = useThemeStore((s) => s.saveTheme);
+  const duplicateTheme = useThemeStore((s) => s.duplicateTheme);
   const deleteTheme = useThemeStore((s) => s.deleteTheme);
   const resetToBase = useThemeStore((s) => s.resetToBase);
 
@@ -68,9 +69,12 @@ export function ThemeCustomiser() {
 
   const pair = resolvedPair(activeId, themeFiles);
   const palette = effective(scheme, activeId, themeFiles, custom);
-  const extras = effectiveExtras(activeId, themeFiles, customExtras);
+  const roles = effectiveRoleValues(activeId, themeFiles, customExtras);
   const saved = activeInstalled(activeId, myThemes);
   const displayName = saved?.name ?? activePreset(activeId)?.name ?? "Neutral";
+  // SPEC §4.6: only an installed `local.*` theme can be written in place; an
+  // import or a bundled built-in is saved as a new theme instead.
+  const userTheme = isUserTheme(activeId, myThemes);
 
   // Outside mousedown closes the theme dropdown (same pattern as the filter
   // bar popovers).
@@ -86,8 +90,8 @@ export function ThemeCustomiser() {
       {/* Dark mode switch — bound to the active theme's scheme. */}
       <div className="switch-row flex items-center justify-between gap-3">
         <div className="lb">
-          <b className="block text-[11px] font-semibold text-ink">Dark mode</b>
-          <span className="mt-0.5 block text-[9px] leading-[1.4] text-muted">
+          <b className="block [font-size:var(--t-type-body-size)] font-semibold text-ink">Dark mode</b>
+          <span className="mt-0.5 block [font-size:var(--t-type-caption-size)] leading-[1.4] text-muted">
             Toggle the active theme&apos;s palette pair. Never a dead toggle — every theme has
             both.
           </span>
@@ -102,22 +106,22 @@ export function ThemeCustomiser() {
           />
           <span
             className={cn(
-              "tr pointer-events-none absolute inset-0 rounded-full transition-colors duration-150 peer-focus-visible:ring-2 peer-focus-visible:ring-accent-line",
-              isDark ? "bg-accent shadow-[var(--glow)]" : "bg-line",
+              "tr pointer-events-none absolute inset-0 rounded-full transition-colors [transition-duration:var(--t-motion-hover-duration)] peer-focus-visible:ring-2 peer-focus-visible:ring-accent-line",
+              isDark ? "bg-accent [box-shadow:var(--t-glow-selected)]" : "bg-line",
             )}
           />
           <span
             className={cn(
-              "kn pointer-events-none absolute left-[2px] top-[2px] h-4 w-4 rounded-full transition-transform duration-150",
-              isDark ? "translate-x-[18px] bg-[#10131a]" : "translate-x-0 bg-muted2",
+              "kn pointer-events-none absolute left-[2px] top-[2px] h-4 w-4 rounded-full transition-transform [transition-duration:var(--t-motion-hover-duration)]",
+              isDark ? "translate-x-[18px] [background-color:var(--t-color-onAccent)]" : "translate-x-0 bg-muted2",
             )}
           />
         </label>
       </div>
 
       <div className="sec-h-sub mt-3.5 flex items-baseline gap-2">
-        <h3 className="m-0 text-[9px] font-bold uppercase tracking-[0.07em] text-ink">Theme</h3>
-        <span className="text-[8px] text-muted">Presets + your saved skins</span>
+        <h3 className="m-0 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.07em] text-ink">Theme</h3>
+        <span className="[font-size:var(--t-type-micro-size)] text-muted">Presets + your saved skins</span>
       </div>
 
       {/* Theme dropdown */}
@@ -127,16 +131,16 @@ export function ThemeCustomiser() {
           onClick={() => setDropOpen((o) => !o)}
           aria-haspopup="menu"
           aria-expanded={dropOpen}
-          className="theme-trigger flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-[7px] border border-line bg-surface px-2.5 py-2 text-left text-[11px] font-semibold text-ink transition-colors hover:border-accent-line"
+          className="theme-trigger flex w-full min-w-0 cursor-pointer items-center gap-2 [border-radius:var(--t-radius-popup)] border border-line bg-surface px-2.5 py-2 text-left [font-size:var(--t-type-body-size)] font-semibold text-ink transition-colors hover:border-accent-line"
         >
           <span className="chips inline-flex shrink-0 gap-0.5">
-            <i className="h-2.5 w-2.5 rounded-[2px]" style={{ background: pair.dark.accent }} />
-            <i className="h-2.5 w-2.5 rounded-[2px]" style={{ background: pair.dark.accent2 }} />
+            <i className="h-2.5 w-2.5 [border-radius:var(--t-radius-track)]" style={{ background: pair.dark.accent }} />
+            <i className="h-2.5 w-2.5 [border-radius:var(--t-radius-track)]" style={{ background: pair.dark.accent2 }} />
           </span>
           <span className="nm min-w-0 flex-1 truncate">{displayName}</span>
           <span
             className={cn(
-              "chev flex shrink-0 text-muted transition-transform duration-150",
+              "chev flex shrink-0 text-muted transition-transform [transition-duration:var(--t-motion-hover-duration)]",
               dropOpen && "rotate-180",
             )}
           >
@@ -145,8 +149,8 @@ export function ThemeCustomiser() {
         </button>
 
         {dropOpen && (
-          <div className="theme-menu absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-[280px] overflow-auto rounded-[8px] border border-line bg-surface2 shadow-[0_10px_28px_rgba(0,0,0,0.5)]">
-            <div className="theme-group px-2.5 pb-1 pt-[7px] text-[8px] font-bold uppercase tracking-[0.05em] text-muted">
+          <div className="theme-menu absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-[280px] overflow-auto [border-radius:var(--t-radius-card)] border border-line bg-surface2 [box-shadow:var(--t-shadow-popupFilter)]">
+            <div className="theme-group px-2.5 pb-1 pt-[7px] [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-[0.05em] text-muted">
               Built-in
             </div>
             {PRESETS.map((p) => (
@@ -160,20 +164,20 @@ export function ThemeCustomiser() {
                   setDropOpen(false);
                 }}
                 className={cn(
-                  "theme-item flex w-full cursor-pointer items-center gap-2 px-2.5 py-[7px] text-left text-[11px] font-semibold text-muted2 transition-colors hover:bg-surface hover:text-ink",
+                  "theme-item flex w-full cursor-pointer items-center gap-2 px-2.5 py-[7px] text-left [font-size:var(--t-type-body-size)] font-semibold text-muted2 transition-colors hover:bg-surface hover:text-ink",
                   activeId === p.id && "bg-accent-soft text-accent",
                 )}
               >
                 <span className="chips inline-flex shrink-0 gap-0.5">
-                  <i className="h-2 w-2 rounded-[2px]" style={{ background: p.dark.accent }} />
-                  <i className="h-2 w-2 rounded-[2px]" style={{ background: p.dark.accent2 }} />
+                  <i className="h-2 w-2 [border-radius:var(--t-radius-track)]" style={{ background: p.dark.accent }} />
+                  <i className="h-2 w-2 [border-radius:var(--t-radius-track)]" style={{ background: p.dark.accent2 }} />
                 </span>
                 <span className="nm min-w-0 flex-1 truncate">{p.name}</span>
               </button>
             ))}
             {myThemes.length > 0 && (
               <>
-                <div className="theme-group px-2.5 pb-1 pt-[7px] text-[8px] font-bold uppercase tracking-[0.05em] text-muted">
+                <div className="theme-group px-2.5 pb-1 pt-[7px] [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-[0.05em] text-muted">
                   Your themes
                 </div>
                 {myThemes.map((t) => (
@@ -192,15 +196,15 @@ export function ThemeCustomiser() {
                       void pickTheme(t.id);
                       setDropOpen(false);
                       }}
-                      className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left text-[11px] font-semibold text-muted2 hover:text-ink"
+                      className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left [font-size:var(--t-type-body-size)] font-semibold text-muted2 hover:text-ink"
                     >
                     <span className="chips inline-flex shrink-0 gap-0.5">
                       <i
-                        className="h-2 w-2 rounded-[2px]"
+                        className="h-2 w-2 [border-radius:var(--t-radius-track)]"
                         style={{ background: resolvedPair(t.id, themeFiles).dark.accent }}
                       />
                       <i
-                        className="h-2 w-2 rounded-[2px]"
+                        className="h-2 w-2 [border-radius:var(--t-radius-track)]"
                         style={{ background: resolvedPair(t.id, themeFiles).dark.accent2 }}
                       />
                     </span>
@@ -210,7 +214,7 @@ export function ThemeCustomiser() {
                     type="button"
                       aria-label={`Delete theme ${t.name}`}
                       onClick={() => void deleteTheme(t.id)}
-                      className="cd shrink-0 cursor-pointer px-1 text-[8px] text-muted transition-colors hover:text-danger"
+                      className="cd shrink-0 cursor-pointer px-1 [font-size:var(--t-type-micro-size)] text-muted transition-colors hover:text-danger"
                     >
                       ✕
                   </button>
@@ -223,8 +227,8 @@ export function ThemeCustomiser() {
       </div>
 
       {/* Bloom */}
-      <div className="bloom-row mt-2 flex items-center gap-2 rounded-[7px] border border-line bg-bg px-2.5 py-[7px]">
-        <label htmlFor="bloom-range" className="w-11 shrink-0 text-[9px] font-semibold text-ink">
+      <div className="bloom-row mt-2 flex items-center gap-2 [border-radius:var(--t-radius-popup)] border border-line bg-bg px-2.5 py-[7px]">
+        <label htmlFor="bloom-range" className="w-11 shrink-0 [font-size:var(--t-type-caption-size)] font-semibold text-ink">
           Bloom
         </label>
         <input
@@ -237,16 +241,16 @@ export function ThemeCustomiser() {
           onChange={(e) => setBloom(Number(e.target.value))}
           className="h-[3px] flex-1 accent-accent"
         />
-        <output className="w-[30px] shrink-0 text-right font-mono-data text-[9px] text-accent">
+        <output className="w-[30px] shrink-0 text-right font-mono-data [font-size:var(--t-type-caption-size)] text-accent">
           {Math.round(bloom * 100)}%
         </output>
       </div>
 
       <div className="sec-h-sub mt-3.5 flex items-baseline gap-2">
-        <h3 className="m-0 text-[9px] font-bold uppercase tracking-[0.07em] text-ink">
+        <h3 className="m-0 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.07em] text-ink">
           Customise colours
         </h3>
-        <span className="text-[8px] text-muted">
+        <span className="[font-size:var(--t-type-micro-size)] text-muted">
           Editing {isDark ? "dark" : "light"} palette
           {lightRefined
             ? " (hand-edited)"
@@ -259,13 +263,13 @@ export function ThemeCustomiser() {
 
       <div className="groups mt-2 grid grid-cols-2 gap-2">
         {GROUP_DEF.map((g) => (
-          <div key={g.name} className="group rounded-[7px] border border-line bg-bg px-2.5 py-2">
-            <h4 className="m-0 mb-[7px] text-[8px] font-bold uppercase tracking-[0.06em] text-muted">
+          <div key={g.name} className="group [border-radius:var(--t-radius-popup)] border border-line bg-bg px-2.5 py-2">
+            <h4 className="m-0 mb-[7px] [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-[0.06em] text-muted">
               {g.name}
             </h4>
             {g.keys.map((token) => (
               <div key={token} className="swatch flex items-center justify-between gap-1.5 py-[3px]">
-                <label htmlFor={`swatch-${token}`} className="text-[9px] text-muted2">
+                <label htmlFor={`swatch-${token}`} className="[font-size:var(--t-type-caption-size)] text-muted2">
                   {g.labels[token]}
                 </label>
                 <span className="ctl flex items-center gap-1">
@@ -274,9 +278,9 @@ export function ThemeCustomiser() {
                     type="color"
                     value={palette[token]}
                     onChange={(e) => setColorOverride(token, e.target.value)}
-                    className="h-[19px] w-[19px] cursor-pointer rounded-[5px] border border-line bg-transparent p-0"
+                    className="h-[19px] w-[19px] cursor-pointer [border-radius:var(--t-radius-controlCompact)] border border-line bg-transparent p-0"
                   />
-                  <span className="val font-mono-data text-[8px] text-muted">{palette[token]}</span>
+                  <span className="val font-mono-data [font-size:var(--t-type-micro-size)] text-muted">{palette[token]}</span>
                 </span>
               </div>
             ))}
@@ -284,47 +288,48 @@ export function ThemeCustomiser() {
         ))}
       </div>
 
-      <div className="mode-note mt-1.5 text-[9px] text-muted">
+      <div className="mode-note mt-1.5 [font-size:var(--t-type-caption-size)] text-muted">
         {isDark
           ? "Editing dark re-derives the light pair until you hand-edit light."
           : "Editing light directly — it overrides the auto-derived pair."}
       </div>
 
       <div className="sec-h-sub mt-3.5 flex items-baseline gap-2">
-        <h3 className="m-0 text-[9px] font-bold uppercase tracking-[0.07em] text-ink">
+        <h3 className="m-0 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.07em] text-ink">
           Layout &amp; type
         </h3>
-        <span className="text-[8px] text-muted">
+        <span className="[font-size:var(--t-type-micro-size)] text-muted">
           Raw CSS values · presets keep the defaults
         </span>
       </div>
 
-      {/* Spacing and radii sit together; font stacks are long, so typography
-          gets the full width beneath them. */}
-      <div className="extras mt-2 grid grid-cols-2 gap-2">
-        <ExtrasCard
-          name="Spacing"
-          rows={SPACING_ROWS}
-          values={extras.spacing}
-          onChange={setSpacingOverride}
-        />
+      {/* The radii and the two font stacks are raw CSS values, and a stack is
+          long, so both cards get the full width. */}
+      <div className="extras mt-2 grid grid-cols-1 gap-2">
         <ExtrasCard
           name="Radii"
-          rows={RADII_ROWS}
-          values={extras.radii}
-          onChange={setRadiusOverride}
+          rows={RADIUS_ROWS}
+          values={roles.radius}
+          onChange={setRadiusRoleOverride}
         />
-        <div className="col-span-2">
-          <ExtrasCard
-            name="Typography"
-            rows={TYPOGRAPHY_ROWS}
-            values={extras.typography}
-            onChange={setTypographyOverride}
-          />
-        </div>
+        <ExtrasCard
+          name="Fonts"
+          rows={FAMILY_ROWS}
+          values={roles.family}
+          onChange={setFontFamilyOverride}
+        />
       </div>
 
       <div className="save-row mt-2 flex gap-[7px]">
+        {userTheme && (
+          <button
+            type="button"
+            onClick={() => void saveTheme(name.trim() || "Untitled theme")}
+            className={SAVE_BUTTON_CLASS}
+          >
+            Save changes
+          </button>
+        )}
         <input
           type="text"
           value={name}
@@ -332,36 +337,49 @@ export function ThemeCustomiser() {
           placeholder="Name your theme…"
           maxLength={28}
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              void saveTheme(name.trim() || "Untitled theme");
-              setName("");
-            }
-          }}
-          className="min-w-0 flex-1 rounded-[6px] border border-line bg-bg px-2.5 py-[7px] font-ui text-[11px] text-ink placeholder-muted outline-none transition-colors focus:border-accent-line"
-        />
-        <button
-          type="button"
-          onClick={() => {
-            void saveTheme(name.trim() || "Untitled theme");
+            if (e.key !== "Enter") return;
+            const trimmed = name.trim() || "Untitled theme";
+            if (userTheme) void duplicateTheme(activeId, trimmed);
+            else void saveTheme(trimmed);
             setName("");
           }}
-          className="shrink-0 rounded-[6px] border-none bg-accent px-3 py-[7px] text-[10px] font-bold uppercase tracking-[0.05em] text-[#10131a] shadow-[var(--glow)] transition-[filter] hover:brightness-110"
-        >
-          Save theme
-        </button>
+          className="min-w-0 flex-1 [border-radius:var(--t-radius-control)] border border-line bg-bg px-2.5 py-[7px] [font-size:var(--t-type-body-size)] text-ink placeholder-muted outline-none transition-colors focus:border-accent-line"
+        />
+        {userTheme ? (
+          <button
+            type="button"
+            onClick={() => {
+              void duplicateTheme(activeId, name.trim() || "Untitled theme");
+              setName("");
+            }}
+            className={SECONDARY_BUTTON_CLASS}
+          >
+            Save as new
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              void saveTheme(name.trim() || "Untitled theme");
+              setName("");
+            }}
+            className={SAVE_BUTTON_CLASS}
+          >
+            Save theme
+          </button>
+        )}
       </div>
 
       <div className="reset-row mt-2 flex items-center gap-2">
         <button
           type="button"
           onClick={resetToBase}
-          className="rounded-[6px] border border-line bg-surface2 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.04em] text-muted2 transition-colors hover:text-ink"
+          className="[border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-1 [font-size:var(--t-type-caption-size)] font-semibold uppercase tracking-[0.04em] text-muted2 transition-colors hover:text-ink"
         >
           Reset to base
         </button>
-        <span className="text-[8px] leading-[1.4] text-muted">
-          Clears colour, spacing, radius and font overrides back to the active theme&apos;s
-          defaults.
+        <span className="[font-size:var(--t-type-micro-size)] leading-[1.4] text-muted">
+          Clears colour, radius and font overrides back to the active theme&apos;s defaults.
         </span>
       </div>
     </>
@@ -384,13 +402,13 @@ function ExtrasCard<K extends string>({
   onChange: (key: K, value: string) => void;
 }) {
   return (
-    <div className="group rounded-[7px] border border-line bg-bg px-2.5 py-2">
-      <h4 className="m-0 mb-[7px] text-[8px] font-bold uppercase tracking-[0.06em] text-muted">
+    <div className="group [border-radius:var(--t-radius-popup)] border border-line bg-bg px-2.5 py-2">
+      <h4 className="m-0 mb-[7px] [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-[0.06em] text-muted">
         {name}
       </h4>
       {rows.map(({ key, label }) => (
         <div key={key} className="flex items-center justify-between gap-1.5 py-[3px]">
-          <label htmlFor={`extras-${name}-${key}`} className="shrink-0 text-[9px] text-muted2">
+          <label htmlFor={`extras-${name}-${key}`} className="shrink-0 [font-size:var(--t-type-caption-size)] text-muted2">
             {label}
           </label>
           <input

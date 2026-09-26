@@ -141,7 +141,12 @@ fn start(
     let watcher = RecommendedWatcher::new(
         move |event: notify::Result<notify::Event>| {
             let signal = match event {
-                Ok(_) => WatchSignal::Changed,
+                Ok(ev) => {
+                    if matches!(ev.kind, notify::EventKind::Access(_)) {
+                        return;
+                    }
+                    WatchSignal::Changed
+                }
                 Err(error) => WatchSignal::Failed(error.to_string()),
             };
             // A closed channel only means the watch is being torn down.

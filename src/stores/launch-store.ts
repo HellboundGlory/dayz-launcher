@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { dayzRunning } from "@/lib/tauri";
 import { listen } from "@tauri-apps/api/event";
+import type { NoticeCode } from "@/hooks/use-server-actions";
 
 // The one launch-or-prepare operation the launcher is running, app-wide.
 // Global rather than component state so switching the selected server can't
@@ -36,9 +37,22 @@ export interface LaunchResult {
   error?: string;
 }
 
+/** A line under the buttons: either a coded problem or a plain result. Lives
+ * here rather than in use-server-actions.ts to avoid an import cycle. */
+export type Notice =
+  | { kind: "code"; code: NoticeCode; extra?: string }
+  | { kind: "plain"; text: string };
+
+/** The active notice, tagged with the server it belongs to. */
+export interface ServerNotice {
+  addr: string;
+  notice: Notice;
+}
+
 interface LaunchState {
   op: ActiveOp | null;
   result: LaunchResult | null;
+  notice: ServerNotice | null;
   /** A DayZ process exists right now — polled from the OS, so true even for a session started outside the launcher. */
   dayzRunning: boolean;
   begin: (addr: string, serverName: string) => { cancelled: boolean };
@@ -47,12 +61,14 @@ interface LaunchState {
   end: () => void;
   cancel: () => void;
   setResult: (result: LaunchResult | null) => void;
+  setNotice: (addr: string, notice: Notice | null) => void;
   setDayzRunning: (running: boolean) => void;
 }
 
 export const useLaunchStore = create<LaunchState>((set, get) => ({
   op: null,
   result: null,
+  notice: null,
   dayzRunning: false,
 
   begin: (addr, serverName) => {
@@ -60,6 +76,7 @@ export const useLaunchStore = create<LaunchState>((set, get) => ({
     set({
       op: { addr, serverName, phase: "verifying", note: null, cancel },
       result: null,
+      notice: null,
     });
     return cancel;
   },
@@ -87,6 +104,8 @@ export const useLaunchStore = create<LaunchState>((set, get) => ({
   },
 
   setResult: (result) => set({ result }),
+
+  setNotice: (addr, notice) => set({ notice: notice ? { addr, notice } : null }),
 
   setDayzRunning: (running) => {
     if (get().dayzRunning === running) return;

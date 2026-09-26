@@ -1,8 +1,8 @@
 // Shared launch action path used by the row dropdown and the info modal.
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useServerStore } from "@/stores/server-store";
 import { useSettingsStore } from "@/stores/settings-store";
-import { useLaunchStore, type ActiveOp } from "@/stores/launch-store";
+import { useLaunchStore, type ActiveOp, type Notice as StoreNotice } from "@/stores/launch-store";
 import {
   launchGame,
   verifyServerMods,
@@ -64,9 +64,7 @@ const LAUNCHED_NOTICE_MS = 15_000;
 const REFRESH_SETTLE_MS = 5_000;
 
 /** A line under the buttons: either a coded problem or a plain result. */
-export type Notice =
-  | { kind: "code"; code: NoticeCode; extra?: string }
-  | { kind: "plain"; text: string };
+export type Notice = StoreNotice;
 
 /** What the working box reads while an operation runs. */
 export function phaseLabel(op: ActiveOp): string {
@@ -100,13 +98,13 @@ export function useServerActions() {
   const op = useLaunchStore((s) => s.op);
   const dayzUp = useLaunchStore((s) => s.dayzRunning);
   const launchResult = useLaunchStore((s) => s.result);
+  const storeNotice = useLaunchStore((s) => s.notice);
   const beginOp = useLaunchStore((s) => s.begin);
   const setPhase = useLaunchStore((s) => s.setPhase);
   const setNote = useLaunchStore((s) => s.setNote);
   const endOp = useLaunchStore((s) => s.end);
   const cancelOp = useLaunchStore((s) => s.cancel);
-
-  const [notice, setNotice] = useState<Notice | null>(null);
+  const setStoreNotice = useLaunchStore((s) => s.setNotice);
 
   // `addr` is passed in rather than read from `selectedServer`, so the result
   // is tagged with the server actually launched, not whatever's selected once
@@ -143,7 +141,7 @@ export function useServerActions() {
     const cancel = beginOp(addr, server.name || addr);
     // Stop the launcher probing servers while it waits on its own downloads.
     setDownloadsActive(true);
-    setNotice(null);
+    setStoreNotice(addr, null);
 
     try {
       setPhase("verifying", "VERIFYING…");
@@ -152,7 +150,7 @@ export function useServerActions() {
 
       // Flag it rather than silently proceeding on Steam's cached opinion.
       if (!verified.checked_workshop) {
-        setNotice({ kind: "code", code: "W01" });
+        setStoreNotice(addr, { kind: "code", code: "W01" });
       }
 
       const ids = verified.mods.map((m) => m.workshop_id);
@@ -174,7 +172,7 @@ export function useServerActions() {
         if (cancel.cancelled) return;
         if (outcome.failures.length > 0) {
           const [, reason] = outcome.failures[0];
-          setNotice({
+          setStoreNotice(addr, {
             kind: "code",
             code: "E01",
             extra: `${outcome.failures.length} of ${missing.length} — ${reason}`,
@@ -225,11 +223,11 @@ export function useServerActions() {
         );
 
         if (Date.now() - lastChange > FIX_STALL_MS) {
-          setNotice({ kind: "code", code: "W02" });
+          setStoreNotice(addr, { kind: "code", code: "W02" });
           return;
         }
         if (Date.now() - started > FIX_DEADLINE_MS) {
-          setNotice({ kind: "code", code: "W03" });
+          setStoreNotice(addr, { kind: "code", code: "W03" });
           return;
         }
 
@@ -240,7 +238,7 @@ export function useServerActions() {
 
       await launch(addr, gamePort, toMenu);
     } catch (e) {
-      setNotice({ kind: "plain", text: String(e) });
+      setStoreNotice(addr, { kind: "plain", text: String(e) });
     } finally {
       // `cancel` is this call's identity token — a mismatch means a newer
       // operation replaced this one, so leave its state alone.
@@ -259,7 +257,7 @@ export function useServerActions() {
 
     const cancel = beginOp(addr, server.name || addr);
     setDownloadsActive(true);
-    setNotice(null);
+    setStoreNotice(addr, null);
 
     try {
       setPhase("verifying", "VERIFYING…");
@@ -268,7 +266,7 @@ export function useServerActions() {
 
       const ids = verified.mods.map((m) => m.workshop_id);
       if (ids.length === 0) {
-        setNotice({ kind: "plain", text: "This server uses no mods." });
+        setStoreNotice(addr, { kind: "plain", text: "This server uses no mods." });
         return;
       }
 
@@ -281,7 +279,7 @@ export function useServerActions() {
         .map((s) => s.workshop_id);
       if (missing.length === 0) {
         const updating = verified.refreshed.length;
-        setNotice({
+        setStoreNotice(addr, {
           kind: "plain",
           text:
             updating > 0
@@ -296,19 +294,19 @@ export function useServerActions() {
       if (cancel.cancelled) return;
       if (outcome.failures.length > 0) {
         const [, reason] = outcome.failures[0];
-        setNotice({
+        setStoreNotice(addr, {
           kind: "code",
           code: "E01",
           extra: `${outcome.failures.length} of ${missing.length} — ${reason}`,
         });
         return;
       }
-      setNotice({
+      setStoreNotice(addr, {
         kind: "plain",
         text: `${missing.length} mod${missing.length === 1 ? "" : "s"} subscribed — Steam is downloading them in the background.`,
       });
     } catch (e) {
-      setNotice({ kind: "plain", text: String(e) });
+      setStoreNotice(addr, { kind: "plain", text: String(e) });
     } finally {
       // See the matching guard in verifyAndJoin.
       if (useLaunchStore.getState().op?.cancel === cancel) {
@@ -320,9 +318,10 @@ export function useServerActions() {
 
   /** Abandon a wait (downloads continue in Steam). */
   function cancelWait() {
+    const addr = useLaunchStore.getState().op?.addr;
     cancelOp();
     setDownloadsActive(false);
-    setNotice({ kind: "code", code: "W04" });
+    if (addr) setStoreNotice(addr, { kind: "code", code: "W04" });
   }
 
   // Give up on "starting" if DayZ never appears (usually BattlEye refusing to hand off).
@@ -338,8 +337,9 @@ export function useServerActions() {
     op,
     dayzUp,
     launchResult,
-    notice,
-    setNotice,
+    notice: storeNotice?.notice ?? null,
+    noticeAddr: storeNotice?.addr ?? null,
+    setNotice: (notice: Notice | null, addr: string) => setStoreNotice(addr, notice),
     verifyAndJoin,
     subscribeOnly,
     cancelWait,

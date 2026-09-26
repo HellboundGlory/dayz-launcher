@@ -1,11 +1,7 @@
-import { Fragment, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Globe, Star, Clock, Package, Settings, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import tetraLogo from "@/assets/tetra-logo.png";
-import { useResolvedSlot } from "@/theme/use-resolved-layout";
-import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
-import { useThemeStore } from "@/theme/theme-store";
-import { useComponentComposition } from "@/theme/use-component-composition";
 
 export type ViewId = "servers" | "fav" | "recent" | "mods";
 
@@ -27,29 +23,16 @@ const NAV: { id: ViewId; label: string; icon: typeof Globe; tetraEl: string }[] 
   { id: "mods", label: "Mods", icon: Package, tetraEl: "navMods" },
 ];
 
-/** shell.sidebar nests two levels: these four groups in the rail's own column,
- * and the nav items inside `navList`. A layout orders each set within itself. */
 export const TOP_GROUPS = ["logo", "navList", "settingsEntry", "collapseToggle"];
 export const NAV_IDS = NAV.map((item) => item.tetraEl);
 
-/** Required by the registry; rendered even if a broken layout claims to hide
- * them, rather than trusting the resolver's refusal to reach this component. */
-const REQUIRED_IDS: Record<string, true> = {
-  navList: true,
-  settingsEntry: true,
-  navServers: true,
-};
-
-/** `ids` in the order `children` places them, then any of `ids` no layout
- * mentioned. Hiding is `hidden`'s job, checked at render. */
 export function orderedByLayout(children: string[], ids: readonly string[]): string[] {
   const present = new Set(children);
   return [...children.filter((id) => ids.includes(id)), ...ids.filter((id) => !present.has(id))];
 }
 
-// 176px icon+label rail collapsing to 52px icon-only, both themeable through
-// shell.sidebar's `width`/`collapsedWidth`. Width is driven by --side-w on the
-// shell so other surfaces track it without subscribing.
+// 176px icon+label rail collapsing to 52px icon-only. Width is driven by --side-w
+// on the shell so other surfaces track it without subscribing.
 export function Sidebar({
   activeView,
   onViewChange,
@@ -58,30 +41,12 @@ export function Sidebar({
   onCloseSettings,
   onCollapsedChange,
 }: SidebarProps) {
-  const slot = useResolvedSlot("shell.sidebar");
-  const hidden = new Set(slot.hidden);
-  const [collapsed, setCollapsed] = useState(() => slot.params.defaultCollapsed === true);
-  const width = typeof slot.params.width === "string" ? slot.params.width : "176px";
-  const right = slot.params.position === "right";
+  const [collapsed, setCollapsed] = useState(false);
 
-  const navItems = orderedByLayout(slot.children, NAV_IDS)
-    .map((tetraEl) => NAV.find((item) => item.tetraEl === tetraEl))
-    .filter((item): item is (typeof NAV)[number] => item !== undefined)
-    .filter((item) => !hidden.has(item.tetraEl) || REQUIRED_IDS[item.tetraEl]);
-
-  const activeId = useThemeStore((s) => s.activeId);
-  const composition = useComponentComposition("shell.sidebar");
-
-  /** Arrow-key roving across the nav buttons, same pattern as the settings tabs.
-   * Reads the pressed button's own position rather than a passed-in index, so
-   * it stays correct when a theme's composition reorders or reparents these
-   * buttons away from the default `navItems` sequence. */
   function onNavKeyDown(e: React.KeyboardEvent<HTMLButtonElement>) {
     const buttons = Array.from(
-      // Scoped to the slot container: composed themes wrap each nav item in
-      // its own div, so parentElement would only ever see one button.
       e.currentTarget
-        .closest('[data-tetra-slot="shell.sidebar"]')
+        .closest("aside")
         ?.querySelectorAll<HTMLButtonElement>("[data-nav-item]") ?? [],
     );
     const index = buttons.indexOf(e.currentTarget);
@@ -107,56 +72,56 @@ export function Sidebar({
         onKeyDown={onNavKeyDown}
         aria-current={active ? "page" : undefined}
         className={cn(
-          "flex items-center gap-2.5 rounded-[7px] px-2.5 py-2 text-[12px] font-semibold text-muted transition-colors hover:bg-surface2 hover:text-ink",
-          active && "bg-accent-soft text-accent shadow-[var(--glow)]",
+          "flex items-center gap-[var(--t-space-sidebarItemGap)] [border-radius:var(--t-radius-sidebarItem)] px-[var(--t-space-controlSmallX)] py-[var(--t-space-rowY)] [font-size:var(--t-type-subheading-size)] [font-weight:var(--t-type-label-weight)] text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:bg-surface2 hover:text-ink",
+          active && "bg-accent-soft text-accent [box-shadow:var(--t-glow-selected)]",
           collapsed && "justify-center px-0",
         )}
       >
-        <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center">
-          <Icon className="h-[18px] w-[18px]" strokeWidth={1.6} />
+        <span className="flex h-[var(--t-space-iconBox)] w-[var(--t-space-iconBox)] shrink-0 items-center justify-center">
+          <Icon className="h-[var(--t-space-iconLarge)] w-[var(--t-space-iconLarge)]" strokeWidth={1.6} />
         </span>
         {!collapsed && <span className="truncate">{label}</span>}
       </button>
     );
   }
 
-  const groups: Record<string, ReactNode> = {
-    logo: (
+  return (
+    <aside
+      className="side relative flex shrink-0 flex-col overflow-hidden border-r border-line bg-surface transition-[width] [transition-duration:var(--t-motion-expand-duration)] [transition-timing-function:var(--t-motion-expand-easing)]"
+      style={{ width: "var(--side-w, var(--t-space-sidebarWidth))" }}
+      data-collapsed={collapsed || undefined}
+    >
       <div
         className={cn(
-          "flex shrink-0 items-center border-b border-line px-3 py-3.5",
-          collapsed && "justify-center px-0 py-3.5",
+          "flex shrink-0 items-center border-b border-line px-[var(--t-space-rowX)] py-[var(--t-space-sidebarLogoY)]",
+          collapsed && "justify-center px-0 py-[var(--t-space-sidebarLogoY)]",
         )}
       >
         <div
           data-tetra-el="logo"
-          className={cn("flex min-w-0 items-center gap-2", collapsed && "gap-0")}
+          className={cn("flex min-w-0 items-center gap-[var(--t-space-inlineGapWide)]", collapsed && "gap-0")}
         >
           <img
             src={tetraLogo}
             alt=""
             draggable={false}
-            className="logo h-[18px] w-[18px] shrink-0 rounded-[4px] shadow-[var(--glow)]"
+            className="logo h-[var(--t-space-iconLarge)] w-[var(--t-space-iconLarge)] shrink-0 [border-radius:var(--t-radius-controlSmall)] [box-shadow:var(--t-glow-rest)]"
           />
           {!collapsed && (
-            <span className="brand-name truncate text-[13px] font-bold tracking-[0.06em] text-accent">
+            <span className="brand-name truncate [font-size:var(--t-type-brand-size)] [font-weight:var(--t-type-button-weight)] [letter-spacing:var(--t-type-brand-tracking)] text-accent">
               TETRA
             </span>
           )}
         </div>
       </div>
-    ),
 
-    navList: (
-      <nav data-tetra-el="navList" className="flex flex-1 flex-col gap-[3px] p-2" aria-label="Main">
-        {navItems.map((item) => renderNavItem(item))}
+      <nav data-tetra-el="navList" className="flex flex-1 flex-col gap-[var(--t-space-sidebarListGap)] p-[var(--t-space-sidebarPad)]" aria-label="Main">
+        {NAV.map((item) => renderNavItem(item))}
       </nav>
-    ),
 
-    settingsEntry: (
       <div
         className={cn(
-          "flex shrink-0 flex-col gap-1.5 border-t border-line p-2.5",
+          "flex shrink-0 flex-col gap-[var(--t-space-inlineGap)] border-t border-line p-[var(--t-space-sidebarSettingsPad)]",
           collapsed && "items-center",
         )}
       >
@@ -165,21 +130,18 @@ export function Sidebar({
           onClick={() => (settingsOpen ? onCloseSettings() : onOpenSettings())}
           aria-pressed={settingsOpen}
           className={cn(
-            "flex items-center gap-2.5 rounded-[7px] px-2.5 py-2 text-[12px] font-semibold text-muted transition-colors hover:bg-surface2 hover:text-ink",
-            settingsOpen && "bg-accent-soft text-accent shadow-[var(--glow)]",
+            "flex items-center gap-[var(--t-space-sidebarItemGap)] [border-radius:var(--t-radius-sidebarItem)] px-[var(--t-space-controlSmallX)] py-[var(--t-space-rowY)] [font-size:var(--t-type-subheading-size)] [font-weight:var(--t-type-label-weight)] text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:bg-surface2 hover:text-ink",
+            settingsOpen && "bg-accent-soft text-accent [box-shadow:var(--t-glow-selected)]",
             collapsed && "justify-center px-0",
           )}
         >
-          <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center">
-            <Settings className="h-[18px] w-[18px]" strokeWidth={1.6} />
+          <span className="flex h-[var(--t-space-iconBox)] w-[var(--t-space-iconBox)] shrink-0 items-center justify-center">
+            <Settings className="h-[var(--t-space-iconLarge)] w-[var(--t-space-iconLarge)]" strokeWidth={1.6} />
           </span>
           {!collapsed && <span>Settings</span>}
         </button>
       </div>
-    ),
 
-    // Edge tab pinned to the rail's right edge, just above the separator.
-    collapseToggle: (
       <button
         data-tetra-el="collapseToggle"
         onClick={() => {
@@ -192,50 +154,14 @@ export function Sidebar({
         aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         aria-expanded={!collapsed}
         title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        className={
-          right
-            ? "absolute bottom-24 left-0 z-[5] flex h-[46px] w-[18px] items-center justify-center rounded-r-[4px] border border-line border-l-0 bg-surface2 text-muted transition-colors hover:bg-accent-soft hover:text-accent"
-            : "absolute bottom-24 right-0 z-[5] flex h-[46px] w-[18px] items-center justify-center rounded-l-[4px] border border-line border-r-0 bg-surface2 text-muted transition-colors hover:bg-accent-soft hover:text-accent"
-        }
+        className="absolute bottom-[var(--t-space-sidebarToggleOffset)] right-0 z-[5] flex h-[var(--t-space-sidebarToggleHeight)] w-[var(--t-space-iconLarge)] items-center justify-center [border-top-left-radius:var(--t-radius-controlSmall)] [border-bottom-left-radius:var(--t-radius-controlSmall)] border border-line border-r-0 bg-surface2 text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:bg-accent-soft hover:text-accent"
       >
         {collapsed ? (
-          <ChevronsRight className="h-[13px] w-[13px]" />
+          <ChevronsRight className="h-[var(--t-space-iconChevron)] w-[var(--t-space-iconChevron)]" />
         ) : (
-          <ChevronsLeft className="h-[13px] w-[13px]" />
+          <ChevronsLeft className="h-[var(--t-space-iconChevron)] w-[var(--t-space-iconChevron)]" />
         )}
       </button>
-    ),
-  };
-
-  const navNodes = Object.fromEntries(
-    NAV.map((item) => [item.tetraEl, renderNavItem(item)] as const),
-  );
-  const sidebarNodes: Record<string, ReactNode> = {
-    logo: groups.logo,
-    navList: groups.navList,
-    ...navNodes,
-    settingsEntry: groups.settingsEntry,
-    collapseToggle: groups.collapseToggle,
-  };
-
-  return (
-    <aside
-      data-tetra-slot="shell.sidebar"
-      className={cn(
-        right
-          ? "side relative flex shrink-0 flex-col overflow-hidden border-l border-line bg-surface transition-[width] duration-200"
-          : "side relative flex shrink-0 flex-col overflow-hidden border-r border-line bg-surface transition-[width] duration-200",
-      )}
-      style={{ width: `var(--side-w, ${width})` }}
-      data-collapsed={collapsed || undefined}
-    >
-      {composition !== null ? (
-        <ComponentTreeRenderer node={composition} nodes={sidebarNodes} themeId={activeId} />
-      ) : (
-        orderedByLayout(slot.children, TOP_GROUPS).map((id) =>
-          hidden.has(id) && !REQUIRED_IDS[id] ? null : <Fragment key={id}>{groups[id]}</Fragment>,
-        )
-      )}
     </aside>
   );
 }

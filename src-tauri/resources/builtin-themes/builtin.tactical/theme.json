@@ -1,15 +1,23 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "builtin.tactical",
   "name": "Tactical",
   "author": "Tetra Launcher",
-  "version": "1.0.0",
-  "themeApi": "1.0",
+  "version": "2.8.0",
+  "themeApi": "2.0",
   "minimumLauncherVersion": "2.6.0",
-  "tier": "expert",
-  "description": "A dense HUD-style browser: server rows are a real aligned table via a grid composition, corners are square throughout, and the filter bar is reordered for a scan-fast layout. The launcher's bundled Expert-tier showcase theme.",
+  "description": "The classic Tetra browser: a column table with a server detail panel.",
   "license": "PolyForm-Noncommercial-1.0.0",
   "homepage": "https://tetralauncher.com/",
-  "tags": ["builtin", "expert", "dark", "dense"],
-  "capabilities": ["tokens", "layout", "css", "components", "settings"]
+  "tags": [
+    "builtin",
+    "dark",
+    "dense"
+  ],
+  "capabilities": [
+    "tokens",
+    "css",
+    "layout",
+    "settings"
+  ]
 }

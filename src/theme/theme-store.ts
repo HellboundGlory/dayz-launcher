@@ -12,19 +12,17 @@ import {
   NEUTRAL_LIGHT,
   TOKENS,
   STORE_KEY,
-  DEFAULT_RADII,
-  DEFAULT_SPACING,
-  DEFAULT_TYPOGRAPHY,
   type CustomExtrasOverrides,
+  type FontFamilyRole,
   type Palette,
   type CustomOverrides,
-  type Radii,
-  type Spacing,
+  type RadiusRole,
   type Token,
-  type Typography,
 } from "./palette";
 import { applyTheme, DEFAULT_EXTRAS, type ThemeExtras } from "./apply";
-import { applyThemeFonts, applyThemeStylesheet } from "./css-loader";
+import { useDevStore } from "./dev/dev-store";
+import { NEUTRAL_TOKENS, parseTokens, resolveTokens, type TokensV2, type TokenValue } from "./tokens";
+import { applyThemeStylesheet } from "./css-loader";
 import {
   resolveSettingsSchema,
   substitutePlaceholders,
@@ -33,6 +31,7 @@ import {
 import {
   armActivation,
   deleteTheme as deleteThemeCmd,
+  deriveTheme,
   getSettings,
   getTheme,
   getThemeSettingsValues,
@@ -41,8 +40,21 @@ import {
   saveTheme as saveThemeCmd,
   setActiveThemeId,
   setThemeSettingsValue,
+  updateThemeTokens,
+  validateTheme,
 } from "@/lib/tauri";
-import type { LegacyTheme, ThemeFile, ThemeManifest, ThemeSummary } from "@/types/theme";
+import type { LegacyTheme, ThemeFile, ThemeManifest, ThemeSummary, ValidationIssue } from "@/types/theme";
+import { getNeutralLayout } from "./neutral";
+import { clearFallbacks, isFileFallenBack, markFileFallback, useFallbackStore } from "./fallback/store";
+import type { LayoutFile } from "./renderer/types";
+
+export type SettingsValue = string | number | boolean;
+
+/** A v1 folder hydrate switched off, kept only until its one-time notice is dismissed. */
+export interface IncompatibleSwitch {
+  id: string;
+  name: string;
+}
 
 interface ThemeState {
   scheme: "dark" | "light";
@@ -50,7 +62,7 @@ interface ThemeState {
   activeId: string;
   /** Editor overrides, per scheme. */
   custom: CustomOverrides;
-  /** Editor overrides for spacing/radii/typography — not per-scheme. */
+  /** Editor overrides for the v2 radius roles and font families — not per-scheme. */
   customExtras: CustomExtrasOverrides;
   /** True once the user hand-edits light — dark edits stop re-deriving then. */
   lightRefined: boolean;
@@ -62,23 +74,27 @@ interface ThemeState {
   /** Each theme's tuned settings-schema values, keyed by id — merged over that
    * theme's own schema defaults when written, so `apply()` only ever reads a
    * complete set and never has to know about defaults itself. */
-  settingsValues: Record<string, Record<string, number | boolean>>;
+  settingsValues: Record<string, Record<string, SettingsValue>>;
+  /** SPEC §16.3: the v1 theme hydrate found active and switched off, or `null`. */
+  incompatibleSwitch: IncompatibleSwitch | null;
 
+  /** Clears `incompatibleSwitch` and records that its notice was dismissed. */
+  dismissIncompatibleSwitch: () => void;
   hydrate: () => Promise<void>;
   apply: () => void;
   /** Tune one field: writes it through the backend, mirrors it into
    * `settingsValues` immediately, then repaints. */
-  setSettingsValue: (id: string, fieldId: string, value: number | boolean) => Promise<void>;
+  setSettingsValue: (id: string, fieldId: string, value: SettingsValue) => Promise<void>;
   setScheme: (scheme: "dark" | "light") => void;
   /** `deleteOnRevert`: `id` was just created by this same action (duplicate,
    * "New theme") — abandoning the activation deletes it too, not just the pick. */
   pickTheme: (id: string, deleteOnRevert?: boolean) => Promise<void>;
   setBloom: (bloom: number) => void;
   setColorOverride: (token: Token, value: string) => void;
-  setSpacingOverride: (key: keyof Spacing, value: string) => void;
-  setRadiusOverride: (key: keyof Radii, value: string) => void;
-  setTypographyOverride: (key: keyof Typography, value: string) => void;
+  setRadiusRoleOverride: (role: RadiusRole, value: string) => void;
+  setFontFamilyOverride: (family: FontFamilyRole, value: string) => void;
   toggleLightRefined: () => void;
+  /** Save the active theme: in place when it is a user theme, otherwise as a new theme named `name` (SPEC §4.6). */
   saveTheme: (name: string) => Promise<void>;
   /** Save `sourceId` under a new name — the active theme's live edits apply only when `sourceId` is the active theme. */
   duplicateTheme: (sourceId: string, name: string) => Promise<void>;
@@ -114,6 +130,25 @@ function saveActive(active: { scheme: "dark" | "light"; bloom: number }): void {
   localStorage.setItem(ACTIVE_KEY, JSON.stringify(active));
 }
 
+// SPEC §16.3's one-time notice, per switched-off theme id.
+const INCOMPATIBLE_NOTICE_KEY = "tetra.incompatibleNoticeShown.";
+
+function incompatibleNoticeShown(id: string): boolean {
+  try {
+    return localStorage.getItem(INCOMPATIBLE_NOTICE_KEY + id) !== null;
+  } catch {
+    return false;
+  }
+}
+
+function markIncompatibleNoticeShown(id: string): void {
+  try {
+    localStorage.setItem(INCOMPATIBLE_NOTICE_KEY + id, "true");
+  } catch {
+    // Only means the notice comes back next launch.
+  }
+}
+
 /** Lowercase, runs of non-alphanumerics collapsed to one `-`, ends trimmed — mirrors Rust `theme::slugify`. Exported so the "New theme" picker derives a scaffolded theme's id the same way `duplicateTheme` derives a duplicate's. */
 export function slugify(name: string): string {
   let slug = "";
@@ -127,7 +162,10 @@ export function slugify(name: string): string {
 /** One scheme's palette out of an untrusted `tokens.json`; missing tokens fall back to neutral. */
 function paletteFromTokens(tokens: unknown, scheme: "dark" | "light"): Palette {
   const out = { ...(scheme === "dark" ? NEUTRAL_DARK : NEUTRAL_LIGHT) };
-  const raw = (tokens as Record<string, unknown> | null | undefined)?.[scheme];
+  const root = tokens as Record<string, unknown> | null | undefined;
+  const raw = root?.schemaVersion === 2
+    ? parseTokens(root).colors?.[scheme]
+    : root?.[scheme];
   if (raw === null || typeof raw !== "object") return out;
   for (const token of TOKENS) {
     const value = (raw as Record<string, unknown>)[token];
@@ -142,6 +180,12 @@ export function activePreset(activeId: string) {
 
 export function activeInstalled(activeId: string, installedThemes: ThemeSummary[]) {
   return installedThemes.find((t) => t.id === activeId);
+}
+
+/** SPEC §4.6's "user theme": an installed theme this launcher created (`local.*`),
+ * and so the only kind [`ThemeState.saveTheme`] may rewrite in place. */
+export function isUserTheme(id: string, installedThemes: ThemeSummary[]): boolean {
+  return id.startsWith("local.") && activeInstalled(id, installedThemes) !== undefined;
 }
 
 /** Resolve the full dark + light palettes for the active theme. */
@@ -178,10 +222,9 @@ export function effective(
 }
 
 /**
- * Spacing, radii and typography for the active theme. Presets and `neutral`
- * carry colours only, so they always resolve to the static defaults; a
- * file-backed theme may supply any subset, and untrusted values are read the
- * same way `paletteFromTokens` reads colours.
+ * The active theme's own glow strength. Presets and `neutral` carry colours
+ * only, so they always resolve to the default; a file-backed theme supplies it
+ * either as a v2 `bloom` or, for a pre-v2 file, as `shadows.glowIntensity`.
  */
 export function resolvedExtras(
   activeId: string,
@@ -195,40 +238,10 @@ export function resolvedExtras(
     string,
     unknown
   >;
-  const spacing = stringEntries(root.spacing);
-  const radii = stringEntries(root.radii);
-  const typography = stringEntries(root.typography);
-  return {
-    spacing: {
-      xs: spacing.xs ?? DEFAULT_SPACING.xs,
-      sm: spacing.sm ?? DEFAULT_SPACING.sm,
-      md: spacing.md ?? DEFAULT_SPACING.md,
-      lg: spacing.lg ?? DEFAULT_SPACING.lg,
-    },
-    radii: {
-      control: radii.control ?? DEFAULT_RADII.control,
-      row: radii.row ?? DEFAULT_RADII.row,
-      chip: radii.chip ?? DEFAULT_RADII.chip,
-      pill: radii.pill ?? DEFAULT_RADII.pill,
-    },
-    typography: {
-      uiFont: typography.uiFont ?? DEFAULT_TYPOGRAPHY.uiFont,
-      dataFont: typography.dataFont ?? DEFAULT_TYPOGRAPHY.dataFont,
-    },
-    shadows: {
-      glowIntensity: glowIntensityOf(root.shadows) ?? DEFAULT_EXTRAS.shadows.glowIntensity,
-    },
-  };
-}
-
-/** The string-valued entries of one untrusted `tokens.json` group; anything else is dropped. */
-function stringEntries(raw: unknown): Record<string, string> {
-  if (typeof raw !== "object" || raw === null) return {};
-  const out: Record<string, string> = {};
-  for (const [key, value] of Object.entries(raw)) {
-    if (typeof value === "string") out[key] = value;
-  }
-  return out;
+  const glowIntensity =
+    (root.schemaVersion === 2 ? parseTokens(root).bloom : glowIntensityOf(root.shadows)) ??
+    DEFAULT_EXTRAS.shadows.glowIntensity;
+  return { shadows: { glowIntensity } };
 }
 
 /** The numeric `glowIntensity` of an untrusted `tokens.json` `shadows` group; anything else is dropped. */
@@ -238,38 +251,121 @@ function glowIntensityOf(raw: unknown): number | undefined {
   return typeof glowIntensity === "number" ? glowIntensity : undefined;
 }
 
-/** A theme's declared custom fonts out of its raw `tokens.json`; entries missing a string `family`/`file` are dropped. */
-function themeCustomFonts(file: ThemeFile | undefined): { family: string; file: string }[] {
-  const tokens: unknown = file?.tokens;
-  if (typeof tokens !== "object" || tokens === null) return [];
-  const typography = "typography" in tokens ? tokens.typography : undefined;
-  if (typeof typography !== "object" || typography === null) return [];
-  const customFonts = "customFonts" in typography ? typography.customFonts : undefined;
-  if (!Array.isArray(customFonts)) return [];
-  const out: { family: string; file: string }[] = [];
-  for (const entry of customFonts) {
-    if (typeof entry !== "object" || entry === null) continue;
-    if (!("family" in entry) || typeof entry.family !== "string") continue;
-    if (!("file" in entry) || typeof entry.file !== "string") continue;
-    out.push({ family: entry.family, file: entry.file });
+/** A role's value: the scale step it names, or the literal itself. */
+function resolveStep(scale: unknown, value: TokenValue | undefined): string {
+  if (
+    typeof value === "string" &&
+    typeof scale === "object" &&
+    scale !== null &&
+    Object.prototype.hasOwnProperty.call(scale, value)
+  ) {
+    return String((scale as Record<string, TokenValue>)[value]);
   }
-  return out;
+  return String(value);
 }
 
-/** The extras that actually render, editor overrides merged. Not per-scheme — these don't vary by mode. */
-export function effectiveExtras(
+/**
+ * The theme's own v2 tokens with the customiser's role overrides merged on top
+ * — what `applyTheme` writes as `--t-…`, and what a live duplicate saves.
+ * Neutral fills anything the theme or the overrides leave out.
+ */
+export function mergeRoleOverrides(
+  tokens: Partial<TokensV2> | undefined,
+  customExtras: CustomExtrasOverrides,
+): Partial<TokensV2> | undefined {
+  const { radius, family } = customExtras;
+  const hasRadius = Object.keys(radius).length > 0;
+  const hasFamily = Object.keys(family).length > 0;
+  if (tokens === undefined && !hasRadius && !hasFamily) return undefined;
+  return {
+    // The customiser never edits glow, so it rides along with the roles.
+    glow: tokens?.glow,
+    scales: {
+      ...tokens?.scales,
+      ...(hasFamily && {
+        type: { ...tokens?.scales?.type, family: { ...tokens?.scales?.type?.family, ...family } },
+      }),
+    },
+    roles: {
+      ...tokens?.roles,
+      ...(hasRadius && { radius: { ...tokens?.roles?.radius, ...radius } }),
+    },
+  };
+}
+
+/**
+ * The v2 tokens a save writes: the source's own scales and roles (Neutral's
+ * when the source carries none), its palette — plus the live editor's colours,
+ * bloom and role overrides when `live` — and the bloom. Shared by the in-place
+ * save and a duplicate so both write the same shape (SPEC §4.6).
+ */
+function buildSavedTokens(
+  sourceId: string,
+  live: boolean,
+  custom: CustomOverrides,
+  customExtras: CustomExtrasOverrides,
+  themeFiles: Record<string, ThemeFile>,
+  bloom: number,
+): TokensV2 {
+  const pair = resolvedPair(sourceId, themeFiles);
+  const dark = {} as Palette;
+  const light = {} as Palette;
+  TOKENS.forEach((t) => {
+    dark[t] = (live ? custom.dark[t] : undefined) ?? pair.dark[t];
+    light[t] = (live ? custom.light[t] : undefined) ?? pair.light[t];
+  });
+
+  // Only a v2 source carries scales/roles to copy; a palette-only or v1
+  // source starts from Neutral's.
+  const sourceTokens = themeFiles[sourceId]?.tokens;
+  const parsedSource =
+    typeof sourceTokens === "object" &&
+    sourceTokens !== null &&
+    "schemaVersion" in sourceTokens &&
+    sourceTokens.schemaVersion === 2
+      ? parseTokens(sourceTokens)
+      : undefined;
+  const source = {
+    scales: parsedSource?.scales ?? NEUTRAL_TOKENS.scales,
+    roles: parsedSource?.roles ?? NEUTRAL_TOKENS.roles,
+  };
+  // Saving the active theme takes the customiser's role edits with it; a copy
+  // of any other theme keeps that theme's own roles.
+  const merged = (live ? mergeRoleOverrides(source, customExtras) : undefined) ?? source;
+  return {
+    schemaVersion: 2,
+    colors: { dark, light },
+    // Saving the live theme keeps whatever the slider shows; a copy of any
+    // other theme keeps that theme's own bloom.
+    bloom: live ? bloom : resolvedExtras(sourceId, themeFiles).shadows.glowIntensity,
+    glow: parsedSource?.glow,
+    scales: merged.scales ?? NEUTRAL_TOKENS.scales,
+    roles: merged.roles ?? NEUTRAL_TOKENS.roles,
+  };
+}
+
+/** The six values the customiser's inputs show: the active theme's resolved roles over Neutral, editor overrides on top. */
+export function effectiveRoleValues(
   activeId: string,
   themeFiles: Record<string, ThemeFile>,
   customExtras: CustomExtrasOverrides,
-): ThemeExtras {
-  const base = resolvedExtras(activeId, themeFiles);
+): { radius: Record<RadiusRole, string>; family: Record<FontFamilyRole, string> } {
+  const raw = themeFiles[activeId]?.tokens as Record<string, unknown> | undefined;
+  const resolved = resolveTokens(raw?.schemaVersion === 2 ? parseTokens(raw) : undefined);
+  const { scales, roles } = resolved;
   return {
-    spacing: { ...base.spacing, ...customExtras.spacing },
-    radii: { ...base.radii, ...customExtras.radii },
-    typography: { ...base.typography, ...customExtras.typography },
-    // Bloom's live override lives in the store's own `bloom` field (the
-    // customiser's slider writes there), so nothing merges here.
-    shadows: base.shadows,
+    radius: {
+      window: resolveStep(scales.radius, roles.radius.window),
+      panel: resolveStep(scales.radius, roles.radius.panel),
+      row: resolveStep(scales.radius, roles.radius.row),
+      control: resolveStep(scales.radius, roles.radius.control),
+      ...customExtras.radius,
+    },
+    family: {
+      ui: String(scales.type.family.ui),
+      data: String(scales.type.family.data),
+      ...customExtras.family,
+    },
   };
 }
 
@@ -295,6 +391,7 @@ async function refreshInstalledThemes(): Promise<void> {
     }),
   );
   useThemeStore.setState({ installedThemes, themeFiles });
+  syncFallbacks(useThemeStore.getState().activeId);
 }
 
 /**
@@ -308,12 +405,24 @@ async function refreshInstalledThemes(): Promise<void> {
 export function mergeSettingsValues(
   fields: SettingsField[],
   stored: Record<string, unknown>,
-): Record<string, number | boolean> {
-  const values: Record<string, number | boolean> = {};
+): Record<string, SettingsValue> {
+  const values: Record<string, SettingsValue> = {};
   for (const field of fields) {
     const raw = stored[field.id];
-    if (field.type === "number") values[field.id] = typeof raw === "number" ? raw : field.default;
-    else values[field.id] = typeof raw === "boolean" ? raw : field.default;
+    if (field.type === "number") {
+      values[field.id] =
+        typeof raw === "number" && raw >= field.min && raw <= field.max ? raw : field.default;
+    } else if (field.type === "boolean") {
+      values[field.id] = typeof raw === "boolean" ? raw : field.default;
+    } else if (field.type === "choice") {
+      values[field.id] =
+        typeof raw === "string" && field.options.some((opt) => opt.value === raw)
+          ? raw
+          : field.default;
+    } else if (field.type === "color") {
+      values[field.id] =
+        typeof raw === "string" && /^#[0-9a-fA-F]{6}$/.test(raw) ? raw : field.default;
+    }
   }
   return values;
 }
@@ -348,16 +457,47 @@ function loadLegacyThemes(): LegacyTheme[] | null {
   }
 }
 
+/** Mirrors the active theme's dropped layout files into the fallback store, which the layout getters switch on. */
+function syncFallbacks(id: string): void {
+  clearFallbacks();
+  for (const issue of useThemeStore.getState().themeFiles[id]?.fallbacks ?? []) {
+    markFileFallback(id, issue.file, `${issue.ruleId}: ${issue.message}`);
+  }
+}
+
+/** SPEC §16.4: a hot reload keeps a broken file's last valid version on screen instead of falling back. */
+function holdLastValidLayouts(file: ThemeFile, previous: ThemeFile | undefined): ThemeFile {
+  const fallbacks = file.fallbacks ?? [];
+  if (fallbacks.length === 0 || previous?.layouts === undefined) return file;
+  const held = new Set<string>();
+  const layouts = { ...file.layouts };
+  for (const issue of fallbacks) {
+    const prior = previous.layouts[issue.file];
+    if (prior === undefined) continue;
+    layouts[issue.file] = prior;
+    held.add(issue.file);
+  }
+  if (held.size === 0) return file;
+  return { ...file, layouts, fallbacks: fallbacks.filter((issue) => !held.has(issue.file)) };
+}
+
 export const useThemeStore = create<ThemeState>((set, get) => ({
   scheme: "dark",
   activeId: "neutral",
   custom: { dark: {}, light: {} },
-  customExtras: { spacing: {}, radii: {}, typography: {} },
+  customExtras: { radius: {}, family: {} },
   lightRefined: false,
   bloom: DEFAULT_EXTRAS.shadows.glowIntensity,
   installedThemes: [],
   themeFiles: {},
   settingsValues: {},
+  incompatibleSwitch: null,
+
+  dismissIncompatibleSwitch: () => {
+    const replaced = get().incompatibleSwitch;
+    if (replaced !== null) markIncompatibleNoticeShown(replaced.id);
+    set({ incompatibleSwitch: null });
+  },
 
   /** Load installed themes and paint the active one. Called once before render. */
   hydrate: async () => {
@@ -419,11 +559,30 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       }
     }
 
+    // A v1 folder left on disk is never rendered: the backend flags it, and
+    // the stored active id could be stale from before the theme went bad.
+    const replaced = activeInstalled(activeId, installedThemes);
+    let incompatibleSwitch: IncompatibleSwitch | null = null;
+    if (replaced?.incompatible) {
+      activeId = "neutral";
+      // Persisted like the migration above, so the next launch doesn't re-switch.
+      try {
+        await setActiveThemeId(activeId);
+      } catch (e) {
+        console.error("Could not persist the active theme after an incompatible switch:", e);
+      }
+      if (!incompatibleNoticeShown(replaced.id)) {
+        incompatibleSwitch = { id: replaced.id, name: replaced.name };
+      }
+    }
+
     set({
       activeId,
+      incompatibleSwitch,
       ...(stored.scheme !== undefined && { scheme: stored.scheme }),
       ...(stored.bloom !== undefined && { bloom: stored.bloom }),
     });
+    syncFallbacks(activeId);
     // Before the first paint, so a theme the user already tuned renders its
     // tuned values immediately rather than one tick later.
     await refreshSettingsValues(activeId);
@@ -437,7 +596,10 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     // tuned tokens. A theme with no cached values (a preset, or an installed
     // theme nothing has tuned) is left alone — substituting nothing would only
     // leave the placeholders literal, which already fails whatever gated them.
-    const values = settingsValues[activeId];
+    // Dev Mode's settings override, when set, stands in for the stored values
+    // so an author can preview a combination without tuning it for real.
+    const devOverride = useDevStore.getState().settingsOverride;
+    const values = devOverride ?? settingsValues[activeId];
     const raw = themeFiles[activeId];
     const files =
       values === undefined || raw === undefined
@@ -447,18 +609,21 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
             [activeId]: {
               ...raw,
               tokens: substitutePlaceholders(raw.tokens, values),
-              layout: substitutePlaceholders(raw.layout, values),
             },
           };
-    applyTheme(effective(scheme, activeId, files, custom), scheme, {
-      ...effectiveExtras(activeId, files, customExtras),
-      shadows: { glowIntensity: bloom },
-    });
-    // CSS and fonts belong to an installed theme's own files; a preset or
+    const tokenFile = files[activeId]?.tokens as Record<string, unknown> | undefined;
+    const tokens = tokenFile?.schemaVersion === 2 ? parseTokens(tokenFile) : undefined;
+    applyTheme(
+      effective(scheme, activeId, files, custom),
+      scheme,
+      { shadows: { glowIntensity: bloom } },
+      mergeRoleOverrides(tokens, customExtras),
+      values ?? {},
+    );
+    // CSS belongs to an installed theme's own files; a preset or
     // neutral has none, which unloads whatever the previous theme had.
     const file = files[activeId];
     applyThemeStylesheet(file ? activeId : null, file?.capabilities ?? []);
-    applyThemeFonts(file ? activeId : null, themeCustomFonts(file));
     // Every mutation funnels through apply() — persisting the UI prefs here
     // means a scheme flip or bloom drag survives a restart without each action
     // having to remember to save. The active id isn't stored locally: only a
@@ -468,7 +633,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 
   setSettingsValue: async (id, fieldId, value) => {
     try {
-      await setThemeSettingsValue(id, fieldId, value);
+      await setThemeSettingsValue(id, fieldId, value as unknown as number | boolean);
     } catch (e) {
       console.error(`Could not save setting "${fieldId}" for theme "${id}":`, e);
       return;
@@ -507,12 +672,13 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     set({
       activeId: id,
       custom: { dark: {}, light: {} },
-      customExtras: { spacing: {}, radii: {}, typography: {} },
+      customExtras: { radius: {}, family: {} },
       lightRefined: false,
       // Bloom follows the same base-plus-override shape as the other extras:
       // the picked theme supplies the base, the slider overrides it afterwards.
       bloom: resolvedExtras(id, get().themeFiles).shadows.glowIntensity,
     });
+    syncFallbacks(id);
     // Before apply(), so a theme with tuned values renders tuned the moment it
     // becomes active — not one tick later.
     await refreshSettingsValues(id);
@@ -550,23 +716,19 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     get().apply();
   },
 
-  // Extras overrides are flat, not per-scheme: spacing, radii and fonts don't
-  // vary between dark and light, so nothing here re-derives anything.
-  setSpacingOverride: (key, value) => {
-    const { spacing } = get().customExtras;
-    set({ customExtras: { ...get().customExtras, spacing: { ...spacing, [key]: value } } });
+  // Role overrides are flat, not per-scheme: radii and fonts don't vary
+  // between dark and light, so nothing here re-derives anything. They land in
+  // the v2 tokens apply() hands to applyTheme, which is what the `--t-…`
+  // variables are written from.
+  setRadiusRoleOverride: (role, value) => {
+    const customExtras = get().customExtras;
+    set({ customExtras: { ...customExtras, radius: { ...customExtras.radius, [role]: value } } });
     get().apply();
   },
 
-  setRadiusOverride: (key, value) => {
-    const { radii } = get().customExtras;
-    set({ customExtras: { ...get().customExtras, radii: { ...radii, [key]: value } } });
-    get().apply();
-  },
-
-  setTypographyOverride: (key, value) => {
-    const { typography } = get().customExtras;
-    set({ customExtras: { ...get().customExtras, typography: { ...typography, [key]: value } } });
+  setFontFamilyOverride: (family, value) => {
+    const customExtras = get().customExtras;
+    set({ customExtras: { ...customExtras, family: { ...customExtras.family, [family]: value } } });
     get().apply();
   },
 
@@ -575,31 +737,46 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   },
 
   saveTheme: async (name) => {
-    await get().duplicateTheme(get().activeId, name);
+    const { activeId, installedThemes, custom, customExtras, themeFiles, bloom } = get();
+    // SPEC §4.6: the edits land in the active theme when it is a user theme —
+    // one this launcher made (`local.*`). An imported package or a bundled
+    // built-in is never rewritten, so saving over one duplicates instead.
+    if (isUserTheme(activeId, installedThemes)) {
+      const tokens = buildSavedTokens(activeId, true, custom, customExtras, themeFiles, bloom);
+      try {
+        await updateThemeTokens(activeId, tokens);
+      } catch (e) {
+        console.error(`Could not save theme "${activeId}":`, e);
+        return;
+      }
+      try {
+        // Re-read what's on disk so the cached palette is the file just written.
+        const file = await getTheme(activeId);
+        set((state) => ({ themeFiles: { ...state.themeFiles, [activeId]: file } }));
+      } catch (e) {
+        // The write landed; a stale cache only delays the repaint.
+        console.error(`Could not re-read theme "${activeId}":`, e);
+      }
+      // The overrides are the theme's own values now.
+      get().resetToBase();
+      return;
+    }
+    await get().duplicateTheme(activeId, name);
   },
 
   duplicateTheme: async (sourceId, name) => {
     const { activeId, custom, customExtras, themeFiles, bloom } = get();
-    const live = sourceId === activeId;
-    const pair = resolvedPair(sourceId, themeFiles);
-    const dark = {} as Palette;
-    const light = {} as Palette;
-    TOKENS.forEach((t) => {
-      dark[t] = (live ? custom.dark[t] : undefined) ?? pair.dark[t];
-      light[t] = (live ? custom.light[t] : undefined) ?? pair.light[t];
-    });
 
     const id = `local.${slugify(name)}`;
     const manifest: ThemeManifest = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       id,
       name,
       author: "local",
       version: "1.0.0",
-      themeApi: "1.0",
+      themeApi: "2.0",
       // No frontend-exposed app version yet; "0.0.0" means no floor.
       minimumLauncherVersion: "0.0.0",
-      tier: "basic",
       description: "",
       preview: null,
       license: null,
@@ -607,26 +784,29 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       tags: [],
       capabilities: ["tokens"],
     };
-    const tokens = {
-      schemaVersion: 1,
-      dark,
-      light,
-      ...(live ? effectiveExtras(sourceId, themeFiles, customExtras) : resolvedExtras(sourceId, themeFiles)),
-      // effectiveExtras never merges bloom in (apply() does that separately,
-      // straight from the store's own `bloom` field) — without this, saving
-      // the live theme would silently drop whatever the slider currently
-      // shows and keep the source theme's original glowIntensity instead.
-      ...(live && { shadows: { glowIntensity: bloom } }),
-    };
+    const tokens = buildSavedTokens(
+      sourceId,
+      sourceId === activeId,
+      custom,
+      customExtras,
+      themeFiles,
+      bloom,
+    );
 
     try {
-      // save_theme is create-only; re-saving under a name already used
+      // Both writes are create-only; re-saving under a name already used
       // overwrites, as the old localStorage store did. The delete is refused
-      // for the active theme, in which case the save below reports the clash.
+      // for the active theme, in which case the write below reports the clash.
       if (activeInstalled(id, get().installedThemes) !== undefined) {
         await deleteThemeCmd(id);
       }
-      await saveThemeCmd(manifest, tokens);
+      // A source with a folder on disk brings its layout, CSS and settings
+      // along; a built-in preset is colours only, so `save_theme` is enough.
+      if (activeInstalled(sourceId, get().installedThemes) !== undefined) {
+        await deriveTheme(sourceId, manifest, tokens);
+      } else {
+        await saveThemeCmd(manifest, tokens);
+      }
     } catch (e) {
       console.error(`Could not save theme "${name}":`, e);
       return;
@@ -652,7 +832,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   resetToBase: () => {
     set({
       custom: { dark: {}, light: {} },
-      customExtras: { spacing: {}, radii: {}, typography: {} },
+      customExtras: { radius: {}, family: {} },
       lightRefined: false,
     });
     get().apply();
@@ -661,44 +841,20 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 
 /** Reverts the live preview when the guard window times out or the user reverts. */
 export function watchThemeActivationReverted(): () => void {
-  const pending = listen<{ previousId: string | null; restoredTheme: string | null }>(
-    "theme-activation-reverted",
-    (event) => {
-      const { previousId, restoredTheme } = event.payload;
-
-      // Today's body, unchanged: re-seed the id and the theme-supplied bloom,
-      // repaint, then re-sync the grid (a reverted duplicate was just deleted).
-      const applyRevert = () => {
-        const state = useThemeStore.getState();
-        const activeId = previousId ?? "neutral";
-        useThemeStore.setState({
-          activeId,
-          bloom: resolvedExtras(activeId, state.themeFiles).shadows.glowIntensity,
-        });
-        state.apply();
-        void refreshInstalledThemes();
-      };
-
-      // Only a layout-edit revert wrote a file back; an ordinary id switch has
-      // nothing on disk to re-read, so it takes the synchronous path untouched.
-      if (restoredTheme === null) {
-        applyRevert();
-        return;
-      }
-      // Re-read the theme whose layout.json was just put back — the hot-reload
-      // listener's patch shape — before reverting, so apply() repaints from the
-      // file rather than the abandoned preview. A failed re-read still reverts.
-      void getTheme(restoredTheme)
-        .then((file) => {
-          const store = useThemeStore.getState();
-          useThemeStore.setState({ themeFiles: { ...store.themeFiles, [restoredTheme]: file } });
-        })
-        .catch((e) => {
-          console.error(`Could not re-read reverted theme "${restoredTheme}":`, e);
-        })
-        .then(applyRevert);
-    },
-  );
+  const pending = listen<{ previousId: string | null }>("theme-activation-reverted", (event) => {
+    const { previousId } = event.payload;
+    // Re-seed the id and the theme-supplied bloom, repaint, then re-sync the
+    // grid — a reverted duplicate was just deleted.
+    const state = useThemeStore.getState();
+    const activeId = previousId ?? "neutral";
+    useThemeStore.setState({
+      activeId,
+      bloom: resolvedExtras(activeId, state.themeFiles).shadows.glowIntensity,
+    });
+    syncFallbacks(activeId);
+    state.apply();
+    void refreshInstalledThemes();
+  });
   return () => {
     void pending.then((unlisten) => unlisten());
   };
@@ -712,16 +868,54 @@ export function watchHotReload(): () => void {
     // change while an earlier theme's watch is still in flight.
     if (id !== useThemeStore.getState().activeId) return;
     void getTheme(id)
-      .then((file) => {
-        const store = useThemeStore.getState();
-        useThemeStore.setState({ themeFiles: { ...store.themeFiles, [id]: file } });
-        store.apply();
-      })
       .catch((e) => {
         console.error(`Could not hot-reload theme "${id}":`, e);
+        // Nothing was swapped in, so the last valid version stays on screen.
+        useDevStore.getState().noteReload([], true, String(e));
+        return null;
+      })
+      .then((file) => {
+        if (file === null) return;
+        const swapAndApply = (issues: ValidationIssue[], held: boolean, error: string | null) => {
+          useDevStore.getState().noteReload(issues, held, error);
+          if (held) return;
+          const store = useThemeStore.getState();
+          const next = holdLastValidLayouts(file, store.themeFiles[id]);
+          useThemeStore.setState({ themeFiles: { ...store.themeFiles, [id]: next } });
+          syncFallbacks(id);
+          store.apply();
+        };
+        return validateTheme(id).then(
+          (issues) => swapAndApply(issues, issues.some((i) => i.severity === "error"), null),
+          // Can't prove the new files are bad — swap in and apply as usual.
+          (e) => swapAndApply([], false, String(e)),
+        );
       });
   });
   return () => {
     void pending.then((unlisten) => unlisten());
   };
 }
+
+export function getActiveLayout(path: string): LayoutFile | undefined {
+  if (isFileFallenBack(path)) return getNeutralLayout(path);
+  const { activeId, themeFiles } = useThemeStore.getState();
+  const file = themeFiles[activeId]?.layouts?.[path];
+  if (file) return file;
+  return getNeutralLayout(path);
+}
+
+/** Like `getActiveLayout`, but only the active theme's own file — never Neutral. */
+export function getThemeOwnedLayout(path: string): LayoutFile | undefined {
+  if (isFileFallenBack(path)) return undefined;
+  const { activeId, themeFiles } = useThemeStore.getState();
+  return themeFiles[activeId]?.layouts?.[path];
+}
+
+/** Re-renders a component that reads the layout getters when theme files swap or a file falls back. */
+export function useLayoutSubscription(): void {
+  useThemeStore((s) => s.activeId);
+  useThemeStore((s) => s.themeFiles);
+  useFallbackStore((s) => s.fallbackFiles);
+}
+

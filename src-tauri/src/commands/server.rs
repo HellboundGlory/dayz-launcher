@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use tauri::{Emitter, State};
+use tauri::{Emitter, Manager, State};
 use tetra_net::Prober;
 use tetra_registry::filter::{ModMatch, ServerFilter, SortDir, SortKey};
 use tetra_registry::rows::ServerKey;
@@ -536,14 +536,23 @@ pub async fn discover_servers(
     }
 
     if !abandoned {
-        resolve_unlisted(&app, &state, &writer, &window).await;
         crate::commands::index::record_steam_source(
             state.inner(),
             &window,
             seen.len(),
             discovered_at.elapsed().as_millis(),
         );
-        crate::log::log_line(&app, "discovery", "discover_servers: complete");
+
+        // Backlog probe mostly waits on A2S timeouts, not registry work, so it
+        // runs detached rather than holding the command's return on it.
+        let app = app.clone();
+        let writer = writer.clone();
+        let window = window.clone();
+        tauri::async_runtime::spawn(async move {
+            let state = app.state::<AppState>();
+            resolve_unlisted(&app, &state, &writer, &window).await;
+            crate::log::log_line(&app, "discovery", "discover_servers: complete");
+        });
     }
 
     Ok(())
@@ -1269,7 +1278,7 @@ pub(crate) async fn server_mod_readiness_impl(
     })
 }
 
-async fn resolve_workshop_cache(
+pub(crate) async fn resolve_workshop_cache(
     state: &AppState,
     valid_ids: &[u64],
     mut cache: HashMap<u64, tetra_registry::rows::WorkshopCacheRow>,

@@ -1,59 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X, Search, Check, Ban, Star, ExternalLink, ThumbsUp, Users, Loader2, Inbox } from "lucide-react";
-import { useServerStore } from "@/stores/server-store";
-import { useModsStore, visibleRows } from "@/stores/mods-store";
+import { useModsStore } from "@/stores/mods-store";
 import {
-  getKnownMods,
-  getModUsage,
-  searchWorkshopMods,
-  type KnownMod,
-  type SubscribedMod,
-  type WorkshopSearchResult,
-} from "@/lib/tauri";
+  useModFilterStore,
+  activeEntries,
+  pickSummary,
+  type ModFilterEntry,
+} from "@/stores/mod-filter-store";
+import { useModFilterLifecycle } from "@/hooks/use-mod-filter-lifecycle";
 import { cn, formatBytes, formatLastPlayed } from "@/lib/utils";
-import { SlotChild } from "@/theme/slot-render";
-import { useComponentComposition } from "@/theme/use-component-composition";
-import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
-import { useThemeStore } from "@/theme/theme-store";
-
-type Tab = "subscribed" | "seen" | "workshop";
-
-/** A mod is required, kept off the list, or neither — never both at once. */
-type Pick = "include" | "exclude";
-
-/** How long typing pauses before the Workshop search re-queries — same budget as the server search box. */
-const SEARCH_DEBOUNCE_MS = 350;
-
-/** One mod, whichever tab it came from, in the shape the list row and preview pane render. */
-interface Entry {
-  id: string;
-  title: string;
-  previewUrl: string | null;
-  subscribed: boolean;
-  serverCount: number | null;
-  description: string | null;
-  tags: string[];
-  numSubscriptions: string | null;
-  score: number | null;
-  fileSize: number | null;
-  timeUpdated: number | null;
-  workshopUrl: string | null;
-}
-
-function hashHue(id: string): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return h % 360;
-}
-
-function initials(title: string): string {
-  return title
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .join("");
-}
+import { hashHue, initials } from "@/theme/elements/mod-thumbnail";
 
 /** A real Workshop thumbnail, falling back to a generated initials tile — for a mod
     the registry only knows the id and name of, or whose image failed to load. */
@@ -87,61 +43,49 @@ interface ModFilterModalProps {
   onClose: () => void;
 }
 
+const TABS: { key: "subscribed" | "seen" | "workshop"; label: string }[] = [
+  { key: "subscribed", label: "Subscribed" },
+  { key: "seen", label: "Seen on servers" },
+  { key: "workshop", label: "Search Workshop" },
+];
+
 // "Filter by mod" modal, opened from the filter bar's MODS trigger. Three
 // pools — Subscribed / Seen on servers / Search Workshop — feeding one
 // split list+preview layout. Focus trapped; Escape, ✕ and backdrop close
 // without applying, same contract as ServerInfoModal.
 export function ModFilterModal({ onClose }: ModFilterModalProps) {
-  const filter = useServerStore((s) => s.filter);
-  const setFilter = useServerStore((s) => s.setFilter);
-  const modsRows = useModsStore((s) => s.rows);
   const modsLoading = useModsStore((s) => s.loading);
-  const loadSubscribedMods = useModsStore((s) => s.load);
 
-  const [tab, setTab] = useState<Tab>("subscribed");
-  const [query, setQuery] = useState("");
-  const [selection, setSelection] = useState<Record<string, Pick>>(() => {
-    const init: Record<string, Pick> = {};
-    for (const id of filter.mod_ids) init[id] = "include";
-    for (const id of filter.mod_ids_exclude) init[id] = "exclude";
-    return init;
-  });
-  const [mode, setMode] = useState<"any" | "all">(filter.mod_match);
-  const [previewId, setPreviewId] = useState<string | null>(null);
-  const [meta, setMeta] = useState<Record<string, { title: string; previewUrl: string | null }>>({});
+  const tab = useModFilterStore((s) => s.tab);
+  const query = useModFilterStore((s) => s.query);
+  const selection = useModFilterStore((s) => s.selection);
+  const mode = useModFilterStore((s) => s.mode);
+  const previewId = useModFilterStore((s) => s.previewId);
+  const meta = useModFilterStore((s) => s.meta);
+  const known = useModFilterStore((s) => s.known);
+  const knownLoading = useModFilterStore((s) => s.knownLoading);
+  const searchResults = useModFilterStore((s) => s.searchResults);
+  const searchLoading = useModFilterStore((s) => s.searchLoading);
+  const searchError = useModFilterStore((s) => s.searchError);
+  const usage = useModFilterStore((s) => s.usage);
 
-  const [known, setKnown] = useState<KnownMod[] | null>(null);
-  const [knownLoading, setKnownLoading] = useState(false);
+  const begin = useModFilterStore((s) => s.begin);
+  const applyFilter = useModFilterStore((s) => s.apply);
+  const setTab = useModFilterStore((s) => s.setTab);
+  const setQuery = useModFilterStore((s) => s.setQuery);
+  const setMode = useModFilterStore((s) => s.setMode);
+  const setPreviewId = useModFilterStore((s) => s.setPreviewId);
+  const cycle = useModFilterStore((s) => s.cycle);
+  const setPick = useModFilterStore((s) => s.setPick);
+  const clearSelection = useModFilterStore((s) => s.clearSelection);
 
-  const [searchResults, setSearchResults] = useState<WorkshopSearchResult[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-
-  const [usage, setUsage] = useState<Record<string, number>>({});
+  const { subscribedRows } = useModFilterLifecycle();
 
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    void loadSubscribedMods();
+    begin();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    setKnownLoading(true);
-    getKnownMods()
-      .then((rows) => {
-        if (!cancelled) setKnown(rows);
-      })
-      .catch(() => {
-        if (!cancelled) setKnown([]);
-      })
-      .finally(() => {
-        if (!cancelled) setKnownLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   useEffect(() => {
@@ -180,220 +124,44 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
     if (e.target === e.currentTarget) onClose();
   }
 
-  const subscribedForDayz = useMemo(
-    () =>
-      visibleRows(modsRows)
-        .filter((m) => m.for_dayz)
-        .sort((a, b) => (a.title ?? "").localeCompare(b.title ?? "")),
-    [modsRows],
+  const activeList: ModFilterEntry[] = useMemo(
+    () => activeEntries({ tab, query, subscribedRows, known, searchResults, usage }),
+    [tab, query, subscribedRows, known, searchResults, usage],
   );
-  const subscribedIds = useMemo(() => new Set(subscribedForDayz.map((m) => m.workshop_id)), [subscribedForDayz]);
-
-  useEffect(() => {
-    setPreviewId(null);
-    setSearchError(null);
-  }, [tab]);
-
-  // Debounced Workshop text search — only the "workshop" tab drives it, and
-  // it stays empty (a prompt, not a list) until the user actually types.
-  useEffect(() => {
-    if (tab !== "workshop") return;
-    const q = query.trim();
-    if (!q) {
-      setSearchResults([]);
-      setSearchLoading(false);
-      setSearchError(null);
-      return;
-    }
-    setSearchLoading(true);
-    const timer = window.setTimeout(() => {
-      searchWorkshopMods(q)
-        .then((rows) => {
-          setSearchResults(rows);
-          setSearchError(null);
-        })
-        .catch((e) => {
-          setSearchResults([]);
-          setSearchError(String(e));
-        })
-        .finally(() => setSearchLoading(false));
-    }, SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [tab, query]);
-
-  function fromSubscribed(m: SubscribedMod): Entry {
-    return {
-      id: m.workshop_id,
-      title: m.title || `Workshop item ${m.workshop_id}`,
-      previewUrl: m.preview_url,
-      subscribed: true,
-      serverCount: usage[m.workshop_id] ?? null,
-      description: m.description,
-      tags: m.tags,
-      numSubscriptions: m.num_subscriptions || null,
-      score: m.score || null,
-      fileSize: m.file_size || null,
-      timeUpdated: m.time_updated || null,
-      workshopUrl: m.workshop_url,
-    };
-  }
-  function fromKnown(m: KnownMod): Entry {
-    return {
-      id: m.workshop_id,
-      title: m.name || `Workshop item ${m.workshop_id}`,
-      previewUrl: null,
-      subscribed: subscribedIds.has(m.workshop_id),
-      serverCount: m.server_count,
-      description: null,
-      tags: [],
-      numSubscriptions: null,
-      score: null,
-      fileSize: null,
-      timeUpdated: null,
-      workshopUrl: null,
-    };
-  }
-  function fromSearch(m: WorkshopSearchResult): Entry {
-    return {
-      id: m.workshop_id,
-      title: m.title,
-      previewUrl: m.preview_url,
-      subscribed: subscribedIds.has(m.workshop_id),
-      serverCount: usage[m.workshop_id] ?? null,
-      description: m.description || null,
-      tags: m.tags,
-      numSubscriptions: m.num_subscriptions,
-      score: m.score,
-      fileSize: m.file_size,
-      timeUpdated: m.time_updated,
-      workshopUrl: m.workshop_url,
-    };
-  }
-
-  const activeList: Entry[] = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (tab === "subscribed") {
-      return subscribedForDayz.filter((m) => !q || (m.title ?? "").toLowerCase().includes(q)).map(fromSubscribed);
-    }
-    if (tab === "seen") {
-      return (known ?? []).filter((m) => !q || m.name.toLowerCase().includes(q)).map(fromKnown);
-    }
-    return searchResults.map(fromSearch);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, query, subscribedForDayz, known, searchResults, usage, subscribedIds]);
-
-  // Server counts for tabs whose source doesn't already carry one ("seen"
-  // gets it straight from the registry query).
-  useEffect(() => {
-    const ids =
-      tab === "subscribed"
-        ? subscribedForDayz.map((m) => m.workshop_id)
-        : tab === "workshop"
-          ? searchResults.map((m) => m.workshop_id)
-          : [];
-    const missing = ids.filter((id) => !(id in usage));
-    if (missing.length === 0) return;
-    let cancelled = false;
-    getModUsage(missing).then((rows) => {
-      if (cancelled) return;
-      setUsage((prev) => {
-        const next = { ...prev };
-        for (const r of rows) next[r.workshop_id] = r.total_servers;
-        return next;
-      });
-    });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, subscribedForDayz, searchResults]);
 
   const preview = activeList.find((e) => e.id === previewId) ?? null;
 
-  const included = useMemo(
-    () => Object.keys(selection).filter((id) => selection[id] === "include"),
-    [selection],
-  );
-  const excluded = useMemo(
-    () => Object.keys(selection).filter((id) => selection[id] === "exclude"),
-    [selection],
-  );
-
-  function remember(entry: Entry) {
-    setMeta((m) => ({ ...m, [entry.id]: { title: entry.title, previewUrl: entry.previewUrl } }));
-  }
-
-  /** Row checkbox: cycles none → include → exclude → none. */
-  function cycle(entry: Entry) {
-    setSelection((s) => {
-      const next = { ...s };
-      if (next[entry.id] === "include") next[entry.id] = "exclude";
-      else if (next[entry.id] === "exclude") delete next[entry.id];
-      else next[entry.id] = "include";
-      return next;
-    });
-    remember(entry);
-  }
-
-  /** Preview pane's Include/Exclude buttons: pick a specific state, or clear it
-      if that state is already active — same result as cycling back to none. */
-  function setPick(entry: Entry, pick: Pick) {
-    setSelection((s) => {
-      const next = { ...s };
-      if (next[entry.id] === pick) delete next[entry.id];
-      else next[entry.id] = pick;
-      return next;
-    });
-    remember(entry);
-  }
+  const { included, excluded } = useMemo(() => pickSummary(selection), [selection]);
 
   function apply() {
-    setFilter({ mod_ids: included, mod_match: mode, mod_ids_exclude: excluded });
+    applyFilter();
     onClose();
   }
 
-  const TABS: { key: Tab; label: string }[] = [
-    { key: "subscribed", label: "Subscribed" },
-    { key: "seen", label: "Seen on servers" },
-    { key: "workshop", label: "Search Workshop" },
-  ];
-
-  const activeId = useThemeStore((s) => s.activeId);
-  const composition = useComponentComposition("modal.modFilter");
-
   return (
     <div
-      className="ovl absolute inset-0 z-[60] flex items-center justify-center bg-[rgba(5,8,13,0.7)]"
+      className="ovl absolute inset-0 z-[60] flex items-center justify-center [background-color:var(--t-color-scrim)]"
       onMouseDown={closeIfOutside}
     >
       <div
         ref={wrapRef}
-        data-tetra-slot="modal.modFilter"
         role="dialog"
         aria-modal="true"
         aria-label="Filter by mod"
         onKeyDown={trapTab}
-        className="mod-filter-modal relative flex h-[540px] w-[min(700px,calc(100%-40px))] flex-col overflow-hidden rounded-[12px] border border-line bg-surface shadow-[0_24px_60px_rgba(0,0,0,0.6)]"
+        className="mod-filter-modal relative flex h-[540px] w-[min(700px,calc(100%-40px))] flex-col overflow-hidden [border-radius:var(--t-radius-modalLarge)] border border-line bg-surface [box-shadow:var(--t-shadow-xl)]"
       >
         <div className="flex shrink-0 items-center justify-between border-b border-line px-4 py-3">
           <div>
-            <h3 className="text-[13px] font-extrabold tracking-tight text-ink">Filter by mod</h3>
-            <p className="mt-0.5 text-[10px] text-muted">Require or exclude servers by the mods they run</p>
+            <h3 className="[font-size:var(--t-type-size-xl)] font-extrabold tracking-tight text-ink">Filter by mod</h3>
+            <p className="mt-0.5 [font-size:var(--t-type-label-size)] text-muted">Require or exclude servers by the mods they run</p>
           </div>
-          {composition === null && closeAction()}
+          {closeAction()}
         </div>
 
-        {/* Each of this slot's children sits in a different row of the modal —
-            ✕ and Apply in the header/footer, the tab strip under the header, the
-            preview beside the list — so none has a sibling to reorder against.
-            Only the two optional ones are wired, to hide them. */}
-        {composition === null && (
-          <SlotChild slotId="modal.modFilter" id="tabStrip">
-            {tabStrip()}
-          </SlotChild>
-        )}
+        {tabStrip()}
 
-        <div className="mx-4 mt-2.5 flex shrink-0 items-center gap-1.5 rounded-[7px] border border-line bg-surface2 px-2.5 py-[7px]">
+        <div className="mx-4 mt-2.5 flex shrink-0 items-center gap-1.5 [border-radius:var(--t-radius-popup)] border border-line bg-surface2 px-2.5 py-[7px]">
           <Search className="size-[13px] shrink-0 text-muted" />
           <input
             value={query}
@@ -406,35 +174,30 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
                   : "Filter mods seen on these servers…"
             }
             aria-label="Search mods"
-            className="min-w-0 flex-1 bg-transparent text-[11px] text-ink outline-none placeholder:text-muted"
+            className="min-w-0 flex-1 bg-transparent [font-size:var(--t-type-body-size)] text-ink outline-none placeholder:text-muted"
           />
         </div>
 
         <div className="mt-2.5 flex min-h-0 flex-1">
-          <div
-            className={cn(
-              "flex min-w-0 flex-col overflow-y-auto px-2.5 pb-2.5",
-              composition === null ? "w-[380px] shrink-0 border-r border-line" : "flex-1",
-            )}
-          >
-            {tab === "subscribed" && modsLoading && subscribedForDayz.length === 0 && <ListSpinner />}
+          <div className="flex min-w-0 w-[380px] shrink-0 flex-col overflow-y-auto border-r border-line px-2.5 pb-2.5">
+            {tab === "subscribed" && modsLoading && subscribedRows.length === 0 && <ListSpinner />}
             {tab === "seen" && knownLoading && <ListSpinner />}
             {tab === "workshop" && searchLoading && <ListSpinner />}
             {tab === "workshop" && !query.trim() && !searchLoading && (
-              <p className="px-1.5 py-6 text-center text-[10.5px] leading-relaxed text-muted">
+              <p className="px-1.5 py-6 text-center [font-size:var(--t-type-compactBody-size)] leading-relaxed text-muted">
                 Type a mod name above to search the Workshop.
               </p>
             )}
             {tab === "workshop" && searchError && (
-              <p className="px-1.5 py-6 text-center text-[10.5px] leading-relaxed text-danger">{searchError}</p>
+              <p className="px-1.5 py-6 text-center [font-size:var(--t-type-compactBody-size)] leading-relaxed text-danger">{searchError}</p>
             )}
             {!searchLoading &&
-              !(tab === "subscribed" && modsLoading && subscribedForDayz.length === 0) &&
+              !(tab === "subscribed" && modsLoading && subscribedRows.length === 0) &&
               !(tab === "seen" && knownLoading) &&
               activeList.length === 0 &&
               !(tab === "workshop" && !query.trim()) &&
               !(tab === "workshop" && searchError) && (
-                <p className="px-1.5 py-6 text-center text-[10.5px] text-muted">
+                <p className="px-1.5 py-6 text-center [font-size:var(--t-type-compactBody-size)] text-muted">
                   {tab === "subscribed" ? "No subscribed DayZ mods." : "No mods match."}
                 </p>
               )}
@@ -453,22 +216,22 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
                   }
                 }}
                 className={cn(
-                  "flex w-full cursor-pointer items-center gap-2.5 rounded-[7px] px-1.5 py-1.5 text-left transition-colors hover:bg-surface2",
+                  "flex w-full cursor-pointer items-center gap-2.5 [border-radius:var(--t-radius-popup)] px-1.5 py-1.5 text-left transition-colors hover:bg-surface2",
                   previewId === entry.id && "bg-accent-soft",
                 )}
               >
-                <span className="size-9 shrink-0 overflow-hidden rounded-[8px]">
+                <span className="size-9 shrink-0 overflow-hidden [border-radius:var(--t-radius-row)]">
                   <ModThumb id={entry.id} title={entry.title} previewUrl={entry.previewUrl} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-1.5 truncate text-[11px] font-bold text-ink">
+                  <span className="flex items-center gap-1.5 truncate [font-size:var(--t-type-body-size)] font-bold text-ink">
                     <span className="truncate">{entry.title}</span>
                     {entry.subscribed && <Star className="size-[10px] shrink-0 fill-warn text-warn" />}
                   </span>
                 </span>
                 <span
                   className={cn(
-                    "shrink-0 font-mono-data text-[9px]",
+                    "shrink-0 font-mono-data [font-size:var(--t-type-caption-size)]",
                     entry.serverCount ? "text-accent2" : "text-muted",
                   )}
                 >
@@ -487,7 +250,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
                         : `Include ${entry.title}`
                   }
                   className={cn(
-                    "flex size-[15px] shrink-0 items-center justify-center rounded-[4px] border-[1.5px] border-muted text-transparent",
+                    "flex size-[15px] shrink-0 items-center justify-center [border-radius:var(--t-radius-chip)] border-[1.5px] border-muted text-transparent",
                     selection[entry.id] === "include" && "border-accent bg-accent text-bg",
                     selection[entry.id] === "exclude" && "border-danger bg-danger text-bg",
                   )}
@@ -502,17 +265,13 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
             ))}
           </div>
 
-          {composition === null && (
-            <SlotChild slotId="modal.modFilter" id="previewPane">
-              {previewPane()}
-            </SlotChild>
-          )}
+          {previewPane()}
         </div>
 
         <div className="flex shrink-0 items-center gap-2.5 border-t border-line px-4 py-2.5">
           <div className="mr-auto flex items-center">
             {included.length === 0 && excluded.length === 0 ? (
-              <span className="text-[10px] text-muted">Nothing selected</span>
+              <span className="[font-size:var(--t-type-label-size)] text-muted">Nothing selected</span>
             ) : (
               <>
                 <div className="flex">
@@ -525,7 +284,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
                       <span
                         key={id}
                         className={cn(
-                          "-ml-1.5 size-[18px] overflow-hidden rounded-[5px] border-[1.5px] first:ml-0",
+                          "-ml-1.5 size-[18px] overflow-hidden [border-radius:var(--t-radius-controlCompact)] border-[1.5px] first:ml-0",
                           pick === "include" ? "border-accent" : "border-danger",
                         )}
                         style={{ zIndex: 4 - i }}
@@ -534,30 +293,30 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
                       </span>
                     ))}
                   {included.length + excluded.length > 4 && (
-                    <span className="-ml-1.5 flex size-[18px] items-center justify-center rounded-[5px] border-[1.5px] border-surface bg-surface2 text-[8px] font-bold text-muted2">
+                    <span className="-ml-1.5 flex size-[18px] items-center justify-center [border-radius:var(--t-radius-controlCompact)] border-[1.5px] border-surface bg-surface2 [font-size:var(--t-type-micro-size)] font-bold text-muted2">
                       +{included.length + excluded.length - 4}
                     </span>
                   )}
                 </div>
-                <span className="ml-2 text-[10px] text-muted">
+                <span className="ml-2 [font-size:var(--t-type-label-size)] text-muted">
                   {included.length > 0 && `${included.length} included`}
                   {included.length > 0 && excluded.length > 0 && " · "}
                   {excluded.length > 0 && `${excluded.length} excluded`}
                 </span>
                 <button
-                  onClick={() => setSelection({})}
-                  className="ml-2.5 text-[9px] font-bold uppercase tracking-[0.05em] text-muted transition-colors hover:text-ink"
+                  onClick={() => clearSelection()}
+                  className="ml-2.5 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.05em] text-muted transition-colors hover:text-ink"
                 >
                   Clear
                 </button>
               </>
             )}
           </div>
-          <div className="flex overflow-hidden rounded-[6px] border border-line">
+          <div className="flex overflow-hidden [border-radius:var(--t-radius-control)] border border-line">
             <button
               onClick={() => setMode("any")}
               className={cn(
-                "px-2.5 py-[5px] text-[9.5px] font-bold text-muted",
+                "px-2.5 py-[5px] [font-size:var(--t-type-compactCaption-size)] font-bold text-muted",
                 mode === "any" && "bg-accent-soft text-accent",
               )}
             >
@@ -566,7 +325,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
             <button
               onClick={() => setMode("all")}
               className={cn(
-                "px-2.5 py-[5px] text-[9.5px] font-bold text-muted",
+                "px-2.5 py-[5px] [font-size:var(--t-type-compactCaption-size)] font-bold text-muted",
                 mode === "all" && "bg-accent-soft text-accent",
               )}
             >
@@ -575,29 +334,12 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
           </div>
           <button
             onClick={onClose}
-            className="rounded-[6px] border border-line px-3.5 py-[7px] text-[10.5px] font-bold text-muted transition-colors hover:text-ink"
+            className="[border-radius:var(--t-radius-control)] border border-line px-3.5 py-[7px] [font-size:var(--t-type-compactBody-size)] font-bold text-muted transition-colors hover:text-ink"
           >
             Cancel
           </button>
-          {composition === null && applyAction()}
+          {applyAction()}
         </div>
-        {composition !== null && (
-          // The overlay is pointer-events-none so clicks reach the search input
-          // and list beneath wherever the composition doesn't cover them; each
-          // themed child re-enables its own.
-          <div className="pointer-events-none absolute inset-0">
-            <ComponentTreeRenderer
-              node={composition}
-              nodes={{
-                closeAction: <div className="pointer-events-auto">{closeAction()}</div>,
-                tabStrip: <div className="pointer-events-auto">{tabStrip()}</div>,
-                previewPane: <div className="pointer-events-auto">{previewPane()}</div>,
-                applyAction: <div className="pointer-events-auto">{applyAction()}</div>,
-              }}
-              themeId={activeId}
-            />
-          </div>
-        )}
       </div>
     </div>
   );
@@ -625,7 +367,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
             role="tab"
             aria-selected={tab === t.key}
             className={cn(
-              "rounded-t-[6px] px-2.5 py-1.5 text-[10px] font-bold text-muted transition-colors",
+              "rounded-t-[6px] px-2.5 py-1.5 [font-size:var(--t-type-label-size)] font-bold text-muted transition-colors",
               tab === t.key && "bg-accent-soft text-accent",
             )}
           >
@@ -645,18 +387,18 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
         {!preview && (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-muted">
             <Inbox className="size-6 opacity-50" />
-            <p className="max-w-[20ch] text-[10.5px] leading-relaxed">
+            <p className="max-w-[20ch] [font-size:var(--t-type-compactBody-size)] leading-relaxed">
               Click a mod on the left to see its details here.
             </p>
           </div>
         )}
         {preview && (
           <>
-            <span className="mb-2.5 block h-[84px] w-full shrink-0 overflow-hidden rounded-[9px]">
+            <span className="mb-2.5 block h-[84px] w-full shrink-0 overflow-hidden [border-radius:var(--t-radius-panel)]">
               <ModThumb id={preview.id} title={preview.title} previewUrl={preview.previewUrl} />
             </span>
             <div className="flex items-start justify-between gap-2">
-              <h4 className="flex items-center gap-1.5 text-[13.5px] font-extrabold leading-tight tracking-tight text-ink">
+              <h4 className="flex items-center gap-1.5 [font-size:var(--t-type-compactHeading-size)] font-extrabold leading-tight tracking-tight text-ink">
                 {preview.title}
                 {preview.subscribed && <Star className="size-3 shrink-0 fill-warn text-warn" />}
               </h4>
@@ -665,7 +407,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
                   href={preview.workshopUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex shrink-0 items-center gap-1 pt-0.5 text-[9.5px] font-bold text-muted transition-colors hover:text-accent"
+                  className="flex shrink-0 items-center gap-1 pt-0.5 [font-size:var(--t-type-compactCaption-size)] font-bold text-muted transition-colors hover:text-accent"
                 >
                   <ExternalLink className="size-[10px]" />
                   View on Steam
@@ -673,7 +415,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
               )}
             </div>
             {(preview.score !== null || preview.numSubscriptions || preview.fileSize) && (
-              <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-muted2">
+              <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 [font-size:var(--t-type-label-size)] text-muted2">
                 {preview.score !== null && (
                   <span className="flex items-center gap-1">
                     <ThumbsUp className="size-[10px] text-muted" />
@@ -704,21 +446,21 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
               </div>
             )}
             {preview.description && (
-              <p className="mt-2.5 line-clamp-2 text-[11px] leading-relaxed text-muted2">{preview.description}</p>
+              <p className="mt-2.5 line-clamp-2 [font-size:var(--t-type-body-size)] leading-relaxed text-muted2">{preview.description}</p>
             )}
             {preview.tags.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1">
                 {preview.tags.map((t) => (
                   <span
                     key={t}
-                    className="rounded-[3px] border border-line bg-surface2 px-1.5 py-0.5 text-[8.5px] font-bold text-muted2"
+                    className="[border-radius:var(--t-radius-badge)] border border-line bg-surface2 px-1.5 py-0.5 [font-size:var(--t-type-compactMicro-size)] font-bold text-muted2"
                   >
                     {t}
                   </span>
                 ))}
               </div>
             )}
-            <div className="mt-2.5 rounded-[8px] border border-line bg-surface2 px-2.5 py-2 text-[10.5px] leading-relaxed text-muted2">
+            <div className="mt-2.5 [border-radius:var(--t-radius-row)] border border-line bg-surface2 px-2.5 py-2 [font-size:var(--t-type-compactBody-size)] leading-relaxed text-muted2">
               {preview.serverCount ? (
                 <>
                   <span className="font-mono-data font-bold text-accent2">{preview.serverCount}</span> of the
@@ -732,9 +474,9 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
               <button
                 onClick={() => setPick(preview, "include")}
                 className={cn(
-                  "flex flex-1 items-center justify-center gap-1.5 rounded-[6px] border px-3 py-2 text-[10.5px] font-bold",
+                  "flex flex-1 items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] border px-3 py-2 [font-size:var(--t-type-compactBody-size)] font-bold",
                   selection[preview.id] === "include"
-                    ? "border-accent-line bg-accent-soft text-accent shadow-[var(--glow)]"
+                    ? "border-accent-line bg-accent-soft text-accent [box-shadow:var(--t-glow-selected)]"
                     : "border-line text-muted hover:text-ink",
                 )}
               >
@@ -744,7 +486,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
               <button
                 onClick={() => setPick(preview, "exclude")}
                 className={cn(
-                  "flex flex-1 items-center justify-center gap-1.5 rounded-[6px] border px-3 py-2 text-[10.5px] font-bold",
+                  "flex flex-1 items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] border px-3 py-2 [font-size:var(--t-type-compactBody-size)] font-bold",
                   selection[preview.id] === "exclude"
                     ? "border-danger-line bg-danger-soft text-danger"
                     : "border-line text-muted hover:text-ink",
@@ -765,7 +507,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
       <button
         data-tetra-el="applyAction"
         onClick={apply}
-        className="rounded-[6px] border border-accent-line bg-accent-soft px-3.5 py-[7px] text-[10.5px] font-bold text-accent shadow-[var(--glow)] transition-[filter] hover:brightness-110"
+        className="[border-radius:var(--t-radius-control)] border border-accent-line bg-accent-soft px-3.5 py-[7px] [font-size:var(--t-type-compactBody-size)] font-bold text-accent [box-shadow:var(--t-glow-rest)] transition-[filter] hover:brightness-110"
       >
         Apply
       </button>
@@ -775,7 +517,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
 
 function ListSpinner() {
   return (
-    <div className="flex items-center justify-center gap-2 py-8 text-[10.5px] text-muted">
+    <div className="flex items-center justify-center gap-2 py-8 [font-size:var(--t-type-compactBody-size)] text-muted">
       <Loader2 className="size-3.5 animate-spin" />
       Loading…
     </div>

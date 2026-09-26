@@ -1,20 +1,52 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Server } from "@/types/server";
+import type * as RowProbeStoreModule from "@/theme/elements/row-probe-store";
+import type * as TauriModule from "@/lib/tauri";
 import { useServerStore } from "@/stores/server-store";
+import { refreshVisibleServers } from "@/lib/tauri";
+import { useRowProbeStore } from "@/theme/elements/row-probe-store";
 import { ServerRowActions, MENU_ITEMS, MENU_ITEM_IDS } from "./server-row-actions";
-import type { ResolvedNode } from "@/theme/component-tree";
 
-const mockUseComponentComposition = vi.fn();
-vi.mock("@/theme/use-component-composition", () => ({
-  useComponentComposition: (slotId: string) => mockUseComponentComposition(slotId),
-}));
+// Captures the props of the row buttons as they are created, since
+// renderToStaticMarkup discards event handlers and disabled from its HTML.
+let captured: Record<string, Record<string, unknown>> = {};
+
+vi.mock("react/jsx-dev-runtime", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, (...args: unknown[]) => unknown>>();
+  return {
+    ...actual,
+    jsxDEV: (type: unknown, props: Record<string, unknown>, ...rest: unknown[]) => {
+      if (type === "button" && props) {
+        const key = props["data-tetra-el"] as string | undefined;
+        if (key) captured[key] = props;
+      }
+      return actual.jsxDEV(type, props, ...rest);
+    },
+  };
+});
+
+// SSR takes zustand's initial-state snapshot, so route the hook through the live state.
+function liveHook<T extends { getState: () => S }, S>(store: T) {
+  return Object.assign(<R,>(sel: (s: S) => R) => sel(store.getState()), store);
+}
+
+vi.mock("@/theme/elements/row-probe-store", async (importOriginal) => {
+  const actual = await importOriginal<typeof RowProbeStoreModule>();
+  return { ...actual, useRowProbeStore: liveHook(actual.useRowProbeStore) };
+});
+
+vi.mock("@/lib/tauri", async (importOriginal) => {
+  const actual = await importOriginal<typeof TauriModule>();
+  return { ...actual, refreshVisibleServers: vi.fn(() => Promise.resolve()) };
+});
 
 const mockServerActions = {
   op: null,
   dayzUp: false,
   launchResult: null,
   notice: null as { kind: "code"; code: "W01" | "W02" | "W03" | "W04" | "E01"; extra?: string } | { kind: "plain"; text: string } | null,
+  noticeAddr: null as string | null,
   setNotice: vi.fn(),
   verifyAndJoin: vi.fn(),
   subscribeOnly: vi.fn(),
@@ -75,9 +107,72 @@ const baseServer: Server = {
 
 describe("ServerRowActions", () => {
   beforeEach(() => {
-    mockUseComponentComposition.mockReturnValue(null);
     mockServerActions.notice = null;
+    mockServerActions.noticeAddr = null;
     useServerStore.setState({ modPending: {} });
+    useRowProbeStore.setState({ probingKey: null });
+    captured = {};
+  });
+
+  describe("Row refresh button", () => {
+    it("renders before the join button with the refresh label", () => {
+      const html = renderToStaticMarkup(
+        <ServerRowActions server={baseServer} onMoreInfo={() => {}} />,
+      );
+
+      expect(html).toContain('aria-label="Refresh this server"');
+      expect(html).toContain('title="Re-probe DayZ Test Server"');
+      expect(html.indexOf('data-tetra-el="rowRefreshAction"')).toBeLessThan(
+        html.indexOf('data-tetra-el="joinAction"'),
+      );
+      expect(captured.rowRefreshAction.disabled).toBe(false);
+      expect(captured.rowRefreshAction.className).toContain(
+        "border border-line bg-surface2 p-[5px] text-muted2",
+      );
+      expect(captured.rowRefreshAction.className).toContain(
+        "hover:border-accent-line hover:text-accent",
+      );
+      expect(captured.rowRefreshAction.className).not.toContain("box-shadow");
+    });
+
+    it("disables the button while another row is probing", () => {
+      useRowProbeStore.setState({ probingKey: "10.0.0.1:27016" });
+      const html = renderToStaticMarkup(
+        <ServerRowActions server={baseServer} onMoreInfo={() => {}} />,
+      );
+
+      expect(captured.rowRefreshAction.disabled).toBe(true);
+      expect(html).not.toContain("animate-spin");
+    });
+
+    it("spins the icon while this row is probing", () => {
+      useRowProbeStore.setState({
+        probingKey: `${baseServer.addr}:${baseServer.query_port}`,
+      });
+      const html = renderToStaticMarkup(
+        <ServerRowActions server={baseServer} onMoreInfo={() => {}} />,
+      );
+
+      expect(html).toContain("animate-spin");
+      expect(captured.rowRefreshAction.disabled).toBe(false);
+    });
+
+    it("stops the row click and re-probes this server only", () => {
+      vi.mocked(refreshVisibleServers).mockClear();
+      renderToStaticMarkup(<ServerRowActions server={baseServer} onMoreInfo={() => {}} />);
+
+      const stopPropagation = vi.fn();
+      (captured.rowRefreshAction.onClick as (e: unknown) => void)({ stopPropagation });
+
+      expect(stopPropagation).toHaveBeenCalled();
+      expect(refreshVisibleServers).toHaveBeenCalledWith(
+        [{ addr: baseServer.addr, query_port: baseServer.query_port }],
+        "row",
+      );
+      expect(useRowProbeStore.getState().probingKey).toBe(
+        `${baseServer.addr}:${baseServer.query_port}`,
+      );
+    });
   });
 
   describe("Join button wording variant", () => {
@@ -114,33 +209,31 @@ describe("ServerRowActions", () => {
   describe("Notice rendering in default and composed paths", () => {
     it("renders notice in default path", () => {
       mockServerActions.notice = { kind: "code", code: "W01" };
+      mockServerActions.noticeAddr = baseServer.addr;
       const html = renderToStaticMarkup(
         <ServerRowActions server={baseServer} onMoreInfo={() => {}} />,
       );
       expect(html).toContain("Mod versions not checked");
     });
 
-    it("renders notice in composed path", () => {
-      mockServerActions.notice = { kind: "code", code: "W01" };
-      const compositionTree: ResolvedNode = {
-        type: "stack",
-        children: [{ type: "core", ref: "joinAction" }],
-      };
-      mockUseComponentComposition.mockReturnValue(compositionTree);
-
-      const html = renderToStaticMarkup(
-        <ServerRowActions server={baseServer} onMoreInfo={() => {}} />,
-      );
-      expect(html).toContain("Mod versions not checked");
-    });
 
     it("renders error code notice with text-danger", () => {
       mockServerActions.notice = { kind: "code", code: "E01" };
+      mockServerActions.noticeAddr = baseServer.addr;
       const html = renderToStaticMarkup(
         <ServerRowActions server={baseServer} onMoreInfo={() => {}} />,
       );
       expect(html).toContain("Could not subscribe");
       expect(html).toContain("text-danger");
+    });
+
+    it("does not render a notice tagged for a different server", () => {
+      mockServerActions.notice = { kind: "code", code: "W01" };
+      mockServerActions.noticeAddr = "10.0.0.1";
+      const html = renderToStaticMarkup(
+        <ServerRowActions server={baseServer} onMoreInfo={() => {}} />,
+      );
+      expect(html).not.toContain("Mod versions not checked");
     });
   });
 

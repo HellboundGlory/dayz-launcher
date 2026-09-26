@@ -15,6 +15,7 @@ import type {
   ThemeImportPreview,
   ThemeManifest,
   ThemeSummary,
+  ValidationIssue,
 } from "@/types/theme";
 
 // ── Server Commands ──
@@ -528,11 +529,17 @@ export interface KnownMod {
   workshop_id: string;
   name: string;
   server_count: number;
+  preview_url: string | null;
 }
 
 /** Every mod seen on a registered server, ranked by server count. */
 export async function getKnownMods(limit = 200): Promise<KnownMod[]> {
   return invoke<KnownMod[]>("get_known_mods", { limit });
+}
+
+/** Preview image URLs by Workshop id, fetched from Steam when not cached. */
+export async function getWorkshopPreviews(workshopIds: string[]): Promise<Record<string, string>> {
+  return invoke<Record<string, string>>("get_workshop_previews", { workshopIds });
 }
 
 /** One Workshop item returned by a text search. No local install state —
@@ -662,14 +669,26 @@ export async function setThemeSettingsValue(
   return invoke<void>("set_theme_settings_value", { id, fieldId, value });
 }
 
-/** Replace an installed theme's whole `layout.json` with the editor's object. Committed to disk immediately — the store arms the revert window around it. */
-export async function saveThemeLayout(id: string, layout: unknown): Promise<void> {
-  return invoke<void>("save_theme_layout", { id, layout });
-}
-
 /** Create-only — an id that already exists is an error, never an overwrite. */
 export async function saveTheme(manifest: ThemeManifest, tokens: unknown): Promise<string> {
   return invoke<string>("save_theme", { manifest, tokens });
+}
+
+/** Create-only, like {@link saveTheme}: a copy of an installed theme's own
+ * content — layout, CSS, settings — under this manifest and palette. Refuses a
+ * `sourceId` with no directory on disk. */
+export async function deriveTheme(
+  sourceId: string,
+  manifest: ThemeManifest,
+  tokens: unknown,
+): Promise<string> {
+  return invoke<string>("derive_theme", { sourceId, manifest, tokens });
+}
+
+/** Rewrite an installed user theme's (`local.*`) palette in place — SPEC §4.6's
+ * save for the active theme. Refuses an id that is not a `local.*` install. */
+export async function updateThemeTokens(id: string, tokens: unknown): Promise<void> {
+  return invoke<void>("update_theme_tokens", { id, tokens });
 }
 
 /** Destructive. Refuses the active theme, and any id with no directory (built-in presets). */
@@ -700,20 +719,6 @@ export async function armActivation(
 
 export async function confirmActivation(): Promise<void> {
   return invoke<void>("confirm_activation");
-}
-
-/**
- * Open the guard window over an edit to the *active* theme's own `layout.json`
- * — the id never changes, so revert restores the file instead of switching
- * themes. `previousBytes` is that file's content before `saveThemeLayout`
- * wrote it, or `null` when it did not exist, which revert honours by deleting.
- */
-export async function armLayoutEdit(
-  id: string,
-  file: string,
-  previousBytes: number[] | null,
-): Promise<void> {
-  return invoke<void>("arm_layout_edit", { id, file, previousBytes });
 }
 
 /** Works on an expired activation too — this is also what the timeout path calls. */
@@ -772,4 +777,9 @@ export async function watchActiveTheme(id: string): Promise<void> {
 /** Stop the watch, if one is running; a no-op when none is. */
 export async function stopWatchingTheme(): Promise<void> {
   return invoke<void>("stop_watching_theme");
+}
+
+/** Run the full validator against an installed theme (Dev Mode's validation panel). */
+export async function validateTheme(id: string): Promise<ValidationIssue[]> {
+  return invoke<ValidationIssue[]>("validate_theme", { id });
 }

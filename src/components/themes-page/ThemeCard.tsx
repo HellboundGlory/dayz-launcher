@@ -9,14 +9,19 @@ interface ThemeCardProps {
   version?: string;
   active: boolean;
   swatches: [string, string, string, string];
-  /** A resolved `tetra-theme://` URL (see `resolveThemeAsset`); absent when the theme declares no preview. */
+  /** A resolved theme asset URL (see `resolveThemeAsset`); absent when the theme declares no preview. */
   previewUrl?: string;
-  onActivate: () => void;
-  onDuplicate: () => void;
+  /** Absent for an incompatible theme — it can't be activated. */
+  onActivate?: () => void;
+  /** Absent for an incompatible theme — duplicating a dead theme forward makes no sense. */
+  onDuplicate?: () => void;
   /** Absent for a built-in theme — the menu item is omitted, not disabled. */
   onExport?: () => void;
   /** Absent for a built-in theme or the active theme. */
   onRequestDelete?: () => void;
+  /** Set when the backend's scan flagged this theme's schema/API as unsupported. */
+  incompatible?: boolean;
+  incompatibleReason?: string;
 }
 
 // Same hook as theme-customiser.tsx's, kept local on purpose — too small to share.
@@ -40,6 +45,8 @@ export function ThemeCard({
   onDuplicate,
   onExport,
   onRequestDelete,
+  incompatible,
+  incompatibleReason,
 }: ThemeCardProps): JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false);
   // A preview that fails (missing/stale file) falls back to the swatch strip,
@@ -69,20 +76,20 @@ export function ThemeCard({
   return (
     <div
       className={cn(
-        "flex flex-col rounded-[8px] border bg-surface",
+        "flex flex-col [border-radius:var(--t-radius-card)] border bg-surface",
         active ? "border-accent-line" : "border-line",
       )}
     >
       {/* Live theme colours, so inline styles — the one place a hex is correct.
           Rounded + clipped on its own, not the card root, so the upward-opening
           overflow menu below isn't clipped by it too. */}
-      <div className="flex h-9 overflow-hidden rounded-t-[7px]">
+      <div className="flex h-9 overflow-hidden [border-top-left-radius:var(--t-radius-thumb)] [border-top-right-radius:var(--t-radius-thumb)]">
         {previewUrl && failedPreview !== previewUrl ? (
           <img
             src={previewUrl}
             alt=""
             onError={() => setFailedPreview(previewUrl)}
-            className="h-9 w-full rounded-t-[7px] object-cover"
+            className="h-9 w-full [border-top-left-radius:var(--t-radius-thumb)] [border-top-right-radius:var(--t-radius-thumb)] object-cover"
           />
         ) : (
           swatches.map((color, i) => (
@@ -99,20 +106,29 @@ export function ThemeCard({
               className="size-1.5 shrink-0 rounded-full bg-success ring-2 ring-success-soft"
             />
           )}
-          <p className="truncate text-[11px] font-bold text-ink" title={name}>
+          <p className="truncate [font-size:var(--t-type-body-size)] font-bold text-ink" title={name}>
             {name}
           </p>
+          {incompatible && (
+            <span className="shrink-0 [border-radius:var(--t-radius-controlCompact)] border border-danger-line px-1.5 py-0.5 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-wider text-danger">
+              Incompatible
+            </span>
+          )}
         </div>
-        <p className="mt-0.5 truncate text-[9px] text-muted">
-          {builtin ? "built-in" : `by ${author} · v${version}`}
+        <p className="mt-0.5 truncate [font-size:var(--t-type-caption-size)] text-muted">
+          {incompatible
+            ? incompatibleReason ?? "This theme uses a format v2 no longer supports."
+            : builtin
+              ? "built-in"
+              : `by ${author} · v${version}`}
         </p>
 
         <div className="relative mt-2.5 flex items-center gap-1.5">
-          {!active && (
+          {!active && onActivate && (
             <button
               type="button"
               onClick={onActivate}
-              className="flex-1 rounded-[5px] border border-line bg-surface2 px-2 py-1 text-[10px] font-semibold text-ink transition-colors hover:border-accent-line hover:text-accent"
+              className="inline-flex h-[22px] min-w-0 flex-1 items-center justify-center truncate [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface2 px-2 [font-size:var(--t-type-label-size)] font-semibold text-ink transition-colors hover:border-accent-line hover:text-accent"
             >
               Activate
             </button>
@@ -124,7 +140,7 @@ export function ThemeCard({
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             aria-label={`${name} options`}
-            className="inline-flex h-[22px] w-[26px] shrink-0 items-center justify-center rounded-[5px] border border-line bg-surface2 text-muted2 transition-colors hover:text-ink"
+            className="inline-flex h-[22px] w-[26px] shrink-0 items-center justify-center [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface2 text-muted2 transition-colors hover:text-ink"
           >
             <MoreHorizontal className="size-3.5" />
           </button>
@@ -134,16 +150,18 @@ export function ThemeCard({
             <div
               ref={menuRef}
               role="menu"
-              className="absolute bottom-full right-0 z-20 mb-1 w-44 rounded-[7px] border border-line bg-surface2 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
+              className="absolute bottom-full right-0 z-20 mb-1 w-44 [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)]"
             >
-              <MenuItem
-                icon={Copy}
-                label="Duplicate as new theme"
-                onClick={() => {
-                  setMenuOpen(false);
-                  onDuplicate();
-                }}
-              />
+              {onDuplicate && (
+                <MenuItem
+                  icon={Copy}
+                  label="Duplicate as new theme"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onDuplicate();
+                  }}
+                />
+              )}
               {onExport && (
                 <MenuItem
                   icon={FileOutput}
@@ -190,7 +208,7 @@ function MenuItem({
       role="menuitem"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2 rounded-[5px] px-2.5 py-1.5 text-left text-[11px] font-semibold transition-colors hover:bg-surface",
+        "flex w-full items-center gap-2 [border-radius:var(--t-radius-controlCompact)] px-2.5 py-1.5 text-left [font-size:var(--t-type-body-size)] font-semibold transition-colors hover:bg-surface",
         destructive ? "text-danger" : "text-ink",
       )}
     >

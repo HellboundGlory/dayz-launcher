@@ -1,7 +1,7 @@
 //! File-backed theme storage: one directory per theme under
 //! [`crate::paths::themes_dir`], holding a [`manifest::ThemeManifest`] in
-//! `theme.json`, the palette in `tokens.json`, and whatever else an advanced
-//! theme ships — `layout.json`, `styles.css`, fonts and images.
+//! `theme.json`, the palette in `tokens.json`, and the v2 content files a
+//! theme ships — `styles.css`, `settings.schema.json` and `layout/`.
 //! Takes a plain `&Path` root (not an `AppHandle`) so it's testable against a
 //! scratch directory. A read error is never fatal — an unreadable theme is just
 //! missing from the grid.
@@ -10,13 +10,18 @@ pub mod archive;
 pub mod css;
 pub mod manifest;
 pub mod protocol;
+pub mod registry;
 pub mod settings_values;
+pub mod tokens;
+pub mod validator;
 pub mod watch;
 
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-pub use manifest::ThemeManifest;
+pub use manifest::{ThemeManifest, ThemePreview};
 use serde_json::Value;
+use validator::{Severity, ValidationIssue};
 
 /// The manifest file's name, in one place because `save` and `scan` both need it.
 pub const MANIFEST_FILE: &str = "theme.json";
@@ -24,75 +29,12 @@ pub const MANIFEST_FILE: &str = "theme.json";
 /// The palette file's name, alongside the manifest.
 pub const TOKENS_FILE: &str = "tokens.json";
 
-/// The optional layout file's name, alongside the palette.
-pub const LAYOUT_FILE: &str = "layout.json";
-
 /// The optional advanced-tier stylesheet's name — the one path
 /// `src/theme/css-loader.ts` fetches, so it is gated by exactly this name.
 pub const STYLES_FILE: &str = "styles.css";
 
 /// The optional expert-tier settings-schema file's name.
 pub const SETTINGS_SCHEMA_FILE: &str = "settings.schema.json";
-
-/// The optional expert-tier component-composition directory's name: one file
-/// per composed slot, named after the slot id verbatim.
-pub const COMPONENTS_DIR: &str = "components";
-
-/// The frontend's `src/theme/slots.ts` `SLOTS` array mirrored as `(slot id,
-/// compositionCeiling is "advanced")`. Kept in sync by hand — update when
-/// `slots.ts` changes.
-pub const SLOTS: [(&str, bool); 24] = [
-    ("shell.sidebar", false),
-    ("view.servers", false),
-    ("view.favourites", false),
-    ("view.recent", false),
-    ("view.mods", false),
-    ("shell.header", false),
-    ("shell.footer", false),
-    ("filterBar", false),
-    ("server.row", false),
-    ("server.rowActions", false),
-    ("modal.serverInfo", false),
-    ("modal.modFilter", false),
-    ("modal.update", false),
-    ("modal.steamRequired", true),
-    ("mods.toolbar", false),
-    ("mods.row", false),
-    ("mods.inspector", false),
-    ("mods.actionBar", false),
-    ("modal.onboarding", true),
-    ("settings.background", true),
-    ("settings.shell", true),
-    ("settings.game", true),
-    ("settings.launcher", true),
-    ("settings.theme", true),
-];
-
-/// The slot registry's verdict on a composition's slot id: `Some((slot,
-/// composable))` for a known slot, `None` for one the registry does not know.
-/// The bool is `false` exactly for the slots `slots.ts` caps at
-/// `compositionCeiling: "advanced"`. The one definition of "a components
-/// file", shared with the import gate.
-pub fn composition_gate(slot_id: &str) -> Option<(&str, bool)> {
-    SLOTS
-        .iter()
-        .find(|(known, _)| *known == slot_id)
-        .map(|&(known, restricted)| (known, !restricted))
-}
-
-/// The error [`read_components`] and the import gate report for a composition
-/// file the slot registry refuses.
-pub fn composition_refused(name: &str, slot: &str) -> String {
-    format!("`{name}` targets `{slot}`, which is not a slot a theme may compose components into.")
-}
-
-/// Whether `name` could name a composition file at all: `<slot id>.json` with
-/// a nonempty slot id. Anything else under `components/` is a stray, not a
-/// slot reference, and is ignored rather than validated.
-pub fn is_composition_name(name: &str) -> bool {
-    name.strip_suffix(".json")
-        .is_some_and(|slot| !slot.is_empty())
-}
 
 /// A theme as the grid lists it, without reading `tokens.json` for every
 /// install. `license`/`homepage`/`schemaVersion` stay in the full manifest — [`get`] returns those.
@@ -112,10 +54,15 @@ pub struct ThemeSummary {
     pub preview: Option<String>,
     pub tags: Vec<String>,
     pub capabilities: Vec<String>,
+    pub incompatible: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub incompatible_reason: Option<String>,
+    pub previews: Vec<ThemePreview>,
 }
 
 impl ThemeSummary {
     fn of(manifest: &ThemeManifest) -> Self {
+        let incompatible = manifest.schema_version == 1 || manifest.theme_api.starts_with("1.");
         Self {
             id: manifest.id.clone(),
             name: manifest.name.clone(),
@@ -128,9 +75,38 @@ impl ThemeSummary {
             preview: manifest.preview.clone(),
             tags: manifest.tags.clone(),
             capabilities: manifest.capabilities.clone(),
+            incompatible,
+            incompatible_reason: incompatible
+                .then(|| "Incompatible — older theme format".to_string()),
+            previews: manifest.previews.clone(),
         }
     }
 }
+
+/// Every path the v2 `layout/` allowlist admits.
+pub const LAYOUT_ALLOWLIST: &[&str] = &[
+    "layout/shell.json",
+    "layout/settings.json",
+    "layout/views/browser.json",
+    "layout/views/mods.json",
+    "layout/modals/serverInfo.json",
+    "layout/modals/modFilter.json",
+    "layout/modals/update.json",
+    "layout/lists/servers.json",
+    "layout/lists/mods.json",
+    "layout/lists/modFilterResults.json",
+    "layout/lists/serverMods.json",
+    "layout/lists/modServers.json",
+    "layout/popups/mapFilter.json",
+    "layout/popups/modsUnique.json",
+    "layout/popups/regionFilter.json",
+    "layout/popups/sort.json",
+    "layout/popups/tagsFilter.json",
+    "layout/popups/serverActions.json",
+    "layout/popups/serverLoad.json",
+    "layout/popups/modActions.json",
+    "layout/popups/settingsNav.json",
+];
 
 /// One theme, fully: its manifest flattened with its raw optional content —
 /// `tokens.json` and whatever else the theme ships.
@@ -139,13 +115,13 @@ pub struct ThemeFile {
     #[serde(flatten)]
     pub manifest: ThemeManifest,
     pub tokens: serde_json::Value,
-    pub layout: Option<serde_json::Value>,
     /// `rename` because `ThemeFile` has no struct-level `rename_all`.
     #[serde(rename = "settingsSchema")]
     pub settings_schema: Option<serde_json::Value>,
-    /// Keyed by slot id, one entry per `components/<slot id>.json` the theme
-    /// ships. Absent from the map is "this theme ships none", not an error.
-    pub components: std::collections::BTreeMap<String, serde_json::Value>,
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub layouts: std::collections::BTreeMap<String, serde_json::Value>,
+    /// Files dropped from `layouts` for failing validation, with the issues that dropped them.
+    pub fallbacks: Vec<ValidationIssue>,
 }
 
 /// A scan's result: themes found, and one skip message per directory that failed.
@@ -197,50 +173,28 @@ fn theme_dir(themes_root: &Path, id: &str) -> Result<PathBuf, String> {
     Ok(themes_root.join(id))
 }
 
-/// A palette must be a JSON object carrying a `schemaVersion`; nothing else
-/// about it is the backend's business.
+/// A palette must be an object carrying `schemaVersion` 2 and a shape
+/// [`tokens::TokensV2`] accepts; a v1 envelope is not a fallback (ADR-0003).
 pub fn validate_tokens(tokens: &Value) -> Result<(), String> {
     let Some(object) = tokens.as_object() else {
         return Err("tokens.json must be a JSON object".to_string());
     };
-    if !object.contains_key("schemaVersion") {
-        return Err("tokens.json has no `schemaVersion`".to_string());
+    if object.get("schemaVersion").and_then(Value::as_u64) != Some(2) {
+        return Err("tokens.json must declare `schemaVersion` 2".to_string());
     }
-    Ok(())
-}
-
-/// A layout must be a JSON object carrying a `schemaVersion`, exactly as a
-/// palette must; the slots themselves are the frontend's business.
-pub fn validate_layout(layout: &Value) -> Result<(), String> {
-    let Some(object) = layout.as_object() else {
-        return Err("layout.json must be a JSON object".to_string());
-    };
-    if !object.contains_key("schemaVersion") {
-        return Err("layout.json has no `schemaVersion`".to_string());
-    }
+    serde_json::from_value::<tokens::TokensV2>(tokens.clone())
+        .map_err(|error| format!("Invalid tokens.json: {error}"))?;
     Ok(())
 }
 
 /// A settings schema must be a JSON object carrying a `schemaVersion`, exactly
-/// as a layout must; the field list is the frontend's business.
+/// as a palette must; the field list is the frontend's business.
 pub fn validate_settings_schema(schema: &Value) -> Result<(), String> {
     let Some(object) = schema.as_object() else {
         return Err("settings.schema.json must be a JSON object".to_string());
     };
     if !object.contains_key("schemaVersion") {
         return Err("settings.schema.json has no `schemaVersion`".to_string());
-    }
-    Ok(())
-}
-
-/// A component tree must be a JSON object carrying a `schemaVersion`, exactly
-/// as a layout must; the `stack`/`box`/`grid`/`core` shape is the frontend's business.
-pub fn validate_components(components: &Value) -> Result<(), String> {
-    let Some(object) = components.as_object() else {
-        return Err("a components file must be a JSON object".to_string());
-    };
-    if !object.contains_key("schemaVersion") {
-        return Err("a components file has no `schemaVersion`".to_string());
     }
     Ok(())
 }
@@ -273,45 +227,51 @@ fn read_optional_json(
     validate(&value)?;
     Ok(Some(value))
 }
-/// Every composition a theme ships, one `components/<slot id>.json` each,
-/// keyed by the slot id its own filename names. No `components/` directory at
-/// all is the ordinary "this theme composes nothing" case, not an error; a
-/// file that is not a known, unrestricted slot's composition fails the whole
-/// read, exactly as a corrupt `tokens.json` does.
-fn read_components(dir: &Path) -> Result<std::collections::BTreeMap<String, Value>, String> {
-    let components_dir = dir.join(COMPONENTS_DIR);
-    if !components_dir.is_dir() {
-        return Ok(std::collections::BTreeMap::new());
+/// Reads every layout file a theme ships from [`LAYOUT_ALLOWLIST`], parse-tolerantly:
+/// a file that fails to parse contributes its own issues instead of failing the read,
+/// so one broken screen costs one file. An unreadable file still fails.
+pub(crate) fn read_layout_files(
+    dir: &Path,
+) -> Result<(HashMap<String, Value>, Vec<ValidationIssue>), String> {
+    let mut parsed = HashMap::new();
+    let mut issues = Vec::new();
+    for rel_path in LAYOUT_ALLOWLIST {
+        let file = dir.join(rel_path);
+        if !file.is_file() {
+            continue;
+        }
+        let content = std::fs::read_to_string(&file)
+            .map_err(|e| format!("Could not read {}: {e}", file.display()))?;
+        match serde_json::from_str(&content) {
+            Ok(value) => {
+                parsed.insert((*rel_path).to_string(), value);
+            }
+            Err(_) => issues.extend(validator::validate_layout_file(rel_path, &content)),
+        }
     }
-    let entries = std::fs::read_dir(&components_dir)
-        .map_err(|e| format!("Could not read {}: {e}", components_dir.display()))?;
+    Ok((parsed, issues))
+}
 
-    let mut components = std::collections::BTreeMap::new();
-    for entry in entries {
-        let entry =
-            entry.map_err(|e| format!("Could not read {}: {e}", components_dir.display()))?;
-        if !entry.path().is_file() {
-            continue;
-        }
-        let name = entry.file_name().to_string_lossy().into_owned();
-        if !is_composition_name(&name) {
-            continue;
-        }
-        let slot_id = name.strip_suffix(".json").unwrap();
-        let Some((slot, composable)) = composition_gate(slot_id) else {
-            return Err(format!(
-                "`{name}` in {} names no slot in the slot registry.",
-                components_dir.display()
-            ));
-        };
-        if !composable {
-            return Err(composition_refused(&name, slot));
-        }
-        if let Some(tree) = read_optional_json(&components_dir, &name, validate_components)? {
-            components.insert(slot.to_string(), tree);
+/// `parsed` split into the layouts that render and the ones that fall back: an
+/// issue naming a file in the map with `Severity::Error` removes that file and
+/// is kept as its fallback reason. Warnings remove nothing and are dropped.
+fn fall_back_broken_layouts(
+    parsed: HashMap<String, Value>,
+    issues: Vec<ValidationIssue>,
+) -> (BTreeMap<String, Value>, Vec<ValidationIssue>) {
+    let mut fallbacks = Vec::new();
+    let mut broken = HashSet::new();
+    for issue in issues {
+        if issue.severity == Severity::Error && parsed.contains_key(&issue.file) {
+            broken.insert(issue.file.clone());
+            fallbacks.push(issue);
         }
     }
-    Ok(components)
+    let layouts = parsed
+        .into_iter()
+        .filter(|(file, _)| !broken.contains(file))
+        .collect();
+    (layouts, fallbacks)
 }
 
 /// One theme's manifest, tokens, and whichever optional content files it ships.
@@ -338,16 +298,19 @@ pub fn get(themes_root: &Path, id: &str) -> Result<ThemeFile, String> {
         .map_err(|e| format!("{} is not valid JSON: {e}", tokens_path.display()))?;
     validate_tokens(&tokens)?;
 
-    let layout = read_optional_json(&dir, LAYOUT_FILE, validate_layout)?;
     let settings_schema = read_optional_json(&dir, SETTINGS_SCHEMA_FILE, validate_settings_schema)?;
-    let components = read_components(&dir)?;
+
+    let (parsed, mut fallbacks) = read_layout_files(&dir)?;
+    let layout_issues = validator::validate_theme_layouts(&parsed);
+    let (layouts, removals) = fall_back_broken_layouts(parsed, layout_issues);
+    fallbacks.extend(removals);
 
     Ok(ThemeFile {
         manifest,
         tokens,
-        layout,
         settings_schema,
-        components,
+        layouts,
+        fallbacks,
     })
 }
 
@@ -393,13 +356,9 @@ pub fn save(
     themes_root: &Path,
     manifest: &ThemeManifest,
     tokens: &Value,
-    layout: Option<&Value>,
 ) -> Result<String, String> {
     let dir = theme_dir(themes_root, &manifest.id)?;
     validate_tokens(tokens)?;
-    if let Some(layout) = layout {
-        validate_layout(layout)?;
-    }
 
     // Serialised before anything is created, so a manifest that can't be
     // written never leaves a directory behind.
@@ -407,10 +366,6 @@ pub fn save(
         .map_err(|e| format!("Could not serialise the manifest: {e}"))?;
     let tokens_json = serde_json::to_vec_pretty(tokens)
         .map_err(|e| format!("Could not serialise tokens: {e}"))?;
-    let layout_json = layout
-        .map(serde_json::to_vec_pretty)
-        .transpose()
-        .map_err(|e| format!("Could not serialise the layout: {e}"))?;
 
     std::fs::create_dir_all(themes_root)
         .map_err(|e| format!("Could not create {}: {e}", themes_root.display()))?;
@@ -424,11 +379,8 @@ pub fn save(
         _ => format!("Could not create {}: {e}", dir.display()),
     })?;
 
-    let mut files: Vec<(&str, &[u8])> =
+    let files: Vec<(&str, &[u8])> =
         vec![(MANIFEST_FILE, &manifest_json), (TOKENS_FILE, &tokens_json)];
-    if let Some(layout_json) = &layout_json {
-        files.push((LAYOUT_FILE, layout_json));
-    }
 
     // A half-written directory would show up as a theme that can't load, so remove it instead.
     for (name, bytes) in files {
@@ -442,19 +394,32 @@ pub fn save(
     Ok(manifest.id.clone())
 }
 
-/// Replace an *already-installed* theme's layout.json wholesale — always a
-/// full replace, never a merge, since the caller (the frontend) always holds
-/// and resends the complete object. Refuses a theme with no installed
-/// directory, the same way [`settings_values::values_path`] does.
-pub fn update_layout(themes_root: &Path, id: &str, layout: &Value) -> Result<(), String> {
-    validate_layout(layout)?;
+/// Rewrite one user theme's `tokens.json` in place — SPEC §4.6's "the edited
+/// values are written to the active theme when it is a user theme". Only a
+/// `local.*` id qualifies: an imported package or a bundled built-in is never
+/// rewritten, and a `local.*` install must still exist and be current-format.
+pub fn update_tokens(themes_root: &Path, id: &str, tokens: &Value) -> Result<(), String> {
+    if !id.starts_with("local.") {
+        return Err(format!(
+            "`{id}` is not a user theme — only `local.` themes can be edited in place"
+        ));
+    }
     let dir = theme_dir(themes_root, id)?;
     if !dir.is_dir() {
         return Err(format!("No installed theme `{id}` at {}", dir.display()));
     }
-    let json = serde_json::to_vec_pretty(layout)
-        .map_err(|e| format!("Could not serialise {LAYOUT_FILE}: {e}"))?;
-    let path = dir.join(LAYOUT_FILE);
+    // An older-format install is not loaded today, so its tokens are not the
+    // ones on screen; saving over it would write edits nobody can see.
+    if ThemeSummary::of(&read_manifest(&dir)?).incompatible {
+        return Err(format!(
+            "`{id}` is an older theme format — save your edits as a new theme instead"
+        ));
+    }
+    validate_tokens(tokens)?;
+
+    let json = serde_json::to_vec_pretty(tokens)
+        .map_err(|e| format!("Could not serialise tokens: {e}"))?;
+    let path = dir.join(TOKENS_FILE);
     crate::atomic_write::write_atomically(&path, &json)
         .map_err(|e| format!("Could not write {}: {e}", path.display()))
 }
@@ -493,6 +458,25 @@ pub fn slugify(name: &str) -> String {
     slug.trim_matches('-').to_string()
 }
 
+/// One scheme's colours out of a legacy blob: the twelve v1 palette keys copied
+/// over `defaults` when the blob holds them as strings. A key the blob lacks,
+/// or holds as anything but a string, keeps its default; every other key the
+/// blob carried is dropped.
+fn legacy_scheme(defaults: &Value, legacy: &Value) -> Value {
+    let Some(legacy) = legacy.as_object() else {
+        return defaults.clone();
+    };
+    let mut colors = defaults.clone();
+    if let Some(colors) = colors.as_object_mut() {
+        for (key, value) in legacy {
+            if value.is_string() && colors.contains_key(key) {
+                colors.insert(key.clone(), value.clone());
+            }
+        }
+    }
+    colors
+}
+
 /// Bring themes saved in the frontend's `localStorage` into file-backed
 /// storage, one directory each. Best-effort: a bad entry is reported and the rest still migrate.
 pub fn migrate(themes_root: &Path, legacy: &[LegacyTheme]) -> Migration {
@@ -509,18 +493,30 @@ pub fn migrate(themes_root: &Path, legacy: &[LegacyTheme]) -> Migration {
         }
 
         let id = format!("local.{}", slugify(&theme.name));
-        let tokens = serde_json::json!({
-            "schemaVersion": manifest::SCHEMA_VERSION,
-            "dark": theme.dark,
-            "light": theme.light,
-        });
+        let mut tokens = match serde_json::to_value(tokens::TokensV2::default()) {
+            Ok(tokens) => tokens,
+            Err(e) => {
+                migration
+                    .skipped
+                    .push(format!("{}: could not build the palette: {e}", fallback()));
+                continue;
+            }
+        };
+        tokens["colors"]["dark"] = {
+            let defaults = &tokens["colors"]["dark"];
+            legacy_scheme(defaults, &theme.dark)
+        };
+        tokens["colors"]["light"] = {
+            let defaults = &tokens["colors"]["light"];
+            legacy_scheme(defaults, &theme.light)
+        };
 
         let manifest = ThemeManifest {
             id: id.clone(),
             name: theme.name.clone(),
             author: "local".to_string(),
             version: "1.0.0".to_string(),
-            theme_api: manifest::SCHEMA_VERSION.to_string(),
+            theme_api: archive::SUPPORTED_THEME_API_RANGE.to_string(),
             // This build wrote it, so this build is the floor it can rely on.
             minimum_launcher_version: env!("CARGO_PKG_VERSION").to_string(),
             tier: "basic".to_string(),
@@ -529,7 +525,7 @@ pub fn migrate(themes_root: &Path, legacy: &[LegacyTheme]) -> Migration {
             ..ThemeManifest::default()
         };
 
-        match save(themes_root, &manifest, &tokens, None) {
+        match save(themes_root, &manifest, &tokens) {
             Ok(id) => migration.migrated.push(id),
             Err(e) => migration.skipped.push(format!("{}: {e}", fallback())),
         }
@@ -559,7 +555,7 @@ mod tests {
             name: "Test Theme".to_string(),
             author: "tester".to_string(),
             version: "2.1.0".to_string(),
-            theme_api: "1".to_string(),
+            theme_api: "2.0".to_string(),
             minimum_launcher_version: "2.6.0".to_string(),
             tier: "basic".to_string(),
             description: "A theme for a test.".to_string(),
@@ -568,20 +564,43 @@ mod tests {
         }
     }
 
-    fn tokens() -> Value {
-        serde_json::json!({ "schemaVersion": 1, "dark": { "bg": "#0d0f13" }, "light": {} })
+    #[test]
+    fn scan_reports_older_formats_as_incompatible_without_hiding_them() {
+        let root = scratch("incompatible");
+        for (id, schema, api) in [
+            ("old.schema", 1, "2.0"),
+            ("old.api", 2, "1.3"),
+            ("current.theme", 2, "2.0"),
+        ] {
+            let mut manifest = manifest(id);
+            manifest.schema_version = schema;
+            manifest.theme_api = api.to_string();
+            save(&root, &manifest, &tokens()).unwrap();
+        }
+        let scanned = scan(&root);
+        assert!(scanned.skipped.is_empty());
+        assert_eq!(scanned.themes.len(), 3);
+        for theme in scanned.themes {
+            assert_eq!(theme.incompatible, theme.id.starts_with("old."));
+            assert_eq!(
+                theme.incompatible_reason.as_deref(),
+                theme
+                    .incompatible
+                    .then_some("Incompatible — older theme format")
+            );
+        }
+        std::fs::remove_dir_all(root).unwrap();
     }
 
-    fn layout() -> Value {
-        serde_json::json!({ "schemaVersion": 1, "slots": { "sidebar": "aside" } })
+    fn tokens() -> Value {
+        serde_json::json!({
+            "schemaVersion": 2,
+            "colors": { "dark": { "bg": "#0d0f13" }, "light": {} },
+        })
     }
 
     fn settings_schema() -> Value {
         serde_json::json!({ "schemaVersion": 1, "fields": [{ "key": "bloom", "type": "number" }] })
-    }
-
-    fn components() -> Value {
-        serde_json::json!({ "schemaVersion": 1, "root": { "type": "stack" } })
     }
 
     #[test]
@@ -589,7 +608,7 @@ mod tests {
         let root = scratch("roundtrip");
         let written_tokens = tokens();
 
-        let id = save(&root, &manifest("dev.roundtrip"), &written_tokens, None).expect("save");
+        let id = save(&root, &manifest("dev.roundtrip"), &written_tokens).expect("save");
         let loaded = get(&root, "dev.roundtrip").expect("get");
 
         assert_eq!(id, "dev.roundtrip");
@@ -598,373 +617,184 @@ mod tests {
         assert_eq!(loaded.manifest.version, "2.1.0");
         assert_eq!(loaded.manifest.capabilities, vec!["tokens".to_string()]);
         assert_eq!(loaded.tokens, written_tokens, "tokens round-trip verbatim");
-        assert!(loaded.layout.is_none(), "no layout was written");
         assert!(
             loaded.settings_schema.is_none(),
             "no settings schema was written"
         );
-        assert!(
-            loaded.components.is_empty(),
-            "no components directory was written"
-        );
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// The three expert-tier files are read back, and each is independently
-    /// optional: neither an absent file nor the other's presence is an error.
+    /// The optional settings schema reads back when present; its absence is not
+    /// an error, and a corrupt one fails the read like a corrupt `tokens.json`.
     #[test]
-    fn the_optional_expert_files_read_back_when_present_and_are_independently_optional() {
-        let root = scratch("expert");
-        let dir = root.join("dev.expert");
-        save(&root, &manifest("dev.expert"), &tokens(), None).expect("save");
+    fn an_optional_settings_schema_reads_back_when_present() {
+        let root = scratch("schema");
+        let dir = root.join("dev.schema");
+        save(&root, &manifest("dev.schema"), &tokens()).expect("save");
+
+        let loaded = get(&root, "dev.schema").expect("get");
+        assert!(loaded.settings_schema.is_none(), "absent by default");
 
         let written_schema = settings_schema();
-        let written_server_row = components();
-        let written_mods_row =
-            serde_json::json!({ "schemaVersion": 1, "root": { "type": "grid" } });
         std::fs::write(
             dir.join(SETTINGS_SCHEMA_FILE),
             serde_json::to_vec_pretty(&written_schema).unwrap(),
         )
         .unwrap();
-        std::fs::create_dir_all(dir.join(COMPONENTS_DIR)).unwrap();
-        std::fs::write(
-            dir.join(COMPONENTS_DIR).join("server.row.json"),
-            serde_json::to_vec_pretty(&written_server_row).unwrap(),
-        )
-        .unwrap();
-        std::fs::write(
-            dir.join(COMPONENTS_DIR).join("mods.row.json"),
-            serde_json::to_vec_pretty(&written_mods_row).unwrap(),
-        )
-        .unwrap();
 
-        let loaded = get(&root, "dev.expert").expect("get");
+        let loaded = get(&root, "dev.schema").expect("get");
         assert_eq!(loaded.settings_schema.as_ref(), Some(&written_schema));
-        assert_eq!(loaded.components.len(), 2, "{:?}", loaded.components);
-        assert_eq!(loaded.components["server.row"], written_server_row);
-        assert_eq!(loaded.components["mods.row"], written_mods_row);
 
         // `ThemeFile` carries no struct-level `rename_all`, so the field is
         // camelCase on the wire only because of its own `rename`.
         let wire = serde_json::to_value(&loaded).expect("serialise");
         assert_eq!(wire["settingsSchema"], written_schema);
         assert!(wire.get("settings_schema").is_none());
+        // The v1 keys are gone from the wire the frontend codes against.
+        assert!(wire.get("layout").is_none());
+        assert!(wire.get("components").is_none());
 
-        // Only one of the two component files present: one key, no error.
-        std::fs::remove_file(dir.join(COMPONENTS_DIR).join("mods.row.json")).unwrap();
-        let loaded = get(&root, "dev.expert").expect("get");
-        assert_eq!(loaded.components.len(), 1, "{:?}", loaded.components);
-        assert!(loaded.components.contains_key("server.row"));
-
-        // Settings schema removed too: `None`, and the map stays as it was.
         std::fs::remove_file(dir.join(SETTINGS_SCHEMA_FILE)).unwrap();
-        let loaded = get(&root, "dev.expert").expect("get");
+        let loaded = get(&root, "dev.schema").expect("get");
         assert!(loaded.settings_schema.is_none());
-        assert_eq!(loaded.components.len(), 1);
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// The generalization itself: the directory scan finds one slot per
-    /// `components/<slot id>.json`, whatever the slot id is — not the two the
-    /// backend used to hardcode.
+    /// Fail-closed, like a corrupt `tokens.json`: a broken settings schema
+    /// costs the whole theme rather than silently reading as absent.
     #[test]
-    fn every_slot_id_under_components_is_read_back_under_its_own_name() {
-        let root = scratch("anyslot");
-        let dir = root.join("dev.anyslot");
-        save(&root, &manifest("dev.anyslot"), &tokens(), None).expect("save");
-        let components = dir.join(COMPONENTS_DIR);
-        std::fs::create_dir_all(&components).unwrap();
-
-        let written =
-            |kind: &str| serde_json::json!({ "schemaVersion": 1, "root": { "type": kind } });
-        for (slot, kind) in [
-            ("server.row", "stack"),
-            ("mods.row", "grid"),
-            ("shell.sidebar", "box"),
-        ] {
-            std::fs::write(
-                components.join(format!("{slot}.json")),
-                serde_json::to_vec_pretty(&written(kind)).unwrap(),
-            )
-            .unwrap();
-        }
-        // Neither of these is a composition: the extension is not `.json`, and
-        // a subdirectory is not a file, however it is named.
-        std::fs::write(components.join("notes.txt"), b"not a composition").unwrap();
-        std::fs::create_dir_all(components.join("nested")).unwrap();
-
-        let loaded = get(&root, "dev.anyslot").expect("get");
-        assert_eq!(
-            loaded.components.keys().collect::<Vec<_>>(),
-            ["mods.row", "server.row", "shell.sidebar"],
-            "one entry per `.json` file, keyed by its own slot id"
-        );
-        assert_eq!(loaded.components["shell.sidebar"], written("box"));
-        assert!(
-            !loaded.components.contains_key("notes") && !loaded.components.contains_key("nested"),
-            "only `.json` files are compositions: {:?}",
-            loaded.components.keys().collect::<Vec<_>>()
-        );
-
-        // The write half: a third slot added later reads back too, so the map
-        // is not a fixed pair that only grows at save time.
-        std::fs::write(
-            components.join("filterBar.json"),
-            serde_json::to_vec_pretty(&written("stack")).unwrap(),
-        )
-        .unwrap();
-        let loaded = get(&root, "dev.anyslot").expect("get");
-        assert_eq!(loaded.components.len(), 4, "{:?}", loaded.components);
-        assert_eq!(loaded.components["filterBar"], written("stack"));
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    /// Fail-closed, like a corrupt `tokens.json`: a composition file whose
-    /// filename names no slot in the registry costs the whole theme, since a
-    /// typo would otherwise do nothing and look like a working theme.
-    #[test]
-    fn a_components_file_for_an_unknown_slot_fails_the_read() {
-        let root = scratch("unknownslot");
+    fn a_corrupt_settings_schema_fails_the_read_rather_than_being_ignored() {
+        let root = scratch("badschema");
         let dir = root.join("dev.bad");
-        save(&root, &manifest("dev.bad"), &tokens(), None).expect("save");
-        let components_dir = dir.join(COMPONENTS_DIR);
-        std::fs::create_dir_all(&components_dir).unwrap();
-        std::fs::write(
-            components_dir.join("server.rows.json"),
-            serde_json::to_vec_pretty(&components()).unwrap(),
-        )
-        .unwrap();
+        save(&root, &manifest("dev.bad"), &tokens()).expect("save");
 
-        let err = get(&root, "dev.bad").expect_err("an unknown slot must fail the read");
-        assert!(
-            err.contains("server.rows.json") && err.contains("no slot in the slot registry"),
-            "{err}"
-        );
-        let _ = std::fs::remove_dir_all(&root);
-    }
+        std::fs::write(dir.join(SETTINGS_SCHEMA_FILE), "{ not json").unwrap();
+        assert!(get(&root, "dev.bad").is_err(), "malformed JSON must fail");
 
-    /// The `compositionCeiling: "advanced"` line in `slots.ts` is enforced
-    /// here too: a recovery/config slot accepts no composition file at all.
-    #[test]
-    fn a_components_file_for_a_restricted_slot_fails_the_read() {
-        let root = scratch("restrictedslot");
-        let dir = root.join("dev.bad");
-        save(&root, &manifest("dev.bad"), &tokens(), None).expect("save");
-        let components_dir = dir.join(COMPONENTS_DIR);
-        std::fs::create_dir_all(&components_dir).unwrap();
-        std::fs::write(
-            components_dir.join("modal.steamRequired.json"),
-            serde_json::to_vec_pretty(&components()).unwrap(),
-        )
-        .unwrap();
-
-        let err = get(&root, "dev.bad").expect_err("a restricted slot must fail the read");
-        assert!(err.contains("not a slot a theme may compose"), "{err}");
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    /// The gate rejects only the file that earned it: unrestricted slots read
-    /// exactly as before, one entry per file.
-    #[test]
-    fn unrestricted_slots_compose_exactly_as_before_the_gate() {
-        let root = scratch("unrestrictedslot");
-        let dir = root.join("dev.good");
-        save(&root, &manifest("dev.good"), &tokens(), None).expect("save");
-        let components_dir = dir.join(COMPONENTS_DIR);
-        std::fs::create_dir_all(&components_dir).unwrap();
-        let written_server_row = components();
-        std::fs::write(
-            components_dir.join("server.row.json"),
-            serde_json::to_vec_pretty(&written_server_row).unwrap(),
-        )
-        .unwrap();
-        std::fs::write(
-            components_dir.join("mods.actionBar.json"),
-            serde_json::to_vec_pretty(&serde_json::json!({
-                "schemaVersion": 1, "root": { "type": "grid" }
-            }))
-            .unwrap(),
-        )
-        .unwrap();
-
-        let loaded = get(&root, "dev.good").expect("get");
-        assert_eq!(loaded.components.len(), 2, "{:?}", loaded.components);
-        assert_eq!(loaded.components["server.row"], written_server_row);
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn a_saved_layout_reads_back_verbatim_and_is_optional_on_disk() {
-        let root = scratch("layout");
-        let written_layout = layout();
-
-        save(
-            &root,
-            &manifest("dev.layout"),
-            &tokens(),
-            Some(&written_layout),
-        )
-        .expect("save");
-        let loaded = get(&root, "dev.layout").expect("get");
-
-        assert_eq!(loaded.layout.as_ref(), Some(&written_layout));
-
-        // A theme on disk with no layout.json at all is still a complete theme.
-        save(&root, &manifest("dev.nolayout"), &tokens(), None).expect("save");
-        assert!(!root.join("dev.nolayout").join(LAYOUT_FILE).exists());
-        assert!(get(&root, "dev.nolayout").expect("get").layout.is_none());
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    /// Fail-closed, like a corrupt `tokens.json`: a broken layout costs the
-    /// whole theme rather than silently reading as layout-less.
-    #[test]
-    fn a_corrupt_layout_fails_the_read_rather_than_being_ignored() {
-        let root = scratch("badlayout");
-        save(&root, &manifest("dev.bad"), &tokens(), None).expect("save");
-        std::fs::write(root.join("dev.bad").join(LAYOUT_FILE), "{ not json").unwrap();
-
-        assert!(get(&root, "dev.bad").is_err());
-
-        std::fs::write(root.join("dev.bad").join(LAYOUT_FILE), r#"{"slots":{}}"#).unwrap();
-        let err = get(&root, "dev.bad").expect_err("a layout with no schemaVersion must fail");
+        std::fs::write(dir.join(SETTINGS_SCHEMA_FILE), r#"{"fields":[]}"#).unwrap();
+        let err = get(&root, "dev.bad").expect_err("a file with no schemaVersion must fail");
         assert!(err.contains("schemaVersion"), "{err}");
-        let _ = std::fs::remove_dir_all(&root);
-    }
 
-    /// Fail-closed, like a corrupt `tokens.json`: a broken optional file costs
-    /// the whole theme rather than silently reading as absent.
-    #[test]
-    fn a_corrupt_settings_schema_or_components_file_fails_the_read_rather_than_being_ignored() {
-        let root = scratch("badexpert");
-        let dir = root.join("dev.bad");
-        save(&root, &manifest("dev.bad"), &tokens(), None).expect("save");
-        let components = dir.join(COMPONENTS_DIR);
-        std::fs::create_dir_all(&components).unwrap();
-
-        for name in [
-            SETTINGS_SCHEMA_FILE.to_string(),
-            format!("{COMPONENTS_DIR}/server.row.json"),
-            format!("{COMPONENTS_DIR}/mods.row.json"),
-        ] {
-            std::fs::write(dir.join(&name), "{ not json").unwrap();
-            assert!(
-                get(&root, "dev.bad").is_err(),
-                "{name} should fail the read"
-            );
-
-            std::fs::write(dir.join(&name), r#"{"root":{}}"#).unwrap();
-            let err =
-                get(&root, "dev.bad").expect_err("a file with no schemaVersion must fail the read");
-            assert!(err.contains("schemaVersion"), "{name}: {err}");
-
-            std::fs::remove_file(dir.join(&name)).unwrap();
-        }
-        // With every one of them gone, the theme reads again — the failures
-        // above were the files, not the theme.
+        std::fs::remove_file(dir.join(SETTINGS_SCHEMA_FILE)).unwrap();
+        // With it gone, the theme reads again — the failure was the file, not the theme.
         assert!(get(&root, "dev.bad").is_ok());
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// A layout that is not an object is refused before anything is created.
-    #[test]
-    fn a_non_object_layout_is_refused_before_the_directory_exists() {
-        let root = scratch("badsavelayout");
-
-        let err = save(
-            &root,
-            &manifest("dev.bad"),
-            &tokens(),
-            Some(&serde_json::json!([1, 2])),
-        )
-        .expect_err("must refuse");
-
-        assert!(err.contains("JSON object"), "{err}");
-        assert!(!root.join("dev.bad").exists());
-        let _ = std::fs::remove_dir_all(&root);
+    fn write_layout(dir: &Path, relative: &str, content: &str) {
+        let path = dir.join(relative);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, content).unwrap();
     }
 
-    /// The editor's write: whichever complete object arrives is what lands on
-    /// disk, with no trace of what was there before. A theme that shipped no
-    /// `layout.json` gains one.
+    /// A layout file that fails to parse costs only itself: the theme still
+    /// loads, the file is out of `layouts`, and `fallbacks` names why.
     #[test]
-    fn updating_a_layout_is_a_full_replace_not_a_merge() {
-        let root = scratch("updatelayout");
-        let original = layout();
-        save(&root, &manifest("dev.edited"), &tokens(), Some(&original)).expect("save");
+    fn a_malformed_layout_file_falls_back_without_failing_the_theme() {
+        let root = scratch("layout-parse");
+        save(&root, &manifest("dev.layout"), &tokens()).expect("save");
+        let dir = root.join("dev.layout");
+        write_layout(
+            &dir,
+            "layout/shell.json",
+            r#"{"schemaVersion":2,"root":{"type":"box"}}"#,
+        );
+        write_layout(&dir, "layout/views/mods.json", "{ not json");
 
-        let edited = serde_json::json!({ "schemaVersion": 1, "slots": { "toolbar": "hidden" } });
-        update_layout(&root, "dev.edited", &edited).expect("update");
+        let loaded = get(&root, "dev.layout").expect("one bad layout file is not fatal");
 
-        let loaded = get(&root, "dev.edited").expect("get");
-        assert_eq!(loaded.layout.as_ref(), Some(&edited));
+        assert!(loaded.layouts.contains_key("layout/shell.json"));
+        assert!(!loaded.layouts.contains_key("layout/views/mods.json"));
         assert!(
-            loaded.manifest.name == "Test Theme" && loaded.tokens == tokens(),
-            "only layout.json is touched"
-        );
-
-        // Absent before: the full replace creates it rather than refusing.
-        save(&root, &manifest("dev.fresh"), &tokens(), None).expect("save");
-        assert!(!root.join("dev.fresh").join(LAYOUT_FILE).exists());
-        update_layout(&root, "dev.fresh", &edited).expect("update");
-        assert_eq!(
-            get(&root, "dev.fresh").expect("get").layout.as_ref(),
-            Some(&edited)
+            loaded
+                .fallbacks
+                .iter()
+                .any(|i| i.rule_id == "LAY-01" && i.file == "layout/views/mods.json"),
+            "{:?}",
+            loaded.fallbacks
         );
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// Same rule `save` applies, checked before the write: a bad object must
-    /// never cost the theme its working layout.
+    /// An error issue naming a file removes that file, keeping the issue as its reason.
     #[test]
-    fn an_invalid_layout_update_is_refused_and_leaves_the_file_untouched() {
-        let root = scratch("updatebadlayout");
-        let original = layout();
-        save(&root, &manifest("dev.edited"), &tokens(), Some(&original)).expect("save");
-        let path = root.join("dev.edited").join(LAYOUT_FILE);
-        let before = std::fs::read(&path).unwrap();
+    fn a_layout_file_that_fails_a_required_element_rule_falls_back() {
+        let root = scratch("layout-req");
+        save(&root, &manifest("dev.req"), &tokens()).expect("save");
+        let dir = root.join("dev.req");
+        // A servers row with no `server.join` — REQ-05.
+        write_layout(
+            &dir,
+            "layout/lists/servers.json",
+            r#"{"schemaVersion":2,"columns":[{"id":"name","width":"1fr","sort":"name"}],
+                "row":{"type":"grid","children":[{"element":"server.name","column":"name"}]}}"#,
+        );
 
-        for invalid in [
-            serde_json::json!([1, 2]),
-            serde_json::json!({ "slots": {} }),
-            serde_json::json!("a string"),
-        ] {
-            let err = update_layout(&root, "dev.edited", &invalid).expect_err("must refuse");
-            assert!(
-                err.contains("schemaVersion") || err.contains("JSON object"),
-                "{err}"
-            );
-        }
+        let loaded = get(&root, "dev.req").expect("get");
 
-        assert_eq!(std::fs::read(&path).unwrap(), before);
-        assert_eq!(
-            get(&root, "dev.edited").expect("get").layout.as_ref(),
-            Some(&original)
+        assert!(!loaded.layouts.contains_key("layout/lists/servers.json"));
+        assert!(
+            loaded
+                .fallbacks
+                .iter()
+                .any(|i| i.rule_id == "REQ-05" && i.file == "layout/lists/servers.json"),
+            "{:?}",
+            loaded.fallbacks
         );
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// Only an installed theme's own layout.json is reachable, exactly as
-    /// `set_value` requires: no directory means nothing to update.
+    /// No layout rule emits a warning yet, so this drives the split directly:
+    /// a warning must remove nothing and never reach `fallbacks`.
     #[test]
-    fn updating_a_layout_of_an_uninstalled_theme_is_refused() {
-        let root = scratch("updatemissing");
+    fn a_warning_never_removes_a_layout() {
+        let mut parsed = HashMap::new();
+        parsed.insert(
+            "layout/views/mods.json".to_string(),
+            serde_json::json!({ "schemaVersion": 2 }),
+        );
+        let warning = ValidationIssue {
+            rule_id: "ELE-99".into(),
+            severity: Severity::Warning,
+            file: "layout/views/mods.json".into(),
+            pointer: String::new(),
+            message: "a warned file is still a file".into(),
+            hint: None,
+        };
 
-        assert!(update_layout(&root, "dev.other", &layout()).is_err());
-        assert!(update_layout(&root, "../../escape", &layout()).is_err());
-        assert!(!root.join("dev.other").exists());
-        assert!(!root.join("..").join("escape").exists());
-        let _ = std::fs::remove_dir_all(&root);
+        let (layouts, fallbacks) = fall_back_broken_layouts(parsed, vec![warning]);
+
+        assert!(layouts.contains_key("layout/views/mods.json"));
+        assert!(fallbacks.is_empty(), "{fallbacks:?}");
+    }
+
+    /// The shipped builtin is real content: it must not need the fallback path.
+    #[test]
+    fn the_shipped_builtin_theme_has_no_fallbacks() {
+        let shipped = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/builtin-themes");
+
+        let loaded = get(&shipped, "builtin.tactical").expect("builtin.tactical loads");
+
+        assert!(loaded.fallbacks.is_empty(), "{:?}", loaded.fallbacks);
+        assert!(
+            !loaded.layouts.is_empty(),
+            "it ships layouts to fall back from"
+        );
+        let wire = serde_json::to_value(&loaded).expect("serialise");
+        assert_eq!(
+            wire["fallbacks"],
+            serde_json::json!([]),
+            "always present, even empty"
+        );
     }
 
     /// Create-only: an existing id must be refused, not merged into or overwritten.
     #[test]
     fn saving_over_an_installed_id_is_refused() {
         let root = scratch("exists");
-        save(&root, &manifest("dev.taken"), &tokens(), None).expect("first save");
+        save(&root, &manifest("dev.taken"), &tokens()).expect("first save");
 
-        let err = save(&root, &manifest("dev.taken"), &tokens(), None).expect_err("second save");
+        let err = save(&root, &manifest("dev.taken"), &tokens()).expect_err("second save");
 
         assert!(err.contains("already installed"), "{err}");
         assert_eq!(
@@ -981,7 +811,7 @@ mod tests {
         let root = scratch("escape");
         let escaped = manifest("../../escaped");
 
-        let err = save(&root, &escaped, &tokens(), None).expect_err("must refuse");
+        let err = save(&root, &escaped, &tokens()).expect_err("must refuse");
         assert!(err.contains("not a usable theme id"), "{err}");
         assert!(
             !root.join("..").join("escaped").exists(),
@@ -993,7 +823,7 @@ mod tests {
     #[test]
     fn deleting_the_active_theme_is_refused() {
         let root = scratch("active");
-        save(&root, &manifest("dev.active"), &tokens(), None).expect("save");
+        save(&root, &manifest("dev.active"), &tokens()).expect("save");
 
         let err = delete(&root, "dev.active", Some("dev.active")).expect_err("must refuse");
 
@@ -1025,7 +855,7 @@ mod tests {
     #[test]
     fn a_corrupt_manifest_is_skipped_rather_than_fatal() {
         let root = scratch("corrupt");
-        save(&root, &manifest("dev.good"), &tokens(), None).expect("save");
+        save(&root, &manifest("dev.good"), &tokens()).expect("save");
         let broken = root.join("dev.broken");
         std::fs::create_dir_all(&broken).unwrap();
         std::fs::write(broken.join(MANIFEST_FILE), "{ not json").unwrap();
@@ -1084,13 +914,33 @@ mod tests {
             let loaded = get(&root, id).expect("migrated theme should load");
             assert_eq!(loaded.manifest.tier, "basic");
             assert_eq!(loaded.manifest.capabilities, vec!["tokens".to_string()]);
-            assert_eq!(loaded.tokens["dark"]["bg"], bg);
-            assert!(loaded.tokens["light"].is_object());
+            // The authored pair arrives under the v2 palette keys, with the
+            // rest of the palette at Neutral's defaults.
+            assert_eq!(loaded.tokens["schemaVersion"], 2);
+            assert_eq!(loaded.tokens["colors"]["dark"]["bg"], bg);
+            assert!(loaded.tokens["colors"]["light"].is_object());
+            assert_eq!(loaded.tokens["colors"]["dark"]["accent"], "#8fa3bd");
+            assert!(loaded.tokens["scales"].is_object());
+            assert!(loaded.tokens["roles"].is_object());
         }
-        // The authored pair arrives intact under the documented keys.
+        // The authored pair arrives intact under the documented keys, and a
+        // scheme the legacy blob left empty keeps Neutral's light palette.
         let first = get(&root, "local.my-cool-theme").expect("load");
-        assert_eq!(first.tokens["dark"]["bg"], "#111111");
-        assert_eq!(first.tokens["light"]["bg"], "#eeeeee");
+        assert_eq!(first.tokens["colors"]["dark"]["bg"], "#111111");
+        assert_eq!(first.tokens["colors"]["light"]["bg"], "#eeeeee");
+        let second = get(&root, "local.second-one").expect("load");
+        assert_eq!(second.tokens["colors"]["light"]["bg"], "#f3f4f6");
+        // ...and the grid shows it as a current-format theme.
+        let scanned = scan(&root);
+        assert!(scanned.skipped.is_empty(), "{:?}", scanned.skipped);
+        assert!(
+            scanned
+                .themes
+                .iter()
+                .all(|theme| !theme.incompatible && theme.incompatible_reason.is_none()),
+            "{:?}",
+            scanned.themes
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -1128,38 +978,206 @@ mod tests {
     }
 
     #[test]
-    fn tokens_must_be_an_object_carrying_a_schema_version() {
-        assert!(validate_tokens(&serde_json::json!({ "schemaVersion": 1 })).is_ok());
-        assert!(validate_tokens(&serde_json::json!({ "dark": {} })).is_err());
+    fn tokens_must_be_a_v2_palette() {
+        assert!(validate_tokens(&tokens()).is_ok());
+        assert!(validate_tokens(&serde_json::json!({ "schemaVersion": 2 })).is_ok());
+        assert!(validate_tokens(&serde_json::json!({ "dark": {}, "light": {} })).is_err());
+        assert!(validate_tokens(&serde_json::json!({ "schemaVersion": 1 })).is_err());
+        assert!(validate_tokens(
+            &serde_json::json!({ "schemaVersion": 1, "dark": {}, "light": {} })
+        )
+        .is_err());
+        // A v2 envelope is not enough on its own: the contents must be a
+        // shape `TokensV2` accepts.
+        assert!(validate_tokens(
+            &serde_json::json!({ "schemaVersion": 2, "roles": { "radius": { "row": true } } })
+        )
+        .is_err());
         assert!(validate_tokens(&serde_json::json!([1, 2])).is_err());
     }
 
-    /// Exactly the rule `validate_tokens` applies: an object with a
-    /// `schemaVersion`, and nothing else about the contents.
+    /// The v1 envelope the picker used to write is refusable wherever a palette
+    /// enters — the read of an installed theme and the write of a new one.
     #[test]
-    fn layouts_are_held_to_the_same_shape_rule_as_tokens() {
-        assert!(validate_layout(&serde_json::json!({ "schemaVersion": 1 })).is_ok());
-        assert!(validate_layout(&serde_json::json!({ "slots": {} })).is_err());
-        assert!(validate_layout(&serde_json::json!([1, 2])).is_err());
-        assert!(validate_layout(&serde_json::json!("a string")).is_err());
-        // Unknown slot ids and keys are not the backend's business.
-        assert!(validate_layout(&layout()).is_ok());
+    fn a_v1_tokens_file_is_rejected_on_read_and_on_save() {
+        let root = scratch("v1tokens");
+        save(&root, &manifest("dev.v2"), &tokens()).expect("save");
+        std::fs::write(
+            root.join("dev.v2").join(TOKENS_FILE),
+            r##"{"schemaVersion":1,"dark":{"bg":"#111111"},"light":{}}"##,
+        )
+        .unwrap();
+
+        let err = get(&root, "dev.v2").expect_err("a v1 palette must not load");
+        assert!(err.contains("schemaVersion"), "{err}");
+
+        let err = save(
+            &root,
+            &manifest("dev.v1"),
+            &serde_json::json!({ "schemaVersion": 1, "dark": {}, "light": {} }),
+        )
+        .expect_err("a v1 palette must not save");
+        assert!(err.contains("schemaVersion"), "{err}");
+        assert!(!root.join("dev.v1").exists());
+        let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// The expert-tier files are held to exactly the same rule: an object with
-    /// a `schemaVersion`, and nothing else about the contents.
+    /// Exactly what `duplicateTheme` puts on the wire: a v2 manifest with no
+    /// `tier`, and a full `TokensV2` — the resolved colours, the bloom, and the
+    /// scales/roles copied from the source. Both halves must survive the
+    /// backend and read as a compatible theme.
     #[test]
-    fn settings_schemas_and_components_are_held_to_the_same_shape_rule_as_layouts() {
+    fn a_frontend_duplicate_saves_and_scans_as_compatible() {
+        let root = scratch("frontend-duplicate");
+        let manifest: ThemeManifest = serde_json::from_value(serde_json::json!({
+            "schemaVersion": 2,
+            "id": "local.extras-skin",
+            "name": "Extras skin",
+            "author": "local",
+            "version": "1.0.0",
+            "themeApi": "2.0",
+            "minimumLauncherVersion": "0.0.0",
+            "description": "",
+            "preview": null,
+            "license": null,
+            "homepage": null,
+            "tags": [],
+            "capabilities": ["tokens"],
+        }))
+        .expect("the frontend's manifest shape must deserialise");
+        assert_eq!(manifest.tier, "", "the frontend writes no tier");
+
+        let tokens = serde_json::json!({
+            "schemaVersion": 2,
+            "colors": {
+                "dark": {
+                    "bg": "#0d0f13", "surface": "#12151b", "surface2": "#1a1e26",
+                    "border": "#262b34", "text": "#e7ebf0", "muted": "#7a8494",
+                    "muted2": "#98a2b2", "accent": "#8fa3bd", "accent2": "#b0976a",
+                    "success": "#4d9a75", "warn": "#c19a55", "danger": "#b3564d",
+                },
+                "light": {
+                    "bg": "#f3f4f6", "surface": "#ffffff", "surface2": "#e9ebef",
+                    "border": "#d2d6dc", "text": "#181b20", "muted": "#5d6570",
+                    "muted2": "#8a919d", "accent": "#3e5f7d", "accent2": "#8a6d34",
+                    "success": "#287a4f", "warn": "#9a7b3a", "danger": "#a94a42",
+                },
+            },
+            "bloom": 0.42,
+            "scales": { "radius": { "md": "9px" }, "type": { "size": { "md": "11px" } } },
+            "roles": { "radius": { "row": "9px" }, "type": { "heading": { "size": "2xl" } } },
+        });
+
+        let id = save(&root, &manifest, &tokens).expect("the duplicate must save");
+        assert_eq!(id, "local.extras-skin");
+        assert_eq!(
+            get(&root, &id).expect("the duplicate must load").tokens,
+            tokens,
+            "the palette round-trips verbatim"
+        );
+
+        let scanned = scan(&root);
+        assert!(scanned.skipped.is_empty(), "{:?}", scanned.skipped);
+        assert_eq!(scanned.themes.len(), 1);
+        assert!(!scanned.themes[0].incompatible, "{:?}", scanned.themes[0]);
+        assert_eq!(scanned.themes[0].incompatible_reason, None);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// SPEC §4.6's in-place path: a user theme's palette is rewritten, and the
+    /// rewrite reads back exactly through the same `get` the runtime uses.
+    #[test]
+    fn a_user_themes_tokens_update_in_place() {
+        let root = scratch("update-tokens");
+        save(&root, &manifest("local.mine"), &tokens()).expect("save");
+        let updated = serde_json::json!({
+            "schemaVersion": 2,
+            "colors": { "dark": { "bg": "#123456" }, "light": { "bg": "#fefefe" } },
+            "bloom": 0.5,
+        });
+
+        update_tokens(&root, "local.mine", &updated).expect("update");
+
+        let loaded = get(&root, "local.mine").expect("the updated theme loads");
+        assert_eq!(loaded.tokens, updated);
+        assert_eq!(
+            loaded.manifest.name, "Test Theme",
+            "the manifest is untouched"
+        );
+        assert!(
+            !root.join("local.mine").join("tokens.json.tmp").exists(),
+            "the temp file is renamed away, never left behind"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Only `local.*` ids name a theme the launcher may rewrite: an imported
+    /// package, a built-in preset, a missing directory and a path all refuse.
+    #[test]
+    fn updating_tokens_refuses_anything_but_an_installed_user_theme() {
+        let root = scratch("update-refused");
+        save(&root, &manifest("starter.styled"), &tokens()).expect("save an import");
+
+        for id in ["starter.styled", "builtin.tactical"] {
+            let err = update_tokens(&root, id, &tokens()).expect_err("must refuse");
+            assert!(err.contains("not a user theme"), "{id}: {err}");
+        }
+
+        let err = update_tokens(&root, "local.missing", &tokens()).expect_err("must refuse");
+        assert!(err.contains("No installed theme"), "{err}");
+
+        let err =
+            update_tokens(&root, "local.escape/../../evil", &tokens()).expect_err("must refuse");
+        assert!(err.contains("not a usable theme id"), "{err}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A refused update is a no-op: the old file survives every rejection
+    /// reason — a v1 envelope, v2 contents `TokensV2` rejects, and an
+    /// older-format install.
+    #[test]
+    fn a_refused_token_update_leaves_the_old_file_untouched() {
+        let root = scratch("update-untouched");
+        save(&root, &manifest("local.mine"), &tokens()).expect("save");
+        let path = root.join("local.mine").join(TOKENS_FILE);
+        let before = std::fs::read_to_string(&path).unwrap();
+
+        let v1 = serde_json::json!({ "schemaVersion": 1, "dark": {}, "light": {} });
+        let err = update_tokens(&root, "local.mine", &v1).expect_err("must refuse v1");
+        assert!(err.contains("schemaVersion"), "{err}");
+
+        let malformed = serde_json::json!({
+            "schemaVersion": 2,
+            "roles": { "radius": { "row": true } },
+        });
+        let err = update_tokens(&root, "local.mine", &malformed).expect_err("must refuse");
+        assert!(err.contains("Invalid tokens.json"), "{err}");
+
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            before,
+            "a failed validation must not touch the file"
+        );
+
+        let mut old = manifest("local.old");
+        old.schema_version = 1;
+        save(&root, &old, &tokens()).expect("save an older install");
+        let old_path = root.join("local.old").join(TOKENS_FILE);
+        let old_before = std::fs::read_to_string(&old_path).unwrap();
+        let err = update_tokens(&root, "local.old", &tokens()).expect_err("must refuse");
+        assert!(err.contains("older theme format"), "{err}");
+        assert_eq!(std::fs::read_to_string(&old_path).unwrap(), old_before);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// The settings schema is held to the same rule: an object with a
+    /// `schemaVersion`, and nothing else about the contents.
+    #[test]
+    fn a_settings_schema_is_held_to_an_object_with_a_schema_version() {
         assert!(validate_settings_schema(&settings_schema()).is_ok());
         assert!(validate_settings_schema(&serde_json::json!({ "schemaVersion": 1 })).is_ok());
         assert!(validate_settings_schema(&serde_json::json!({ "fields": [] })).is_err());
         assert!(validate_settings_schema(&serde_json::json!([1, 2])).is_err());
         assert!(validate_settings_schema(&serde_json::json!("a string")).is_err());
-
-        assert!(validate_components(&components()).is_ok());
-        assert!(validate_components(&serde_json::json!({ "schemaVersion": 1 })).is_ok());
-        assert!(validate_components(&serde_json::json!({ "root": {} })).is_err());
-        assert!(validate_components(&serde_json::json!([1, 2])).is_err());
-        assert!(validate_components(&serde_json::json!("a string")).is_err());
     }
 }

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 2,
+  "id": "starter.styled",
+  "name": "Styled",
+  "author": "Tetra Launcher",
+  "version": "1.0.0",
+  "themeApi": "2.0",
+  "minimumLauncherVersion": "2.6.0",
+  "description": "Adds a stylesheet and theme settings on top of a palette. Compare it against Colours only to see what CSS and settings can reach.",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "homepage": "https://tetralauncher.com/",
+  "tags": ["starter", "css", "settings"],
+  "capabilities": ["tokens", "css", "settings"]
+}

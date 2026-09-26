@@ -1,0 +1,606 @@
+{
+  "schemaVersion": 2,
+  "variants": [
+    {
+      "minWidth": 0,
+      "root": {
+        "type": "stack",
+        "direction": "column",
+        "height": "100%",
+        "grow": 1,
+        "minWidth": "0px",
+        "children": [
+          {
+            "type": "stack",
+            "id": "r-filterbar",
+            "direction": "column",
+            "children": [
+              {
+                "type": "stack",
+                "id": "r-filterbar-top",
+                "direction": "row",
+                "align": "center",
+                "minWidth": "0px",
+                "children": [
+                  {
+                    "element": "filter.search",
+                    "options": {
+                      "showIcon": true
+                    }
+                  },
+                  {
+                    "element": "filter.map"
+                  },
+                  {
+                    "element": "filter.tags"
+                  },
+                  {
+                    "element": "filter.region"
+                  },
+                  {
+                    "element": "filter.mods"
+                  },
+                  {
+                    "element": "filter.maxPing"
+                  }
+                ],
+                "wrap": true
+              },
+              {
+                "type": "stack",
+                "id": "r-filterbar-bottom",
+                "direction": "row",
+                "align": "center",
+                "minWidth": "0px",
+                "children": [
+                  {
+                    "type": "stack",
+                    "id": "r-hides",
+                    "direction": "row",
+                    "align": "center",
+                    "children": [
+                      {
+                        "element": "filter.hideEmpty"
+                      },
+                      {
+                        "element": "filter.hideOffline"
+                      },
+                      {
+                        "element": "filter.hideFull"
+                      },
+                      {
+                        "element": "filter.hideLocked"
+                      }
+                    ]
+                  },
+                  {
+                    "element": "filter.reset",
+                    "options": {
+                      "display": "iconLabel"
+                    }
+                  },
+                  {
+                    "element": "servers.refresh",
+                    "options": {
+                      "display": "iconLabel"
+                    }
+                  }
+                ]
+              }
+            ],
+            "shrink": 0
+          },
+          {
+            "type": "stack",
+            "direction": "row",
+            "grow": 1,
+            "minHeight": "0px",
+            "children": [
+              {
+                "element": "list.servers",
+                "grow": 1,
+                "minWidth": "0px",
+                "minHeight": "0px"
+              },
+              {
+                "type": "stack",
+                "id": "r-detail",
+                "context": "selection",
+                "direction": "column",
+                "children": [
+                  {
+                    "type": "stack",
+                    "id": "r-detail-body",
+                    "direction": "column",
+                    "children": [
+                      {
+                        "type": "stack",
+                        "id": "r-identity",
+                        "direction": "column",
+                        "children": [
+                          {
+                            "type": "stack",
+                            "id": "r-title",
+                            "direction": "row",
+                            "align": "start",
+                            "children": [
+                              {
+                                "element": "server.name"
+                              },
+                              {
+                                "element": "server.favourite"
+                              },
+                              {
+                                "element": "server.deselect"
+                              }
+                            ]
+                          },
+                          {
+                            "element": "server.address",
+                            "options": {
+                              "showGamePort": true
+                            }
+                          },
+                          {
+                            "element": "server.tags",
+                            "options": {
+                              "officialWording": "official",
+                              "showBattleye": true,
+                              "showModUpdate": false
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "stack",
+                        "id": "r-stats",
+                        "direction": "row",
+                        "children": [
+                          {
+                            "element": "server.players"
+                          },
+                          {
+                            "element": "server.ping",
+                            "options": {
+                              "showUnit": true
+                            }
+                          },
+                          {
+                            "element": "server.gameTime"
+                          },
+                          {
+                            "element": "server.modCount"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "stack",
+                        "id": "r-props",
+                        "direction": "column",
+                        "children": [
+                          {
+                            "type": "stack",
+                            "direction": "row",
+                            "align": "baseline",
+                            "class": "t-prop",
+                            "children": [
+                              {
+                                "type": "text",
+                                "value": "MAP",
+                                "role": "label",
+                                "class": "t-prop-label"
+                              },
+                              {
+                                "element": "server.map"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "stack",
+                            "direction": "row",
+                            "align": "baseline",
+                            "class": "t-prop",
+                            "children": [
+                              {
+                                "type": "text",
+                                "value": "VERSION",
+                                "role": "label",
+                                "class": "t-prop-label"
+                              },
+                              {
+                                "element": "server.version"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "stack",
+                            "direction": "row",
+                            "align": "baseline",
+                            "class": "t-prop",
+                            "children": [
+                              {
+                                "type": "text",
+                                "value": "REGION",
+                                "role": "label",
+                                "class": "t-prop-label"
+                              },
+                              {
+                                "element": "server.region"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "element": "list.serverMods",
+                    "grow": 1,
+                    "minHeight": "0px",
+                    "minWidth": "0px"
+                  },
+                  {
+                    "type": "stack",
+                    "id": "r-actions",
+                    "direction": "column",
+                    "children": [
+                      {
+                        "element": "server.actionNotice"
+                      },
+                      {
+                        "type": "stack",
+                        "id": "r-join",
+                        "direction": "row",
+                        "children": [
+                          {
+                            "element": "server.join",
+                            "options": {
+                              "wording": "fixAndJoin"
+                            }
+                          },
+                          {
+                            "element": "server.cancel"
+                          },
+                          {
+                            "element": "server.menu",
+                            "options": {
+                              "menu": "serverLoad",
+                              "icon": "chevronDown"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "stack",
+                        "id": "r-detail-toolbar",
+                        "direction": "row",
+                        "children": [
+                          {
+                            "element": "server.checkMods",
+                            "options": {
+                              "display": "icon"
+                            }
+                          },
+                          {
+                            "element": "server.subscribeAll",
+                            "options": {
+                              "display": "icon"
+                            }
+                          },
+                          {
+                            "element": "server.unsubscribeUnique",
+                            "options": {
+                              "display": "icon"
+                            }
+                          },
+                          {
+                            "element": "server.copyAddress",
+                            "options": {
+                              "display": "icon"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "element": "server.manageMods"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "id": "r-browser"
+      }
+    },
+    {
+      "minWidth": 1400,
+      "root": {
+        "type": "stack",
+        "direction": "column",
+        "height": "100%",
+        "grow": 1,
+        "minWidth": "0px",
+        "children": [
+          {
+            "type": "stack",
+            "id": "r-filterbar",
+            "direction": "row",
+            "align": "center",
+            "children": [
+              {
+                "element": "filter.search",
+                "options": {
+                  "showIcon": true
+                }
+              },
+              {
+                "element": "filter.map"
+              },
+              {
+                "element": "filter.tags"
+              },
+              {
+                "element": "filter.region"
+              },
+              {
+                "element": "filter.mods"
+              },
+              {
+                "element": "filter.maxPing"
+              },
+              {
+                "type": "stack",
+                "id": "r-hides",
+                "direction": "row",
+                "align": "center",
+                "children": [
+                  {
+                    "element": "filter.hideEmpty"
+                  },
+                  {
+                    "element": "filter.hideOffline"
+                  },
+                  {
+                    "element": "filter.hideFull"
+                  },
+                  {
+                    "element": "filter.hideLocked"
+                  }
+                ]
+              },
+              {
+                "element": "filter.reset",
+                "options": {
+                  "display": "iconLabel"
+                }
+              },
+              {
+                "element": "servers.refresh",
+                "options": {
+                  "display": "iconLabel"
+                }
+              }
+            ],
+            "shrink": 0
+          },
+          {
+            "type": "stack",
+            "direction": "row",
+            "grow": 1,
+            "minHeight": "0px",
+            "children": [
+              {
+                "element": "list.servers",
+                "grow": 1,
+                "minWidth": "0px",
+                "minHeight": "0px"
+              },
+              {
+                "type": "stack",
+                "id": "r-detail",
+                "context": "selection",
+                "direction": "column",
+                "children": [
+                  {
+                    "type": "stack",
+                    "id": "r-identity",
+                    "direction": "column",
+                    "children": [
+                      {
+                        "type": "stack",
+                        "id": "r-title",
+                        "direction": "row",
+                        "align": "start",
+                        "children": [
+                          {
+                            "element": "server.name"
+                          },
+                          {
+                            "element": "server.favourite"
+                          },
+                          {
+                            "element": "server.deselect"
+                          }
+                        ]
+                      },
+                      {
+                        "element": "server.address",
+                        "options": {
+                          "showGamePort": true
+                        }
+                      },
+                      {
+                        "element": "server.tags",
+                        "options": {
+                          "officialWording": "official",
+                          "showBattleye": true,
+                          "showModUpdate": false
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "stack",
+                    "id": "r-stats",
+                    "direction": "row",
+                    "children": [
+                      {
+                        "element": "server.players"
+                      },
+                      {
+                        "element": "server.ping",
+                        "options": {
+                          "showUnit": true
+                        }
+                      },
+                      {
+                        "element": "server.gameTime"
+                      },
+                      {
+                        "element": "server.modCount"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "stack",
+                    "id": "r-props",
+                    "direction": "column",
+                    "children": [
+                      {
+                        "type": "stack",
+                        "direction": "row",
+                        "align": "baseline",
+                        "class": "t-prop",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "MAP",
+                            "role": "label",
+                            "class": "t-prop-label"
+                          },
+                          {
+                            "element": "server.map"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "stack",
+                        "direction": "row",
+                        "align": "baseline",
+                        "class": "t-prop",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "VERSION",
+                            "role": "label",
+                            "class": "t-prop-label"
+                          },
+                          {
+                            "element": "server.version"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "stack",
+                        "direction": "row",
+                        "align": "baseline",
+                        "class": "t-prop",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "REGION",
+                            "role": "label",
+                            "class": "t-prop-label"
+                          },
+                          {
+                            "element": "server.region"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "element": "list.serverMods",
+                    "grow": 1,
+                    "minHeight": "0px",
+                    "minWidth": "0px"
+                  },
+                  {
+                    "type": "stack",
+                    "id": "r-actions",
+                    "direction": "column",
+                    "children": [
+                      {
+                        "element": "server.actionNotice"
+                      },
+                      {
+                        "type": "stack",
+                        "id": "r-join",
+                        "direction": "row",
+                        "children": [
+                          {
+                            "element": "server.join",
+                            "options": {
+                              "wording": "fixAndJoin"
+                            }
+                          },
+                          {
+                            "element": "server.cancel"
+                          },
+                          {
+                            "element": "server.menu",
+                            "options": {
+                              "menu": "serverLoad",
+                              "icon": "chevronDown"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "stack",
+                        "id": "r-detail-toolbar",
+                        "direction": "row",
+                        "children": [
+                          {
+                            "element": "server.checkMods",
+                            "options": {
+                              "display": "icon"
+                            }
+                          },
+                          {
+                            "element": "server.subscribeAll",
+                            "options": {
+                              "display": "icon"
+                            }
+                          },
+                          {
+                            "element": "server.unsubscribeUnique",
+                            "options": {
+                              "display": "icon"
+                            }
+                          },
+                          {
+                            "element": "server.copyAddress",
+                            "options": {
+                              "display": "icon"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "element": "server.manageMods"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "id": "r-browser"
+      }
+    }
+  ]
+}

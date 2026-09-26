@@ -14,6 +14,9 @@ export interface GridEntry {
   version?: string;
   /** The manifest's own relative preview path; absent for built-ins. */
   preview?: string;
+  /** True when the backend's scan flagged this theme's schema/API as unsupported. */
+  incompatible?: boolean;
+  incompatibleReason?: string;
 }
 
 interface ThemeGridProps {
@@ -35,12 +38,26 @@ const IS_SHOWCASE = Object.fromEntries(
   BUILTIN_SHOWCASE_IDS.map((id) => [id, true as const]),
 ) as Record<string, true>;
 
+/** The grid card's image: the first `previews` entry, falling back to v1's single `preview`. */
+function gridPreview(t: ThemeSummary): string | undefined {
+  return t.previews?.[0]?.file ?? t.preview ?? undefined;
+}
+
 /** Neutral, then the showcase themes in fixed order, then installed themes. */
 export function buildGridEntries(installedThemes: ThemeSummary[]): GridEntry[] {
   const showcase = BUILTIN_SHOWCASE_IDS.flatMap((id) => {
     const t = installedThemes.find((theme) => theme.id === id);
     return t
-      ? [{ id: t.id, name: t.name, builtin: true, author: t.author, version: t.version, preview: t.preview ?? undefined }]
+      ? [{
+          id: t.id,
+          name: t.name,
+          builtin: true,
+          author: t.author,
+          version: t.version,
+          preview: gridPreview(t),
+          incompatible: t.incompatible,
+          incompatibleReason: t.incompatibleReason ?? undefined,
+        }]
       : [];
   });
   const rest = installedThemes.filter((t) => !(t.id in IS_SHOWCASE));
@@ -53,7 +70,9 @@ export function buildGridEntries(installedThemes: ThemeSummary[]): GridEntry[] {
       builtin: false,
       author: t.author,
       version: t.version,
-      preview: t.preview ?? undefined,
+      preview: gridPreview(t),
+      incompatible: t.incompatible,
+      incompatibleReason: t.incompatibleReason ?? undefined,
     })),
   ];
 }
@@ -126,7 +145,7 @@ export function ThemeGrid({
 
   return (
     <div className="relative">
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
         {visible.map((entry) => {
           const dark = resolvedPair(entry.id, themeFiles).dark;
           const custom = !entry.builtin;
@@ -140,17 +159,22 @@ export function ThemeGrid({
               active={entry.id === activeId}
               swatches={[dark.bg, dark.surface, dark.accent, dark.text]}
               previewUrl={entry.preview ? resolveThemeAsset(entry.id, entry.preview) : undefined}
-              onActivate={() => onActivate(entry.id)}
-              onDuplicate={() =>
-                onDuplicate(
-                  entry.id,
-                  nextDuplicateName(
-                    entry.name,
-                    entries.map((e) => e.name),
-                  ),
-                )
+              incompatible={entry.incompatible}
+              incompatibleReason={entry.incompatibleReason}
+              onActivate={entry.incompatible ? undefined : () => onActivate(entry.id)}
+              onDuplicate={
+                entry.incompatible
+                  ? undefined
+                  : () =>
+                      onDuplicate(
+                        entry.id,
+                        nextDuplicateName(
+                          entry.name,
+                          entries.map((e) => e.name),
+                        ),
+                      )
               }
-              onExport={custom ? () => onExport(entry.id) : undefined}
+              onExport={custom && !entry.incompatible ? () => onExport(entry.id) : undefined}
               // The active theme can't delete itself out from under the launcher.
               onRequestDelete={
                 custom && entry.id !== activeId
@@ -186,16 +210,16 @@ export function ThemeGrid({
             aria-modal="true"
             aria-label={confirm.title}
             onKeyDown={trapConfirmTab}
-            className="w-80 rounded-[8px] border border-line bg-surface p-3 shadow-2xl"
+            className="w-80 [border-radius:var(--t-radius-card)] border border-line bg-surface p-3 [box-shadow:var(--t-shadow-confirm)]"
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="text-xs font-bold text-ink">{confirm.title}</p>
-            <p className="mt-1.5 text-[11px] leading-relaxed text-muted2">{confirm.message}</p>
+            <p className="[font-size:var(--t-type-subheading-size)] font-bold text-ink">{confirm.title}</p>
+            <p className="mt-1.5 [font-size:var(--t-type-body-size)] leading-relaxed text-muted2">{confirm.message}</p>
             <div className="mt-3 flex justify-end gap-2">
               <button
                 ref={confirmCancelRef}
                 onClick={() => setConfirm(null)}
-                className="rounded-[6px] border border-line bg-surface2 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted2 transition-colors hover:text-ink"
+                className="[border-radius:var(--t-radius-control)] border border-line bg-surface2 px-3 py-1.5 [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider text-muted2 transition-colors hover:text-ink"
               >
                 Cancel
               </button>
@@ -205,7 +229,7 @@ export function ThemeGrid({
                   setConfirm(null);
                   onDelete(id);
                 }}
-                className="rounded-[6px] bg-danger px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#10131a] transition-colors hover:brightness-110"
+                className="[border-radius:var(--t-radius-control)] bg-danger px-3 py-1.5 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onDanger)] transition-colors hover:brightness-110"
               >
                 Confirm
               </button>

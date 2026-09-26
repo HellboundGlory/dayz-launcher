@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 2,
+  "estimatedRowHeight": "44px",
+  "row": {
+    "type": "stack",
+    "direction": "row",
+    "align": "center",
+    "class": "t-modfilter-row",
+    "children": [
+      { "element": "workshopMod.thumbnail" },
+      { "element": "workshopMod.name", "grow": 1, "minWidth": "0px" },
+      { "element": "workshopMod.subscribed" },
+      { "element": "workshopMod.serverCount" },
+      { "element": "workshopMod.pick" }
+    ]
+  }
+}

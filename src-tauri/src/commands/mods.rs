@@ -212,6 +212,8 @@ pub struct KnownMod {
     pub workshop_id: String,
     pub name: String,
     pub server_count: usize,
+    /// From the Workshop cache at any age; `get_workshop_previews` fills the gaps.
+    pub preview_url: Option<String>,
 }
 
 /// Every mod seen on a registered server, ranked by how many servers declare
@@ -223,16 +225,42 @@ pub async fn get_known_mods(
 ) -> Result<Vec<KnownMod>, String> {
     crate::commands::server::blocking_read(&state, move |reader| {
         let rows = reader.known_mods(limit).map_err(|e| e.to_string())?;
+        let ids: Vec<u64> = rows.iter().map(|(id, _, _)| *id).collect();
+        let mut cache = reader
+            .get_workshop_cache(&ids, u64::MAX)
+            .map_err(|e| e.to_string())?;
         Ok(rows
             .into_iter()
             .map(|(id, name, server_count)| KnownMod {
                 workshop_id: id.to_string(),
                 name,
                 server_count,
+                preview_url: cache.remove(&id).and_then(|row| row.preview_url),
             })
             .collect())
     })
     .await
+}
+
+/// Workshop preview images for mods known only by id, e.g. the "Seen on
+/// servers" rows `get_known_mods` had no cached preview for. Ids Steam can't
+/// resolve are left out.
+#[tauri::command]
+pub async fn get_workshop_previews(
+    state: State<'_, AppState>,
+    workshop_ids: Vec<String>,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    let ids: Vec<u64> = workshop_ids
+        .iter()
+        .filter_map(|id| id.parse().ok())
+        .filter(|&id| tetra_steam::ModState::is_workshop_id(id))
+        .collect();
+    let cache =
+        crate::commands::server::resolve_workshop_cache(&state, &ids, Default::default()).await?;
+    Ok(cache
+        .into_iter()
+        .filter_map(|(id, row)| row.preview_url.map(|url| (id.to_string(), url)))
+        .collect())
 }
 
 /// The "Search Workshop" tab: a live text-search query against the Workshop,
