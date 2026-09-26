@@ -1,6 +1,6 @@
 # Tetra Launcher — Theme System
 
-How a theme may restyle and rearrange Tetra Launcher's interface without touching the launcher's logic or data. This file is the glossary only; the design contract is `docs/theme-system/SPEC.md`.
+How a theme may restyle and rearrange Tetra Launcher's interface without touching the launcher's logic or data. This file is the glossary only; the design contract is `.ai-notes/theme-system/SPEC.md` (local only; decisions in `.ai-notes/adr/`).
 
 ## Language
 
