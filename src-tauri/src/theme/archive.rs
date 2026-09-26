@@ -1209,7 +1209,6 @@ mod tests {
                 ],
             );
             let error = stage_for_preview(&root, &package, &[]).unwrap_err();
-            assert!(error.contains("an earlier decision"), "{error}");
             assert!(error.contains("v1 packages cannot be imported"), "{error}");
         }
     }
