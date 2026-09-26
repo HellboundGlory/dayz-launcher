@@ -4,7 +4,7 @@ The staged build plan for theme system v2. `SPEC.md` says what to build; this fi
 
 - **Design decisions:** `docs/adr/0003`–`0024`.
 - **Element registry:** `ELEMENTS.md`.
-- **Reference layout to reproduce:** `docs/theme-system/reference/tactical-reference.png`.
+- **Reference layout to reproduce:** the pre-overhaul interface — the UI at git `23f02fa^`, screenshotted under `docs/assets/`. `docs/theme-system/reference/tactical-reference.png` is a mockup, not the target.
 
 ## Branches and merges
 
@@ -99,10 +99,11 @@ Clippy warnings are CI errors. GUI verification is the coordinator's job, with t
 
 Build it first: it is what proves the rest of this stage changed nothing.
 
-- Playwright drives the Vite frontend in Chromium with the Tauri IPC mocked by fixtures (§25 of `SPEC.md`).
+- Playwright drives the Vite frontend in headless Chromium with the Tauri IPC mocked by fixtures (§25 of `SPEC.md`).
 - Fixtures cover a populated server list, an empty list, a modded server with mixed mod states, a Mods list with outdated and downloading mods, and a degraded-storage session.
 - Screenshots: every view, every modal, every popup and Settings, at 1400×800 and at 975×620, in dark and light.
-- `npm run visual` records baselines; `npm run visual:check` compares.
+- `npm run visual` records baselines under `tools/harness/baselines/` (gitignored, regenerable); `npm run visual:check` compares. Local only — no CI gate.
+- `npm run perf` measures the SPEC §24 budgets (scroll, activation, visibility check, memory) and reports them.
 
 **Acceptance:** two runs on an unchanged tree produce zero diffs.
 
@@ -124,7 +125,7 @@ Split by area so each worker owns whole files:
 
 Each package replaces hardcoded radii, spacing, text sizes, weights, tracking, leading, borders, shadows, durations and stray hex colours with role variables, extends `TOKEN-MAP.md`, and splits a role whenever two call sites under it differ today (SPEC §4.4).
 
-**Acceptance per package:** `npm run visual:check` reports zero diffs, and no `rounded-[`, `text-[`, `shadow-[`, `duration-`, or bare hex colour remains in those files outside the token layer.
+**Acceptance per package:** `npm run visual:check` reports zero diffs (local harness — baselines are gitignored, and there is no CI job), and no `rounded-[`, `text-[`, `shadow-[`, `duration-`, or bare hex colour remains in those files outside the token layer.
 
 ## Stage 3: the registry and the validators
 
@@ -218,20 +219,19 @@ Package 4.6 deletes: `src/theme/slots.ts`, `component-tree.ts`, `component-tree-
 
 ## Stage 8: Tactical v2, performance and the final pass
 
-| Package | Scope |
-|---|---|
-| 8.1 | Tactical v2 as a package only: top nav tabs, a column-header table, a persistent detail panel with per-mod readiness, the hide toggles, square corners, a compact per-row Join |
-| 8.2 | Performance: measure the budgets in the harness and fix what misses them |
-| 8.3 | Final pass: manual WebKitGTK verification by the user, docs synced, `DESIGN.md` and `CHANGELOG` updated |
+| Package | Scope | State |
+|---|---|---|
+| 8.1 | Tactical v2 as a package only: top nav tabs, a column-header table, a persistent detail panel with per-mod readiness, the hide toggles, square corners, a compact per-row Join | Built — `src-tauri/resources/builtin-themes/builtin.tactical/` |
+| 8.2 | Performance: measure the budgets in the harness and fix what misses them | Built — every SPEC §24 budget passes in `npm run perf` |
+| 8.3 | Final pass: manual WebKitGTK verification by the user, docs synced, `DESIGN.md` and `CHANGELOG` updated | Built, except the manual WebKitGTK pass, which only James can do |
 
-**Acceptance:** Tactical v2 matches `docs/theme-system/reference/tactical-reference.png` side by side, with no Tactical-specific launcher code; every budget in SPEC §24 is met; Neutral is still pixel-identical.
+**Acceptance:** Tactical v2 matches the pre-overhaul interface side by side, with no Tactical-specific launcher code; every budget in SPEC §24 is met; Neutral is still pixel-identical.
 
 ## CI
 
-Two additions to `.github/workflows/check.yml`:
+`.github/workflows/check.yml` runs the ordinary checks: `cargo fmt --all --check`, clippy, `cargo test --workspace`, `npm run build`, `npm test` and `npm run lint`. The `registry.json` versus `ELEMENTS.md` agreement test runs inside `npm test` and `cargo test --workspace`, so neither side can drift alone.
 
-- **Visual regression:** install Playwright's Chromium and run `npm run visual:check` on the Linux job. Baselines are committed; a diff fails the build.
-- **Registry agreement:** the `registry.json` versus `ELEMENTS.md` test runs inside `npm test` and `cargo test --workspace`, so neither side can drift alone.
+The visual harness is deliberately not a CI job. Baselines are gitignored and rebuilt with `npm run visual`; `npm run visual:check` is run locally. `npm run perf` measures the SPEC §24 budgets and is likewise run by hand.
 
 ## Risks
 

@@ -2,7 +2,7 @@
 
 The design contract for Tetra Launcher's theme system v2: what a theme package contains, what it may change, and what the launcher guarantees no matter what a theme does.
 
-- **Status:** designed, not implemented. Nothing here is on `main`.
+- **Status:** built on `theme-phase4`; merges to `main` when Stage 8 is done.
 - **Vocabulary:** `CONTEXT.md`.
 - **Decisions and their reasoning:** `docs/adr/0003`–`0024`.
 - **Every element a theme can place:** `ELEMENTS.md`.
@@ -24,7 +24,7 @@ The design contract for Tetra Launcher's theme system v2: what a theme package c
 v2 is done when all of the following hold:
 
 1. **Neutral is pixel-identical** to today's interface, proven by the visual regression harness (§25) and one manual pass on the real WebKitGTK build.
-2. **Tactical v2 reproduces `docs/theme-system/reference/tactical-reference.png`** as a theme package only, with no Tactical-specific launcher code: navigation as top tabs, a column-header table, a persistent detail panel with per-mod readiness, the hide toggles, square corners, and a compact per-row Join.
+2. **Tactical v2 matches the pre-overhaul interface** — the UI at git `23f02fa^`, screenshotted under `docs/assets/` — as a theme package only, with no Tactical-specific launcher code: navigation as top tabs, a column-header table, a persistent detail panel with per-mod readiness, the hide toggles, square corners, and a compact per-row Join. `docs/theme-system/reference/tactical-reference.png` is a mockup, not the target.
 3. **Every required-element rule** in §14 and §15 is enforced, and the fallback path in §16 is covered by tests.
 4. **The performance budgets** in §24 are met.
 5. **The v1 format and its code are deleted** (ADR-0003), and no v1 package can be imported.
@@ -165,7 +165,7 @@ Packages live in the themes folder under the launcher's data directory, one fold
 }
 ```
 
-Every key is optional; anything a theme leaves out keeps Neutral's value. A role may hold either a scale step name (`"md"`) or a literal value (`"7px"`), which is how today's odd sizes survive unchanged.
+Every key is optional; anything a theme leaves out keeps Neutral's value. A role may hold either a scale step name (`"md"`) or a literal value (`"7px"`), which is how today's odd sizes survive unchanged. `scales.type.family` defaults to `ui` (the bundled Inter stack) and `data` (the bundled JetBrains Mono stack).
 
 ### 4.2 Colours
 
@@ -200,7 +200,7 @@ Defaults reproduce today's values.
 | `type.weight` | `normal` 400, `medium` 500, `semibold` 600, `bold` 700, `extrabold` 800 |
 | `type.tracking` | `none` 0, `tight` -0.025em, `wide` 0.025em, `wider` 0.05em, `widest` 0.1em |
 | `type.leading` | `none` 1, `tight` 1.25, `snug` 1.375, `normal` 1.5, `relaxed` 1.625 |
-| `type.family` | `ui`, `data` |
+| `type.family` | `ui` `"Inter", "Segoe UI", system-ui, sans-serif`, `data` `"JetBrains Mono", "Fira Code", "Consolas", monospace` |
 | `border` | `none` 0, `hairline` 1px, `thick` 2px |
 | `shadow` | `none`, `sm` `0 8px 24px rgba(0,0,0,0.4)`, `md` `0 10px 28px rgba(0,0,0,0.5)`, `lg` `0 12px 40px rgba(0,0,0,0.5)`, `xl` `0 24px 60px rgba(0,0,0,0.6)`, `glow` (today's `--glow`) |
 | `motion.duration` | `fast` 150ms, `normal` 200ms, `slow` 300ms |
@@ -222,17 +222,22 @@ Roles are what the base interface actually reads (ADR-0016). A theme that change
 | `shadow` | `panel`, `modal`, `popup`, `drawer`, `glow`, `inspector` (`0 8px 24px rgba(0,0,0,0.5)`) |
 | `motion` | `hover`, `expand`, `overlay` |
 
+A `type` role carries a `family` that names a `type.family` step, so it resolves to the bundled Inter stack or, for `data`, JetBrains Mono.
+
 **The default rule:** every role's default equals the value the base interface uses today at the call sites listed in `docs/theme-system/TOKEN-MAP.md`, which the tokens stage produces. Where two call sites mapped to one role differ today, the role splits into `<role>` and a named variant (for example `radius.control` and `radius.controlSmall`), and the map and this table are updated in the same commit. No call site is left holding a hardcoded value.
 
 ### 4.5 CSS variables
 
 - **Colours keep today's variable names** (`--bg`, `--accent`, `--row-selected`…), so `tailwind.config.js` and the existing palette spine keep working.
 - **Everything else is new and prefixed `--t-`:** `--t-radius-row`, `--t-space-rowX`, `--t-type-body-size`, `--t-shadow-modal`, `--t-motion-hover`, and so on. Scale steps are exposed too (`--t-radius-md`, `--t-space-6`), so theme CSS can reach them.
+- **Non-colour tokens exist only as `--t-` variables:** there is no `--font-ui`, `--font-data`, `--space-*` or `--radius-*`. Fonts are read as `--t-type-family-ui` and `--t-type-family-data`, and through each type role's `-family`.
 - Variables are written to the window root when a theme is applied, exactly as the palette is today.
 
 ### 4.6 The token customiser
 
-The customiser in Settings (part of `settings.themeManagement`) edits the twelve colours, the dark and light switch, and bloom, as today. Under v2 it also edits a short list of roles: `radius.window`, `radius.panel`, `radius.row`, `radius.control`, and the `ui` and `data` font families (Q76). Everything else lives in `tokens.json`. Saving works as it does today: the edited values are written to the active theme when it is a user theme, and otherwise saved as a new user theme.
+The customiser in Settings (part of `settings.themeManagement`) edits the twelve colours, the dark and light switch, and bloom, as today. Under v2 it also edits six roles: `radius.window`, `radius.panel`, `radius.row`, `radius.control`, and the `type.family` `ui` and `data` stacks (Q76). Everything else lives in `tokens.json`.
+
+A **user theme** is an installed theme with a `local.*` id. **Save changes** writes the edited values into the active user theme in place (`update_theme_tokens`). **Save as new** — or **Save theme**, for a bundled or imported theme — duplicates it under a new `local.*` id and activates the copy. An installed theme that isn't a user theme is never rewritten.
 
 ## 5. Layout files
 
@@ -262,7 +267,9 @@ A file that needs different arrangements at different widths uses `variants` ins
 ```
 
 - Two to four variants, ordered by ascending `minWidth`, the first being `0`.
+- The active root is chosen from the window's CSS width in every renderer and host (`useResolvedRoot`); Dev Mode's picked width wins while an author inspects a variant.
 - Width is the window's CSS width, which shrinks as the interface scale rises: at the 975px minimum window and 1.5× scale it is 650px. Every variant is validated, and the narrowest is validated at 650×413.
+- Variants are alternatives, so a region id may repeat across them. `LAY-08` fires only on a repeat inside one root, or a repeat across files.
 - A variant switch re-runs the visibility check (§15).
 
 ### 5.3 Containers
@@ -542,7 +549,7 @@ A surface is a launcher-composed group placed whole (ADR-0006). Its arrangement 
 
 - **Renamed:** the old id stays as an alias for all of 2.x, and Dev Mode warns.
 - **Removed and optional:** dropped with a Dev Mode warning; the screen still renders (ADR-0012).
-- **Newly required, or a required element replaced:** the launcher places it at its `fallbackPlacement` rather than failing the screen, and Dev Mode warns. The forms are `append` (end of the screen or row root), `afterElement:<id>`, and `anchor:<anchor>` (positioned in the screen root).
+- **Newly required, or a required element replaced:** the launcher places it at its `fallbackPlacement` rather than failing the screen, and Dev Mode warns. The forms are `append` (end of the screen or row root), `afterElement:<id>`, and `anchor:<anchor>` (positioned in the screen root). Auto-placement is built and tested as a library but not yet wired into rendering; it is wired in when a 2.x minor first makes an element required. None has yet: every required element is `since: "2.0"`.
 
 ## 7. Lists
 
@@ -936,7 +943,8 @@ Each failure carries a stable id. The catalogue:
 | `LAY-01`…`LAY-12` | Bad envelope, unknown node type, unknown prop, bad sizing value, bad padding or gap (not a token), bad position, bad region id, duplicate region id, unresolved region reference, bad variant list, bad tabs, bad accordion |
 | `ELE-01`…`ELE-08` | Unknown element, wrong placement, wrong subject or context, multiplicity exceeded, unknown option, bad option value, free label where none is allowed, label too long |
 | `LST-01`…`LST-06` | Unknown list, duplicate column id, bad width, unknown sort key, `column` outside a row template, list inside a scroll container |
-| `REQ-01`…`REQ-06` | Missing required element in a view, in Settings, in a modal, in a popup, in a row template, or missing in some settings combination or variant |
+| `REQ-01`…`REQ-05` | Missing required element in a view, in Settings, in a modal, in a popup or in a row template |
+| `REQ-06` | A placed required element that a reachable state hides: a settings combination, a variant, one side of a collapsible region, or the visible context of `server.join` |
 | `LIM-01`…`LIM-05` | Too many nodes, too deep, text too long, too many variants, too many classes |
 
 ### 14.4 Result format
@@ -954,22 +962,24 @@ Errors block an import and cause a fallback at load; warnings surface in the imp
 
 - it exists in the document;
 - its box is larger than zero in both dimensions;
-- it lies inside the window;
-- it is not hidden by `display: none`, `visibility: hidden` or zero opacity;
+- it is not hidden by `display: none`, `visibility: hidden`/`collapse` or zero opacity;
+- it reaches the window, or lies in a visible scroll container that can be scrolled to it — content scrolled out of such a pane counts as reachable;
 - its centre point is not covered by another element;
-- if it is interactive, it is keyboard-focusable.
+- an interactive element is tab-reachable.
 
-**When it runs** (ADR-0011): theme activation, hot reload, window resize (debounced), opening a view, modal or popup, switching variant, collapsing or expanding a region, changing tab, and opening an accordion section. Never on data updates: a list refreshing 27,000 rows doesn't measure anything.
+**When it runs** (ADR-0011): theme activation and hot reload, opening a view, modal or Settings, switching variant, window resize (debounced), and a change to `aria-expanded` or `aria-selected` on a tab, accordion header or popup trigger. Each pass is scheduled after paint — fonts ready, then two frames. Never on data updates: a list refreshing 27,000 rows doesn't measure anything.
 
 **What it skips:**
 
-- inside lists, everything but the selected and the keyboard-focused row;
-- notices that aren't currently showing;
+- inside lists, everything but the selected and the keyboard-focused row, and a selected row scrolled out of view;
+- notices that aren't showing, including `server.actionNotice` while it has nothing to report;
 - required elements inside a closed accordion section, a non-default tab or a collapsed subtree, until that part opens;
 - while a modal is open, the page beneath it: only the modal's own requirements are measured;
 - while Settings is an overlay or panel, the view beneath it. The window controls and drag region are still measured, because they must never be buried.
 
-**Cost.** One read-only pass, batched, with no writes between measurements, budgeted at 16 ms (§24).
+**What it allows.** An open popup paints over the page, so an element beneath one is not occluded. A control the launcher has disabled is launcher state, not a layout fault: an interactive required element fails only when it is out of the tab order (`tabIndex === -1`). Joining the selected server always works, so a visible `server.join` in the selection panel satisfies the selected row's `server.join`.
+
+**Cost.** One read-only pass, batched, with no writes between measurements, budgeted at 16 ms (§24) and reported as the `tetra:visibility-check` performance measure.
 
 **On failure.** The screen is treated as invalid and falls back (§16), and Dev Mode names the element and the reason. Revealing an action on hover stays legal, because what the check measures is the selected and focused rows, where Join must be visible.
 
@@ -977,11 +987,11 @@ Errors block an import and cause a fallback at load; warnings surface in the imp
 
 ### 16.1 A broken screen falls back on its own
 
-When a file fails validation or the visibility check, that screen falls back to Neutral's version of it, and only that screen (ADR-0012). A broken shell falls back to Neutral's shell. The theme's tokens and CSS stay in effect, so the rest of the window still looks like the theme. The user sees one notice per theme per launcher version, dismissible, and Dev Mode shows the reason.
+When a file fails validation or the visibility check, that screen falls back to Neutral's version of it, and only that screen (ADR-0012). A broken shell falls back to Neutral's shell. The theme's tokens and CSS stay in effect, so the rest of the window still looks like the theme. The user sees one notice per theme per launcher version — dismissing it silences that pairing until the launcher version changes — and Dev Mode shows the reason.
 
 ### 16.2 Launcher updates
 
-- A **newly required element** is auto-placed at its `fallbackPlacement` rather than failing the screen (§6.8).
+- A **newly required element** — one a 2.x minor requires after the theme was written — is auto-placed at its `fallbackPlacement` rather than failing the screen (§6.8). The library is built and tested but not yet wired in, because nothing needs it: every required element is `since: "2.0"`.
 - A **renamed element** keeps its old id as an alias for all of 2.x.
 - A **removed optional element** is dropped with a Dev Mode warning, and the screen still renders.
 - A file that fails only because of a rule added by the update falls back, with the notice naming the rule.
@@ -1078,9 +1088,16 @@ Measured in the harness at 1400×800, with Tactical v2 active:
 | One visibility check | 16 ms or less |
 | Memory | Within 10% of Neutral |
 
+Measured result (`npm run perf`, headless Chromium, prod build, ~27,000 rows): scroll 60 fps with no frame over 33 ms, activation 64.6 ms median, one visibility check 0.9 ms median, memory 1.03× Neutral. Headless Chromium is indicative, not the WebKitGTK build.
+
 ## 25. Verification
 
-**The harness.** Playwright drives the Vite frontend in Chromium with the Tauri IPC mocked by fixtures, and screenshots every view, modal, popup and Settings at 1400×800 and 975×620, in dark and light. Baselines are committed; `npm run visual:check` fails on any diff, and it runs in CI. Fixtures cover a populated list, an empty list, a modded server with mixed mod states, outdated and downloading mods, and a degraded-storage session.
+**The harness.** `tools/harness/` drives the Vite frontend in headless Chromium (Playwright) with the Tauri IPC mocked by fixtures, and screenshots every view, modal, popup and Settings at 1400×800 and 975×620, in dark and light, for Neutral and Tactical v2. Fixtures cover a populated list, an empty list, a modded server with mixed mod states, outdated and downloading mods, and a degraded-storage session. It runs locally, not in CI:
+
+- `npm run visual` records baselines under `tools/harness/baselines/` (gitignored, regenerable) and `npm run visual:check` fails on a diff;
+- `npm run perf` measures the §24 budgets and reports them;
+- `npm run harness:smoke` checks the driver against the prod build;
+- `tools/harness/shoot.sh` shoots one scenario by hand.
 
 **The manual pass.** Chromium and WebKitGTK differ slightly, so the release is also verified once by hand on the real build (Q55). GUI verification is driven by the user.
 
