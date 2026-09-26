@@ -1,9 +1,10 @@
 name: publish-indexer-image
 
 # Builds the tetra-indexer container image and publishes it to GitHub
-# Container Registry (ghcr.io/hellboundglory/dayz-launcher). `:latest` is
-# refreshed on every release tag; versioned tags track the tag name. Manual
-# dispatch rebuilds `:latest` from the current default branch.
+# Container Registry (ghcr.io/hellboundglory/dayz-launcher). A release tag
+# rebuilds only when something baked into the image changed since the previous
+# release tag (see the "Needs a build?" step); versioned tags track the tag name.
+# Manual dispatch always rebuilds `:latest` from the current default branch.
 
 on:
   workflow_dispatch:
@@ -22,10 +23,43 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # The live indexer runs :latest under Watchtower, so a needless rebuild is
+      # a needless production restart. Workspace-only version bumps in
+      # Cargo.toml/Cargo.lock don't count; a real dependency change does, since
+      # a third-party crate's checksum line changes with it.
+      - name: Needs a build?
+        id: needed
+        run: |
+          set -euo pipefail
+          build=true
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            prev=$(git describe --tags --abbrev=0 --match 'v*' "${GITHUB_SHA}^" 2>/dev/null || true)
+            if [[ -n "$prev" ]]; then
+              build=false
+              if ! git diff --quiet "$prev" "$GITHUB_SHA" -- \
+                  crates/tetra-indexer crates/tetra-index crates/tetra-core \
+                  crates/tetra-net crates/tetra-registry deploy/Dockerfile; then
+                build=true
+              fi
+              lock_changes=$(git diff -U0 "$prev" "$GITHUB_SHA" -- Cargo.toml Cargo.lock \
+                | grep -E '^[+-]' | grep -vE '^(\+\+\+|---) ' \
+                | grep -vE '^[+-]version = "[^"]*"$' || true)
+              if [[ -n "$lock_changes" ]]; then
+                build=true
+              fi
+            fi
+            echo "Compared against ${prev:-no previous tag}: build=$build" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "build=$build" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
+        if: steps.needed.outputs.build == 'true'
 
       - name: Login to GHCR
+        if: steps.needed.outputs.build == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -33,6 +67,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Image tags
+        if: steps.needed.outputs.build == 'true'
         id: meta
         run: |
           # On a v2.6.0 tag: "latest", "2.6.0". Otherwise just "latest".
@@ -47,6 +82,7 @@ jobs:
           echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
+        if: steps.needed.outputs.build == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
