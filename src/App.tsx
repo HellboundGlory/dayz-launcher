@@ -22,7 +22,6 @@ import { FooterBar } from "./components/footer-bar";
 import { SettingsView } from "./components/settings-view";
 import { SettingsHost, SettingsRegionPortal } from "./theme/interaction/settings-host";
 import { ModalHost } from "./theme/interaction/modal-host";
-import { SETTINGS_LAYOUT } from "./theme/neutral";
 import type { ModalLayoutFile, SettingsLayoutFile } from "./theme/renderer/types";
 import { DevModeInspector } from "./components/themes-page/DevModeInspector";
 import { DevModeValidationPanel } from "./components/themes-page/DevModeValidationPanel";
@@ -45,7 +44,6 @@ import {
   useLayoutSubscription,
   watchHotReload,
   watchThemeActivationReverted,
-  getActiveLayout,
   getThemeOwnedLayout,
 } from "./theme/theme-store";
 import { FallbackNotice } from "./theme/fallback/fallback-notice";
@@ -308,8 +306,9 @@ export function App() {
   const shellLayout = getThemeOwnedLayout("layout/shell.json");
   const browserLayout = getThemeOwnedLayout("layout/views/browser.json");
   const modsLayout = getThemeOwnedLayout("layout/views/mods.json");
-  const settingsLayout = (getActiveLayout("layout/settings.json") ??
-    SETTINGS_LAYOUT) as SettingsLayoutFile;
+  const settingsLayout = getThemeOwnedLayout("layout/settings.json") as
+    | SettingsLayoutFile
+    | undefined;
   const themedServerInfoModal = getThemeOwnedLayout("layout/modals/serverInfo.json") as
     | ModalLayoutFile
     | undefined;
@@ -319,7 +318,7 @@ export function App() {
   const themedUpdateModal = getThemeOwnedLayout("layout/modals/update.json") as
     | ModalLayoutFile
     | undefined;
-  const settingsMode = settingsLayout.presentation?.mode ?? "overlay";
+  const settingsMode = settingsLayout?.presentation?.mode ?? "overlay";
   const closeSettings = () => setSettingsOpen(false);
 
   // SPEC §15: runs the visibility check whenever the screen composition changes.
@@ -914,7 +913,13 @@ export function App() {
                 outlets={{
                   view:
                     settingsOpen && settingsMode === "view" ? (
-                      <SettingsHost file={settingsLayout} onClose={closeSettings} />
+                      <SettingsSurface
+                        layout={settingsLayout}
+                        placement="outlet"
+                        onClose={closeSettings}
+                        devMode={devMode}
+                        onDevModeChange={setDevMode}
+                      />
                     ) : activeView === "mods" ? (
                       modsLayout ? (
                         <ModsViewHost
@@ -1007,8 +1012,13 @@ export function App() {
                 }}
               />
             </div>
-            {settingsOpen && settingsMode !== "view" && (
-              <SettingsRegionPortal file={settingsLayout} onClose={closeSettings} />
+            {settingsOpen && (
+              <SettingsSurface
+                layout={settingsLayout}
+                onClose={closeSettings}
+                devMode={devMode}
+                onDevModeChange={setDevMode}
+              />
             )}
           </>
         ) : (
@@ -1144,6 +1154,38 @@ export function App() {
       </div>
     </ElementContextProvider>
   );
+}
+
+export interface SettingsSurfaceProps {
+  /** The active theme's own `layout/settings.json`, `undefined` when it ships none or it fell back (§16.1). */
+  layout?: SettingsLayoutFile;
+  /** `outlet` draws `view` Settings where the shell's view outlet goes; the default hosts overlay/panel Settings beside the shell. */
+  placement?: "outlet" | "overlay";
+  onClose: () => void;
+  devMode: boolean;
+  onDevModeChange: (devMode: boolean) => void;
+}
+
+/** Settings in the themed shell. A theme-owned file renders through the pipeline;
+ *  without one — never shipped, or fallen back — Settings is the launcher's own
+ *  component, exactly as it is under Neutral (§16.1). */
+export function SettingsSurface({
+  layout,
+  placement = "overlay",
+  onClose,
+  devMode,
+  onDevModeChange,
+}: SettingsSurfaceProps) {
+  if (!layout) {
+    if (placement === "outlet") return null;
+    return <SettingsView onClose={onClose} devMode={devMode} onDevModeChange={onDevModeChange} />;
+  }
+
+  const mode = layout.presentation?.mode ?? "overlay";
+  if (placement === "outlet") {
+    return mode === "view" ? <SettingsHost file={layout} onClose={onClose} /> : null;
+  }
+  return mode === "view" ? null : <SettingsRegionPortal file={layout} onClose={onClose} />;
 }
 
 /** Owns the mod filter's lifecycle and preview subject so typing in it re-renders only the modal. */

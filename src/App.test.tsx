@@ -44,9 +44,13 @@ vi.mock("./theme/theme-store", async (importOriginal) => {
   };
 });
 
-import { App } from "./App";
+import { App, SettingsSurface } from "./App";
+import { getThemeOwnedLayout } from "./theme/theme-store";
+import type { SettingsLayoutFile } from "./theme/renderer/types";
 
 const themeStore = realStore.hook as ThemeStoreHook;
+
+const noop = () => {};
 
 function themeFile(layouts: Record<string, LayoutFile>): ThemeFile {
   return {
@@ -141,5 +145,78 @@ describe("App screen source", () => {
     markFileFallback("local.aurora", "layout/views/browser.json", "LAY-01: dropped");
 
     expect(renderToStaticMarkup(<App />)).toContain('data-part="fallback-notice"');
+  });
+});
+
+/** What the pipeline's Settings host draws; the legacy `SettingsView` has none. */
+const PIPELINE_SETTINGS = 'data-settings-host=""';
+/** The legacy `SettingsView`'s accordion headers; the pipeline draws its own accordions. */
+const LEGACY_SETTINGS = "data-acc-header";
+
+const SETTINGS_ROOT = {
+  type: "stack" as const,
+  direction: "column" as const,
+  children: [{ type: "text" as const, role: "heading" as const, value: "Settings" }],
+};
+
+const THEMED_SETTINGS_VIEW: SettingsLayoutFile = {
+  schemaVersion: 2,
+  presentation: { mode: "view" },
+  root: SETTINGS_ROOT,
+};
+
+const THEMED_SETTINGS_OVERLAY: SettingsLayoutFile = {
+  schemaVersion: 2,
+  presentation: { mode: "overlay", region: "r-main" },
+  root: SETTINGS_ROOT,
+};
+
+describe("Themed settings surface", () => {
+  /** App hands `SettingsSurface` the same theme-owned read it resolves. */
+  const surface = (placement?: "outlet" | "overlay") => (
+    <SettingsSurface
+      layout={getThemeOwnedLayout("layout/settings.json") as SettingsLayoutFile | undefined}
+      placement={placement}
+      onClose={noop}
+      devMode={false}
+      onDevModeChange={noop}
+    />
+  );
+
+  it("draws a theme's own settings.json through the pipeline", () => {
+    themed({ ...ALL_SCREENS, "layout/settings.json": THEMED_SETTINGS_VIEW });
+
+    const html = renderToStaticMarkup(surface("outlet"));
+
+    expect(html).toContain(PIPELINE_SETTINGS);
+    expect(html).not.toContain(LEGACY_SETTINGS);
+  });
+
+  it("draws Settings without a theme-owned settings.json through SettingsView", () => {
+    themed(ALL_SCREENS);
+
+    const html = renderToStaticMarkup(surface());
+
+    expect(html).toContain(LEGACY_SETTINGS);
+    expect(html).not.toContain(PIPELINE_SETTINGS);
+  });
+
+  it("draws a fallen-back settings.json through SettingsView, never Neutral's skeleton", () => {
+    themed({ ...ALL_SCREENS, "layout/settings.json": THEMED_SETTINGS_OVERLAY });
+    markFileFallback("local.aurora", "layout/settings.json", "LAY-01: dropped");
+
+    const html = renderToStaticMarkup(surface());
+
+    expect(html).toContain(LEGACY_SETTINGS);
+    expect(html).not.toContain(PIPELINE_SETTINGS);
+  });
+
+  it("keeps a theme-owned overlay out of the shell's view outlet and of SettingsView", () => {
+    themed({ ...ALL_SCREENS, "layout/settings.json": THEMED_SETTINGS_OVERLAY });
+
+    const html = renderToStaticMarkup(surface("outlet"));
+
+    expect(html).not.toContain(PIPELINE_SETTINGS);
+    expect(html).not.toContain(LEGACY_SETTINGS);
   });
 });
