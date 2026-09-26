@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   NoticeError,
+  NoticeLaunch,
   NoticeModsCached,
   NoticeModsError,
   NoticeModsOutdated,
@@ -44,6 +45,13 @@ const storeState: { notice: ServerNotice | null; result: LaunchResult | null } =
 vi.mock("@/stores/launch-store", () => ({
   useLaunchStore: (selector: (s: unknown) => unknown) => selector(storeState),
 }));
+
+const serverState: { servers: Server[] } = { servers: [] };
+
+vi.mock("@/stores/server-store", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/stores/server-store")>();
+  return { ...actual, useServerStore: (selector: (s: unknown) => unknown) => selector(serverState) };
+});
 
 const setNotice = (addr: string, notice: Notice) => {
   storeState.notice = { addr, notice };
@@ -91,6 +99,7 @@ const render = (value: Partial<ElementContextValue>) =>
 afterEach(() => {
   storeState.notice = null;
   storeState.result = null;
+  serverState.servers = [];
 });
 
 describe("ServerActionNotice", () => {
@@ -174,6 +183,41 @@ describe("ServerActionNotice", () => {
     expect(html).toContain('data-state="error refused"');
     expect(html).toContain("Launch refused");
     expect(html).toContain("Failed to launch.");
+  });
+});
+
+describe("NoticeLaunch", () => {
+  const renderBar = () => renderToStaticMarkup(<NoticeLaunch />);
+
+  it("renders nothing with no notice or launch result", () => {
+    expect(renderBar()).toBe("");
+  });
+
+  it("never reports a successful launch", () => {
+    setResult({ addr: moddedServer.addr, message: "Launched DayZ with 5 mods" });
+    expect(renderBar()).toBe("");
+  });
+
+  it("shows a join warning with its code and the server it belongs to", () => {
+    serverState.servers = [moddedServer];
+    setNotice(moddedServer.addr, { kind: "code", code: "W02" });
+    const html = renderBar();
+    expect(html).toContain('data-el="notice.launch"');
+    expect(html).toContain('data-state="warning"');
+    expect(html).toContain("W02");
+    expect(html).toContain("DayZ Epoch Test");
+    expect(html).toContain("Downloads stalled");
+    expect(html).toContain('aria-live="polite"');
+  });
+
+  it("shows a refused launch as an alert, even for a server no longer listed", () => {
+    setResult({ addr: otherServer.addr, error: "DayZ is not installed" });
+    const html = renderBar();
+    expect(html).toContain('data-state="error refused"');
+    expect(html).toContain('role="alert"');
+    expect(html).toContain("Launch refused");
+    expect(html).toContain("DayZ is not installed");
+    expect(html).not.toContain('data-part="server"');
   });
 });
 

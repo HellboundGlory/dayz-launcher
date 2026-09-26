@@ -304,6 +304,50 @@
   color: var(--text);
 }
 
+[data-el="notice.launch"] {
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--warn-line);
+  background-color: var(--warn-soft);
+}
+
+[data-el="notice.launch"][data-state~="error"] {
+  border-bottom-color: rgba(239, 68, 68, 0.3);
+  background-color: rgba(239, 68, 68, 0.05);
+}
+
+[data-el="notice.launch"] [data-part="tag"] {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--warn);
+}
+
+[data-el="notice.launch"][data-state~="error"] [data-part="tag"] {
+  color: var(--danger);
+}
+
+[data-el="notice.launch"] [data-part="server"] {
+  max-width: 280px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+[data-el="notice.launch"] [data-part="message"] {
+  font-size: 11px;
+  color: var(--muted2);
+}
+
+[data-el="notice.launch"] [data-part="dismiss"] {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+[data-el="notice.launch"] [data-part="dismiss"]:hover {
+  color: var(--text);
+}
+
 /* Filter bar */
 [data-region="r-filterbar"] {
   padding: 6px 12px;
@@ -1018,8 +1062,9 @@
   opacity: 0.6;
 }
 
+/* notice.launch in the shell reports these instead. */
 .t-row [data-el="server.actionNotice"] {
-  font-size: 10px;
+  display: none;
 }
 
 /* Detail panel */

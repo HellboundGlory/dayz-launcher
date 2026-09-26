@@ -91,6 +91,9 @@
             "element": "notice.error"
           },
           {
+            "element": "notice.launch"
+          },
+          {
             "element": "notice.storage"
           },
           {
@@ -233,6 +236,9 @@
           },
           {
             "element": "notice.error"
+          },
+          {
+            "element": "notice.launch"
           },
           {
             "element": "notice.storage"

@@ -32,6 +32,7 @@ import {
   NoticeModsResult,
   NoticeStorage,
   NoticeUpdate,
+  NoticeLaunch,
   ServerActionNotice,
 } from "./notice-elements";
 import {
@@ -207,6 +208,8 @@ export function ElementHost({
       return <NoticeStorage className={mergedClass} style={style} />;
     case "notice.error":
       return <NoticeError className={mergedClass} style={style} />;
+    case "notice.launch":
+      return <NoticeLaunch className={mergedClass} style={style} />;
     case "notice.update":
       return <NoticeUpdate className={mergedClass} style={style} />;
     case "notice.modsError":

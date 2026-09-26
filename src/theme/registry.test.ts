@@ -85,7 +85,7 @@ function documentedElements(doc: string): Record<string, ElementDef> {
       where, required, multiplicity: ({ n: "many", "1": "perComposition", "1/ctx": "perContext", "1 per target region": "perComposition" } as const)[count as "n" | "1" | "1/ctx" | "1 per target region"],
       options, freeLabel, parts, states, since: "2.0", aliases: [],
     };
-    if (["status.activity", "server.manageMods", "server.refresh", "settings.done", "mod.created", "mod.publishedSize", "mod.subscribers", "mod.folder"].includes(id)) result[id].since = "2.1";
+    if (["status.activity", "server.manageMods", "server.refresh", "settings.done", "mod.created", "mod.publishedSize", "mod.subscribers", "mod.folder", "notice.launch"].includes(id)) result[id].since = "2.1";
     if (placement.includes("not the server info modal")) result[id].excludedWhere = ["modal:serverInfo"];
     if (placement.includes("not a popup")) result[id].excludedWhere = ["popup"];
     if (count === "1 per target region") result[id].multiplicityScope = "region";
@@ -115,7 +115,7 @@ function assertParity(registry: Registry, doc = elementsDoc) {
 
 describe("shared v2 registry", () => {
   it("matches every element definition and surface in ELEMENTS.md, in both directions", () => {
-    expect(elementRows).toHaveLength(183);
+    expect(elementRows).toHaveLength(184);
     assertParity(REGISTRY);
   });
 

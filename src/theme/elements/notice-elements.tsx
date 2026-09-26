@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { useElementContext } from "./context";
 import { useLaunchStore, type ServerNotice, type LaunchResult } from "@/stores/launch-store";
 import { useModsStore, visibleRows } from "@/stores/mods-store";
+import { useServerStore } from "@/stores/server-store";
 import { NOTICES } from "@/hooks/use-server-actions";
 
 export function NoticeStorage({ className, style }: { className?: string; style?: CSSProperties }) {
@@ -276,6 +277,74 @@ function resolveActionNoticeContent(
   }
 
   return null;
+}
+
+/** The join warning or launch refusal for whichever server was last acted on,
+ * as a bar beside `notice.error`. A successful launch has nothing to report here. */
+export function NoticeLaunch({ className, style }: { className?: string; style?: CSSProperties }) {
+  const storeNotice = useLaunchStore((s) => s.notice);
+  const result = useLaunchStore((s) => s.result);
+  const addr = storeNotice?.addr ?? result?.addr ?? null;
+  const serverName = useServerStore((s) =>
+    addr === null ? undefined : s.servers.find((server) => server.addr === addr)?.name,
+  );
+  if (addr === null) return null;
+
+  const content = resolveActionNoticeContent(addr, storeNotice, result);
+  if (!content || content.state === "success") return null;
+
+  function dismiss() {
+    const launch = useLaunchStore.getState();
+    launch.setNotice(addr!, null);
+    launch.setResult(null);
+  }
+
+  const isError = content.state === "error";
+  const tag = content.kind === "refusal" ? content.title : content.kind === "code" ? content.code : "JOIN";
+
+  return (
+    <div
+      data-el="notice.launch"
+      data-state={content.kind === "refusal" ? "error refused" : content.state}
+      role={isError ? "alert" : undefined}
+      aria-live={isError ? undefined : "polite"}
+      className={
+        className ??
+        cn(
+          "flex items-center gap-[var(--t-space-inlineGapWide)] border-b bg-surface2 px-[var(--t-space-rowX)] py-[var(--t-space-controlY)]",
+          isError ? "border-danger" : "border-warn",
+        )
+      }
+      style={style}
+    >
+      <span
+        data-part="tag"
+        title={content.kind === "code" ? content.detail : undefined}
+        className={cn(
+          "shrink-0 [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase",
+          isError ? "text-danger" : "text-warn",
+        )}
+      >
+        {tag}
+      </span>
+      {serverName && (
+        <span data-part="server" className="shrink-0 truncate [font-size:var(--t-type-body-size)] font-semibold text-ink">
+          {serverName}
+        </span>
+      )}
+      <span data-part="message" className="truncate [font-size:var(--t-type-body-size)] text-ink">
+        {content.message}
+      </span>
+      <button
+        type="button"
+        data-part="dismiss"
+        onClick={dismiss}
+        className="ml-auto shrink-0 [font-size:var(--t-type-label-size)] text-muted hover:text-ink"
+      >
+        DISMISS
+      </button>
+    </div>
+  );
 }
 
 export function ServerActionNotice({ className, style }: { className?: string; style?: CSSProperties }) {
