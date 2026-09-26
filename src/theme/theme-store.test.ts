@@ -20,7 +20,7 @@ import {
 } from "./theme-store";
 import { clearFallbackMemory, isFileFallenBack, useFallbackStore } from "./fallback/store";
 import { getNeutralLayout } from "./neutral";
-import type { ThemeFile, ValidationIssue } from "@/types/theme";
+import type { ThemeFile, ThemeSummary, ValidationIssue } from "@/types/theme";
 import { NEUTRAL_TOKENS, parseTokens } from "./tokens";
 import type { LayoutFile } from "./renderer/types";
 
@@ -35,6 +35,8 @@ const backend = vi.hoisted(() => ({
   savedTokens: [] as unknown[],
   /** The manifest each `save_theme` call received, in call order. */
   savedManifests: [] as unknown[],
+  /** Every `update_theme_tokens` call, in order. */
+  updatedTokens: [] as { id: string; tokens: unknown }[],
   /** `tokens.json` contents `get_theme` returns, by id. */
   tokensById: {} as Record<string, unknown>,
   /** Layout files `get_theme` returns, by id. */
@@ -106,6 +108,11 @@ vi.mock("@/lib/tauri", () => ({
     backend.savedManifests.push(manifest);
     backend.savedTokens.push(tokens);
   },
+  updateThemeTokens: async (id: string, tokens: unknown) => {
+    backend.updatedTokens.push({ id, tokens });
+    // The real command rewrites the file; `getTheme` re-reads what it wrote.
+    backend.tokensById[id] = tokens;
+  },
   deleteTheme: async () => {},
   getThemeSettingsValues: async (id: string) => backend.settingsById[id] ?? {},
   setThemeSettingsValue: async (id: string, fieldId: string, value: string | number | boolean) => {
@@ -166,6 +173,7 @@ beforeEach(() => {
   backend.installed = [];
   backend.savedTokens.length = 0;
   backend.savedManifests.length = 0;
+  backend.updatedTokens.length = 0;
   backend.tokensById = {};
   backend.layoutsById = {};
   backend.fallbacksById = {};
@@ -384,6 +392,90 @@ describe("theme extras", () => {
     expect(backend.savedTokens).toHaveLength(1);
     // The slider's live value, not the source theme's own glowIntensity.
     expect(parseTokens(backend.savedTokens[0]).bloom).toBe(0.42);
+  });
+});
+
+describe("saveTheme in place", () => {
+  const themeFile = (id: string, tokens: unknown): ThemeFile =>
+    ({ id, name: id, tokens, settingsSchema: null, layouts: {} }) as unknown as ThemeFile;
+  const summary = (id: string, name: string): ThemeSummary => ({
+    id,
+    name,
+    author: "local",
+    version: "1.0.0",
+    themeApi: "2.0",
+    minimumLauncherVersion: "0.0.0",
+    tier: "",
+    description: "",
+    preview: null,
+    tags: [],
+    capabilities: ["tokens"],
+  });
+
+  it("rewrites an installed user theme's tokens instead of creating a new theme", async () => {
+    const sourceTokens = {
+      schemaVersion: 2,
+      bloom: 0.2,
+      colors: { dark: { bg: "#010101" } },
+      scales: { radius: { md: "9px" } },
+      roles: { radius: { row: "9px" } },
+    };
+    backend.installed = [summary("local.mine", "Mine")];
+    useThemeStore.setState({
+      activeId: "local.mine",
+      installedThemes: [summary("local.mine", "Mine")],
+      themeFiles: { "local.mine": themeFile("local.mine", sourceTokens) },
+      custom: { dark: { accent: "#00ff00" }, light: {} },
+      customExtras: { radius: { row: "3px" }, family: { ui: "Comic Sans" } },
+      bloom: 0.42,
+    });
+
+    await useThemeStore.getState().saveTheme("Renamed");
+
+    expect(backend.updatedTokens.map((c) => c.id)).toEqual(["local.mine"]);
+    // Nothing is created: the in-place path never reaches `save_theme`.
+    expect(backend.savedTokens).toHaveLength(0);
+    expect(backend.savedManifests).toHaveLength(0);
+
+    // The tokens `duplicateTheme` would have written, aimed at the same id:
+    // the live colours and bloom, and the role overrides merged into the
+    // theme's own scales and roles.
+    const tokens = parseTokens(backend.updatedTokens[0].tokens);
+    expect(tokens.schemaVersion).toBe(2);
+    expect(tokens.colors?.dark).toEqual({ ...NEUTRAL_DARK, bg: "#010101", accent: "#00ff00" });
+    expect(tokens.colors?.light).toEqual(NEUTRAL_LIGHT);
+    expect(tokens.bloom).toBe(0.42);
+    expect(tokens.scales).toEqual({
+      radius: { md: "9px" },
+      type: { family: { ui: "Comic Sans" } },
+    });
+    expect(tokens.roles).toEqual({ radius: { row: "3px" } });
+
+    // The cache is refreshed from the file the write left behind, and the
+    // overrides clear — they are the theme's own values now.
+    expect(backend.themeCalls).toContain("local.mine");
+    expect(useThemeStore.getState().themeFiles["local.mine"].tokens).toEqual(
+      backend.updatedTokens[0].tokens,
+    );
+    const state = useThemeStore.getState();
+    expect(state.custom).toEqual({ dark: {}, light: {} });
+    expect(state.customExtras).toEqual({ radius: {}, family: {} });
+    expect(state.lightRefined).toBe(false);
+  });
+
+  it("duplicates when the active theme is not a user theme", async () => {
+    backend.installed = [summary("builtin.tactical", "Tactical")];
+    useThemeStore.setState({
+      activeId: "builtin.tactical",
+      installedThemes: [summary("builtin.tactical", "Tactical")],
+      themeFiles: { "builtin.tactical": themeFile("builtin.tactical", { schemaVersion: 2 }) },
+    });
+
+    await useThemeStore.getState().saveTheme("Tactical copy");
+
+    expect(backend.updatedTokens).toHaveLength(0);
+    expect(backend.savedManifests[0]).toMatchObject({ id: "local.tactical-copy" });
+    expect(backend.savedTokens).toHaveLength(1);
   });
 });
 
