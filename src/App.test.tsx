@@ -94,7 +94,7 @@ const PIPELINE_SHELL = 'data-surface="surface.windowControls"';
 const LEGACY_LIST = "l2-body";
 
 beforeEach(() => {
-  themeStore.setState({ activeId: "neutral", themeFiles: {} });
+  themeStore.setState({ activeId: "neutral", themeFiles: {}, incompatibleSwitch: null });
   clearFallbackMemory();
 });
 
@@ -145,6 +145,16 @@ describe("App screen source", () => {
     markFileFallback("local.aurora", "layout/views/browser.json", "LAY-01: dropped");
 
     expect(renderToStaticMarkup(<App />)).toContain('data-part="fallback-notice"');
+  });
+
+  it("shows the incompatible-theme notice on the Neutral branch only", () => {
+    themeStore.setState({ incompatibleSwitch: { id: "local.old", name: "Old Timer" } });
+
+    expect(renderToStaticMarkup(<App />)).toContain('data-part="incompatible-theme-notice"');
+
+    themed(ALL_SCREENS);
+
+    expect(renderToStaticMarkup(<App />)).not.toContain('data-part="incompatible-theme-notice"');
   });
 });
 

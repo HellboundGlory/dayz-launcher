@@ -49,6 +49,12 @@ import type { LayoutFile } from "./renderer/types";
 
 export type SettingsValue = string | number | boolean;
 
+/** A v1 folder hydrate switched off, kept only until its one-time notice is dismissed. */
+export interface IncompatibleSwitch {
+  id: string;
+  name: string;
+}
+
 interface ThemeState {
   scheme: "dark" | "light";
   /** A preset id, or an installed theme's own id (`local.<slug>`). */
@@ -68,7 +74,11 @@ interface ThemeState {
    * theme's own schema defaults when written, so `apply()` only ever reads a
    * complete set and never has to know about defaults itself. */
   settingsValues: Record<string, Record<string, SettingsValue>>;
+  /** SPEC §16.3: the v1 theme hydrate found active and switched off, or `null`. */
+  incompatibleSwitch: IncompatibleSwitch | null;
 
+  /** Clears `incompatibleSwitch` and records that its notice was dismissed. */
+  dismissIncompatibleSwitch: () => void;
   hydrate: () => Promise<void>;
   apply: () => void;
   /** Tune one field: writes it through the backend, mirrors it into
@@ -117,6 +127,25 @@ function loadActive(): Partial<ActiveState> {
 
 function saveActive(active: { scheme: "dark" | "light"; bloom: number }): void {
   localStorage.setItem(ACTIVE_KEY, JSON.stringify(active));
+}
+
+// SPEC §16.3's one-time notice, per switched-off theme id.
+const INCOMPATIBLE_NOTICE_KEY = "tetra.incompatibleNoticeShown.";
+
+function incompatibleNoticeShown(id: string): boolean {
+  try {
+    return localStorage.getItem(INCOMPATIBLE_NOTICE_KEY + id) !== null;
+  } catch {
+    return false;
+  }
+}
+
+function markIncompatibleNoticeShown(id: string): void {
+  try {
+    localStorage.setItem(INCOMPATIBLE_NOTICE_KEY + id, "true");
+  } catch {
+    // Only means the notice comes back next launch.
+  }
 }
 
 /** Lowercase, runs of non-alphanumerics collapsed to one `-`, ends trimmed — mirrors Rust `theme::slugify`. Exported so the "New theme" picker derives a scaffolded theme's id the same way `duplicateTheme` derives a duplicate's. */
@@ -458,6 +487,13 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   installedThemes: [],
   themeFiles: {},
   settingsValues: {},
+  incompatibleSwitch: null,
+
+  dismissIncompatibleSwitch: () => {
+    const replaced = get().incompatibleSwitch;
+    if (replaced !== null) markIncompatibleNoticeShown(replaced.id);
+    set({ incompatibleSwitch: null });
+  },
 
   /** Load installed themes and paint the active one. Called once before render. */
   hydrate: async () => {
@@ -521,12 +557,24 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 
     // A v1 folder left on disk is never rendered: the backend flags it, and
     // the stored active id could be stale from before the theme went bad.
-    if (activeInstalled(activeId, installedThemes)?.incompatible) {
+    const replaced = activeInstalled(activeId, installedThemes);
+    let incompatibleSwitch: IncompatibleSwitch | null = null;
+    if (replaced?.incompatible) {
       activeId = "neutral";
+      // Persisted like the migration above, so the next launch doesn't re-switch.
+      try {
+        await setActiveThemeId(activeId);
+      } catch (e) {
+        console.error("Could not persist the active theme after an incompatible switch:", e);
+      }
+      if (!incompatibleNoticeShown(replaced.id)) {
+        incompatibleSwitch = { id: replaced.id, name: replaced.name };
+      }
     }
 
     set({
       activeId,
+      incompatibleSwitch,
       ...(stored.scheme !== undefined && { scheme: stored.scheme }),
       ...(stored.bloom !== undefined && { bloom: stored.bloom }),
     });

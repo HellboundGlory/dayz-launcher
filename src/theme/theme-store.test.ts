@@ -192,6 +192,7 @@ beforeEach(() => {
     themeFiles: {},
     settingsValues: {},
     customExtras: { radius: {}, family: {} },
+    incompatibleSwitch: null,
   });
   clearFallbackMemory();
   useDevStore.getState().clear();
@@ -272,6 +273,31 @@ describe("hydrate incompatible fallback", () => {
     expect(useThemeStore.getState().activeId).toBe("neutral");
   });
 
+  it("records the switched-off theme and persists the switch to neutral", async () => {
+    storage.set("tetra.themeActive", JSON.stringify({ activeId: "local.old" }));
+    backend.installed = [{ id: "local.old", name: "Old Timer", incompatible: true }];
+
+    await useThemeStore.getState().hydrate();
+
+    expect(useThemeStore.getState().activeId).toBe("neutral");
+    expect(useThemeStore.getState().incompatibleSwitch).toEqual({
+      id: "local.old",
+      name: "Old Timer",
+    });
+    expect(backend.setActiveCalls).toContain("neutral");
+  });
+
+  it("does not record the switch again for a theme whose notice was already handled", async () => {
+    storage.set("tetra.themeActive", JSON.stringify({ activeId: "local.old" }));
+    storage.set("tetra.incompatibleNoticeShown.local.old", "true");
+    backend.installed = [{ id: "local.old", name: "Old Timer", incompatible: true }];
+
+    await useThemeStore.getState().hydrate();
+
+    expect(useThemeStore.getState().activeId).toBe("neutral");
+    expect(useThemeStore.getState().incompatibleSwitch).toBeNull();
+  });
+
   it("leaves activeId alone when the stored active theme is not incompatible", async () => {
     storage.set("tetra.themeActive", JSON.stringify({ activeId: "local.fine" }));
     backend.installed = [{ id: "local.fine", name: "Fine" }];
@@ -279,6 +305,16 @@ describe("hydrate incompatible fallback", () => {
     await useThemeStore.getState().hydrate();
 
     expect(useThemeStore.getState().activeId).toBe("local.fine");
+    expect(useThemeStore.getState().incompatibleSwitch).toBeNull();
+  });
+
+  it("dismissing clears the switch and records the notice under the theme's id", () => {
+    useThemeStore.setState({ incompatibleSwitch: { id: "local.old", name: "Old Timer" } });
+
+    useThemeStore.getState().dismissIncompatibleSwitch();
+
+    expect(useThemeStore.getState().incompatibleSwitch).toBeNull();
+    expect(storage.get("tetra.incompatibleNoticeShown.local.old")).toBe("true");
   });
 });
 
