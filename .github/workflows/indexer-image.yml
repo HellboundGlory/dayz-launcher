@@ -2,7 +2,7 @@ name: publish-indexer-image
 
 # Builds the tetra-indexer container image and publishes it to GitHub
 # Container Registry (ghcr.io/hellboundglory/dayz-launcher). A release tag
-# rebuilds only when something baked into the image changed since the previous
+# rebuilds only when the indexer backend itself changed since the previous
 # release tag (see the "Needs a build?" step); versioned tags track the tag name.
 # Manual dispatch always rebuilds `:latest` from the current default branch.
 
@@ -27,9 +27,9 @@ jobs:
           fetch-depth: 0
 
       # The live indexer runs :latest under Watchtower, so a needless rebuild is
-      # a needless production restart. Workspace-only version bumps in
-      # Cargo.toml/Cargo.lock don't count; a real dependency change does, since
-      # a third-party crate's checksum line changes with it.
+      # a needless production restart. Only the backend's own crates and its
+      # Dockerfile count; a shared-crate or dependency fix it needs ships by
+      # manual dispatch.
       - name: Needs a build?
         id: needed
         run: |
@@ -40,14 +40,7 @@ jobs:
             if [[ -n "$prev" ]]; then
               build=false
               if ! git diff --quiet "$prev" "$GITHUB_SHA" -- \
-                  crates/tetra-indexer crates/tetra-index crates/tetra-core \
-                  crates/tetra-net crates/tetra-registry deploy/Dockerfile; then
-                build=true
-              fi
-              lock_changes=$(git diff -U0 "$prev" "$GITHUB_SHA" -- Cargo.toml Cargo.lock \
-                | grep -E '^[+-]' | grep -vE '^(\+\+\+|---) ' \
-                | grep -vE '^[+-]version = "[^"]*"$' || true)
-              if [[ -n "$lock_changes" ]]; then
+                  crates/tetra-indexer crates/tetra-index deploy/Dockerfile; then
                 build=true
               fi
             fi
