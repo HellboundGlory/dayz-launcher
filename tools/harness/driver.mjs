@@ -135,6 +135,7 @@ export async function startServer({ mode = "dev", port } = {}) {
   const started = Date.now();
   const { build } = await import("vite");
   await build({
+    root: ROOT,
     configFile: path.join(ROOT, "vite.config.ts"),
     logLevel: "warn",
     build: {
