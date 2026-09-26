@@ -1906,7 +1906,10 @@ mod derive_from_installed {
 
         assert_eq!(id, "local.derived");
         let derived = theme::get(&root, "local.derived").expect("the derived theme loads");
-        assert_eq!(derived.tokens, tokens, "the caller's palette replaces the source's");
+        assert_eq!(
+            derived.tokens, tokens,
+            "the caller's palette replaces the source's"
+        );
         assert_eq!(derived.manifest.name, "Derived");
         assert_eq!(derived.manifest.author, "local");
         assert_eq!(
@@ -1932,10 +1935,13 @@ mod derive_from_installed {
                 );
                 continue;
             }
-            let excluded =
-                name.starts_with("previews/") || matches!(name.as_str(), "README.md" | ".tetra-seed");
+            let excluded = name.starts_with("previews/")
+                || matches!(name.as_str(), "README.md" | ".tetra-seed");
             if excluded {
-                assert!(!derived_dir.join(name).exists(), "`{name}` must not be copied");
+                assert!(
+                    !derived_dir.join(name).exists(),
+                    "`{name}` must not be copied"
+                );
                 continue;
             }
             assert_eq!(
@@ -1971,12 +1977,16 @@ mod derive_from_installed {
     #[test]
     fn capabilities_are_the_sources_with_tokens_added_once() {
         let (root, _) = source_theme("capabilities", &["tokens", "layout"]);
-        let tokens = serde_json::json!({ "schemaVersion": 2, "colors": { "dark": {}, "light": {} } });
+        let tokens =
+            serde_json::json!({ "schemaVersion": 2, "colors": { "dark": {}, "light": {} } });
 
         derive_from_installed(&root, "local.source", &derived_manifest(), &tokens).expect("derive");
 
         assert_eq!(
-            theme::get(&root, "local.derived").unwrap().manifest.capabilities,
+            theme::get(&root, "local.derived")
+                .unwrap()
+                .manifest
+                .capabilities,
             ["tokens", "layout"]
         );
         let _ = std::fs::remove_dir_all(&root);
@@ -2022,7 +2032,8 @@ mod derive_from_installed {
     #[test]
     fn an_unusable_or_missing_id_creates_nothing() {
         let (root, _) = source_theme("bad-ids", &["layout"]);
-        let tokens = serde_json::json!({ "schemaVersion": 2, "colors": { "dark": {}, "light": {} } });
+        let tokens =
+            serde_json::json!({ "schemaVersion": 2, "colors": { "dark": {}, "light": {} } });
 
         let error = derive_from_installed(&root, "../escape", &derived_manifest(), &tokens)
             .expect_err("a path is not a source id");
