@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { KeyboardEvent } from "react";
-import { ListRow } from "./list-row";
-import { ListHost, observeBoundedRect } from "./list-host";
+import { ListRow, listRowPropsEqual, type ListRowProps } from "./list-row";
+import { ListHost, observeBoundedRect, rowStates, sameColumns } from "./list-host";
 import { handleListKeyDown } from "./keyboard";
 import { clearColumnWidthMemory, setStoredWidths } from "./use-column-widths";
 import type { ColumnDef } from "./types";
+import type { LayoutNode } from "../renderer/types";
 import type { Server } from "@/types/server";
 
 const mockServer: Server = {
@@ -57,6 +58,14 @@ describe("ListRow", () => {
     expect(html).toContain('data-state="selected"');
     expect(html).toContain('data-column="name"');
     expect(html).toContain("DayZ Epoch Test");
+  });
+
+  it("accepts an already-joined state string", () => {
+    const html = renderToStaticMarkup(
+      <ListRow columns={sampleColumns} item={mockServer} subjectKind="server" states="selected even" />,
+    );
+
+    expect(html).toContain('data-state="selected even"');
   });
 
   it("renders custom row template with server elements resolving subject", () => {
@@ -192,6 +201,81 @@ describe("ListRow column placement", () => {
     );
 
     expect(html).not.toContain("grid-column");
+  });
+});
+
+describe("row memoisation", () => {
+  const items = [mockServer, { ...mockServer }, { ...mockServer }, { ...mockServer }];
+  const rowNode: LayoutNode = { type: "stack", direction: "row", children: [{ element: "server.name" }] };
+  const onSelect = vi.fn();
+
+  // Props as `ListHost` builds them for one render: every reference that did not
+  // change is shared, and the states come from the list's own helper.
+  const propsAt = (selectedIndex: number, index: number): ListRowProps => ({
+    rowNode,
+    columns: sampleColumns,
+    item: items[index],
+    subjectKind: "server",
+    states: rowStates(items[index], index === selectedIndex, index),
+    onSelect,
+  });
+
+  it("keeps a row's DOM when nothing it renders changed", () => {
+    expect(listRowPropsEqual(propsAt(1, 2), propsAt(1, 2))).toBe(true);
+  });
+
+  it("changes only the rows whose states moved when the selection moves", () => {
+    const changed = items
+      .map((_, index) => (listRowPropsEqual(propsAt(1, index), propsAt(3, index)) ? null : index))
+      .filter((index) => index !== null);
+
+    expect(changed).toEqual([1, 3]);
+  });
+
+  it("keeps a row when the items array is rebuilt around the same item objects", () => {
+    const rebuilt = items.slice();
+    expect(listRowPropsEqual(propsAt(1, 2), { ...propsAt(1, 2), item: rebuilt[2] })).toBe(true);
+  });
+
+  it("re-renders a row whose item, template, columns or callback changed", () => {
+    const base = propsAt(1, 2);
+    expect(listRowPropsEqual(base, { ...base, item: { ...mockServer } })).toBe(false);
+    expect(listRowPropsEqual(base, { ...base, rowNode: { ...rowNode } })).toBe(false);
+    expect(listRowPropsEqual(base, { ...base, columns: [...sampleColumns] })).toBe(false);
+    expect(listRowPropsEqual(base, { ...base, onSelect: vi.fn() })).toBe(false);
+  });
+
+  it("reads an array of states and the equal joined string as the same states", () => {
+    const base = propsAt(1, 3);
+    expect(
+      listRowPropsEqual({ ...base, states: ["selected", "even"] }, { ...base, states: "selected even" }),
+    ).toBe(true);
+  });
+});
+
+describe("rowStates", () => {
+  it("merges selection first and the stripe last, joined for the data-state attribute", () => {
+    expect(rowStates(mockServer, false, 0)).toBe("");
+    expect(rowStates(mockServer, true, 0)).toBe("selected");
+    expect(rowStates(mockServer, false, 1)).toBe("even");
+    expect(rowStates(mockServer, true, 1)).toBe("selected even");
+    expect(rowStates(mockServer, true, 0, () => ["modded", "played"])).toBe("selected modded played");
+    expect(rowStates(mockServer, false, 0, () => ["played"])).toBe("played");
+    // A caller that already reports "selected" is not duplicated.
+    expect(rowStates(mockServer, true, 0, () => ["selected"])).toBe("selected");
+  });
+});
+
+describe("sameColumns", () => {
+  it("sees a rebuilt array with the same content as the same columns", () => {
+    expect(sameColumns(sampleColumns, sampleColumns.map((col) => ({ ...col })))).toBe(true);
+  });
+
+  it("sees a resized, added or removed column as a change", () => {
+    const resized = sampleColumns.map((col) => (col.id === "ping" ? { ...col, width: "80px" } : col));
+    expect(sameColumns(sampleColumns, resized)).toBe(false);
+    expect(sameColumns(sampleColumns, [...sampleColumns, { id: "map", width: "1fr" }])).toBe(false);
+    expect(sameColumns(sampleColumns, sampleColumns.slice(1))).toBe(false);
   });
 });
 
