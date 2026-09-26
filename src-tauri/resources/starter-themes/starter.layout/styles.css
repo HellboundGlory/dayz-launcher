@@ -4,6 +4,12 @@
    ...), and this theme's own settings.schema.json fields are exposed the
    same way, prefixed `--setting-<id>`. */
 
+/* A region id becomes `data-region`. The main area must clip, or a long
+   list paints over the status bar below it. */
+[data-region="r-main"] {
+  overflow: hidden;
+}
+
 [data-context="selection"] {
   width: calc(var(--setting-panelWidth, 280) * 1px);
 }
