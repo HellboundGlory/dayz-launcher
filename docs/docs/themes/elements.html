@@ -1,0 +1,1219 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Element reference — Tetra Launcher</title>
+    <meta
+      name="description"
+      content="Every element a Tetra Launcher theme can place: where it goes, whether it is required, and its options, parts and states."
+    />
+    <link rel="icon" href="../../assets/tetra-logo.png" />
+    <link rel="stylesheet" href="../../style-v2.css" />
+    <link rel="stylesheet" href="../../docs.css" />
+  </head>
+  <body>
+    <header class="site-nav">
+      <div class="container">
+        <a class="brand" href="/">
+          <img src="../../assets/tetra-logo.png" alt="" />
+          <span><span class="tetra">TETRA</span> <span class="launcher">LAUNCHER</span></span>
+        </a>
+        <nav class="links">
+          <a href="/">Home</a>
+          <a href="/download">Download</a>
+          <a href="/docs/themes/" class="active">Themes</a>
+          <a href="https://github.com/HellboundGlory/dayz-launcher">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <div class="docs">
+      <aside class="docs-nav" aria-label="Theme docs">
+        <details open>
+          <summary>On this page</summary>
+          <h2>Guide</h2>
+          <ol>
+            <li><a href="/docs/themes/">Making a theme</a></li>
+          </ol>
+          <h2>Reference</h2>
+          <ol>
+            <li><a href="#app"><code>app</code> Window and shell</a></li>
+            <li><a href="#nav"><code>nav</code> Views and Settings</a></li>
+            <li><a href="#status"><code>status</code> Launcher status</a></li>
+            <li><a href="#notice"><code>notice</code> Launcher messages</a></li>
+            <li><a href="#filter"><code>filter</code> Server browser filters and sorting</a></li>
+            <li><a href="#servers"><code>servers</code> Server browser actions</a></li>
+            <li><a href="#server"><code>server</code> One server</a></li>
+            <li><a href="#serverMod"><code>serverMod</code> A server's required mods</a></li>
+            <li><a href="#mods"><code>mods</code> Mods view actions</a></li>
+            <li><a href="#mod"><code>mod</code> One subscribed mod</a></li>
+            <li><a href="#modServer"><code>modServer</code> Servers that need a mod</a></li>
+            <li><a href="#modal"><code>modal</code> Any themeable modal</a></li>
+            <li><a href="#modFilter"><code>modFilter</code> The mod filter modal</a></li>
+            <li><a href="#workshopMod"><code>workshopMod</code> Mods inside the mod filter modal</a></li>
+            <li><a href="#update"><code>update</code> The update modal</a></li>
+            <li><a href="#settings"><code>settings</code> Settings</a></li>
+            <li><a href="#list"><code>list</code> The lists</a></li>
+            <li><a href="#popup"><code>popup</code> The themeable popups</a></li>
+            <li><a href="#surfaces">Surfaces</a></li>
+            <li><a href="#lists">Lists</a></li>
+            <li><a href="#modals">Modals</a></li>
+            <li><a href="#popups">Popups</a></li>
+            <li><a href="#icons">Icons</a></li>
+            <li><a href="/docs/themes/reference">Manifest, tokens and rules</a></li>
+          </ol>
+        </details>
+      </aside>
+
+      <main class="prose">
+        <h1>Element reference</h1>
+        <p class="lede">
+          Every element a v2 theme can place, with the conditions the launcher checks
+          before it accepts it.
+        </p>
+
+        <div class="md"><p>Everything here is theme API 2.0, except the nine elements that say <strong>since 2.1</strong>: <code>status.activity</code>, <code>notice.launch</code>, <code>server.refresh</code>, <code>server.manageMods</code>, <code>mod.created</code>, <code>mod.publishedSize</code>, <code>mod.subscribers</code>, <code>mod.folder</code> and <code>settings.done</code>.</p>
+<p><strong>Kinds</strong></p>
+<div class="table-wrap"><table><thead><tr><th>Kind</th><th>What it is</th></tr></thead><tbody><tr><td><code>display</code></td><td>Read-only content: text, a number, a thumbnail.</td></tr><tr><td><code>input</code></td><td>A control that holds or writes state.</td></tr><tr><td><code>action</code></td><td>A button.</td></tr><tr><td><code>nav</code></td><td>Moves between views, or opens Settings.</td></tr><tr><td><code>notice</code></td><td>A launcher message.</td></tr><tr><td><code>list</code></td><td>A list, its header and its rows.</td></tr><tr><td><code>block</code></td><td>A launcher-owned block, placed whole.</td></tr></tbody></table></div>
+<p><strong>Where codes</strong></p>
+<div class="table-wrap"><table><thead><tr><th>Code</th><th>Allowed files and positions</th></tr></thead><tbody><tr><td><code>app</code></td><td><code>layout/shell.json</code>, any view file, or <code>layout/settings.json</code>.</td></tr><tr><td><code>browser</code></td><td><code>layout/views/browser.json</code>.</td></tr><tr><td><code>mods</code></td><td><code>layout/views/mods.json</code>.</td></tr><tr><td><code>settings</code></td><td><code>layout/settings.json</code>.</td></tr><tr><td><code>server</code></td><td>Anywhere a server is the subject: a <code>list.servers</code> row, <code>layout/modals/serverInfo.json</code>, a container with <code>&quot;context&quot;: &quot;selection&quot;</code>, or <code>popup.serverActions</code>.</td></tr><tr><td><code>server-panel</code></td><td>Same as <code>server</code>, minus rows.</td></tr><tr><td><code>mod</code></td><td>A <code>list.mods</code> row, or a container with <code>&quot;context&quot;: &quot;modSelection&quot;</code> in <code>layout/views/mods.json</code>.</td></tr><tr><td><code>mod-panel</code></td><td>A container with <code>&quot;context&quot;: &quot;modSelection&quot;</code>, not a row.</td></tr><tr><td><code>serverMod</code></td><td>A <code>list.serverMods</code> row.</td></tr><tr><td><code>modServer</code></td><td>A <code>list.modServers</code> row.</td></tr><tr><td><code>workshopMod</code></td><td>A <code>list.modFilterResults</code> row, or a container with <code>&quot;context&quot;: &quot;modFilterPreview&quot;</code> in <code>layout/modals/modFilter.json</code>.</td></tr><tr><td><code>modFilter</code></td><td><code>layout/modals/modFilter.json</code>.</td></tr><tr><td><code>update</code></td><td><code>layout/modals/update.json</code>.</td></tr><tr><td><code>modal</code></td><td>Any themeable modal file.</td></tr><tr><td><code>selection</code></td><td>A container with <code>&quot;context&quot;: &quot;selection&quot;</code>, not a row or modal.</td></tr><tr><td><code>popup</code></td><td>Any themeable popup file.</td></tr><tr><td><code>popup:&lt;id&gt;</code></td><td>That popup's file, <code>layout/popups/&lt;id&gt;.json</code>.</td></tr></tbody></table></div>
+<p>Placing an element outside the positions its codes allow is an import error.</p>
+<p><strong>Req codes</strong></p>
+<div class="table-wrap"><table><thead><tr><th>Code</th><th>Required in</th></tr></thead><tbody><tr><td><code>views</code></td><td>Every composition of the shell with the server browser, and of the shell with Mods.</td></tr><tr><td><code>views+settings</code></td><td>As <code>views</code>, plus the composition of the shell with Settings.</td></tr><tr><td><code>browser</code> / <code>mods</code> / <code>settings</code></td><td>That composition only.</td></tr><tr><td><code>row</code></td><td>Every row template of the named list.</td></tr><tr><td><code>modal</code></td><td>The named modal file.</td></tr><tr><td><code>popup</code></td><td>The named popup file.</td></tr><tr><td><code>with join</code></td><td>Every subject context that places <code>server.join</code>.</td></tr></tbody></table></div>
+<p>A required element doesn't have to sit in the file its requirement names: window controls placed in each view file instead of the shell still count. What it may not do is go missing. A layout file that omits a required element fails validation, and the launcher renders Neutral's version of that screen in its place.</p>
+<p><strong>Compositions and multiplicity</strong></p>
+<p>Multiplicity is checked over a composition, which is the shell together with one view, the shell together with Settings, a modal file, or a popup file.</p>
+<ul><li><code>display</code> elements repeat freely.</li><li><code>input</code>, <code>nav</code>, <code>notice</code>, <code>list</code> and screen-level <code>action</code> elements appear at most once per composition, so a control never fights a copy of itself over focus and a notice is announced once.</li><li>An action on a subject — a server or a mod — appears at most once per subject context. A server row, the server info modal and each selection panel can each hold one <code>server.join</code>.</li></ul>
+<p><strong>Labels, wording and icons</strong></p>
+<ul><li><strong>Free labels:</strong> an optional element with a <code>label</code> part accepts the <code>label</code> option. It is plain text of at most 40 characters and becomes both the visible and the accessible name. Required elements never accept <code>label</code>.</li><li><strong>Wording variants:</strong> some required elements offer <code>wording</code> variants instead of a free label, and the launcher picks the exact words for the current state.</li><li><strong>Icons:</strong> an element with an <code>icon</code> part accepts the <code>icon</code> option in one of three forms: a launcher icon name from the list under Icons; a package image path (<code>images/…</code>, SVG or PNG), rendered as a decorative <code>&lt;img alt=&quot;&quot;&gt;</code>; or <code>&quot;none&quot;</code>, allowed only when the element still renders a label.</li><li><strong><code>display</code> options:</strong> these choose between <code>iconLabel</code>, <code>label</code> and <code>icon</code>. With <code>icon</code>, the launcher's wording remains the accessible name and the tooltip.</li></ul></div>
+
+        <div class="el-search">
+          <input
+            type="search"
+            id="el-search"
+            placeholder="Filter elements by id"
+            aria-label="Filter elements by id"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <p class="el-search-empty" hidden>No elements match</p>
+        </div>
+
+<section class="el-group">
+  <h2 id="app"><code>app</code> Window and shell</h2>
+  <div class="md"><p>The window frame: window controls, the drag region, the logo and the window-level switches. The window's resize edges are always present and launcher-owned.</p></div>
+  <section class="el" id="el-app-minimize" data-el="app.minimize">
+  <h3><code>app.minimize</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Required in</dt><dd>as <code>views</code>, plus the composition of the shell with Settings</dd><dt>Parts</dt><dd><code>icon</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-app-maximize" data-el="app.maximize">
+  <h3><code>app.maximize</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Required in</dt><dd>as <code>views</code>, plus the composition of the shell with Settings</dd><dt>Parts</dt><dd><code>icon</code> · States: <code>maximized</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-app-close" data-el="app.close">
+  <h3><code>app.close</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Required in</dt><dd>as <code>views</code>, plus the composition of the shell with Settings</dd><dt>Parts</dt><dd><code>icon</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-app-dragRegion" data-el="app.dragRegion">
+  <h3><code>app.dragRegion</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · any number of times</dd><dt>Required in</dt><dd>as <code>views</code>, plus the composition of the shell with Settings</dd></dl>
+  <div class="md el-notes"><p>Fills whatever size the layout gives it, and dragging it moves the window. It never contains other nodes.</p></div>
+</section>
+  <section class="el" id="el-app-logo" data-el="app.logo">
+  <h3><code>app.logo</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · any number of times</dd><dt>Parts</dt><dd><code>image</code>, <code>wordmark</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>wordmark</code> (on or off, default on)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-app-collapseToggle" data-el="app.collapseToggle">
+  <h3><code>app.collapseToggle</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per target region</dd><dt>Parts</dt><dd><code>icon</code> · States: <code>collapsed</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>region</code> (region id, required)</li><li><code>label</code> (text, default <code>sidebar</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Collapses and expands the named region. Its accessible name is &quot;Collapse {label}&quot; or &quot;Expand {label}&quot;, and it carries <code>aria-expanded</code> and <code>aria-controls</code>.</p></div>
+</section>
+  <section class="el" id="el-app-uiScale" data-el="app.uiScale">
+  <h3><code>app.uiScale</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Parts</dt><dd><code>label</code>, <code>track</code>, <code>knob</code>, <code>value</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showLabel</code> (on or off, default on)</li><li><code>showValue</code> (on or off, default on)</li><li><code>label</code> (text)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-app-schemeToggle" data-el="app.schemeToggle">
+  <h3><code>app.schemeToggle</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Parts</dt><dd><code>icon</code> · States: <code>dark</code>, <code>light</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+</section>
+</section>
+
+<section class="el-group">
+  <h2 id="nav"><code>nav</code> Views and Settings</h2>
+  <div class="md"><p>Moving between the views and opening Settings.</p>
+<ul><li><strong>Labels and icons:</strong> Servers (Globe), Favourites (Star), Recent (Clock), Mods (Package), Settings (gear).</li><li><strong>The current nav item:</strong> <code>current</code> sets <code>aria-current=&quot;page&quot;</code>.</li><li><strong>Opening Settings:</strong> <code>nav.settings</code> toggles Settings and sets <code>aria-pressed</code>.</li><li><strong>Keyboard:</strong> inside a container with <code>&quot;landmark&quot;: &quot;navigation&quot;</code>, nav items rove with the arrow keys and Home/End.</li></ul></div>
+  <section class="el" id="el-nav-servers" data-el="nav.servers">
+  <h3><code>nav.servers</code> <span class="el-kind">nav</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Required in</dt><dd>every composition of the shell with the server browser, and of the shell with Mods</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>current</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-nav-favourites" data-el="nav.favourites">
+  <h3><code>nav.favourites</code> <span class="el-kind">nav</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Required in</dt><dd>every composition of the shell with the server browser, and of the shell with Mods</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>current</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-nav-recent" data-el="nav.recent">
+  <h3><code>nav.recent</code> <span class="el-kind">nav</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Required in</dt><dd>every composition of the shell with the server browser, and of the shell with Mods</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>current</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-nav-mods" data-el="nav.mods">
+  <h3><code>nav.mods</code> <span class="el-kind">nav</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Required in</dt><dd>every composition of the shell with the server browser, and of the shell with Mods</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>current</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-nav-settings" data-el="nav.settings">
+  <h3><code>nav.settings</code> <span class="el-kind">nav</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Required in</dt><dd>every composition of the shell with the server browser, and of the shell with Mods</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>open</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+</section>
+</section>
+
+<section class="el-group">
+  <h2 id="status"><code>status</code> Launcher status</h2>
+  <div class="md"><p>Read-only figures about the launcher and the server list.</p></div>
+  <section class="el" id="el-status-steam" data-el="status.steam">
+  <h3><code>status.steam</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · any number of times</dd><dt>Required in</dt><dd>every composition of the shell with the server browser, and of the shell with Mods</dd><dt>Parts</dt><dd><code>dot</code>, <code>label</code> · States: <code>connected</code>, <code>disconnected</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>dotLabel</code>, <code>dot</code>, <code>label</code>, default <code>dotLabel</code>)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Steam connected&quot; or &quot;Steam not connected&quot;. With <code>display: dot</code>, that text becomes the accessible name and the tooltip.</p></div>
+</section>
+  <section class="el" id="el-status-serverTotal" data-el="status.serverTotal">
+  <h3><code>status.serverTotal</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · any number of times</dd><dt>Parts</dt><dd><code>value</code>, <code>label</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showLabel</code> (on or off, default on)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Renders nothing while Steam is disconnected.</p></div>
+</section>
+  <section class="el" id="el-status-populated" data-el="status.populated">
+  <h3><code>status.populated</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · any number of times</dd><dt>Parts</dt><dd><code>value</code>, <code>label</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showLabel</code> (on or off, default on)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Renders nothing while Steam is disconnected.</p></div>
+</section>
+  <section class="el" id="el-status-listSource" data-el="status.listSource">
+  <h3><code>status.listSource</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · any number of times</dd><dt>Parts</dt><dd><code>label</code> · States: <code>index</code>, <code>steam</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Renders nothing while Steam is disconnected, and nothing until the list source is known.</p></div>
+</section>
+  <section class="el" id="el-status-lastRefreshed" data-el="status.lastRefreshed">
+  <h3><code>status.lastRefreshed</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · any number of times</dd><dt>Parts</dt><dd><code>label</code>, <code>value</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Renders nothing while Steam is disconnected, and nothing before the first refresh.</p></div>
+</section>
+  <section class="el" id="el-status-activity" data-el="status.activity">
+  <h3><code>status.activity</code> <span class="el-kind">display</span> <span class="el-since">SINCE 2.1</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · any number of times</dd><dt>Parts</dt><dd><code>dot</code>, <code>label</code> · States: <code>discovering</code>, <code>refreshing</code>, <code>live</code></dd></dl>
+  <div class="md el-notes"><p>The <code>dot</code> and <code>label</code> parts share one state. <code>discovering</code> reads &quot;Discovering servers from Steam…&quot;; <code>refreshing</code> reads &quot;Probing server details…&quot;; otherwise <code>live</code> reads &quot;Live · {time}&quot;, or &quot;Live · waiting&quot; before the first refresh.</p></div>
+</section>
+</section>
+
+<section class="el-group">
+  <h2 id="notice"><code>notice</code> Launcher messages</h2>
+  <div class="md"><p>A notice renders only while its condition holds, and the visibility check measures it only while it is showing. Beyond these elements, three more notices are launcher-owned and never placed by a theme: the theme-fallback notice, the incompatible-theme notice and the Activation Safety Window.</p></div>
+  <section class="el" id="el-notice-launch" data-el="notice.launch">
+  <h3><code>notice.launch</code> <span class="el-kind">notice</span> <span class="el-since">SINCE 2.1</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Parts</dt><dd><code>tag</code>, <code>server</code>, <code>message</code>, <code>dismiss</code> · States: <code>warning</code>, <code>error</code>, <code>refused</code></dd></dl>
+  <div class="md el-notes"><p>A bar naming the server last acted on, carrying the same join warning or launch refusal as that server's <code>server.actionNotice</code>. A successful launch never shows here. Dismissing it clears the notice for <code>server.actionNotice</code> too. A composition that places it may hide <code>server.actionNotice</code> in list rows.</p></div>
+</section>
+  <section class="el" id="el-notice-update" data-el="notice.update">
+  <h3><code>notice.update</code> <span class="el-kind">notice</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Parts</dt><dd><code>title</code>, <code>message</code>, <code>update</code>, <code>later</code></dd></dl>
+  <div class="md el-notes"><p>&quot;Update&quot; opens the update modal; &quot;Later&quot; dismisses the notice for the session. It is optional, because the update modal and Settings also offer updates.</p></div>
+</section>
+  <section class="el" id="el-notice-storage" data-el="notice.storage">
+  <h3><code>notice.storage</code> <span class="el-kind">notice</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Required in</dt><dd>as <code>views</code>, plus the composition of the shell with Settings</dd><dt>Parts</dt><dd><code>tag</code>, <code>message</code></dd></dl>
+</section>
+  <section class="el" id="el-notice-error" data-el="notice.error">
+  <h3><code>notice.error</code> <span class="el-kind">notice</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Required in</dt><dd>as <code>views</code>, plus the composition of the shell with Settings</dd><dt>Parts</dt><dd><code>tag</code>, <code>message</code>, <code>dismiss</code></dd></dl>
+</section>
+  <section class="el" id="el-notice-modsError" data-el="notice.modsError">
+  <h3><code>notice.modsError</code> <span class="el-kind">notice</span></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Required in</dt><dd>the shell + Mods composition</dd><dt>Parts</dt><dd><code>message</code></dd></dl>
+</section>
+  <section class="el" id="el-notice-modsCached" data-el="notice.modsCached">
+  <h3><code>notice.modsCached</code> <span class="el-kind">notice</span></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Required in</dt><dd>the shell + Mods composition</dd><dt>Parts</dt><dd><code>message</code></dd></dl>
+</section>
+  <section class="el" id="el-notice-modsResult" data-el="notice.modsResult">
+  <h3><code>notice.modsResult</code> <span class="el-kind">notice</span></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Required in</dt><dd>the shell + Mods composition</dd><dt>Parts</dt><dd><code>message</code>, <code>dismiss</code> · States: <code>success</code>, <code>failure</code></dd></dl>
+  <div class="md el-notes"><p>Carries the outcome of verify, unsubscribe, clean-up and select-unique.</p></div>
+</section>
+  <section class="el" id="el-notice-modsOutdated" data-el="notice.modsOutdated">
+  <h3><code>notice.modsOutdated</code> <span class="el-kind">notice</span></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Parts</dt><dd><code>message</code>, <code>updateAll</code> · States: <code>busy</code></dd></dl>
+</section>
+</section>
+
+<section class="el-group">
+  <h2 id="filter"><code>filter</code> Server browser filters and sorting</h2>
+  <div class="md"><p>The filter bar: one control per server filter, plus the reset button.</p>
+<ul><li><strong>Popup triggers:</strong> <code>filter.map</code>, <code>filter.tags</code>, <code>filter.region</code> and <code>filter.sort</code> open <code>popup.mapFilter</code>, <code>popup.tagsFilter</code>, <code>popup.regionFilter</code> and <code>popup.sort</code>, with <code>aria-haspopup=&quot;listbox&quot;</code> and <code>aria-expanded</code>. The <code>trigger</code> part is the chip that opens the popup.</li><li><strong>Filter popups:</strong> while open, <code>filter.map</code>, <code>filter.tags</code> and <code>filter.region</code> render an inline <code>popup</code> part holding one <code>option</code> part per row: a checkbox <code>box</code> (map), a tri-state <code>indicator</code> (tags), or a leading <code>clear</code> row (region). <code>filter.map</code>'s <code>empty</code> part renders &quot;Loading maps…&quot; while its list is still loading.</li><li><strong><code>filter.mods</code></strong> opens the mod filter modal.</li><li><strong><code>active</code> state:</strong> map, tags, region and mods are <code>active</code> while they filter anything. Sort is <code>active</code> unless it is Players, descending. Ping is <code>active</code> below 500.</li><li><strong>Hide toggles:</strong> labelled &quot;Hide empty&quot;, &quot;Hide full&quot;, &quot;Hide locked&quot; and &quot;Hide offline&quot;. Default off, persisted, and cleared by <code>filter.reset</code> along with every other filter. The control role follows the <code>control</code> option: <code>button</code> is a pressable button with <code>aria-pressed</code>, <code>checkbox</code> has <code>role=&quot;checkbox&quot;</code> and <code>switch</code> has <code>role=&quot;switch&quot;</code>. The <code>box</code> part renders only for <code>checkbox</code> and <code>switch</code>.</li><li><strong>Sort keys:</strong> Players, Ping, Mods, Name and Map.</li></ul>
+<p>Label and value wording: labels are MAP, TAGS, REGION, MODS, SORT and PING.</p>
+<div class="table-wrap"><table><thead><tr><th>Element</th><th>Value</th></tr></thead><tbody><tr><td>Map</td><td>&quot;Any&quot;, the map name, or &quot;{n} maps&quot;</td></tr><tr><td>Tags</td><td>&quot;Any&quot; or &quot;{n} tag(s)&quot;</td></tr><tr><td>Mods</td><td>&quot;Any&quot;, &quot;{n} mod(s)&quot;, &quot;{n} excluded&quot;, or &quot;{i} in, {e} out&quot;</td></tr><tr><td>Region</td><td>&quot;Any&quot;, the region, or &quot;{n} regions&quot;</td></tr><tr><td>Sort</td><td>&quot;{key}&quot; followed by the direction arrow</td></tr><tr><td>Ping</td><td>&quot;{v}ms&quot; or &quot;Any&quot;</td></tr></tbody></table></div></div>
+  <section class="el" id="el-filter-search" data-el="filter.search">
+  <h3><code>filter.search</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Required in</dt><dd>the shell + server browser composition</dd><dt>Parts</dt><dd><code>icon</code>, <code>input</code> · States: <code>filled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showIcon</code> (on or off, default on)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Writes the search filter after a 250 ms trailing debounce. Its placeholder is &quot;Search name or description&quot;.</p></div>
+</section>
+  <section class="el" id="el-filter-map" data-el="filter.map">
+  <h3><code>filter.map</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Parts</dt><dd><code>label</code>, <code>value</code>, <code>chevron</code>, <code>trigger</code>, <code>popup</code>, <code>option</code>, <code>box</code>, <code>indicator</code>, <code>clear</code>, <code>empty</code> · States: <code>active</code>, <code>open</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showLabel</code> (on or off, default on)</li><li><code>label</code> (text)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-filter-tags" data-el="filter.tags">
+  <h3><code>filter.tags</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Parts</dt><dd><code>label</code>, <code>value</code>, <code>chevron</code>, <code>trigger</code>, <code>popup</code>, <code>option</code>, <code>box</code>, <code>indicator</code>, <code>clear</code>, <code>empty</code> · States: <code>active</code>, <code>open</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showLabel</code> (on or off, default on)</li><li><code>label</code> (text)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-filter-region" data-el="filter.region">
+  <h3><code>filter.region</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Parts</dt><dd><code>label</code>, <code>value</code>, <code>chevron</code>, <code>trigger</code>, <code>popup</code>, <code>option</code>, <code>box</code>, <code>indicator</code>, <code>clear</code>, <code>empty</code> · States: <code>active</code>, <code>open</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showLabel</code> (on or off, default on)</li><li><code>label</code> (text)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-filter-mods" data-el="filter.mods">
+  <h3><code>filter.mods</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Parts</dt><dd><code>label</code>, <code>value</code>, <code>chevron</code> · States: <code>active</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showLabel</code> (on or off, default on)</li><li><code>label</code> (text)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-filter-sort" data-el="filter.sort">
+  <h3><code>filter.sort</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Parts</dt><dd><code>label</code>, <code>value</code>, <code>direction</code>, <code>chevron</code> · States: <code>active</code>, <code>open</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showLabel</code> (on or off, default on)</li><li><code>label</code> (text)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-filter-maxPing" data-el="filter.maxPing">
+  <h3><code>filter.maxPing</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Parts</dt><dd><code>label</code>, <code>track</code>, <code>knob</code>, <code>value</code> · States: <code>active</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showLabel</code> (on or off, default on)</li><li><code>showValue</code> (on or off, default on)</li><li><code>label</code> (text)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-filter-hideEmpty" data-el="filter.hideEmpty">
+  <h3><code>filter.hideEmpty</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Parts</dt><dd><code>label</code>, <code>box</code>, <code>icon</code> · States: <code>on</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>control</code> (one of <code>button</code>, <code>checkbox</code>, <code>switch</code>, default <code>button</code>)</li><li><code>label</code> (text)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-filter-hideFull" data-el="filter.hideFull">
+  <h3><code>filter.hideFull</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Parts</dt><dd><code>label</code>, <code>box</code>, <code>icon</code> · States: <code>on</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>control</code> (one of <code>button</code>, <code>checkbox</code>, <code>switch</code>, default <code>button</code>)</li><li><code>label</code> (text)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-filter-hideLocked" data-el="filter.hideLocked">
+  <h3><code>filter.hideLocked</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Parts</dt><dd><code>label</code>, <code>box</code>, <code>icon</code> · States: <code>on</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>control</code> (one of <code>button</code>, <code>checkbox</code>, <code>switch</code>, default <code>button</code>)</li><li><code>label</code> (text)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-filter-hideOffline" data-el="filter.hideOffline">
+  <h3><code>filter.hideOffline</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Parts</dt><dd><code>label</code>, <code>box</code>, <code>icon</code> · States: <code>on</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>control</code> (one of <code>button</code>, <code>checkbox</code>, <code>switch</code>, default <code>button</code>)</li><li><code>label</code> (text)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-filter-reset" data-el="filter.reset">
+  <h3><code>filter.reset</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+</section>
+</section>
+
+<section class="el-group">
+  <h2 id="servers"><code>servers</code> Server browser actions</h2>
+  <div class="md"><p>Actions on the server list as a whole, rather than on one server.</p></div>
+  <section class="el" id="el-servers-refresh" data-el="servers.refresh">
+  <h3><code>servers.refresh</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Required in</dt><dd>the shell + server browser composition</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>busy</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Re-probes the servers currently on screen. It reads &quot;Refresh&quot;, or &quot;Refreshing…&quot; while <code>busy</code>, when it is disabled and its icon spins.</p></div>
+</section>
+</section>
+
+<section class="el-group">
+  <h2 id="server"><code>server</code> One server</h2>
+  <div class="md"><p>Elements that read or act on a single server: its actions first, then the display elements.</p>
+<p><strong>Formats</strong></p>
+<div class="table-wrap"><table><thead><tr><th>Element</th><th>Format</th></tr></thead><tbody><tr><td><code>server.gameTime</code></td><td>&quot;h:mm AM/PM · {multiplier}&quot;; &quot;--:--&quot; when unknown</td></tr><tr><td><code>server.players</code></td><td>&quot;{players}/{max}&quot;, with &quot;+{queue}&quot; when queued</td></tr><tr><td><code>server.ping</code></td><td>A number, or &quot;—&quot;; <code>good</code> ≤ 80, <code>fair</code> ≤ 120, <code>poor</code> above 120</td></tr><tr><td><code>server.modCount</code></td><td>The count, &quot;—&quot; for none, or &quot;?&quot; when modded but not yet probed</td></tr><tr><td><code>server.lastPlayed</code></td><td>&quot;played {relative time}&quot; or a date; renders nothing when the server was never played, or &quot;—&quot; with <code>showNever</code>. With <code>recentOnly</code> it also renders nothing outside the Recent scope. With <code>label: &quot;&quot;</code> the &quot;played&quot; prefix is dropped</td></tr><tr><td><code>server.region</code></td><td>Europe, North America, South America, Asia, Oceania, the raw code if unmapped, or &quot;Unknown region&quot;</td></tr></tbody></table></div>
+<ul><li><strong>Readiness data:</strong> <code>server.readiness</code> and <code>server.downloadSize</code> read the data fetched for the selection and the server info modal. They are not allowed in rows, where fetching per visible row would flood Steam.</li><li><strong>Offline servers:</strong> <code>offline</code> is added to every server element's states while the server didn't answer the last refresh, and its figures are then the last known values.</li></ul></div>
+  <section class="el" id="el-server-join" data-el="server.join">
+  <h3><code>server.join</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Required in</dt><dd>every row of <code>list.servers</code>; the <code>serverInfo</code> modal</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code>, <code>spinner</code> · States: <code>busy</code>, <code>disabled</code>, <code>playing</code>, <code>modded</code>, <code>needsMods</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>wording</code> (one of <code>join</code>, <code>fixAndJoin</code>, default <code>join</code>)</li><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;, default <code>play</code>)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Runs the join, which verifies and fixes mods first.</p>
+<p><strong>Wording</strong></p>
+<div class="table-wrap"><table><thead><tr><th>State</th><th>Wording</th></tr></thead><tbody><tr><td>Idle</td><td>&quot;Join&quot;, or &quot;Fix and join&quot; when the variant is <code>fixAndJoin</code> and mods need a download or update</td></tr><tr><td><code>busy</code></td><td>The phase label: &quot;Launching…&quot;, &quot;Starting DayZ…&quot;, &quot;Subscribing…&quot;, &quot;Downloading…&quot; or &quot;Verifying…&quot;</td></tr><tr><td><code>playing</code></td><td>&quot;Playing&quot;</td></tr></tbody></table></div>
+<ul><li><strong>Disabled:</strong> during any operation, or while DayZ is running. The tooltip reads &quot;DayZ is running. Quit the game before joining another server.&quot;</li><li><strong>Icon:</strong> Download for modded servers, Play otherwise.</li><li><strong>Selection:</strong> clicking Join never selects its row.</li><li><strong>Visibility:</strong> the check measures the selected row's Join, but a visible <code>server.join</code> inside a <code>selection</code> container satisfies it, because joining the selected server always works. A focused-but-unselected row still needs its own.</li></ul></div>
+</section>
+  <section class="el" id="el-server-actionNotice" data-el="server.actionNotice">
+  <h3><code>server.actionNotice</code> <span class="el-kind">notice</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Required in</dt><dd>every subject context that places <code>server.join</code></dd><dt>Parts</dt><dd><code>code</code>, <code>title</code>, <code>message</code> · States: <code>warning</code>, <code>error</code>, <code>success</code>, <code>refused</code>, <code>offline</code></dd></dl>
+  <div class="md el-notes"><p>Shows this server's current join warning or error, or the last launch result; a refused launch also carries <code>refused</code>. It is required in every context that places <code>server.join</code>, and a file that omits it fails validation and falls back to Neutral's version of that screen. It renders only while it has something to report, so the visibility check measures it only then.</p></div>
+</section>
+  <section class="el" id="el-server-cancel" data-el="server.cancel">
+  <h3><code>server.cancel</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>label</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Renders only while this server has a wait that can be cancelled.</p></div>
+</section>
+  <section class="el" id="el-server-loadToMenu" data-el="server.loadToMenu">
+  <h3><code>server.loadToMenu</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>disabled</code>, <code>busy</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Load to menu&quot;: it verifies the mod list, then starts DayZ at the main menu without joining. It is disabled under the same conditions as Join.</p></div>
+</section>
+  <section class="el" id="el-server-info" data-el="server.info">
+  <h3><code>server.info</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup, not the <code>serverInfo</code> modal · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;More info&quot; and opens the server info modal.</p></div>
+</section>
+  <section class="el" id="el-server-menu" data-el="server.menu">
+  <h3><code>server.menu</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup, not any themeable popup · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>trigger</code>, <code>popup</code>, <code>item</code> · States: <code>open</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>menu</code> (one of <code>serverActions</code>, <code>serverLoad</code>, default <code>serverActions</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Opens <code>popup.serverActions</code> or <code>popup.serverLoad</code>, with <code>aria-haspopup=&quot;menu&quot;</code>. Its accessible name is &quot;More actions for {server}&quot;.</p></div>
+</section>
+  <section class="el" id="el-server-favourite" data-el="server.favourite">
+  <h3><code>server.favourite</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>on</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>icon</code>, <code>iconLabel</code>, default <code>icon</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Add to favourites&quot; or &quot;Remove from favourites&quot;. The change is applied optimistically and reverted if saving fails.</p></div>
+</section>
+  <section class="el" id="el-server-refresh" data-el="server.refresh">
+  <h3><code>server.refresh</code> <span class="el-kind">action</span> <span class="el-since">SINCE 2.1</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>busy</code>, <code>disabled</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>icon</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;, default <code>refresh</code>)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Refresh this server&quot; and re-probes only this server. Only one row probes at a time: the probing row is <code>busy</code>, and every other row's <code>server.refresh</code> is <code>disabled</code> until it finishes.</p></div>
+</section>
+  <section class="el" id="el-server-subscribeAll" data-el="server.subscribeAll">
+  <h3><code>server.subscribeAll</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>disabled</code>, <code>busy</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Download mods&quot; and subscribes to every mod the server declares.</p></div>
+</section>
+  <section class="el" id="el-server-checkMods" data-el="server.checkMods">
+  <h3><code>server.checkMods</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>busy</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Check mods&quot;. It re-reads the server's mod list and each mod's state, and never queues a download.</p></div>
+</section>
+  <section class="el" id="el-server-unsubscribeUnique" data-el="server.unsubscribeUnique">
+  <h3><code>server.unsubscribeUnique</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>disabled</code>, <code>busy</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Unsubscribe unique mods&quot;. It opens the launcher's confirmation, and is disabled when no mod is unique to this server.</p></div>
+</section>
+  <section class="el" id="el-server-copyAddress" data-el="server.copyAddress">
+  <h3><code>server.copyAddress</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>copied</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Copy address&quot;, or &quot;Copied&quot; for 1.5 s after copying <code>ip:gamePort</code>.</p></div>
+</section>
+  <section class="el" id="el-server-deselect" data-el="server.deselect">
+  <h3><code>server.deselect</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>a selection container, not a row or modal · once per subject context</dd><dt>Parts</dt><dd><code>icon</code> · States: <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Close details&quot; and clears the selection.</p></div>
+</section>
+  <section class="el" id="el-server-name" data-el="server.name">
+  <h3><code>server.name</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>text</code> · States: <code>offline</code></dd></dl>
+</section>
+  <section class="el" id="el-server-address" data-el="server.address">
+  <h3><code>server.address</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>address</code>, <code>gamePort</code> · States: <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showGamePort</code> (on or off, default off)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-server-map" data-el="server.map">
+  <h3><code>server.map</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>text</code> · States: <code>offline</code></dd></dl>
+</section>
+  <section class="el" id="el-server-region" data-el="server.region">
+  <h3><code>server.region</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>text</code> · States: <code>unknown</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>format</code> (one of <code>name</code>, <code>code</code>, default <code>name</code>)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-server-gameTime" data-el="server.gameTime">
+  <h3><code>server.gameTime</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>icon</code>, <code>time</code>, <code>multiplier</code> · States: <code>day</code>, <code>night</code>, <code>unknown</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showIcon</code> (on or off, default on)</li><li><code>showMultiplier</code> (on or off, default on)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-server-players" data-el="server.players">
+  <h3><code>server.players</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>value</code>, <code>max</code>, <code>queue</code>, <code>caption</code> · States: <code>empty</code>, <code>full</code>, <code>queued</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>format</code> (one of <code>countMax</code>, <code>count</code>, default <code>countMax</code>)</li><li><code>showQueue</code> (on or off, default on)</li><li><code>showCaption</code> (on or off, default on)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-server-ping" data-el="server.ping">
+  <h3><code>server.ping</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>value</code>, <code>unit</code>, <code>caption</code> · States: <code>good</code>, <code>fair</code>, <code>poor</code>, <code>unknown</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showUnit</code> (on or off, default off)</li><li><code>showCaption</code> (on or off, default on)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-server-modCount" data-el="server.modCount">
+  <h3><code>server.modCount</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>value</code>, <code>caption</code> · States: <code>none</code>, <code>unprobed</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showCaption</code> (on or off, default on)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-server-version" data-el="server.version">
+  <h3><code>server.version</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>text</code> · States: <code>unknown</code>, <code>offline</code></dd></dl>
+</section>
+  <section class="el" id="el-server-lastPlayed" data-el="server.lastPlayed">
+  <h3><code>server.lastPlayed</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>label</code>, <code>value</code> · States: <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>format</code> (one of <code>relative</code>, <code>date</code>, default <code>relative</code>)</li><li><code>recentOnly</code> (on or off, default off)</li><li><code>showNever</code> (on or off, default off)</li><li><code>label</code> (text)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-server-tags" data-el="server.tags">
+  <h3><code>server.tags</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>chip</code> · States: <code>offline</code>, <code>official</code>, <code>firstPerson</code>, <code>modded</code>, <code>locked</code>, <code>battleye</code>, <code>modUpdate</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>officialWording</code> (one of <code>vanilla</code>, <code>official</code>, default <code>vanilla</code>)</li><li><code>showOffline</code> (on or off, default on)</li><li><code>showOfficial</code> (on or off, default on)</li><li><code>showModded</code> (on or off, default on)</li><li><code>showFirstPerson</code> (on or off, default on)</li><li><code>showLocked</code> (on or off, default on)</li><li><code>showModUpdate</code> (on or off, default on)</li><li><code>showBattleye</code> (on or off, default off)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Renders chips in the order offline, official (VANILLA or OFFICIAL), first person (1PP), modded, locked, BattlEye, mod update.</p></div>
+</section>
+  <section class="el" id="el-server-modUpdate" data-el="server.modUpdate">
+  <h3><code>server.modUpdate</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>label</code> · States: <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Renders &quot;UPDATE&quot; only while a declared mod has a pending Steam update.</p></div>
+</section>
+  <section class="el" id="el-server-readiness" data-el="server.readiness">
+  <h3><code>server.readiness</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>the server info modal, a selection container, or the server actions popup, not a row · any number of times</dd><dt>Parts</dt><dd><code>dot</code>, <code>label</code>, <code>size</code> · States: <code>checking</code>, <code>ready</code>, <code>needsDownload</code>, <code>needsUpdate</code>, <code>downloading</code>, <code>unchecked</code>, <code>noMods</code>, <code>stale</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showDot</code> (on or off, default on)</li><li><code>showSize</code> (on or off, default on)</li><li><code>label</code> (text)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-server-downloadSize" data-el="server.downloadSize">
+  <h3><code>server.downloadSize</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>the server info modal, a selection container, or the server actions popup, not a row · any number of times</dd><dt>Parts</dt><dd><code>qualifier</code>, <code>value</code> · States: <code>upperBound</code>, <code>none</code>, <code>checking</code>, <code>offline</code></dd></dl>
+</section>
+  <section class="el" id="el-server-manageMods" data-el="server.manageMods">
+  <h3><code>server.manageMods</code> <span class="el-kind">action</span> <span class="el-since">SINCE 2.1</span></h3>
+  <dl><dt>Placed in</dt><dd>the server info modal, a selection container, or the server actions popup, not a row · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code>, <code>count</code> · States: <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;, default <code>externalLink</code>)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Manage mods&quot;; once the mod count is known, its <code>count</code> part reads &quot;· {n} declared&quot;. Opens the Mods view.</p></div>
+</section>
+</section>
+
+<section class="el-group">
+  <h2 id="serverMod"><code>serverMod</code> A server's required mods</h2>
+  <div class="md"><p>These elements are placed in the row template of <code>list.serverMods</code>. Rows keep the server's declared order.</p></div>
+  <section class="el" id="el-serverMod-order" data-el="serverMod.order">
+  <h3><code>serverMod.order</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a server's mod row · any number of times</dd><dt>Parts</dt><dd><code>value</code></dd></dl>
+</section>
+  <section class="el" id="el-serverMod-thumbnail" data-el="serverMod.thumbnail">
+  <h3><code>serverMod.thumbnail</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a server's mod row · any number of times</dd><dt>Parts</dt><dd><code>image</code> · States: <code>missing</code></dd></dl>
+</section>
+  <section class="el" id="el-serverMod-name" data-el="serverMod.name">
+  <h3><code>serverMod.name</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a server's mod row · any number of times</dd><dt>Parts</dt><dd><code>text</code></dd></dl>
+</section>
+  <section class="el" id="el-serverMod-state" data-el="serverMod.state">
+  <h3><code>serverMod.state</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a server's mod row · any number of times</dd><dt>Parts</dt><dd><code>dot</code>, <code>label</code> · States: <code>checking</code>, <code>ready</code>, <code>needsUpdate</code>, <code>downloading</code>, <code>notInstalled</code>, <code>notSubscribed</code>, <code>serverSide</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>dotLabel</code>, <code>dot</code>, <code>label</code>, default <code>dotLabel</code>)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p><strong>Wording</strong></p>
+<div class="table-wrap"><table><thead><tr><th>State</th><th>Wording</th></tr></thead><tbody><tr><td><code>ready</code></td><td>&quot;Ready&quot;</td></tr><tr><td><code>needsUpdate</code></td><td>&quot;Needs update&quot;</td></tr><tr><td><code>downloading</code></td><td>&quot;Downloading&quot;</td></tr><tr><td><code>notInstalled</code></td><td>&quot;Not installed&quot;</td></tr><tr><td><code>notSubscribed</code></td><td>&quot;Not subscribed&quot;</td></tr><tr><td><code>serverSide</code></td><td>&quot;Server-side&quot;</td></tr><tr><td><code>checking</code></td><td>&quot;Checking…&quot;</td></tr></tbody></table></div></div>
+</section>
+  <section class="el" id="el-serverMod-size" data-el="serverMod.size">
+  <h3><code>serverMod.size</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a server's mod row · any number of times</dd><dt>Parts</dt><dd><code>qualifier</code>, <code>value</code> · States: <code>upperBound</code>, <code>unknown</code></dd></dl>
+  <div class="md el-notes"><p>Shows the full size for <code>notSubscribed</code> and <code>notInstalled</code>, &quot;up to {size}&quot; for <code>needsUpdate</code>, and nothing for <code>ready</code> and <code>serverSide</code>.</p></div>
+</section>
+  <section class="el" id="el-serverMod-progress" data-el="serverMod.progress">
+  <h3><code>serverMod.progress</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a server's mod row · any number of times</dd><dt>Parts</dt><dd><code>bar</code>, <code>value</code> · States: <code>indeterminate</code></dd></dl>
+  <div class="md el-notes"><p>Renders only while downloading, and is <code>indeterminate</code> until Steam reports a total.</p></div>
+</section>
+  <section class="el" id="el-serverMod-unique" data-el="serverMod.unique">
+  <h3><code>serverMod.unique</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a server's mod row · any number of times</dd><dt>Parts</dt><dd><code>label</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Only this server&quot; when no other cared-about server needs the mod.</p></div>
+</section>
+  <section class="el" id="el-serverMod-openInSteam" data-el="serverMod.openInSteam">
+  <h3><code>serverMod.openInSteam</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>a server's mod row · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>icon</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Is disabled for server-side mods, which have no Workshop page.</p></div>
+</section>
+</section>
+
+<section class="el-group">
+  <h2 id="mods"><code>mods</code> Mods view actions</h2>
+  <div class="md"><p>Actions on the Mods view as a whole.</p>
+<ul><li><strong>Menus:</strong> <code>mods.unsubscribeMenu</code> and <code>mods.verifyMenu</code> open <code>popup.modsUnsubscribe</code> and <code>popup.modsVerify</code>.</li><li><strong>Menu items:</strong> &quot;Unsubscribe selected ({n})&quot;, &quot;Unsubscribe from all {n} (destructive)&quot;, &quot;Verify selected ({n})&quot; and &quot;Verify all ({n})&quot;.</li><li><strong>Confirmations:</strong> every unsubscribe and clean-up action opens the launcher's confirmation dialog first.</li></ul></div>
+  <section class="el" id="el-mods-search" data-el="mods.search">
+  <h3><code>mods.search</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Parts</dt><dd><code>icon</code>, <code>input</code> · States: <code>filled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showIcon</code> (on or off, default off)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Matches title, tags or Workshop id, with no debounce. Its placeholder is &quot;Search mods by name, tag or id…&quot;.</p></div>
+</section>
+  <section class="el" id="el-mods-statusFilter" data-el="mods.statusFilter">
+  <h3><code>mods.statusFilter</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Parts</dt><dd><code>option</code> · States: <code>selected</code></dd></dl>
+  <div class="md el-notes"><p>Offers All, Outdated and Downloading as a single-choice group (<code>role=&quot;radiogroup&quot;</code>).</p></div>
+</section>
+  <section class="el" id="el-mods-refresh" data-el="mods.refresh">
+  <h3><code>mods.refresh</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>busy</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Re-reads the mod list and refreshes Workshop details.</p></div>
+</section>
+  <section class="el" id="el-mods-count" data-el="mods.count">
+  <h3><code>mods.count</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view · any number of times</dd><dt>Parts</dt><dd><code>value</code>, <code>label</code> · States: <code>selecting</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;{s} of {n} selected&quot; while anything is selected, otherwise &quot;{n} mod(s)&quot;.</p></div>
+</section>
+  <section class="el" id="el-mods-selectAll" data-el="mods.selectAll">
+  <h3><code>mods.selectAll</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>disabled</code>, <code>checked</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Select all&quot; and renders only when it would change the checked set. In a list header — a column's <code>headerElement</code> — it always renders, as a toggle: <code>checked</code> while every visible mod is checked, and a click checks all visible mods or clears them. Its accessible name is then &quot;Select all visible&quot; or &quot;Deselect all&quot;.</p></div>
+</section>
+  <section class="el" id="el-mods-clearSelection" data-el="mods.clearSelection">
+  <h3><code>mods.clearSelection</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Clear&quot; and renders only when it would change the checked set.</p></div>
+</section>
+  <section class="el" id="el-mods-selectUnique" data-el="mods.selectUnique">
+  <h3><code>mods.selectUnique</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Parts</dt><dd><code>label</code>, <code>value</code>, <code>chevron</code> · States: <code>open</code>, <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Select unique…&quot;, or &quot;Unique: {server}&quot; with the name truncated to 24 characters, and opens <code>popup.modsUnique</code>. It is disabled when there are no cared-about servers.</p></div>
+</section>
+  <section class="el" id="el-mods-cleanupRemoved" data-el="mods.cleanupRemoved">
+  <h3><code>mods.cleanupRemoved</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Clean up {n}&quot; and renders only when removed mods exist.</p></div>
+</section>
+  <section class="el" id="el-mods-unsubscribe" data-el="mods.unsubscribe">
+  <h3><code>mods.unsubscribe</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>busy</code>, <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Unsubscribe {n}&quot;, &quot;Unsubscribe&quot; or &quot;Removing…&quot;. It acts on the checked mods and is disabled when none are checked.</p></div>
+</section>
+  <section class="el" id="el-mods-unsubscribeMenu" data-el="mods.unsubscribeMenu">
+  <h3><code>mods.unsubscribeMenu</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Parts</dt><dd><code>icon</code> · States: <code>open</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-mods-unsubscribeSelected" data-el="mods.unsubscribeSelected">
+  <h3><code>mods.unsubscribeSelected</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view, the modsUnsubscribe popup · once per composition</dd><dt>Parts</dt><dd><code>label</code> · States: <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-mods-unsubscribeAll" data-el="mods.unsubscribeAll">
+  <h3><code>mods.unsubscribeAll</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view, the modsUnsubscribe popup · once per composition</dd><dt>Parts</dt><dd><code>label</code> · States: <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-mods-updateOutdated" data-el="mods.updateOutdated">
+  <h3><code>mods.updateOutdated</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Update {n}&quot; and renders only when mods are outdated.</p></div>
+</section>
+  <section class="el" id="el-mods-verify" data-el="mods.verify">
+  <h3><code>mods.verify</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>busy</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Verify mods&quot; or &quot;Verifying…&quot;. It verifies every mod and re-downloads anything outdated.</p></div>
+</section>
+  <section class="el" id="el-mods-verifyMenu" data-el="mods.verifyMenu">
+  <h3><code>mods.verifyMenu</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Parts</dt><dd><code>icon</code> · States: <code>open</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-mods-verifySelected" data-el="mods.verifySelected">
+  <h3><code>mods.verifySelected</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view, the modsVerify popup · once per composition</dd><dt>Parts</dt><dd><code>label</code> · States: <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-mods-verifyAll" data-el="mods.verifyAll">
+  <h3><code>mods.verifyAll</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view, the modsVerify popup · once per composition</dd><dt>Parts</dt><dd><code>label</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+</section>
+</section>
+
+<section class="el-group">
+  <h2 id="mod"><code>mod</code> One subscribed mod</h2>
+  <div class="md"><p>Elements that read or act on one subscribed mod, in a <code>list.mods</code> row or a selection panel.</p>
+<ul><li><strong>Selection:</strong> <code>mod.select</code> checks the mod for bulk actions; it doesn't select it for detail panels. Its accessible name is &quot;Select {title}&quot;. Clicking elsewhere on a row selects the mod.</li><li><strong>Formats:</strong> <code>mod.tags</code> falls back to the Workshop id when the mod has no tags; <code>mod.size</code> shows the size on disk to one decimal place; <code>mod.rating</code> shows &quot;{up}▲ / {down}▼&quot;, or &quot;—&quot; when both are zero.</li></ul></div>
+  <section class="el" id="el-mod-select" data-el="mod.select">
+  <h3><code>mod.select</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod row, or a modSelection container in the Mods view · once per subject context</dd><dt>Required in</dt><dd>every row of <code>list.mods</code></dd><dt>Parts</dt><dd><code>box</code> · States: <code>checked</code>, <code>disabled</code></dd></dl>
+</section>
+  <section class="el" id="el-mod-status" data-el="mod.status">
+  <h3><code>mod.status</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod row, or a modSelection container in the Mods view · any number of times</dd><dt>Required in</dt><dd>every row of <code>list.mods</code></dd><dt>Parts</dt><dd><code>label</code>, <code>progress</code>, <code>dot</code> · States: <code>ready</code>, <code>update</code>, <code>downloading</code>, <code>missing</code>, <code>notSubscribed</code>, <code>serverSide</code>, <code>disabled</code></dd></dl>
+  <div class="md el-notes"><p>&quot;Installed&quot;, &quot;Update available&quot;, &quot;Downloading&quot;, &quot;Not downloaded&quot;, &quot;Not subscribed&quot; or &quot;Server-side&quot;. While downloading with a known total, the <code>label</code> part instead reads &quot;{downloaded} / {total}&quot; to one decimal place and the <code>progress</code> part renders as a bar with an inline width percentage; the state follows a 1.5 s live poll, but a live &quot;ready&quot; poll never downgrades an authoritative &quot;Update available&quot; row. The <code>dot</code> part carries the same status as the label.</p></div>
+</section>
+  <section class="el" id="el-mod-thumbnail" data-el="mod.thumbnail">
+  <h3><code>mod.thumbnail</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod row, or a modSelection container in the Mods view · any number of times</dd><dt>Parts</dt><dd><code>image</code>, <code>placeholder</code> · States: <code>missing</code>, <code>disabled</code></dd></dl>
+  <div class="md el-notes"><p>Shows the preview image. Without one, it shows the placeholder (Package icon) and carries the <code>missing</code> state.</p></div>
+</section>
+  <section class="el" id="el-mod-name" data-el="mod.name">
+  <h3><code>mod.name</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod row, or a modSelection container in the Mods view · any number of times</dd><dt>Parts</dt><dd><code>text</code> · States: <code>disabled</code></dd></dl>
+</section>
+  <section class="el" id="el-mod-disabledBadge" data-el="mod.disabledBadge">
+  <h3><code>mod.disabledBadge</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod row, or a modSelection container in the Mods view · any number of times</dd><dt>Parts</dt><dd><code>label</code> · States: <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Disabled&quot; and renders only while the mod is locally disabled. <code>disabled</code> is also added to every mod element's states then.</p></div>
+</section>
+  <section class="el" id="el-mod-tags" data-el="mod.tags">
+  <h3><code>mod.tags</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod row, or a modSelection container in the Mods view · any number of times</dd><dt>Parts</dt><dd><code>text</code>, <code>chip</code> · States: <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>limit</code> (one of 3, 6, <code>all</code>, default 3)</li><li><code>style</code> (one of <code>text</code>, <code>chips</code>, default <code>text</code>)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-mod-size" data-el="mod.size">
+  <h3><code>mod.size</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod row, or a modSelection container in the Mods view · any number of times</dd><dt>Parts</dt><dd><code>value</code> · States: <code>unknown</code>, <code>disabled</code></dd></dl>
+</section>
+  <section class="el" id="el-mod-updated" data-el="mod.updated">
+  <h3><code>mod.updated</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod row, or a modSelection container in the Mods view · any number of times</dd><dt>Parts</dt><dd><code>value</code> · States: <code>unknown</code>, <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>format</code> (one of <code>relative</code>, <code>date</code>, default <code>relative</code>)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-mod-subscribed" data-el="mod.subscribed">
+  <h3><code>mod.subscribed</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod row, or a modSelection container in the Mods view · any number of times</dd><dt>Parts</dt><dd><code>value</code> · States: <code>unknown</code>, <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>format</code> (one of <code>relative</code>, <code>date</code>, default <code>relative</code>)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-mod-created" data-el="mod.created">
+  <h3><code>mod.created</code> <span class="el-kind">display</span> <span class="el-since">SINCE 2.1</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod row, or a modSelection container in the Mods view · any number of times</dd><dt>Parts</dt><dd><code>value</code> · States: <code>unknown</code>, <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>format</code> (one of <code>date</code>, <code>relative</code>, default <code>date</code>)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Created&quot;, the date the Workshop item was published.</p></div>
+</section>
+  <section class="el" id="el-mod-publishedSize" data-el="mod.publishedSize">
+  <h3><code>mod.publishedSize</code> <span class="el-kind">display</span> <span class="el-since">SINCE 2.1</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod row, or a modSelection container in the Mods view · any number of times</dd><dt>Parts</dt><dd><code>value</code> · States: <code>unknown</code>, <code>disabled</code></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Published size&quot;, the Workshop item's published download size.</p></div>
+</section>
+  <section class="el" id="el-mod-subscribers" data-el="mod.subscribers">
+  <h3><code>mod.subscribers</code> <span class="el-kind">display</span> <span class="el-since">SINCE 2.1</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod row, or a modSelection container in the Mods view · any number of times</dd><dt>Parts</dt><dd><code>value</code> · States: <code>unknown</code>, <code>disabled</code></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Subscribers&quot;, the localised Workshop subscriber count for this mod.</p></div>
+</section>
+  <section class="el" id="el-mod-rating" data-el="mod.rating">
+  <h3><code>mod.rating</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod row, or a modSelection container in the Mods view · any number of times</dd><dt>Parts</dt><dd><code>up</code>, <code>down</code> · States: <code>disabled</code></dd></dl>
+</section>
+  <section class="el" id="el-mod-workshopId" data-el="mod.workshopId">
+  <h3><code>mod.workshopId</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod row, or a modSelection container in the Mods view · any number of times</dd><dt>Parts</dt><dd><code>text</code> · States: <code>disabled</code></dd></dl>
+</section>
+  <section class="el" id="el-mod-folder" data-el="mod.folder">
+  <h3><code>mod.folder</code> <span class="el-kind">display</span> <span class="el-since">SINCE 2.1</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod row, or a modSelection container in the Mods view · any number of times</dd><dt>Parts</dt><dd><code>text</code> · States: <code>unknown</code>, <code>disabled</code></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Folder&quot;, the mod's install folder name; shows &quot;—&quot; with the <code>unknown</code> state without a folder on disk.</p></div>
+</section>
+  <section class="el" id="el-mod-description" data-el="mod.description">
+  <h3><code>mod.description</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod row, or a modSelection container in the Mods view · any number of times</dd><dt>Parts</dt><dd><code>text</code> · States: <code>empty</code>, <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>clamp</code> (one of <code>none</code>, 3, 6, default 6)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-mod-neededBy" data-el="mod.neededBy">
+  <h3><code>mod.neededBy</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a modSelection container, not a row · any number of times</dd><dt>Parts</dt><dd><code>value</code>, <code>label</code> · States: <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Needed by {n} servers&quot; for the selected mod, counting the entries of <code>list.modServers</code>.</p></div>
+</section>
+  <section class="el" id="el-mod-update" data-el="mod.update">
+  <h3><code>mod.update</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod row, or a modSelection container in the Mods view · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>busy</code>, <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>label</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Update&quot; and renders only while the mod needs an update.</p></div>
+</section>
+  <section class="el" id="el-mod-openInSteam" data-el="mod.openInSteam">
+  <h3><code>mod.openInSteam</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod row, or a modSelection container in the Mods view · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>label</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Open in Steam&quot;.</p></div>
+</section>
+  <section class="el" id="el-mod-openFolder" data-el="mod.openFolder">
+  <h3><code>mod.openFolder</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod row, or a modSelection container in the Mods view · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>label</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Open folder&quot; and renders only while the mod has a folder on disk.</p></div>
+</section>
+  <section class="el" id="el-mod-reinstall" data-el="mod.reinstall">
+  <h3><code>mod.reinstall</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod row, or a modSelection container in the Mods view · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>busy</code>, <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>label</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Reinstall&quot;.</p></div>
+</section>
+  <section class="el" id="el-mod-deselect" data-el="mod.deselect">
+  <h3><code>mod.deselect</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>a modSelection container, not a row · once per subject context</dd><dt>Parts</dt><dd><code>icon</code> · States: <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Close details&quot; and clears the mod selection.</p></div>
+</section>
+</section>
+
+<section class="el-group">
+  <h2 id="modServer"><code>modServer</code> Servers that need a mod</h2>
+  <div class="md"><p>These elements are placed in the row template of <code>list.modServers</code>. Entries are servers in the browser that declare the selected mod, most recently played first. They are not server entries for the Join rule and carry no actions.</p></div>
+  <section class="el" id="el-modServer-name" data-el="modServer.name">
+  <h3><code>modServer.name</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod's server row · any number of times</dd><dt>Parts</dt><dd><code>text</code></dd></dl>
+</section>
+  <section class="el" id="el-modServer-address" data-el="modServer.address">
+  <h3><code>modServer.address</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod's server row · any number of times</dd><dt>Parts</dt><dd><code>text</code></dd></dl>
+</section>
+  <section class="el" id="el-modServer-lastPlayed" data-el="modServer.lastPlayed">
+  <h3><code>modServer.lastPlayed</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod's server row · any number of times</dd><dt>Parts</dt><dd><code>label</code>, <code>value</code> · States: <code>never</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>format</code> (one of <code>relative</code>, <code>date</code>, default <code>relative</code>)</li><li><code>label</code> (text)</li></ul></dd></dl>
+</section>
+</section>
+
+<section class="el-group">
+  <h2 id="modal"><code>modal</code> Any themeable modal</h2>
+  <div class="md"><p>The one element every themeable modal needs. The three themeable modals are listed under Modals.</p></div>
+  <section class="el" id="el-modal-close" data-el="modal.close">
+  <h3><code>modal.close</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>any themeable modal · once per composition</dd><dt>Required in</dt><dd>every themeable modal</dd><dt>Parts</dt><dd><code>icon</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Closes the modal without applying anything. Its accessible name is &quot;Close&quot;.</p></div>
+</section>
+</section>
+
+<section class="el-group">
+  <h2 id="modFilter"><code>modFilter</code> The mod filter modal</h2>
+  <div class="md"><p>The mod filter modal: its sources, its search and its summary.</p>
+<ul><li><strong>On open:</strong> the picks are seeded from the current filter, and focus moves to <code>modFilter.search</code>, or to the first focusable element if the theme didn't place it.</li></ul></div>
+  <section class="el" id="el-modFilter-apply" data-el="modFilter.apply">
+  <h3><code>modFilter.apply</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the mod filter modal · once per composition</dd><dt>Required in</dt><dd>the <code>modFilter</code> modal</dd><dt>Parts</dt><dd><code>label</code></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Apply&quot;. It writes the included mods, the excluded mods and the match mode to the server filter, then closes.</p></div>
+</section>
+  <section class="el" id="el-modFilter-source" data-el="modFilter.source">
+  <h3><code>modFilter.source</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>the mod filter modal · once per composition</dd><dt>Parts</dt><dd><code>tab</code> · States: <code>selected</code></dd></dl>
+  <div class="md el-notes"><p>Offers Subscribed, Seen on servers and Search Workshop as an ARIA tablist with arrow keys. Switching clears the preview.</p></div>
+</section>
+  <section class="el" id="el-modFilter-search" data-el="modFilter.search">
+  <h3><code>modFilter.search</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>the mod filter modal · once per composition</dd><dt>Parts</dt><dd><code>icon</code>, <code>input</code> · States: <code>filled</code>, <code>busy</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showIcon</code> (on or off, default off)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Its placeholder follows the source: &quot;Filter your subscribed mods…&quot;, &quot;Filter mods seen on these servers…&quot; or &quot;Search the Workshop by name…&quot;. It filters locally, except on Search Workshop, where it runs a 350 ms debounced search and is <code>busy</code> while searching.</p></div>
+</section>
+  <section class="el" id="el-modFilter-summary" data-el="modFilter.summary">
+  <h3><code>modFilter.summary</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>the mod filter modal · any number of times</dd><dt>Parts</dt><dd><code>thumbnails</code>, <code>more</code>, <code>counts</code> · States: <code>empty</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showThumbnails</code> (on or off, default on)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Nothing selected&quot;, or shows up to 4 thumbnails, &quot;+{n}&quot;, and &quot;{n} included · {n} excluded&quot;.</p></div>
+</section>
+  <section class="el" id="el-modFilter-clear" data-el="modFilter.clear">
+  <h3><code>modFilter.clear</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the mod filter modal · once per composition</dd><dt>Parts</dt><dd><code>label</code> · States: <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Clear&quot; and removes every pick.</p></div>
+</section>
+  <section class="el" id="el-modFilter-matchMode" data-el="modFilter.matchMode">
+  <h3><code>modFilter.matchMode</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>the mod filter modal · once per composition</dd><dt>Parts</dt><dd><code>option</code> · States: <code>selected</code></dd></dl>
+  <div class="md el-notes"><p>Offers &quot;Match any&quot; and &quot;Match all&quot; as a radiogroup.</p></div>
+</section>
+  <section class="el" id="el-modFilter-cancel" data-el="modFilter.cancel">
+  <h3><code>modFilter.cancel</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the mod filter modal · once per composition</dd><dt>Parts</dt><dd><code>label</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Cancel&quot; and closes without applying.</p></div>
+</section>
+</section>
+
+<section class="el-group">
+  <h2 id="workshopMod"><code>workshopMod</code> Mods inside the mod filter modal</h2>
+  <div class="md"><p>Elements for one mod inside the mod filter modal, in a <code>list.modFilterResults</code> row or a preview panel.</p>
+<ul><li><strong>Previewing:</strong> clicking a row, or pressing Enter or Space on it, previews that mod in <code>modFilterPreview</code> containers.</li><li><strong>Formats:</strong> <code>workshopMod.serverCount</code> shows &quot;{n} srv&quot; or &quot;—&quot;; <code>workshopMod.score</code> shows &quot;{score}%&quot;; <code>workshopMod.subscribers</code> shows &quot;{n} subscribers&quot;; <code>workshopMod.updated</code> shows &quot;Updated {relative time}&quot;.</li></ul></div>
+  <section class="el" id="el-workshopMod-pick" data-el="workshopMod.pick">
+  <h3><code>workshopMod.pick</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · once per subject context</dd><dt>Required in</dt><dd>every row of <code>list.modFilterResults</code></dd><dt>Parts</dt><dd><code>box</code> · States: <code>included</code>, <code>excluded</code></dd></dl>
+  <div class="md el-notes"><p>Cycles from none to include (✓) to exclude (⊘) and back to none. Its accessible name follows the next step: &quot;Include {t}&quot;, &quot;Exclude {t} instead&quot; or &quot;Clear the {t} filter&quot;.</p></div>
+</section>
+  <section class="el" id="el-workshopMod-thumbnail" data-el="workshopMod.thumbnail">
+  <h3><code>workshopMod.thumbnail</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · any number of times</dd><dt>Parts</dt><dd><code>image</code>, <code>initials</code> · States: <code>missing</code></dd></dl>
+</section>
+  <section class="el" id="el-workshopMod-name" data-el="workshopMod.name">
+  <h3><code>workshopMod.name</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · any number of times</dd><dt>Parts</dt><dd><code>text</code></dd></dl>
+</section>
+  <section class="el" id="el-workshopMod-subscribed" data-el="workshopMod.subscribed">
+  <h3><code>workshopMod.subscribed</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · any number of times</dd><dt>Parts</dt><dd><code>icon</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Renders ★ only for subscribed mods.</p></div>
+</section>
+  <section class="el" id="el-workshopMod-serverCount" data-el="workshopMod.serverCount">
+  <h3><code>workshopMod.serverCount</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · any number of times</dd><dt>Parts</dt><dd><code>value</code>, <code>unit</code> · States: <code>none</code></dd></dl>
+</section>
+  <section class="el" id="el-workshopMod-score" data-el="workshopMod.score">
+  <h3><code>workshopMod.score</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · any number of times</dd><dt>Parts</dt><dd><code>value</code></dd></dl>
+</section>
+  <section class="el" id="el-workshopMod-subscribers" data-el="workshopMod.subscribers">
+  <h3><code>workshopMod.subscribers</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · any number of times</dd><dt>Parts</dt><dd><code>value</code>, <code>label</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-workshopMod-size" data-el="workshopMod.size">
+  <h3><code>workshopMod.size</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · any number of times</dd><dt>Parts</dt><dd><code>value</code> · States: <code>unknown</code></dd></dl>
+</section>
+  <section class="el" id="el-workshopMod-updated" data-el="workshopMod.updated">
+  <h3><code>workshopMod.updated</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · any number of times</dd><dt>Parts</dt><dd><code>label</code>, <code>value</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>format</code> (one of <code>relative</code>, <code>date</code>, default <code>relative</code>)</li><li><code>label</code> (text)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-workshopMod-description" data-el="workshopMod.description">
+  <h3><code>workshopMod.description</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · any number of times</dd><dt>Parts</dt><dd><code>text</code> · States: <code>empty</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>clamp</code> (one of <code>none</code>, 3, 6, default <code>none</code>)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-workshopMod-tags" data-el="workshopMod.tags">
+  <h3><code>workshopMod.tags</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · any number of times</dd><dt>Parts</dt><dd><code>chip</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>limit</code> (one of 3, 6, <code>all</code>, default <code>all</code>)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-workshopMod-serverNote" data-el="workshopMod.serverNote">
+  <h3><code>workshopMod.serverNote</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · any number of times</dd><dt>Parts</dt><dd><code>text</code></dd></dl>
+</section>
+  <section class="el" id="el-workshopMod-viewOnSteam" data-el="workshopMod.viewOnSteam">
+  <h3><code>workshopMod.viewOnSteam</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · once per subject context</dd><dt>Parts</dt><dd><code>label</code>, <code>icon</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;View on Steam&quot; and opens the Workshop page.</p></div>
+</section>
+  <section class="el" id="el-workshopMod-include" data-el="workshopMod.include">
+  <h3><code>workshopMod.include</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · once per subject context</dd><dt>Parts</dt><dd><code>label</code> · States: <code>on</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Include&quot; or &quot;Included&quot;.</p></div>
+</section>
+  <section class="el" id="el-workshopMod-exclude" data-el="workshopMod.exclude">
+  <h3><code>workshopMod.exclude</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · once per subject context</dd><dt>Parts</dt><dd><code>label</code> · States: <code>on</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Exclude&quot; or &quot;Excluded&quot;.</p></div>
+</section>
+</section>
+
+<section class="el-group">
+  <h2 id="update"><code>update</code> The update modal</h2>
+  <div class="md"><p>The update modal, and the notice that opens it.</p></div>
+  <section class="el" id="el-update-install" data-el="update.install">
+  <h3><code>update.install</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the update modal · once per composition</dd><dt>Required in</dt><dd>the <code>update</code> modal</dd><dt>Parts</dt><dd><code>label</code> · States: <code>busy</code>, <code>disabled</code></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Update &amp; Restart&quot; and renders only for an installed copy. It and <code>update.viewRelease</code> are both required, so the modal always has its primary action.</p></div>
+</section>
+  <section class="el" id="el-update-viewRelease" data-el="update.viewRelease">
+  <h3><code>update.viewRelease</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the update modal · once per composition</dd><dt>Required in</dt><dd>the <code>update</code> modal</dd><dt>Parts</dt><dd><code>label</code></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;View Release&quot; and renders only for a portable copy.</p></div>
+</section>
+  <section class="el" id="el-update-later" data-el="update.later">
+  <h3><code>update.later</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the update modal · once per composition</dd><dt>Parts</dt><dd><code>label</code> · States: <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Later&quot;, or &quot;Updating…&quot; while installing.</p></div>
+</section>
+  <section class="el" id="el-update-title" data-el="update.title">
+  <h3><code>update.title</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>the update modal · any number of times</dd><dt>Parts</dt><dd><code>text</code></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Update available&quot; or &quot;Updates&quot;.</p></div>
+</section>
+  <section class="el" id="el-update-summary" data-el="update.summary">
+  <h3><code>update.summary</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>the update modal · any number of times</dd><dt>Parts</dt><dd><code>message</code>, <code>version</code>, <code>date</code> · States: <code>available</code>, <code>upToDate</code></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;A newer version of Tetra Launcher is available.&quot; with &quot;v{version}&quot; and the date, or &quot;You're up to date.&quot;.</p></div>
+</section>
+  <section class="el" id="el-update-changelog" data-el="update.changelog">
+  <h3><code>update.changelog</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>the update modal · any number of times</dd><dt>Parts</dt><dd><code>content</code> · States: <code>empty</code></dd></dl>
+  <div class="md el-notes"><p>Markdown rendered by the launcher, with links opening externally.</p></div>
+</section>
+  <section class="el" id="el-update-progress" data-el="update.progress">
+  <h3><code>update.progress</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>the update modal · any number of times</dd><dt>Parts</dt><dd><code>label</code>, <code>bar</code>, <code>error</code> · States: <code>downloading</code>, <code>failed</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Downloading… {pct}%&quot;, and shows any error.</p></div>
+</section>
+  <section class="el" id="el-update-portableNote" data-el="update.portableNote">
+  <h3><code>update.portableNote</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>the update modal · any number of times</dd><dt>Parts</dt><dd><code>text</code></dd></dl>
+</section>
+</section>
+
+<section class="el-group">
+  <h2 id="settings"><code>settings</code> Settings</h2>
+  <div class="md"><p>The Settings screen: one control per setting, plus the headings that group them.</p>
+<ul><li><strong>Required controls:</strong> every Settings control is required, and each saves as soon as it changes. They may sit in closed sections, and their labels, hints, placeholders and choices are the launcher's current wording.</li><li><strong>Section and group text:</strong> <code>settings.sectionTitle</code>, <code>settings.sectionDescription</code> and <code>settings.sectionIcon</code> render the wording for the Game, Launcher and Theme sections; <code>settings.groupTitle</code> renders the checkbox group headings Window, Startup and Discord.</li></ul></div>
+  <section class="el" id="el-settings-back" data-el="settings.back">
+  <h3><code>settings.back</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · once per composition</dd><dt>Required in</dt><dd>the shell + Settings composition</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>label</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Back&quot; and closes Settings. When Settings is presented as a view, it returns to the previous view. Its accessible name is &quot;Back to the launcher&quot;.</p></div>
+</section>
+  <section class="el" id="el-settings-done" data-el="settings.done">
+  <h3><code>settings.done</code> <span class="el-kind">action</span> <span class="el-since">SINCE 2.1</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · once per composition</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>label</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;, default <code>check</code>)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Done&quot; and closes Settings. It is optional, since <code>settings.back</code> and an overlay's <code>backdropClose</code> also close it.</p></div>
+</section>
+  <section class="el" id="el-settings-themeManagement" data-el="settings.themeManagement">
+  <h3><code>settings.themeManagement</code> <span class="el-kind">block</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · once per composition</dd><dt>Required in</dt><dd>the shell + Settings composition</dd></dl>
+  <div class="md el-notes"><p>The launcher-owned theme management block: installed themes, Import, New theme and pagination; the active theme strip, the token customiser and theme settings; Dev Mode and Reset to Default.</p></div>
+</section>
+  <section class="el" id="el-settings-profileName" data-el="settings.profileName">
+  <h3><code>settings.profileName</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · once per composition</dd><dt>Required in</dt><dd>the shell + Settings composition</dd><dt>Parts</dt><dd><code>label</code>, <code>hint</code>, <code>control</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showHint</code> (on or off, default on)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-settings-dayzPath" data-el="settings.dayzPath">
+  <h3><code>settings.dayzPath</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · once per composition</dd><dt>Required in</dt><dd>the shell + Settings composition</dd><dt>Parts</dt><dd><code>label</code>, <code>hint</code>, <code>control</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showHint</code> (on or off, default on)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-settings-detectPaths" data-el="settings.detectPaths">
+  <h3><code>settings.detectPaths</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · once per composition</dd><dt>Required in</dt><dd>the shell + Settings composition</dd><dt>Parts</dt><dd><code>label</code> · States: <code>busy</code></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Detect&quot;, or &quot;…&quot; while <code>busy</code>, and fills in the Steam, DayZ and Workshop paths.</p></div>
+</section>
+  <section class="el" id="el-settings-workshopPath" data-el="settings.workshopPath">
+  <h3><code>settings.workshopPath</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · any number of times</dd><dt>Required in</dt><dd>the shell + Settings composition</dd><dt>Parts</dt><dd><code>label</code>, <code>hint</code>, <code>control</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showHint</code> (on or off, default on)</li></ul></dd></dl>
+  <div class="md el-notes"><p>A read-only field showing the Workshop folder.</p></div>
+</section>
+  <section class="el" id="el-settings-launchParams" data-el="settings.launchParams">
+  <h3><code>settings.launchParams</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · once per composition</dd><dt>Required in</dt><dd>the shell + Settings composition</dd><dt>Parts</dt><dd><code>label</code>, <code>hint</code>, <code>control</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showHint</code> (on or off, default on)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-settings-minimiseToTray" data-el="settings.minimiseToTray">
+  <h3><code>settings.minimiseToTray</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · once per composition</dd><dt>Required in</dt><dd>the shell + Settings composition</dd><dt>Parts</dt><dd><code>label</code>, <code>hint</code>, <code>box</code> · States: <code>checked</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showHint</code> (on or off, default on)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-settings-closeToTray" data-el="settings.closeToTray">
+  <h3><code>settings.closeToTray</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · once per composition</dd><dt>Required in</dt><dd>the shell + Settings composition</dd><dt>Parts</dt><dd><code>label</code>, <code>hint</code>, <code>box</code> · States: <code>checked</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showHint</code> (on or off, default on)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-settings-onJoin" data-el="settings.onJoin">
+  <h3><code>settings.onJoin</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · once per composition</dd><dt>Required in</dt><dd>the shell + Settings composition</dd><dt>Parts</dt><dd><code>label</code>, <code>hint</code>, <code>control</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showHint</code> (on or off, default on)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-settings-startWithWindows" data-el="settings.startWithWindows">
+  <h3><code>settings.startWithWindows</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · once per composition</dd><dt>Required in</dt><dd>the shell + Settings composition</dd><dt>Parts</dt><dd><code>label</code>, <code>hint</code>, <code>box</code>, <code>note</code> · States: <code>checked</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showHint</code> (on or off, default on)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Its <code>note</code> part is the always-shown debug-build note.</p></div>
+</section>
+  <section class="el" id="el-settings-startMinimised" data-el="settings.startMinimised">
+  <h3><code>settings.startMinimised</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · once per composition</dd><dt>Required in</dt><dd>the shell + Settings composition</dd><dt>Parts</dt><dd><code>label</code>, <code>hint</code>, <code>box</code> · States: <code>checked</code>, <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showHint</code> (on or off, default on)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Disabled unless Start with Windows is on.</p></div>
+</section>
+  <section class="el" id="el-settings-discordPresence" data-el="settings.discordPresence">
+  <h3><code>settings.discordPresence</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · once per composition</dd><dt>Required in</dt><dd>the shell + Settings composition</dd><dt>Parts</dt><dd><code>label</code>, <code>hint</code>, <code>box</code> · States: <code>checked</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showHint</code> (on or off, default on)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-settings-dataFolder" data-el="settings.dataFolder">
+  <h3><code>settings.dataFolder</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · any number of times</dd><dt>Required in</dt><dd>the shell + Settings composition</dd><dt>Parts</dt><dd><code>label</code>, <code>hint</code>, <code>control</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showHint</code> (on or off, default on)</li></ul></dd></dl>
+  <div class="md el-notes"><p>A read-only field; it shows &quot;Locating…&quot; until its path is known.</p></div>
+</section>
+  <section class="el" id="el-settings-openDataFolder" data-el="settings.openDataFolder">
+  <h3><code>settings.openDataFolder</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · once per composition</dd><dt>Required in</dt><dd>the shell + Settings composition</dd><dt>Parts</dt><dd><code>label</code> · States: <code>disabled</code></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Open&quot; and is disabled until the path is known.</p></div>
+</section>
+  <section class="el" id="el-settings-autoRefresh" data-el="settings.autoRefresh">
+  <h3><code>settings.autoRefresh</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · once per composition</dd><dt>Required in</dt><dd>the shell + Settings composition</dd><dt>Parts</dt><dd><code>label</code>, <code>hint</code>, <code>control</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showHint</code> (on or off, default on)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-settings-title" data-el="settings.title">
+  <h3><code>settings.title</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · any number of times</dd><dt>Parts</dt><dd><code>text</code></dd></dl>
+</section>
+  <section class="el" id="el-settings-sectionTitle" data-el="settings.sectionTitle">
+  <h3><code>settings.sectionTitle</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · any number of times</dd><dt>Parts</dt><dd><code>text</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>section</code> (one of <code>game</code>, <code>launcher</code>, <code>theme</code>)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-settings-sectionDescription" data-el="settings.sectionDescription">
+  <h3><code>settings.sectionDescription</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · any number of times</dd><dt>Parts</dt><dd><code>text</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>section</code> (one of <code>game</code>, <code>launcher</code>, <code>theme</code>)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-settings-sectionIcon" data-el="settings.sectionIcon">
+  <h3><code>settings.sectionIcon</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · any number of times</dd><dt>Parts</dt><dd><code>icon</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>section</code> (one of <code>game</code>, <code>launcher</code>, <code>theme</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-settings-groupTitle" data-el="settings.groupTitle">
+  <h3><code>settings.groupTitle</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · any number of times</dd><dt>Parts</dt><dd><code>text</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>group</code> (one of <code>window</code>, <code>startup</code>, <code>discord</code>)</li></ul></dd></dl>
+</section>
+</section>
+
+<section class="el-group">
+  <h2 id="list"><code>list</code> The lists</h2>
+  <div class="md"><p>Every list follows one model: the theme declares the list's columns once, a launcher-rendered header shows them, and a row template places elements into those same columns. Subjects, sort keys, states and empty text are under Lists.</p></div>
+  <section class="el" id="el-list-servers" data-el="list.servers">
+  <h3><code>list.servers</code> <span class="el-kind">list</span></h3>
+  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Required in</dt><dd>the shell + server browser composition</dd><dt>Parts</dt><dd><code>header</code>, <code>column</code>, <code>scroller</code>, <code>rows</code>, <code>empty</code>, <code>loading</code> · States: <code>empty</code>, <code>loading</code>, <code>filtered</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>header</code> (on or off, default on)</li><li><code>rowGap</code> (token name, default <code>none</code>)</li><li><code>estimatedRowHeight</code> (length, default <code>56px</code>)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-list-mods" data-el="list.mods">
+  <h3><code>list.mods</code> <span class="el-kind">list</span></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Required in</dt><dd>the shell + Mods composition</dd><dt>Parts</dt><dd><code>header</code>, <code>column</code>, <code>scroller</code>, <code>rows</code>, <code>empty</code>, <code>loading</code> · States: <code>empty</code>, <code>loading</code>, <code>filtered</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>header</code> (on or off, default on)</li><li><code>rowGap</code> (token name, default <code>none</code>)</li><li><code>estimatedRowHeight</code> (length, default <code>54px</code>)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-list-modFilterResults" data-el="list.modFilterResults">
+  <h3><code>list.modFilterResults</code> <span class="el-kind">list</span></h3>
+  <dl><dt>Placed in</dt><dd>the mod filter modal · once per composition</dd><dt>Required in</dt><dd>the <code>modFilter</code> modal</dd><dt>Parts</dt><dd><code>header</code>, <code>column</code>, <code>scroller</code>, <code>rows</code>, <code>empty</code>, <code>loading</code> · States: <code>empty</code>, <code>loading</code>, <code>searching</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>header</code> (on or off, default on)</li><li><code>rowGap</code> (token name, default <code>none</code>)</li><li><code>estimatedRowHeight</code> (length, default <code>44px</code>)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-list-serverMods" data-el="list.serverMods">
+  <h3><code>list.serverMods</code> <span class="el-kind">list</span></h3>
+  <dl><dt>Placed in</dt><dd>the server info modal, a selection container, or the server actions popup, not a row · once per subject context</dd><dt>Parts</dt><dd><code>header</code>, <code>column</code>, <code>scroller</code>, <code>rows</code>, <code>empty</code>, <code>loading</code> · States: <code>empty</code>, <code>loading</code>, <code>stale</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>header</code> (on or off, default off)</li><li><code>rowGap</code> (token name, default <code>none</code>)</li><li><code>estimatedRowHeight</code> (length, default <code>32px</code>)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-list-modServers" data-el="list.modServers">
+  <h3><code>list.modServers</code> <span class="el-kind">list</span></h3>
+  <dl><dt>Placed in</dt><dd>a modSelection container, not a row · once per subject context</dd><dt>Parts</dt><dd><code>header</code>, <code>column</code>, <code>scroller</code>, <code>rows</code>, <code>empty</code>, <code>loading</code> · States: <code>empty</code>, <code>loading</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>header</code> (on or off, default off)</li><li><code>rowGap</code> (token name, default <code>none</code>)</li><li><code>estimatedRowHeight</code> (length, default <code>32px</code>)</li></ul></dd></dl>
+</section>
+</section>
+
+<section class="el-group">
+  <h2 id="popup"><code>popup</code> The themeable popups</h2>
+  <div class="md"><p>Each popup has its own file, <code>layout/popups/&lt;id&gt;.json</code>, declaring its placement mode and its contents. A missing file means the launcher's default popup.</p>
+<ul><li><strong>Option lists:</strong> <code>popup.mapOptions</code>, <code>popup.regionOptions</code> and <code>popup.uniqueServerOptions</code> are single lists of <code>role=&quot;option&quot;</code> entries with a check mark on the selected ones. <code>popup.tagOptions</code> cycles Official, Modded and First person through include (✓), exclude (✗) and off. <code>popup.sortOptions</code> lists the server sort keys.</li><li><strong>Empty text:</strong> &quot;Loading maps…&quot; for maps, and &quot;No favourites or recently played servers yet.&quot; for unique servers.</li><li><strong>Server actions in menus:</strong> <code>popup.serverActions</code> and <code>popup.serverLoad</code> may hold any <code>server.*</code> action, and <code>server.actionNotice</code>. They read the server their trigger belongs to.</li></ul></div>
+  <section class="el" id="el-popup-mapOptions" data-el="popup.mapOptions">
+  <h3><code>popup.mapOptions</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>the mapFilter popup · once per composition</dd><dt>Required in</dt><dd>the mapFilter popup</dd><dt>Parts</dt><dd><code>option</code>, <code>empty</code> · States: <code>selected</code></dd></dl>
+</section>
+  <section class="el" id="el-popup-tagOptions" data-el="popup.tagOptions">
+  <h3><code>popup.tagOptions</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>the tagsFilter popup · once per composition</dd><dt>Required in</dt><dd>the tagsFilter popup</dd><dt>Parts</dt><dd><code>option</code> · States: <code>included</code>, <code>excluded</code></dd></dl>
+</section>
+  <section class="el" id="el-popup-regionOptions" data-el="popup.regionOptions">
+  <h3><code>popup.regionOptions</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>the regionFilter popup · once per composition</dd><dt>Required in</dt><dd>the regionFilter popup</dd><dt>Parts</dt><dd><code>option</code> · States: <code>selected</code></dd></dl>
+</section>
+  <section class="el" id="el-popup-regionNote" data-el="popup.regionNote">
+  <h3><code>popup.regionNote</code> <span class="el-kind">display</span></h3>
+  <dl><dt>Placed in</dt><dd>the regionFilter popup · any number of times</dd><dt>Parts</dt><dd><code>text</code></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Approximate — based on IP block, not confirmed location&quot;.</p></div>
+</section>
+  <section class="el" id="el-popup-sortOptions" data-el="popup.sortOptions">
+  <h3><code>popup.sortOptions</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>the sort popup · once per composition</dd><dt>Required in</dt><dd>the sort popup</dd><dt>Parts</dt><dd><code>option</code> · States: <code>selected</code>, <code>ascending</code>, <code>descending</code></dd></dl>
+</section>
+  <section class="el" id="el-popup-uniqueServerOptions" data-el="popup.uniqueServerOptions">
+  <h3><code>popup.uniqueServerOptions</code> <span class="el-kind">input</span></h3>
+  <dl><dt>Placed in</dt><dd>the modsUnique popup · once per composition</dd><dt>Required in</dt><dd>the modsUnique popup</dd><dt>Parts</dt><dd><code>option</code>, <code>empty</code></dd></dl>
+</section>
+  <section class="el" id="el-popup-clear" data-el="popup.clear">
+  <h3><code>popup.clear</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the mapFilter popup, the tagsFilter popup, the regionFilter popup · once per composition</dd><dt>Parts</dt><dd><code>label</code> · States: <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Clear&quot; and resets that filter.</p></div>
+</section>
+  <section class="el" id="el-popup-close" data-el="popup.close">
+  <h3><code>popup.close</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>any themeable popup · once per composition</dd><dt>Required in</dt><dd>the region popup; the inline popup</dd><dt>Parts</dt><dd><code>icon</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Required only where a popup can't be dismissed by clicking outside an anchored panel, so a region or inline popup always has a way out.</p></div>
+</section>
+</section>
+
+        <h2 id="surfaces">Surfaces</h2>
+        <div class="md"><p>A surface is placed whole. Its elements keep their own ids, states and parts, so CSS still reaches them; only its arrangement is fixed. Placing a surface satisfies the requirements of every required element inside it, and counts as one placement of each element inside it — so placing <code>surface.filterBar</code> and a separate <code>filter.search</code> in the same composition is a multiplicity error.</p></div>
+  <section class="el">
+  <h3><code>surface.windowControls</code></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings</dd><dt>Contains</dt><dd><code>app.minimize</code>, <code>app.maximize</code>, <code>app.close</code></dd></dl>
+</section>
+  <section class="el">
+  <h3><code>surface.navRail</code></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings</dd><dt>Contains</dt><dd><code>app.logo</code>, <code>nav.servers</code>, <code>nav.favourites</code>, <code>nav.recent</code>, <code>nav.mods</code>, <code>nav.settings</code>, <code>app.collapseToggle</code></dd></dl>
+</section>
+  <section class="el">
+  <h3><code>surface.filterBar</code></h3>
+  <dl><dt>Placed in</dt><dd>the server browser view</dd><dt>Contains</dt><dd><code>filter.search</code>, <code>filter.map</code>, <code>filter.tags</code>, <code>filter.mods</code>, <code>filter.region</code>, <code>filter.sort</code>, <code>filter.maxPing</code>, <code>filter.hideEmpty</code>, <code>filter.hideFull</code>, <code>filter.hideLocked</code>, <code>filter.hideOffline</code>, <code>filter.reset</code>, <code>servers.refresh</code></dd></dl>
+</section>
+  <section class="el">
+  <h3><code>surface.footerStatus</code></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings</dd><dt>Contains</dt><dd><code>status.steam</code>, <code>status.serverTotal</code>, <code>status.populated</code>, <code>status.listSource</code>, <code>status.lastRefreshed</code>, <code>app.uiScale</code>, <code>app.schemeToggle</code></dd></dl>
+</section>
+  <section class="el">
+  <h3><code>surface.serverIdentity</code></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup</dd><dt>Contains</dt><dd><code>server.name</code>, <code>server.address</code>, <code>server.tags</code></dd></dl>
+</section>
+  <section class="el">
+  <h3><code>surface.serverStats</code></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup</dd><dt>Contains</dt><dd><code>server.players</code>, <code>server.ping</code>, <code>server.gameTime</code></dd></dl>
+</section>
+  <section class="el">
+  <h3><code>surface.serverProps</code></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup</dd><dt>Contains</dt><dd><code>server.map</code>, <code>server.version</code>, <code>server.region</code>, <code>server.modCount</code></dd></dl>
+</section>
+  <section class="el">
+  <h3><code>surface.modDetails</code></h3>
+  <dl><dt>Placed in</dt><dd>a mod row, or a modSelection container in the Mods view</dd><dt>Contains</dt><dd><code>mod.subscribed</code>, <code>mod.updated</code>, <code>mod.size</code>, <code>mod.rating</code>, <code>mod.workshopId</code></dd></dl>
+</section>
+  <section class="el">
+  <h3><code>surface.modsActionBar</code></h3>
+  <dl><dt>Placed in</dt><dd>the Mods view</dd><dt>Contains</dt><dd><code>mods.count</code>, <code>mods.selectAll</code>, <code>mods.clearSelection</code>, <code>mods.selectUnique</code>, <code>mods.cleanupRemoved</code>, <code>mods.unsubscribe</code>, <code>mods.unsubscribeMenu</code>, <code>mods.updateOutdated</code>, <code>mods.verify</code>, <code>mods.verifyMenu</code></dd></dl>
+</section>
+  <section class="el">
+  <h3><code>surface.updateBody</code></h3>
+  <dl><dt>Placed in</dt><dd>the update modal</dd><dt>Contains</dt><dd><code>update.summary</code>, <code>update.changelog</code>, <code>update.progress</code>, <code>update.portableNote</code></dd></dl>
+</section>
+
+        <h2 id="lists">Lists</h2>
+        <div class="md"><p>Every list follows one model: the theme declares the list's columns once, a launcher-rendered header shows them, and a row template places elements into those same columns.</p>
+<ul><li><strong>Sort keys:</strong> a column may name a sort key only from its own list's set. Clicking that column's header sorts by it; clicking again reverses the direction. <code>popup.sort</code> offers the server keys Players, Ping, Mods, Name and Map, and <code>lastPlayed</code> is reachable only through a column header.</li><li><strong>Row states:</strong> every row carries <code>data-state</code>, and rows are not focusable themselves — Tab moves into their elements. In the server and Mods lists, every second row also carries <code>even</code>, for zebra striping.</li></ul>
+<p><strong>Empty and loading text.</strong> The <code>empty</code> and <code>loading</code> parts carry the launcher's wording:</p>
+<div class="table-wrap"><table><thead><tr><th>List</th><th>Text</th></tr></thead><tbody><tr><td><code>list.servers</code></td><td>&quot;No servers match the current filters.&quot; after the first load; &quot;No servers yet — the list fills in once Steam connects.&quot; before it</td></tr><tr><td><code>list.mods</code></td><td>&quot;Loading subscribed mods…&quot;, &quot;No mods match the current filter.&quot;, or &quot;You have no subscribed DayZ Workshop mods.&quot;</td></tr><tr><td><code>list.modFilterResults</code></td><td>&quot;Loading…&quot;, &quot;Type a mod name above to search the Workshop.&quot;, &quot;No subscribed DayZ mods.&quot;, or &quot;No mods match.&quot;</td></tr><tr><td><code>list.serverMods</code></td><td>&quot;This server declares no mods.&quot;</td></tr><tr><td><code>list.modServers</code></td><td>&quot;No servers in the browser need this mod.&quot;</td></tr></tbody></table></div>
+<p>A theme may place its own theme text instead, by giving the list an <code>empty</code> subtree.</p></div>
+  <section class="el">
+  <h3><code>list.servers</code></h3>
+  <dl><dt>Row subject</dt><dd><code>server</code></dd><dt>Row template</dt><dd><code>layout/lists/servers.json</code></dd><dt>Sort keys</dt><dd><code>players</code>, <code>ping</code>, <code>mods</code>, <code>name</code>, <code>map</code>, <code>lastPlayed</code></dd><dt>Default sort</dt><dd><code>players</code>, descending</dd><dt>Row states</dt><dd><code>selected</code>, <code>focused</code>, <code>offline</code>, <code>favourite</code>, <code>modded</code>, <code>official</code>, <code>firstPerson</code>, <code>locked</code>, <code>full</code>, <code>empty</code>, <code>modsPending</code>, <code>busy</code>, <code>even</code></dd></dl>
+</section>
+  <section class="el">
+  <h3><code>list.mods</code></h3>
+  <dl><dt>Row subject</dt><dd><code>mod</code></dd><dt>Row template</dt><dd><code>layout/lists/mods.json</code></dd><dt>Sort keys</dt><dd><code>name</code>, <code>status</code>, <code>size</code>, <code>updated</code>, <code>subscribed</code></dd><dt>Default sort</dt><dd><code>name</code>, ascending</dd><dt>Row states</dt><dd><code>selected</code>, <code>focused</code>, <code>checked</code>, <code>disabled</code>, <code>ready</code>, <code>update</code>, <code>downloading</code>, <code>missing</code>, <code>notSubscribed</code>, <code>serverSide</code>, <code>even</code></dd></dl>
+</section>
+  <section class="el">
+  <h3><code>list.modFilterResults</code></h3>
+  <dl><dt>Row subject</dt><dd><code>workshopMod</code></dd><dt>Row template</dt><dd><code>layout/lists/modFilterResults.json</code></dd><dt>Sort keys</dt><dd>none: the list keeps its own order</dd><dt>Default sort</dt><dd>none</dd><dt>Row states</dt><dd><code>previewed</code>, <code>focused</code>, <code>included</code>, <code>excluded</code>, <code>subscribed</code></dd></dl>
+</section>
+  <section class="el">
+  <h3><code>list.serverMods</code></h3>
+  <dl><dt>Row subject</dt><dd><code>serverMod</code></dd><dt>Row template</dt><dd><code>layout/lists/serverMods.json</code></dd><dt>Sort keys</dt><dd>none: the list keeps its own order</dd><dt>Default sort</dt><dd>none</dd><dt>Row states</dt><dd><code>ready</code>, <code>needsUpdate</code>, <code>downloading</code>, <code>notInstalled</code>, <code>notSubscribed</code>, <code>serverSide</code>, <code>unique</code></dd></dl>
+</section>
+  <section class="el">
+  <h3><code>list.modServers</code></h3>
+  <dl><dt>Row subject</dt><dd><code>modServer</code></dd><dt>Row template</dt><dd><code>layout/lists/modServers.json</code></dd><dt>Sort keys</dt><dd>none: the list keeps its own order</dd><dt>Default sort</dt><dd>none</dd><dt>Row states</dt><dd><code>favourite</code>, <code>played</code></dd></dl>
+</section>
+
+        <h2 id="modals">Modals</h2>
+        <div class="md"><p>Three dialogs are themeable, and each one is a file under <code>layout/modals/</code>. Every other dialog is launcher-owned and takes only colour and type tokens: the destructive confirmations, theme import and export, delete-theme, Steam required, and first-run setup. If a modal file omits one of its required elements, the launcher renders Neutral's version of that modal.</p></div>
+  <section class="el">
+  <h3><code>serverInfo</code></h3>
+  <dl><dt>File</dt><dd><code>layout/modals/serverInfo.json</code></dd><dt>Subject</dt><dd><code>server</code></dd><dt>Required</dt><dd><code>modal.close</code>, <code>server.join</code>, <code>server.actionNotice</code></dd></dl>
+</section>
+  <section class="el">
+  <h3><code>modFilter</code></h3>
+  <dl><dt>File</dt><dd><code>layout/modals/modFilter.json</code></dd><dt>Subject</dt><dd>none: the modal is not about one row</dd><dt>Required</dt><dd><code>modal.close</code>, <code>modFilter.apply</code>, <code>list.modFilterResults</code></dd></dl>
+</section>
+  <section class="el">
+  <h3><code>update</code></h3>
+  <dl><dt>File</dt><dd><code>layout/modals/update.json</code></dd><dt>Subject</dt><dd>none: the modal is not about one row</dd><dt>Required</dt><dd><code>modal.close</code>, <code>update.install</code>, <code>update.viewRelease</code></dd></dl>
+</section>
+
+        <h2 id="popups">Popups</h2>
+        <div class="md"><p>Each popup has its own file, <code>layout/popups/&lt;id&gt;.json</code>, declaring its placement mode and its contents. A missing file means the launcher's default popup.</p></div>
+  <section class="el">
+  <h3><code>mapFilter</code></h3>
+  <dl><dt>Opened by</dt><dd><code>filter.map</code></dd><dt>Required contents</dt><dd><code>popup.mapOptions</code></dd></dl>
+</section>
+  <section class="el">
+  <h3><code>tagsFilter</code></h3>
+  <dl><dt>Opened by</dt><dd><code>filter.tags</code></dd><dt>Required contents</dt><dd><code>popup.tagOptions</code></dd></dl>
+</section>
+  <section class="el">
+  <h3><code>regionFilter</code></h3>
+  <dl><dt>Opened by</dt><dd><code>filter.region</code></dd><dt>Required contents</dt><dd><code>popup.regionOptions</code></dd></dl>
+</section>
+  <section class="el">
+  <h3><code>sort</code></h3>
+  <dl><dt>Opened by</dt><dd><code>filter.sort</code></dd><dt>Required contents</dt><dd><code>popup.sortOptions</code></dd></dl>
+</section>
+  <section class="el">
+  <h3><code>serverActions</code></h3>
+  <dl><dt>Opened by</dt><dd><code>server.menu</code></dd><dt>Required contents</dt><dd>none: the popup holds an action menu</dd></dl>
+</section>
+  <section class="el">
+  <h3><code>serverLoad</code></h3>
+  <dl><dt>Opened by</dt><dd><code>server.menu</code></dd><dt>Required contents</dt><dd>none: the popup holds an action menu</dd></dl>
+</section>
+  <section class="el">
+  <h3><code>modsUnsubscribe</code></h3>
+  <dl><dt>Opened by</dt><dd><code>mods.unsubscribeMenu</code></dd><dt>Required contents</dt><dd>none: the popup holds an action menu</dd></dl>
+</section>
+  <section class="el">
+  <h3><code>modsVerify</code></h3>
+  <dl><dt>Opened by</dt><dd><code>mods.verifyMenu</code></dd><dt>Required contents</dt><dd>none: the popup holds an action menu</dd></dl>
+</section>
+  <section class="el">
+  <h3><code>modsUnique</code></h3>
+  <dl><dt>Opened by</dt><dd><code>mods.selectUnique</code></dd><dt>Required contents</dt><dd><code>popup.uniqueServerOptions</code></dd></dl>
+</section>
+
+        <h2 id="icons">Icons</h2>
+        <p>The names the <code>icon</code> option accepts.</p>
+        <p><code>alertTriangle</code>, <code>appWindow</code>, <code>arrowRight</code>, <code>ban</code>, <code>check</code>, <code>checkCircle</code>, <code>chevronDown</code>, <code>chevronLeft</code>, <code>chevronRight</code>, <code>chevronsLeft</code>, <code>chevronsRight</code>, <code>clock</code>, <code>copy</code>, <code>download</code>, <code>externalLink</code>, <code>fileArchive</code>, <code>fileOutput</code>, <code>filter</code>, <code>folder</code>, <code>folderOpen</code>, <code>gamepad</code>, <code>globe</code>, <code>inbox</code>, <code>info</code>, <code>listTree</code>, <code>loader</code>, <code>minus</code>, <code>moon</code>, <code>moreHorizontal</code>, <code>package</code>, <code>palette</code>, <code>play</code>, <code>plus</code>, <code>refresh</code>, <code>rotateCcw</code>, <code>search</code>, <code>settings</code>, <code>square</code>, <code>star</code>, <code>sun</code>, <code>thumbsUp</code>, <code>trash</code>, <code>upload</code>, <code>users</code>, <code>x</code></p>
+
+        <h2 id="not-placeable">Not placeable</h2>
+        <div class="md"><p>These are launcher-owned and never appear in a layout file:</p>
+<ul><li>the window's resize edges;</li><li>the theme-fallback notice, the incompatible-theme notice and the Activation Safety Window;</li><li>Steam required, first-run setup and the splash;</li><li>the confirmation dialog, and the theme import, export and delete dialogs;</li><li>everything inside <code>settings.themeManagement</code>.</li></ul></div>
+      </main>
+    </div>
+
+    <footer>
+      <div class="container">
+        <p>
+          TETRA LAUNCHER — free and source-available.
+          <a href="https://github.com/HellboundGlory/dayz-launcher">Source on GitHub</a>.
+          Not affiliated with Bohemia Interactive.
+        </p>
+      </div>
+    </footer>
+
+    <script>
+      if (matchMedia("(max-width: 900px)").matches) {
+        document.querySelector(".docs-nav details").open = false;
+      }
+
+      const links = [...document.querySelectorAll('.docs-nav a[href^="#"]')];
+      const byId = new Map(links.map((a) => [a.getAttribute("href").slice(1), a]));
+      const spy = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            for (const a of links) a.removeAttribute("aria-current");
+            byId.get(entry.target.id)?.setAttribute("aria-current", "true");
+          }
+        },
+        { rootMargin: "-80px 0px -70% 0px" },
+      );
+      for (const id of byId.keys()) {
+        const heading = document.getElementById(id);
+        if (heading) spy.observe(heading);
+      }
+
+      const search = document.getElementById("el-search");
+      const entries = [...document.querySelectorAll("section.el[data-el]")];
+      const groups = [...document.querySelectorAll("section.el-group")];
+      const noMatch = document.querySelector(".el-search-empty");
+      search.addEventListener("input", () => {
+        const query = search.value.trim().toLowerCase();
+        let shown = 0;
+        for (const entry of entries) {
+          const hit = !query || entry.dataset.el.includes(query);
+          entry.hidden = !hit;
+          if (hit) shown += 1;
+        }
+        for (const group of groups) group.hidden = Boolean(query) && !group.querySelector("section.el[data-el]:not([hidden])");
+        noMatch.hidden = shown > 0;
+      });
+    </script>
+  </body>
+</html>
