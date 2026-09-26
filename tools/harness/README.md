@@ -78,9 +78,31 @@ try {
 - `window.__harness.activate(id)` switches the active theme through the store's
   own activation path (what the Themes page calls) and resolves two animation
   frames after the repaint, so the perf harness can time apply-to-first-paint.
+  `window.__harness.visibilityCheck()` runs the fallback visibility check over
+  every registry element with a non-empty `required`, for the same harness.
   `modal=` is the one query that needs `dev`: the rest of `__harness` comes from
   `App.tsx`, which only exposes it under `import.meta.env.DEV`.
 
 `npm run harness:smoke` exercises the driver end to end: prod build, then
 `theme=neutral` and `theme=builtin.tactical&scheme=light`, each asserting
 `[data-el="list.servers"]` renders.
+
+## Perf
+
+`npm run perf` measures the SPEC §24 budgets in a prod harness build at
+1400×800: servers-list scroll at 27,000 rows (Tactical and Neutral), theme
+activation apply-to-first-paint, the fallback visibility check, and the
+Tactical-vs-Neutral JS heap. It prints a pass/fail table, writes
+`tools/harness/.out/perf.json`, and exits 1 when a budget misses — pass
+`--no-fail` to exit 0 anyway (a harness error, before any numbers, still
+fails).
+
+Chromium here is the headless shell, not the WebKitGTK build the launcher
+ships, so the numbers are indicative rather than release figures.
+
+The activation scenario loads `theme=builtin.tactical` and resets to neutral
+between runs: the fixture only reports the page's own theme as installed, so a
+`theme=neutral` load has no package for `activate("builtin.tactical")` to
+apply. Memory and scroll each use their own page per theme, so the heap is read
+with the list already rendered.
+

@@ -3,6 +3,8 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { makeMods, makeServers, maps } from "./fixtures";
+import { REGISTRY } from "@/theme/registry";
+import { runVisibilityCheck } from "@/theme/fallback/visibility";
 import type { Server } from "@/types/server";
 
 const params = new URLSearchParams(location.search);
@@ -265,6 +267,15 @@ harness.activate = async (id: string) => {
   const painted = Promise.withResolvers<void>();
   requestAnimationFrame(() => requestAnimationFrame(() => painted.resolve()));
   await painted.promise;
+};
+
+// Runs the fallback visibility check over every registry element that needs to
+// be on screen somewhere (registry.json's non-empty `required`), for perf.mjs.
+harness.visibilityCheck = () => {
+  const requiredElements = Object.entries(REGISTRY.elements)
+    .filter(([, def]) => def.required.length > 0)
+    .map(([id]) => id);
+  return runVisibilityCheck({ requiredElements });
 };
 
 // Awaited so a `scheme=` override still precedes the first render.
