@@ -309,6 +309,9 @@ harness.activate = async (id: string) => {
   await painted.promise;
 };
 
+// Why each screen fell back, keyed by layout file.
+harness.fallbackReasons = async () => (await import("@/theme/fallback/store")).useFallbackStore.getState().fallbackReasons;
+
 // Runs the fallback visibility check over every registry element that needs to
 // be on screen somewhere (registry.json's non-empty `required`), for perf.mjs.
 harness.visibilityCheck = () => {
