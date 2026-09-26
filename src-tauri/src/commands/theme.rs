@@ -3,7 +3,6 @@
 //! starter template. Storage rules live in [`crate::theme`]; these wrappers
 //! resolve the themes directory and log what got skipped.
 
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use tauri::path::BaseDirectory;
@@ -11,7 +10,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::state::PendingActivation;
 use crate::theme::validator::{self, Severity, ValidationIssue};
-use crate::theme::{self, LegacyTheme, ThemeFile, ThemeManifest, ThemeSummary, LAYOUT_ALLOWLIST};
+use crate::theme::{self, LegacyTheme, ThemeFile, ThemeManifest, ThemeSummary};
 
 /// Every installed theme, for the themes grid. A directory whose manifest is
 /// missing, unreadable or corrupt is skipped and logged, not fatal.
@@ -57,28 +56,11 @@ fn validate_theme_at(themes_root: &Path, id: &str) -> Result<Vec<ValidationIssue
     Ok(issues)
 }
 
-/// Layout files that parse become one map handed to [`validator::validate_theme_layouts`]
-/// (which cross-checks slots across files); a file that fails to parse is validated
-/// on its own instead, so its LAY-01 issue is never dropped.
+/// Dev Mode's view of the same parse-tolerant read the runtime fallback uses:
+/// issues for files that failed to parse, then the cross-file pass
+/// ([`validator::validate_theme_layouts`]) over the files that parsed.
 fn validate_theme_layouts(dir: &Path) -> Result<Vec<ValidationIssue>, String> {
-    let mut parsed = HashMap::new();
-    let mut issues = Vec::new();
-
-    for path in LAYOUT_ALLOWLIST {
-        let file = dir.join(path);
-        if !file.is_file() {
-            continue;
-        }
-        let content = std::fs::read_to_string(&file)
-            .map_err(|e| format!("Could not read {}: {e}", file.display()))?;
-        match serde_json::from_str(&content) {
-            Ok(value) => {
-                parsed.insert((*path).to_string(), value);
-            }
-            Err(_) => issues.extend(validator::validate_layout_file(path, &content)),
-        }
-    }
-
+    let (parsed, mut issues) = theme::read_layout_files(dir)?;
     issues.extend(validator::validate_theme_layouts(&parsed));
     Ok(issues)
 }
