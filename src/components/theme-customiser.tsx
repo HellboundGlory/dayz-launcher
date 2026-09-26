@@ -7,6 +7,7 @@ import {
   activeInstalled,
   effective,
   effectiveRoleValues,
+  isUserTheme,
   resolvedPair,
 } from "@/theme/theme-store";
 import {
@@ -32,6 +33,14 @@ const FAMILY_ROWS: { key: FontFamilyRole; label: string }[] = [
 const EXTRAS_INPUT_CLASS =
   "min-w-0 flex-1 [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface px-1.5 py-[3px] text-right font-mono-data [font-size:var(--t-type-caption-size)] text-ink outline-none transition-colors focus:border-accent-line";
 
+/** The accent save control, shared by "Save changes" and "Save theme". */
+const SAVE_BUTTON_CLASS =
+  "shrink-0 [border-radius:var(--t-radius-control)] border-none bg-accent px-3 py-[7px] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-[0.05em] [color:var(--t-color-onAccent)] [box-shadow:var(--t-shadow-glow)] transition-[filter] hover:brightness-110";
+
+/** The quieter control beside the accent save — the name-based "Save as new". */
+const SECONDARY_BUTTON_CLASS =
+  "shrink-0 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-[7px] [font-size:var(--t-type-caption-size)] font-semibold uppercase tracking-[0.04em] text-muted2 transition-colors hover:text-ink";
+
 // Theme accordion body. Owns only local dropdown/save-input state — every
 // colour decision writes straight to the theme store.
 export function ThemeCustomiser() {
@@ -50,6 +59,7 @@ export function ThemeCustomiser() {
   const setRadiusRoleOverride = useThemeStore((s) => s.setRadiusRoleOverride);
   const setFontFamilyOverride = useThemeStore((s) => s.setFontFamilyOverride);
   const saveTheme = useThemeStore((s) => s.saveTheme);
+  const duplicateTheme = useThemeStore((s) => s.duplicateTheme);
   const deleteTheme = useThemeStore((s) => s.deleteTheme);
   const resetToBase = useThemeStore((s) => s.resetToBase);
 
@@ -62,6 +72,9 @@ export function ThemeCustomiser() {
   const roles = effectiveRoleValues(activeId, themeFiles, customExtras);
   const saved = activeInstalled(activeId, myThemes);
   const displayName = saved?.name ?? activePreset(activeId)?.name ?? "Neutral";
+  // SPEC §4.6: only an installed `local.*` theme can be written in place; an
+  // import or a bundled built-in is saved as a new theme instead.
+  const userTheme = isUserTheme(activeId, myThemes);
 
   // Outside mousedown closes the theme dropdown (same pattern as the filter
   // bar popovers).
@@ -308,6 +321,15 @@ export function ThemeCustomiser() {
       </div>
 
       <div className="save-row mt-2 flex gap-[7px]">
+        {userTheme && (
+          <button
+            type="button"
+            onClick={() => void saveTheme(name.trim() || "Untitled theme")}
+            className={SAVE_BUTTON_CLASS}
+          >
+            Save changes
+          </button>
+        )}
         <input
           type="text"
           value={name}
@@ -315,23 +337,37 @@ export function ThemeCustomiser() {
           placeholder="Name your theme…"
           maxLength={28}
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              void saveTheme(name.trim() || "Untitled theme");
-              setName("");
-            }
+            if (e.key !== "Enter") return;
+            const trimmed = name.trim() || "Untitled theme";
+            if (userTheme) void duplicateTheme(activeId, trimmed);
+            else void saveTheme(trimmed);
+            setName("");
           }}
           className="min-w-0 flex-1 [border-radius:var(--t-radius-control)] border border-line bg-bg px-2.5 py-[7px] [font-size:var(--t-type-body-size)] text-ink placeholder-muted outline-none transition-colors focus:border-accent-line"
         />
-        <button
-          type="button"
-          onClick={() => {
-            void saveTheme(name.trim() || "Untitled theme");
-            setName("");
-          }}
-          className="shrink-0 [border-radius:var(--t-radius-control)] border-none bg-accent px-3 py-[7px] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-[0.05em] [color:var(--t-color-onAccent)] [box-shadow:var(--t-shadow-glow)] transition-[filter] hover:brightness-110"
-        >
-          Save theme
-        </button>
+        {userTheme ? (
+          <button
+            type="button"
+            onClick={() => {
+              void duplicateTheme(activeId, name.trim() || "Untitled theme");
+              setName("");
+            }}
+            className={SECONDARY_BUTTON_CLASS}
+          >
+            Save as new
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              void saveTheme(name.trim() || "Untitled theme");
+              setName("");
+            }}
+            className={SAVE_BUTTON_CLASS}
+          >
+            Save theme
+          </button>
+        )}
       </div>
 
       <div className="reset-row mt-2 flex items-center gap-2">

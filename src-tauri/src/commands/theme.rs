@@ -116,6 +116,19 @@ pub fn save_theme(
     Ok(id)
 }
 
+/// Rewrite an installed user theme's palette in place — SPEC §4.6's save for
+/// the active theme. Only `local.*` ids qualify; see [`theme::update_tokens`].
+#[tauri::command]
+pub fn update_theme_tokens(
+    app: AppHandle,
+    id: String,
+    tokens: serde_json::Value,
+) -> Result<(), String> {
+    theme::update_tokens(&crate::paths::themes_dir(&app), &id, &tokens)?;
+    crate::log::log_line(&app, "theme", &format!("Updated tokens for theme `{id}`"));
+    Ok(())
+}
+
 /// Delete an installed theme. Refuses the active theme (switch away first) and
 /// any id with no directory — built-in presets are not deletable this way.
 #[tauri::command]

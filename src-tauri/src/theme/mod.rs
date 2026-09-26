@@ -394,6 +394,36 @@ pub fn save(
     Ok(manifest.id.clone())
 }
 
+/// Rewrite one user theme's `tokens.json` in place — SPEC §4.6's "the edited
+/// values are written to the active theme when it is a user theme". Only a
+/// `local.*` id qualifies: an imported package or a bundled built-in is never
+/// rewritten, and a `local.*` install must still exist and be current-format.
+pub fn update_tokens(themes_root: &Path, id: &str, tokens: &Value) -> Result<(), String> {
+    if !id.starts_with("local.") {
+        return Err(format!(
+            "`{id}` is not a user theme — only `local.` themes can be edited in place"
+        ));
+    }
+    let dir = theme_dir(themes_root, id)?;
+    if !dir.is_dir() {
+        return Err(format!("No installed theme `{id}` at {}", dir.display()));
+    }
+    // An older-format install is not loaded today, so its tokens are not the
+    // ones on screen; saving over it would write edits nobody can see.
+    if ThemeSummary::of(&read_manifest(&dir)?).incompatible {
+        return Err(format!(
+            "`{id}` is an older theme format — save your edits as a new theme instead"
+        ));
+    }
+    validate_tokens(tokens)?;
+
+    let json = serde_json::to_vec_pretty(tokens)
+        .map_err(|e| format!("Could not serialise tokens: {e}"))?;
+    let path = dir.join(TOKENS_FILE);
+    crate::atomic_write::write_atomically(&path, &json)
+        .map_err(|e| format!("Could not write {}: {e}", path.display()))
+}
+
 /// Delete an installed theme. Refuses an id with no directory (a built-in
 /// preset, checked first so the error isn't misleading) and refuses `active`,
 /// which would otherwise leave the selection pointing at nothing.
@@ -1051,6 +1081,92 @@ mod tests {
         assert_eq!(scanned.themes.len(), 1);
         assert!(!scanned.themes[0].incompatible, "{:?}", scanned.themes[0]);
         assert_eq!(scanned.themes[0].incompatible_reason, None);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// SPEC §4.6's in-place path: a user theme's palette is rewritten, and the
+    /// rewrite reads back exactly through the same `get` the runtime uses.
+    #[test]
+    fn a_user_themes_tokens_update_in_place() {
+        let root = scratch("update-tokens");
+        save(&root, &manifest("local.mine"), &tokens()).expect("save");
+        let updated = serde_json::json!({
+            "schemaVersion": 2,
+            "colors": { "dark": { "bg": "#123456" }, "light": { "bg": "#fefefe" } },
+            "bloom": 0.5,
+        });
+
+        update_tokens(&root, "local.mine", &updated).expect("update");
+
+        let loaded = get(&root, "local.mine").expect("the updated theme loads");
+        assert_eq!(loaded.tokens, updated);
+        assert_eq!(
+            loaded.manifest.name, "Test Theme",
+            "the manifest is untouched"
+        );
+        assert!(
+            !root.join("local.mine").join("tokens.json.tmp").exists(),
+            "the temp file is renamed away, never left behind"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Only `local.*` ids name a theme the launcher may rewrite: an imported
+    /// package, a built-in preset, a missing directory and a path all refuse.
+    #[test]
+    fn updating_tokens_refuses_anything_but_an_installed_user_theme() {
+        let root = scratch("update-refused");
+        save(&root, &manifest("starter.styled"), &tokens()).expect("save an import");
+
+        for id in ["starter.styled", "builtin.tactical"] {
+            let err = update_tokens(&root, id, &tokens()).expect_err("must refuse");
+            assert!(err.contains("not a user theme"), "{id}: {err}");
+        }
+
+        let err = update_tokens(&root, "local.missing", &tokens()).expect_err("must refuse");
+        assert!(err.contains("No installed theme"), "{err}");
+
+        let err =
+            update_tokens(&root, "local.escape/../../evil", &tokens()).expect_err("must refuse");
+        assert!(err.contains("not a usable theme id"), "{err}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A refused update is a no-op: the old file survives every rejection
+    /// reason — a v1 envelope, v2 contents `TokensV2` rejects, and an
+    /// older-format install.
+    #[test]
+    fn a_refused_token_update_leaves_the_old_file_untouched() {
+        let root = scratch("update-untouched");
+        save(&root, &manifest("local.mine"), &tokens()).expect("save");
+        let path = root.join("local.mine").join(TOKENS_FILE);
+        let before = std::fs::read_to_string(&path).unwrap();
+
+        let v1 = serde_json::json!({ "schemaVersion": 1, "dark": {}, "light": {} });
+        let err = update_tokens(&root, "local.mine", &v1).expect_err("must refuse v1");
+        assert!(err.contains("schemaVersion"), "{err}");
+
+        let malformed = serde_json::json!({
+            "schemaVersion": 2,
+            "roles": { "radius": { "row": true } },
+        });
+        let err = update_tokens(&root, "local.mine", &malformed).expect_err("must refuse");
+        assert!(err.contains("Invalid tokens.json"), "{err}");
+
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            before,
+            "a failed validation must not touch the file"
+        );
+
+        let mut old = manifest("local.old");
+        old.schema_version = 1;
+        save(&root, &old, &tokens()).expect("save an older install");
+        let old_path = root.join("local.old").join(TOKENS_FILE);
+        let old_before = std::fs::read_to_string(&old_path).unwrap();
+        let err = update_tokens(&root, "local.old", &tokens()).expect_err("must refuse");
+        assert!(err.contains("older theme format"), "{err}");
+        assert_eq!(std::fs::read_to_string(&old_path).unwrap(), old_before);
         let _ = std::fs::remove_dir_all(&root);
     }
 

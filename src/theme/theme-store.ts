@@ -39,6 +39,7 @@ import {
   saveTheme as saveThemeCmd,
   setActiveThemeId,
   setThemeSettingsValue,
+  updateThemeTokens,
   validateTheme,
 } from "@/lib/tauri";
 import type { LegacyTheme, ThemeFile, ThemeManifest, ThemeSummary, ValidationIssue } from "@/types/theme";
@@ -82,6 +83,7 @@ interface ThemeState {
   setRadiusRoleOverride: (role: RadiusRole, value: string) => void;
   setFontFamilyOverride: (family: FontFamilyRole, value: string) => void;
   toggleLightRefined: () => void;
+  /** Save the active theme: in place when it is a user theme, otherwise as a new theme named `name` (SPEC §4.6). */
   saveTheme: (name: string) => Promise<void>;
   /** Save `sourceId` under a new name — the active theme's live edits apply only when `sourceId` is the active theme. */
   duplicateTheme: (sourceId: string, name: string) => Promise<void>;
@@ -148,6 +150,12 @@ export function activePreset(activeId: string) {
 
 export function activeInstalled(activeId: string, installedThemes: ThemeSummary[]) {
   return installedThemes.find((t) => t.id === activeId);
+}
+
+/** SPEC §4.6's "user theme": an installed theme this launcher created (`local.*`),
+ * and so the only kind [`ThemeState.saveTheme`] may rewrite in place. */
+export function isUserTheme(id: string, installedThemes: ThemeSummary[]): boolean {
+  return id.startsWith("local.") && activeInstalled(id, installedThemes) !== undefined;
 }
 
 /** Resolve the full dark + light palettes for the active theme. */
@@ -250,6 +258,56 @@ export function mergeRoleOverrides(
       ...tokens?.roles,
       ...(hasRadius && { radius: { ...tokens?.roles?.radius, ...radius } }),
     },
+  };
+}
+
+/**
+ * The v2 tokens a save writes: the source's own scales and roles (Neutral's
+ * when the source carries none), its palette — plus the live editor's colours,
+ * bloom and role overrides when `live` — and the bloom. Shared by the in-place
+ * save and a duplicate so both write the same shape (SPEC §4.6).
+ */
+function buildSavedTokens(
+  sourceId: string,
+  live: boolean,
+  custom: CustomOverrides,
+  customExtras: CustomExtrasOverrides,
+  themeFiles: Record<string, ThemeFile>,
+  bloom: number,
+): TokensV2 {
+  const pair = resolvedPair(sourceId, themeFiles);
+  const dark = {} as Palette;
+  const light = {} as Palette;
+  TOKENS.forEach((t) => {
+    dark[t] = (live ? custom.dark[t] : undefined) ?? pair.dark[t];
+    light[t] = (live ? custom.light[t] : undefined) ?? pair.light[t];
+  });
+
+  // Only a v2 source carries scales/roles to copy; a palette-only or v1
+  // source starts from Neutral's.
+  const sourceTokens = themeFiles[sourceId]?.tokens;
+  const parsedSource =
+    typeof sourceTokens === "object" &&
+    sourceTokens !== null &&
+    "schemaVersion" in sourceTokens &&
+    sourceTokens.schemaVersion === 2
+      ? parseTokens(sourceTokens)
+      : undefined;
+  const source = {
+    scales: parsedSource?.scales ?? NEUTRAL_TOKENS.scales,
+    roles: parsedSource?.roles ?? NEUTRAL_TOKENS.roles,
+  };
+  // Saving the active theme takes the customiser's role edits with it; a copy
+  // of any other theme keeps that theme's own roles.
+  const merged = (live ? mergeRoleOverrides(source, customExtras) : undefined) ?? source;
+  return {
+    schemaVersion: 2,
+    colors: { dark, light },
+    // Saving the live theme keeps whatever the slider shows; a copy of any
+    // other theme keeps that theme's own bloom.
+    bloom: live ? bloom : resolvedExtras(sourceId, themeFiles).shadows.glowIntensity,
+    scales: merged.scales ?? NEUTRAL_TOKENS.scales,
+    roles: merged.roles ?? NEUTRAL_TOKENS.roles,
   };
 }
 
@@ -627,22 +685,35 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   },
 
   saveTheme: async (name) => {
-    // SPEC §4.6 asks for the edits to land in the active theme when it is a
-    // user theme; the backend's create-only `save_theme` has no in-place
-    // tokens write yet, so every save duplicates instead.
-    await get().duplicateTheme(get().activeId, name);
+    const { activeId, installedThemes, custom, customExtras, themeFiles, bloom } = get();
+    // SPEC §4.6: the edits land in the active theme when it is a user theme —
+    // one this launcher made (`local.*`). An imported package or a bundled
+    // built-in is never rewritten, so saving over one duplicates instead.
+    if (isUserTheme(activeId, installedThemes)) {
+      const tokens = buildSavedTokens(activeId, true, custom, customExtras, themeFiles, bloom);
+      try {
+        await updateThemeTokens(activeId, tokens);
+      } catch (e) {
+        console.error(`Could not save theme "${activeId}":`, e);
+        return;
+      }
+      try {
+        // Re-read what's on disk so the cached palette is the file just written.
+        const file = await getTheme(activeId);
+        set((state) => ({ themeFiles: { ...state.themeFiles, [activeId]: file } }));
+      } catch (e) {
+        // The write landed; a stale cache only delays the repaint.
+        console.error(`Could not re-read theme "${activeId}":`, e);
+      }
+      // The overrides are the theme's own values now.
+      get().resetToBase();
+      return;
+    }
+    await get().duplicateTheme(activeId, name);
   },
 
   duplicateTheme: async (sourceId, name) => {
     const { activeId, custom, customExtras, themeFiles, bloom } = get();
-    const live = sourceId === activeId;
-    const pair = resolvedPair(sourceId, themeFiles);
-    const dark = {} as Palette;
-    const light = {} as Palette;
-    TOKENS.forEach((t) => {
-      dark[t] = (live ? custom.dark[t] : undefined) ?? pair.dark[t];
-      light[t] = (live ? custom.light[t] : undefined) ?? pair.light[t];
-    });
 
     const id = `local.${slugify(name)}`;
     const manifest: ThemeManifest = {
@@ -661,32 +732,14 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       tags: [],
       capabilities: ["tokens"],
     };
-    // Only a v2 source carries scales/roles to copy; a palette-only or v1
-    // source starts from Neutral's.
-    const sourceTokens = themeFiles[sourceId]?.tokens;
-    const parsedSource =
-      typeof sourceTokens === "object" &&
-      sourceTokens !== null &&
-      "schemaVersion" in sourceTokens &&
-      sourceTokens.schemaVersion === 2
-        ? parseTokens(sourceTokens)
-        : undefined;
-    const source = {
-      scales: parsedSource?.scales ?? NEUTRAL_TOKENS.scales,
-      roles: parsedSource?.roles ?? NEUTRAL_TOKENS.roles,
-    };
-    // Saving the active theme takes the customiser's role edits with it; a
-    // copy of any other theme keeps that theme's own roles.
-    const merged = (live ? mergeRoleOverrides(source, customExtras) : undefined) ?? source;
-    const tokens: TokensV2 = {
-      schemaVersion: 2,
-      colors: { dark, light },
-      // Saving the live theme keeps whatever the slider shows; a copy of any
-      // other theme keeps that theme's own bloom.
-      bloom: live ? bloom : resolvedExtras(sourceId, themeFiles).shadows.glowIntensity,
-      scales: merged.scales ?? NEUTRAL_TOKENS.scales,
-      roles: merged.roles ?? NEUTRAL_TOKENS.roles,
-    };
+    const tokens = buildSavedTokens(
+      sourceId,
+      sourceId === activeId,
+      custom,
+      customExtras,
+      themeFiles,
+      bloom,
+    );
 
     try {
       // save_theme is create-only; re-saving under a name already used

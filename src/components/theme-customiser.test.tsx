@@ -6,6 +6,7 @@ import type * as ThemeStoreModule from "@/theme/theme-store";
 import { DATA_FONT_STACK, UI_FONT_STACK } from "@/theme/palette";
 import { ThemeCustomiser } from "./theme-customiser";
 import { useThemeStore } from "@/theme/theme-store";
+import type { ThemeSummary } from "@/types/theme";
 
 // SSR takes zustand's initial-state snapshot, so route the hook through the live state.
 function liveHook<T extends { getState: () => S }, S>(store: T) {
@@ -52,6 +53,21 @@ const ROW_IDS = [
   "extras-Fonts-data",
 ];
 
+/** An installed theme's summary: `setState` wants every field, only identity matters here. */
+const SUMMARY: ThemeSummary = {
+  id: "neutral",
+  name: "Neutral",
+  author: "local",
+  version: "1.0.0",
+  themeApi: "2.0",
+  minimumLauncherVersion: "0.0.0",
+  tier: "",
+  description: "",
+  preview: null,
+  tags: [],
+  capabilities: ["tokens"],
+};
+
 function edit(id: string, value: string): void {
   const onChange = captured[id].onChange as (e: { target: { value: string } }) => void;
   onChange({ target: { value } });
@@ -60,6 +76,7 @@ function edit(id: string, value: string): void {
 beforeEach(() => {
   useThemeStore.setState({
     activeId: "neutral",
+    installedThemes: [],
     themeFiles: {},
     custom: { dark: {}, light: {} },
     customExtras: { radius: {}, family: {} },
@@ -104,5 +121,31 @@ describe("ThemeCustomiser", () => {
 
     useThemeStore.getState().resetToBase();
     expect(useThemeStore.getState().customExtras).toEqual({ radius: {}, family: {} });
+  });
+
+  it("offers an in-place save plus a save-as-new on a user theme", () => {
+    useThemeStore.setState({
+      activeId: "local.mine",
+      installedThemes: [{ ...SUMMARY, id: "local.mine", name: "Mine" }],
+    });
+
+    const html = renderToStaticMarkup(<ThemeCustomiser />);
+
+    expect(html).toContain("Save changes");
+    expect(html).toContain("Save as new");
+    expect(html).not.toContain("Save theme");
+  });
+
+  it("keeps the single save control on a theme that cannot be rewritten", () => {
+    useThemeStore.setState({
+      activeId: "builtin.tactical",
+      installedThemes: [{ ...SUMMARY, id: "builtin.tactical", name: "Tactical" }],
+    });
+
+    const html = renderToStaticMarkup(<ThemeCustomiser />);
+
+    expect(html).toContain("Save theme");
+    expect(html).not.toContain("Save changes");
+    expect(html).not.toContain("Save as new");
   });
 });

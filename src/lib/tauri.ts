@@ -668,6 +668,12 @@ export async function saveTheme(manifest: ThemeManifest, tokens: unknown): Promi
   return invoke<string>("save_theme", { manifest, tokens });
 }
 
+/** Rewrite an installed user theme's (`local.*`) palette in place — SPEC §4.6's
+ * save for the active theme. Refuses an id that is not a `local.*` install. */
+export async function updateThemeTokens(id: string, tokens: unknown): Promise<void> {
+  return invoke<void>("update_theme_tokens", { id, tokens });
+}
+
 /** Destructive. Refuses the active theme, and any id with no directory (built-in presets). */
 export async function deleteTheme(id: string): Promise<void> {
   return invoke<void>("delete_theme", { id });
