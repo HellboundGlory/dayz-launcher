@@ -57,6 +57,15 @@ const regionIds = (node: LayoutNode): string[] => [
 ];
 const hasElement = (node: LayoutNode, id: string) => elements(node).includes(id);
 
+const findRegion = (node: LayoutNode, id: string): StackNode | undefined => {
+  if (node.id === id) return node as StackNode;
+  for (const child of (node as StackNode).children ?? []) {
+    const hit = findRegion(child, id);
+    if (hit) return hit;
+  }
+  return undefined;
+};
+
 describe("builtin.tactical browser view", () => {
   it("wraps the filter bar below 1400px and keeps the single row above it", () => {
     expect(browserVariants.map((variant) => variant.minWidth)).toEqual([0, 1400]);
@@ -122,6 +131,50 @@ describe("builtin.tactical browser view", () => {
       expect(list.minHeight).toBe("0px");
       expect(list.grow).toBe(1);
       expect(hasElement(list, "list.servers")).toBe(true);
+    }
+  });
+
+  it("shows the server info content in the pane instead of the ⓘ button", () => {
+    const modsList = { element: "list.serverMods", grow: 1, minHeight: "0px", minWidth: "0px" };
+    const toolbar = [
+      ["server.checkMods", { display: "icon" }],
+      ["server.subscribeAll", { display: "icon" }],
+      ["server.unsubscribeUnique", { display: "icon" }],
+      ["server.copyAddress", { display: "icon" }],
+    ];
+
+    for (const root of [narrowBrowser, wideBrowser]) {
+      expect(hasElement(root, "server.info")).toBe(false);
+
+      const detail = findRegion(root, "r-detail")!;
+      // The mods list grows between the details and r-actions, which stays last.
+      expect(detail.children.map(identify)).toEqual(
+        detail.children.some((node) => node.id === "r-detail-body")
+          ? ["r-detail-body", "list.serverMods", "r-actions"]
+          : ["r-identity", "r-stats", "r-props", "list.serverMods", "r-actions"],
+      );
+      const list = detail.children.find((node) => identify(node) === "list.serverMods")!;
+      expect(list).toMatchObject(modsList);
+      expect(hasElement(detail, "server.info")).toBe(false);
+
+      const actions = findRegion(root, "r-actions")!;
+      expect(actions.children.map(identify)).toEqual([
+        "server.actionNotice",
+        "r-join",
+        "r-detail-toolbar",
+        "server.manageMods",
+      ]);
+      expect(placements(findRegion(root, "r-detail-toolbar")!)).toEqual(toolbar);
+
+      const join = findRegion(root, "r-join")!.children.find((node) => identify(node) === "server.join")!;
+      expect(nodeOptions(join)).toEqual({ wording: "fixAndJoin" });
+    }
+  });
+
+  it("keeps every region id unique inside its variant root", () => {
+    for (const root of [narrowBrowser, wideBrowser]) {
+      const ids = regionIds(root);
+      expect(new Set(ids).size).toBe(ids.length);
     }
   });
 });
