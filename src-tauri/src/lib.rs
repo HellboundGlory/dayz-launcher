@@ -186,7 +186,6 @@ pub fn run() {
             commands::theme::confirm_theme_install,
             commands::theme::export_theme,
             commands::theme::arm_activation,
-            commands::theme::arm_layout_edit,
             commands::theme::confirm_activation,
             commands::theme::revert_activation,
             commands::theme::get_activation_status,
