@@ -20,6 +20,7 @@ PNG as `<out>.log`; uncaught errors are also painted onto the page.
 | Query | Effect |
 |---|---|
 | `theme=<id>` | Built-in theme to activate (default `builtin.tactical`; `neutral` for none) |
+| `scheme=dark\|light` | Mode the store renders in, before the first paint (default: whatever the store persisted, i.e. dark) |
 | `servers=<n>` | Fixture server count (default 120) |
 | `view=favourites\|recent\|mods` | Click that nav tab |
 | `select=<index>` | Select that server |
@@ -32,3 +33,54 @@ PNG as `<out>.log`; uncaught errors are also painted onto the page.
 | `dayz=1` | Report DayZ as running |
 
 Example: `tools/harness/shoot.sh /tmp/detail.png "select=3&popup=map" 1540 860`
+
+## Driver
+
+`driver.mjs` is the scriptable form of the same page, for the visual and perf
+harnesses (plain ESM, Node ≥ 20). It launches the cached headless shell
+(`HARNESS_BROWSER` overrides, newest `chromium_headless_shell-*` otherwise) with
+scrollbars left visible, as `shoot.sh` does.
+
+```js
+import { launchBrowser, openScenario, startServer } from "./driver.mjs";
+
+const server = await startServer({ mode: "prod" }); // or "dev", the default
+const browser = await launchBrowser();
+try {
+  const page = await openScenario(browser, server.url, "theme=neutral&scheme=light", {
+    width: 1400, height: 800, scale: 1, scheme: "light",
+  });
+  await page.screenshot({ path: "/tmp/shot.png" });
+} finally {
+  await browser.close();
+  await server.stop();
+}
+```
+
+- `startServer({ mode, port })` → `{ url, port, mode, buildMs?, log, stop() }`.
+  `dev` reuses a Vite already on the port (leaving it running, as `shoot.sh`
+  does) and otherwise spawns `npx vite`; `prod` builds the harness entry with
+  the repo's own Vite config into `tools/harness/.out/prod`, copies
+  `src-tauri/resources/builtin-themes/` beside it — that absolute path is what
+  `main.tsx` fetches themes from — and serves it with `vite preview`. Default
+  ports: 1431 dev, 1432 prod (`HARNESS_PORT` overrides); logs land in
+  `tools/harness/.out/`. `stop()` ends the server, and in prod mode removes the
+  scratch build with it (regenerable in a couple of seconds, and `eslint .`
+  walks it while it is on disk).
+- `launchBrowser()` → a Playwright `Browser`. `headless: false` is deliberate:
+  Playwright would otherwise pass `--hide-scrollbars` and the shots would lose
+  the themed scrollbars.
+- `openScenario(browser, baseUrl, query, { width = 1400, height = 800, scale = 1, scheme })`
+  → a `Page` on `<baseUrl>?<query>`, once `body[data-harness-ready]` is set and
+  `document.fonts.ready` has settled. Console errors are echoed to stderr; a
+  page error fails the call, and any that lands later is kept in
+  `page.harnessErrors`.
+- `window.__harness.activate(id)` switches the active theme through the store's
+  own activation path (what the Themes page calls) and resolves two animation
+  frames after the repaint, so the perf harness can time apply-to-first-paint.
+  `modal=` is the one query that needs `dev`: the rest of `__harness` comes from
+  `App.tsx`, which only exposes it under `import.meta.env.DEV`.
+
+`npm run harness:smoke` exercises the driver end to end: prod build, then
+`theme=neutral` and `theme=builtin.tactical&scheme=light`, each asserting
+`[data-el="list.servers"]` renders.

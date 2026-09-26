@@ -26,6 +26,9 @@ AGENTS.md
 # UI overhaul screenshots — not committed
 screenshots/
 
+# Harness scratch output (prod build, server logs) — regenerable
+/tools/harness/.out/
+
 # Backend deployment secrets — holds the Steam Web API key
 deploy/.env
 
