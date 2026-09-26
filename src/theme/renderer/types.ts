@@ -237,7 +237,8 @@ export interface ModalLayoutFile {
   schemaVersion: number;
   placement?: ModalPlacement;
   backdrop?: "dim" | "none";
-  root: LayoutNode;
+  root?: LayoutNode;
+  variants?: LayoutVariant[];
 }
 
 export interface PopupPlacement {
@@ -251,7 +252,8 @@ export interface PopupPlacement {
 export interface PopupLayoutFile {
   schemaVersion: number;
   placement?: PopupPlacement;
-  root: LayoutNode;
+  root?: LayoutNode;
+  variants?: LayoutVariant[];
 }
 
 export interface SettingsPresentation {
@@ -263,7 +265,8 @@ export interface SettingsPresentation {
 export interface SettingsLayoutFile {
   schemaVersion: number;
   presentation?: SettingsPresentation;
-  root: LayoutNode;
+  root?: LayoutNode;
+  variants?: LayoutVariant[];
 }
 
 /** What `renderElement` receives: the two host-owned leaf shapes. */
