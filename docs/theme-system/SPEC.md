@@ -322,6 +322,7 @@ Every node accepts:
 | `position` | §5.7 |
 | `hidden` | §5.8 |
 | `landmark` | §5.9 |
+| `glow` | Element nodes only: `always`, `selected` (while the element's `data-state` is `current`, `selected`, `on`, `active`, `checked` or `open`) or `never`; the launcher's glow token paints it |
 | `context` | `selection`, `modSelection` or `modFilterPreview`, with an optional `empty` subtree (§8.1) |
 | `collapsible`, `resizable` | §5.10 |
 | `column` | Which column this node occupies, inside a row template only (§7.5) |

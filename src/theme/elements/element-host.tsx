@@ -132,7 +132,7 @@ import type { ElementNode } from "../renderer/types";
 export function ElementHost({
   node,
   className,
-  style,
+  style: hostStyle,
 }: {
   node: ElementNode;
   className?: string;
@@ -140,6 +140,10 @@ export function ElementHost({
 }): ReactNode {
   const { contextName } = useElementContext();
   const mergedClass = [node.class, className].filter(Boolean).join(" ") || undefined;
+  const style =
+    node.glow === "always" || node.glow === "selected"
+      ? ({ ...hostStyle, "--t-glow-mode": node.glow } as CSSProperties)
+      : hostStyle;
 
   const modsElement = renderModsElement(node, { className: mergedClass, style });
   if (modsElement !== undefined) return modsElement;

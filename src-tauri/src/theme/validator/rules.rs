@@ -468,6 +468,17 @@ impl Validator<'_> {
                     }
                 }
             }
+            if key == "glow" {
+                if node.kind != NodeKind::Element {
+                    self.issue("LAY-03", &path, "glow is only allowed on element nodes");
+                } else if !matches!(value.as_str(), Some("always" | "selected" | "never")) {
+                    self.issue(
+                        "LAY-03",
+                        &path,
+                        "glow must be \"always\", \"selected\" or \"never\"",
+                    );
+                }
+            }
             if key == "column" && context.column_depth != Some(depth) {
                 self.issue(
                     "LST-05",

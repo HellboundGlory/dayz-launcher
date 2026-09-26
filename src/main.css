@@ -137,6 +137,30 @@
     font-family: var(--t-type-family-data);
   }
 
+  /* Element glow (SPEC §5.5). ElementHost tags an element root with
+     `--t-glow-mode`; a style attribute can serialise that declaration with or
+     without a space after the colon, so both spellings are matched. */
+  [data-el][style*="--t-glow-mode:always"],
+  [data-el][style*="--t-glow-mode: always"],
+  [data-el][style*="--t-glow-mode:selected"]:is(
+      [data-state~="current"],
+      [data-state~="selected"],
+      [data-state~="on"],
+      [data-state~="active"],
+      [data-state~="checked"],
+      [data-state~="open"]
+    ),
+  [data-el][style*="--t-glow-mode: selected"]:is(
+      [data-state~="current"],
+      [data-state~="selected"],
+      [data-state~="on"],
+      [data-state~="active"],
+      [data-state~="checked"],
+      [data-state~="open"]
+    ) {
+    box-shadow: var(--t-shadow-glow);
+  }
+
   /* ── Theme-styled scrollbars (board §246–261) ─────────────────────
      `width` sizes the vertical bar and `height` the horizontal one. Only `width`
      was set in the old stylesheet, and styling `::-webkit-scrollbar` at all opts

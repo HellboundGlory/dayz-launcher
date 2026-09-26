@@ -215,6 +215,8 @@ Every file has an envelope:
 
 A container (`stack`, `grid`, `box`, `scroll`, `tabs`, `accordion`) holds `children`; a leaf places an `element`, a `surface`, `text`, an `image`, or (shell only) an `outlet`. `id`, `class`, sizing, `padding`/`gap`, `position` and `hidden` are common to every node — the full list is SPEC §5.5.
 
+An element node may also carry `glow`: `"always"` keeps the launcher glow on it, `"selected"` only while its `data-state` reads `current`, `selected`, `on`, `active`, `checked` or `open`, and `"never"` doesn't glow; untagged elements don't glow either.
+
 ### 5.1 Width variants
 
 A file carries either a single `root` or a `variants` array, never both. A variant is a whole alternative root for a range of window widths:
