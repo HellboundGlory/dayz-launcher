@@ -5,8 +5,7 @@ import { useEffect, useMemo, type ReactNode } from "react";
 import { useDevStore } from "@/theme/dev/dev-store";
 import { LayoutNodeRenderer, RenderContextProvider } from "./node-renderer";
 import type { SettingsValues } from "./props";
-import { resolveVariant } from "./variant";
-import { useViewportWidth } from "./use-viewport-width";
+import { useResolvedRoot } from "./use-resolved-root";
 import type { HostNode, LayoutFile } from "./types";
 
 export interface LayoutRendererProps {
@@ -33,16 +32,11 @@ export function LayoutRenderer({
 }: LayoutRendererProps) {
   // Tells the Dev Mode switcher a screen is actually drawing from a layout file.
   useEffect(() => useDevStore.getState().registerRenderer(), []);
-  const viewportWidth = useViewportWidth();
   // The selector subscribes so an unrelated dev-store field doesn't re-render
   // the tree; the getState() fallback covers SSR/renderToStaticMarkup, where
   // zustand's server snapshot is frozen at store creation (see FallbackNotice).
-  const devWidth = useDevStore((s) => s.variantWidth) ?? useDevStore.getState().variantWidth;
   const devSettings = useDevStore((s) => s.settingsOverride) ?? useDevStore.getState().settingsOverride;
-  const root = useMemo(
-    () => resolveVariant(file, devWidth ?? width ?? viewportWidth),
-    [file, devWidth, width, viewportWidth],
-  );
+  const root = useResolvedRoot(file, width);
   const value = useMemo(
     () => ({ settings: devSettings ?? settings ?? {}, outlets: outlets ?? {}, renderElement, themeId }),
     [devSettings, settings, outlets, renderElement, themeId],

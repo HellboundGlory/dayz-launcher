@@ -8,6 +8,7 @@ import {
 import type { HostNode, ModalLayoutFile } from "../renderer/types";
 import { positionStyle, type SettingsValues } from "../renderer/props";
 import { LayoutNodeRenderer, RenderContextProvider } from "../renderer/node-renderer";
+import { useResolvedRoot } from "../renderer/use-resolved-root";
 
 export interface ModalHostProps {
   file: ModalLayoutFile;
@@ -34,6 +35,7 @@ export function ModalHost({
 
   const placement = file.placement ?? { mode: "center" };
   const backdrop = file.backdrop ?? "dim";
+  const root = useResolvedRoot(file);
 
   useEffect(() => {
     if (!isOpen || typeof document === "undefined") return;
@@ -153,7 +155,7 @@ export function ModalHost({
         style={dialogStyle}
       >
         <RenderContextProvider value={renderCtx}>
-          <LayoutNodeRenderer node={file.root} />
+          <LayoutNodeRenderer node={root} />
         </RenderContextProvider>
       </div>
     </div>
