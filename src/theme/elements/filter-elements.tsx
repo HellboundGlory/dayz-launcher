@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { useServerStore } from "@/stores/server-store";
 import { useElementContext } from "./context";
 import { OptionIcon } from "./option-icon";
-import { getThemeOwnedLayout } from "../theme-store";
+import { getThemeOwnedLayout, useLayoutSubscription } from "../theme-store";
 import type { PopupLayoutFile } from "../renderer/types";
 import {
   FilterPopup,
@@ -187,6 +187,7 @@ export function FilterMap({
   const showLabel = options?.showLabel !== false;
   const label = (options?.label as string) ?? "MAP";
   const { open, setOpen, ref } = useDropdown();
+  useLayoutSubscription();
   const themedPopup = getThemeOwnedLayout("layout/popups/mapFilter.json") as PopupLayoutFile | undefined;
   const triggerRect = useTriggerRect(ref, open && !!themedPopup);
 
@@ -237,6 +238,7 @@ export function FilterTags({
   const showLabel = options?.showLabel !== false;
   const label = (options?.label as string) ?? "TAGS";
   const { open, setOpen, ref } = useDropdown();
+  useLayoutSubscription();
   const themedPopup = getThemeOwnedLayout("layout/popups/tagsFilter.json") as PopupLayoutFile | undefined;
   const triggerRect = useTriggerRect(ref, open && !!themedPopup);
 
@@ -287,6 +289,7 @@ export function FilterRegion({
   const showLabel = options?.showLabel !== false;
   const label = (options?.label as string) ?? "REGION";
   const { open, setOpen, ref } = useDropdown();
+  useLayoutSubscription();
   const themedPopup = getThemeOwnedLayout("layout/popups/regionFilter.json") as PopupLayoutFile | undefined;
   const triggerRect = useTriggerRect(ref, open && !!themedPopup);
 
@@ -582,6 +585,7 @@ export function FilterSort({
   const showLabel = options?.showLabel !== false;
   const label = (options?.label as string) ?? "SORT";
   const { open, setOpen, ref } = useDropdown();
+  useLayoutSubscription();
   const themedPopup = getThemeOwnedLayout("layout/popups/sort.json") as PopupLayoutFile | undefined;
   const triggerRect = useTriggerRect(ref, open && !!themedPopup);
 

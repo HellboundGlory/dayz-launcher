@@ -499,24 +499,39 @@ describe("Theme Fallback & Visibility (Package 4.5)", () => {
       expect(checkElementVisibility(el).visible).toBe(true);
     });
 
-    it("fails when interactive element is disabled or has negative tabIndex", () => {
-      const btnDisabled = createMockElement({ tag: "button", disabled: true });
-      expect(checkElementVisibility(btnDisabled)).toEqual({
-        visible: false,
-        reason: "interactive element is disabled",
+    it("fails an interactive element with negative tabIndex, not one the launcher disabled", () => {
+      // ELEMENTS.md: required actions are routinely `disabled` while busy, playing or
+      // with nothing to act on. Enablement isn't a layout fault a theme could fix.
+      expect(checkElementVisibility(createMockElement({ tag: "button", disabled: true }))).toEqual({
+        visible: true,
       });
 
-      const btnAriaDisabled = createMockElement({ tag: "button", attributes: { "aria-disabled": "true" } });
-      expect(checkElementVisibility(btnAriaDisabled)).toEqual({
-        visible: false,
-        reason: "interactive element is disabled",
-      });
+      expect(
+        checkElementVisibility(
+          createMockElement({ tag: "button", attributes: { "aria-disabled": "true" } }),
+        ),
+      ).toEqual({ visible: true });
 
       const btnTabDisabled = createMockElement({ tag: "button", tabIndex: -1 });
       expect(checkElementVisibility(btnTabDisabled)).toEqual({
         visible: false,
         reason: "interactive element has tabIndex === -1",
       });
+    });
+
+    it("passes a required element the launcher disabled", () => {
+      const container = document.createElement("div");
+      container.appendChild(
+        createMockElement({
+          tag: "button",
+          attributes: { "data-el": "update.install" },
+          disabled: true,
+        }),
+      );
+
+      expect(runVisibilityCheck({ root: container, requiredElements: ["update.install"] }).passed).toBe(
+        true,
+      );
     });
 
     it("runVisibilityCheck checks required elements and reports missing", () => {
@@ -527,14 +542,18 @@ describe("Theme Fallback & Visibility (Package 4.5)", () => {
       });
       container.appendChild(btn);
 
-      const result = runVisibilityCheck({
-        root: container,
-        requiredElements: ["server.join", "server.actionNotice"],
-      });
+      // An unshown action notice is not a failure: it renders only when it has something to say.
+      expect(
+        runVisibilityCheck({ root: container, requiredElements: ["server.join", "server.actionNotice"] })
+          .passed,
+      ).toBe(true);
+
+      const empty = document.createElement("div");
+      const result = runVisibilityCheck({ root: empty, requiredElements: ["server.join"] });
 
       expect(result.passed).toBe(false);
       expect(result.failures).toEqual([
-        { element: "server.actionNotice", reason: "Element not found in document" },
+        { element: "server.join", reason: "Element not found in document" },
       ]);
     });
 

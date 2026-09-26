@@ -49,6 +49,7 @@ import {
   getThemeOwnedLayout,
 } from "./theme/theme-store";
 import { FallbackNotice } from "./theme/fallback/fallback-notice";
+import { useVisibilityCheck } from "./theme/fallback/use-visibility-check";
 import { ElementContextProvider, SubjectContextProvider, useElementContext } from "./theme/elements/context";
 import { ModsViewHost } from "./theme/elements/mods-view-host";
 import { LayoutRenderer } from "./theme/renderer";
@@ -320,6 +321,18 @@ export function App() {
     | undefined;
   const settingsMode = settingsLayout.presentation?.mode ?? "overlay";
   const closeSettings = () => setSettingsOpen(false);
+
+  // SPEC §15: runs the visibility check whenever the screen composition changes.
+  useVisibilityCheck({
+    activeView,
+    settingsOpen,
+    settingsPresentation: settingsMode,
+    openModals: [
+      infoServer ? "serverInfo" : null,
+      modFilterOpen ? "modFilter" : null,
+      updateOpen ? "update" : null,
+    ].filter((id): id is string => id !== null),
+  });
 
   // Dev Mode's watch: the cleanup stops the previous one, so turning Dev Mode
   // off or switching theme replaces rather than accumulates.

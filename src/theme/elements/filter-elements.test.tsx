@@ -44,6 +44,7 @@ vi.mock("@/stores/server-store", () => ({
 
 let themedPopupFile: unknown = undefined;
 vi.mock("../theme-store", () => ({
+  useLayoutSubscription: () => {},
   getThemeOwnedLayout: () => themedPopupFile,
 }));
 

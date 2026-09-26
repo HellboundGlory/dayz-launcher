@@ -33,6 +33,7 @@ vi.mock("@/components/confirm-dialog", () => ({
 }));
 
 vi.mock("../theme-store", () => ({
+  useLayoutSubscription: () => {},
   getThemeOwnedLayout: () => undefined,
 }));
 
