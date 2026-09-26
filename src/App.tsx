@@ -47,6 +47,7 @@ import {
   getThemeOwnedLayout,
 } from "./theme/theme-store";
 import { FallbackNotice } from "./theme/fallback/fallback-notice";
+import { IncompatibleThemeNotice } from "./theme/fallback/incompatible-theme-notice";
 import { useVisibilityCheck } from "./theme/fallback/use-visibility-check";
 import { ElementContextProvider, SubjectContextProvider, useElementContext } from "./theme/elements/context";
 import { ModsViewHost } from "./theme/elements/mods-view-host";
@@ -1027,6 +1028,8 @@ export function App() {
               {!sidebarRight && sidebar}
               <div className="flex min-w-0 flex-1 flex-col">
                 <WindowControls />
+
+                <IncompatibleThemeNotice />
 
                 {/* "Later" dismisses for this session only. */}
                 {updateAvailable && !updateBannerDismissed && (
