@@ -1,16 +1,33 @@
 import { useEffect } from "react";
-import { SlotChild } from "@/theme/slot-render";
 import { X, Download, ExternalLink } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { open as openLink } from "@tauri-apps/plugin-shell";
 import { useUpdateStore } from "@/stores/update-store";
-import { useComponentComposition } from "@/theme/use-component-composition";
-import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
-import { useThemeStore } from "@/theme/theme-store";
 
 /** Where the "View Release" link sends a portable user for a manual download —
     the project's own download page, not a raw link into GitHub's releases list. */
-const DOWNLOAD_URL = "https://tetralauncher.com/download";
+export const DOWNLOAD_URL = "https://tetralauncher.com/download";
+
+/** A plain <a> would navigate this webview away with no way back. */
+export function UpdateChangelogMarkdown({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      components={{
+        a: ({ href, children }) => (
+          <button
+            type="button"
+            onClick={() => href && void openLink(href)}
+            className="text-accent underline decoration-dotted underline-offset-2 hover:brightness-110"
+          >
+            {children}
+          </button>
+        ),
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+}
 
 interface UpdateModalProps {
   open: boolean;
@@ -28,9 +45,6 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
   const installing = useUpdateStore((s) => s.installing);
   const progress = useUpdateStore((s) => s.progress);
   const install = useUpdateStore((s) => s.install);
-
-  const activeId = useThemeStore((s) => s.activeId);
-  const composition = useComponentComposition("modal.update");
 
   // Escape closes. Bound only while open, so a closed modal keeps no
   // document-level listener alive — the same rule the other popovers use.
@@ -53,18 +67,17 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
       }}
     >
       <div
-        data-tetra-slot="modal.update"
         role="dialog"
         aria-modal="true"
         aria-label="Update"
-        className="relative flex max-h-[82vh] w-[560px] flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-2xl shadow-black/50"
+        className="relative flex max-h-[82vh] w-[560px] flex-col overflow-hidden [border-radius:var(--t-radius-modalLarge)] border border-line bg-surface [box-shadow:var(--t-shadow-update)]"
       >
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-line px-5 py-3.5">
           <h2 className="text-sm font-semibold text-ink">
             {available ? "Update available" : "Updates"}
           </h2>
-          {composition === null && closeAction()}
+          {closeAction()}
         </div>
 
         {/* Body */}
@@ -77,7 +90,7 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
               <p className="mt-1 text-sm font-semibold text-ink">
                 v{available.version}
                 {available.date && (
-                  <span className="ml-2 text-[10px] font-normal text-muted">
+                  <span className="ml-2 [font-size:var(--t-type-label-size)] font-normal text-muted">
                     {available.date}
                   </span>
                 )}
@@ -85,42 +98,27 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
 
               {available.body || changelog ? (
                 <div className="update-changelog mt-3">
-                  {/* A plain <a> would navigate this webview away with no way back. */}
-                  <ReactMarkdown
-                    components={{
-                      a: ({ href, children }) => (
-                        <button
-                          type="button"
-                          onClick={() => href && void openLink(href)}
-                          className="text-accent underline decoration-dotted underline-offset-2 hover:brightness-110"
-                        >
-                          {children}
-                        </button>
-                      ),
-                    }}
-                  >
-                    {available.body || changelog}
-                  </ReactMarkdown>
+                  <UpdateChangelogMarkdown content={available.body || changelog || ""} />
                 </div>
               ) : (
-                <p className="mt-3 text-[10px] text-muted">
+                <p className="mt-3 [font-size:var(--t-type-label-size)] text-muted">
                   No changelog notes for this release. See the GitHub release for full notes.
                 </p>
               )}
 
               {progress && installing && (
-                <p className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-accent">
+                <p className="mt-3 [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider text-accent">
                   {progress.total
                     ? `Downloading… ${Math.round((progress.downloaded / progress.total) * 100)}%`
                     : "Downloading…"}
                 </p>
               )}
-              {error && <p className="mt-3 text-[10px] text-danger">{error}</p>}
+              {error && <p className="mt-3 [font-size:var(--t-type-label-size)] text-danger">{error}</p>}
               {/* Portable copy: explain why there's no in-place button. The
                   Install & Restart would replace the installed copy in Program
                   Files, not this portable exe. */}
               {installed !== true && (
-                <p className="mt-3 text-[10px] leading-relaxed text-muted">
+                <p className="mt-3 [font-size:var(--t-type-label-size)] leading-relaxed text-muted">
                   This is a portable copy, so it can't update itself in place.
                   Grab the latest installer from the GitHub release below.
                 </p>
@@ -133,36 +131,9 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
 
         {/* Footer */}
         <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-5 py-3">
-          {composition === null && laterAction()}
-          {composition === null &&
-            (installed === true ? (
-              <SlotChild slotId="modal.update" id="installAction">
-                {installAction()}
-              </SlotChild>
-            ) : (
-              <SlotChild slotId="modal.update" id="viewReleaseAction">
-                {viewReleaseAction()}
-              </SlotChild>
-            ))}
+          {laterAction()}
+          {installed === true ? installAction() : viewReleaseAction()}
         </div>
-        {composition !== null && (
-          // The overlay is pointer-events-none so clicks reach the version,
-          // changelog and progress beneath wherever the composition doesn't
-          // cover them; each themed child re-enables its own.
-          <div className="pointer-events-none absolute inset-0">
-            <ComponentTreeRenderer
-              node={composition}
-              nodes={{
-                closeAction: <div className="pointer-events-auto">{closeAction()}</div>,
-                laterAction: <div className="pointer-events-auto">{laterAction()}</div>,
-                ...(installed === true
-                  ? { installAction: <div className="pointer-events-auto">{installAction()}</div> }
-                  : { viewReleaseAction: <div className="pointer-events-auto">{viewReleaseAction()}</div> }),
-              }}
-              themeId={activeId}
-            />
-          </div>
-        )}
       </div>
     </div>
   );
@@ -173,7 +144,7 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
         data-tetra-el="closeAction"
         onClick={onClose}
         aria-label="Close update dialog"
-        className="rounded-md p-1 text-muted transition-colors duration-150 hover:bg-surface2 hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+        className="[border-radius:var(--t-radius-control)] p-1 text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:bg-surface2 hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
       >
         <X className="size-4" />
       </button>
@@ -186,7 +157,7 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
         data-tetra-el="laterAction"
         onClick={onClose}
         disabled={installing}
-        className="rounded-md bg-surface2 px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted2 ring-1 ring-line transition-colors duration-150 hover:text-ink disabled:opacity-50"
+        className="[border-radius:var(--t-radius-control)] bg-surface2 px-4 py-1.5 [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider text-muted2 ring-1 ring-line transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:text-ink disabled:opacity-50"
       >
         {installing ? "Updating…" : "Later"}
       </button>
@@ -199,7 +170,7 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
         data-tetra-el="installAction"
         onClick={() => void install()}
         disabled={installing}
-        className="flex items-center gap-1.5 rounded-md bg-accent px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-bg transition-colors duration-150 hover:brightness-110 disabled:opacity-50"
+        className="flex items-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-4 py-1.5 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-bg transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:brightness-110 disabled:opacity-50"
       >
         <Download className="size-3" />
         Update &amp; Restart
@@ -212,7 +183,7 @@ export function UpdateModal({ open, onClose }: UpdateModalProps) {
       <button
         data-tetra-el="viewReleaseAction"
         onClick={() => void openLink(DOWNLOAD_URL)}
-        className="flex items-center gap-1.5 rounded-md bg-surface2 px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted2 ring-1 ring-line transition-colors duration-150 hover:text-ink"
+        className="flex items-center gap-1.5 [border-radius:var(--t-radius-control)] bg-surface2 px-4 py-1.5 [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider text-muted2 ring-1 ring-line transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:text-ink"
       >
         <ExternalLink className="size-3" />
         View Release

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 2,
+  "fields": [
+    {
+      "id": "rowSpacing",
+      "type": "number",
+      "label": "Row name indent",
+      "min": 0,
+      "max": 16,
+      "step": 1,
+      "default": 4
+    },
+    {
+      "id": "compactRows",
+      "type": "boolean",
+      "label": "Compact server rows",
+      "default": false
+    },
+    {
+      "id": "accentStyle",
+      "type": "choice",
+      "label": "Accent style",
+      "options": [
+        { "value": "solid", "label": "Solid" },
+        { "value": "soft", "label": "Soft" }
+      ],
+      "default": "solid"
+    }
+  ]
+}

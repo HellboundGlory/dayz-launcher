@@ -1,6 +1,57 @@
 # Changelog
 
 ## Unreleased
+
+### Added
+
+- **Themes now compose the whole window instead of filling fixed slots.** A
+  theme is a package of layout files — one each for the shell, the server
+  browser, mods, settings, every modal, every list and every popup — so
+  navigation, filters, the list and a detail panel can sit wherever the author
+  wants. A file can also declare width variants, rearranging that screen as the
+  window narrows.
+- **A screen the launcher can't render with a theme falls back on its own.** A
+  layout file that fails validation, or a required control that the runtime
+  visibility check finds hidden, shrunk, covered or off-window, costs only that
+  screen; the rest of the theme stays, and a dismissible notice says so.
+- **Theme settings a user can change in place.** A theme ships
+  `settings.schema.json` with number, boolean, choice and colour fields;
+  Settings renders them, the values reach tokens, layout and CSS, and every
+  combination is checked so a required control can never be hidden.
+- **Dev Mode v2**, toggled in theme management: region and element outlines, a
+  click-to-pin inspector, a validation panel listing each issue's rule, file
+  and reason (including why a screen fell back), and switchers for width
+  variants and settings combinations. Editing a theme's files hot-reloads it,
+  keeping the last valid version on screen while a file is broken.
+- **Tactical is rebuilt as a v2 package.** The bundled `builtin.tactical` now
+  carries its own layout, tokens, CSS and settings with no Tactical-specific
+  launcher code, reproducing the same top-tab, column-header, detail-panel
+  design.
+
+### Changed
+
+- **The launcher's own screens read corners, spacing, type, shadows and motion
+  from theme roles.** The themes page and customiser follow the same tokens, so
+  changing a radius or font role restyles the whole window without moving
+  Neutral's defaults.
+- **The token customiser edits radii and font families as well as colours.**
+  Saving writes into the active theme when it is one you made, and otherwise
+  creates a new theme.
+- **Large server lists scroll smoothly.** List rows are memoised, so a scroll
+  tick renders only the rows entering view instead of the whole list.
+
+### Fixed
+
+- **Duplicating a theme no longer produced a copy marked Incompatible.** A
+  duplicate is written as a v2 package, exactly like the theme it came from.
+
+### Removed
+
+- **The v1 theme format.** v1 packages can no longer be imported, and v1
+  folders already on disk show in the grid as incompatible with Delete as their
+  only action; if one was active, the launcher switches to Neutral and says so
+  once.
+
 ## v2.6.0 — 2026-09-09
 
 ### Added

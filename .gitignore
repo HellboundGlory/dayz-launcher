@@ -12,10 +12,6 @@ tetra.db-shm
 tetra.db-wal
 
 
-# Theme-system design docs — working documents for an unshipped feature,
-# disposable once it's fully built; not published
-docs/adr/
-
 # Editor / tooling
 *.log
 
@@ -23,5 +19,15 @@ docs/adr/
 # UI overhaul screenshots — not committed
 screenshots/
 
+# Harness scratch output (prod build, server logs) — regenerable
+/tools/harness/.out/
+
+# Visual baselines — regenerable with `npm run visual`
+/tools/harness/baselines/
+
 # Backend deployment secrets — holds the Steam Web API key
 deploy/.env
+
+# Local backend index URL for debug builds — the host is not published here
+/src-tauri/.cargo/
+

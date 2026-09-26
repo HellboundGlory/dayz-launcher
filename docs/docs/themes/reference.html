@@ -1,0 +1,1150 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Theme reference — Tetra Launcher</title>
+    <meta
+      name="description"
+      content="Lookup reference for Tetra Launcher themes: every manifest field, capability, token, layout node, list key, CSS rule and validation code."
+    />
+    <link rel="icon" href="../../assets/tetra-logo.png" />
+    <link rel="stylesheet" href="../../style-v2.css" />
+    <link rel="stylesheet" href="../../docs.css" />
+  </head>
+  <body>
+    <header class="site-nav">
+      <div class="container">
+        <a class="brand" href="/">
+          <img src="../../assets/tetra-logo.png" alt="" />
+          <span><span class="tetra">TETRA</span> <span class="launcher">LAUNCHER</span></span>
+        </a>
+        <nav class="links">
+          <a href="/">Home</a>
+          <a href="/download">Download</a>
+          <a href="/docs/themes/" class="active">Themes</a>
+          <a href="https://github.com/HellboundGlory/dayz-launcher">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <div class="docs">
+      <aside class="docs-nav" aria-label="Theme docs">
+        <details open>
+          <summary>On this page</summary>
+          <h2>Guide</h2>
+          <ol>
+            <li><a href="/docs/themes/#overview">What a theme can change</a></li>
+            <li><a href="/docs/themes/#first-theme">Your first theme</a></li>
+            <li><a href="/docs/themes/#package">The package</a></li>
+            <li><a href="/docs/themes/#tokens">Colours and tokens</a></li>
+            <li><a href="/docs/themes/#css">Styling with CSS</a></li>
+            <li><a href="/docs/themes/#layout">Custom layouts</a></li>
+            <li><a href="/docs/themes/#settings">Theme settings</a></li>
+            <li><a href="/docs/themes/#checking">Checking your work</a></li>
+            <li><a href="/docs/themes/#limits">Limits</a></li>
+          </ol>
+          <h2>Reference</h2>
+          <ol>
+            <li><a href="/docs/themes/elements">Elements</a></li>
+            <li><a href="#manifest">Manifest</a></li>
+            <li><a href="#capabilities">Capabilities</a></li>
+            <li><a href="#package">Package files and limits</a></li>
+            <li><a href="#tokens">Tokens</a></li>
+            <li><a href="#layout">Layout nodes</a></li>
+            <li><a href="#lists">List files</a></li>
+            <li><a href="#css">CSS API</a></li>
+            <li><a href="#settings">Theme settings</a></li>
+            <li><a href="#validation">Validation rules</a></li>
+            <li><a href="#icons">Icons</a></li>
+          </ol>
+        </details>
+      </aside>
+
+      <main class="prose">
+        <h1>Theme reference</h1>
+        <p class="lede">
+          Every field, name and code a theme can use, in one place. The
+          <a href="/docs/themes/">guide</a> explains how the pieces fit together;
+          this page is for looking things up.
+        </p>
+
+        <h2 id="manifest">Manifest</h2>
+        <p>
+          Every theme has one required file, <code>theme.json</code>. It names the
+          theme, lists the capabilities it uses, and points at its preview images.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Field</th><th>Type</th><th>Required</th><th>Rule</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>schemaVersion</code></td><td>number</td><td>No</td><td>Must be <code>2</code>. Left out, it is <code>2</code>.</td></tr>
+              <tr><td><code>themeApi</code></td><td>string</td><td>No</td><td>Must start with <code>"2."</code>. Left out, it is <code>"2.0"</code>.</td></tr>
+              <tr><td><code>id</code></td><td>string</td><td>Yes</td><td><code>[a-z0-9][a-z0-9._-]{2,63}</code>: 3 to 64 characters, lowercase. Must match the folder name. <code>builtin.</code> is reserved; <code>local.</code> marks a theme the launcher owns.</td></tr>
+              <tr><td><code>name</code></td><td>string</td><td>Yes</td><td>1 to 48 characters.</td></tr>
+              <tr><td><code>author</code></td><td>string</td><td>Yes</td><td>1 to 48 characters.</td></tr>
+              <tr><td><code>version</code></td><td>string</td><td>Yes</td><td>Semver, all three parts: <code>1.0.0</code>.</td></tr>
+              <tr><td><code>minimumLauncherVersion</code></td><td>string</td><td>Yes</td><td>Semver. Import is refused when it is newer than the launcher doing the import.</td></tr>
+              <tr><td><code>description</code></td><td>string</td><td>No</td><td>Up to 280 characters.</td></tr>
+              <tr><td><code>capabilities</code></td><td>string[]</td><td>No</td><td>Names from <a href="#capabilities">Capabilities</a>. Each one must match the files you ship.</td></tr>
+              <tr><td><code>previews</code></td><td>object[]</td><td>No</td><td>Up to 5. Each is <code>{ "file": "previews/card.png", "caption": "…" }</code>, with a caption up to 80 characters; <code>file</code> must be a file in the package. The first is the theme card's image.</td></tr>
+              <tr><td><code>license</code></td><td>string or null</td><td>No</td><td>Free text. Not checked.</td></tr>
+              <tr><td><code>homepage</code></td><td>string or null</td><td>No</td><td>An <code>https:</code> URL with a host.</td></tr>
+              <tr><td><code>tags</code></td><td>string[]</td><td>No</td><td>Up to 8, each up to 24 characters.</td></tr>
+              <tr><td><code>preview</code></td><td>string</td><td>No</td><td>The older single-preview field, from the v1 format. Used only when <code>previews</code> is empty.</td></tr>
+              <tr><td><code>tier</code></td><td>string</td><td>No</td><td>Also from v1, kept for display. No rule reads it.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          A field marked required fails when it is left out: the missing field falls
+          back to an empty value, which breaks the rule in the last column.
+        </p>
+        <div class="note warn">
+          <p>
+            <strong>A key the launcher does not know is ignored, not refused.</strong>
+            If you misspell <code>capabilities</code>, the manifest still loads, that
+            field stays empty, and the error you get later names the empty default
+            rather than the typo.
+          </p>
+        </div>
+        <div class="code">
+          <div class="code-head">theme.json<button class="copy" type="button">Copy</button></div>
+<pre>{
+  <span class="k">"schemaVersion"</span>: 2,
+  <span class="k">"themeApi"</span>: <span class="s">"2.0"</span>,
+  <span class="k">"id"</span>: <span class="s">"midnight-ops"</span>,
+  <span class="k">"name"</span>: <span class="s">"Midnight Ops"</span>,
+  <span class="k">"author"</span>: <span class="s">"you"</span>,
+  <span class="k">"version"</span>: <span class="s">"1.0.0"</span>,
+  <span class="k">"minimumLauncherVersion"</span>: <span class="s">"2.6.0"</span>,
+  <span class="k">"description"</span>: <span class="s">"A cold palette and a dense server list."</span>,
+  <span class="k">"capabilities"</span>: [<span class="s">"tokens"</span>, <span class="s">"css"</span>],
+  <span class="k">"previews"</span>: [{ <span class="k">"file"</span>: <span class="s">"previews/card.png"</span>, <span class="k">"caption"</span>: <span class="s">"The server list"</span> }],
+  <span class="k">"license"</span>: <span class="s">"MIT"</span>,
+  <span class="k">"homepage"</span>: <span class="s">"https://example.com/midnight-ops"</span>,
+  <span class="k">"tags"</span>: [<span class="s">"dark"</span>, <span class="s">"dense"</span>]
+}</pre>
+        </div>
+
+        <h2 id="capabilities">Capabilities</h2>
+        <p>
+          A capability is a claim that you ship the files it covers. The check is
+          exact, file for file: declaring one without its file fails the import, and
+          shipping the file without declaring it fails too.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Capability</th><th>Covers</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>tokens</code></td><td><code>tokens.json</code></td></tr>
+              <tr><td><code>css</code></td><td><code>styles.css</code></td></tr>
+              <tr><td><code>fonts</code></td><td>Everything under <code>fonts/</code></td></tr>
+              <tr><td><code>images</code></td><td>Everything under <code>images/</code></td></tr>
+              <tr><td><code>layout</code></td><td>Everything under <code>layout/</code></td></tr>
+              <tr><td><code>settings</code></td><td><code>settings.schema.json</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          Three things need no capability: <code>theme.json</code>,
+          <code>README.md</code>, and anything under <code>previews/</code>.
+        </p>
+        <p>The theme card in Settings shows one label, derived from what you declared:</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Label</th><th>When</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Custom layout</td><td><code>layout</code> is declared.</td></tr>
+              <tr><td>Styled</td><td>No <code>layout</code>, but <code>css</code> or <code>fonts</code> is declared.</td></tr>
+              <tr><td>Colours</td><td>Anything else, including <code>tokens</code> on its own.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The card reads <code>v1.0.0 · Custom layout</code>: the version from the manifest, then this label.</p>
+
+        <h2 id="package">Package files and limits</h2>
+        <p>
+          A theme is a folder named after its id. Only <code>theme.json</code> is
+          required. Every other file is optional, and a layout file you leave out
+          keeps Neutral's version of that screen.
+        </p>
+        <div class="code">
+          <div class="code-head">A theme package<button class="copy" type="button">Copy</button></div>
+<pre>&lt;theme-id&gt;/
+  theme.json                  manifest (required)
+  tokens.json                 colours, scales and roles
+  styles.css                  theme stylesheet
+  settings.schema.json        theme settings
+  README.md                   author's notes
+  layout/
+    shell.json
+    settings.json
+    views/browser.json
+    views/mods.json
+    modals/serverInfo.json
+    modals/modFilter.json
+    modals/update.json
+    lists/servers.json
+    lists/mods.json
+    lists/modFilterResults.json
+    lists/serverMods.json
+    lists/modServers.json
+    popups/&lt;popup-id&gt;.json
+  fonts/&lt;name&gt;.woff2|woff|ttf|otf
+  images/&lt;name&gt;.png|webp|jpg|jpeg|svg
+  previews/&lt;name&gt;.png|webp|jpg|jpeg</pre>
+        </div>
+        <p>
+          Those layout paths are the whole set. A popup id is one of
+          <code>mapFilter</code>, <code>modsUnique</code>, <code>regionFilter</code>,
+          <code>sort</code>, <code>tagsFilter</code>, <code>serverActions</code>,
+          <code>serverLoad</code>, <code>modActions</code> or <code>settingsNav</code>.
+          A path or an extension outside this list is refused at import.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Where</th><th>Allowed extensions</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Anywhere in the package</td><td><code>json</code>, <code>css</code>, <code>png</code>, <code>webp</code>, <code>jpg</code>, <code>jpeg</code>, <code>svg</code>, <code>woff2</code>, <code>woff</code>, <code>ttf</code>, <code>otf</code>, <code>md</code></td></tr>
+              <tr><td><code>fonts/</code></td><td><code>woff2</code>, <code>woff</code>, <code>ttf</code>, <code>otf</code></td></tr>
+              <tr><td><code>images/</code></td><td><code>png</code>, <code>webp</code>, <code>jpg</code>, <code>jpeg</code>, <code>svg</code></td></tr>
+              <tr><td><code>previews/</code></td><td><code>png</code>, <code>webp</code>, <code>jpg</code>, <code>jpeg</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          A file must be what its extension claims: an image is decoded as the format
+          it names, a font must carry a real font header, and a stylesheet must be
+          valid UTF-8 and pass the <a href="#css">CSS checks</a>. An SVG is rendered
+          as an image and never inlined, so a script inside one cannot run.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Limit</th><th>Value</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Files per package</td><td class="num">64</td></tr>
+              <tr><td>Package size, uncompressed</td><td class="num">8 MB</td></tr>
+              <tr><td>Path depth</td><td class="num">3 segments</td></tr>
+              <tr><td>Image size</td><td class="num">4096 × 4096</td></tr>
+              <tr><td><code>styles.css</code></td><td class="num">256 KB</td></tr>
+              <tr><td>Nodes per layout file</td><td class="num">2,000</td></tr>
+              <tr><td>Node depth</td><td class="num">24</td></tr>
+              <tr><td>Text node</td><td class="num">120 characters</td></tr>
+              <tr><td>Free label</td><td class="num">40 characters</td></tr>
+              <tr><td>Column label</td><td class="num">24 characters</td></tr>
+              <tr><td>Variants per file</td><td class="num">4</td></tr>
+              <tr><td>Settings combinations</td><td class="num">64</td></tr>
+              <tr><td>Previews</td><td class="num">5</td></tr>
+              <tr><td>Preview caption</td><td class="num">80 characters</td></tr>
+              <tr><td>Theme classes per file</td><td class="num">200</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="tokens">Tokens</h2>
+        <p>
+          <code>tokens.json</code> sets colours, scales and roles. Every key is
+          optional: anything you leave out keeps Neutral's value, so you can change
+          one thing at a time. Only the names in the tables below are read; anything
+          else in the file is ignored.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Key</th><th>Type</th><th>Default</th><th>What it does</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>schemaVersion</code></td><td>number</td><td class="num">2</td><td>Must be <code>2</code>.</td></tr>
+              <tr><td><code>colors.dark</code>, <code>colors.light</code></td><td>object</td><td>Neutral's palette</td><td>The twelve colours, one object per scheme.</td></tr>
+              <tr><td><code>bloom</code></td><td>number</td><td class="num">0.9</td><td>How far the glow spreads.</td></tr>
+              <tr><td><code>glow</code></td><td>string</td><td><code>selected</code></td><td><code>always</code>, <code>selected</code> or <code>never</code>. Governs the launcher's own glowing surfaces; the glow's look is <code>shadow.glow</code>.</td></tr>
+              <tr><td><code>scales</code></td><td>object</td><td>Neutral's steps</td><td>Replaces one step of a named scale.</td></tr>
+              <tr><td><code>roles</code></td><td>object</td><td>Neutral's values</td><td>Points a role at a step name or a literal value.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Colours</h3>
+        <p>Twelve per scheme, as <code>#rrggbb</code> strings.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Token</th><th>Dark</th><th>Light</th><th>Used for</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Surfaces</td><td></td><td></td><td></td></tr>
+              <tr><td><code>bg</code></td><td><code>#0d0f13</code></td><td><code>#f3f4f6</code></td><td>The window background.</td></tr>
+              <tr><td><code>surface</code></td><td><code>#12151b</code></td><td><code>#ffffff</code></td><td>Panels and cards.</td></tr>
+              <tr><td><code>surface2</code></td><td><code>#1a1e26</code></td><td><code>#e9ebef</code></td><td>Raised surfaces: inputs, headers, popups.</td></tr>
+              <tr><td><code>border</code></td><td><code>#262b34</code></td><td><code>#d2d6dc</code></td><td>Lines and dividers.</td></tr>
+              <tr><td>Text</td><td></td><td></td><td></td></tr>
+              <tr><td><code>text</code></td><td><code>#e7ebf0</code></td><td><code>#181b20</code></td><td>Primary text and headings.</td></tr>
+              <tr><td><code>muted</code></td><td><code>#7a8494</code></td><td><code>#5d6570</code></td><td>Captions, labels and hints.</td></tr>
+              <tr><td><code>muted2</code></td><td><code>#98a2b2</code></td><td><code>#8a919d</code></td><td>Body text.</td></tr>
+              <tr><td>Accents</td><td></td><td></td><td></td></tr>
+              <tr><td><code>accent</code></td><td><code>#8fa3bd</code></td><td><code>#3e5f7d</code></td><td>The primary action colour.</td></tr>
+              <tr><td><code>accent2</code></td><td><code>#b0976a</code></td><td><code>#8a6d34</code></td><td>The secondary accent.</td></tr>
+              <tr><td>Semantic</td><td></td><td></td><td></td></tr>
+              <tr><td><code>success</code></td><td><code>#4d9a75</code></td><td><code>#287a4f</code></td><td>Ready and online states.</td></tr>
+              <tr><td><code>warn</code></td><td><code>#c19a55</code></td><td><code>#9a7b3a</code></td><td>Warnings.</td></tr>
+              <tr><td><code>danger</code></td><td><code>#b3564d</code></td><td><code>#a94a42</code></td><td>Errors and destructive actions.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          Each colour becomes a CSS variable with the same name: <code>--bg</code>,
+          <code>--surface</code>, <code>--accent</code> and so on. From them the
+          launcher derives <code>--border-weak</code>, <code>--muted-soft</code>,
+          <code>--accent-soft</code>, <code>--accent-line</code>,
+          <code>--accent2-soft</code>, <code>--accent2-line</code>,
+          <code>--success-soft</code>, <code>--success-line</code>,
+          <code>--warn-soft</code>, <code>--warn-line</code>,
+          <code>--danger-soft</code>, <code>--danger-line</code>,
+          <code>--row-hover</code>, <code>--row-selected</code> and
+          <code>--glow</code>. Those are read-only; they follow your colours.
+        </p>
+        <div class="note warn">
+          <p>
+            <strong>Colours are per scheme, colour roles are not.</strong>
+            <code>colors.dark.accent</code> and <code>colors.light.accent</code> are
+            separate values, but <code>roles.color.onAccent</code> is a single value
+            used on top of both. Check it against each scheme, or it may be unreadable
+            in the one you did not test.
+          </p>
+        </div>
+
+        <h3>Scales</h3>
+        <p>
+          A scale step is redefined with <code>scales.&lt;scale&gt;.&lt;step&gt;</code>,
+          and the rest of that scale keeps its defaults. Each step becomes a variable
+          named <code>--t-&lt;scale&gt;-&lt;step&gt;</code>: <code>--t-radius-md</code>,
+          <code>--t-space-6</code>, <code>--t-type-size-xl</code>,
+          <code>--t-type-family-ui</code>, <code>--t-shadow-lg</code>,
+          <code>--t-motion-duration-fast</code>. There is no <code>--radius-*</code>,
+          <code>--space-*</code> or <code>--font-ui</code>.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Scale</th><th>Steps</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>radius</code></td><td><code>none</code> 0, <code>xs</code> 2px, <code>sm</code> 4px, <code>md</code> 6px, <code>lg</code> 8px, <code>full</code> 9999px</td></tr>
+              <tr><td><code>space</code></td><td><code>0</code> to <code>48</code> in 2px steps, named by their pixel value: <code>space.6</code> is 6px</td></tr>
+              <tr><td><code>type.size</code></td><td><code>3xs</code> 7px, <code>2xs</code> 8px, <code>xs</code> 9px, <code>sm</code> 10px, <code>md</code> 11px, <code>lg</code> 12px, <code>xl</code> 13px, <code>2xl</code> 14px, <code>3xl</code> 22px</td></tr>
+              <tr><td><code>type.weight</code></td><td><code>normal</code> 400, <code>medium</code> 500, <code>semibold</code> 600, <code>bold</code> 700, <code>extrabold</code> 800</td></tr>
+              <tr><td><code>type.tracking</code></td><td><code>none</code> 0, <code>tight</code> -0.025em, <code>wide</code> 0.025em, <code>wider</code> 0.05em, <code>widest</code> 0.1em</td></tr>
+              <tr><td><code>type.leading</code></td><td><code>none</code> 1, <code>tight</code> 1.25, <code>snug</code> 1.375, <code>normal</code> 1.5, <code>relaxed</code> 1.625</td></tr>
+              <tr><td><code>type.family</code></td><td><code>ui</code> the bundled Inter stack, <code>data</code> the bundled JetBrains Mono stack</td></tr>
+              <tr><td><code>border</code></td><td><code>none</code> 0, <code>hairline</code> 1px, <code>thick</code> 2px</td></tr>
+              <tr><td><code>shadow</code></td><td><code>none</code>, <code>sm</code> <code>0 8px 24px rgba(0,0,0,0.4)</code>, <code>md</code> <code>0 10px 28px rgba(0,0,0,0.5)</code>, <code>lg</code> <code>0 12px 40px rgba(0,0,0,0.5)</code>, <code>xl</code> <code>0 24px 60px rgba(0,0,0,0.6)</code>, <code>glow</code> the launcher's glow</td></tr>
+              <tr><td><code>motion.duration</code></td><td><code>fast</code> 150ms, <code>normal</code> 200ms, <code>slow</code> 300ms</td></tr>
+              <tr><td><code>motion.easing</code></td><td><code>standard</code> <code>cubic-bezier(0.4, 0, 0.2, 1)</code>, <code>linear</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Roles</h3>
+        <p>
+          A role is a name the interface reads. A role value may be a scale step
+          (<code>"md"</code>) or a literal (<code>"7px"</code>). Each role is
+          published as <code>--t-&lt;family&gt;-&lt;role&gt;</code>; the roles that
+          carry several fields are published one variable per field.
+        </p>
+
+        <h3>Radius roles</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Role</th><th>Default</th><th>CSS variable</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>radius.window</code></td><td><code>lg</code> (8px)</td><td><code>--t-radius-window</code></td></tr>
+              <tr><td><code>radius.panel</code></td><td>9px</td><td><code>--t-radius-panel</code></td></tr>
+              <tr><td><code>radius.card</code></td><td><code>lg</code> (8px)</td><td><code>--t-radius-card</code></td></tr>
+              <tr><td><code>radius.modal</code></td><td>10px</td><td><code>--t-radius-modal</code></td></tr>
+              <tr><td><code>radius.modalLarge</code></td><td>12px</td><td><code>--t-radius-modalLarge</code></td></tr>
+              <tr><td><code>radius.popup</code></td><td>7px</td><td><code>--t-radius-popup</code></td></tr>
+              <tr><td><code>radius.popupItem</code></td><td>5px</td><td><code>--t-radius-popupItem</code></td></tr>
+              <tr><td><code>radius.row</code></td><td><code>lg</code> (8px)</td><td><code>--t-radius-row</code></td></tr>
+              <tr><td><code>radius.control</code></td><td><code>md</code> (6px)</td><td><code>--t-radius-control</code></td></tr>
+              <tr><td><code>radius.controlSmall</code></td><td><code>sm</code> (4px)</td><td><code>--t-radius-controlSmall</code></td></tr>
+              <tr><td><code>radius.controlCompact</code></td><td>5px</td><td><code>--t-radius-controlCompact</code></td></tr>
+              <tr><td><code>radius.input</code></td><td><code>md</code> (6px)</td><td><code>--t-radius-input</code></td></tr>
+              <tr><td><code>radius.chip</code></td><td><code>sm</code> (4px)</td><td><code>--t-radius-chip</code></td></tr>
+              <tr><td><code>radius.badge</code></td><td>3px</td><td><code>--t-radius-badge</code></td></tr>
+              <tr><td><code>radius.thumb</code></td><td>7px</td><td><code>--t-radius-thumb</code></td></tr>
+              <tr><td><code>radius.track</code></td><td><code>xs</code> (2px)</td><td><code>--t-radius-track</code></td></tr>
+              <tr><td><code>radius.pill</code></td><td><code>full</code> (9999px)</td><td><code>--t-radius-pill</code></td></tr>
+              <tr><td><code>radius.sidebarItem</code></td><td>7px</td><td><code>--t-radius-sidebarItem</code></td></tr>
+              <tr><td><code>radius.confirm</code></td><td><code>lg</code> (8px)</td><td><code>--t-radius-confirm</code></td></tr>
+              <tr><td><code>radius.readinessRow</code></td><td>5px</td><td><code>--t-radius-readinessRow</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Space roles</h3>
+        <p>
+          A default written as a bare number names a space step and resolves to that
+          step's value, so <code>12</code> becomes <code>12px</code>. A value with a
+          unit is used as written.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Role</th><th>Default</th><th>CSS variable</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>space.windowPad</code></td><td>0</td><td><code>--t-space-windowPad</code></td></tr>
+              <tr><td><code>space.panelPad</code></td><td>16</td><td><code>--t-space-panelPad</code></td></tr>
+              <tr><td><code>space.modalPad</code></td><td>14</td><td><code>--t-space-modalPad</code></td></tr>
+              <tr><td><code>space.popupPad</code></td><td>4</td><td><code>--t-space-popupPad</code></td></tr>
+              <tr><td><code>space.rowX</code></td><td>12</td><td><code>--t-space-rowX</code></td></tr>
+              <tr><td><code>space.rowY</code></td><td>8</td><td><code>--t-space-rowY</code></td></tr>
+              <tr><td><code>space.controlX</code></td><td>12</td><td><code>--t-space-controlX</code></td></tr>
+              <tr><td><code>space.controlY</code></td><td>6</td><td><code>--t-space-controlY</code></td></tr>
+              <tr><td><code>space.chipX</code></td><td>4</td><td><code>--t-space-chipX</code></td></tr>
+              <tr><td><code>space.chipY</code></td><td>1px</td><td><code>--t-space-chipY</code></td></tr>
+              <tr><td><code>space.stackGap</code></td><td>12</td><td><code>--t-space-stackGap</code></td></tr>
+              <tr><td><code>space.inlineGap</code></td><td>6</td><td><code>--t-space-inlineGap</code></td></tr>
+              <tr><td><code>space.sectionGap</code></td><td>14</td><td><code>--t-space-sectionGap</code></td></tr>
+              <tr><td><code>space.listGap</code></td><td>6</td><td><code>--t-space-listGap</code></td></tr>
+              <tr><td><code>space.controlCompactX</code></td><td>8</td><td><code>--t-space-controlCompactX</code></td></tr>
+              <tr><td><code>space.controlCompactY</code></td><td>5px</td><td><code>--t-space-controlCompactY</code></td></tr>
+              <tr><td><code>space.controlSmallX</code></td><td>10</td><td><code>--t-space-controlSmallX</code></td></tr>
+              <tr><td><code>space.controlSmallY</code></td><td>2</td><td><code>--t-space-controlSmallY</code></td></tr>
+              <tr><td><code>space.sidebarPad</code></td><td>8</td><td><code>--t-space-sidebarPad</code></td></tr>
+              <tr><td><code>space.sidebarSettingsPad</code></td><td>10</td><td><code>--t-space-sidebarSettingsPad</code></td></tr>
+              <tr><td><code>space.sidebarLogoY</code></td><td>14</td><td><code>--t-space-sidebarLogoY</code></td></tr>
+              <tr><td><code>space.sidebarListGap</code></td><td>3px</td><td><code>--t-space-sidebarListGap</code></td></tr>
+              <tr><td><code>space.sidebarItemGap</code></td><td>10</td><td><code>--t-space-sidebarItemGap</code></td></tr>
+              <tr><td><code>space.inlineGapWide</code></td><td>8</td><td><code>--t-space-inlineGapWide</code></td></tr>
+              <tr><td><code>space.inlineGapSmall</code></td><td>4</td><td><code>--t-space-inlineGapSmall</code></td></tr>
+              <tr><td><code>space.popupFilterPad</code></td><td>5px</td><td><code>--t-space-popupFilterPad</code></td></tr>
+              <tr><td><code>space.popupOffset</code></td><td>5px</td><td><code>--t-space-popupOffset</code></td></tr>
+              <tr><td><code>space.popupClearGap</code></td><td>7px</td><td><code>--t-space-popupClearGap</code></td></tr>
+              <tr><td><code>space.separatorX</code></td><td>2</td><td><code>--t-space-separatorX</code></td></tr>
+              <tr><td><code>space.separatorY</code></td><td>4</td><td><code>--t-space-separatorY</code></td></tr>
+              <tr><td><code>space.footerX</code></td><td>14</td><td><code>--t-space-footerX</code></td></tr>
+              <tr><td><code>space.footerY</code></td><td>7px</td><td><code>--t-space-footerY</code></td></tr>
+              <tr><td><code>space.footerGap</code></td><td>14</td><td><code>--t-space-footerGap</code></td></tr>
+              <tr><td><code>space.stateChipY</code></td><td>3px</td><td><code>--t-space-stateChipY</code></td></tr>
+              <tr><td><code>space.windowControlWidth</code></td><td>40</td><td><code>--t-space-windowControlWidth</code></td></tr>
+              <tr><td><code>space.windowControlHeight</code></td><td>28</td><td><code>--t-space-windowControlHeight</code></td></tr>
+              <tr><td><code>space.sidebarWidth</code></td><td>176px</td><td><code>--t-space-sidebarWidth</code></td></tr>
+              <tr><td><code>space.sidebarCollapsedWidth</code></td><td>52px</td><td><code>--t-space-sidebarCollapsedWidth</code></td></tr>
+              <tr><td><code>space.sidebarToggleOffset</code></td><td>96px</td><td><code>--t-space-sidebarToggleOffset</code></td></tr>
+              <tr><td><code>space.sidebarToggleHeight</code></td><td>46</td><td><code>--t-space-sidebarToggleHeight</code></td></tr>
+              <tr><td><code>space.searchMinWidth</code></td><td>140px</td><td><code>--t-space-searchMinWidth</code></td></tr>
+              <tr><td><code>space.popupMinWidth</code></td><td>190px</td><td><code>--t-space-popupMinWidth</code></td></tr>
+              <tr><td><code>space.popupMaxHeight</code></td><td>320px</td><td><code>--t-space-popupMaxHeight</code></td></tr>
+              <tr><td><code>space.scaleTrackWidth</code></td><td>120px</td><td><code>--t-space-scaleTrackWidth</code></td></tr>
+              <tr><td><code>space.scaleKnobSize</code></td><td>7px</td><td><code>--t-space-scaleKnobSize</code></td></tr>
+              <tr><td><code>space.sliderHeight</code></td><td>3px</td><td><code>--t-space-sliderHeight</code></td></tr>
+              <tr><td><code>space.stateDotSize</code></td><td>5px</td><td><code>--t-space-stateDotSize</code></td></tr>
+              <tr><td><code>space.pingTrackWidth</code></td><td>56px</td><td><code>--t-space-pingTrackWidth</code></td></tr>
+              <tr><td><code>space.dataWidth</code></td><td>36</td><td><code>--t-space-dataWidth</code></td></tr>
+              <tr><td><code>space.iconTiny</code></td><td>11px</td><td><code>--t-space-iconTiny</code></td></tr>
+              <tr><td><code>space.iconSmall</code></td><td>12</td><td><code>--t-space-iconSmall</code></td></tr>
+              <tr><td><code>space.iconChevron</code></td><td>13px</td><td><code>--t-space-iconChevron</code></td></tr>
+              <tr><td><code>space.iconMedium</code></td><td>14</td><td><code>--t-space-iconMedium</code></td></tr>
+              <tr><td><code>space.iconLarge</code></td><td>18</td><td><code>--t-space-iconLarge</code></td></tr>
+              <tr><td><code>space.iconBox</code></td><td>22</td><td><code>--t-space-iconBox</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Type roles</h3>
+        <p>
+          Every type role carries five fields, and each one becomes a variable of its
+          own: <code>roles.type.body.size</code> is <code>--t-type-body-size</code>,
+          and the same pattern gives <code>--t-type-body-family</code>,
+          <code>--t-type-body-weight</code>, <code>--t-type-body-tracking</code> and
+          <code>--t-type-body-leading</code>.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Role</th><th>Family</th><th>Size</th><th>Weight</th><th>Tracking</th><th>Leading</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>display</code></td><td><code>data</code></td><td>3xl (22px)</td><td>extrabold (800)</td><td>none (0)</td><td>none (1)</td></tr>
+              <tr><td><code>heading</code></td><td><code>ui</code></td><td>2xl (14px)</td><td>bold (700)</td><td>none (0)</td><td>snug (1.375)</td></tr>
+              <tr><td><code>subheading</code></td><td><code>ui</code></td><td>lg (12px)</td><td>semibold (600)</td><td>none (0)</td><td>normal (1.5)</td></tr>
+              <tr><td><code>body</code></td><td><code>ui</code></td><td>md (11px)</td><td>normal (400)</td><td>none (0)</td><td>normal (1.5)</td></tr>
+              <tr><td><code>label</code></td><td><code>ui</code></td><td>sm (10px)</td><td>semibold (600)</td><td>none (0)</td><td>normal (1.5)</td></tr>
+              <tr><td><code>caption</code></td><td><code>ui</code></td><td>xs (9px)</td><td>normal (400)</td><td>none (0)</td><td>1.4</td></tr>
+              <tr><td><code>micro</code></td><td><code>ui</code></td><td>2xs (8px)</td><td>normal (400)</td><td>none (0)</td><td>normal (1.5)</td></tr>
+              <tr><td><code>button</code></td><td><code>ui</code></td><td>sm (10px)</td><td>bold (700)</td><td>wider (0.05em)</td><td>normal (1.5)</td></tr>
+              <tr><td><code>chip</code></td><td><code>ui</code></td><td>2xs (8px)</td><td>bold (700)</td><td>0.04em</td><td>1.3</td></tr>
+              <tr><td><code>data</code></td><td><code>data</code></td><td>sm (10px)</td><td>normal (400)</td><td>none (0)</td><td>normal (1.5)</td></tr>
+              <tr><td><code>rowName</code></td><td><code>ui</code></td><td>lg (12px)</td><td>semibold (600)</td><td>none (0)</td><td>normal (1.5)</td></tr>
+              <tr><td><code>rowMeta</code></td><td><code>ui</code></td><td>xs (9px)</td><td>normal (400)</td><td>none (0)</td><td>normal (1.5)</td></tr>
+              <tr><td><code>statValue</code></td><td><code>data</code></td><td>xl (13px)</td><td>bold (700)</td><td>none (0)</td><td>none (1)</td></tr>
+              <tr><td><code>statCaption</code></td><td><code>ui</code></td><td>3xs (7px)</td><td>bold (700)</td><td>0.07em</td><td>normal (1.5)</td></tr>
+              <tr><td><code>brand</code></td><td><code>ui</code></td><td>xl (13px)</td><td>bold (700)</td><td>0.06em</td><td>normal (1.5)</td></tr>
+              <tr><td><code>compactMicro</code></td><td><code>ui</code></td><td>8.5px</td><td>normal (400)</td><td>none (0)</td><td>normal (1.5)</td></tr>
+              <tr><td><code>compactCaption</code></td><td><code>ui</code></td><td>9.5px</td><td>normal (400)</td><td>none (0)</td><td>normal (1.5)</td></tr>
+              <tr><td><code>compactBody</code></td><td><code>ui</code></td><td>10.5px</td><td>normal (400)</td><td>none (0)</td><td>normal (1.5)</td></tr>
+              <tr><td><code>compactHeading</code></td><td><code>ui</code></td><td>13.5px</td><td>normal (400)</td><td>none (0)</td><td>normal (1.5)</td></tr>
+              <tr><td><code>compactSubheading</code></td><td><code>ui</code></td><td>11.5px</td><td>normal (400)</td><td>none (0)</td><td>normal (1.5)</td></tr>
+              <tr><td><code>compactTitle</code></td><td><code>ui</code></td><td>12.5px</td><td>normal (400)</td><td>none (0)</td><td>normal (1.5)</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Colour roles</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Role</th><th>Default</th><th>CSS variable</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>color.onAccent</code></td><td><code>#10131a</code></td><td><code>--t-color-onAccent</code></td></tr>
+              <tr><td><code>color.onAccent2</code></td><td><code>#10131a</code></td><td><code>--t-color-onAccent2</code></td></tr>
+              <tr><td><code>color.onDanger</code></td><td><code>#10131a</code></td><td><code>--t-color-onDanger</code></td></tr>
+              <tr><td><code>color.onSuccess</code></td><td><code>#10131a</code></td><td><code>--t-color-onSuccess</code></td></tr>
+              <tr><td><code>color.focusRing</code></td><td><code>var(--accent-line)</code></td><td><code>--t-color-focusRing</code></td></tr>
+              <tr><td><code>color.scrim</code></td><td><code>rgba(5,8,13,0.7)</code></td><td><code>--t-color-scrim</code></td></tr>
+              <tr><td><code>color.rowHover</code></td><td><code>var(--row-hover)</code></td><td><code>--t-color-rowHover</code></td></tr>
+              <tr><td><code>color.rowSelected</code></td><td><code>var(--row-selected)</code></td><td><code>--t-color-rowSelected</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Border roles</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Role</th><th>Default</th><th>CSS variable</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>border.hairline</code></td><td><code>hairline</code> (1px)</td><td><code>--t-border-hairline</code></td></tr>
+              <tr><td><code>border.control</code></td><td><code>hairline</code> (1px)</td><td><code>--t-border-control</code></td></tr>
+              <tr><td><code>border.focus</code></td><td><code>thick</code> (2px)</td><td><code>--t-border-focus</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Shadow roles</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Role</th><th>Default</th><th>CSS variable</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>shadow.panel</code></td><td>none</td><td><code>--t-shadow-panel</code></td></tr>
+              <tr><td><code>shadow.modal</code></td><td><code>lg</code> (0 12px 40px rgba(0,0,0,0.5))</td><td><code>--t-shadow-modal</code></td></tr>
+              <tr><td><code>shadow.popup</code></td><td><code>sm</code> (0 8px 24px rgba(0,0,0,0.4))</td><td><code>--t-shadow-popup</code></td></tr>
+              <tr><td><code>shadow.popupFilter</code></td><td><code>md</code> (0 10px 28px rgba(0,0,0,0.5))</td><td><code>--t-shadow-popupFilter</code></td></tr>
+              <tr><td><code>shadow.drawer</code></td><td>-10px 0 26px rgba(0,0,0,0.4)</td><td><code>--t-shadow-drawer</code></td></tr>
+              <tr><td><code>shadow.glow</code></td><td><code>glow</code> (the launcher's glow)</td><td><code>--t-shadow-glow</code></td></tr>
+              <tr><td><code>shadow.confirm</code></td><td>0 25px 50px -12px rgb(0 0 0 / 0.25)</td><td><code>--t-shadow-confirm</code></td></tr>
+              <tr><td><code>shadow.update</code></td><td>0 25px 50px -12px rgb(0 0 0 / 0.5)</td><td><code>--t-shadow-update</code></td></tr>
+              <tr><td><code>shadow.inspector</code></td><td>0 8px 24px rgba(0,0,0,0.5)</td><td><code>--t-shadow-inspector</code></td></tr>
+              <tr><td><code>shadow.statusDot</code></td><td>0 0 4px currentColor</td><td><code>--t-shadow-statusDot</code></td></tr>
+              <tr><td><code>shadow.stateWarning</code></td><td>0 0 4px var(--warn)</td><td><code>--t-shadow-stateWarning</code></td></tr>
+              <tr><td><code>shadow.readinessWarning</code></td><td>0 0 5px rgba(193,154,85,0.6)</td><td><code>--t-shadow-readinessWarning</code></td></tr>
+              <tr><td><code>shadow.readinessSuccess</code></td><td>0 0 5px rgba(77,154,117,0.6)</td><td><code>--t-shadow-readinessSuccess</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Motion roles</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Role</th><th>Field</th><th>Default</th><th>CSS variable</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>motion.hover</code></td><td><code>duration</code></td><td><code>fast</code> (150ms)</td><td><code>--t-motion-hover-duration</code></td></tr>
+              <tr><td><code>motion.hover</code></td><td><code>easing</code></td><td><code>standard</code></td><td><code>--t-motion-hover-easing</code></td></tr>
+              <tr><td><code>motion.expand</code></td><td><code>duration</code></td><td><code>normal</code> (200ms)</td><td><code>--t-motion-expand-duration</code></td></tr>
+              <tr><td><code>motion.expand</code></td><td><code>easing</code></td><td><code>standard</code></td><td><code>--t-motion-expand-easing</code></td></tr>
+              <tr><td><code>motion.overlay</code></td><td><code>duration</code></td><td>0ms</td><td><code>--t-motion-overlay-duration</code></td></tr>
+              <tr><td><code>motion.overlay</code></td><td><code>easing</code></td><td><code>standard</code></td><td><code>--t-motion-overlay-easing</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="code">
+          <div class="code-head">tokens.json<button class="copy" type="button">Copy</button></div>
+<pre>{
+  <span class="k">"schemaVersion"</span>: 2,
+  <span class="k">"colors"</span>: {
+    <span class="k">"dark"</span>:  { <span class="k">"bg"</span>: <span class="s">"#0e1016"</span>, <span class="k">"accent"</span>: <span class="s">"#7c9cff"</span>, <span class="k">"text"</span>: <span class="s">"#e5e9f5"</span> },
+    <span class="k">"light"</span>: { <span class="k">"bg"</span>: <span class="s">"#f2f3fa"</span>, <span class="k">"accent"</span>: <span class="s">"#3a4fbf"</span>, <span class="k">"text"</span>: <span class="s">"#171a2b"</span> }
+  },
+  <span class="k">"glow"</span>: <span class="s">"selected"</span>,
+  <span class="k">"scales"</span>: { <span class="k">"radius"</span>: { <span class="k">"md"</span>: <span class="s">"8px"</span> } },
+  <span class="k">"roles"</span>:  { <span class="k">"color"</span>: { <span class="k">"onAccent"</span>: <span class="s">"#0e1016"</span> } }
+}</pre>
+        </div>
+
+        <h2 id="layout">Layout nodes</h2>
+        <p>
+          With the <code>layout</code> capability, each screen is one JSON file: a tree
+          of containers holding the launcher's elements. A file carries either one
+          <code>root</code> or a <code>variants</code> array, never both. Variants are
+          whole alternative roots chosen by the window's width: two to four entries,
+          ordered by ascending <code>minWidth</code>, the first being <code>0</code>.
+          The launcher renders the last entry whose <code>minWidth</code> is at or
+          below the current width.
+        </p>
+        <div class="code">
+          <div class="code-head">layout/views/browser.json<button class="copy" type="button">Copy</button></div>
+<pre>{
+  <span class="k">"schemaVersion"</span>: 2,
+  <span class="k">"variants"</span>: [
+    { <span class="k">"minWidth"</span>: 0,   <span class="k">"root"</span>: { <span class="k">"type"</span>: <span class="s">"stack"</span>, <span class="k">"direction"</span>: <span class="s">"column"</span>, <span class="k">"children"</span>: [] } },
+    { <span class="k">"minWidth"</span>: 900, <span class="k">"root"</span>: { <span class="k">"type"</span>: <span class="s">"stack"</span>, <span class="k">"direction"</span>: <span class="s">"row"</span>, <span class="k">"children"</span>: [] } }
+  ]
+}</pre>
+        </div>
+
+        <h3>Containers</h3>
+        <p>Every container takes <code>children</code>, plus the common props below.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Type</th><th>Its own props</th><th>Values</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>stack</code></td><td><code>direction</code>, <code>align</code>, <code>justify</code>, <code>wrap</code>, <code>gap</code></td><td><code>direction</code> <code>row</code> or <code>column</code>; <code>align</code> <code>start</code>, <code>center</code>, <code>end</code>, <code>stretch</code>, <code>baseline</code>; <code>justify</code> the same plus <code>spaceBetween</code> and <code>spaceAround</code>; <code>gap</code> a space token or role</td></tr>
+              <tr><td><code>grid</code></td><td><code>columns</code>, <code>rows</code>, <code>areas</code>, <code>gap</code>, <code>columnGap</code>, <code>rowGap</code>, <code>alignItems</code>, <code>justifyItems</code></td><td>Track lists hold lengths, <code>fr</code> values, <code>auto</code>, <code>min-content</code> and <code>max-content</code>; <code>areas</code> is a rectangular array of area names that children name with <code>area</code></td></tr>
+              <tr><td><code>box</code></td><td>None</td><td>A plain wrapper with no layout of its own</td></tr>
+              <tr><td><code>scroll</code></td><td><code>axis</code></td><td><code>y</code> or <code>x</code>, default <code>y</code>. The only way to get a scrolling area</td></tr>
+              <tr><td><code>tabs</code></td><td><code>tabs</code>, <code>orientation</code></td><td>Each tab is <code>{ "id": "info", "label": &lt;node&gt;, "content": &lt;node&gt; }</code>; ids match <code>[a-z0-9-]+</code> and are unique in the container; <code>orientation</code> is <code>horizontal</code> (default) or <code>vertical</code></td></tr>
+              <tr><td><code>accordion</code></td><td><code>sections</code>, <code>mode</code>, <code>initial</code></td><td>Each section is <code>{ "id": "game", "header": &lt;node&gt;, "body": &lt;node&gt; }</code>; <code>mode</code> is <code>single</code> or <code>multiple</code>; <code>initial</code> is <code>none</code> or <code>first</code>. Both are required</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Leaves</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Leaf</th><th>Shape</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Element</td><td><code>{ "element": "server.join", "options": { … } }</code>, optionally with <code>label</code> and <code>glow</code>. The name must be one the launcher knows</td></tr>
+              <tr><td>Surface</td><td><code>{ "surface": "surface.filterBar" }</code>, a launcher-composed group placed whole</td></tr>
+              <tr><td>Text</td><td><code>{ "type": "text", "value": "REQUIRED MODS", "role": "label" }</code>, where <code>role</code> is one of <code>display</code>, <code>heading</code>, <code>subheading</code>, <code>body</code>, <code>label</code>, <code>caption</code>, <code>micro</code>, <code>button</code>, <code>chip</code> or <code>data</code></td></tr>
+              <tr><td>Image</td><td><code>{ "type": "image", "src": "images/logo.png", "fit": "contain" }</code>, or <code>{ "type": "image", "icon": "globe" }</code>. <code>fit</code> is <code>cover</code> or <code>contain</code></td></tr>
+              <tr><td>Outlet</td><td><code>{ "type": "outlet", "name": "view" }</code> or <code>"modals"</code>. Shell only, once each</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          Text is plain, up to 120 characters, with no markup, links or data. An image
+          from the package must be a file under <code>images/</code>; an icon takes a
+          name from <a href="#icons">Icons</a>. Images are decorative: they render as
+          <code>&lt;img alt=""&gt;</code> and are hidden from screen readers. The
+          <code>view</code> outlet holds the current view; the <code>modals</code>
+          outlet is where modals and popups render.
+        </p>
+
+        <h3>Common props</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Prop</th><th>Values</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>id</code></td><td>A region id, <code>r-[a-z0-9-]+</code>, unique within the theme. Only needed when something refers to the node</td></tr>
+              <tr><td><code>class</code></td><td>One or more class names, each matching <code>t-[a-z0-9-]+</code></td></tr>
+              <tr><td><code>padding</code>, <code>paddingX</code>, <code>paddingY</code>, <code>paddingTop</code>, <code>paddingRight</code>, <code>paddingBottom</code>, <code>paddingLeft</code>, <code>gap</code></td><td>A space token or a space role. Never a raw length. There are no margins</td></tr>
+              <tr><td><code>width</code>, <code>height</code>, <code>minWidth</code>, <code>maxWidth</code>, <code>minHeight</code>, <code>maxHeight</code></td><td><code>&lt;n&gt;px</code>, <code>&lt;n&gt;%</code>, <code>auto</code>, <code>min-content</code>, <code>max-content</code> or a space token; grid tracks also take <code>&lt;n&gt;fr</code></td></tr>
+              <tr><td><code>grow</code>, <code>shrink</code>, <code>basis</code></td><td>Flex behaviour inside a <code>stack</code></td></tr>
+              <tr><td><code>area</code></td><td>A grid area name, inside a <code>grid</code> that declares <code>areas</code></td></tr>
+              <tr><td><code>position</code></td><td><code>{ "anchor": "topRight", "x": "8px", "y": "8px" }</code>. Anchors are <code>topLeft</code>, <code>top</code>, <code>topRight</code>, <code>left</code>, <code>center</code>, <code>right</code>, <code>bottomLeft</code>, <code>bottom</code>, <code>bottomRight</code>; offsets move the node inward from the anchor</td></tr>
+              <tr><td><code>hidden</code></td><td><code>true</code>, or <code>{ "setting": "compactRows", "equals": true }</code>, or <code>"not"</code> in place of <code>"equals"</code>. The setting must be a boolean or choice field</td></tr>
+              <tr><td><code>landmark</code></td><td><code>navigation</code>, <code>main</code>, <code>complementary</code>, <code>banner</code> or <code>contentinfo</code>. At most one each of <code>main</code>, <code>banner</code>, <code>contentinfo</code> and <code>navigation</code> per composition; <code>complementary</code> may repeat. The launcher supplies the accessible name</td></tr>
+              <tr><td><code>glow</code></td><td>Element nodes only: <code>always</code>, <code>selected</code> or <code>never</code>. <code>selected</code> glows while the element's state is <code>current</code>, <code>selected</code>, <code>on</code>, <code>active</code>, <code>checked</code> or <code>open</code></td></tr>
+              <tr><td><code>context</code></td><td><code>selection</code>, <code>modSelection</code> or <code>modFilterPreview</code>, with an optional <code>empty</code> subtree shown when there is no subject. Contexts do not nest</td></tr>
+              <tr><td><code>collapsible</code></td><td><code>{ "default": "expanded", "collapsed": &lt;node&gt; }</code>. The collapsed subtree replaces <code>children</code>, and a required element inside the region must appear in both</td></tr>
+              <tr><td><code>resizable</code></td><td><code>{ "edge": "right", "min": "160px", "max": "420px" }</code>. The handle is focusable; the arrow keys move it in 8px steps and Home and End jump to the limits</td></tr>
+              <tr><td><code>column</code></td><td>A column id. Only on a direct child of a list row's root, and only when the list file declares <code>columns</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Any other prop on a node is an error, so a typo cannot pass silently.</p>
+
+        <h3>What every composition must keep</h3>
+        <p>
+          A few elements have to be somewhere in each composition: the window controls,
+          the drag region, navigation to every view and Settings, both required notices,
+          and, in every context that places <code>server.join</code>,
+          <code>server.actionNotice</code> beside it. The launcher checks that the
+          element is placed anywhere in the composition, not in a fixed slot, and it
+          checks every variant and every settings combination a user can reach.
+        </p>
+        <div class="note warn">
+          <p>
+            <strong>A missing required element fails the file that should contain it.</strong>
+            Validation refuses that one layout file, and only that file falls back to
+            Neutral's version of the screen. Your tokens and CSS stay in effect. A
+            <code>FALLBACK</code> notice says it happened once per theme per launcher
+            version, and Dev Mode names the file, the element and the reason.
+          </p>
+        </div>
+        <p>
+          <code>notice.launch</code> is an optional app-level notice bar, added in theme
+          API 2.1, for join warnings and launch refusals. It repeats the same content as
+          the server's own action notice, in a bar that names the server. A successful
+          launch never shows here, and dismissing it clears the server's action notice
+          too. A composition that places it may hide <code>server.actionNotice</code> in
+          list rows, because the bar already carries that content.
+        </p>
+        <p>
+          Tab order is file order: keyboard users move through the screen in the order
+          you declared the nodes. Stacking also follows declaration order — the launcher
+          owns the layers, and no <code>z-index</code> is involved. A list element owns
+          its own scrolling, so it cannot sit inside a <code>scroll</code> container.
+        </p>
+
+        <h2 id="lists">List files</h2>
+        <p>
+          One file per list, under <code>layout/lists/</code>. A list file has a
+          <code>row</code> template and, optionally, <code>columns</code>; it never has
+          <code>root</code> or <code>variants</code>, so a list adapts through its
+          columns, its wrapping and <code>overflowX</code>.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Key</th><th>Type</th><th>Default</th><th>Rule</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>schemaVersion</code></td><td>number</td><td>—</td><td>Must be <code>2</code>.</td></tr>
+              <tr><td><code>columns</code></td><td>array</td><td>—</td><td>Column definitions. Optional</td></tr>
+              <tr><td><code>row</code></td><td>node</td><td>—</td><td>The row template. Its root node <em>is</em> the row; the launcher adds no wrapper</td></tr>
+              <tr><td><code>empty</code></td><td>node</td><td>—</td><td>Replaces the launcher's wording when the list is empty</td></tr>
+              <tr><td><code>header</code></td><td>boolean</td><td><code>true</code></td><td><code>false</code> hides the header</td></tr>
+              <tr><td><code>overflowX</code></td><td>string</td><td><code>clip</code></td><td><code>clip</code> or <code>scroll</code>. With <code>scroll</code> the header sticks inside the scroller, rows stay at least as wide as the fixed columns, a trailing <code>fr</code> column absorbs the surplus, and the list scrolls sideways with Shift+wheel or the wheel over the header</td></tr>
+              <tr><td><code>estimatedRowHeight</code></td><td>string</td><td>Per list</td><td>A pixel length. It seeds the measurement; real heights are measured</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Column field</th><th>Rule</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>id</code></td><td><code>[a-z0-9-]+</code>, unique in the file</td></tr>
+              <tr><td><code>label</code></td><td>Up to 24 characters. Only on a column with no <code>sort</code>, which takes the launcher's wording instead</td></tr>
+              <tr><td><code>width</code></td><td>A length, <code>&lt;n&gt;fr</code> or <code>auto</code>. Required</td></tr>
+              <tr><td><code>minWidth</code>, <code>maxWidth</code></td><td>Lengths</td></tr>
+              <tr><td><code>align</code></td><td><code>start</code>, <code>center</code> or <code>end</code></td></tr>
+              <tr><td><code>sort</code></td><td>A sort key from that list's set. An unknown key is an error</td></tr>
+              <tr><td><code>resizable</code></td><td>Boolean, default <code>true</code>. Only a column with a pixel width resizes; <code>fr</code> and <code>auto</code> columns never do</td></tr>
+              <tr><td><code>headerElement</code></td><td>An element id to draw in the header cell instead of a label. Only where the element is allowed to appear in that list</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          Columns are drag-resizable in every list that declares them, with a floor of
+          <code>minWidth</code> (48px by default). Widths persist per theme and per
+          list, and double-clicking the resize handle resets a column to its declared
+          width. A sortable heading is a button: clicking it sorts by that key, and
+          clicking again reverses the direction.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>List</th><th>Sort keys</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>list.servers</code></td><td><code>players</code>, <code>ping</code>, <code>mods</code>, <code>name</code>, <code>map</code>, <code>lastPlayed</code></td></tr>
+              <tr><td><code>list.mods</code></td><td><code>status</code>, <code>name</code>, <code>size</code>, <code>updated</code>, <code>subscribed</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>List</th><th>Default row height</th><th>Header</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>list.servers</code></td><td class="num">56px</td><td>Shown</td></tr>
+              <tr><td><code>list.mods</code></td><td class="num">54px</td><td>Shown</td></tr>
+              <tr><td><code>list.modFilterResults</code></td><td class="num">44px</td><td>Shown</td></tr>
+              <tr><td><code>list.serverMods</code></td><td class="num">32px</td><td>Hidden</td></tr>
+              <tr><td><code>list.modServers</code></td><td class="num">32px</td><td>Hidden</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          <code>list.servers</code>, <code>list.mods</code> and
+          <code>list.modFilterResults</code> render only the rows on screen and own
+          their scrolling; <code>list.serverMods</code> and
+          <code>list.modServers</code> render every row. Clicking a row selects its
+          subject, clicking an element inside it runs that element and never changes
+          the selection, and rows themselves are not focusable.
+        </p>
+        <div class="code">
+          <div class="code-head">layout/lists/servers.json<button class="copy" type="button">Copy</button></div>
+<pre>{
+  <span class="k">"schemaVersion"</span>: 2,
+  <span class="k">"columns"</span>: [
+    { <span class="k">"id"</span>: <span class="s">"name"</span>,    <span class="k">"label"</span>: <span class="s">"SERVER"</span>, <span class="k">"width"</span>: <span class="s">"1fr"</span>,  <span class="k">"align"</span>: <span class="s">"start"</span>, <span class="k">"sort"</span>: <span class="s">"name"</span> },
+    { <span class="k">"id"</span>: <span class="s">"players"</span>, <span class="k">"width"</span>: <span class="s">"72px"</span>, <span class="k">"align"</span>: <span class="s">"end"</span>, <span class="k">"sort"</span>: <span class="s">"players"</span> },
+    { <span class="k">"id"</span>: <span class="s">"actions"</span>, <span class="k">"width"</span>: <span class="s">"auto"</span>, <span class="k">"align"</span>: <span class="s">"end"</span> }
+  ],
+  <span class="k">"row"</span>: {
+    <span class="k">"type"</span>: <span class="s">"grid"</span>,
+    <span class="k">"children"</span>: [
+      { <span class="k">"element"</span>: <span class="s">"server.name"</span>,    <span class="k">"column"</span>: <span class="s">"name"</span> },
+      { <span class="k">"element"</span>: <span class="s">"server.players"</span>, <span class="k">"column"</span>: <span class="s">"players"</span> },
+      { <span class="k">"element"</span>: <span class="s">"server.join"</span>,    <span class="k">"column"</span>: <span class="s">"actions"</span> }
+    ]
+  }
+}</pre>
+        </div>
+
+        <h2 id="css">CSS API</h2>
+        <p>
+          One file, <code>styles.css</code>, capped at 256 KB. The launcher wraps it in
+          a cascade layer, so your rules win over the launcher's defaults without a
+          specificity fight.
+        </p>
+        <h3>Selectors</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Form</th><th>Example</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>An element</td><td><code>[data-el="server.join"]</code></td></tr>
+              <tr><td>A part of an element</td><td><code>[data-el="server.players"] [data-part="caption"]</code></td></tr>
+              <tr><td>A state</td><td><code>[data-el="server.join"][data-state~="busy"]</code></td></tr>
+              <tr><td>A context</td><td><code>[data-context="selection"] [data-el="server.name"]</code></td></tr>
+              <tr><td>A list, a row or a column</td><td><code>[data-list="servers"]</code>, <code>[data-row][data-state~="selected"]</code>, <code>[data-column="players"]</code></td></tr>
+              <tr><td>A region or a surface</td><td><code>[data-region="r-detail"]</code>, <code>[data-surface="surface.filterBar"]</code></td></tr>
+              <tr><td>A class of your own</td><td><code>.t-detail-rail</code></td></tr>
+              <tr><td>Interaction</td><td><code>:hover</code>, <code>:focus</code>, <code>:focus-visible</code>, <code>:active</code>, <code>:disabled</code>, <code>:checked</code></td></tr>
+              <tr><td>Structure</td><td><code>:not()</code>, <code>:is()</code>, <code>:where()</code>, <code>:nth-child()</code>, <code>:first-child</code>, <code>:last-child</code></td></tr>
+              <tr><td>Generated boxes</td><td><code>::before</code> and <code>::after</code>, with <code>content: ""</code> only</td></tr>
+              <tr><td>Combinators</td><td>Descendant, <code>&gt;</code>, <code>+</code>, <code>~</code></td></tr>
+              <tr><td>Scrollbars and sliders</td><td><code>::-webkit-scrollbar</code>, <code>::-webkit-scrollbar-thumb</code>, <code>::-webkit-scrollbar-track</code>, <code>::-webkit-scrollbar-corner</code>, <code>::-webkit-slider-thumb</code>, <code>::-webkit-slider-runnable-track</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          <code>[data-el]</code>, <code>[data-part]</code>, <code>[data-state]</code>,
+          <code>[data-context]</code>, <code>[data-list]</code>, <code>[data-row]</code>,
+          <code>[data-column]</code>, <code>[data-region]</code> and
+          <code>[data-surface]</code> are the element, part, list and region names the
+          launcher publishes. The other accepted attribute selectors are
+          <code>[aria-selected]</code>, <code>[aria-pressed]</code>,
+          <code>[aria-expanded]</code>, <code>[aria-sort]</code>,
+          <code>[disabled]</code>, <code>[data-tetra-slot]</code> and
+          <code>[data-tetra-el]</code>. Anything else, such as <code>[href]</code>,
+          <code>[title]</code> or <code>[class]</code>, is refused.
+        </p>
+        <p>
+          Refused: a type selector (<code>div</code>), an id selector, the universal
+          selector, any class that is not one of your own <code>t-[a-z0-9-]+</code>
+          names, any other attribute, any other pseudo-class or pseudo-element, and
+          <code>!important</code>.
+        </p>
+        <h3>Properties, values and at-rules</h3>
+        <p>
+          Every property is allowed except <code>z-index</code>, because the launcher
+          owns stacking, and <code>content</code> with anything but <code>""</code>.
+        </p>
+        <p>
+          Values may not contain <code>expression(</code>, <code>-moz-binding</code>,
+          <code>behavior:</code>, <code>javascript:</code>, <code>vbscript:</code> or
+          <code>@import</code>. A <code>url()</code> may only name a file inside your
+          own package, such as <code>url("fonts/x.woff2")</code> or
+          <code>url("images/logo.png")</code>: a URL with a scheme (including
+          <code>https:</code> and <code>data:</code>), a scheme-relative URL, and a
+          path containing <code>..</code> are all refused. Inside
+          <code>@font-face</code>, the source must be a file under <code>fonts/</code>.
+        </p>
+        <p>
+          Three at-rules are allowed: <code>@media</code> with
+          <code>width</code>, <code>prefers-reduced-motion</code> or
+          <code>prefers-color-scheme</code>; <code>@keyframes</code>; and
+          <code>@font-face</code> naming a font in your package. Everything else,
+          including <code>@supports</code>, <code>@container</code> and
+          <code>@layer</code>, is refused.
+        </p>
+        <div class="code">
+          <div class="code-head">styles.css — refused<button class="copy" type="button">Copy</button></div>
+<pre>[data-el=<span class="s">"server.join"</span>] { z-index: 5; }                    <span class="refused">CSS-04</span>
+[data-el=<span class="s">"server.join"</span>] { color: red !important; }        <span class="refused">CSS-01</span>
+@import url(<span class="s">"other.css"</span>);                             <span class="refused">CSS-06</span>
+.box { background: url(<span class="s">"https://example.com/x.png"</span>); }  <span class="refused">CSS-07</span>
+.box { background: url(<span class="s">"../outside.png"</span>); }            <span class="refused">CSS-07</span></pre>
+        </div>
+        <h3>Tokens and settings in CSS</h3>
+        <p>
+          Colours keep their bare names (<code>--bg</code>, <code>--accent</code>,
+          <code>--row-selected</code>); every other token is prefixed
+          <code>--t-</code>, for example <code>--t-radius-row</code>,
+          <code>--t-space-6</code> and <code>--t-type-body-size</code>. A theme setting
+          reaches CSS only as a <code>--setting-&lt;id&gt;</code> custom property on
+          the window root; the value is never written into the stylesheet text, so it
+          cannot smuggle a rule past validation.
+        </p>
+        <div class="code">
+          <div class="code-head">styles.css<button class="copy" type="button">Copy</button></div>
+<pre>[data-el=<span class="s">"server.name"</span>] {
+  padding-inline-start: calc(var(--setting-rowSpacing, 4) * 1px);
+  color: var(--accent);
+  font-family: var(--t-type-family-ui);
+}</pre>
+        </div>
+
+        <h2 id="settings">Theme settings</h2>
+        <p>
+          <code>settings.schema.json</code> adds your own options under your theme in
+          Settings. A saved value reaches tokens and layout by substitution, CSS as a
+          custom property, and can show or hide a node.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Type</th><th>Needs</th><th>Rule</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>number</code></td><td><code>min</code>, <code>max</code>, <code>default</code></td><td>All three are finite numbers, the minimum must not exceed the maximum, the default must lie between them, and <code>step</code>, if given, must be a positive number</td></tr>
+              <tr><td><code>boolean</code></td><td><code>default</code></td><td><code>true</code> or <code>false</code></td></tr>
+              <tr><td><code>choice</code></td><td><code>options</code>, <code>default</code></td><td>At least two options, each <code>{ "value": "side", "label": "Side" }</code> with a value matching <code>[a-z0-9-]+</code> and a label up to 40 characters. The default must match one of the values</td></tr>
+              <tr><td><code>color</code></td><td><code>default</code></td><td><code>#rrggbb</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          Every field needs <code>id</code>, <code>type</code> and <code>label</code>.
+          An id matches <code>[a-z][a-zA-Z0-9]{0,31}</code> and is unique; a label is
+          up to 40 characters. A malformed field is dropped with an issue in Dev Mode,
+          and the rest still load.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>A value reaches</th><th>How</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>tokens.json</code> and layout files</td><td><code>{{id}}</code> substitution. A string that is exactly one placeholder takes the value's own type, so a number field can drive a numeric token; a placeholder inside a longer string is plain text</td></tr>
+              <tr><td>CSS</td><td>Only as <code>--setting-&lt;id&gt;</code> on the window root</td></tr>
+              <tr><td>Layout structure</td><td>A <code>boolean</code> or <code>choice</code> field can drive a node's <a href="#layout"><code>hidden</code></a></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          The launcher expands every combination of your <code>boolean</code> and
+          <code>choice</code> fields — at most 64 — and checks the required-element
+          rules against each one, so a combination that hides a required element fails
+          at import rather than at runtime. <code>number</code> and <code>color</code>
+          fields change nothing structural, so they are not expanded. Tuned values are
+          stored next to the package and are skipped on export.
+        </p>
+        <div class="code">
+          <div class="code-head">settings.schema.json<button class="copy" type="button">Copy</button></div>
+<pre>{
+  <span class="k">"schemaVersion"</span>: 2,
+  <span class="k">"fields"</span>: [
+    { <span class="k">"id"</span>: <span class="s">"rowSpacing"</span>, <span class="k">"type"</span>: <span class="s">"number"</span>, <span class="k">"label"</span>: <span class="s">"Row name indent"</span>,
+      <span class="k">"min"</span>: 0, <span class="k">"max"</span>: 16, <span class="k">"step"</span>: 1, <span class="k">"default"</span>: 4 },
+    { <span class="k">"id"</span>: <span class="s">"compactRows"</span>, <span class="k">"type"</span>: <span class="s">"boolean"</span>, <span class="k">"label"</span>: <span class="s">"Compact rows"</span>, <span class="k">"default"</span>: false },
+    { <span class="k">"id"</span>: <span class="s">"accentStyle"</span>, <span class="k">"type"</span>: <span class="s">"choice"</span>, <span class="k">"label"</span>: <span class="s">"Accent style"</span>,
+      <span class="k">"options"</span>: [ { <span class="k">"value"</span>: <span class="s">"solid"</span>, <span class="k">"label"</span>: <span class="s">"Solid"</span> },
+                   { <span class="k">"value"</span>: <span class="s">"soft"</span>,  <span class="k">"label"</span>: <span class="s">"Soft"</span> } ],
+      <span class="k">"default"</span>: <span class="s">"solid"</span> },
+    { <span class="k">"id"</span>: <span class="s">"highlight"</span>, <span class="k">"type"</span>: <span class="s">"color"</span>, <span class="k">"label"</span>: <span class="s">"Highlight"</span>, <span class="k">"default"</span>: <span class="s">"#8fa3bd"</span> }
+  ]
+}</pre>
+        </div>
+
+        <h2 id="validation">Validation rules</h2>
+        <p>
+          Every refusal carries a stable code. The code, together with the file it came
+          from and a pointer to the exact node, is what Dev Mode and the import preview
+          report. An error blocks an import; at load, the file it belongs to falls back
+          to Neutral's version of that screen while the rest of your theme stays in
+          effect.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Code</th><th>What it means</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>LAY-01</code></td><td>The file's outer shape is wrong: not a JSON object, a version other than 2, both <code>root</code> and <code>variants</code> or neither, a list template that carries a <code>root</code>, a malformed column entry, a bad overflow setting, or a bad tabs orientation</td></tr>
+              <tr><td><code>LAY-02</code></td><td>A node's type is not a container or leaf the launcher knows</td></tr>
+              <tr><td><code>LAY-03</code></td><td>A property is not allowed on that node, or its value has the wrong shape — including <code>glow</code> on a node that is not an element, and a <code>hidden</code> condition naming a setting that is not a boolean or choice field</td></tr>
+              <tr><td><code>LAY-04</code></td><td>A size is wrong: a width, height or basis that is not a length, a keyword or a space token; a bad grid track; an estimated row height that is not a pixel length; a resize bound that is not a size</td></tr>
+              <tr><td><code>LAY-05</code></td><td>Spacing is wrong: a margin was used, or a padding or gap is not a space token or space role</td></tr>
+              <tr><td><code>LAY-06</code></td><td>Positioning is wrong: <code>position</code> is not an object, the anchor is unknown, or an offset is not a length or space token</td></tr>
+              <tr><td><code>LAY-07</code></td><td>A region id does not match <code>r-[a-z0-9-]+</code></td></tr>
+              <tr><td><code>LAY-08</code></td><td>A region id is used twice, inside one root or in another file</td></tr>
+              <tr><td><code>LAY-09</code></td><td>Something refers to a region id that does not exist</td></tr>
+              <tr><td><code>LAY-10</code></td><td>The variant list is wrong: not an array, fewer than two or more than four entries, widths that do not start at 0 and rise, or an entry with no root</td></tr>
+              <tr><td><code>LAY-11</code></td><td>A tabs node is wrong: no tabs, a missing, invalid or duplicated tab id, or a tab without its label or content node</td></tr>
+              <tr><td><code>LAY-12</code></td><td>An accordion node is wrong: a bad mode or initial value, no sections, a missing, invalid or duplicated section id, or a section without its header or body node</td></tr>
+              <tr><td><code>ELE-01</code></td><td>An element, surface or header element the launcher does not know</td></tr>
+              <tr><td><code>ELE-02</code></td><td>That element or surface cannot be placed here: the wrong file, the wrong subject, or a list header it is not allowed in</td></tr>
+              <tr><td><code>ELE-03</code></td><td>A context is unknown, nested, or unavailable in that file; or the element needs a subject the context does not provide</td></tr>
+              <tr><td><code>ELE-04</code></td><td>An element is placed more than once where only one is allowed</td></tr>
+              <tr><td><code>ELE-05</code></td><td>An option the element does not have</td></tr>
+              <tr><td><code>ELE-06</code></td><td>An option value is invalid, <code>options</code> is not an object, or a free label is not plain text</td></tr>
+              <tr><td><code>ELE-07</code></td><td>A free label was given for an element that takes none</td></tr>
+              <tr><td><code>ELE-08</code></td><td>A free label is longer than 40 characters</td></tr>
+              <tr><td><code>LST-01</code></td><td>A list file that is not one of the known lists, or a reference to a list that does not exist</td></tr>
+              <tr><td><code>LST-02</code></td><td>Two columns share an id</td></tr>
+              <tr><td><code>LST-03</code></td><td>A column width is missing, or is not a length, an <code>fr</code> value or <code>auto</code></td></tr>
+              <tr><td><code>LST-04</code></td><td>A column sort key that list does not support</td></tr>
+              <tr><td><code>LST-05</code></td><td>A <code>column</code> property outside a direct child of a row template that declares columns</td></tr>
+              <tr><td><code>LST-06</code></td><td>A list element placed inside a scrolling container</td></tr>
+              <tr><td><code>REQ-01</code></td><td>A required element is missing from a view</td></tr>
+              <tr><td><code>REQ-02</code></td><td>A required element is missing from Settings</td></tr>
+              <tr><td><code>REQ-03</code></td><td>A required element is missing from a modal</td></tr>
+              <tr><td><code>REQ-04</code></td><td>A required element is missing from a popup</td></tr>
+              <tr><td><code>REQ-05</code></td><td>A required element is missing from a list row template</td></tr>
+              <tr><td><code>REQ-06</code></td><td>A required element is placed but a state a user can reach hides it: a settings combination, a variant, one side of a collapsible region, or the visible Join context</td></tr>
+              <tr><td><code>LIM-01</code></td><td>More than 2,000 nodes in one layout file</td></tr>
+              <tr><td><code>LIM-02</code></td><td>Nodes nested deeper than 24 levels</td></tr>
+              <tr><td><code>LIM-03</code></td><td>A text node longer than 120 characters, or a column label longer than 24</td></tr>
+              <tr><td><code>LIM-04</code></td><td>More than four variants in one file</td></tr>
+              <tr><td><code>LIM-05</code></td><td>More than 200 different theme classes in one file</td></tr>
+              <tr><td><code>SET-01</code></td><td>The settings schema is malformed: not an object, a version other than 2, no fields list, a field that is not an object or is missing its id, type or label, a label over 40 characters, or an unknown field type</td></tr>
+              <tr><td><code>SET-02</code></td><td>A setting id does not match <code>[a-z][a-zA-Z0-9]{0,31}</code>, or is used twice</td></tr>
+              <tr><td><code>SET-03</code></td><td>A number field's bounds are wrong: a bound or default that is not a finite number, a minimum above the maximum, a default outside the bounds, or a step that is not a positive number</td></tr>
+              <tr><td><code>SET-04</code></td><td>A boolean, choice or colour field is wrong: a default that is not a boolean, fewer than two options, a missing, duplicated or malformed option value, an option label over 40 characters, a default that matches no option, or a colour default that is not <code>#rrggbb</code></td></tr>
+              <tr><td><code>SET-05</code></td><td>The fields expand to more than 64 combinations</td></tr>
+              <tr><td><code>CSS-01</code></td><td>A refused selector or declaration: a type selector, an id selector, the universal selector, a class that is not your own <code>t-</code> name, an attribute, pseudo-class or pseudo-element that is not allowed, or <code>!important</code></td></tr>
+              <tr><td><code>CSS-02</code></td><td>A theme class used in CSS that the theme never declares</td></tr>
+              <tr><td><code>CSS-03</code></td><td>A malformed theme class name — in particular one that is not <code>t-</code> followed by lowercase letters, digits and hyphens</td></tr>
+              <tr><td><code>CSS-04</code></td><td><code>z-index</code> is refused</td></tr>
+              <tr><td><code>CSS-05</code></td><td>A refused value: one of the banned constructs, or <code>content</code> with anything other than <code>""</code></td></tr>
+              <tr><td><code>CSS-06</code></td><td>An at-rule other than <code>@media</code>, <code>@keyframes</code> or <code>@font-face</code>, or a media query feature that is not allowed</td></tr>
+              <tr><td><code>CSS-07</code></td><td>A refused URL: one that uses a scheme, a scheme-relative one, one with <code>..</code> in its path, an unreadable one, or a <code>@font-face</code> source that is not under <code>fonts/</code></td></tr>
+              <tr><td><code>CSS-08</code></td><td><code>styles.css</code> is larger than 256 KB</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="icons">Icons</h2>
+        <p>
+          An image node may name one of these icons instead of a file:
+          <code>{ "type": "image", "icon": "globe" }</code>. They are the only names
+          the launcher accepts.
+        </p>
+        <p>
+          <code>alertTriangle</code>
+          <code>appWindow</code>
+          <code>arrowRight</code>
+          <code>ban</code>
+          <code>check</code>
+          <code>checkCircle</code>
+          <code>chevronDown</code>
+          <code>chevronLeft</code>
+          <code>chevronRight</code>
+          <code>chevronsLeft</code>
+          <code>chevronsRight</code>
+          <code>clock</code>
+          <code>copy</code>
+          <code>download</code>
+          <code>externalLink</code>
+          <code>fileArchive</code>
+          <code>fileOutput</code>
+          <code>filter</code>
+          <code>folder</code>
+          <code>folderOpen</code>
+          <code>gamepad</code>
+          <code>globe</code>
+          <code>inbox</code>
+          <code>info</code>
+          <code>listTree</code>
+          <code>loader</code>
+          <code>minus</code>
+          <code>moon</code>
+          <code>moreHorizontal</code>
+          <code>package</code>
+          <code>palette</code>
+          <code>play</code>
+          <code>plus</code>
+          <code>refresh</code>
+          <code>rotateCcw</code>
+          <code>search</code>
+          <code>settings</code>
+          <code>square</code>
+          <code>star</code>
+          <code>sun</code>
+          <code>thumbsUp</code>
+          <code>trash</code>
+          <code>upload</code>
+          <code>users</code>
+          <code>x</code>
+        </p>
+
+        <nav class="next" aria-label="More theme docs">
+          <a href="/docs/themes/elements">Element reference<span>Every element you can place and style</span></a>
+          <a href="/docs/themes/">Making a theme<span>The guide, from a first theme to a custom layout</span></a>
+        </nav>
+      </main>
+    </div>
+
+    <footer>
+      <div class="container">
+        <p>
+          TETRA LAUNCHER — free and source-available.
+          <a href="https://github.com/HellboundGlory/dayz-launcher">Source on GitHub</a>.
+          Not affiliated with Bohemia Interactive.
+        </p>
+      </div>
+    </footer>
+
+    <script>
+      for (const btn of document.querySelectorAll(".code .copy")) {
+        btn.addEventListener("click", async () => {
+          const text = btn.closest(".code").querySelector("pre").innerText;
+          try {
+            await navigator.clipboard.writeText(text);
+            btn.textContent = "Copied";
+          } catch {
+            btn.textContent = "Select and copy";
+          }
+          setTimeout(() => (btn.textContent = "Copy"), 1600);
+        });
+      }
+
+      if (matchMedia("(max-width: 900px)").matches) {
+        document.querySelector(".docs-nav details").open = false;
+      }
+
+      const links = [...document.querySelectorAll('.docs-nav a[href^="#"]')];
+      const byId = new Map(links.map((a) => [a.getAttribute("href").slice(1), a]));
+      const spy = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (!e.isIntersecting) continue;
+            for (const a of links) a.removeAttribute("aria-current");
+            byId.get(e.target.id)?.setAttribute("aria-current", "true");
+          }
+        },
+        { rootMargin: "-80px 0px -70% 0px" },
+      );
+      for (const id of byId.keys()) {
+        const h = document.getElementById(id);
+        if (h) spy.observe(h);
+      }
+    </script>
+  </body>
+</html>

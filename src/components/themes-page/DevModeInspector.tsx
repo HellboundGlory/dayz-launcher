@@ -1,31 +1,74 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
-import { SLOTS } from "@/theme/slots";
+import { REGISTRY } from "@/theme/registry";
 
-const SLOT_ATTR = "data-tetra-slot";
-const EL_ATTR = "data-tetra-el";
+const SURFACE_ATTR = "data-surface";
+const EL_ATTR = "data-el";
+const REGION_ATTR = "data-region";
+const PART_ATTR = "data-part";
+const CONTEXT_ATTR = "data-context";
 
 export interface TetraNode {
   /** Read at match time — the attribute value may be rebound in place. */
   id: string;
-  kind: "slot" | "el";
+  kind: "surface" | "el" | "region" | "part";
   element: Element;
+  context?: string | null;
+  partOf?: string;
 }
 
-/** Nearest ancestor (or the element itself) carrying a `data-tetra-slot` or
- * `data-tetra-el` attribute; `null` when the walk reaches the document. The one
- * element carrying both (`shell.header`, whose drag region is also its own
- * child) reports the slot: the container is the themable unit, and taking the
- * child there would make every other slot's container area report a child
- * instead. */
+function findContext(start: Element | null): string | null {
+  for (let node = start; node !== null; node = node.parentElement) {
+    if (node.hasAttribute?.(CONTEXT_ATTR)) {
+      const val = node.getAttribute(CONTEXT_ATTR);
+      if (val) return val;
+    }
+  }
+  return null;
+}
+
+function findPartOf(start: Element | null): string | undefined {
+  for (let node = start; node !== null; node = node.parentElement) {
+    if (node.hasAttribute?.(EL_ATTR)) {
+      const val = node.getAttribute(EL_ATTR);
+      if (val) return val;
+    }
+  }
+  return undefined;
+}
+
+/** Nearest ancestor (or the element itself) carrying a `data-part`, `data-surface`,
+ * `data-el`, `data-region`, or container `id` attribute; `null` when the walk reaches the document. */
 export function findTetraNode(start: Element | null): TetraNode | null {
   for (let node = start; node !== null; node = node.parentElement) {
-    if (node.hasAttribute(SLOT_ATTR)) {
-      return { id: node.getAttribute(SLOT_ATTR) ?? "", kind: "slot", element: node };
+    if (node.hasAttribute?.(PART_ATTR)) {
+      const id = node.getAttribute(PART_ATTR) ?? "";
+      const partOf = findPartOf(node.parentElement);
+      const context = findContext(node);
+      return { id, kind: "part", element: node, partOf, context };
     }
-    if (node.hasAttribute(EL_ATTR)) {
-      return { id: node.getAttribute(EL_ATTR) ?? "", kind: "el", element: node };
+    if (node.hasAttribute?.(SURFACE_ATTR)) {
+      const id = node.getAttribute(SURFACE_ATTR) ?? "";
+      const context = findContext(node);
+      return { id, kind: "surface", element: node, context };
+    }
+    if (node.hasAttribute?.(EL_ATTR)) {
+      const id = node.getAttribute(EL_ATTR) ?? "";
+      const context = findContext(node);
+      return { id, kind: "el", element: node, context };
+    }
+    if (node.hasAttribute?.(REGION_ATTR)) {
+      const id = node.getAttribute(REGION_ATTR) ?? "";
+      const context = findContext(node);
+      return { id, kind: "region", element: node, context };
+    }
+    if (node.hasAttribute?.("id")) {
+      const id = node.getAttribute("id");
+      if (id) {
+        const context = findContext(node);
+        return { id, kind: "region", element: node, context };
+      }
     }
   }
   return null;
@@ -33,13 +76,35 @@ export function findTetraNode(start: Element | null): TetraNode | null {
 
 /** The attribute selector that selects exactly the tagged markup. */
 export function selectorFor(node: TetraNode): string {
-  const attr = node.kind === "slot" ? SLOT_ATTR : EL_ATTR;
-  // Registry ids are plain ASCII; CSS.escape is absent in older webviews.
-  const id =
+  const escape = (str: string) =>
     typeof CSS !== "undefined" && typeof CSS.escape === "function"
-      ? CSS.escape(node.id)
-      : node.id.replace(/["\\]/g, "\\$&");
-  return `[${attr}="${id}"]`;
+      ? CSS.escape(str)
+      : str.replace(/["\\]/g, "\\$&");
+
+  let base = "";
+  if (node.kind === "surface") {
+    base = `[${SURFACE_ATTR}="${escape(node.id)}"]`;
+  } else if (node.kind === "el") {
+    base = `[${EL_ATTR}="${escape(node.id)}"]`;
+  } else if (node.kind === "part") {
+    const partSel = `[${PART_ATTR}="${escape(node.id)}"]`;
+    if (node.partOf) {
+      base = `[${EL_ATTR}="${escape(node.partOf)}"] ${partSel}`;
+    } else {
+      base = partSel;
+    }
+  } else if (node.kind === "region") {
+    if (node.element.hasAttribute?.(REGION_ATTR) || !node.element.hasAttribute?.("id")) {
+      base = `[${REGION_ATTR}="${escape(node.id)}"]`;
+    } else {
+      base = `#${escape(node.id)}`;
+    }
+  }
+
+  if (node.context) {
+    return `[${CONTEXT_ATTR}="${escape(node.context)}"] ${base}`;
+  }
+  return base;
 }
 
 interface HoverState {
@@ -77,12 +142,16 @@ export function placeOverlay(
   };
 }
 
-/** `shell.footer`'s current rect, fresh each call — it never moves, but the
+/** `surface.footerStatus`'s current rect, fresh each call — it never moves, but the
  * list underneath it does not actually clip against it (see the mousemove
  * handler below), so anything reaching into this area is refused outright
  * rather than trusted. */
 function footerRect(): DOMRect | null {
-  return document.querySelector(`[${SLOT_ATTR}="shell.footer"]`)?.getBoundingClientRect() ?? null;
+  return (
+    document.querySelector(`[${SURFACE_ATTR}="surface.footerStatus"]`)?.getBoundingClientRect() ??
+    document.querySelector(".footer-v2")?.getBoundingClientRect() ??
+    null
+  );
 }
 
 /** The same "is this a real, inspectable target" rule used for both live
@@ -93,9 +162,16 @@ function resolveDevTarget(target: Element): { node: TetraNode; rect: DOMRect } |
   if (node === null) return null;
   const rect = node.element.getBoundingClientRect();
   const footer = footerRect();
-  const isFooterItself = node.element.closest(`[${SLOT_ATTR}="shell.footer"]`) !== null;
-  const isOverlaySurface = node.element.closest(`[${SLOT_ATTR}="settings.background"]`) !== null;
+  const isFooterItself =
+    node.element.closest(`[${SURFACE_ATTR}="surface.footerStatus"]`) !== null ||
+    node.element.closest(".footer-v2") !== null;
+  const isOverlaySurface =
+    node.element.closest(`[${SURFACE_ATTR}="surface.settingsBackground"]`) !== null ||
+    node.element.closest(".settings") !== null;
   const isViewContainerItself =
+    node.id === "surface.serverBrowser" ||
+    node.id === "surface.modsBrowser" ||
+    node.id === "surface.settingsBackground" ||
     node.id === "view.servers" ||
     node.id === "view.favourites" ||
     node.id === "view.recent" ||
@@ -185,7 +261,7 @@ export function DevModeInspector() {
       if (!(target instanceof Element)) return;
       // Clicks inside the badge manage pin state themselves (Copy) — must not
       // also be reinterpreted as "click elsewhere" here.
-      if (target.closest("[data-dev-inspector]")) return;
+      if (target.closest("[data-dev-inspector], [data-dev-panel]")) return;
       const resolved = resolveDevTarget(target);
       setCopyState("idle");
       if (resolved === null) {
@@ -226,7 +302,7 @@ export function DevModeInspector() {
       }
       // Its own outline and the badge's own buttons — reaching for either
       // must not blank the readout "Copy selector" is about to act on.
-      if (target.closest("[data-dev-inspector]")) return;
+      if (target.closest("[data-dev-inspector], [data-dev-panel]")) return;
       const resolved = resolveDevTarget(target);
       if (resolved === null) {
         if (lastKey.current === "") return;
@@ -312,12 +388,14 @@ export function DevModeInspector() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [releasePin]);
 
-  const slot =
-    active !== null && active.node.kind === "slot"
-      ? SLOTS.find((s) => s.id === active.node.id)
+  const surfaceDef =
+    active !== null && active.node.kind === "surface"
+      ? REGISTRY.surfaces[active.node.id]
       : undefined;
-  const required = slot?.children.filter((c) => c.required) ?? [];
-  const optional = slot?.children.filter((c) => !c.required) ?? [];
+  const elementDef =
+    active !== null && active.node.kind === "el"
+      ? REGISTRY.elements[active.node.id]
+      : undefined;
   const { rect } = active ?? {};
 
   // The badge is measured rather than guessed: a full-height slot (the sidebar)
@@ -337,7 +415,7 @@ export function DevModeInspector() {
         <>
           <div
             data-dev-inspector
-            className="absolute rounded-[3px] border-2 border-[#ff4fd8] bg-[rgba(255,79,216,0.12)]"
+            className="absolute [border-radius:var(--t-radius-badge)] border-2 [border-color:rgb(255,79,216)] bg-[rgba(255,79,216,0.12)]"
             style={{ top: rect.top, left: rect.left, width: rect.width, height: rect.height }}
           />
           <div
@@ -346,7 +424,7 @@ export function DevModeInspector() {
             // Not pointer-events-auto here: the badge can land over real
             // content behind it, so only the two buttons below opt back in —
             // everything else stays click-through.
-            className="absolute overflow-auto rounded-[6px] border border-[#ff4fd8] bg-[rgba(12,10,16,0.95)] px-2.5 py-2 font-mono-data text-[10px] leading-[1.5] text-[#e9e6f2] shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
+            className="absolute overflow-auto [border-radius:var(--t-radius-control)] border [border-color:rgb(255,79,216)] bg-[rgba(12,10,16,0.95)] px-2.5 py-2 font-mono-data [font-size:var(--t-type-label-size)] leading-[1.5] [color:rgb(233,230,242)] [box-shadow:var(--t-shadow-inspector)]"
             style={{
               top,
               left,
@@ -355,29 +433,52 @@ export function DevModeInspector() {
             }}
           >
             <div className="flex items-center gap-1.5">
-              <span className="rounded-[3px] bg-[rgba(255,79,216,0.25)] px-1 py-px text-[9px] font-bold uppercase tracking-[0.04em] text-[#ff9ae8]">
-                {active.node.kind === "slot" ? "slot" : "el"}
+              <span className="[border-radius:var(--t-radius-badge)] bg-[rgba(255,79,216,0.25)] px-1 py-px [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.04em] [color:rgb(255,154,232)]">
+                {active.node.kind}
               </span>
-              <span className="break-all font-semibold text-[#ffd7f6]">{active.node.id}</span>
+              <span className="break-all font-semibold [color:rgb(255,215,246)]">{active.node.id}</span>
               {pinned && (
-                <span className="ml-auto shrink-0 text-[9px] uppercase tracking-[0.04em] text-[#9c93ad]">
+                <span className="ml-auto shrink-0 [font-size:var(--t-type-caption-size)] uppercase tracking-[0.04em] [color:rgb(156,147,173)]">
                   pinned · click elsewhere or Esc
                 </span>
               )}
             </div>
 
-            {active.node.kind === "slot" && (
+            <div className="mt-1 flex items-center gap-1.5 [font-size:var(--t-type-caption-size)]">
+              <span className="uppercase tracking-[0.04em] [color:rgb(156,147,173)]">context:</span>
+              <span className="[color:rgb(233,230,242)]">{active.node.context ?? "none"}</span>
+            </div>
+
+            {active.node.kind === "surface" && (
               <div className="mt-1.5 flex flex-col gap-0.5">
-                {!slot && <span className="text-[#ff9ae8]">not in the SLOTS registry</span>}
-                {(["required", "optional"] as const).map((group) => {
-                  const ids = (group === "required" ? required : optional).map((c) => c.id);
-                  return (
-                    <div key={group}>
-                      <span className="uppercase tracking-[0.04em] text-[#9c93ad]">{group}</span>
-                      <span className="ml-1.5">{ids.length > 0 ? ids.join(", ") : "—"}</span>
-                    </div>
-                  );
-                })}
+                {!surfaceDef && <span className="[color:rgb(255,154,232)]">not in the REGISTRY surfaces</span>}
+                {surfaceDef && (
+                  <div>
+                    <span className="uppercase tracking-[0.04em] [color:rgb(156,147,173)]">contains</span>
+                    <span className="ml-1.5">{surfaceDef.contains.length > 0 ? surfaceDef.contains.join(", ") : "—"}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {active.node.kind === "el" && (
+              <div className="mt-1.5 flex flex-col gap-0.5">
+                {!elementDef && <span className="[color:rgb(255,154,232)]">not in the REGISTRY elements</span>}
+                {elementDef && (
+                  <div>
+                    <span className="uppercase tracking-[0.04em] [color:rgb(156,147,173)]">kind</span>
+                    <span className="ml-1.5">{elementDef.kind}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {active.node.kind === "part" && active.node.partOf && (
+              <div className="mt-1.5 flex flex-col gap-0.5">
+                <div>
+                  <span className="uppercase tracking-[0.04em] [color:rgb(156,147,173)]">part of</span>
+                  <span className="ml-1.5">{active.node.partOf}</span>
+                </div>
               </div>
             )}
 
@@ -386,17 +487,17 @@ export function DevModeInspector() {
                 type="button"
                 onClick={() => void copySelector(active.node)}
                 className={cn(
-                  "pointer-events-auto shrink-0 rounded-[4px] border px-1.5 py-px text-[9.5px] font-semibold uppercase tracking-[0.04em]",
+                  "pointer-events-auto shrink-0 [border-radius:var(--t-radius-chip)] border px-1.5 py-px [font-size:var(--t-type-compactCaption-size)] font-semibold uppercase tracking-[0.04em]",
                   copyState === "failed"
                     ? "border-danger text-danger"
                     : copyState === "copied"
-                      ? "border-[#ff4fd8] bg-[rgba(255,79,216,0.2)] text-[#ff9ae8]"
-                      : "border-[#ff4fd8] text-[#ff9ae8] hover:bg-[rgba(255,79,216,0.2)]",
+                      ? "[border-color:rgb(255,79,216)] bg-[rgba(255,79,216,0.2)] [color:rgb(255,154,232)]"
+                      : "[border-color:rgb(255,79,216)] [color:rgb(255,154,232)] hover:bg-[rgba(255,79,216,0.2)]",
                 )}
               >
                 {copyState === "copied" ? "Copied!" : copyState === "failed" ? "Copy failed" : "Ctrl+C to copy"}
               </button>
-              <span className="break-all text-[#9c93ad]">{selectorFor(active.node)}</span>
+              <span className="break-all [color:rgb(156,147,173)]">{selectorFor(active.node)}</span>
             </div>
           </div>
         </>

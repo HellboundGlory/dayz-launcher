@@ -1,0 +1,410 @@
+import type { CSSProperties, ReactNode } from "react";
+import {
+  AppClose,
+  AppCollapseToggle,
+  AppDragRegion,
+  AppLogo,
+  AppMaximize,
+  AppMinimize,
+  AppSchemeToggle,
+  AppUiScale,
+} from "./app-elements";
+import {
+  NavFavourites,
+  NavMods,
+  NavRecent,
+  NavServers,
+  NavSettings,
+} from "./nav-elements";
+import {
+  StatusActivity,
+  StatusLastRefreshed,
+  StatusListSource,
+  StatusPopulated,
+  StatusServerTotal,
+  StatusSteam,
+} from "./status-elements";
+import {
+  NoticeError,
+  NoticeModsCached,
+  NoticeModsError,
+  NoticeModsOutdated,
+  NoticeModsResult,
+  NoticeStorage,
+  NoticeUpdate,
+  NoticeLaunch,
+  ServerActionNotice,
+} from "./notice-elements";
+import {
+  ServerAddress,
+  ServerCancel,
+  ServerCopyAddress,
+  ServerDeselect,
+  ServerCheckMods,
+  ServerFavourite,
+  ServerGameTime,
+  ServerInfo,
+  ServerJoin,
+  ServerLastPlayed,
+  ServerLoadToMenu,
+  ServerManageMods,
+  ServerMap,
+  ServerMenu,
+  ServerModCount,
+  ServerModUpdate,
+  ServerName,
+  ServerPing,
+  ServerPlayers,
+  ServerRefresh,
+  ServerRegion,
+  ServerSubscribeAll,
+  ServerTags,
+  ServerUnsubscribeUnique,
+  ServerVersion,
+} from "./server-elements";
+import {
+  FilterHideEmpty,
+  FilterHideFull,
+  FilterHideLocked,
+  FilterHideOffline,
+  FilterMap,
+  FilterMaxPing,
+  FilterMods,
+  FilterRegion,
+  FilterReset,
+  FilterSearch,
+  FilterSort,
+  FilterTags,
+  ServersRefresh,
+} from "./filter-elements";
+import { ModalClose } from "./modal-elements";
+import {
+  UpdateChangelog,
+  UpdateInstall,
+  UpdateLater,
+  UpdatePortableNote,
+  UpdateProgress,
+  UpdateSummary,
+  UpdateTitle,
+  UpdateViewRelease,
+} from "./update-elements";
+import { ServerListHost, ServerModsListHost, ModFilterResultsListHost } from "./list-elements";
+import { renderPopupElement } from "./popup-elements";
+import { ServerDownloadSize, ServerReadiness } from "./readiness-elements";
+import {
+  ServerModName,
+  ServerModOpenInSteam,
+  ServerModOrder,
+  ServerModProgress,
+  ServerModSize,
+  ServerModState,
+  ServerModThumbnail,
+  ServerModUnique,
+} from "./mod-elements";
+import { renderModsElement } from "./mods-element-host";
+import { renderModFilterElement } from "./mod-filter-elements";
+import {
+  SettingsBack,
+  SettingsDone,
+  SettingsTitle,
+  SettingsProfileName,
+  SettingsDayzPath,
+  SettingsDetectPaths,
+  SettingsWorkshopPath,
+  SettingsLaunchParams,
+  SettingsOnJoin,
+  SettingsMinimiseToTray,
+  SettingsCloseToTray,
+  SettingsStartWithWindows,
+  SettingsStartMinimised,
+  SettingsDiscordPresence,
+  SettingsDataFolder,
+  SettingsOpenDataFolder,
+  SettingsAutoRefresh,
+  SettingsThemeManagement,
+  SettingsSectionTitle,
+  SettingsSectionDescription,
+  SettingsSectionIcon,
+  SettingsGroupTitle,
+} from "./settings-elements";
+import { useElementContext } from "./context";
+import type { ElementNode } from "../renderer/types";
+
+export function ElementHost({
+  node,
+  className,
+  style: hostStyle,
+}: {
+  node: ElementNode;
+  className?: string;
+  style?: CSSProperties;
+}): ReactNode {
+  const { contextName } = useElementContext();
+  const mergedClass = [node.class, className].filter(Boolean).join(" ") || undefined;
+  const style =
+    node.glow === "always" || node.glow === "selected"
+      ? ({ ...hostStyle, "--t-glow-mode": node.glow } as CSSProperties)
+      : hostStyle;
+
+  const modsElement = renderModsElement(node, { className: mergedClass, style });
+  if (modsElement !== undefined) return modsElement;
+
+  const modFilterElement = renderModFilterElement(node, { className: mergedClass, style });
+  if (modFilterElement !== undefined) return modFilterElement;
+  const popupElement = renderPopupElement(node, { className: mergedClass, style });
+  if (popupElement !== undefined) return popupElement;
+
+  switch (node.element) {
+    case "app.minimize":
+      return <AppMinimize options={node.options} className={mergedClass} style={style} />;
+    case "app.maximize":
+      return <AppMaximize options={node.options} className={mergedClass} style={style} />;
+    case "app.close":
+      return <AppClose options={node.options} className={mergedClass} style={style} />;
+    case "app.dragRegion":
+      return <AppDragRegion className={mergedClass} style={style} />;
+    case "app.logo":
+      return <AppLogo options={node.options} className={mergedClass} style={style} />;
+    case "app.collapseToggle":
+      return (
+        <AppCollapseToggle options={node.options} className={mergedClass} style={style} />
+      );
+    case "app.uiScale":
+      return <AppUiScale options={node.options} className={mergedClass} style={style} />;
+    case "app.schemeToggle":
+      return <AppSchemeToggle options={node.options} className={mergedClass} style={style} />;
+
+    case "nav.servers":
+      return <NavServers options={node.options} className={mergedClass} style={style} />;
+    case "nav.favourites":
+      return <NavFavourites options={node.options} className={mergedClass} style={style} />;
+    case "nav.recent":
+      return <NavRecent options={node.options} className={mergedClass} style={style} />;
+    case "nav.mods":
+      return <NavMods options={node.options} className={mergedClass} style={style} />;
+    case "nav.settings":
+      return <NavSettings options={node.options} className={mergedClass} style={style} />;
+
+    case "status.steam":
+      return <StatusSteam options={node.options} className={mergedClass} style={style} />;
+    case "status.serverTotal":
+      return (
+        <StatusServerTotal options={node.options} className={mergedClass} style={style} />
+      );
+    case "status.populated":
+      return (
+        <StatusPopulated options={node.options} className={mergedClass} style={style} />
+      );
+    case "status.listSource":
+      return <StatusListSource className={mergedClass} style={style} />;
+    case "status.lastRefreshed":
+      return (
+        <StatusLastRefreshed options={node.options} className={mergedClass} style={style} />
+      );
+    case "status.activity":
+      return <StatusActivity className={mergedClass} style={style} />;
+
+    case "notice.storage":
+      return <NoticeStorage className={mergedClass} style={style} />;
+    case "notice.error":
+      return <NoticeError className={mergedClass} style={style} />;
+    case "notice.launch":
+      return <NoticeLaunch className={mergedClass} style={style} />;
+    case "notice.update":
+      return <NoticeUpdate className={mergedClass} style={style} />;
+    case "notice.modsError":
+      return <NoticeModsError className={mergedClass} style={style} />;
+    case "notice.modsCached":
+      return <NoticeModsCached className={mergedClass} style={style} />;
+    case "notice.modsResult":
+      return <NoticeModsResult className={mergedClass} style={style} />;
+    case "notice.modsOutdated":
+      return <NoticeModsOutdated className={mergedClass} style={style} />;
+    case "server.actionNotice":
+      return <ServerActionNotice className={mergedClass} style={style} />;
+
+    case "server.name":
+      return <ServerName className={mergedClass} style={style} />;
+    case "server.players":
+      return <ServerPlayers options={node.options} className={mergedClass} style={style} />;
+    case "server.ping":
+      return <ServerPing options={node.options} className={mergedClass} style={style} />;
+    case "server.map":
+      return <ServerMap className={mergedClass} style={style} />;
+    case "server.gameTime":
+    case "server.time":
+      return <ServerGameTime options={node.options} className={mergedClass} style={style} />;
+    case "server.tags":
+      return <ServerTags options={node.options} className={mergedClass} style={style} />;
+    case "server.favourite":
+      return <ServerFavourite options={node.options} className={mergedClass} style={style} />;
+    case "server.join":
+      return <ServerJoin options={node.options} className={mergedClass} style={style} />;
+    case "server.info":
+      return <ServerInfo options={node.options} className={mergedClass} style={style} />;
+    case "server.menu":
+      return <ServerMenu options={node.options} className={mergedClass} style={style} />;
+    case "server.loadToMenu":
+      return <ServerLoadToMenu options={node.options} className={mergedClass} style={style} />;
+    case "server.cancel":
+      return <ServerCancel options={node.options} className={mergedClass} style={style} />;
+    case "server.manageMods":
+      return <ServerManageMods options={node.options} className={mergedClass} style={style} />;
+    case "server.deselect":
+      return <ServerDeselect options={node.options} className={mergedClass} style={style} />;
+    case "server.refresh":
+      return <ServerRefresh options={node.options} className={mergedClass} style={style} />;
+    case "server.address":
+      return <ServerAddress options={node.options} className={mergedClass} style={style} />;
+    case "server.lastPlayed":
+      return <ServerLastPlayed options={node.options} className={mergedClass} style={style} />;
+    case "server.modCount":
+      return <ServerModCount options={node.options} className={mergedClass} style={style} />;
+    case "server.region":
+      return <ServerRegion options={node.options} className={mergedClass} style={style} />;
+    case "server.version":
+      return <ServerVersion className={mergedClass} style={style} />;
+    case "server.checkMods":
+      return <ServerCheckMods options={node.options} className={mergedClass} style={style} />;
+    case "server.subscribeAll":
+      return <ServerSubscribeAll options={node.options} className={mergedClass} style={style} />;
+    case "server.unsubscribeUnique":
+      return <ServerUnsubscribeUnique options={node.options} className={mergedClass} style={style} />;
+    case "server.readiness":
+      return <ServerReadiness options={node.options} className={mergedClass} style={style} />;
+    case "server.downloadSize":
+      return <ServerDownloadSize className={mergedClass} style={style} />;
+    case "server.copyAddress":
+      return <ServerCopyAddress options={node.options} className={mergedClass} style={style} />;
+    case "server.modUpdate":
+      return <ServerModUpdate options={node.options} className={mergedClass} style={style} />;
+
+    case "filter.search":
+      return <FilterSearch options={node.options} className={mergedClass} style={style} />;
+    case "filter.map":
+      return <FilterMap options={node.options} className={mergedClass} style={style} />;
+    case "filter.tags":
+      return <FilterTags options={node.options} className={mergedClass} style={style} />;
+    case "filter.region":
+      return <FilterRegion options={node.options} className={mergedClass} style={style} />;
+    case "filter.sort":
+      return <FilterSort options={node.options} className={mergedClass} style={style} />;
+    case "filter.maxPing":
+      return <FilterMaxPing options={node.options} className={mergedClass} style={style} />;
+    case "filter.hideEmpty":
+      return <FilterHideEmpty options={node.options} className={mergedClass} style={style} />;
+    case "filter.hideFull":
+      return <FilterHideFull options={node.options} className={mergedClass} style={style} />;
+    case "filter.hideLocked":
+      return <FilterHideLocked options={node.options} className={mergedClass} style={style} />;
+    case "filter.hideOffline":
+      return <FilterHideOffline options={node.options} className={mergedClass} style={style} />;
+    case "servers.refresh":
+      return <ServersRefresh options={node.options} className={mergedClass} style={style} />;
+    case "filter.reset":
+      return <FilterReset options={node.options} className={mergedClass} style={style} />;
+    case "filter.mods":
+      return <FilterMods options={node.options} className={mergedClass} style={style} />;
+
+    case "modal.close":
+      return <ModalClose options={node.options} className={mergedClass} style={style} />;
+
+    case "update.install":
+      return <UpdateInstall className={mergedClass} style={style} />;
+    case "update.viewRelease":
+      return <UpdateViewRelease options={node.options} className={mergedClass} style={style} />;
+    case "update.later":
+      return <UpdateLater options={node.options} className={mergedClass} style={style} />;
+    case "update.title":
+      return <UpdateTitle className={mergedClass} style={style} />;
+    case "update.summary":
+      return <UpdateSummary className={mergedClass} style={style} />;
+    case "update.changelog":
+      return <UpdateChangelog className={mergedClass} style={style} />;
+    case "update.progress":
+      return <UpdateProgress options={node.options} className={mergedClass} style={style} />;
+    case "update.portableNote":
+      return <UpdatePortableNote className={mergedClass} style={style} />;
+
+    case "list.servers":
+      return <ServerListHost className={mergedClass} style={style} />;
+    case "list.serverMods":
+      return <ServerModsListHost className={mergedClass} style={style} />;
+    case "list.modFilterResults":
+      return <ModFilterResultsListHost className={mergedClass} style={style} />;
+
+    case "serverMod.state":
+      return <ServerModState options={node.options} className={mergedClass} style={style} />;
+    case "serverMod.name":
+      return <ServerModName className={mergedClass} style={style} />;
+    case "serverMod.size":
+      return <ServerModSize className={mergedClass} style={style} />;
+    case "serverMod.order":
+      return <ServerModOrder className={mergedClass} style={style} />;
+    case "serverMod.thumbnail":
+      return <ServerModThumbnail className={mergedClass} style={style} />;
+    case "serverMod.progress":
+      return <ServerModProgress className={mergedClass} style={style} />;
+    case "serverMod.unique":
+      return <ServerModUnique options={node.options} className={mergedClass} style={style} />;
+    case "serverMod.openInSteam":
+      return <ServerModOpenInSteam options={node.options} className={mergedClass} style={style} />;
+
+    case "settings.back":
+      return <SettingsBack options={node.options} className={mergedClass} style={style} />;
+    case "settings.done":
+      return <SettingsDone options={node.options} className={mergedClass} style={style} />;
+    case "settings.title":
+      return <SettingsTitle className={mergedClass} style={style} />;
+    case "settings.profileName":
+      return <SettingsProfileName options={node.options} className={mergedClass} style={style} />;
+    case "settings.dayzPath":
+      return <SettingsDayzPath options={node.options} className={mergedClass} style={style} />;
+    case "settings.detectPaths":
+      return <SettingsDetectPaths className={mergedClass} style={style} />;
+    case "settings.workshopPath":
+      return <SettingsWorkshopPath options={node.options} className={mergedClass} style={style} />;
+    case "settings.launchParams":
+      return <SettingsLaunchParams options={node.options} className={mergedClass} style={style} />;
+    case "settings.onJoin":
+      return <SettingsOnJoin options={node.options} className={mergedClass} style={style} />;
+    case "settings.minimiseToTray":
+      return <SettingsMinimiseToTray options={node.options} className={mergedClass} style={style} />;
+    case "settings.closeToTray":
+      return <SettingsCloseToTray options={node.options} className={mergedClass} style={style} />;
+    case "settings.startWithWindows":
+      return <SettingsStartWithWindows options={node.options} className={mergedClass} style={style} />;
+    case "settings.startMinimised":
+      return <SettingsStartMinimised options={node.options} className={mergedClass} style={style} />;
+    case "settings.discordPresence":
+      return <SettingsDiscordPresence options={node.options} className={mergedClass} style={style} />;
+    case "settings.dataFolder":
+      return <SettingsDataFolder options={node.options} className={mergedClass} style={style} />;
+    case "settings.openDataFolder":
+      return <SettingsOpenDataFolder className={mergedClass} style={style} />;
+    case "settings.autoRefresh":
+      return <SettingsAutoRefresh options={node.options} className={mergedClass} style={style} />;
+    case "settings.themeManagement":
+      return <SettingsThemeManagement className={mergedClass} style={style} />;
+    case "settings.sectionTitle":
+      return <SettingsSectionTitle options={node.options} className={mergedClass} style={style} />;
+    case "settings.sectionDescription":
+      return <SettingsSectionDescription options={node.options} className={mergedClass} style={style} />;
+    case "settings.sectionIcon":
+      return <SettingsSectionIcon options={node.options} className={mergedClass} style={style} />;
+    case "settings.groupTitle":
+      return <SettingsGroupTitle options={node.options} className={mergedClass} style={style} />;
+
+    default:
+      return (
+        <div
+          data-el={node.element}
+          data-context={contextName}
+          className={mergedClass}
+          style={style}
+        >
+          {node.label}
+        </div>
+      );
+  }
+}

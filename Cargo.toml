@@ -53,3 +53,6 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 # Compares a theme's `version` and `minimumLauncherVersion` against a real
 # version; plain string ordering would rank "1.10.0" below "1.9.0".
 semver = "1"
+# Fingerprints an installed builtin theme so a pristine copy can be told from
+# an edited one. Must stay stable across toolchains, which DefaultHasher is not.
+sha2 = "0.10"

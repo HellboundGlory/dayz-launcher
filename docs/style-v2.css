@@ -796,11 +796,13 @@ code {
     padding-top: 72px;
     padding-bottom: 76px;
   }
+  /* Brand and links on their own rows, so the links never spill out of the bar. */
   .site-nav .container {
-    height: 56px;
+    height: auto;
+    row-gap: 0;
   }
   .brand {
-    height: 56px;
+    height: 48px;
     font-size: 12.5px;
     gap: 8px;
   }
@@ -808,7 +810,7 @@ code {
     gap: 16px;
   }
   nav.links a {
-    height: 56px;
+    height: 40px;
     font-size: 10px;
   }
   .container {

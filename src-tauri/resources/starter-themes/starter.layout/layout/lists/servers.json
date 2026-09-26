@@ -1,0 +1,154 @@
+{
+  "schemaVersion": 2,
+  "overflowX": "scroll",
+  "estimatedRowHeight": "37px",
+  "columns": [
+    {
+      "id": "favourite",
+      "width": "32px",
+      "align": "center",
+      "label": "",
+      "resizable": false
+    },
+    {
+      "id": "name",
+      "width": "420px",
+      "align": "start",
+      "sort": "name",
+      "label": "SERVER NAME",
+      "minWidth": "120px"
+    },
+    {
+      "id": "address",
+      "width": "156px",
+      "align": "start",
+      "label": "ADDRESS",
+      "minWidth": "90px"
+    },
+    {
+      "id": "time",
+      "width": "108px",
+      "align": "start",
+      "label": "TIME",
+      "minWidth": "78px"
+    },
+    {
+      "id": "last-played",
+      "width": "104px",
+      "align": "start",
+      "sort": "lastPlayed",
+      "label": "LAST PLAYED",
+      "minWidth": "70px"
+    },
+    {
+      "id": "map",
+      "width": "148px",
+      "align": "start",
+      "sort": "map",
+      "label": "MAP",
+      "minWidth": "70px"
+    },
+    {
+      "id": "players",
+      "width": "104px",
+      "align": "end",
+      "sort": "players",
+      "label": "PLAYERS",
+      "minWidth": "76px"
+    },
+    {
+      "id": "mods",
+      "width": "64px",
+      "align": "end",
+      "sort": "mods",
+      "label": "MODS",
+      "minWidth": "48px"
+    },
+    {
+      "id": "ping",
+      "width": "68px",
+      "align": "end",
+      "sort": "ping",
+      "label": "PING",
+      "minWidth": "52px"
+    },
+    {
+      "id": "actions",
+      "width": "1fr",
+      "align": "start",
+      "label": ""
+    }
+  ],
+  "row": {
+    "type": "grid",
+    "class": "t-row",
+    "children": [
+      {
+        "element": "server.favourite",
+        "column": "favourite"
+      },
+      {
+        "type": "stack",
+        "direction": "row",
+        "align": "center",
+        "gap": "space.6",
+        "class": "t-name-cell",
+        "column": "name",
+        "children": [
+          { "element": "server.name" },
+          {
+            "element": "server.tags",
+            "options": { "officialWording": "official" }
+          }
+        ]
+      },
+      {
+        "element": "server.address",
+        "column": "address"
+      },
+      {
+        "element": "server.gameTime",
+        "column": "time"
+      },
+      {
+        "element": "server.lastPlayed",
+        "column": "last-played",
+        "options": { "label": "", "showNever": true }
+      },
+      {
+        "element": "server.map",
+        "column": "map"
+      },
+      {
+        "element": "server.players",
+        "column": "players",
+        "options": { "showCaption": false }
+      },
+      {
+        "element": "server.modCount",
+        "column": "mods",
+        "options": { "showCaption": false }
+      },
+      {
+        "element": "server.ping",
+        "column": "ping",
+        "options": { "showCaption": false }
+      },
+      {
+        "type": "stack",
+        "direction": "row",
+        "align": "center",
+        "class": "t-row-actions",
+        "column": "actions",
+        "children": [
+          { "element": "server.refresh" },
+          {
+            "element": "server.join",
+            "options": { "display": "icon" }
+          },
+          { "element": "server.actionNotice" }
+        ]
+      }
+    ]
+  }
+}

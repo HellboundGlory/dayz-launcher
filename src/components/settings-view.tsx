@@ -5,36 +5,7 @@ import { useSettingsStore } from "@/stores/settings-store";
 import { discoverSteamPaths, dataFolderPath, openDataFolder } from "@/lib/tauri";
 import { SettingsAccordion } from "./settings-accordion";
 import { ThemesSection } from "./themes-page/ThemesSection";
-
-type SecId = "game" | "launcher" | "theme";
-
-const SECS: { id: SecId; icon: typeof Gamepad2; title: string; description: string }[] = [
-  { id: "game", icon: Gamepad2, title: "Game", description: "DayZ path, launch params, join behaviour" },
-  {
-    id: "launcher",
-    icon: AppWindow,
-    title: "Launcher",
-    description: "Tray, startup, refresh cadence, Discord presence",
-  },
-  { id: "theme", icon: Palette, title: "Theme", description: "Palette, bloom, custom skins" },
-];
-
-/** The auto-refresh choices, in seconds. `0` is off. */
-const REFRESH_INTERVALS: { value: number; label: string }[] = [
-  { value: 0, label: "Never" },
-  { value: 30, label: "Every 30 seconds" },
-  { value: 60, label: "Every minute" },
-  { value: 300, label: "Every 5 minutes" },
-  { value: 600, label: "Every 10 minutes" },
-];
-
-/** The shared text-input / select styling (board `.field input`). */
-const INPUT_CLASS =
-  "w-full rounded-[6px] border border-line bg-bg px-2.5 py-2 text-xs text-ink placeholder-muted outline-none transition-colors duration-150 hover:border-line-weak focus:border-accent-line";
-
-/** Small secondary button (Detect / Open) sitting next to an input. */
-const BUTTON_CLASS =
-  "flex shrink-0 items-center gap-1.5 rounded-[6px] border border-line bg-surface2 px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted2 transition-colors duration-150 hover:text-ink disabled:opacity-50";
+import { type SecId, SECS, REFRESH_INTERVALS, INPUT_CLASS, BUTTON_CLASS, Field, CheckboxRow } from "./settings-controls";
 
 // Full-page overlay; the sidebar stays interactive. Four accordions, one open at a time.
 export function SettingsView({
@@ -118,11 +89,9 @@ export function SettingsView({
 
   return (
     <div
-      data-tetra-slot="settings.background"
-      className="settings absolute bottom-0 right-0 top-7 left-[var(--side-w,176px)] z-40 flex flex-col bg-bg transition-[left] duration-200"
+      className="settings absolute bottom-0 right-0 top-7 left-[var(--side-w,176px)] z-40 flex flex-col bg-bg transition-[left] [transition-duration:var(--t-motion-expand-duration)]"
     >
       <div
-        data-tetra-slot="settings.shell"
         className="s-head flex shrink-0 items-center justify-between border-b border-line bg-surface px-[18px] py-[13px]"
       >
         <div className="lt flex items-center gap-2.5">
@@ -130,7 +99,7 @@ export function SettingsView({
             data-tetra-el="backAction"
             onClick={onClose}
             aria-label="Back to the launcher"
-            className="s-back flex items-center gap-1.5 rounded-[6px] border border-line bg-surface2 px-2.5 py-1.5 text-[10px] font-semibold text-muted2 transition-colors hover:border-accent-line hover:text-ink"
+            className="s-back flex items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-1.5 [font-size:var(--t-type-label-size)] font-semibold text-muted2 transition-colors hover:border-accent-line hover:text-ink"
           >
             <ChevronLeft className="h-3 w-3" />
             Back
@@ -148,10 +117,9 @@ export function SettingsView({
           open={openSec === "game"}
           onToggle={() => toggle("game")}
           onKeyDown={(e) => rove(e, 0)}
-          tetraSlot="settings.game"
           tetraToggleEl="sectionToggle"
         >
-          <div data-tetra-slot="settings.game">
+          <div>
             <Field label="In-Game Name" hint={'Sets -name= at launch, so you are not "Survivor".'}>
               <input
                 data-tetra-el="profileNameInput"
@@ -219,7 +187,7 @@ export function SettingsView({
                 placeholder={"-noPause\n-cpuCount=4"}
                 spellCheck={false}
                 rows={3}
-                className={cn(INPUT_CLASS, "resize-y font-mono text-[11px]")}
+                className={cn(INPUT_CLASS, "resize-y font-mono [font-size:var(--t-type-body-size)]")}
               />
             </Field>
           </div>
@@ -233,10 +201,9 @@ export function SettingsView({
           open={openSec === "launcher"}
           onToggle={() => toggle("launcher")}
           onKeyDown={(e) => rove(e, 1)}
-          tetraSlot="settings.launcher"
           tetraToggleEl="sectionToggle"
         >
-          <div data-tetra-slot="settings.launcher">
+          <div>
             <div data-tetra-el="windowOptions">
               <h3 className="mb-1 text-xs font-medium text-ink">Window</h3>
               {/* Two independent switches, not one list. Each names the button it
@@ -299,14 +266,14 @@ export function SettingsView({
                     className="mt-0.5 size-3.5 shrink-0 accent-accent disabled:cursor-not-allowed"
                   />
                   <span>
-                    <span className="block text-[11px] text-ink">Start minimised</span>
-                    <span className="mt-0.5 block text-[9px] leading-[1.4] text-muted">
+                    <span className="block [font-size:var(--t-type-body-size)] text-ink">Start minimised</span>
+                    <span className="mt-0.5 block [font-size:var(--t-type-caption-size)] leading-[1.4] text-muted">
                       Start hidden in the tray. Opening the launcher yourself always shows the window.
                     </span>
                   </span>
                 </label>
               </div>
-              <p className="mt-1.5 text-[10px] leading-relaxed text-muted">
+              <p className="mt-1.5 [font-size:var(--t-type-label-size)] leading-relaxed text-muted">
                 Start with Windows does nothing in a debug build — the entry would point at the
                 build folder and replace your installed copy&apos;s.
               </p>
@@ -334,7 +301,7 @@ export function SettingsView({
                     // Selectable so the path can be copied, but not a control
                     // that pretends to be editable.
                     onFocus={(e) => e.currentTarget.select()}
-                    className={cn(INPUT_CLASS, "cursor-text font-mono text-[10px]")}
+                    className={cn(INPUT_CLASS, "cursor-text font-mono [font-size:var(--t-type-label-size)]")}
                   />
                   <button
                     onClick={() => void openDataFolder()}
@@ -377,10 +344,9 @@ export function SettingsView({
           open={openSec === "theme"}
           onToggle={() => toggle("theme")}
           onKeyDown={(e) => rove(e, 2)}
-          tetraSlot="settings.theme"
           tetraToggleEl="sectionToggle"
         >
-          <div data-tetra-slot="settings.theme">
+          <div>
             <div data-tetra-el="themeManagement">
               <ThemesSection devMode={devMode} onDevModeChange={onDevModeChange} />
             </div>
@@ -388,52 +354,5 @@ export function SettingsView({
         </SettingsAccordion>
       </div>
     </div>
-  );
-}
-
-/** A labelled control with an optional explanatory line beneath it. */
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="field mb-3.5">
-      <div className="fb text-[10px] font-semibold text-ink">{label}</div>
-      {hint && <div className="fh mt-0.5 text-[9px] leading-[1.4] text-muted">{hint}</div>}
-      <div className="mt-1.5">{children}</div>
-    </div>
-  );
-}
-
-/** A checkbox with a label and a one-line explanation. */
-function CheckboxRow({
-  checked,
-  onChange,
-  label,
-  hint,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-  hint?: string;
-}) {
-  return (
-    <label className="chk flex cursor-pointer items-start gap-2 py-1.5">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="mt-0.5 size-3.5 shrink-0 accent-accent"
-      />
-      <span className="min-w-0">
-        <span className="cl block text-[11px] text-ink">{label}</span>
-        {hint && <span className="ch mt-0.5 block text-[9px] leading-[1.4] text-muted">{hint}</span>}
-      </span>
-    </label>
   );
 }

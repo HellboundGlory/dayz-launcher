@@ -19,6 +19,9 @@ mod state;
 mod theme;
 mod window_state;
 
+pub use theme::registry;
+pub use theme::validator;
+
 /// Added to the command line registered with the OS startup entry, so
 /// `start_minimised` can apply only to an OS-triggered launch.
 const AUTOSTART_FLAG: &str = "--autostart";
@@ -161,6 +164,7 @@ pub fn run() {
             commands::mods::get_unique_mods_for,
             commands::mods::get_servers_needing,
             commands::mods::get_known_mods,
+            commands::mods::get_workshop_previews,
             commands::mods::search_workshop_mods,
             commands::mods::reinstall_subscribed_mod,
             commands::mods::update_subscribed_mods,
@@ -172,18 +176,19 @@ pub fn run() {
             commands::settings::data_folder_path,
             commands::theme::list_installed_themes,
             commands::theme::get_theme,
+            commands::theme::validate_theme,
             commands::theme::save_theme,
+            commands::theme::derive_theme,
+            commands::theme::update_theme_tokens,
             commands::theme::delete_theme,
             commands::theme::get_theme_settings_values,
             commands::theme::set_theme_settings_value,
-            commands::theme::save_theme_layout,
             commands::theme::set_active_theme_id,
             commands::theme::migrate_legacy_custom_themes,
             commands::theme::import_theme_preview,
             commands::theme::confirm_theme_install,
             commands::theme::export_theme,
             commands::theme::arm_activation,
-            commands::theme::arm_layout_edit,
             commands::theme::confirm_activation,
             commands::theme::revert_activation,
             commands::theme::get_activation_status,

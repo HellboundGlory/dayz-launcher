@@ -12,10 +12,6 @@ interface SettingsAccordionProps {
   children: React.ReactNode;
   /** Roving-arrow navigation across the accordion headers. */
   onKeyDown: (e: React.KeyboardEvent) => void;
-  /** The theme slot this whole section belongs to, and the child id for its
-   * own toggle header — passed by the caller, since this component is shared
-   * across sections that each map to a different slot. */
-  tetraSlot?: string;
   tetraToggleEl?: string;
 }
 
@@ -34,7 +30,6 @@ export function SettingsAccordion({
   onToggle,
   onKeyDown,
   children,
-  tetraSlot,
   tetraToggleEl,
 }: SettingsAccordionProps) {
   const bodyId = `settings-acc-${id}`;
@@ -42,8 +37,7 @@ export function SettingsAccordion({
 
   return (
     <section
-      data-tetra-slot={tetraSlot}
-      className={cn("sec overflow-hidden rounded-[9px] border border-line bg-surface", open && "open")}
+      className={cn("sec overflow-hidden [border-radius:var(--t-radius-panel)] border border-line bg-surface", open && "open")}
     >
       <button
         ref={headerRef}
@@ -60,12 +54,12 @@ export function SettingsAccordion({
           {icon}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[12px] font-semibold text-ink">{title}</span>
-          <span className="mt-0.5 block truncate text-[10px] text-muted">{description}</span>
+          <span className="block [font-size:var(--t-type-subheading-size)] font-semibold text-ink">{title}</span>
+          <span className="mt-0.5 block truncate [font-size:var(--t-type-label-size)] text-muted">{description}</span>
         </span>
         <span
           className={cn(
-            "flex shrink-0 text-muted transition-transform duration-200",
+            "flex shrink-0 text-muted transition-transform [transition-duration:var(--t-motion-expand-duration)]",
             open && "rotate-180",
           )}
         >

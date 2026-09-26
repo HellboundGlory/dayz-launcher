@@ -70,7 +70,7 @@ export function SplashScreen({ status, detail, pct }: SplashScreenProps) {
           src={tetraLogo}
           alt=""
           draggable={false}
-          className="size-5 rounded-[4px] shadow-[var(--glow)]"
+          className="size-5 rounded-[4px] [box-shadow:var(--t-glow-rest)]"
         />
         <span className="font-mono-data text-[9.5px] font-bold tracking-[0.1em] text-[#c7d2df]">
           TETRA <span className="text-accent">//</span> LAUNCHER

@@ -1,7 +1,5 @@
 import {
   Fragment,
-  useCallback,
-  useEffect,
   useRef,
   useState,
   type ReactNode,
@@ -9,22 +7,10 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useServerStore } from "@/stores/server-store";
 import { Star } from "lucide-react";
-import {
-  getServerList,
-  getMapList,
-  logClient,
-  toggleFavourite,
-  type FilterParams,
-  type SortParams,
-} from "@/lib/tauri";
+import { toggleFavourite } from "@/lib/tauri";
 import type { Server } from "@/types/server";
 import type { ViewId } from "./sidebar";
 import { cn, formatGameTime, formatLastPlayed, regionName } from "@/lib/utils";
-import { useResolvedSlot } from "@/theme/use-resolved-layout";
-import { slotChildrenToRender } from "@/theme/slot-children";
-import { ComponentTreeRenderer } from "@/theme/component-tree-renderer";
-import { useThemeStore } from "@/theme/theme-store";
-import { useComponentComposition } from "@/theme/use-component-composition";
 import { ServerRowActions } from "./server-row-actions";
 
 interface ServerListProps {
@@ -149,7 +135,7 @@ export function serverRowNodes(
         <div
           data-tetra-el="playerCount"
           className={cn(
-            "font-mono-data text-[13px] font-bold tabular-nums leading-none",
+            "font-mono-data [font-size:var(--t-type-statValue-size)] font-bold tabular-nums leading-none",
             !server.online || server.players === 0
               ? "text-muted"
               : server.players >= server.max_players
@@ -163,14 +149,14 @@ export function serverRowNodes(
           {server.players}/{server.max_players}
           {server.queue != null && server.queue > 0 && (
             <span
-              className="text-[10px] text-warn"
+              className="[font-size:var(--t-type-data-size)] text-warn"
               title={`${server.queue} waiting in the join queue`}
             >
               +{server.queue}
             </span>
           )}
         </div>
-        <div className="mt-0.5 text-[7px] font-bold uppercase tracking-[0.07em] text-muted">
+        <div className="mt-0.5 [font-size:var(--t-type-statCaption-size)] font-bold uppercase [letter-spacing:var(--t-type-statCaption-tracking)] text-muted">
           Players
         </div>
       </div>
@@ -180,7 +166,7 @@ export function serverRowNodes(
         <div
           data-tetra-el="pingBadge"
           className={cn(
-            "font-mono-data text-[13px] font-bold tabular-nums leading-none",
+            "font-mono-data [font-size:var(--t-type-statValue-size)] font-bold tabular-nums leading-none",
             !server.online || server.ping === null
               ? "text-muted"
               : server.ping > 120
@@ -193,7 +179,7 @@ export function serverRowNodes(
         >
           {server.online ? (server.ping ?? "—") : "—"}
         </div>
-        <div className="mt-0.5 text-[7px] font-bold uppercase tracking-[0.07em] text-muted">
+        <div className="mt-0.5 [font-size:var(--t-type-statCaption-size)] font-bold uppercase [letter-spacing:var(--t-type-statCaption-tracking)] text-muted">
           Ping
         </div>
       </div>
@@ -201,7 +187,7 @@ export function serverRowNodes(
     modCountLabel: (
       <div data-tetra-el="modCountLabel" className="l2-stat text-right">
         <ModCount server={server} />
-        <div className="mt-0.5 text-[7px] font-bold uppercase tracking-[0.07em] text-muted">
+        <div className="mt-0.5 [font-size:var(--t-type-statCaption-size)] font-bold uppercase [letter-spacing:var(--t-type-statCaption-tracking)] text-muted">
           Mods
         </div>
       </div>
@@ -257,22 +243,12 @@ function renderStats(
   return groupedNodes(ids, nodes).map(({ id, node }) => <Fragment key={id}>{node}</Fragment>);
 }
 
-/** How often the distinct-maps dropdown is refetched — decoupled from the row-reload cadence. */
-const MAP_LIST_REFRESH_MS = 10_000;
 
 // Rich-row server list: data loading, sort/filter wiring, favourite handling.
 export function ServerList({ view, onMoreInfo }: ServerListProps) {
   const servers = useServerStore((s) => s.servers);
-  const setServers = useServerStore((s) => s.setServers);
   const selectedServer = useServerStore((s) => s.selectedServer);
   const setSelectedServer = useServerStore((s) => s.setSelectedServer);
-  const filter = useServerStore((s) => s.filter);
-  const sortKey = useServerStore((s) => s.sortKey);
-  const sortDir = useServerStore((s) => s.sortDir);
-  const loadVersion = useServerStore((s) => s.loadVersion);
-  const setLoading = useServerStore((s) => s.setLoading);
-  const setMaps = useServerStore((s) => s.setMaps);
-  const setHasLoadedOnce = useServerStore((s) => s.setHasLoadedOnce);
   const toggleFavouriteLocal = useServerStore((s) => s.toggleFavourite);
   const modPending = useServerStore((s) => s.modPending);
   const hasLoadedOnce = useServerStore((s) => s.hasLoadedOnce);
@@ -280,119 +256,6 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
   // Row whose ⋯ menu is open — lifted above siblings since virtualized rows
   // are each their own stacking context.
   const [menuOpenKey, setMenuOpenKey] = useState<string | null>(null);
-
-  // One load at a time, and a bump that lands mid-load is remembered rather
-  // than pre-empting it. Cancelling the in-flight run on every bump starved
-  // it outright: a 40k-row read takes longer than the reload cadence during
-  // discovery, so every run was superseded before it could apply and the
-  // table stayed empty (splash up) for the whole pass.
-  const loadInFlight = useRef(false);
-  const reloadQueued = useRef(false);
-  // Read at run time, so a coalesced re-run uses the newest filter/sort
-  // rather than whatever was current when it was queued.
-  const queryRef = useRef<{
-    filterParams: FilterParams;
-    sortParams: SortParams;
-  } | null>(null);
-
-  const runLoad = useCallback(async () => {
-    if (loadInFlight.current) {
-      reloadQueued.current = true;
-      return;
-    }
-    loadInFlight.current = true;
-    setLoading(true);
-    try {
-      do {
-        reloadQueued.current = false;
-        const query = queryRef.current;
-        if (!query) break;
-        const t0 = performance.now();
-        void logClient("servers", "load: start", true);
-        try {
-          const rows = await getServerList(
-            query.filterParams,
-            query.sortParams,
-          );
-          setServers(rows);
-          void logClient(
-            "servers",
-            `load: ${rows.length} rows in ${Math.round(performance.now() - t0)}ms`,
-            true,
-          );
-        } catch (e) {
-          void logClient("servers", `load: failed: ${String(e)}`);
-          console.error("Failed to load servers:", e);
-        }
-      } while (reloadQueued.current);
-    } finally {
-      loadInFlight.current = false;
-      setLoading(false);
-      setHasLoadedOnce();
-    }
-  }, [setLoading, setServers, setHasLoadedOnce]);
-
-  useEffect(() => {
-    queryRef.current = {
-      filterParams: {
-        maps: filter.maps,
-        countries: filter.countries,
-        hide_empty: filter.hide_empty,
-        hide_full: filter.hide_full,
-        hide_locked: filter.hide_locked,
-        hide_offline: filter.hide_offline,
-        max_ping: filter.max_ping,
-        search: filter.search,
-        favourites_only: filter.favourites_only,
-        recent_only: filter.recent_only,
-        official: filter.official,
-        modded: filter.modded,
-        first_person: filter.first_person,
-        mod_ids: filter.mod_ids,
-        mod_match: filter.mod_match,
-        mod_ids_exclude: filter.mod_ids_exclude,
-      },
-      sortParams: {
-        sort_key: sortKey,
-        sort_dir: sortDir,
-        // Covers the whole DayZ browser (~30k servers) rather than a slice:
-        // at 5000, with the default players-descending sort, empty servers
-        // (most of the browser) fell off the end. The list is virtualised;
-        // REFRESH still probes only the first PROBE_WINDOW rows.
-        limit: 40000,
-      },
-    };
-    void runLoad();
-  }, [
-    filter,
-    sortKey,
-    sortDir,
-    loadVersion,
-    runLoad,
-  ]);
-
-  // Distinct maps for the filter dropdown, decoupled from loadVersion so a
-  // discovery storm doesn't mean a GROUP BY several times a second.
-  useEffect(() => {
-    let cancelled = false;
-    const fetchMaps = () => {
-      getMapList()
-        .then((maps) => {
-          if (!cancelled) setMaps(maps);
-        })
-        .catch((e) => {
-          if (!cancelled)
-            void logClient("servers", `getMapList failed: ${String(e)}`);
-        });
-    };
-    fetchMaps();
-    const id = window.setInterval(fetchMaps, MAP_LIST_REFRESH_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Optimistic: flip it locally so the star responds instantly, then persist.
   // On failure, flip back rather than leaving the UI asserting something the
@@ -418,23 +281,16 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
   });
   const virtualItems = rowVirtualizer.getVirtualItems();
 
-  // A row's four DOM groups, in resolved order. Same for every row — only the
-  // data differs — so this is resolved once here, not per virtual item.
-  // Only `name` is required here; `tagsLine` is optional and may be hidden.
-  const slot = useResolvedSlot("server.row");
-  const favouriteIds = slotChildrenToRender(slot, [], SERVER_ROW_GROUPS.favourite);
-  const nameLineIds = slotChildrenToRender(slot, ["name"], SERVER_ROW_GROUPS.nameLine);
-  const detailIds = slotChildrenToRender(slot, [], SERVER_ROW_GROUPS.details);
-  const statIds = slotChildrenToRender(slot, [], SERVER_ROW_GROUPS.stats);
-
-  const activeId = useThemeStore((s) => s.activeId);
-  const composition = useComponentComposition("server.row");
+  const favouriteIds = SERVER_ROW_GROUPS.favourite;
+  const nameLineIds = SERVER_ROW_GROUPS.nameLine;
+  const detailIds = SERVER_ROW_GROUPS.details;
+  const statIds = SERVER_ROW_GROUPS.stats;
 
   return (
     <div ref={scrollRef} className="l2-body min-h-0 flex-1 overflow-y-auto p-2">
       {servers.length === 0 ? (
         <div className="flex h-32 items-center justify-center">
-          <span className="text-[11px] text-muted">
+          <span className="[font-size:var(--t-type-body-size)] text-muted">
             {hasLoadedOnce
               ? "No servers match the current filters."
               : "No servers yet — the list fills in once Steam connects."}
@@ -456,15 +312,14 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
             return (
               <div
                 key={rowKey}
-                data-tetra-slot="server.row"
                 data-index={virtualRow.index}
                 ref={rowVirtualizer.measureElement}
                 onClick={() => setSelectedServer(server)}
                 className={cn(
-                  "l2-row flex cursor-pointer items-center gap-3 rounded-[8px] border border-line bg-surface px-3 py-2 transition-[border-color,background,box-shadow] duration-150",
+                  "l2-row flex cursor-pointer items-center gap-3 [border-radius:var(--t-radius-row)] border border-line bg-surface px-3 py-2 transition-[border-color,background,box-shadow] [transition-duration:var(--t-motion-hover-duration)]",
                   "hover:border-accent-line",
                   isSelected &&
-                    "border-accent-line bg-accent-soft shadow-[var(--glow)]",
+                    "border-accent-line bg-accent-soft [box-shadow:var(--t-glow-selected)]",
                   !server.online && "opacity-50",
                 )}
                 style={{
@@ -476,28 +331,22 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                   zIndex: menuOpenKey === rowKey ? 10 : undefined,
                 }}
               >
-                {composition !== null ? (
-                  <ComponentTreeRenderer node={composition} nodes={nodes} themeId={activeId} />
-                ) : (
-                  <>
-                    {favouriteIds.map((id) => (
-                      <Fragment key={id}>{nodes[id]}</Fragment>
-                    ))}
+                {favouriteIds.map((id) => (
+                  <Fragment key={id}>{nodes[id]}</Fragment>
+                ))}
 
-                    <div className="l2-main min-w-0 flex-1">
-                      <div className="flex items-center gap-1 whitespace-nowrap text-[12px] font-semibold">
-                        {renderNameLine(nameLineIds, nodes, pending)}
-                      </div>
-                      <div className="mt-0.5 flex items-center gap-2.5 whitespace-nowrap text-[9px] text-muted">
-                        {renderDetails(detailIds, nodes)}
-                      </div>
-                    </div>
+                <div className="l2-main min-w-0 flex-1">
+                  <div className="flex items-center gap-1 whitespace-nowrap [font-size:var(--t-type-rowName-size)] font-semibold">
+                    {renderNameLine(nameLineIds, nodes, pending)}
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-2.5 whitespace-nowrap [font-size:var(--t-type-rowMeta-size)] text-muted">
+                    {renderDetails(detailIds, nodes)}
+                  </div>
+                </div>
 
-                    <div className="l2-stats flex shrink-0 items-center gap-3.5">
-                      {renderStats(statIds, nodes)}
-                    </div>
-                  </>
-                )}
+                <div className="l2-stats flex shrink-0 items-center gap-3.5">
+                  {renderStats(statIds, nodes)}
+                </div>
 
                 <ServerRowActions
                   server={server}
@@ -523,7 +372,7 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
 function ModCount({ server }: { server: Server }) {
   if (server.mod_count !== null) {
     return (
-      <div className="font-mono-data text-[13px] font-bold tabular-nums leading-none text-accent2">
+      <div className="font-mono-data [font-size:var(--t-type-statValue-size)] font-bold tabular-nums leading-none text-accent2">
         {server.mod_count === 0 ? "—" : server.mod_count}
       </div>
     );
@@ -531,7 +380,7 @@ function ModCount({ server }: { server: Server }) {
   if (server.modded) {
     return (
       <div
-        className="font-mono-data text-[13px] font-bold leading-none text-warn/80"
+        className="font-mono-data [font-size:var(--t-type-statValue-size)] font-bold leading-none text-warn/80"
         title="This server declares mods. The mod list is fetched on refresh."
       >
         ?
@@ -539,7 +388,7 @@ function ModCount({ server }: { server: Server }) {
     );
   }
   return (
-    <div className="font-mono-data text-[13px] font-bold leading-none text-muted">
+    <div className="font-mono-data [font-size:var(--t-type-statValue-size)] font-bold leading-none text-muted">
       —
     </div>
   );
@@ -548,7 +397,7 @@ function ModCount({ server }: { server: Server }) {
 type TagTone = "accent" | "accent2" | "muted" | "danger";
 
 const TAG_CLASS: Record<TagTone, string> = {
-  accent: "bg-accent-soft text-accent shadow-[var(--glow)]",
+  accent: "bg-accent-soft text-accent [box-shadow:var(--t-glow-rest)]",
   accent2: "bg-accent2-soft text-accent2",
   muted: "bg-muted-soft text-muted2",
   danger: "bg-danger-soft text-danger",
@@ -570,7 +419,7 @@ function Tag({
       data-tetra-el={dataTetraEl}
       title={title}
       className={cn(
-        "inline-block shrink-0 rounded-[4px] px-1 py-px text-[8px] font-bold uppercase leading-[1.3] tracking-[0.04em]",
+        "inline-block shrink-0 [border-radius:var(--t-radius-chip)] px-1 py-px [font-size:var(--t-type-chip-size)] font-bold uppercase [line-height:var(--t-type-chip-leading)] [letter-spacing:var(--t-type-chip-tracking)]",
         TAG_CLASS[tone],
       )}
     >

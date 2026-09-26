@@ -16,7 +16,7 @@ import {
 } from "@/lib/tauri";
 
 /** How the list is ordered. "Subscribed date" falls back to the install stamp. */
-export type ModSortKey = "name" | "subscribed" | "updated" | "size";
+export type ModSortKey = "name" | "status" | "size" | "updated" | "subscribed";
 export type ModSortDir = "asc" | "desc";
 
 // Trimmed to the three states the filter UI shows; the per-row `ModState`

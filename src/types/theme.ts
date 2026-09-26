@@ -4,6 +4,11 @@
  * `Option<T>` fields are `| null`, matching how the backend serialises them.
  */
 
+export interface ThemePreview {
+  file: string;
+  caption: string;
+}
+
 /** One theme's `theme.json`, as the backend reads and writes it. */
 export interface ThemeManifest {
   schemaVersion: number;
@@ -14,17 +19,15 @@ export interface ThemeManifest {
   version: string;
   themeApi: string;
   minimumLauncherVersion: string;
-  /** `basic` (design tokens only), `advanced` (tokens + layout.json, custom CSS,
-   * fonts and images) or `expert` (adds `components/` and `settings.schema.json`
-   * — declarative component composition and theme-defined settings). Every tier
-   * imports and exports; a preview carries one too. */
-  tier: string;
   description: string;
   preview: string | null;
   license: string | null;
   homepage: string | null;
   tags: string[];
   capabilities: string[];
+  incompatible?: boolean;
+  incompatibleReason?: string | null;
+  previews?: ThemePreview[];
 }
 
 /** The fields a grid card needs, without reading `tokens.json` for every install. */
@@ -40,23 +43,22 @@ export interface ThemeSummary {
   preview: string | null;
   tags: string[];
   capabilities: string[];
+  incompatible?: boolean;
+  incompatibleReason?: string | null;
+  previews?: ThemePreview[];
 }
+
+import type { LayoutFile } from "@/theme/renderer/types";
 
 /** One theme, fully. The backend flattens the manifest, so this isn't nested at the wire level. */
 export type ThemeFile = ThemeManifest & {
   tokens: unknown;
-  layout: unknown | null;
   settingsSchema: unknown | null;
-  /** Keyed by slot id — any slot may be a key; a missing key means the theme ships no such tree. */
-  components: Record<string, unknown>;
+  /** Keyed by package-relative path (`layout/shell.json`) — absent when the theme ships none. */
+  layouts?: Record<string, LayoutFile>;
+  /** Files the backend dropped from `layouts` for failing validation, with the issues that dropped them. */
+  fallbacks: ValidationIssue[];
 };
-
-/** A theme's `layout.json`. The backend checks the envelope and nothing else —
- * slot ids, child ids and the per-slot value shapes are the resolver's business. */
-export interface LayoutManifest {
-  schemaVersion: number;
-  slots: Record<string, Record<string, unknown>>;
-}
 
 /** A custom theme as an older build kept it in `localStorage`, for the one-time import. */
 export interface LegacyTheme {
@@ -94,4 +96,19 @@ export interface ManifestOverrides {
   tags?: string[];
   license?: string;
   homepage?: string;
+}
+
+/** Mirrors the Rust `Severity` in `theme::validator::issue`, which serialises lowercase. */
+export type ValidationSeverity = "error" | "warning";
+
+/** One finding from `validate_theme` or a Dev Mode check. Mirrors `theme::validator::issue::ValidationIssue`. */
+export interface ValidationIssue {
+  ruleId: string;
+  severity: ValidationSeverity;
+  /** Package-relative file the issue is in, e.g. "layout/shell.json". */
+  file: string;
+  /** RFC 6901 pointer to the offending node; "" when the whole file is the subject. */
+  pointer: string;
+  message: string;
+  hint?: string;
 }
