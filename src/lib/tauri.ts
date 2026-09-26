@@ -674,6 +674,17 @@ export async function saveTheme(manifest: ThemeManifest, tokens: unknown): Promi
   return invoke<string>("save_theme", { manifest, tokens });
 }
 
+/** Create-only, like {@link saveTheme}: a copy of an installed theme's own
+ * content — layout, CSS, settings — under this manifest and palette. Refuses a
+ * `sourceId` with no directory on disk. */
+export async function deriveTheme(
+  sourceId: string,
+  manifest: ThemeManifest,
+  tokens: unknown,
+): Promise<string> {
+  return invoke<string>("derive_theme", { sourceId, manifest, tokens });
+}
+
 /** Rewrite an installed user theme's (`local.*`) palette in place — SPEC §4.6's
  * save for the active theme. Refuses an id that is not a `local.*` install. */
 export async function updateThemeTokens(id: string, tokens: unknown): Promise<void> {
