@@ -460,7 +460,6 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
             [activeId]: {
               ...raw,
               tokens: substitutePlaceholders(raw.tokens, values),
-              layout: substitutePlaceholders(raw.layout, values),
             },
           };
     const tokenFile = files[activeId]?.tokens as Record<string, unknown> | undefined;
@@ -681,44 +680,19 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 
 /** Reverts the live preview when the guard window times out or the user reverts. */
 export function watchThemeActivationReverted(): () => void {
-  const pending = listen<{ previousId: string | null; restoredTheme: string | null }>(
-    "theme-activation-reverted",
-    (event) => {
-      const { previousId, restoredTheme } = event.payload;
-
-      // Today's body, unchanged: re-seed the id and the theme-supplied bloom,
-      // repaint, then re-sync the grid (a reverted duplicate was just deleted).
-      const applyRevert = () => {
-        const state = useThemeStore.getState();
-        const activeId = previousId ?? "neutral";
-        useThemeStore.setState({
-          activeId,
-          bloom: resolvedExtras(activeId, state.themeFiles).shadows.glowIntensity,
-        });
-        state.apply();
-        void refreshInstalledThemes();
-      };
-
-      // Only a layout-edit revert wrote a file back; an ordinary id switch has
-      // nothing on disk to re-read, so it takes the synchronous path untouched.
-      if (restoredTheme === null) {
-        applyRevert();
-        return;
-      }
-      // Re-read the theme whose layout.json was just put back — the hot-reload
-      // listener's patch shape — before reverting, so apply() repaints from the
-      // file rather than the abandoned preview. A failed re-read still reverts.
-      void getTheme(restoredTheme)
-        .then((file) => {
-          const store = useThemeStore.getState();
-          useThemeStore.setState({ themeFiles: { ...store.themeFiles, [restoredTheme]: file } });
-        })
-        .catch((e) => {
-          console.error(`Could not re-read reverted theme "${restoredTheme}":`, e);
-        })
-        .then(applyRevert);
-    },
-  );
+  const pending = listen<{ previousId: string | null }>("theme-activation-reverted", (event) => {
+    const { previousId } = event.payload;
+    // Re-seed the id and the theme-supplied bloom, repaint, then re-sync the
+    // grid — a reverted duplicate was just deleted.
+    const state = useThemeStore.getState();
+    const activeId = previousId ?? "neutral";
+    useThemeStore.setState({
+      activeId,
+      bloom: resolvedExtras(activeId, state.themeFiles).shadows.glowIntensity,
+    });
+    state.apply();
+    void refreshInstalledThemes();
+  });
   return () => {
     void pending.then((unlisten) => unlisten());
   };

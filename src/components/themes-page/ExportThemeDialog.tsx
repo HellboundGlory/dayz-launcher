@@ -21,14 +21,13 @@ interface ExportThemeDialogProps {
  * than one file each — `tokens`/`layout` are already named in the same list. */
 const EXTRA_FILE_CAPABILITIES: readonly Capability[] = ["css", "fonts", "assets"];
 
-/** What `export()` actually packages for a theme, sourced from the same manifest
- * fields the backend gates on: `theme.json` and `tokens.json` always, `layout.json`
- * when there is one, then the labelled extras. */
-export function packagedFiles(theme: Pick<ThemeFile, "layout" | "capabilities">): string[] {
+/** What `export()` actually packages: `theme.json` and `tokens.json` always,
+ * the `layout/…` files the theme ships, then the labelled extras. */
+export function packagedFiles(theme: Pick<ThemeFile, "layouts" | "capabilities">): string[] {
   return [
     "theme.json",
     "tokens.json",
-    ...(theme.layout !== null ? ["layout.json"] : []),
+    ...Object.keys(theme.layouts ?? {}),
     ...capabilityLabels(theme.capabilities, EXTRA_FILE_CAPABILITIES),
   ];
 }

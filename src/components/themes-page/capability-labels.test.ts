@@ -65,22 +65,31 @@ describe("capabilityLabel", () => {
 
 describe("packagedFiles", () => {
   it("always names the manifest and tokens", () => {
-    expect(packagedFiles({ layout: null, capabilities: [] })).toEqual([
+    expect(packagedFiles({ layouts: undefined, capabilities: [] })).toEqual([
       "theme.json",
       "tokens.json",
     ]);
   });
 
-  it("names layout.json only when the theme has a layout", () => {
-    expect(packagedFiles({ layout: { slots: {} }, capabilities: ["tokens", "layout"] })).toEqual([
+  it("names each layout file the theme ships", () => {
+    expect(
+      packagedFiles({
+        layouts: {
+          "layout/shell.json": { schemaVersion: 2 },
+          "layout/views/mods.json": { schemaVersion: 2 },
+        },
+        capabilities: ["tokens", "layout"],
+      }),
+    ).toEqual([
       "theme.json",
       "tokens.json",
-      "layout.json",
+      "layout/shell.json",
+      "layout/views/mods.json",
     ]);
   });
 
   it("names the extra files a theme's capabilities imply", () => {
-    expect(packagedFiles({ layout: null, capabilities: ["tokens", "css", "fonts"] })).toEqual([
+    expect(packagedFiles({ layouts: {}, capabilities: ["tokens", "css", "fonts"] })).toEqual([
       "theme.json",
       "tokens.json",
       "Custom CSS",
@@ -88,9 +97,12 @@ describe("packagedFiles", () => {
     ]);
   });
 
-  it("does not list layout twice when the capability is declared alongside a layout", () => {
+  it("does not name the layout capability twice when the theme ships layout files", () => {
     expect(
-      packagedFiles({ layout: { slots: {} }, capabilities: ["layout", "css"] }),
-    ).toEqual(["theme.json", "tokens.json", "layout.json", "Custom CSS"]);
+      packagedFiles({
+        layouts: { "layout/shell.json": { schemaVersion: 2 } },
+        capabilities: ["layout", "css"],
+      }),
+    ).toEqual(["theme.json", "tokens.json", "layout/shell.json", "Custom CSS"]);
   });
 });
