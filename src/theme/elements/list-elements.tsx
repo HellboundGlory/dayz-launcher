@@ -11,7 +11,7 @@ import {
 import type { SortKey } from "@/types/filters";
 import { ListHost } from "../lists/list-host";
 import { ListRow } from "../lists/list-row";
-import { getActiveLayout } from "../theme-store";
+import { getActiveLayout, useLayoutSubscription } from "../theme-store";
 import { SERVERS_LIST, MODS_LIST, MOD_SERVERS_LIST, MOD_FILTER_RESULTS_LIST } from "../neutral";
 import { serverModReadiness, type ModState, type SubscribedMod } from "@/lib/tauri";
 import { useSelectionReadiness } from "./use-selection-readiness";
@@ -33,8 +33,8 @@ export function ServerListHost({
   const sortDir = useServerStore((s) => s.sortDir);
   const setSort = useServerStore((s) => s.setSort);
 
+  useLayoutSubscription();
   const listLayout = (getActiveLayout("layout/lists/servers.json") ?? SERVERS_LIST) as LayoutFile;
-
   return (
     <div data-el="list.servers" className={className ?? "flex-1 min-h-0 w-full"} style={style}>
       <ListHost<Server>
@@ -173,6 +173,7 @@ export function ServerModsListHost({
     lastModsRef.current = mods;
   }
 
+  useLayoutSubscription();
   const listLayout = getActiveLayout("layout/lists/serverMods.json") as LayoutFile | undefined;
 
   return (
@@ -188,6 +189,7 @@ export function ModServersListHost({
   style?: CSSProperties;
 }) {
   const needing = useModsStore((s) => s.needing);
+  useLayoutSubscription();
   const listLayout = (getActiveLayout("layout/lists/modServers.json") ?? MOD_SERVERS_LIST) as LayoutFile;
 
   const items = needing.slice(0, 8);
@@ -259,6 +261,7 @@ export function ModsListHost({
   );
 
   const selectedMod = mods.find((m) => m.workshop_id === selectedModId) ?? null;
+  useLayoutSubscription();
   const listLayout = (getActiveLayout("layout/lists/mods.json") ?? MODS_LIST) as LayoutFile;
 
   return (
@@ -344,6 +347,7 @@ export function ModFilterResultsListHost({
       : undefined;
 
   const selectedItem = items.find((e) => e.id === previewId) ?? null;
+  useLayoutSubscription();
   const listLayout = (getActiveLayout("layout/lists/modFilterResults.json") ?? MOD_FILTER_RESULTS_LIST) as LayoutFile;
 
   return (

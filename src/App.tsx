@@ -42,11 +42,13 @@ import type { SettingsValues } from "./theme/renderer/props";
 import { watchDayz } from "./stores/launch-store";
 import {
   useThemeStore,
+  useLayoutSubscription,
   watchHotReload,
   watchThemeActivationReverted,
   getActiveLayout,
   getThemeOwnedLayout,
 } from "./theme/theme-store";
+import { FallbackNotice } from "./theme/fallback/fallback-notice";
 import { ElementContextProvider, SubjectContextProvider, useElementContext } from "./theme/elements/context";
 import { ModsViewHost } from "./theme/elements/mods-view-host";
 import { LayoutRenderer } from "./theme/renderer";
@@ -72,6 +74,7 @@ import {
   stopWatchingTheme,
 } from "./lib/tauri";
 import { listen, emit } from "@tauri-apps/api/event";
+import { getVersion } from "@tauri-apps/api/app";
 // Static import: window-resize-handles already pulls this in statically anyway.
 import { getCurrentWindow, getAllWindows } from "@tauri-apps/api/window";
 
@@ -117,6 +120,8 @@ export function App() {
   const [modFilterOpen, setModFilterOpen] = useState(false);
   /** Mirrors the sidebar's collapse so `--side-w` tracks it on the shell. */
   const [sideCollapsed, setSideCollapsed] = useState(false);
+  // The fallback notice is dismissed per launcher version (§16.1).
+  const [launcherVersion, setLauncherVersion] = useState<string | undefined>(undefined);
   const triggerReload = useServerStore((s) => s.triggerReload);
   const setFilter = useServerStore((s) => s.setFilter);
   const serverCount = useServerStore((s) => s.servers.length);
@@ -283,18 +288,25 @@ export function App() {
   // Re-reads the active theme's files whenever the Dev Mode watch reports a change.
   useEffect(() => watchHotReload(), []);
 
+  useEffect(() => {
+    void getVersion()
+      .then((version) => setLauncherVersion(version || undefined))
+      .catch(() => undefined);
+  }, []);
+
   const activeId = useThemeStore((s) => s.activeId);
-  const themeFiles = useThemeStore((s) => s.themeFiles);
   const settingsValues = useThemeStore((s) => s.settingsValues);
   const selectedServer = useServerStore((s) => s.selectedServer);
   const modsRows = useModsStore((s) => s.rows);
   const selectedModId = useModsStore((s) => s.selectedModId);
   const selectedModRow = modsRows.find((r) => r.workshop_id === selectedModId) ?? null;
   useServerDataLoader();
+  useLayoutSubscription();
 
-  const shellLayout = themeFiles[activeId]?.layouts?.["layout/shell.json"];
-  const browserLayout = themeFiles[activeId]?.layouts?.["layout/views/browser.json"];
-  const modsLayout = themeFiles[activeId]?.layouts?.["layout/views/mods.json"];
+  // Theme-owned reads: Neutral, and any screen that fell back, render through the legacy components.
+  const shellLayout = getThemeOwnedLayout("layout/shell.json");
+  const browserLayout = getThemeOwnedLayout("layout/views/browser.json");
+  const modsLayout = getThemeOwnedLayout("layout/views/mods.json");
   const settingsLayout = (getActiveLayout("layout/settings.json") ??
     SETTINGS_LAYOUT) as SettingsLayoutFile;
   const themedServerInfoModal = getThemeOwnedLayout("layout/modals/serverInfo.json") as
@@ -875,107 +887,113 @@ export function App() {
       >
         <WindowResizeHandles />
 
+        {activeId !== "neutral" && (
+          <FallbackNotice themeId={activeId} launcherVersion={launcherVersion} />
+        )}
+
         {shellLayout ? (
           <>
-            <LayoutRenderer
-              file={shellLayout}
-              themeId={activeId}
-              settings={settingsValues[activeId]}
-              outlets={{
-                view:
-                  settingsOpen && settingsMode === "view" ? (
-                    <SettingsHost file={settingsLayout} onClose={closeSettings} />
-                  ) : activeView === "mods" ? (
-                    modsLayout ? (
-                      <ModsViewHost
-                        file={modsLayout}
+            <div className="flex min-h-0 flex-1 flex-col">
+              <LayoutRenderer
+                file={shellLayout}
+                themeId={activeId}
+                settings={settingsValues[activeId]}
+                outlets={{
+                  view:
+                    settingsOpen && settingsMode === "view" ? (
+                      <SettingsHost file={settingsLayout} onClose={closeSettings} />
+                    ) : activeView === "mods" ? (
+                      modsLayout ? (
+                        <ModsViewHost
+                          file={modsLayout}
+                          themeId={activeId}
+                          settings={settingsValues[activeId]}
+                        />
+                      ) : (
+                        <ModsTab />
+                      )
+                    ) : browserLayout ? (
+                      <LayoutRenderer
+                        file={browserLayout}
                         themeId={activeId}
                         settings={settingsValues[activeId]}
                       />
                     ) : (
-                      <ModsTab />
-                    )
-                  ) : browserLayout ? (
-                    <LayoutRenderer
-                      file={browserLayout}
-                      themeId={activeId}
-                      settings={settingsValues[activeId]}
-                    />
-                  ) : (
-                    <div className="flex min-h-0 flex-1 flex-col">
-                      <FilterBar
-                        onRefresh={handleRefresh}
-                        refreshing={refreshing}
-                        onOpenModFilter={() => setModFilterOpen(true)}
-                        modFilterOpen={modFilterOpen}
-                      />
-                      <ServerList view={activeView} onMoreInfo={setInfoServer} />
-                    </div>
-                  ),
-                modals: (
-                  <>
-                    <ConfirmDialog />
-                    {devMode && <DevModeInspector />}
-                    {devMode && <DevModeValidationPanel />}
-                    {showOnboarding && steamConnected && (
-                      <OnboardingModal onDone={() => setShowOnboarding(false)} />
-                    )}
-                    {themedUpdateModal ? (
-                      updateOpen && (
-                        <ModalHost
-                          file={themedUpdateModal}
-                          themeId={activeId}
-                          settings={settingsValues[activeId]}
-                          onClose={() => setUpdateOpen(false)}
+                      <div className="flex min-h-0 flex-1 flex-col">
+                        <FilterBar
+                          onRefresh={handleRefresh}
+                          refreshing={refreshing}
+                          onOpenModFilter={() => setModFilterOpen(true)}
+                          modFilterOpen={modFilterOpen}
                         />
-                      )
-                    ) : (
-                      <UpdateModal open={updateOpen} onClose={() => setUpdateOpen(false)} />
-                    )}
-                    {infoServer && (
-                      themedServerInfoModal ? (
-                        <SubjectContextProvider
-                          subject={{ kind: "server", data: infoServer }}
-                          contextName="modal"
-                        >
+                        <ServerList view={activeView} onMoreInfo={setInfoServer} />
+                      </div>
+                    ),
+                  modals: (
+                    <>
+                      <ConfirmDialog />
+                      {devMode && <DevModeInspector />}
+                      {devMode && <DevModeValidationPanel />}
+                      {showOnboarding && steamConnected && (
+                        <OnboardingModal onDone={() => setShowOnboarding(false)} />
+                      )}
+                      {themedUpdateModal ? (
+                        updateOpen && (
                           <ModalHost
-                            file={themedServerInfoModal}
+                            file={themedUpdateModal}
                             themeId={activeId}
                             settings={settingsValues[activeId]}
+                            onClose={() => setUpdateOpen(false)}
+                          />
+                        )
+                      ) : (
+                        <UpdateModal open={updateOpen} onClose={() => setUpdateOpen(false)} />
+                      )}
+                      {infoServer && (
+                        themedServerInfoModal ? (
+                          <SubjectContextProvider
+                            subject={{ kind: "server", data: infoServer }}
+                            contextName="modal"
+                          >
+                            <ModalHost
+                              file={themedServerInfoModal}
+                              themeId={activeId}
+                              settings={settingsValues[activeId]}
+                              onClose={() => setInfoServer(null)}
+                            />
+                          </SubjectContextProvider>
+                        ) : (
+                          <ServerInfoModal
+                            server={infoServer}
                             onClose={() => setInfoServer(null)}
                           />
-                        </SubjectContextProvider>
-                      ) : (
-                        <ServerInfoModal
-                          server={infoServer}
-                          onClose={() => setInfoServer(null)}
+                        )
+                      )}
+                      {modFilterOpen && (
+                        themedModFilterModal ? (
+                          <ThemedModFilterModal
+                            file={themedModFilterModal}
+                            themeId={activeId}
+                            settings={settingsValues[activeId]}
+                            onClose={() => setModFilterOpen(false)}
+                          />
+                        ) : (
+                          <ModFilterModal onClose={() => setModFilterOpen(false)} />
+                        )
+                      )}
+                      {!steamConnected && steamError && (
+                        <SteamRequiredModal
+                          error={steamError}
+                          checking={connecting}
+                          exhausted={autoRetryExhausted}
+                          onRetry={() => void connectSteam(true)}
                         />
-                      )
-                    )}
-                    {modFilterOpen && (
-                      themedModFilterModal ? (
-                        <ThemedModFilterModal
-                          file={themedModFilterModal}
-                          themeId={activeId}
-                          settings={settingsValues[activeId]}
-                          onClose={() => setModFilterOpen(false)}
-                        />
-                      ) : (
-                        <ModFilterModal onClose={() => setModFilterOpen(false)} />
-                      )
-                    )}
-                    {!steamConnected && steamError && (
-                      <SteamRequiredModal
-                        error={steamError}
-                        checking={connecting}
-                        exhausted={autoRetryExhausted}
-                        onRetry={() => void connectSteam(true)}
-                      />
-                    )}
-                  </>
-                ),
-              }}
-            />
+                      )}
+                    </>
+                  ),
+                }}
+              />
+            </div>
             {settingsOpen && settingsMode !== "view" && (
               <SettingsRegionPortal file={settingsLayout} onClose={closeSettings} />
             )}
