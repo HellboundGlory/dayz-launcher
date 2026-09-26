@@ -1245,9 +1245,17 @@
 
 [data-region="r-actions"] {
   margin-top: auto;
+  flex-shrink: 0;
   padding: 12px;
   border-top: 1px solid var(--border);
   gap: 0;
+}
+
+/* Narrow layouts: the details scroll so Join stays pinned on screen. */
+[data-region="r-detail-body"] {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 [data-region="r-actions"] [data-el="server.actionNotice"] {
