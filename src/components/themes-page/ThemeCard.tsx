@@ -9,7 +9,7 @@ interface ThemeCardProps {
   version?: string;
   active: boolean;
   swatches: [string, string, string, string];
-  /** A resolved `tetra-theme://` URL (see `resolveThemeAsset`); absent when the theme declares no preview. */
+  /** A resolved theme asset URL (see `resolveThemeAsset`); absent when the theme declares no preview. */
   previewUrl?: string;
   /** Absent for an incompatible theme — it can't be activated. */
   onActivate?: () => void;

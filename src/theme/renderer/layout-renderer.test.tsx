@@ -162,7 +162,7 @@ describe("leaves", () => {
     const html = render({ type: "image", src: "images/logo.png", fit: "contain" }, { themeId: "aurora.theme" });
     expect(html).toContain('alt=""');
     expect(html).toContain("object-fit:contain");
-    expect(html).toContain("tetra-theme://aurora.theme/images/logo.png");
+    expect(html).toContain("tetra-theme://localhost/aurora.theme/images/logo.png");
   });
 
   it("renders an outlet's content from the outlets map", () => {
