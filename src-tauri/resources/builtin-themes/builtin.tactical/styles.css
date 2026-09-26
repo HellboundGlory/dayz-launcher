@@ -322,6 +322,21 @@
   flex-shrink: 0;
 }
 
+/* The wrapped bar (§5.2 narrow variant). The 1400px variant has no r-filterbar-bottom. */
+[data-region="r-filterbar-top"],
+[data-region="r-filterbar-bottom"] {
+  gap: 8px;
+  min-width: 0;
+}
+
+[data-region="r-filterbar-bottom"] [data-region="r-hides"] {
+  margin-left: 0;
+}
+
+[data-region="r-filterbar-bottom"] > [data-el="filter.reset"] {
+  margin-left: auto;
+}
+
 [data-el="filter.search"] {
   position: relative;
   flex: 1 1 auto;
@@ -1521,6 +1536,8 @@
 [data-region="r-settings"] {
   width: 640px;
   max-height: 82vh;
+  /* The scrim's padding must not shorten the dialog below 82vh. */
+  flex-shrink: 0;
   border-radius: 12px;
   border: 1px solid var(--border);
   background-color: var(--surface);
@@ -3504,4 +3521,25 @@
 
 [data-region="r-modfilter-footer"] [data-el="modFilter.apply"]:hover {
   filter: brightness(1.1);
+}
+
+/* Below the labelled-header width the Game tab needs every pixel: 650x413 is
+the smallest window the launcher can compose. */
+@media (max-width: 899px) {
+  [data-region="r-settings-scrim"] {
+    padding: 12px;
+  }
+
+  [data-region="r-settings-header"] {
+    padding: 6px 20px;
+  }
+
+  [data-region="r-settings-footer"] {
+    padding: 6px 20px;
+  }
+
+  .t-settings-pane {
+    gap: 10px;
+    padding: 8px 20px;
+  }
 }

@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "presentation": {
     "mode": "overlay",
-    "region": "r-shell",
+    "region": "r-main",
     "backdropClose": true
   },
   "root": {
