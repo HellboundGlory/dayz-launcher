@@ -305,25 +305,31 @@ mod tests {
     }
 
     /// The point of the debounce: a burst of saves coalesces into one event, not
-    /// one per write.
+    /// one per write. Driven through the channel rather than real files, since
+    /// how far apart the OS reports a burst is not something a test controls.
     #[test]
     fn a_burst_of_writes_fires_once() {
-        let root = scratch("burst");
-        let dir = installed(&root, "dev.burst");
-        let slot = Mutex::new(None);
-        let (_started, signals) = watch_via(&slot, &root, "dev.burst");
+        let (tx, rx) = std::sync::mpsc::channel();
+        let (out_tx, out_rx) = std::sync::mpsc::channel();
+        let stopped = Arc::new(AtomicBool::new(false));
+        let worker = std::thread::spawn(move || {
+            debounce(rx, stopped, move |signal| {
+                let _ = out_tx.send(signal);
+            })
+        });
 
-        // Format-on-save rewrites every stylesheet, then the palette again.
-        let wrote = std::time::Instant::now();
-        for n in 0..4 {
-            std::fs::write(dir.join(format!("style-{n}.css")), "body{}").expect("write");
+        for _ in 0..5 {
+            tx.send(WatchSignal::Changed).expect("send");
         }
-        std::fs::write(dir.join("tokens.json"), "{}").expect("write");
+        assert!(matches!(
+            out_rx.recv_timeout(WAIT),
+            Ok(WatchSignal::Changed)
+        ));
 
-        expect_change_within(&signals, wrote);
-
+        drop(tx);
+        worker.join().expect("debounce thread");
         assert!(
-            matches!(signals.recv_timeout(QUIET), Err(RecvTimeoutError::Timeout)),
+            out_rx.try_recv().is_err(),
             "the burst must fire once, not once per write"
         );
     }
