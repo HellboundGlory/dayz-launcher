@@ -857,7 +857,8 @@ export function App() {
   // Harness-only: the headless UI harness has no other way to reach this state.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!import.meta.env.DEV) return;
+    // Only the harness defines this, before App loads; the prod-build harness has no DEV flag.
+    if (!("__harness" in window)) return;
     (window as unknown as { __harness?: Record<string, unknown> }).__harness = {
       openServerInfo: setInfoServer,
       openModFilter,
