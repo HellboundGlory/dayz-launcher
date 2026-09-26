@@ -7,6 +7,7 @@ import type { Server } from "@/types/server";
 
 const params = new URLSearchParams(location.search);
 const themeId = params.get("theme") ?? "builtin.tactical";
+const scheme = params.get("scheme");
 const servers = makeServers(Number(params.get("servers") ?? 120));
 const dayzRunning = params.get("dayz") === "1";
 const THEME_ROOT = "/src-tauri/resources/builtin-themes";
@@ -186,7 +187,9 @@ async function waitFor(selector: string, timeout = 8000): Promise<HTMLElement | 
 }
 
 async function runScenario() {
-  await waitFor('[data-list="servers"] [data-row], [data-el="list.servers"]');
+  // Neutral renders the base components (data-tetra-el hooks); a theme package
+  // renders the element pipeline (data-el). Either proves the list painted.
+  await waitFor('[data-list="servers"] [data-row], [data-el="list.servers"], [data-tetra-el="name"]');
   await sleep(300);
   const { useServerStore } = await import("@/stores/server-store");
   const view = params.get("view");
@@ -242,10 +245,33 @@ async function runScenario() {
   document.body.dataset.harnessReady = "1";
 }
 
+// Imported only after the mocks are installed: the app's modules capture the
+// mocked backend when they load.
 const { useThemeStore } = await import("@/theme/theme-store");
+
+// App.tsx reassigns window.__harness on every render; merge instead of letting
+// either side clobber the other.
+const harness: Record<string, unknown> = {};
+Object.defineProperty(window, "__harness", {
+  configurable: true,
+  get: () => harness,
+  set: (value: Record<string, unknown>) => Object.assign(harness, value),
+});
+
+// The store's activation path — what the Themes page calls — resolving on the
+// frame after the repaint, so the perf harness can time apply-to-first-paint.
+harness.activate = async (id: string) => {
+  await useThemeStore.getState().pickTheme(id);
+  const painted = Promise.withResolvers<void>();
+  requestAnimationFrame(() => requestAnimationFrame(() => painted.resolve()));
+  await painted.promise;
+};
+
+// Awaited so a `scheme=` override still precedes the first render.
+await useThemeStore.getState().hydrate();
+if (scheme === "dark" || scheme === "light") useThemeStore.getState().setScheme(scheme);
 await import("@/main.css");
 const { App } = await import("@/App");
-useThemeStore.getState().hydrate();
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />
