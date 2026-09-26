@@ -1251,9 +1251,9 @@
   gap: 0;
 }
 
-/* Narrow layouts: the details scroll so Join stays pinned on screen. */
+/* The details scroll and give height to the mods list, so Join stays pinned. */
 [data-region="r-detail-body"] {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-height: 0;
   overflow-y: auto;
 }
@@ -1462,6 +1462,55 @@
   letter-spacing: normal;
   font-weight: 400;
   color: var(--muted);
+}
+
+/* The pane's copy of the info modal's mods list and toolbar. The list claims a
+   starting 120px — roughly four rows at its 32px estimated row height — and
+   grows into whatever height is left; r-actions stays pinned. */
+[data-region="r-detail"] > [data-el="list.serverMods"] {
+  flex-basis: 120px;
+  min-width: 0;
+}
+
+[data-region="r-detail-toolbar"] {
+  margin-top: 8px;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+[data-region="r-detail-toolbar"] > [data-el] {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background-color: var(--surface2);
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+[data-region="r-detail-toolbar"] > [data-el]:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+[data-region="r-detail-toolbar"] [data-el="server.unsubscribeUnique"]:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+[data-region="r-detail-toolbar"] > [data-el] [data-part="icon"] > :first-child {
+  width: 12px;
+  height: 12px;
+}
+
+[data-region="r-detail-toolbar"] > [data-el][data-state~="copied"] {
+  color: var(--success);
+  border-color: var(--success);
 }
 
 /* Footer */

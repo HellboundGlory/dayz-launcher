@@ -128,12 +128,6 @@
                                 "element": "server.name"
                               },
                               {
-                                "element": "server.info",
-                                "options": {
-                                  "display": "icon"
-                                }
-                              },
-                              {
                                 "element": "server.favourite"
                               },
                               {
@@ -240,6 +234,12 @@
                     ]
                   },
                   {
+                    "element": "list.serverMods",
+                    "grow": 1,
+                    "minHeight": "0px",
+                    "minWidth": "0px"
+                  },
+                  {
                     "type": "stack",
                     "id": "r-actions",
                     "direction": "column",
@@ -255,7 +255,7 @@
                           {
                             "element": "server.join",
                             "options": {
-                              "wording": "join"
+                              "wording": "fixAndJoin"
                             }
                           },
                           {
@@ -266,6 +266,37 @@
                             "options": {
                               "menu": "serverLoad",
                               "icon": "chevronDown"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "stack",
+                        "id": "r-detail-toolbar",
+                        "direction": "row",
+                        "children": [
+                          {
+                            "element": "server.checkMods",
+                            "options": {
+                              "display": "icon"
+                            }
+                          },
+                          {
+                            "element": "server.subscribeAll",
+                            "options": {
+                              "display": "icon"
+                            }
+                          },
+                          {
+                            "element": "server.unsubscribeUnique",
+                            "options": {
+                              "display": "icon"
+                            }
+                          },
+                          {
+                            "element": "server.copyAddress",
+                            "options": {
+                              "display": "icon"
                             }
                           }
                         ]
@@ -387,12 +418,6 @@
                             "element": "server.name"
                           },
                           {
-                            "element": "server.info",
-                            "options": {
-                              "display": "icon"
-                            }
-                          },
-                          {
                             "element": "server.favourite"
                           },
                           {
@@ -497,6 +522,12 @@
                     ]
                   },
                   {
+                    "element": "list.serverMods",
+                    "grow": 1,
+                    "minHeight": "0px",
+                    "minWidth": "0px"
+                  },
+                  {
                     "type": "stack",
                     "id": "r-actions",
                     "direction": "column",
@@ -512,7 +543,7 @@
                           {
                             "element": "server.join",
                             "options": {
-                              "wording": "join"
+                              "wording": "fixAndJoin"
                             }
                           },
                           {
@@ -523,6 +554,37 @@
                             "options": {
                               "menu": "serverLoad",
                               "icon": "chevronDown"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "stack",
+                        "id": "r-detail-toolbar",
+                        "direction": "row",
+                        "children": [
+                          {
+                            "element": "server.checkMods",
+                            "options": {
+                              "display": "icon"
+                            }
+                          },
+                          {
+                            "element": "server.subscribeAll",
+                            "options": {
+                              "display": "icon"
+                            }
+                          },
+                          {
+                            "element": "server.unsubscribeUnique",
+                            "options": {
+                              "display": "icon"
+                            }
+                          },
+                          {
+                            "element": "server.copyAddress",
+                            "options": {
+                              "display": "icon"
                             }
                           }
                         ]
