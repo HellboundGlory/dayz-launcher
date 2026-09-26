@@ -626,6 +626,17 @@ token_group! {
     }
 }
 
+/// SPEC §4.1 `glow`: whether the launcher's own buttons glow at rest, only
+/// when selected, or never. Decorative glows read `shadow.glow` regardless.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum GlowPolicy {
+    Always,
+    #[default]
+    Selected,
+    Never,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct TokensV2 {
@@ -633,6 +644,7 @@ pub struct TokensV2 {
     pub schema_version: u8,
     pub colors: ColorsTokensV2,
     pub bloom: f64,
+    pub glow: GlowPolicy,
     pub scales: ScalesTokensV2,
     pub roles: RolesTokensV2,
 }
@@ -643,6 +655,7 @@ impl Default for TokensV2 {
             schema_version: 2,
             colors: ColorsTokensV2::default(),
             bloom: 0.9,
+            glow: GlowPolicy::default(),
             scales: ScalesTokensV2::default(),
             roles: RolesTokensV2::default(),
         }
@@ -675,13 +688,14 @@ mod tests {
     #[test]
     fn partial_overrides_preserve_sibling_defaults() {
         let tokens: TokensV2 = serde_json::from_str(r##"{
-            "schemaVersion": 2, "bloom": 0,
+            "schemaVersion": 2, "bloom": 0, "glow": "always",
             "colors": {"light": {"accent": "#ff0000"}},
             "scales": {"radius": {"md": "7px"}, "type": {"weight": {"normal": 450}}},
             "roles": {"type": {"heading": {"size": "17px"}}, "motion": {"hover": {"duration": "slow"}}}
         }"##).unwrap();
         let mut expected = TokensV2 {
             bloom: 0.0,
+            glow: GlowPolicy::Always,
             ..TokensV2::default()
         };
         expected.colors.light.accent = "#ff0000".into();
@@ -697,11 +711,31 @@ mod tests {
     }
 
     #[test]
+    fn glow_accepts_only_the_three_documented_values_and_defaults_to_selected() {
+        for (json, expected, written) in [
+            (r#"{"glow":"always"}"#, GlowPolicy::Always, "always"),
+            (r#"{"glow":"selected"}"#, GlowPolicy::Selected, "selected"),
+            (r#"{"glow":"never"}"#, GlowPolicy::Never, "never"),
+        ] {
+            let tokens: TokensV2 = serde_json::from_str(json).unwrap();
+            assert_eq!(tokens.glow, expected);
+            assert_eq!(serde_json::to_value(&tokens).unwrap()["glow"], written);
+        }
+        assert_eq!(TokensV2::default().glow, GlowPolicy::Selected);
+        assert_eq!(
+            serde_json::to_value(TokensV2::default()).unwrap()["glow"],
+            "selected"
+        );
+    }
+
+    #[test]
     fn invalid_leaf_shapes_are_not_accepted_as_overrides() {
         for input in [
             r#"{"schemaVersion":1}"#,
             r#"{"roles":{"radius":{"row":true}}}"#,
             r#"{"scales":{"space":{"6":null}}}"#,
+            r#"{"glow":"sometimes"}"#,
+            r#"{"glow":true}"#,
         ] {
             assert!(serde_json::from_str::<TokensV2>(input).is_err());
         }

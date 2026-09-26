@@ -71,6 +71,11 @@ export function applyTheme(
       `0 0 ${r(60)} ${rgba(palette.accent, A(0.16))}`,
   );
 
+  // SPEC §4.1 `glow`: the launcher's own buttons read these; decorative glows
+  // keep reading `--t-shadow-glow` directly.
+  p.setProperty("--t-glow-rest", resolved.glow === "always" ? "var(--t-shadow-glow)" : "none");
+  p.setProperty("--t-glow-selected", resolved.glow === "never" ? "none" : "var(--t-shadow-glow)");
+
   const writeScale = (path: string, value: unknown): void => {
     if (typeof value === "object" && value !== null) {
       for (const [key, child] of Object.entries(value)) writeScale(`${path}-${key}`, child);

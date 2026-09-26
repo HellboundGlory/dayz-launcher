@@ -408,7 +408,7 @@ export function ImportThemeDialog({
                     onClick={() => void install()}
                     disabled={busy}
                     className={cn(
-                      "flex items-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-3.5 py-2 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-shadow-glow)] transition-colors hover:brightness-110",
+                      "flex items-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-3.5 py-2 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110",
                       "disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:brightness-100",
                     )}
                   >

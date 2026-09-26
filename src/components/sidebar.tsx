@@ -73,7 +73,7 @@ export function Sidebar({
         aria-current={active ? "page" : undefined}
         className={cn(
           "flex items-center gap-[var(--t-space-sidebarItemGap)] [border-radius:var(--t-radius-sidebarItem)] px-[var(--t-space-controlSmallX)] py-[var(--t-space-rowY)] [font-size:var(--t-type-subheading-size)] [font-weight:var(--t-type-label-weight)] text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:bg-surface2 hover:text-ink",
-          active && "bg-accent-soft text-accent [box-shadow:var(--t-shadow-glow)]",
+          active && "bg-accent-soft text-accent [box-shadow:var(--t-glow-selected)]",
           collapsed && "justify-center px-0",
         )}
       >
@@ -131,7 +131,7 @@ export function Sidebar({
           aria-pressed={settingsOpen}
           className={cn(
             "flex items-center gap-[var(--t-space-sidebarItemGap)] [border-radius:var(--t-radius-sidebarItem)] px-[var(--t-space-controlSmallX)] py-[var(--t-space-rowY)] [font-size:var(--t-type-subheading-size)] [font-weight:var(--t-type-label-weight)] text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:bg-surface2 hover:text-ink",
-            settingsOpen && "bg-accent-soft text-accent [box-shadow:var(--t-shadow-glow)]",
+            settingsOpen && "bg-accent-soft text-accent [box-shadow:var(--t-glow-selected)]",
             collapsed && "justify-center px-0",
           )}
         >

@@ -364,7 +364,7 @@ export function ExportThemeDialog({
           <button
             onClick={() => void handleExport()}
             disabled={!loaded || busy}
-            className="flex items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-4 py-2 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-shadow-glow)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none disabled:hover:brightness-100"
+            className="flex items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-4 py-2 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none disabled:hover:brightness-100"
           >
             {busy && <Loader2 className="size-3.5 animate-spin" />}
             <span>Export ZIP…</span>

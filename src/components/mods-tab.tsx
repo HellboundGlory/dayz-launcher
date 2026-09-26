@@ -278,7 +278,7 @@ export function ModsTab() {
             className={cn(
               "fbtn flex items-center justify-center [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-[5px] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider transition-colors",
               statusFilter === f.key
-                ? "border-accent-line bg-accent-soft text-accent [box-shadow:var(--t-shadow-glow)]"
+                ? "border-accent-line bg-accent-soft text-accent [box-shadow:var(--t-glow-selected)]"
                 : "text-muted hover:text-ink",
             )}
           >
@@ -413,7 +413,7 @@ const ModRow = memo(function ModRow({
       onClick={() => openMod(selected ? null : mod.workshop_id)}
       className={cn(
         "mx-row flex cursor-pointer items-center gap-2.5 [border-radius:var(--t-radius-row)] border border-line bg-surface px-2.5 py-2 transition-[border-color,background,box-shadow] [transition-duration:var(--t-motion-hover-duration)] hover:border-accent-line",
-        selected && "border-accent-line bg-accent-soft [box-shadow:var(--t-shadow-glow)]",
+        selected && "border-accent-line bg-accent-soft [box-shadow:var(--t-glow-selected)]",
         mod.locally_disabled && "opacity-50",
       )}
     >
@@ -471,7 +471,7 @@ function modRowNodes(
           className={cn(
             "box flex h-[13px] w-[13px] items-center justify-center [border-radius:var(--t-radius-badge)] border border-line transition-colors",
             checked
-              ? "border-accent bg-accent [color:var(--t-color-onAccent)] [box-shadow:var(--t-shadow-glow)]"
+              ? "border-accent bg-accent [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-selected)]"
               : "bg-surface2 hover:border-accent-line",
           )}
         >
@@ -696,7 +696,7 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
         data-tetra-el="reinstallAction"
         onClick={() => void reinstall()}
         disabled={reinstalling}
-        className="m2-btn flex flex-1 items-center justify-center gap-1 [border-radius:var(--t-radius-control)] border border-accent-line bg-accent-soft px-2 py-1.5 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.03em] text-accent [box-shadow:var(--t-shadow-glow)] transition-colors disabled:opacity-50"
+        className="m2-btn flex flex-1 items-center justify-center gap-1 [border-radius:var(--t-radius-control)] border border-accent-line bg-accent-soft px-2 py-1.5 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.03em] text-accent [box-shadow:var(--t-glow-rest)] transition-colors disabled:opacity-50"
       >
         <RefreshCw className={cn("size-3", reinstalling && "animate-spin")} />
         {reinstalling ? "…" : "Reinstall"}
@@ -942,7 +942,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
           }}
           disabled={busy || allCount === 0}
           title="Verify every mod against the Workshop and re-download anything outdated"
-          className="ab-verify flex items-center justify-center gap-1.5 [border-top-left-radius:var(--t-radius-control)] [border-bottom-left-radius:var(--t-radius-control)] bg-accent px-3 py-[7px] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-shadow-glow)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+          className="ab-verify flex items-center justify-center gap-1.5 [border-top-left-radius:var(--t-radius-control)] [border-bottom-left-radius:var(--t-radius-control)] bg-accent px-3 py-[7px] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {store.op?.kind === "verify" ? (
             <Loader2 className="size-3 animate-spin" />
@@ -954,7 +954,7 @@ function ModsActionBar({ removedCount }: { removedCount: number }) {
         <button
           onClick={() => setMenu(menu === "verify" ? null : "verify")}
           disabled={busy}
-          className="flex items-center justify-center [border-top-right-radius:var(--t-radius-control)] [border-bottom-right-radius:var(--t-radius-control)] bg-accent px-1.5 [color:var(--t-color-onAccent)] [box-shadow:var(--t-shadow-glow)] transition-colors hover:brightness-110 disabled:opacity-50"
+          className="flex items-center justify-center [border-top-right-radius:var(--t-radius-control)] [border-bottom-right-radius:var(--t-radius-control)] bg-accent px-1.5 [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 disabled:opacity-50"
           aria-haspopup="menu"
           aria-expanded={menu === "verify"}
         >

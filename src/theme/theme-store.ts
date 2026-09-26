@@ -277,6 +277,8 @@ export function mergeRoleOverrides(
   const hasFamily = Object.keys(family).length > 0;
   if (tokens === undefined && !hasRadius && !hasFamily) return undefined;
   return {
+    // The customiser never edits glow, so it rides along with the roles.
+    glow: tokens?.glow,
     scales: {
       ...tokens?.scales,
       ...(hasFamily && {
@@ -335,6 +337,7 @@ function buildSavedTokens(
     // Saving the live theme keeps whatever the slider shows; a copy of any
     // other theme keeps that theme's own bloom.
     bloom: live ? bloom : resolvedExtras(sourceId, themeFiles).shadows.glowIntensity,
+    glow: parsedSource?.glow,
     scales: merged.scales ?? NEUTRAL_TOKENS.scales,
     roles: merged.roles ?? NEUTRAL_TOKENS.roles,
   };

@@ -24,8 +24,17 @@ describe("v2 token resolution", () => {
   it("rejects malformed token schemas while allowing omissions and literals", () => {
     expect(resolveTokens(parseTokens({}))).toEqual(NEUTRAL_TOKENS);
     expect(parseTokens({ schemaVersion: 2, roles: { radius: { row: "7px" } } })).toEqual({ schemaVersion: 2, roles: { radius: { row: "7px" } } });
-    for (const input of [null, [], { schemaVersion: 1 }, { scales: null }, { roles: { type: { body: { weight: true } } } }, { bloom: Infinity }]) {
+    expect(parseTokens({ schemaVersion: 2, glow: "never" }).glow).toBe("never");
+    for (const input of [null, [], { schemaVersion: 1 }, { scales: null }, { roles: { type: { body: { weight: true } } } }, { bloom: Infinity }, { glow: "sometimes" }, { glow: 3 }]) {
       expect(() => parseTokens(input)).toThrow();
+    }
+  });
+
+  it("resolves glow to selected by default and to the theme's own policy when it states one", () => {
+    expect(NEUTRAL_TOKENS.glow).toBe("selected");
+    expect(resolveTokens().glow).toBe("selected");
+    for (const glow of ["always", "selected", "never"] as const) {
+      expect(resolveTokens({ glow }).glow).toBe(glow);
     }
   });
 });

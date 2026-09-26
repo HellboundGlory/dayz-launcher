@@ -45,6 +45,36 @@ describe("glow regression across glowIntensity", () => {
   });
 });
 
+describe("glow policy CSS custom properties", () => {
+  function propsFor(glow?: "always" | "selected" | "never"): Record<string, string> {
+    const props: Record<string, string> = {};
+    vi.stubGlobal("document", {
+      documentElement: {
+        style: { setProperty: (name: string, value: string) => void (props[name] = value) },
+      },
+    });
+    applyTheme(NEUTRAL_DARK, "dark", DEFAULT_EXTRAS, glow === undefined ? undefined : { schemaVersion: 2, glow });
+    return props;
+  }
+
+  it("lights only selected controls by default", () => {
+    for (const props of [propsFor(), propsFor("selected")]) {
+      expect(props["--t-glow-rest"]).toBe("none");
+      expect(props["--t-glow-selected"]).toBe("var(--t-shadow-glow)");
+    }
+  });
+
+  it("lights controls at rest only under always, and neither under never", () => {
+    const always = propsFor("always");
+    expect(always["--t-glow-rest"]).toBe("var(--t-shadow-glow)");
+    expect(always["--t-glow-selected"]).toBe("var(--t-shadow-glow)");
+
+    const never = propsFor("never");
+    expect(never["--t-glow-rest"]).toBe("none");
+    expect(never["--t-glow-selected"]).toBe("none");
+  });
+});
+
 describe("settingsValues CSS custom properties", () => {
   it("writes --setting-<id> custom properties onto documentElement style", () => {
     const props: Record<string, string> = {};

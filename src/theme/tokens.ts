@@ -51,10 +51,13 @@ export interface RolesV2 {
   shadow: Steps<"panel" | "modal" | "popup" | "drawer" | "glow" | "popupFilter" | "stateWarning" | "confirm" | "readinessWarning" | "readinessSuccess" | "statusDot" | "update" | "inspector">;
   motion: Partial<Record<"hover" | "expand" | "overlay", MotionRoleV2>>;
 }
+/** SPEC §4.1 `glow`: whether the launcher's own buttons glow at rest, only when selected, or never. */
+export type GlowPolicy = "always" | "selected" | "never";
 export interface TokensV2 {
   schemaVersion: 2;
   colors?: Partial<ColorsV2>;
   bloom?: number;
+  glow?: GlowPolicy;
   scales?: Partial<ScalesV2>;
   roles?: Partial<RolesV2>;
 }
@@ -69,6 +72,7 @@ export const NEUTRAL_TOKENS: TokensV2 & ResolvedTokensV2 = {
   schemaVersion: 2,
   colors: { dark: { ...NEUTRAL_DARK }, light: { ...NEUTRAL_LIGHT } },
   bloom: 0.9,
+  glow: "selected",
   scales: {
     radius: { none: 0, xs: "2px", sm: "4px", md: "6px", lg: "8px", full: "9999px" },
     space: { "0": "0px", "2": "2px", "4": "4px", "6": "6px", "8": "8px", "10": "10px", "12": "12px", "14": "14px", "16": "16px", "18": "18px", "20": "20px", "22": "22px", "24": "24px", "26": "26px", "28": "28px", "30": "30px", "32": "32px", "34": "34px", "36": "36px", "38": "38px", "40": "40px", "42": "42px", "44": "44px", "46": "46px", "48": "48px" },
@@ -120,6 +124,8 @@ export function parseTokens(value: unknown): Partial<TokensV2> {
       if (input !== 2) throw new Error("tokens.schemaVersion must be 2");
     } else if (path === "tokens.bloom" || path.startsWith("tokens.colors.")) {
       if (typeof input !== typeof base || (typeof input === "number" && !Number.isFinite(input))) throw new Error(`${path} has an invalid value`);
+    } else if (path === "tokens.glow") {
+      if (input !== "always" && input !== "selected" && input !== "never") throw new Error(`${path} must be always, selected or never`);
     } else if (typeof input !== "string" && !(typeof input === "number" && Number.isFinite(input))) {
       throw new Error(`${path} must be a string or finite number`);
     }

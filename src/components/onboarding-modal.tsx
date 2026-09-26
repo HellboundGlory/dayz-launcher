@@ -222,7 +222,7 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
             data-tetra-el="primaryAction"
             onClick={finish}
             disabled={!canContinue}
-            className="flex w-full items-center justify-center gap-1.5 rounded-[6px] bg-accent py-2 text-[10.5px] font-bold uppercase tracking-wider text-[#10131a] shadow-[var(--glow)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none disabled:hover:brightness-100"
+            className="flex w-full items-center justify-center gap-1.5 rounded-[6px] bg-accent py-2 text-[10.5px] font-bold uppercase tracking-wider text-[#10131a] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none disabled:hover:brightness-100"
           >
             <span>Continue</span>
             {canContinue && <ArrowRight className="size-3" />}
