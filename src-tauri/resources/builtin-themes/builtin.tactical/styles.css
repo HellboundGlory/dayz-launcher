@@ -1464,9 +1464,9 @@
   color: var(--muted);
 }
 
-/* Pane mods list: starts at ~4 rows and grows into the remaining height. */
+/* Pane mods list only takes height the details leave over. */
 [data-region="r-detail"] > [data-el="list.serverMods"] {
-  flex-basis: 120px;
+  flex-basis: 0px;
   min-width: 0;
 }
 
