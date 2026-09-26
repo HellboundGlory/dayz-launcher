@@ -45,10 +45,13 @@ Tokens are **hex strings on CSS custom properties** (not OKLCH — the palette
 math, `deriveLight`, is ported verbatim from the locked board and is
 hex-based; do not migrate without re-locking the board).
 
-Theme model: every theme is a **dark/light pair** (dark authored, light derived
-to a 4.5:1 contrast floor by `src/theme/palette.ts deriveLight`). The engine
-writes tokens onto `<html>` inline via `applyTheme`; re-theming costs one style
-write, zero re-renders.
+Theme model (v2): a theme is a **folder of files** — `theme.json`,
+`tokens.json`, `styles.css`, `settings.schema.json` and `layout/`, one layout
+file per screen (shell, browser, mods, settings, modals, lists, popups), each
+optionally carrying width variants. Every theme is still a **dark/light pair**
+(dark authored, light derived to a 4.5:1 contrast floor by
+`src/theme/palette.ts deriveLight`). The engine writes tokens onto `<html>`
+inline via `applyTheme`; re-theming costs one style write, zero re-renders.
 
 Base tokens (12): `--bg --surface --surface2 --border --text --muted --muted2
 --accent --accent2 --success --warn --danger`.
@@ -59,12 +62,20 @@ declaration): `--border-weak --muted-soft --accent-soft --accent-line
 --accent2-soft --accent2-line --warn-soft --danger-soft --danger-line
 --row-hover --row-selected --glow`.
 
+Beyond colours, v2 exposes **scales and roles** as `--t-` custom properties —
+`--t-radius-row`, `--t-space-rowX`, `--t-type-body-size`, `--t-shadow-modal` —
+and the base interface reads only roles (ADR-0016), so a theme that changes one
+restyles every call site without touching CSS.
+
 Default: **dark, Neutral** (`#0d0f13` bg). Neutral is the only colour-only
-preset (authored dark + derived light). One further built-in default ships
-as a bundled Expert-tier theme package — Tactical (`builtin.tactical`;
-tokens + layout + CSS + component composition) — not a colour-only preset.
-More may join it later. Users can save custom skins
-(`localStorage["tetra.customThemes"]`) and edit any token live.
+theme (authored dark + derived light) and is compiled into the launcher
+(ADR-0019) — never on disk, never deletable — so it is what every fallback
+renders. One further built-in ships as a bundled v2 package — Tactical
+(`builtin.tactical`; tokens + layout + CSS + settings, no launcher code), the
+proof the format carries the reference layout. More may join it later. Users
+create their own themes as packages in the themes folder (pre-v2
+`localStorage` skins migrate once) and edit colours, radii and font roles live
+in the customiser.
 
 ```css
 /* Neutral dark (canonical base, main.css :root) */
@@ -254,3 +265,14 @@ Append-only. Each entry: date, what was decided, why, and what it overrides.
   Overrides the old six-preset set. Started as three showcase themes
   (Tactical/Phosphor/Campfire); Phosphor and Campfire were pulled back out
   the same day after review — ship one theme well before adding more.
+- [2026-09-26]: **Theme v2 composes the whole window** — a theme ships one
+  layout file per screen, plus width variants, instead of filling fixed slots
+  (ADR-0005). A layout file that fails validation, or a required control that
+  the runtime visibility check finds hidden, shrunk, covered or off-window,
+  falls back **that screen alone** to Neutral while the theme's tokens and CSS
+  stay, with a dismissible notice (ADR-0011, ADR-0012); only the selected and
+  keyboard-focused rows inside a list are measured, so the check stays cheap.
+  Width variants are validated at the narrowest CSS width the launcher allows,
+  **650×413** — the 975×620 minimum window at 1.5× interface scale (SPEC §18) —
+  and a variant switch re-runs the check. Overrides the v1 per-slot layout
+  model.
