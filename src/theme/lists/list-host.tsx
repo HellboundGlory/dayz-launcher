@@ -1,4 +1,13 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type WheelEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type WheelEvent,
+} from "react";
 import { observeElementRect, useVirtualizer, type Virtualizer } from "@tanstack/react-virtual";
 import { ListHeader } from "./list-header";
 import { ListRow } from "./list-row";
@@ -16,6 +25,19 @@ function resolveRowHeight(estimatedRowHeight: number | string): number {
   if (typeof estimatedRowHeight === "number") return estimatedRowHeight;
   const parsed = Number.parseInt(estimatedRowHeight, 10);
   return Number.isFinite(parsed) ? parsed : DEFAULT_ROW_HEIGHT;
+}
+
+// Widths are re-derived on every render; rows memoise on column identity, so
+// an equal-but-fresh array must not become a new prop.
+export function sameColumns(a: ColumnDef[], b: ColumnDef[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  return a.every((col, i) => {
+    const other = b[i];
+    if (col === other) return true;
+    const keys = Object.keys(col) as (keyof ColumnDef)[];
+    return keys.length === Object.keys(other).length && keys.every((key) => col[key] === other[key]);
+  });
 }
 
 function pxColumnWidthSum(columns: ColumnDef[] = []): number {
@@ -42,6 +64,19 @@ export function observeBoundedRect(
     const cap = instance.targetWindow?.innerHeight;
     cb({ width: rect.width, height: cap ? Math.min(rect.height, cap) : rect.height });
   });
+}
+
+/** The state list a row renders: selection first, stripe last, joined so a memoised row sees a value. */
+export function rowStates<T>(
+  item: T,
+  isSelected: boolean,
+  index: number,
+  computeRowStates?: (item: T, isSelected: boolean) => string[],
+): string {
+  const custom = computeRowStates ? computeRowStates(item, isSelected) : [];
+  const states = isSelected && !custom.includes("selected") ? ["selected", ...custom] : custom;
+  // Parity comes from the item index: virtual rows mount mid-list, so :nth-child can't stripe them.
+  return (index % 2 === 1 ? [...states, "even"] : states).join(" ");
 }
 
 export interface ListHostProps<T = unknown> {
@@ -91,7 +126,10 @@ export function ListHost<T = unknown>({
     resetColumn,
   } = useColumnWidths(activeThemeId, listId, columns ?? []);
   const [availableWidth, setAvailableWidth] = useState(0);
-  const effectiveColumns = isScroll ? fitColumns(resizedColumns, availableWidth) : resizedColumns;
+  const derivedColumns = isScroll ? fitColumns(resizedColumns, availableWidth) : resizedColumns;
+  const columnsRef = useRef(derivedColumns);
+  if (!sameColumns(columnsRef.current, derivedColumns)) columnsRef.current = derivedColumns;
+  const effectiveColumns = columnsRef.current;
   const hasColumns = effectiveColumns.length > 0;
   const wrapperMinWidth = isScroll ? pxColumnWidthSum(effectiveColumns) : undefined;
 
@@ -143,7 +181,18 @@ export function ListHost<T = unknown>({
     observeElementRect: observeBoundedRect,
   });
 
-  const selectedIndex = selectedItem ? items.indexOf(selectedItem) : -1;
+  const selectedIndex = useMemo(
+    () => (selectedItem ? items.indexOf(selectedItem) : -1),
+    [items, selectedItem],
+  );
+
+  // Rows memoise on prop identity, so the parent's callback is read through a
+  // ref: an inline arrow from the parent must not re-render every row.
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
+  const handleRowSelect = useCallback((item: unknown) => {
+    onSelectRef.current?.(item as T | null);
+  }, []);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     handleListKeyDown({
@@ -153,23 +202,16 @@ export function ListHost<T = unknown>({
       onSelectIndex: (index) => {
         const target = items[index];
         if (target && index !== selectedIndex) {
-          onSelect?.(target);
+          handleRowSelect(target);
           if (isVirtualized) {
             virtualizer.scrollToIndex(index, { align: "auto" });
           }
         }
       },
       onClearSelection: () => {
-        onSelect?.(null);
+        handleRowSelect(null);
       },
     });
-  };
-
-  const getStates = (item: T, isSelected: boolean, index: number) => {
-    const custom = computeRowStates ? computeRowStates(item, isSelected) : [];
-    const states = isSelected && !custom.includes("selected") ? ["selected", ...custom] : custom;
-    // Parity comes from the item index: virtual rows mount mid-list, so :nth-child can't stripe them.
-    return index % 2 === 1 ? [...states, "even"] : states;
   };
 
   const listName = listId.replace("list.", "");
@@ -237,8 +279,8 @@ export function ListHost<T = unknown>({
               columns={effectiveColumns}
               item={item}
               subjectKind={subjectKind}
-              states={getStates(item, isSelected, virtualRow.index)}
-              onSelect={onSelect as (item: unknown) => void}
+              states={rowStates(item, isSelected, virtualRow.index, computeRowStates)}
+              onSelect={handleRowSelect}
             />
           </div>
         );
@@ -255,8 +297,8 @@ export function ListHost<T = unknown>({
             columns={effectiveColumns}
             item={item}
             subjectKind={subjectKind}
-            states={getStates(item, isSelected, index)}
-            onSelect={onSelect as (item: unknown) => void}
+            states={rowStates(item, isSelected, index, computeRowStates)}
+            onSelect={handleRowSelect}
           />
         );
       })}
