@@ -39,6 +39,10 @@ _Avoid_: skin (for packages), mod
 A theme that ships inside the launcher and can't be deleted. Neutral is the built-in default.
 _Avoid_: preset
 
+**User theme**:
+An installed theme this launcher created — a scaffold, a duplicate or a customiser save — with a `local.*` id. Only a user theme is written in place; imported and bundled themes are saved as a new one (SPEC §4.6).
+_Avoid_: custom theme, personal theme
+
 **Starter**:
 A bundled theme package meant to be copied as the beginning of a new theme.
 _Avoid_: template (for packages)
@@ -96,7 +100,7 @@ A named area of a layout that other parts of the layout can refer to, such as a 
 The place in the shell where the current view appears.
 
 **Variant**:
-An alternative arrangement of a screen used within a range of window widths.
+One root of a layout file, rendered for a range of window widths; `variants` holds two to four of them, ascending by `minWidth`. Every variant must place the same required elements.
 
 **Section**:
 One expanding part of a screen whose header is always shown and whose contents open on demand, such as Settings' Game, Launcher and Theme sections.
@@ -152,6 +156,9 @@ _Avoid_: focus (keyboard focus is separate), hover
 **Context**:
 What a server- or mod-specific element describes: the entry it sits in, the modal it's inside, or the selection.
 
+**Selection context**:
+A layout container declared `"context": "selection"`, where `server.*` elements describe the selected server. A visible `server.join` inside one stands in for the selected row's in the visibility check.
+
 **Detail panel**:
 A region of a layout that shows whatever is selected.
 _Avoid_: details rail, inspector, sidebar
@@ -171,11 +178,14 @@ An element every layout must place so the launcher stays usable, such as the win
 The check a theme package must pass before it can be installed or shown.
 
 **Visibility check**:
-The check, while a theme is showing, that required elements are actually visible, uncovered and reachable by keyboard.
+The check, while a theme is showing, that required elements are actually visible, uncovered, and reachable by keyboard or scrolling.
 _Avoid_: probe, runtime check
 
 **Fallback**:
-Showing Neutral's layout for one screen of a theme that failed validation or the visibility check, while the rest of the theme stays in effect.
+Showing Neutral's layout for one screen — one layout file — of a theme that failed validation or the visibility check, while the rest of the theme stays in effect.
+
+**Fallback notice**:
+The dismissible banner shown when any screen of the active theme fell back; once dismissed it stays dismissed for that theme and launcher version (SPEC §16.1).
 
 **Activation Safety Window**:
 The countdown after switching themes during which the user confirms the change or it reverts.

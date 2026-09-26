@@ -121,6 +121,8 @@ The theme grid derives one label from what you've declared: **Custom layout** if
 
 Dev Mode's live contrast check (§7) runs in whichever scheme is currently active, so switch schemes while checking rather than trusting a single pass.
 
+**What users can retune.** The customiser in Settings (SPEC §4.6) edits the twelve colours, the dark/light switch and bloom, plus a short list of roles: `radius.window`, `radius.panel`, `radius.row`, `radius.control`, and the two `type.family` steps — the UI and data font stacks. Everything else stays as your `tokens.json` ships it. When the active theme is a user theme (`local.*`, one this launcher created), **Save changes** writes the edits into it in place and **Save as new** duplicates it under the field's name. A bundled or imported theme can't be written in place, so the single primary action there reads **Save theme** and creates a new user theme.
+
 ## 4. The CSS API by example
 
 `styles.css` is one file, capped at 256 KB, wrapped by the launcher in `@layer launcher, theme, guarantees;` so your rules win over the launcher's defaults without a specificity fight — you never need `!important`, and it's refused if you use it.
@@ -193,7 +195,7 @@ At-rules are limited to three:
 
 ### 4.3 Reaching tokens and settings
 
-Colours keep today's variable names (`--bg`, `--accent`, `--row-selected`, …); everything else added by v2 is prefixed `--t-` (`--t-radius-row`, `--t-space-6`, `--t-type-body-size`, `--t-shadow-modal`). A theme setting reaches CSS only as a generated `--setting-<id>` custom property on the window root — never substituted into the stylesheet text itself:
+Colours keep today's variable names (`--bg`, `--accent`, `--row-selected`, …); everything else added by v2 is prefixed `--t-` (`--t-radius-row`, `--t-space-6`, `--t-type-body-size`, `--t-shadow-modal`), and the two font families are `--t-type-family-ui` and `--t-type-family-data`. The old bare names — `--font-ui`, `--font-data`, `--space-*`, `--radius-*` — are gone; the launcher publishes none of them, so `font-family: var(--t-type-family-ui)` is the only way in. A theme setting reaches CSS only as a generated `--setting-<id>` custom property on the window root — never substituted into the stylesheet text itself:
 
 ```css
 [data-el="server.name"] {
@@ -213,7 +215,31 @@ Every file has an envelope:
 
 A container (`stack`, `grid`, `box`, `scroll`, `tabs`, `accordion`) holds `children`; a leaf places an `element`, a `surface`, `text`, an `image`, or (shell only) an `outlet`. `id`, `class`, sizing, `padding`/`gap`, `position` and `hidden` are common to every node — the full list is SPEC §5.5.
 
-### 5.1 The tab-order rule
+### 5.1 Width variants
+
+A file carries either a single `root` or a `variants` array, never both. A variant is a whole alternative root for a range of window widths:
+
+```json
+{
+  "schemaVersion": 2,
+  "variants": [
+    { "minWidth": 0,   "root": { … } },
+    { "minWidth": 900, "root": { … } }
+  ]
+}
+```
+
+- Two to four variants, ordered by ascending `minWidth`, the first `0`. The launcher renders the last entry whose `minWidth` is at or below the window's CSS width, so the first covers everything narrower than the second.
+- Width is the window's CSS width, which the interface scale divides: the 975×620 minimum window is 650px wide at the 1.5× maximum scale. 650×413 is therefore the narrowest the launcher ever renders, and every variant is validated there (SPEC §5.2) — a required element has to stay visible at that size, however you rearrange it.
+- The shell, view files, `layout/settings.json`, modals and popups all take `variants`. A list template does not: `layout/lists/<id>.json` has a `row` and `columns`, and `root` or `variants` there fails with `LAY-01`; a list adapts through its columns, `wrap` and `overflowX` instead.
+- Region ids may repeat across variants — only one root renders at a time, so `r-detail` can name the panel in both, and only a repeat *inside* one root is `LAY-08`. Required elements must still be *placed* in every variant (`REQ-06`), so keep them in all of them.
+- Switching a variant re-runs the visibility check (§7).
+
+Tactical is the worked example. Its `layout/shell.json` has two variants (0 and 900) that keep the same regions — `r-shell`, `r-header`, `r-main`, `r-footer` — and differ only in density: below 900 the logo, the nav items and the Steam state fall back to icons and a dot, and from 900 they carry labels. Its `layout/views/browser.json` is a genuine rearrangement: below 1400 the filter bar stacks into two rows (`r-filterbar-top` wraps, `r-filterbar-bottom` sits beneath it) and the detail panel gains an `r-detail-body` wrapper, while at 1400 the bar is one row again. Both browser variants reuse the same ids (`r-browser`, `r-filterbar`, `r-hides`, `r-detail`, `r-identity`, `r-title`, `r-stats`, `r-props`, `r-actions`, `r-join`).
+
+**The widths to design for.** 650×413 is the narrowest, as above. 975×620 is the minimum window at 1× scale and 1400×800 the default window at 1× — the two sizes the screenshot and perf harnesses use. ~1154×744 is the harness's default viewport, a 1442×930 window at the launcher's default 1.25× interface scale, so it is the middle case most of the example shots are taken at. Dev Mode's switcher (§7) offers 650, 975 and 1400 along with whatever widths your files declare.
+
+### 5.2 The tab-order rule
 
 **Tab order is DOM order — the order your layout file declares, top to bottom, child by child.** There is no `tabindex` a theme can set; the only way to change what gets focused first is to change where a node sits in the file. This is the one structural mistake you can make without seeing it happen, because it only shows up when a keyboard-only user tries to move through the screen.
 
@@ -232,7 +258,7 @@ A container (`stack`, `grid`, `box`, `scroll`, `tabs`, `accordion`) holds `child
 
 Tabbing from outside the window lands on Minimize first, then Maximize, then Close, then into the nav rail — because that's the order they're written here, not because window controls are conventionally first. Neutral puts the nav rail before the window controls, so Neutral's tab order starts in navigation instead. Whichever order you choose, it's worth actually tabbing through the screen once (§7) rather than assuming it reads the way it looks.
 
-### 5.2 A worked composition: the browser view
+### 5.3 A worked composition: the browser view
 
 `starter.layout`'s `layout/views/browser.json` moves the detail panel to the *left* of the list — a rearrangement, not a restyle:
 
@@ -283,7 +309,7 @@ Its list row (`layout/lists/servers.json`) shows the other half — merging what
 
 `column` is only legal on a direct child of a row's root, and only when the file declares `columns` — here `location` must be one of the ids in that file's `columns` array (SPEC §7.5).
 
-### 5.3 What every layout file must keep
+### 5.4 What every layout file must keep
 
 Whatever you rearrange, the composition-level required-element rules in `ELEMENTS.md` still apply: window controls, the drag region, navigation to every view and Settings, both required notices, and — inside any context that places `server.join` — `server.actionNotice`. The validator checks presence anywhere in the composition, not in a fixed slot, so moving `surface.windowControls` into a view file instead of the shell is fine as long as it's there in every composition that needs it.
 
@@ -329,13 +355,25 @@ Dev Mode is session-only, toggled from theme management, and runs against your t
 
 - **Outlines** on every region and element, with their ids and contexts, so you can see what you're actually looking at.
 - **Click-to-pin inspector:** click an outlined region or element to pin its floating panel open. It doesn't open on hover alone.
-- **A validation panel** per screen, listing errors and warnings with their rule id (`CSS-01`, `ELE-03`, and so on), the file, and a pointer to the exact node — the same pointer format SPEC §14.4 defines. If a screen fell back to Neutral, the panel names the reason.
+- **A validation panel** for the active theme, listing errors and warnings with their rule id (`CSS-01`, `ELE-03`, and so on), the file, and a pointer to the exact node — the same pointer format SPEC §14.4 defines — and a "Fell back to Neutral" list naming every file that fell back and the element and reason that failed it.
 - **Contrast warnings** for the active token set, checked against the pairs SPEC §18 lists (`text`/`bg`, `text`/`surface`, `muted`/`surface`, `onAccent`/`accent`, `onAccent2`/`accent2`, `onDanger`/`danger`, and each semantic colour against `surface`). Below 4.5:1 warns; below 3:1 on body text is an import error (`TOK-05`).
 - **A variant and settings switcher**, for seeing each breakpoint variant and settings combination without resizing the window or re-tuning fields by hand.
 - **Hot reload**, on the existing file watch: an invalid file keeps showing its last valid version while you fix it, rather than flashing to the default layout.
 - **Copy selector**, which emits a stable-API selector for whatever's under the pointer — a fast way to get the right `[data-el="…"]` into your stylesheet.
 
-**What the variant switcher can do today.** The switcher is present, but the launcher doesn't yet render its screens from layout files — until that lands, it reports **"No screen renders from a layout file yet"** for any screen. Once a screen does render from layout, the switcher still needs that layout file to declare `variants` before it has anything to offer; without one, it reports **"No variants declared"**. Neither message means your theme is wrong — it means the harness around it isn't finished, or you haven't added a `variants` array to that file yet.
+**The variant switcher.** The Variant row offers chips for 650, 975 and 1400 plus every `minWidth` your layout files declare, and a **Real width** chip that goes back to the live window. Picking a width renders every screen at it at once and re-runs the visibility check, so that width's fallbacks show immediately. The row is inert when no file declares `variants` ("No variants declared"), and reads "No screen renders from a layout file yet" when nothing in the active theme is rendering from layout at all — neither message means your theme is wrong. The Settings row switches between your theme's own values and each combination of your `boolean` and `choice` fields, capped at 64, without editing the schema.
+
+**The visibility check.** It runs at theme activation, hot reload, a debounced window resize, opening a view, modal or popup, switching variant, collapsing or expanding a region, changing tab, and opening an accordion section — never on data updates. For every required element in the current composition it proves the element exists, has a non-zero box, lies inside the window, isn't hidden by `display: none`, `visibility: hidden` or zero opacity, isn't covered at its centre, and — if it's interactive — is keyboard-focusable.
+
+A few situations are worth knowing before you rely on them:
+
+- **Only the selected and focused row of a list is measured.** Revealing a per-row action on hover stays legal, because the check only looks where the user is; a row scrolled out of the window isn't measured at all.
+- **Scrolling counts as reaching.** An element scrolled out of a scrolling pane passes as long as the pane itself is visible, because the user can scroll to it.
+- **The selection panel's Join covers the selected row's.** Joining the selected server always works, so a visible `server.join` inside a `selection` container satisfies the selected row's Join; a focused-but-unselected row still needs its own on screen.
+- **Notices are measured only while they show.** A required notice that renders nothing, or that the user dismissed, is skipped.
+- **Closed UI is deferred, not failed.** A required element inside a closed accordion section, an inactive tab or a collapsed subtree is measured once that part opens. While a modal is open only its own requirements are measured; while Settings is an overlay or panel the view beneath it is skipped — but the window controls and the drag region are still measured, because they must never be buried. Keep a Settings overlay off the header, as Tactical does by scoping its overlay to `r-main`, leaving `r-header`'s window controls and drag region clear.
+
+When a required element fails, **the file it belongs to falls back** to Neutral's version of that screen, and only that file (§16.1). Two places tell you why: a dismissible **FALLBACK** notice in the window, shown once per theme per launcher version, and, with Dev Mode on, the validation panel's "Fell back to Neutral" list, naming each file and the element and reason behind it.
 
 ## 8. Limits
 

@@ -253,7 +253,8 @@ A notice renders only while its condition holds. The visibility check measures i
   - **Disabled:** during any operation, or while DayZ is running. The tooltip reads "DayZ is running. Quit the game before joining another server."
   - **Icon:** Download for modded servers, Play otherwise.
   - **Selection:** clicking Join never selects its row.
-- **`server.actionNotice`:** shows this server's current join warning or error (W01–W04, E01) or the last launch result; a refused launch also carries `refused`. It is placed automatically right after `server.join` wherever a theme omits it (SPEC §6.8).
+  - **Visibility:** the check measures the selected row's Join, but a visible `server.join` inside a `selection` container satisfies it, because joining the selected server always works. A focused-but-unselected row still needs its own.
+- **`server.actionNotice`:** shows this server's current join warning or error (W01–W04, E01) or the last launch result; a refused launch also carries `refused`. It is required in every context that places `server.join` (`REQ-05` in a list row, `REQ-03` in a modal, `REQ-04` in a popup, `REQ-01` elsewhere); a file that omits it fails validation and falls back. It renders only while it has something to report, so the visibility check measures it only then.
 - **`server.cancel`:** renders only while this server has a wait that can be cancelled.
 - **`server.loadToMenu`:** reads "Load to menu" and verifies the mod list, then starts DayZ at the main menu without joining. It is disabled under the same conditions as Join.
 - **`server.info`:** reads "More info" and opens the server info modal.
