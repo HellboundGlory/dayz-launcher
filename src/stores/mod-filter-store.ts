@@ -3,6 +3,7 @@ import { useServerStore } from "@/stores/server-store";
 import { visibleRows } from "@/stores/mods-store";
 import {
   getKnownMods,
+  getWorkshopPreviews,
   searchWorkshopMods,
   type KnownMod,
   type SubscribedMod,
@@ -97,6 +98,19 @@ function initialModFilterState() {
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
 let searchToken = 0;
 let knownToken = 0;
+
+async function fillKnownPreviews(ids: string[], token: number): Promise<void> {
+  let previews: Record<string, string>;
+  try {
+    previews = await getWorkshopPreviews(ids);
+  } catch {
+    return;
+  }
+  if (token !== knownToken || Object.keys(previews).length === 0) return;
+  useModFilterStore.setState((s) => ({
+    known: s.known?.map((m) => (previews[m.workshop_id] ? { ...m, preview_url: previews[m.workshop_id] } : m)) ?? null,
+  }));
+}
 
 // Debounced Workshop text search — only the "workshop" tab drives it, and
 // it stays empty (a prompt, not a list) until the user actually types.
@@ -203,6 +217,8 @@ export const useModFilterStore = create<ModFilterState>((set, get) => ({
       const rows = await getKnownMods();
       if (token !== knownToken) return;
       set({ known: rows });
+      const missing = rows.filter((m) => !m.preview_url).map((m) => m.workshop_id);
+      if (missing.length > 0) void fillKnownPreviews(missing, token);
     } catch {
       if (token !== knownToken) return;
       set({ known: [] });
@@ -262,7 +278,7 @@ function fromKnown(m: KnownMod, subscribedIds: Set<string>): ModFilterEntry {
   return {
     id: m.workshop_id,
     title: m.name || `Workshop item ${m.workshop_id}`,
-    previewUrl: null,
+    previewUrl: m.preview_url,
     subscribed: subscribedIds.has(m.workshop_id),
     serverCount: m.server_count,
     description: null,

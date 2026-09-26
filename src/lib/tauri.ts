@@ -529,11 +529,17 @@ export interface KnownMod {
   workshop_id: string;
   name: string;
   server_count: number;
+  preview_url: string | null;
 }
 
 /** Every mod seen on a registered server, ranked by server count. */
 export async function getKnownMods(limit = 200): Promise<KnownMod[]> {
   return invoke<KnownMod[]>("get_known_mods", { limit });
+}
+
+/** Preview image URLs by Workshop id, fetched from Steam when not cached. */
+export async function getWorkshopPreviews(workshopIds: string[]): Promise<Record<string, string>> {
+  return invoke<Record<string, string>>("get_workshop_previews", { workshopIds });
 }
 
 /** One Workshop item returned by a text search. No local install state —

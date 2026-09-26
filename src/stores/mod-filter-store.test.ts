@@ -197,8 +197,8 @@ describe("selectors", () => {
 
   it("activeEntries returns known rows on the seen tab, marking ones also subscribed", () => {
     const known: KnownMod[] = [
-      { workshop_id: "1", name: "Alpha", server_count: 3 },
-      { workshop_id: "9", name: "Other", server_count: 1 },
+      { workshop_id: "1", name: "Alpha", server_count: 3, preview_url: "https://x/a.png" },
+      { workshop_id: "9", name: "Other", server_count: 1, preview_url: null },
     ];
     const entries = activeEntries({
       tab: "seen",
@@ -211,6 +211,7 @@ describe("selectors", () => {
     expect(entries.map((e) => e.id)).toEqual(["1", "9"]);
     expect(entries[0].subscribed).toBe(true);
     expect(entries[1].subscribed).toBe(false);
+    expect(entries.map((e) => e.previewUrl)).toEqual(["https://x/a.png", null]);
   });
 
   it("activeEntries returns search results on the workshop tab, merging usage counts", () => {

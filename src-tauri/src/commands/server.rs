@@ -1278,7 +1278,7 @@ pub(crate) async fn server_mod_readiness_impl(
     })
 }
 
-async fn resolve_workshop_cache(
+pub(crate) async fn resolve_workshop_cache(
     state: &AppState,
     valid_ids: &[u64],
     mut cache: HashMap<u64, tetra_registry::rows::WorkshopCacheRow>,
