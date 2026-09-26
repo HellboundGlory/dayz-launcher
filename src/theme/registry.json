@@ -508,6 +508,29 @@
       "since": "2.1",
       "aliases": []
     },
+    "notice.launch": {
+      "kind": "notice",
+      "where": [
+        "app"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "tag",
+        "server",
+        "message",
+        "dismiss"
+      ],
+      "states": [
+        "warning",
+        "error",
+        "refused"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
     "notice.update": {
       "kind": "notice",
       "where": [

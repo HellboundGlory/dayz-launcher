@@ -731,9 +731,9 @@ An `overlay` presentation may also declare `"backdropClose": true`. When set, a 
 Notices are launcher messages about the state of the app or of an action. `ELEMENTS.md` lists them all.
 
 - **Required on every view:** `notice.storage` and `notice.error`, because they report data loss and failures. On the Mods view, `notice.modsError`, `notice.modsCached` and `notice.modsResult` are required too, for the same reason.
-- **Optional:** `notice.update` and `notice.modsOutdated`, because the update modal, Settings and the action bar offer the same things.
+- **Optional:** `notice.update`, `notice.modsOutdated` and `notice.launch`, because the update modal, Settings, the action bar and `server.actionNotice` offer the same things.
 - **`server.actionNotice`** is required in every context that places `server.join`, and the launcher places it right after Join when a theme omits it. This is what fixes today's bug where composing the row actions silently drops the join warnings.
-- **Rendering:** a notice renders only while its condition holds, so a theme can't reserve space for one and can't hide one that fires.
+- **Rendering:** a notice renders only while its condition holds, so a theme can't reserve space for one and can't hide one that fires. The one exception: a composition that places `notice.launch` may hide `server.actionNotice` in list rows, since the bar carries the same content.
 - **Announcements:** `notice.error` and `notice.modsError` are `role="alert"`; the others are `aria-live="polite"`. Each appears once per composition, so nothing is announced twice.
 - **Dismissal:** the error, update and mods-result notices are dismissible, as today. The storage notice is not: it holds until the condition clears.
 

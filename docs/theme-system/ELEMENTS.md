@@ -2,7 +2,7 @@
 
 This file lists every piece of core content a v2 theme can place, and the rules the validator enforces for each. It is the readable form of `src/theme/registry.json` (ADR-0007). The two must agree, and a test fails the build if they don't. Terms follow `CONTEXT.md`; the rules behind each column are specified in `SPEC.md`.
 
-Every entry below is introduced in theme API 2.0 (`since: "2.0"`) and has no aliases yet, except `status.activity`, `server.manageMods`, `server.refresh`, `settings.done`, `mod.created`, `mod.publishedSize`, `mod.subscribers` and `mod.folder`, introduced in 2.1.
+Every entry below is introduced in theme API 2.0 (`since: "2.0"`) and has no aliases yet, except `status.activity`, `server.manageMods`, `server.refresh`, `settings.done`, `mod.created`, `mod.publishedSize`, `mod.subscribers`, `mod.folder` and `notice.launch`, introduced in 2.1.
 
 ## How to read the tables
 
@@ -160,12 +160,15 @@ A singular prefix (`server.`) acts on one subject; a plural prefix (`servers.`) 
 | `notice.update` | notice | app | — | 1 | — | title, message, update, later | — |
 | `notice.storage` | notice | app | views+settings | 1 | — | tag, message | — |
 | `notice.error` | notice | app | views+settings | 1 | — | tag, message, dismiss | — |
+| `notice.launch` | notice | app | — | 1 | — | tag, server, message, dismiss | `warning`, `error`, `refused` |
 | `notice.modsError` | notice | mods | mods | 1 | — | message | — |
 | `notice.modsCached` | notice | mods | mods | 1 | — | message | — |
 | `notice.modsResult` | notice | mods | mods | 1 | — | message, dismiss | `success`, `failure` |
 | `notice.modsOutdated` | notice | mods | — | 1 | — | message, updateAll | `busy` |
 
 A notice renders only while its condition holds. The visibility check measures it only while it is showing.
+
+- **`notice.launch`:** the join warning or launch refusal for the server last acted on, the same content as that server's `server.actionNotice`, as a bar that names the server. A successful launch never shows here. Dismissing it clears the notice for `server.actionNotice` too. A composition that places it may hide `server.actionNotice` in list rows.
 
 - **`notice.update`:**
   - "Update" opens the update modal; "Later" dismisses the notice for the session;
