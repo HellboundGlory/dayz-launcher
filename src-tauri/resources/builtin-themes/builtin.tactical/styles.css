@@ -1591,6 +1591,12 @@
   min-height: 0;
 }
 
+/* The dialog's shape at a window that can hold it; the narrow block gives the
+floor up so the body, and the panes inside it, shrink to the scrim instead. */
+[data-region="r-settings-body"] {
+  min-height: 480px;
+}
+
 [data-region="r-settings-tabs"] [data-part="tablist"] {
   display: flex;
   flex-direction: column;
@@ -3536,6 +3542,10 @@ the smallest window the launcher can compose. */
 @media (max-width: 899px) {
   [data-region="r-settings-scrim"] {
     padding: 12px;
+  }
+
+  [data-region="r-settings-body"] {
+    min-height: 0;
   }
 
   [data-region="r-settings-header"] {

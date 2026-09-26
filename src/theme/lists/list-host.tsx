@@ -40,10 +40,15 @@ export function sameColumns(a: ColumnDef[], b: ColumnDef[]): boolean {
   });
 }
 
+const PX_LENGTH = /^(\d+(?:\.\d+)?)px$/;
+
+/** The scroller's minimum width: fixed tracks plus flexible tracks' `minWidth` floors. */
 function pxColumnWidthSum(columns: ColumnDef[] = []): number {
   return columns.reduce((sum, col) => {
-    const match = /^(\d+(?:\.\d+)?)px$/.exec(col.width ?? "");
-    return match ? sum + Number.parseFloat(match[1]) : sum;
+    const fixed = PX_LENGTH.exec(col.width ?? "");
+    if (fixed) return sum + Number.parseFloat(fixed[1]);
+    const floor = PX_LENGTH.exec(col.minWidth ?? "");
+    return floor ? sum + Number.parseFloat(floor[1]) : sum;
   }, 0);
 }
 

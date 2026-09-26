@@ -1,5 +1,6 @@
 {
   "schemaVersion": 2,
+  "overflowX": "scroll",
   "estimatedRowHeight": "41px",
   "columns": [
     {
@@ -23,7 +24,7 @@
       "align": "start",
       "sort": "name",
       "label": "NAME",
-      "minWidth": "0px"
+      "minWidth": "96px"
     },
     {
       "id": "status",

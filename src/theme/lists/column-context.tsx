@@ -15,8 +15,14 @@ export function useColumnPlacement(column: string | undefined): CSSProperties | 
   const index = columns.findIndex((col) => col.id === column);
   if (index === -1) return undefined;
 
-  const style: CSSProperties = { gridColumn: index + 1, minWidth: 0, overflow: "hidden" };
-  const align = columns[index].align;
+  const { align, minWidth } = columns[index];
+  // Like the header cell's `minWidth`, this floors the track itself, which is
+  // what keeps a `1fr` cell from collapsing to nothing in a narrow list.
+  const style: CSSProperties = {
+    gridColumn: index + 1,
+    minWidth: minWidth ?? 0,
+    overflow: "hidden",
+  };
   if (align !== undefined) {
     // No `display` here: a grid or stack cell must keep its own.
     style.justifyContent = ALIGN[align];
