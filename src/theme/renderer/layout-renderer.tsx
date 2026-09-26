@@ -6,11 +6,13 @@ import { useDevStore } from "@/theme/dev/dev-store";
 import { LayoutNodeRenderer, RenderContextProvider } from "./node-renderer";
 import type { SettingsValues } from "./props";
 import { resolveVariant } from "./variant";
+import { useViewportWidth } from "./use-viewport-width";
 import type { HostNode, LayoutFile } from "./types";
 
 export interface LayoutRendererProps {
   file: LayoutFile;
-  /** The window's CSS width, used to pick a variant (§5.2). */
+  /** The window's CSS width, used to pick a variant (§5.2). Defaults to the
+   * measured viewport. */
   width?: number;
   outlets?: Record<string, ReactNode>;
   /** Renders an element or surface leaf; supplied by the element host (4.2). */
@@ -23,7 +25,7 @@ export interface LayoutRendererProps {
 
 export function LayoutRenderer({
   file,
-  width = 0,
+  width,
   outlets,
   renderElement,
   settings,
@@ -31,12 +33,16 @@ export function LayoutRenderer({
 }: LayoutRendererProps) {
   // Tells the Dev Mode switcher a screen is actually drawing from a layout file.
   useEffect(() => useDevStore.getState().registerRenderer(), []);
+  const viewportWidth = useViewportWidth();
   // The selector subscribes so an unrelated dev-store field doesn't re-render
   // the tree; the getState() fallback covers SSR/renderToStaticMarkup, where
   // zustand's server snapshot is frozen at store creation (see FallbackNotice).
   const devWidth = useDevStore((s) => s.variantWidth) ?? useDevStore.getState().variantWidth;
   const devSettings = useDevStore((s) => s.settingsOverride) ?? useDevStore.getState().settingsOverride;
-  const root = useMemo(() => resolveVariant(file, devWidth ?? width), [file, devWidth, width]);
+  const root = useMemo(
+    () => resolveVariant(file, devWidth ?? width ?? viewportWidth),
+    [file, devWidth, width, viewportWidth],
+  );
   const value = useMemo(
     () => ({ settings: devSettings ?? settings ?? {}, outlets: outlets ?? {}, renderElement, themeId }),
     [devSettings, settings, outlets, renderElement, themeId],
