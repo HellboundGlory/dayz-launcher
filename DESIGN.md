@@ -80,8 +80,8 @@ More may join it later. Users can save custom skins
 ## 6. Typography
 
 - **UI:** Inter 400/500/600/700/800, **bundled woff2** under `src/assets/fonts/`
-  (no CDN — the app must render identically offline). `--font-ui`.
-- **Data:** JetBrains Mono 400/500/600 (`--font-data`), used for every number,
+  (no CDN — the app must render identically offline). `--t-type-family-ui`.
+- **Data:** JetBrains Mono 400/500/600 (`--t-type-family-data`), used for every number,
   address, timestamp and size.
 - **Scale:** deliberately small — 8–13px UI text, 13px mono for the stat
   clusters. Density wins; readability is carried by weight/color contrast, not

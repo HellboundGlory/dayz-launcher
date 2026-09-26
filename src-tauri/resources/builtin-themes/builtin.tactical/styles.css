@@ -157,7 +157,7 @@
 
 [data-el="status.steam"] [data-part="label"] {
   font-size: 12px;
-  font-family: var(--font-ui);
+  font-family: var(--t-type-family-ui);
   color: var(--muted);
 }
 
@@ -468,7 +468,7 @@
 }
 
 [data-el="filter.tags"] [data-part="indicator"] {
-  font-family: var(--font-data);
+  font-family: var(--t-type-family-data);
   font-size: 10px;
   color: #334155;
 }
@@ -563,7 +563,7 @@
 }
 
 [data-el="filter.maxPing"] [data-part="value"] {
-  font-family: var(--font-data);
+  font-family: var(--t-type-family-data);
   font-size: 10px;
   color: var(--text);
 }
@@ -843,7 +843,7 @@
 }
 
 .t-row [data-el="server.address"] {
-  font-family: var(--font-data);
+  font-family: var(--t-type-family-data);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: var(--muted2);
@@ -853,7 +853,7 @@
 
 .t-row [data-el="server.gameTime"] {
   display: block;
-  font-family: var(--font-data);
+  font-family: var(--t-type-family-data);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
@@ -863,7 +863,7 @@
 }
 
 .t-row [data-el="server.lastPlayed"] {
-  font-family: var(--font-ui);
+  font-family: var(--t-type-family-ui);
   font-size: 11px;
   color: var(--muted);
   overflow: hidden;
@@ -871,7 +871,7 @@
 }
 
 .t-row [data-el="server.map"] {
-  font-family: var(--font-ui);
+  font-family: var(--t-type-family-ui);
   font-size: 11px;
   color: var(--muted2);
   overflow: hidden;
@@ -879,7 +879,7 @@
 }
 
 .t-row [data-el="server.players"] {
-  font-family: var(--font-data);
+  font-family: var(--t-type-family-data);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -901,7 +901,7 @@
 }
 
 .t-row [data-el="server.modCount"] {
-  font-family: var(--font-data);
+  font-family: var(--t-type-family-data);
   font-size: 11px;
   color: var(--muted2);
 }
@@ -915,7 +915,7 @@
 }
 
 .t-row [data-el="server.ping"] {
-  font-family: var(--font-data);
+  font-family: var(--t-type-family-data);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -1110,11 +1110,11 @@
   gap: 2px 8px;
   font-size: 11px;
   color: var(--muted);
-  font-family: var(--font-ui);
+  font-family: var(--t-type-family-ui);
 }
 
 [data-region="r-identity"] [data-el="server.address"] [data-part="address"] {
-  font-family: var(--font-data);
+  font-family: var(--t-type-family-data);
 }
 
 [data-region="r-identity"] [data-el="server.address"] [data-part="gamePort"] {
@@ -1156,7 +1156,7 @@
 
 [data-region="r-stats"] [data-part="label"] + :not([data-part]),
 [data-region="r-stats"] [data-part="label"] + [data-part="value"] {
-  font-family: var(--font-data);
+  font-family: var(--t-type-family-data);
   font-size: 14px;
   line-height: 20px;
   font-weight: 700;
@@ -1220,7 +1220,7 @@
 }
 
 .t-prop > [data-el] {
-  font-family: var(--font-ui);
+  font-family: var(--t-type-family-ui);
   font-size: 11px;
   color: var(--text);
   overflow: hidden;
@@ -1242,7 +1242,7 @@
 }
 
 [data-region="r-actions"] [data-el="server.actionNotice"] [data-part="code"] {
-  font-family: var(--font-data);
+  font-family: var(--t-type-family-data);
   font-size: 9px;
   font-weight: 600;
   border-radius: 4px;
@@ -1458,11 +1458,11 @@
 
 [data-el="status.serverTotal"] [data-part="value"],
 [data-el="status.populated"] [data-part="value"] {
-  font-family: var(--font-data);
+  font-family: var(--t-type-family-data);
 }
 
 [data-el="status.lastRefreshed"] {
-  font-family: var(--font-ui);
+  font-family: var(--t-type-family-ui);
 }
 
 [data-el="status.populated"]::before,
@@ -1507,7 +1507,7 @@
 [data-el="app.uiScale"] [data-part="value"] {
   width: 32px;
   text-align: right;
-  font-family: var(--font-data);
+  font-family: var(--t-type-family-data);
   font-variant-numeric: tabular-nums;
   color: var(--muted2);
 }
@@ -1665,7 +1665,7 @@
 
 [data-region="r-settings-body"] [data-el^="settings."] {
   margin: 0;
-  font-family: var(--font-ui);
+  font-family: var(--t-type-family-ui);
 }
 
 [data-region="r-settings-body"] [data-el^="settings."] > [data-part="label"] {
@@ -1733,7 +1733,7 @@
 }
 
 [data-el="settings.launchParams"] [data-part="control"] > :first-child {
-  font-family: var(--font-data);
+  font-family: var(--t-type-family-data);
 }
 
 [data-region="r-settings-body"] [data-part="box"] {
@@ -2231,7 +2231,7 @@
 }
 
 .t-mod-prop > [data-el] {
-  font-family: var(--font-data);
+  font-family: var(--t-type-family-data);
   font-size: 10px;
   color: var(--text);
   text-align: right;
@@ -2391,7 +2391,7 @@
 }
 
 [data-el="mods.count"] {
-  font-family: var(--font-data);
+  font-family: var(--t-type-family-data);
 }
 
 [data-region="r-mods-actions-right"] {
@@ -2592,7 +2592,7 @@
 }
 
 [data-region="r-info-stats"] :is([data-el="server.players"], [data-el="server.gameTime"], [data-el="server.modCount"]) {
-  font-family: var(--font-data);
+  font-family: var(--t-type-family-data);
   font-size: 14px;
   line-height: 20px;
   font-weight: 700;
@@ -2601,7 +2601,7 @@
 }
 
 [data-region="r-info-stats"] [data-el="server.ping"] {
-  font-family: var(--font-data);
+  font-family: var(--t-type-family-data);
   font-size: 14px;
   line-height: 20px;
   font-weight: 700;
@@ -2661,7 +2661,7 @@
 [data-el="serverMod.order"] {
   flex-shrink: 0;
   width: 16px;
-  font-family: var(--font-data);
+  font-family: var(--t-type-family-data);
   font-size: 10px;
   color: var(--muted);
   text-align: right;
@@ -2909,7 +2909,7 @@
 }
 
 [data-el="update.changelog"] [data-part="content"] {
-  font-family: var(--font-ui);
+  font-family: var(--t-type-family-ui);
   font-size: 12px;
   line-height: 1.6;
   color: var(--muted2);
@@ -3183,7 +3183,7 @@
 
 .t-modfilter-row [data-el="workshopMod.serverCount"] {
   flex-shrink: 0;
-  font-family: var(--font-data);
+  font-family: var(--t-type-family-data);
   font-size: 10px;
   color: var(--accent2);
 }
@@ -3290,7 +3290,7 @@
 }
 
 [data-context="modFilterPreview"] [data-el="workshopMod.size"] {
-  font-family: var(--font-data);
+  font-family: var(--t-type-family-data);
 }
 
 [data-context="modFilterPreview"] [data-el="workshopMod.tags"] {
