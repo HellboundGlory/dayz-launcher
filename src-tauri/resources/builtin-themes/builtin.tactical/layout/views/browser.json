@@ -110,123 +110,130 @@
                 "children": [
                   {
                     "type": "stack",
-                    "id": "r-identity",
+                    "id": "r-detail-body",
                     "direction": "column",
                     "children": [
                       {
                         "type": "stack",
-                        "id": "r-title",
-                        "direction": "row",
-                        "align": "start",
+                        "id": "r-identity",
+                        "direction": "column",
                         "children": [
                           {
-                            "element": "server.name"
+                            "type": "stack",
+                            "id": "r-title",
+                            "direction": "row",
+                            "align": "start",
+                            "children": [
+                              {
+                                "element": "server.name"
+                              },
+                              {
+                                "element": "server.info",
+                                "options": {
+                                  "display": "icon"
+                                }
+                              },
+                              {
+                                "element": "server.favourite"
+                              },
+                              {
+                                "element": "server.deselect"
+                              }
+                            ]
                           },
                           {
-                            "element": "server.info",
+                            "element": "server.address",
                             "options": {
-                              "display": "icon"
+                              "showGamePort": true
                             }
                           },
                           {
-                            "element": "server.favourite"
-                          },
-                          {
-                            "element": "server.deselect"
-                          }
-                        ]
-                      },
-                      {
-                        "element": "server.address",
-                        "options": {
-                          "showGamePort": true
-                        }
-                      },
-                      {
-                        "element": "server.tags",
-                        "options": {
-                          "officialWording": "official",
-                          "showBattleye": true,
-                          "showModUpdate": false
-                        }
-                      }
-                    ]
-                  },
-                  {
-                    "type": "stack",
-                    "id": "r-stats",
-                    "direction": "row",
-                    "children": [
-                      {
-                        "element": "server.players"
-                      },
-                      {
-                        "element": "server.ping",
-                        "options": {
-                          "showUnit": true
-                        }
-                      },
-                      {
-                        "element": "server.gameTime"
-                      },
-                      {
-                        "element": "server.modCount"
-                      }
-                    ]
-                  },
-                  {
-                    "type": "stack",
-                    "id": "r-props",
-                    "direction": "column",
-                    "children": [
-                      {
-                        "type": "stack",
-                        "direction": "row",
-                        "align": "baseline",
-                        "class": "t-prop",
-                        "children": [
-                          {
-                            "type": "text",
-                            "value": "MAP",
-                            "role": "label",
-                            "class": "t-prop-label"
-                          },
-                          {
-                            "element": "server.map"
+                            "element": "server.tags",
+                            "options": {
+                              "officialWording": "official",
+                              "showBattleye": true,
+                              "showModUpdate": false
+                            }
                           }
                         ]
                       },
                       {
                         "type": "stack",
+                        "id": "r-stats",
                         "direction": "row",
-                        "align": "baseline",
-                        "class": "t-prop",
                         "children": [
                           {
-                            "type": "text",
-                            "value": "VERSION",
-                            "role": "label",
-                            "class": "t-prop-label"
+                            "element": "server.players"
                           },
                           {
-                            "element": "server.version"
+                            "element": "server.ping",
+                            "options": {
+                              "showUnit": true
+                            }
+                          },
+                          {
+                            "element": "server.gameTime"
+                          },
+                          {
+                            "element": "server.modCount"
                           }
                         ]
                       },
                       {
                         "type": "stack",
-                        "direction": "row",
-                        "align": "baseline",
-                        "class": "t-prop",
+                        "id": "r-props",
+                        "direction": "column",
                         "children": [
                           {
-                            "type": "text",
-                            "value": "REGION",
-                            "role": "label",
-                            "class": "t-prop-label"
+                            "type": "stack",
+                            "direction": "row",
+                            "align": "baseline",
+                            "class": "t-prop",
+                            "children": [
+                              {
+                                "type": "text",
+                                "value": "MAP",
+                                "role": "label",
+                                "class": "t-prop-label"
+                              },
+                              {
+                                "element": "server.map"
+                              }
+                            ]
                           },
                           {
-                            "element": "server.region"
+                            "type": "stack",
+                            "direction": "row",
+                            "align": "baseline",
+                            "class": "t-prop",
+                            "children": [
+                              {
+                                "type": "text",
+                                "value": "VERSION",
+                                "role": "label",
+                                "class": "t-prop-label"
+                              },
+                              {
+                                "element": "server.version"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "stack",
+                            "direction": "row",
+                            "align": "baseline",
+                            "class": "t-prop",
+                            "children": [
+                              {
+                                "type": "text",
+                                "value": "REGION",
+                                "role": "label",
+                                "class": "t-prop-label"
+                              },
+                              {
+                                "element": "server.region"
+                              }
+                            ]
                           }
                         ]
                       }
