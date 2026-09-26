@@ -8,6 +8,7 @@ import {
 import type { HostNode, PopupLayoutFile } from "../renderer/types";
 import { type SettingsValues } from "../renderer/props";
 import { LayoutNodeRenderer, RenderContextProvider } from "../renderer/node-renderer";
+import { useResolvedRoot } from "../renderer/use-resolved-root";
 import { parseLengthPx } from "./resizable";
 
 export interface TriggerRect {
@@ -48,6 +49,7 @@ export function PopupHost({
   const side = placement.side ?? "bottom";
   const align = placement.align ?? "start";
   const offsetPx = parseLengthPx(placement.offset, 4);
+  const root = useResolvedRoot(file);
 
   useEffect(() => {
     if (!isOpen || typeof document === "undefined") return;
@@ -160,7 +162,7 @@ export function PopupHost({
       style={containerStyle}
     >
       <RenderContextProvider value={renderCtx}>
-        <LayoutNodeRenderer node={file.root} />
+        <LayoutNodeRenderer node={root} />
       </RenderContextProvider>
     </div>
   );

@@ -14,6 +14,7 @@ export {
   type RenderedAttrs,
 } from "./props";
 export { resolveVariant } from "./variant";
+export { useResolvedRoot } from "./use-resolved-root";
 export { Stack, Grid, Box, Scroll } from "./containers";
 export { TextLeaf, ImageLeaf, OutletLeaf } from "./leaves";
 export {
