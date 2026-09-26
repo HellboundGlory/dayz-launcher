@@ -128,7 +128,7 @@ export function AppLogo({
         src={tetraLogo}
         alt=""
         draggable={false}
-        className="size-[var(--t-space-iconLarge)] shrink-0 [border-radius:var(--t-radius-controlSmall)] [box-shadow:var(--t-shadow-glow)]"
+        className="size-[var(--t-space-iconLarge)] shrink-0 [border-radius:var(--t-radius-controlSmall)] [box-shadow:var(--t-glow-rest)]"
       />
       {showWordmark && (
         <span

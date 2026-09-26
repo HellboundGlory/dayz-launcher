@@ -73,7 +73,7 @@ const PILL_TONE: Record<"ready" | "update" | "dl" | "muted", string> = {
 const PILL_DOT_GLOW: Record<"ready" | "update" | "dl" | "muted", string> = {
   ready: "[box-shadow:var(--t-shadow-statusDot)]",
   update: "[box-shadow:var(--t-shadow-statusDot)]",
-  dl: "[box-shadow:var(--t-shadow-glow)]",
+  dl: "[box-shadow:var(--t-glow-rest)]",
   muted: "",
 };
 
@@ -529,7 +529,7 @@ function modRowNodes(
         {state === "downloading" && progress && progress.total && Number(progress.total) > 0 && (
           <div className="mx-prog h-[3px] overflow-hidden rounded-full bg-line">
             <i
-              className="block h-full rounded-full bg-accent [box-shadow:var(--t-shadow-glow)]"
+              className="block h-full rounded-full bg-accent [box-shadow:var(--t-glow-rest)]"
               style={{
                 width: `${Math.min(100, (Number(progress.downloaded) / Number(progress.total)) * 100)}%`,
               }}

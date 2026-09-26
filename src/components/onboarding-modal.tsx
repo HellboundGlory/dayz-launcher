@@ -101,7 +101,7 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
         className="w-[min(360px,calc(100%-40px))] overflow-hidden rounded-[10px] border border-line bg-surface shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
       >
         <div className="flex items-start gap-2.5 border-b border-line p-4">
-          <img src={tetraLogo} alt="" className="size-9 shrink-0 rounded-[7px] shadow-[var(--glow)]" />
+          <img src={tetraLogo} alt="" className="size-9 shrink-0 rounded-[7px] [box-shadow:var(--t-glow-rest)]" />
           <div>
             <h2 className="text-[13.5px] font-bold text-ink">Set up your survivor</h2>
             <p className="mt-0.5 text-[10.5px] leading-relaxed text-muted">
