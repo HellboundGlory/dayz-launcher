@@ -57,7 +57,7 @@ describe("applyThemeStylesheet", () => {
     expect(head[0].attributes).toMatchObject({
       id: "tetra-theme-css",
       rel: "stylesheet",
-      href: "tetra-theme://aurora/styles.css",
+      href: "tetra-theme://localhost/aurora/styles.css",
       layer: "theme",
     });
   });
@@ -77,7 +77,7 @@ describe("applyThemeStylesheet", () => {
 
     applyThemeStylesheet("aurora", ["css"]);
     expect(head).toHaveLength(1);
-    expect(head[0].attributes.href).toBe("tetra-theme://aurora/styles.css");
+    expect(head[0].attributes.href).toBe("tetra-theme://localhost/aurora/styles.css");
     expect(head[0].attributes.layer).toBe("theme");
   });
 
@@ -89,7 +89,7 @@ describe("applyThemeStylesheet", () => {
 
     expect(head).toHaveLength(1);
     expect(head[0]).toBe(first);
-    expect(first.attributes.href).toBe("tetra-theme://borealis/styles.css");
+    expect(first.attributes.href).toBe("tetra-theme://localhost/borealis/styles.css");
     expect(first.attributes.layer).toBe("theme");
   });
 

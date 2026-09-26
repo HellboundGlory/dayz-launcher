@@ -183,12 +183,12 @@ mockIPC(
   { shouldMockEvents: true },
 );
 
-// Theme assets are served over tetra-theme:// in the app; point them at the package on disk.
+// Theme assets are served over tetra-theme://localhost/<id>/ in the app; point them at the package on disk.
 const rewrite = (el: Element) => {
   for (const attr of ["href", "src"]) {
     const value = el.getAttribute(attr);
     if (value?.startsWith("tetra-theme://")) {
-      const [, id, ...rest] = value.replace("tetra-theme://", "/").split("/");
+      const [, id, ...rest] = value.replace("tetra-theme://localhost/", "/").split("/");
       el.setAttribute(attr, `${THEME_ROOT}/${decodeURIComponent(id)}/${rest.join("/")}`);
     }
   }

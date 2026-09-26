@@ -1,5 +1,5 @@
 //! Serving an installed theme's static assets to the webview, read-only:
-//! `tetra-theme://<theme id>/<relative path>`. Nothing here writes, renames or
+//! `tetra-theme://localhost/<theme id>/<relative path>`. Nothing here writes, renames or
 //! deletes, and a request that resolves anywhere but its own theme's directory
 //! is refused — see [`resolve_asset`].
 
@@ -51,15 +51,22 @@ fn read_asset(themes_root: &Path, uri: &Uri) -> Result<(&'static str, Vec<u8>), 
     Ok((content_type, bytes))
 }
 
-/// `tetra-theme://<theme id>/<relative path>` -> its two halves. Both arrive
+/// `tetra-theme://localhost/<theme id>/<relative path>` -> its two halves. The
+/// id is a path segment, not the host: WebView2 only reaches a custom scheme as
+/// `http://tetra-theme.localhost/...`, which leaves no host for it. Both arrive
 /// percent-encoded: an asset name may hold spaces or non-ASCII, and a staged
-/// package's id is `.staging/<staging id>` — the `/` the URI grammar forbids
-/// in a bare host is what the frontend percent-encodes to get it there.
+/// package's id is `.staging/<staging id>`, whose `/` the frontend
+/// percent-encodes to keep it one segment.
 fn split_uri(uri: &Uri) -> Result<(String, String), String> {
-    let theme_id = percent_encoding::percent_decode_str(uri.host().unwrap_or_default())
+    let (raw_id, raw_path) = uri
+        .path()
+        .trim_start_matches('/')
+        .split_once('/')
+        .ok_or_else(|| "The request names no asset.".to_string())?;
+    let theme_id = percent_encoding::percent_decode_str(raw_id)
         .decode_utf8()
-        .map_err(|_| "The request host is not valid UTF-8.".to_string())?;
-    let rel_path = percent_encoding::percent_decode_str(uri.path())
+        .map_err(|_| "The request's theme id is not valid UTF-8.".to_string())?;
+    let rel_path = percent_encoding::percent_decode_str(raw_path)
         .decode_utf8()
         .map_err(|_| "The request path is not valid UTF-8.".to_string())?;
     Ok((
@@ -220,7 +227,7 @@ mod tests {
 
     /// The URL the webview would ask for, built the way the frontend will.
     fn request(theme_id: &str, rel_path: &str) -> Uri {
-        format!("{SCHEME}://{theme_id}/{rel_path}")
+        format!("{SCHEME}://localhost/{theme_id}/{rel_path}")
             .parse()
             .expect("a valid request URL")
     }
@@ -479,7 +486,7 @@ mod tests {
 
     #[test]
     fn a_request_url_splits_into_theme_id_and_asset_path() {
-        let uri: Uri = "tetra-theme://aurora.theme/preview/dark/bg%20one.png"
+        let uri: Uri = "tetra-theme://localhost/aurora.theme/preview/dark/bg%20one.png"
             .parse()
             .expect("a valid request URL");
 
