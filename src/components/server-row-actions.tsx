@@ -192,7 +192,7 @@ export function ServerRowActions({
             ? "DayZ is running. Quit the game before joining another server."
             : undefined
         }
-        className="flex shrink-0 items-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-3 py-1.5 [font-size:var(--t-type-button-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-shadow-glow)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:[box-shadow:none] disabled:hover:brightness-100"
+        className="flex shrink-0 items-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-3 py-1.5 [font-size:var(--t-type-button-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:[box-shadow:none] disabled:hover:brightness-100"
       >
         {busyForThis ? (
           <>
