@@ -161,7 +161,7 @@ export function buildFilterBarControls({
           "fbtn flex shrink-0 items-center justify-center gap-[var(--t-space-inlineGapSmall)] [border-radius:var(--t-radius-control)] border px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-button-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)]",
           refreshing
             ? "cursor-not-allowed border-line bg-surface2 text-muted"
-            : "border-accent-line bg-accent-soft text-accent [box-shadow:var(--t-shadow-glow)] hover:brightness-110",
+            : "border-accent-line bg-accent-soft text-accent [box-shadow:var(--t-glow-rest)] hover:brightness-110",
         )}
         title="Re-probe the servers currently on screen — ping, lock, mods, online status"
       >
@@ -378,7 +378,7 @@ function FdropTrigger({
       data-tetra-el={dataTetraEl}
       className={cn(
         "fdrop-trigger flex items-center gap-[var(--t-space-inlineGap)] whitespace-nowrap [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-button-weight)] text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:border-accent-line hover:text-ink",
-        on && "border-accent-line bg-accent-soft text-accent [box-shadow:var(--t-shadow-glow)]",
+        on && "border-accent-line bg-accent-soft text-accent [box-shadow:var(--t-glow-selected)]",
       )}
     >
       <span>{label}</span>

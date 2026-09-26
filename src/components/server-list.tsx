@@ -319,7 +319,7 @@ export function ServerList({ view, onMoreInfo }: ServerListProps) {
                   "l2-row flex cursor-pointer items-center gap-3 [border-radius:var(--t-radius-row)] border border-line bg-surface px-3 py-2 transition-[border-color,background,box-shadow] [transition-duration:var(--t-motion-hover-duration)]",
                   "hover:border-accent-line",
                   isSelected &&
-                    "border-accent-line bg-accent-soft [box-shadow:var(--t-shadow-glow)]",
+                    "border-accent-line bg-accent-soft [box-shadow:var(--t-glow-selected)]",
                   !server.online && "opacity-50",
                 )}
                 style={{

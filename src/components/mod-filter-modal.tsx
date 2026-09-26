@@ -476,7 +476,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
                 className={cn(
                   "flex flex-1 items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] border px-3 py-2 [font-size:var(--t-type-compactBody-size)] font-bold",
                   selection[preview.id] === "include"
-                    ? "border-accent-line bg-accent-soft text-accent [box-shadow:var(--t-shadow-glow)]"
+                    ? "border-accent-line bg-accent-soft text-accent [box-shadow:var(--t-glow-selected)]"
                     : "border-line text-muted hover:text-ink",
                 )}
               >
@@ -507,7 +507,7 @@ export function ModFilterModal({ onClose }: ModFilterModalProps) {
       <button
         data-tetra-el="applyAction"
         onClick={apply}
-        className="[border-radius:var(--t-radius-control)] border border-accent-line bg-accent-soft px-3.5 py-[7px] [font-size:var(--t-type-compactBody-size)] font-bold text-accent [box-shadow:var(--t-shadow-glow)] transition-[filter] hover:brightness-110"
+        className="[border-radius:var(--t-radius-control)] border border-accent-line bg-accent-soft px-3.5 py-[7px] [font-size:var(--t-type-compactBody-size)] font-bold text-accent [box-shadow:var(--t-glow-rest)] transition-[filter] hover:brightness-110"
       >
         Apply
       </button>

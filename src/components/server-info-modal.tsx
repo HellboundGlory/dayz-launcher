@@ -334,7 +334,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
           ref={joinRef}
           data-tetra-el="joinAction"
           onClick={() => void actions.verifyAndJoin(server, false)}
-          className="flex min-w-0 flex-1 items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-4 py-2 [font-size:var(--t-type-button-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-shadow-glow)] transition-colors hover:brightness-110"
+          className="flex min-w-0 flex-1 items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-4 py-2 [font-size:var(--t-type-button-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110"
         >
           {server.modded ? <Download className="size-3.5" /> : <Play className="size-3.5" />}
           <span>{needsFix ? "Fix and join" : "Join"}</span>
@@ -345,7 +345,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
           aria-haspopup="menu"
           aria-expanded={loadOpen}
           title="Load this server's mods to the main menu"
-          className="flex shrink-0 items-center justify-center [border-radius:var(--t-radius-control)] bg-accent px-2 [color:var(--t-color-onAccent)] [box-shadow:var(--t-shadow-glow)] transition-colors hover:brightness-110"
+          className="flex shrink-0 items-center justify-center [border-radius:var(--t-radius-control)] bg-accent px-2 [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110"
         >
           <ChevronDown className={cn("size-3.5 transition-transform", loadOpen && "rotate-180")} />
         </button>

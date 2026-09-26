@@ -35,7 +35,7 @@ const EXTRAS_INPUT_CLASS =
 
 /** The accent save control, shared by "Save changes" and "Save theme". */
 const SAVE_BUTTON_CLASS =
-  "shrink-0 [border-radius:var(--t-radius-control)] border-none bg-accent px-3 py-[7px] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-[0.05em] [color:var(--t-color-onAccent)] [box-shadow:var(--t-shadow-glow)] transition-[filter] hover:brightness-110";
+  "shrink-0 [border-radius:var(--t-radius-control)] border-none bg-accent px-3 py-[7px] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-[0.05em] [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-[filter] hover:brightness-110";
 
 /** The quieter control beside the accent save — the name-based "Save as new". */
 const SECONDARY_BUTTON_CLASS =
@@ -107,7 +107,7 @@ export function ThemeCustomiser() {
           <span
             className={cn(
               "tr pointer-events-none absolute inset-0 rounded-full transition-colors [transition-duration:var(--t-motion-hover-duration)] peer-focus-visible:ring-2 peer-focus-visible:ring-accent-line",
-              isDark ? "bg-accent [box-shadow:var(--t-shadow-glow)]" : "bg-line",
+              isDark ? "bg-accent [box-shadow:var(--t-glow-selected)]" : "bg-line",
             )}
           />
           <span
