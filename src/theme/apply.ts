@@ -71,8 +71,7 @@ export function applyTheme(
       `0 0 ${r(60)} ${rgba(palette.accent, A(0.16))}`,
   );
 
-  // SPEC §4.1 `glow`: the launcher's own buttons read these; decorative glows
-  // keep reading `--t-shadow-glow` directly.
+  // SPEC §4.1 `glow`: every launcher-drawn glow reads one of these.
   p.setProperty("--t-glow-rest", resolved.glow === "always" ? "var(--t-shadow-glow)" : "none");
   p.setProperty("--t-glow-selected", resolved.glow === "never" ? "none" : "var(--t-shadow-glow)");
 

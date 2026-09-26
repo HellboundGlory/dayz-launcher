@@ -397,7 +397,7 @@ function ModCount({ server }: { server: Server }) {
 type TagTone = "accent" | "accent2" | "muted" | "danger";
 
 const TAG_CLASS: Record<TagTone, string> = {
-  accent: "bg-accent-soft text-accent [box-shadow:var(--t-shadow-glow)]",
+  accent: "bg-accent-soft text-accent [box-shadow:var(--t-glow-rest)]",
   accent2: "bg-accent2-soft text-accent2",
   muted: "bg-muted-soft text-muted2",
   danger: "bg-danger-soft text-danger",

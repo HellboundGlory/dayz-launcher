@@ -168,7 +168,7 @@ Packages live in the themes folder under the launcher's data directory, one fold
 
 Every key is optional; anything a theme leaves out keeps Neutral's value. A role may hold either a scale step name (`"md"`) or a literal value (`"7px"`), which is how today's odd sizes survive unchanged. `scales.type.family` defaults to `ui` (the bundled Inter stack) and `data` (the bundled JetBrains Mono stack).
 
-`glow` is one of `always`, `selected` or `never`, and governs the launcher's own components: `always` leaves every button lit at rest, `selected` (the default) lights only the selected, active or open one, and `never` lights neither. It does not touch decorative glows — those keep the `shadow.glow` role — and layout elements carry their own `glow` node prop (§5.5).
+`glow` is one of `always`, `selected` or `never`, and governs the launcher's own components: `always` lights every glowing surface at rest (buttons, the logo, status dots, progress fills), `selected` (the default) lights only the selected, active or open control, and `never` lights nothing. The glow's look is the `shadow.glow` role. Layout elements choose per node with the `glow` prop (§5.5).
 
 ### 4.2 Colours
 

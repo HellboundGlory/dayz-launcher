@@ -56,7 +56,7 @@ export function FooterBar({
         <span
           className={cn(
             "size-[var(--t-space-stateDotSize)] [border-radius:var(--t-radius-pill)]",
-            steamConnected ? "bg-success [box-shadow:var(--t-shadow-glow)]" : "bg-warn [box-shadow:var(--t-shadow-stateWarning)]",
+            steamConnected ? "bg-success [box-shadow:var(--t-glow-rest)]" : "bg-warn [box-shadow:var(--t-shadow-stateWarning)]",
           )}
         />
         {steamConnected ? "Steam connected" : "Steam not connected"}
@@ -114,7 +114,7 @@ export function FooterBar({
         <span className="lbl [font-weight:var(--t-type-button-weight)]">Scale</span>
         <span className="track relative h-[var(--t-space-sliderHeight)] w-[var(--t-space-scaleTrackWidth)] [border-radius:var(--t-radius-track)] bg-line">
           <span
-            className="knob absolute left-0 top-1/2 h-[var(--t-space-scaleKnobSize)] w-[var(--t-space-scaleKnobSize)] [border-radius:var(--t-radius-pill)] bg-accent [box-shadow:var(--t-shadow-glow)] transition-transform [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)]"
+            className="knob absolute left-0 top-1/2 h-[var(--t-space-scaleKnobSize)] w-[var(--t-space-scaleKnobSize)] [border-radius:var(--t-radius-pill)] bg-accent [box-shadow:var(--t-glow-rest)] transition-transform [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)]"
             style={{ transform: `translate(calc(${knobPosition} * (var(--t-space-scaleTrackWidth) - var(--t-space-scaleKnobSize))), -50%)` }}
           />
           <input

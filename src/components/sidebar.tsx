@@ -105,7 +105,7 @@ export function Sidebar({
             src={tetraLogo}
             alt=""
             draggable={false}
-            className="logo h-[var(--t-space-iconLarge)] w-[var(--t-space-iconLarge)] shrink-0 [border-radius:var(--t-radius-controlSmall)] [box-shadow:var(--t-shadow-glow)]"
+            className="logo h-[var(--t-space-iconLarge)] w-[var(--t-space-iconLarge)] shrink-0 [border-radius:var(--t-radius-controlSmall)] [box-shadow:var(--t-glow-rest)]"
           />
           {!collapsed && (
             <span className="brand-name truncate [font-size:var(--t-type-brand-size)] [font-weight:var(--t-type-button-weight)] [letter-spacing:var(--t-type-brand-tracking)] text-accent">
