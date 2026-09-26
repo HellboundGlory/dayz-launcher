@@ -31,6 +31,9 @@ PNG as `<out>.log`; uncaught errors are also painted onto the page.
 | `modal=serverInfo\|modFilter\|update` | Open that modal (`serverInfo` uses the selected server, or server 0) |
 | `click=<css selector>` | Click an element; repeatable, run in order |
 | `dayz=1` | Report DayZ as running |
+| `storage=degraded` | Report the registry as degraded, so the storage notice shows |
+| `mods=mixed` | Add a declared mod mid-download to the selection's readiness |
+| `static=1` | Freeze the clock and disable animations, transitions and the caret |
 
 Example: `tools/harness/shoot.sh /tmp/detail.png "select=3&popup=map" 1540 860`
 
@@ -106,3 +109,38 @@ between runs: the fixture only reports the page's own theme as installed, so a
 apply. Memory and scroll each use their own page per theme, so the heap is read
 with the list already rendered.
 
+## Visual baselines
+
+`npm run visual` records the scenario matrix into `tools/harness/baselines/`.
+`npm run visual:check` shoots the same matrix into `tools/harness/.out/visual`,
+compares each shot with pixelmatch (`threshold: 0.1`, `includeAA: false`), writes
+`<shot>.diff.png` next to every mismatch, prints the table of results and
+exits 1 on any differing pixel or missing baseline. Both are local only —
+nothing gates CI, and the baselines are gitignored.
+
+The matrix is themes `neutral` and `builtin.tactical` × schemes `dark`, `light`
+× 1400×800 and 975×620 at device scale 1 × the `SCENARIOS` table in
+`visual.mjs`: the browser, an empty list, a selected server, each nav view, the
+mods view with a mod open, Settings plus one shot per Settings tab, each filter
+popup, each modal, and the `storage=degraded` / `mods=mixed` fixtures. Files are
+`baselines/<theme>/<scheme>-<w>x<h>-<scenario>.png`. `--filter <substring>`
+matches that path and `--theme <id>` narrows to one theme. The server ports are
+picked free at runtime (`HARNESS_PORT` still overrides the prod one), so a
+`shoot.sh` Vite left on 1431 does not collide with a run.
+
+Two things worth knowing about the matrix:
+
+- The prod build drives the whole matrix, `modal=` included: `App` exposes the
+  modal openers whenever `window.__harness` exists, which `main.tsx` defines.
+- Neutral renders the legacy components, whose hooks are `data-tetra-el`, so its
+  rows reach the same state by clicking those hooks through `click=`. Its
+  Settings is one scrolling accordion rather than tabs, so the per-tab shots are
+  skipped and listed in the output instead of failing.
+- A scenario whose hook never appeared is reported as `no-hook` and never
+  baselined: silently shooting the screen behind it would freeze the wrong
+  picture in as the baseline.
+
+Shots are deterministic because every query carries `static=1`: animations,
+transitions and the caret are off, `main.tsx` replaces `Date` with a frozen
+clock that the fixture timestamps also read, and `visual.mjs` runs the browser
+under `TZ=UTC`.

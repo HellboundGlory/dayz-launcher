@@ -10,7 +10,9 @@
     "test": "vitest run",
     "lint": "eslint .",
     "harness:smoke": "node tools/harness/smoke.mjs",
-    "perf": "node tools/harness/perf.mjs"
+    "perf": "node tools/harness/perf.mjs",
+    "visual": "node tools/harness/visual.mjs record",
+    "visual:check": "node tools/harness/visual.mjs check"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3",

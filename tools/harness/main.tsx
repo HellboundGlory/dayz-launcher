@@ -12,6 +12,28 @@ const themeId = params.get("theme") ?? "builtin.tactical";
 const scheme = params.get("scheme");
 const servers = makeServers(Number(params.get("servers") ?? 120));
 const dayzRunning = params.get("dayz") === "1";
+const storageDegraded = params.get("storage") === "degraded";
+const mixedMods = params.get("mods") === "mixed";
+
+// `static=1` (the visual harness): pin the clock and kill motion and the caret,
+// so two shots of the same tree are byte-identical. Midday so a ±12h timezone
+// still lands on the same calendar day in the rendered dates.
+const FROZEN_NOW = Date.UTC(2025, 9, 1, 12, 34, 56);
+if (params.get("static") === "1") {
+  const RealDate = Date;
+  class FrozenDate extends RealDate {
+    constructor(...args: unknown[]) {
+      if (args.length === 0) super(FROZEN_NOW);
+      else super(...(args as [number]));
+    }
+    static now = () => FROZEN_NOW;
+  }
+  globalThis.Date = FrozenDate as unknown as DateConstructor;
+  const style = document.createElement("style");
+  style.textContent =
+    "*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}";
+  document.head.append(style);
+}
 const THEME_ROOT = "/src-tauri/resources/builtin-themes";
 const LAYOUTS = [
   "layout/shell.json",
@@ -63,11 +85,13 @@ function serverList(filter: Record<string, unknown> | undefined): Server[] {
   return servers;
 }
 
+// `mods=mixed` puts one declared mod mid-download, so the readiness strip and
+// list show progress next to the ready/outdated/unsubscribed ones.
 const readiness = {
   stale: false,
   mods: [
     ["CF", "ready"],
-    ["Community Online Tools", "ready"],
+    ["Community Online Tools", mixedMods ? "downloading" : "ready"],
     ["DayZ-Expansion-Bundle", "needs_update"],
     ["Trader", "not_subscribed"],
   ].map(([name, state], i) => ({
@@ -78,8 +102,8 @@ const readiness = {
     size_is_upper_bound: state === "needs_update",
     preview_url: null,
     is_unique: false,
-    downloaded_bytes: null,
-    total_bytes: null,
+    downloaded_bytes: state === "downloading" ? 400_000_000 : null,
+    total_bytes: state === "downloading" ? 1_200_000_000 : null,
   })),
 };
 
@@ -105,7 +129,7 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   }),
   steam_init: () => null,
   steam_connection_state: () => true,
-  registry_degraded: () => false,
+  registry_degraded: () => storageDegraded,
   discover_servers: () => null,
   get_server_list: (args) => serverList(args.filter as Record<string, unknown> | undefined),
   get_map_list: () => maps,
@@ -177,21 +201,33 @@ new MutationObserver((records) => {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function waitFor(selector: string, timeout = 8000): Promise<HTMLElement | null> {
-  const start = Date.now();
-  while (Date.now() - start < timeout) {
+/** Selectors a scenario asked for and never found: the shot shows the wrong state. */
+const missing: string[] = [];
+
+async function waitFor(
+  selector: string,
+  timeout = 8000,
+  { optional = false }: { optional?: boolean } = {},
+): Promise<HTMLElement | null> {
+  // `performance.now()`: `static=1` freezes the wall clock.
+  const start = performance.now();
+  while (performance.now() - start < timeout) {
     const el = document.querySelector<HTMLElement>(selector);
     if (el) return el;
     await sleep(50);
   }
+  if (!optional) missing.push(selector);
   console.warn(`[harness] never found ${selector}`);
   return null;
 }
 
 async function runScenario() {
   // Neutral renders the base components (data-tetra-el hooks); a theme package
-  // renders the element pipeline (data-el). Either proves the list painted.
-  await waitFor('[data-list="servers"] [data-row], [data-el="list.servers"], [data-tetra-el="name"]');
+  // renders the element pipeline (data-el). Either proves the list painted — and
+  // an empty list has none of them, so this one is allowed to miss.
+  await waitFor('[data-list="servers"] [data-row], [data-el="list.servers"], [data-tetra-el="name"]', 8000, {
+    optional: true,
+  });
   await sleep(300);
   const { useServerStore } = await import("@/stores/server-store");
   const view = params.get("view");
@@ -206,8 +242,8 @@ async function runScenario() {
   if (selectMod !== null) {
     const { useModsStore, visibleRows } = await import("@/stores/mods-store");
     const { filterAndSortMods } = await import("@/components/mods-tab");
-    const start = Date.now();
-    while (visibleRows(useModsStore.getState().rows).length === 0 && Date.now() - start < 8000) {
+    const start = performance.now();
+    while (visibleRows(useModsStore.getState().rows).length === 0 && performance.now() - start < 8000) {
       await sleep(50);
     }
     const mods = useModsStore.getState();
@@ -259,6 +295,10 @@ Object.defineProperty(window, "__harness", {
   get: () => harness,
   set: (value: Record<string, unknown>) => Object.assign(harness, value),
 });
+
+// Selectors a scenario asked for and never found, so a caller (the visual
+// harness) can refuse to treat the shot as a baseline.
+harness.missing = missing;
 
 // The store's activation path — what the Themes page calls — resolving on the
 // frame after the repaint, so the perf harness can time apply-to-first-paint.
