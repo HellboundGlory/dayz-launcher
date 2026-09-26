@@ -36,6 +36,10 @@ bit, which can be stale by the time you click Join.
 favourite servers need it, and reinstall a corrupted copy in one click —
 without hunting through Steam's Workshop pages.
 
+**`[THEME]` Themes** — Recolour the launcher from Settings, pick the built-in
+Tactical layout, or build a theme that rearranges the whole window. See the
+[theme guide](https://tetralauncher.com/docs/themes/).
+
 **`[SIGNAL]` Discord presence** — Shows the server you're playing on in
 Discord, with a one-click way for friends to join you straight from your
 profile.
@@ -47,7 +51,7 @@ profile.
 **[tetralauncher.com/download.html](https://tetralauncher.com/download.html)** always has the current release for every platform:
 
 - **Windows** — installer or a portable `.zip`
-- **Linux** — AppImage or `.deb`
+- **Linux** — AppImage, `.deb` or `.rpm`
 
 The launcher checks for updates itself once installed (portable copies notify with a link instead of auto-installing).
 
@@ -70,15 +74,19 @@ To check the code without producing a binary:
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
-npx tsc --noEmit
+npm run build
+npm test
+npm run lint
 ```
 
-These four are exactly what CI runs on every push — see
+These are exactly what CI runs on every push — see
 [`.github/workflows/check.yml`](.github/workflows/check.yml).
 
-The workspace is a Tauri v2 app: a Rust backend split into five crates
+The workspace is a Tauri v2 app: a Rust backend split into crates
 (`tetra-core`, `tetra-net`, `tetra-registry`, `tetra-steam`, `tetra-launch`,
-plus `tetra-discord` for Rich Presence) behind a React + Vite frontend. It
+`tetra-index` for reading the server index, and `tetra-discord` for Rich
+Presence) behind a React + Vite frontend. `tetra-indexer` is the separate
+server-index backend, deployed from `deploy/`. It
 compiles and ships on both Windows and Linux — Windows-only code (Steam
 registry discovery, the `dzsa://` protocol handler on that platform) is
 `cfg(windows)`-gated, with a Linux equivalent where one exists.
