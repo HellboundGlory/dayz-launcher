@@ -802,6 +802,25 @@ describe("Theme Fallback & Visibility (Package 4.5)", () => {
       expect(result.passed).toBe(true);
     });
 
+    it("passes an element Dev Mode's validation panel covers", () => {
+      const container = document.createElement("div");
+      const refresh = createMockElement({
+        tag: "button",
+        attributes: { "data-el": "servers.refresh" },
+      });
+      container.appendChild(refresh);
+
+      const panel = createMockElement({ attributes: { "data-dev-panel": "" } });
+      const panelBody = createMockElement({});
+      panel.appendChild(panelBody);
+      container.appendChild(panel);
+      mockDocument.elementFromPoint = vi.fn().mockReturnValue(panelBody);
+
+      const result = runVisibilityCheck({ root: container, requiredElements: ["servers.refresh"] });
+
+      expect(result.passed).toBe(true);
+    });
+
     it("still measures the open popup's own elements", () => {
       const container = document.createElement("div");
       const popup = createMockElement({ attributes: { "data-part": "popup" } });
