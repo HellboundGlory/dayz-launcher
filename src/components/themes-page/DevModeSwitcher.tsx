@@ -5,26 +5,22 @@ import { useDevStore } from "@/theme/dev/dev-store";
 import { resolveSettingsSchema } from "@/theme/settings-schema";
 import { settingsCombinations } from "@/theme/dev/combinations";
 import { NEUTRAL_LAYOUTS } from "@/theme/neutral/index";
-import type { LayoutFile } from "@/theme/renderer/types";
 
 // 650 is the narrowest CSS width the launcher allows; 1400 is the harness's
 // wide size (SPEC §18).
 const FIXED_WIDTHS = [650, 975, 1400];
 
-function minWidthsOf(file: LayoutFile): number[] {
-  return (file.variants ?? [])
-    .map((v) => v.minWidth)
-    .filter((w): w is number => typeof w === "number");
-}
-
-/** The active theme's own `layout.json` is untrusted JSON — read defensively. */
-function untrustedMinWidths(layout: unknown): number[] {
-  if (typeof layout !== "object" || layout === null) return [];
-  const variants = (layout as { variants?: unknown }).variants;
+/** Variant min-widths a layout file declares. A theme's own layout files are
+ * untrusted JSON, so this reads the shape rather than trusting the type. */
+function minWidthsOf(file: unknown): number[] {
+  if (typeof file !== "object" || file === null || !("variants" in file)) return [];
+  const { variants } = file;
   if (!Array.isArray(variants)) return [];
+  const list: unknown[] = variants;
   const widths: number[] = [];
-  for (const variant of variants) {
-    const minWidth = (variant as { minWidth?: unknown } | null)?.minWidth;
+  for (const variant of list) {
+    if (typeof variant !== "object" || variant === null || !("minWidth" in variant)) continue;
+    const { minWidth } = variant;
     if (typeof minWidth === "number") widths.push(minWidth);
   }
   return widths;
@@ -151,7 +147,9 @@ export function DevModeSwitcher() {
     for (const file of Object.values(NEUTRAL_LAYOUTS)) {
       for (const width of minWidthsOf(file)) set.add(width);
     }
-    for (const width of untrustedMinWidths(activeFile?.layout)) set.add(width);
+    for (const file of Object.values(activeFile?.layouts ?? {})) {
+      for (const width of minWidthsOf(file)) set.add(width);
+    }
     return set;
   })();
 

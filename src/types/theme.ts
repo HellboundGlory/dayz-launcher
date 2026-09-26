@@ -55,19 +55,10 @@ import type { LayoutFile } from "@/theme/renderer/types";
 /** One theme, fully. The backend flattens the manifest, so this isn't nested at the wire level. */
 export type ThemeFile = ThemeManifest & {
   tokens: unknown;
-  layout: unknown | null;
   settingsSchema: unknown | null;
-  /** Keyed by slot id — any slot may be a key; a missing key means the theme ships no such tree. */
-  components: Record<string, unknown>;
+  /** Keyed by package-relative path (`layout/shell.json`) — absent when the theme ships none. */
   layouts?: Record<string, LayoutFile>;
 };
-
-/** A theme's `layout.json`. The backend checks the envelope and nothing else —
- * slot ids, child ids and the per-slot value shapes are the resolver's business. */
-export interface LayoutManifest {
-  schemaVersion: number;
-  slots: Record<string, Record<string, unknown>>;
-}
 
 /** A custom theme as an older build kept it in `localStorage`, for the one-time import. */
 export interface LegacyTheme {

@@ -31,8 +31,6 @@ const backend = vi.hoisted(() => ({
   settingsById: {} as Record<string, Record<string, unknown>>,
   /** Each theme's `settings.schema.json`, by id. */
   schemaById: {} as Record<string, unknown>,
-  /** `layout.json` contents `get_theme` returns, by id. */
-  layoutById: {} as Record<string, unknown>,
   /** Every `set_theme_settings_value` call, in order. */
   setSettingsCalls: [] as { id: string; fieldId: string; value: string | number | boolean }[],
   /** Ids `get_theme` was asked for, in call order. */
@@ -50,7 +48,7 @@ const backend = vi.hoisted(() => ({
 const events = vi.hoisted(() => ({
   /** The handler `watchThemeActivationReverted` registered, if any. */
   reverted: null as
-    | ((event: { payload: { previousId: string | null; restoredTheme: string | null } }) => void)
+    | ((event: { payload: { previousId: string | null } }) => void)
     | null,
   /** The handler `watchHotReload` registered, if any. */
   hotReload: null as ((event: { payload: { id: string } }) => void) | null,
@@ -59,9 +57,7 @@ const events = vi.hoisted(() => ({
 vi.mock("@tauri-apps/api/event", () => ({
   listen: (
     name: string,
-    handler: (event: {
-      payload: { previousId: string | null; restoredTheme: string | null };
-    }) => void,
+    handler: (event: { payload: { previousId: string | null } }) => void,
   ) => {
     if (name === "theme-hot-reload") {
       events.hotReload = handler as unknown as (event: { payload: { id: string } }) => void;
@@ -83,7 +79,6 @@ vi.mock("@/lib/tauri", () => ({
       id,
       name: id,
       tokens: backend.tokensById[id] ?? {},
-      layout: backend.layoutById[id] ?? null,
       settingsSchema: backend.schemaById[id] ?? null,
     };
   },
@@ -154,7 +149,6 @@ beforeEach(() => {
   backend.tokensById = {};
   backend.settingsById = {};
   backend.schemaById = {};
-  backend.layoutById = {};
   backend.setSettingsCalls.length = 0;
   backend.themeCalls.length = 0;
   backend.validationIssuesById = {};
@@ -611,44 +605,18 @@ describe("pickTheme bloom reset", () => {
     expect(useThemeStore.getState().bloom).toBe(0.4);
 
     watchThemeActivationReverted();
-    events.reverted?.({ payload: { previousId: "neutral", restoredTheme: null } });
+    events.reverted?.({ payload: { previousId: "neutral" } });
 
     expect(useThemeStore.getState().activeId).toBe("neutral");
     expect(useThemeStore.getState().bloom).toBe(DEFAULT_EXTRAS.shadows.glowIntensity);
     expect(writtenProps["--bloom"]).toBe(String(DEFAULT_EXTRAS.shadows.glowIntensity));
   });
 
-  it("re-reads the restored theme's file and repaints from it before resetting the ids", async () => {
-    const id = "local.edited";
-    useThemeStore.setState({
-      activeId: id,
-      themeFiles: {
-        [id]: {
-          id,
-          name: id,
-          tokens: { dark: { bg: "#000000" } },
-          // The abandoned preview's layout; the file on disk no longer has it.
-          layout: { schemaVersion: 1, slots: { "shell.footer": { order: ["serverCounts"] } } },
-        } as ThemeFile,
-      },
-    });
-    // What revert put back on disk.
-    backend.layoutById[id] = { schemaVersion: 1, slots: {} };
-
-    watchThemeActivationReverted();
-    events.reverted?.({ payload: { previousId: id, restoredTheme: id } });
-    await settled();
-
-    expect(backend.themeCalls).toEqual([id]);
-    expect(useThemeStore.getState().themeFiles[id]?.layout).toEqual({ schemaVersion: 1, slots: {} });
-    expect(useThemeStore.getState().activeId).toBe(id);
-  });
-
   it("never fetches for an ordinary id-switch revert", async () => {
     useThemeStore.setState({ activeId: "local.dim", themeFiles: {} });
 
     watchThemeActivationReverted();
-    events.reverted?.({ payload: { previousId: "neutral", restoredTheme: null } });
+    events.reverted?.({ payload: { previousId: "neutral" } });
     await settled();
 
     expect(backend.themeCalls).toEqual([]);
