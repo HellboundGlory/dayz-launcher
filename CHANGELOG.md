@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v2.7.0 — 2026-09-26
 
 Themes can now change the whole launcher, not just its colours.
 
