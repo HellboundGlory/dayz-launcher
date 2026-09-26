@@ -7,10 +7,12 @@
 
   /* ── V4 Glow neutral base (canonical, from final-integrated-board.html) ──
      These are the static dark-neutral defaults. The theme engine
-     (src/theme/apply.ts) overrides every token at runtime on <html>. */
+     (src/theme/apply.ts) overrides every token at runtime on <html>. The two
+     family steps are here so the frame before `hydrate()` paints — it is not
+     awaited — renders Inter/JetBrains rather than an undefined var(). */
   :root {
-    --font-ui: "Inter", "Segoe UI", system-ui, sans-serif;
-    --font-data: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+    --t-type-family-ui: "Inter", "Segoe UI", system-ui, sans-serif;
+    --t-type-family-data: "JetBrains Mono", "Fira Code", "Consolas", monospace;
     --bloom: 0.9;
     --bg: #0d0f13;
     --surface: #12151b;
@@ -66,7 +68,7 @@
          paints its own background on the root element. */
       background: transparent;
       color: var(--text);
-      font-family: var(--font-ui);
+      font-family: var(--t-type-family-ui);
       -webkit-font-smoothing: antialiased;
       overflow: hidden;
     }
@@ -132,7 +134,7 @@
 
   /* Monospace for data */
   .font-mono-data {
-    font-family: var(--font-data);
+    font-family: var(--t-type-family-data);
   }
 
   /* ── Theme-styled scrollbars (board §246–261) ─────────────────────
@@ -215,7 +217,7 @@
     border-radius: 3px;
     padding: 0.1em 0.3em;
     font-size: 0.9em;
-    font-family: var(--font-data);
+    font-family: var(--t-type-family-data);
   }
   .update-changelog pre {
     background: var(--surface2);

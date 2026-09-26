@@ -6,34 +6,26 @@ import {
   activePreset,
   activeInstalled,
   effective,
-  effectiveExtras,
+  effectiveRoleValues,
   resolvedPair,
 } from "@/theme/theme-store";
 import {
   GROUP_DEF,
   PRESETS,
-  type Radii,
-  type Spacing,
-  type Typography,
+  type FontFamilyRole,
+  type RadiusRole,
 } from "@/theme/palette";
 
-const SPACING_ROWS: { key: keyof Spacing; label: string }[] = [
-  { key: "xs", label: "Extra small" },
-  { key: "sm", label: "Small" },
-  { key: "md", label: "Medium" },
-  { key: "lg", label: "Large" },
-];
-
-const RADII_ROWS: { key: keyof Radii; label: string }[] = [
-  { key: "control", label: "Control" },
+const RADIUS_ROWS: { key: RadiusRole; label: string }[] = [
+  { key: "window", label: "Window" },
+  { key: "panel", label: "Panel" },
   { key: "row", label: "Row" },
-  { key: "chip", label: "Chip" },
-  { key: "pill", label: "Pill" },
+  { key: "control", label: "Control" },
 ];
 
-const TYPOGRAPHY_ROWS: { key: keyof Typography; label: string }[] = [
-  { key: "uiFont", label: "UI font" },
-  { key: "dataFont", label: "Data font" },
+const FAMILY_ROWS: { key: FontFamilyRole; label: string }[] = [
+  { key: "ui", label: "UI font" },
+  { key: "data", label: "Data font" },
 ];
 
 /** Raw CSS length/font-family value, same posture as the colour hex readout. */
@@ -55,9 +47,8 @@ export function ThemeCustomiser() {
   const pickTheme = useThemeStore((s) => s.pickTheme);
   const setBloom = useThemeStore((s) => s.setBloom);
   const setColorOverride = useThemeStore((s) => s.setColorOverride);
-  const setSpacingOverride = useThemeStore((s) => s.setSpacingOverride);
-  const setRadiusOverride = useThemeStore((s) => s.setRadiusOverride);
-  const setTypographyOverride = useThemeStore((s) => s.setTypographyOverride);
+  const setRadiusRoleOverride = useThemeStore((s) => s.setRadiusRoleOverride);
+  const setFontFamilyOverride = useThemeStore((s) => s.setFontFamilyOverride);
   const saveTheme = useThemeStore((s) => s.saveTheme);
   const deleteTheme = useThemeStore((s) => s.deleteTheme);
   const resetToBase = useThemeStore((s) => s.resetToBase);
@@ -68,7 +59,7 @@ export function ThemeCustomiser() {
 
   const pair = resolvedPair(activeId, themeFiles);
   const palette = effective(scheme, activeId, themeFiles, custom);
-  const extras = effectiveExtras(activeId, themeFiles, customExtras);
+  const roles = effectiveRoleValues(activeId, themeFiles, customExtras);
   const saved = activeInstalled(activeId, myThemes);
   const displayName = saved?.name ?? activePreset(activeId)?.name ?? "Neutral";
 
@@ -299,29 +290,21 @@ export function ThemeCustomiser() {
         </span>
       </div>
 
-      {/* Spacing and radii sit together; font stacks are long, so typography
-          gets the full width beneath them. */}
-      <div className="extras mt-2 grid grid-cols-2 gap-2">
-        <ExtrasCard
-          name="Spacing"
-          rows={SPACING_ROWS}
-          values={extras.spacing}
-          onChange={setSpacingOverride}
-        />
+      {/* The radii and the two font stacks are raw CSS values, and a stack is
+          long, so both cards get the full width. */}
+      <div className="extras mt-2 grid grid-cols-1 gap-2">
         <ExtrasCard
           name="Radii"
-          rows={RADII_ROWS}
-          values={extras.radii}
-          onChange={setRadiusOverride}
+          rows={RADIUS_ROWS}
+          values={roles.radius}
+          onChange={setRadiusRoleOverride}
         />
-        <div className="col-span-2">
-          <ExtrasCard
-            name="Typography"
-            rows={TYPOGRAPHY_ROWS}
-            values={extras.typography}
-            onChange={setTypographyOverride}
-          />
-        </div>
+        <ExtrasCard
+          name="Fonts"
+          rows={FAMILY_ROWS}
+          values={roles.family}
+          onChange={setFontFamilyOverride}
+        />
       </div>
 
       <div className="save-row mt-2 flex gap-[7px]">
@@ -337,7 +320,7 @@ export function ThemeCustomiser() {
               setName("");
             }
           }}
-          className="min-w-0 flex-1 [border-radius:var(--t-radius-control)] border border-line bg-bg px-2.5 py-[7px] font-ui [font-size:var(--t-type-body-size)] text-ink placeholder-muted outline-none transition-colors focus:border-accent-line"
+          className="min-w-0 flex-1 [border-radius:var(--t-radius-control)] border border-line bg-bg px-2.5 py-[7px] [font-size:var(--t-type-body-size)] text-ink placeholder-muted outline-none transition-colors focus:border-accent-line"
         />
         <button
           type="button"
@@ -360,8 +343,7 @@ export function ThemeCustomiser() {
           Reset to base
         </button>
         <span className="[font-size:var(--t-type-micro-size)] leading-[1.4] text-muted">
-          Clears colour, spacing, radius and font overrides back to the active theme&apos;s
-          defaults.
+          Clears colour, radius and font overrides back to the active theme&apos;s defaults.
         </span>
       </div>
     </>
