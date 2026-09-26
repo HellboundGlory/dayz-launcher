@@ -187,6 +187,22 @@ describe("ListRow column placement", () => {
     expect(html).toMatch(/<div data-column="ping" style="grid-column:4/);
   });
 
+  it("floors a cell at its column's declared minWidth", () => {
+    const html = renderToStaticMarkup(
+      <ListRow
+        columns={[
+          { id: "name", width: "1fr", minWidth: "96px" },
+          { id: "ping", width: "60px" },
+        ]}
+        item={mockServer}
+        subjectKind="server"
+        rowNode={{ type: "grid", children: [{ element: "server.name", column: "name" }] }}
+      />,
+    );
+
+    expect(html).toContain("min-width:96px");
+  });
+
   it("leaves an unknown column id unplaced", () => {
     const html = renderToStaticMarkup(
       <ListRow
@@ -419,6 +435,19 @@ describe("ListHost", () => {
     expect(html).toContain('data-part="headerSticky"');
     expect(html).toContain("sticky");
     expect(html).toContain("min-width:452px");
+  });
+
+  it("adds a flexible column's minWidth to the wrapper's minimum width", () => {
+    const flooredColumns: ColumnDef[] = [
+      { id: "star", width: "32px", align: "center" },
+      { id: "name", label: "Server Name", width: "1fr", minWidth: "96px" },
+      { id: "trailing", width: "auto" },
+    ];
+    const html = renderToStaticMarkup(
+      <ListHost listId="list.servers" items={[mockServer]} columns={flooredColumns} overflowX="scroll" />,
+    );
+
+    expect(html).toContain("min-width:128px");
   });
 
   it("passes a parsed estimatedRowHeight through to the virtualizer's row estimate", () => {

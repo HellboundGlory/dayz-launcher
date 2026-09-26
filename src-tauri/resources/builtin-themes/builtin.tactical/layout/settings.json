@@ -48,7 +48,6 @@
             "id": "r-settings-body",
             "direction": "row",
             "grow": 1,
-            "minHeight": "480px",
             "children": [
               {
                 "type": "tabs",

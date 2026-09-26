@@ -16,7 +16,7 @@ const read = (relative: string) =>
 
 const browser = read("layout/views/browser.json") as LayoutFile;
 const shell = read("layout/shell.json") as LayoutFile;
-const settings = read("layout/settings.json") as {
+const settings = read("layout/settings.json") as LayoutFile & {
   presentation?: { mode?: string; region?: string };
 };
 
@@ -191,5 +191,36 @@ describe("builtin.tactical settings overlay", () => {
   it("covers the main area only, so r-header keeps the window controls visible", () => {
     expect(settings.presentation).toMatchObject({ mode: "overlay", region: "r-main" });
     expect(regionIds(wideShell)).toContain("r-main");
+  });
+
+  it("leaves the body's height floor to styles.css", () => {
+    // An inline floor cannot be given up in the narrow block, which is what
+    // keeps the header, the panes and the footer inside a 413px-tall window.
+    const dialog = (settings.root as StackNode).children.find((node) => node.id === "r-settings") as StackNode;
+    const body = dialog.children.find((node) => node.id === "r-settings-body")!;
+    expect(body.minHeight).toBeUndefined();
+    expect(body.grow).toBe(1);
+  });
+});
+
+describe("builtin.tactical mods list", () => {
+  const mods = read("layout/lists/mods.json") as LayoutFile;
+  const name = mods.columns!.find((col) => col.id === "name")!;
+
+  it("scrolls sideways instead of clipping the right-hand columns", () => {
+    expect(mods.overflowX).toBe("scroll");
+  });
+
+  it("floors the flexible name column so it cannot collapse", () => {
+    // The rows' cells take their min-width from the column (§7.5), which is what
+    // holds a `1fr` track open when the fixed columns fill the list.
+    expect(name.width).toBe("1fr");
+    expect(name.minWidth).toBe("96px");
+  });
+
+  it("gives every column a px width or a px floor", () => {
+    for (const col of mods.columns ?? []) {
+      expect(`${col.id}:${col.width}/${col.minWidth ?? ""}`).toMatch(/px/);
+    }
   });
 });
