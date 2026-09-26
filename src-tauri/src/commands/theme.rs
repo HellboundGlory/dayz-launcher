@@ -680,6 +680,166 @@ fn copy_template(source: &Path, target: &Path, manifest_json: &[u8]) -> Result<(
     Ok(())
 }
 
+/// The source files a derived theme never inherits: the source's own identity
+/// and palette, its seed provenance, its README and its screenshots.
+fn is_derivation_excluded(relative: &Path) -> bool {
+    if relative.starts_with("previews") {
+        return true;
+    }
+    matches!(
+        relative.to_str(),
+        Some(theme::MANIFEST_FILE | theme::TOKENS_FILE | SEED_PROVENANCE_FILE | "README.md")
+    )
+}
+
+/// Copy what a derived theme inherits from its source — byte for byte, so an
+/// image or font never travels through a String — then write the caller's
+/// manifest and palette over the source's own.
+fn copy_derived_content(
+    source: &Path,
+    target: &Path,
+    manifest_json: &[u8],
+    tokens_json: &[u8],
+) -> Result<(), String> {
+    let mut stack = vec![(source.to_path_buf(), PathBuf::new())];
+    while let Some((dir, relative)) = stack.pop() {
+        let entries = std::fs::read_dir(&dir)
+            .map_err(|e| format!("Could not read {}: {e}", dir.display()))?;
+        for entry in entries.flatten() {
+            let at = relative.join(entry.file_name());
+            if is_derivation_excluded(&at) {
+                continue;
+            }
+            let from = entry.path();
+            if from.is_dir() {
+                stack.push((from, at));
+                continue;
+            }
+            let to = target.join(&at);
+            if let Some(parent) = to.parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| format!("Could not create {}: {e}", parent.display()))?;
+            }
+            std::fs::copy(&from, &to)
+                .map_err(|e| format!("Could not write {}: {e}", to.display()))?;
+        }
+    }
+    for (name, bytes) in [
+        (theme::MANIFEST_FILE, manifest_json),
+        (theme::TOKENS_FILE, tokens_json),
+    ] {
+        let path = target.join(name);
+        crate::atomic_write::write_atomically(&path, bytes)
+            .map_err(|e| format!("Could not write {}: {e}", path.display()))?;
+    }
+    Ok(())
+}
+
+/// Save a copy of an installed theme under `manifest.id`, keeping everything
+/// the source ships beyond its colours — layout, CSS, settings — and replacing
+/// its manifest and palette with the caller's. Create-only, exactly as
+/// [`save_theme`]: an id that already has a directory is an error.
+fn derive_from_installed(
+    themes_root: &Path,
+    source_id: &str,
+    manifest: &ThemeManifest,
+    tokens: &serde_json::Value,
+) -> Result<String, String> {
+    if !theme::is_usable_id(source_id) {
+        return Err(format!(
+            "`{source_id}` is not a usable theme id — it must be a single directory name"
+        ));
+    }
+    // Also a path component, so it is checked before anything is created.
+    if !theme::is_usable_id(&manifest.id) {
+        return Err(format!(
+            "`{}` is not a usable theme id — it must be a single directory name",
+            manifest.id
+        ));
+    }
+    let source = themes_root.join(source_id);
+    if !source.is_dir() {
+        return Err(format!(
+            "No installed theme `{source_id}` at {}",
+            source.display()
+        ));
+    }
+    theme::validate_tokens(tokens)?;
+
+    // Read through `get`, as a bundled template is: the source's capabilities
+    // come from a manifest a user could see in the grid.
+    let source_manifest = theme::get(themes_root, source_id)
+        .map_err(|e| format!("Could not read the installed theme `{source_id}`: {e}"))?
+        .manifest;
+
+    let mut derived = manifest.clone();
+    derived.capabilities = source_manifest.capabilities;
+    if !derived.capabilities.iter().any(|c| c == "tokens") {
+        derived.capabilities.push("tokens".to_string());
+    }
+    // The source's screenshots are not this theme's; a derived theme ships none.
+    derived.preview = None;
+    derived.previews = Vec::new();
+
+    let manifest_json = serde_json::to_vec_pretty(&derived)
+        .map_err(|e| format!("Could not serialise the manifest: {e}"))?;
+    let tokens_json = serde_json::to_vec_pretty(tokens)
+        .map_err(|e| format!("Could not serialise tokens: {e}"))?;
+
+    std::fs::create_dir_all(themes_root)
+        .map_err(|e| format!("Could not create {}: {e}", themes_root.display()))?;
+    let target = themes_root.join(&manifest.id);
+    // create_dir, not create_dir_all: an installed theme must fail, not merge.
+    std::fs::create_dir(&target).map_err(|e| match e.kind() {
+        std::io::ErrorKind::AlreadyExists => format!(
+            "A theme with id `{}` is already installed at {}",
+            manifest.id,
+            target.display()
+        ),
+        _ => format!("Could not create {}: {e}", target.display()),
+    })?;
+
+    if let Err(e) = copy_derived_content(&source, &target, &manifest_json, &tokens_json) {
+        // A half-copied theme would list as one that can't load.
+        let _ = std::fs::remove_dir_all(&target);
+        return Err(e);
+    }
+
+    // Only a theme that loads is a theme; a copy this build cannot read must
+    // not be left in the grid either.
+    match theme::get(themes_root, &manifest.id) {
+        Ok(_) => Ok(manifest.id.clone()),
+        Err(e) => {
+            let _ = std::fs::remove_dir_all(&target);
+            Err(e)
+        }
+    }
+}
+
+/// Save a copy of an installed theme under a new manifest, keeping its layout,
+/// CSS and settings — the customiser's "save as new" for a source richer than a
+/// colour palette. Create-only, exactly as [`save_theme`].
+#[tauri::command]
+pub fn derive_theme(
+    app: AppHandle,
+    source_id: String,
+    manifest: ThemeManifest,
+    tokens: serde_json::Value,
+) -> Result<String, String> {
+    let id = derive_from_installed(
+        &crate::paths::themes_dir(&app),
+        &source_id,
+        &manifest,
+        &tokens,
+    )?;
+    crate::log::log_line(
+        &app,
+        "theme",
+        &format!("Derived theme `{id}` from `{source_id}`"),
+    );
+    Ok(id)
+}
+
 /// Every theme package this build ships as a starter template, for the "New
 /// theme" picker. Reads the bundled manifests only — the live themes directory
 /// is not consulted, so an installed theme can never appear here.
@@ -1624,6 +1784,282 @@ mod starter_templates {
             let manifest = theme::get(&bundled, id).unwrap().manifest;
             assert_eq!(manifest.capabilities, capabilities, "{id}: capabilities");
         }
+    }
+}
+
+/// Deriving a theme from an installed one: the source's layout, CSS and
+/// settings must survive byte for byte, and the result must be a create-only
+/// neighbour of the source — never a half-written directory.
+#[cfg(test)]
+mod derive_from_installed {
+    use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    /// A scratch directory unique to one test (no `tempfile` dependency), the
+    /// way the rest of `theme` does it — never a real themes root.
+    fn scratch(tag: &str) -> PathBuf {
+        static N: AtomicU64 = AtomicU64::new(0);
+        let seq = N.fetch_add(1, Ordering::Relaxed);
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let dir = std::env::temp_dir().join(format!("tetra-derive-{tag}-{nanos}-{seq}"));
+        std::fs::create_dir_all(&dir).expect("could not create scratch dir");
+        dir
+    }
+
+    /// Every file under `dir`, as `(name relative to `dir`, bytes)`.
+    fn files_under(dir: &Path) -> Vec<(String, Vec<u8>)> {
+        let mut files = Vec::new();
+        let mut stack = vec![(dir.to_path_buf(), String::new())];
+        while let Some((current, prefix)) = stack.pop() {
+            for entry in std::fs::read_dir(&current).unwrap().flatten() {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                let relative = if prefix.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{prefix}/{name}")
+                };
+                if entry.path().is_dir() {
+                    stack.push((entry.path(), relative));
+                } else {
+                    files.push((relative, std::fs::read(entry.path()).unwrap()));
+                }
+            }
+        }
+        files.sort();
+        files
+    }
+
+    fn copy_tree(source: &Path, target: &Path) {
+        std::fs::create_dir_all(target).unwrap();
+        for entry in std::fs::read_dir(source).unwrap().flatten() {
+            let to = target.join(entry.file_name());
+            if entry.path().is_dir() {
+                copy_tree(&entry.path(), &to);
+            } else {
+                std::fs::copy(entry.path(), to).unwrap();
+            }
+        }
+    }
+
+    /// A scratch themes root holding one installed source built from the layout
+    /// starter: real layout, CSS and settings files, plus the three files a
+    /// derivation must leave behind — a README, a seed marker and screenshots.
+    fn source_theme(tag: &str, capabilities: &[&str]) -> (PathBuf, PathBuf) {
+        let root = scratch(tag);
+        let source = root.join("local.source");
+        let starter = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/starter-themes");
+        copy_tree(&starter.join("starter.layout"), &source);
+
+        let manifest: ThemeManifest = serde_json::from_value(serde_json::json!({
+            "schemaVersion": 2,
+            "id": "local.source",
+            "name": "Source",
+            "author": "Source Author",
+            "capabilities": capabilities,
+            // The source's screenshots are not the copy's.
+            "previews": [{ "file": "previews/dark.png", "caption": "Dark" }],
+        }))
+        .expect("a valid source manifest");
+        std::fs::write(
+            source.join(theme::MANIFEST_FILE),
+            serde_json::to_vec_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+
+        std::fs::write(source.join(SEED_PROVENANCE_FILE), "{}").unwrap();
+        std::fs::create_dir_all(source.join("previews")).unwrap();
+        std::fs::write(source.join("previews/dark.png"), b"\x89PNG\r\n").unwrap();
+        // The user's tuned values are this theme's own settings, so they travel.
+        std::fs::write(
+            source.join(crate::theme::settings_values::SETTINGS_VALUES_FILE),
+            br#"{"windowControls":false}"#,
+        )
+        .unwrap();
+        (root, source)
+    }
+
+    fn derived_manifest() -> ThemeManifest {
+        ThemeManifest {
+            schema_version: 2,
+            id: "local.derived".to_string(),
+            name: "Derived".to_string(),
+            author: "local".to_string(),
+            capabilities: vec!["tokens".to_string()],
+            ..ThemeManifest::default()
+        }
+    }
+
+    #[test]
+    fn copies_the_sources_content_and_writes_the_callers_manifest_and_palette() {
+        let (root, source) = source_theme("copies", &["layout", "css", "settings"]);
+        let tokens = serde_json::json!({
+            "schemaVersion": 2,
+            "bloom": 0.5,
+            "colors": { "dark": { "bg": "#010101" }, "light": {} },
+        });
+
+        let id = derive_from_installed(&root, "local.source", &derived_manifest(), &tokens)
+            .expect("derive");
+
+        assert_eq!(id, "local.derived");
+        let derived = theme::get(&root, "local.derived").expect("the derived theme loads");
+        assert_eq!(derived.tokens, tokens, "the caller's palette replaces the source's");
+        assert_eq!(derived.manifest.name, "Derived");
+        assert_eq!(derived.manifest.author, "local");
+        assert_eq!(
+            derived.manifest.capabilities,
+            ["layout", "css", "settings", "tokens"],
+            "the source's capabilities, `tokens` appended once"
+        );
+        assert!(
+            derived.manifest.previews.is_empty(),
+            "a derived theme ships no screenshots of its own"
+        );
+        assert_eq!(derived.manifest.preview, None);
+
+        let derived_dir = root.join("local.derived");
+        let source_files = files_under(&source);
+        for (name, bytes) in &source_files {
+            // The source's identity and palette are replaced, not skipped.
+            if matches!(name.as_str(), "theme.json" | "tokens.json") {
+                assert_ne!(
+                    &std::fs::read(derived_dir.join(name)).unwrap(),
+                    bytes,
+                    "`{name}` should have been rewritten, not copied"
+                );
+                continue;
+            }
+            let excluded =
+                name.starts_with("previews/") || matches!(name.as_str(), "README.md" | ".tetra-seed");
+            if excluded {
+                assert!(!derived_dir.join(name).exists(), "`{name}` must not be copied");
+                continue;
+            }
+            assert_eq!(
+                &std::fs::read(derived_dir.join(name)).unwrap(),
+                bytes,
+                "`{name}` should have been copied byte for byte"
+            );
+        }
+        // ...and nothing else arrived: the copy is the source's files, minus
+        // the five left behind (manifest, palette, README, seed, screenshot),
+        // plus the two written fresh.
+        assert_eq!(
+            files_under(&derived_dir).len(),
+            source_files.len() - 5 + 2,
+            "unexpected files in the derived theme"
+        );
+        assert!(!derived_dir.join("previews").exists());
+
+        // The source is untouched by the derivation.
+        let after = theme::get(&root, "local.source").unwrap();
+        assert_eq!(after.manifest.id, "local.source");
+        assert_eq!(after.manifest.name, "Source");
+        assert_eq!(
+            files_under(&source).len(),
+            source_files.len(),
+            "the source's own files, unchanged"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A source that already declares `tokens` keeps its own order, with no
+    /// duplicate appended.
+    #[test]
+    fn capabilities_are_the_sources_with_tokens_added_once() {
+        let (root, _) = source_theme("capabilities", &["tokens", "layout"]);
+        let tokens = serde_json::json!({ "schemaVersion": 2, "colors": { "dark": {}, "light": {} } });
+
+        derive_from_installed(&root, "local.source", &derived_manifest(), &tokens).expect("derive");
+
+        assert_eq!(
+            theme::get(&root, "local.derived").unwrap().manifest.capabilities,
+            ["tokens", "layout"]
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Create-only, exactly as `save`: an installed id is an error, and the
+    /// theme already there survives unchanged.
+    #[test]
+    fn deriving_onto_an_installed_id_is_refused_and_changes_nothing() {
+        let (root, _) = source_theme("taken", &["layout"]);
+        theme::save(
+            &root,
+            &ThemeManifest {
+                id: "local.derived".to_string(),
+                name: "Already Here".to_string(),
+                ..ThemeManifest::default()
+            },
+            &serde_json::json!({ "schemaVersion": 2, "colors": { "dark": {}, "light": {} } }),
+        )
+        .expect("seed the installed theme");
+        let before = files_under(&root.join("local.derived"));
+
+        let error = derive_from_installed(
+            &root,
+            "local.source",
+            &derived_manifest(),
+            &serde_json::json!({ "schemaVersion": 2, "colors": { "dark": {}, "light": {} } }),
+        )
+        .expect_err("an installed id must be refused");
+
+        assert!(error.contains("already installed"), "{error}");
+        assert_eq!(
+            theme::get(&root, "local.derived").unwrap().manifest.name,
+            "Already Here",
+            "the installed theme survives the refusal"
+        );
+        assert_eq!(files_under(&root.join("local.derived")), before);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// An id that could name a path is refused, as is a source this root does
+    /// not hold — all before anything is created.
+    #[test]
+    fn an_unusable_or_missing_id_creates_nothing() {
+        let (root, _) = source_theme("bad-ids", &["layout"]);
+        let tokens = serde_json::json!({ "schemaVersion": 2, "colors": { "dark": {}, "light": {} } });
+
+        let error = derive_from_installed(&root, "../escape", &derived_manifest(), &tokens)
+            .expect_err("a path is not a source id");
+        assert!(error.contains("not a usable theme id"), "{error}");
+
+        let mut escaping = derived_manifest();
+        escaping.id = "../escape".to_string();
+        let error = derive_from_installed(&root, "local.source", &escaping, &tokens)
+            .expect_err("a path is not a derived id");
+        assert!(error.contains("not a usable theme id"), "{error}");
+
+        let error = derive_from_installed(&root, "local.missing", &derived_manifest(), &tokens)
+            .expect_err("this root holds no such theme");
+        assert!(error.contains("local.missing"), "{error}");
+
+        assert!(!root.join("local.derived").exists());
+        assert!(!root.join("..").join("escape").exists());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A palette the backend would never load is refused before the directory
+    /// exists, so nothing half-made is left for the grid to show.
+    #[test]
+    fn an_invalid_palette_is_refused_with_nothing_created() {
+        let (root, _) = source_theme("bad-tokens", &["layout"]);
+
+        for tokens in [
+            serde_json::json!({ "schemaVersion": 1 }),
+            serde_json::json!({ "colors": { "dark": {}, "light": {} } }),
+        ] {
+            let error = derive_from_installed(&root, "local.source", &derived_manifest(), &tokens)
+                .expect_err("an invalid palette must be refused");
+            assert!(error.contains("tokens.json"), "{error}");
+        }
+
+        assert!(!root.join("local.derived").exists());
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
 

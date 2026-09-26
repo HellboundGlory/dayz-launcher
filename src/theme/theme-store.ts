@@ -31,6 +31,7 @@ import {
 import {
   armActivation,
   deleteTheme as deleteThemeCmd,
+  deriveTheme,
   getSettings,
   getTheme,
   getThemeSettingsValues,
@@ -793,13 +794,19 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     );
 
     try {
-      // save_theme is create-only; re-saving under a name already used
+      // Both writes are create-only; re-saving under a name already used
       // overwrites, as the old localStorage store did. The delete is refused
-      // for the active theme, in which case the save below reports the clash.
+      // for the active theme, in which case the write below reports the clash.
       if (activeInstalled(id, get().installedThemes) !== undefined) {
         await deleteThemeCmd(id);
       }
-      await saveThemeCmd(manifest, tokens);
+      // A source with a folder on disk brings its layout, CSS and settings
+      // along; a built-in preset is colours only, so `save_theme` is enough.
+      if (activeInstalled(sourceId, get().installedThemes) !== undefined) {
+        await deriveTheme(sourceId, manifest, tokens);
+      } else {
+        await saveThemeCmd(manifest, tokens);
+      }
     } catch (e) {
       console.error(`Could not save theme "${name}":`, e);
       return;

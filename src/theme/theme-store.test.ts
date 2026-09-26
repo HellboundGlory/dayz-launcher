@@ -35,6 +35,8 @@ const backend = vi.hoisted(() => ({
   savedTokens: [] as unknown[],
   /** The manifest each `save_theme` call received, in call order. */
   savedManifests: [] as unknown[],
+  /** Every `derive_theme` call, in order. */
+  derived: [] as { sourceId: string; manifest: unknown; tokens: unknown }[],
   /** Every `update_theme_tokens` call, in order. */
   updatedTokens: [] as { id: string; tokens: unknown }[],
   /** `tokens.json` contents `get_theme` returns, by id. */
@@ -108,6 +110,9 @@ vi.mock("@/lib/tauri", () => ({
     backend.savedManifests.push(manifest);
     backend.savedTokens.push(tokens);
   },
+  deriveTheme: async (sourceId: string, manifest: unknown, tokens: unknown) => {
+    backend.derived.push({ sourceId, manifest, tokens });
+  },
   updateThemeTokens: async (id: string, tokens: unknown) => {
     backend.updatedTokens.push({ id, tokens });
     // The real command rewrites the file; `getTheme` re-reads what it wrote.
@@ -173,6 +178,7 @@ beforeEach(() => {
   backend.installed = [];
   backend.savedTokens.length = 0;
   backend.savedManifests.length = 0;
+  backend.derived.length = 0;
   backend.updatedTokens.length = 0;
   backend.tokensById = {};
   backend.layoutsById = {};
@@ -202,6 +208,23 @@ beforeEach(() => {
 async function settled(): Promise<void> {
   await Promise.resolve();
   await Promise.resolve();
+}
+
+/** An installed theme's grid summary, as `list_installed_themes` reports one. */
+function summary(id: string, name: string): ThemeSummary {
+  return {
+    id,
+    name,
+    author: "local",
+    version: "1.0.0",
+    themeApi: "2.0",
+    minimumLauncherVersion: "0.0.0",
+    tier: "",
+    description: "",
+    preview: null,
+    tags: [],
+    capabilities: ["tokens"],
+  };
 }
 
 describe("hydrate legacy migration", () => {
@@ -434,19 +457,6 @@ describe("theme extras", () => {
 describe("saveTheme in place", () => {
   const themeFile = (id: string, tokens: unknown): ThemeFile =>
     ({ id, name: id, tokens, settingsSchema: null, layouts: {} }) as unknown as ThemeFile;
-  const summary = (id: string, name: string): ThemeSummary => ({
-    id,
-    name,
-    author: "local",
-    version: "1.0.0",
-    themeApi: "2.0",
-    minimumLauncherVersion: "0.0.0",
-    tier: "",
-    description: "",
-    preview: null,
-    tags: [],
-    capabilities: ["tokens"],
-  });
 
   it("rewrites an installed user theme's tokens instead of creating a new theme", async () => {
     const sourceTokens = {
@@ -510,8 +520,10 @@ describe("saveTheme in place", () => {
     await useThemeStore.getState().saveTheme("Tactical copy");
 
     expect(backend.updatedTokens).toHaveLength(0);
-    expect(backend.savedManifests[0]).toMatchObject({ id: "local.tactical-copy" });
-    expect(backend.savedTokens).toHaveLength(1);
+    // The active theme has a folder, so its layout and CSS come along.
+    expect(backend.derived.map((call) => call.sourceId)).toEqual(["builtin.tactical"]);
+    expect(backend.derived[0].manifest).toMatchObject({ id: "local.tactical-copy" });
+    expect(backend.savedManifests).toHaveLength(0);
   });
 });
 
@@ -610,6 +622,49 @@ describe("duplicateTheme", () => {
     const tokens = parseTokens(backend.savedTokens[0]);
     expect(tokens.roles).toEqual({ radius: { row: "9px" } });
     expect(tokens.scales).toEqual(NEUTRAL_TOKENS.scales);
+  });
+
+  it("derives from an installed source so its layout, CSS and settings come along", async () => {
+    backend.installed = [summary("builtin.tactical", "Tactical")];
+    useThemeStore.setState({
+      activeId: "builtin.tactical",
+      installedThemes: [summary("builtin.tactical", "Tactical")],
+      themeFiles: { "builtin.tactical": themeFile({ schemaVersion: 2, roles: { radius: { row: "9px" } } }) },
+      custom: { dark: { accent: "#00ff00" }, light: {} },
+    });
+
+    await useThemeStore.getState().duplicateTheme("builtin.tactical", "Tactical copy");
+
+    expect(backend.derived.map((call) => call.sourceId)).toEqual(["builtin.tactical"]);
+    // Nothing goes through `save_theme`: it would write a colours-only theme.
+    expect(backend.savedManifests).toHaveLength(0);
+    expect(backend.savedTokens).toHaveLength(0);
+
+    expect(backend.derived[0].manifest).toMatchObject({
+      id: "local.tactical-copy",
+      name: "Tactical copy",
+      capabilities: ["tokens"],
+    });
+    // The same tokens the save path would have built, from the live edits and
+    // the source's own roles.
+    const tokens = parseTokens(backend.derived[0].tokens);
+    expect(tokens.colors?.dark).toEqual({ ...NEUTRAL_DARK, accent: "#00ff00" });
+    expect(tokens.colors?.light).toEqual(NEUTRAL_LIGHT);
+    expect(tokens.roles).toEqual({ radius: { row: "9px" } });
+  });
+
+  it("saves a colours-only theme when the source has no folder on disk", async () => {
+    useThemeStore.setState({
+      activeId: "neutral",
+      installedThemes: [],
+      themeFiles: { "local.source": themeFile({ schemaVersion: 2 }) },
+    });
+
+    await useThemeStore.getState().duplicateTheme("local.source", "Copy");
+
+    expect(backend.derived).toHaveLength(0);
+    expect(backend.savedManifests[0]).toMatchObject({ id: "local.copy" });
+    expect(backend.savedTokens).toHaveLength(1);
   });
 });
 
