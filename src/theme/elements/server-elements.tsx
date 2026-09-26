@@ -27,13 +27,12 @@ import { useServerStore } from "@/stores/server-store";
 import { joinAction } from "@/lib/join-action";
 import {
   toggleFavourite as toggleFavouriteRemote,
-  refreshVisibleServers,
   checkServerMods,
   getUniqueModsSummary,
   unsubscribeUniqueMods,
   copyServerAddress,
 } from "@/lib/tauri";
-import { useRowProbeStore, probeKey } from "./row-probe-store";
+import { useRowProbeStore, probeRow, rowProbeState } from "./row-probe-store";
 import { useConfirm } from "@/components/confirm-dialog";
 import { OptionIcon } from "./option-icon";
 
@@ -963,23 +962,11 @@ export function ServerRefresh({
   style?: CSSProperties;
 }) {
   const server = useServerSubject();
-  const probingKey = useRowProbeStore((s) => s.probingKey);
-  const startProbe = useRowProbeStore((s) => s.startProbe);
-  const endProbe = useRowProbeStore((s) => s.endProbe);
+  const probe = useRowProbeStore((s) => s);
   if (!server) return null;
 
-  const busy = probingKey === probeKey(server.addr, server.query_port);
-  const disabled = probingKey !== null && !busy;
+  const { busy, disabled } = rowProbeState(probe, server.addr, server.query_port);
   const { showIcon, showLabel } = serverDisplayOptions(options, "Refresh", "icon");
-
-  const handleClick = (e: MouseEvent) => {
-    e.stopPropagation();
-    if (probingKey !== null) return;
-    startProbe(server.addr, server.query_port);
-    void refreshVisibleServers([{ addr: server.addr, query_port: server.query_port }], "row").finally(() =>
-      endProbe(server.addr, server.query_port),
-    );
-  };
 
   return (
     <button
@@ -987,7 +974,7 @@ export function ServerRefresh({
       data-el="server.refresh"
       data-state={serverStates(!server.online, busy && "busy", disabled && "disabled")}
       disabled={disabled}
-      onClick={handleClick}
+      onClick={(e) => probeRow(probe, server.addr, server.query_port, e)}
       aria-label="Refresh this server"
       title={`Re-probe ${server.name || server.addr}`}
       className={className ?? "flex items-center justify-center text-muted hover:text-ink"}
