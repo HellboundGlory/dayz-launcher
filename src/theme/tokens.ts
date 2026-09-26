@@ -1,4 +1,10 @@
-import { NEUTRAL_DARK, NEUTRAL_LIGHT, type Palette } from "./palette";
+import {
+  DATA_FONT_STACK,
+  NEUTRAL_DARK,
+  NEUTRAL_LIGHT,
+  UI_FONT_STACK,
+  type Palette,
+} from "./palette";
 
 export type TokenValue = string | number;
 type Steps<K extends string> = Partial<Record<K, TokenValue>>;
@@ -71,7 +77,7 @@ export const NEUTRAL_TOKENS: TokensV2 & ResolvedTokensV2 = {
       weight: { normal: 400, medium: 500, semibold: 600, bold: 700, extrabold: 800 },
       tracking: { none: 0, tight: "-0.025em", wide: "0.025em", wider: "0.05em", widest: "0.1em" },
       leading: { none: 1, tight: 1.25, snug: 1.375, normal: 1.5, relaxed: 1.625 },
-      family: { ui: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif", data: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" },
+      family: { ui: UI_FONT_STACK, data: DATA_FONT_STACK },
     },
     border: { none: 0, hairline: "1px", thick: "2px" },
     shadow: { none: "none", sm: "0 8px 24px rgba(0,0,0,0.4)", md: "0 10px 28px rgba(0,0,0,0.5)", lg: "0 12px 40px rgba(0,0,0,0.5)", xl: "0 24px 60px rgba(0,0,0,0.6)", glow: "var(--glow)" },

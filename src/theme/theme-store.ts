@@ -12,20 +12,16 @@ import {
   NEUTRAL_LIGHT,
   TOKENS,
   STORE_KEY,
-  DEFAULT_RADII,
-  DEFAULT_SPACING,
-  DEFAULT_TYPOGRAPHY,
   type CustomExtrasOverrides,
+  type FontFamilyRole,
   type Palette,
   type CustomOverrides,
-  type Radii,
-  type Spacing,
+  type RadiusRole,
   type Token,
-  type Typography,
 } from "./palette";
 import { applyTheme, DEFAULT_EXTRAS, type ThemeExtras } from "./apply";
 import { useDevStore } from "./dev/dev-store";
-import { NEUTRAL_TOKENS, parseTokens, type TokensV2 } from "./tokens";
+import { NEUTRAL_TOKENS, parseTokens, resolveTokens, type TokensV2, type TokenValue } from "./tokens";
 import { applyThemeStylesheet } from "./css-loader";
 import {
   resolveSettingsSchema,
@@ -58,7 +54,7 @@ interface ThemeState {
   activeId: string;
   /** Editor overrides, per scheme. */
   custom: CustomOverrides;
-  /** Editor overrides for spacing/radii/typography — not per-scheme. */
+  /** Editor overrides for the v2 radius roles and font families — not per-scheme. */
   customExtras: CustomExtrasOverrides;
   /** True once the user hand-edits light — dark edits stop re-deriving then. */
   lightRefined: boolean;
@@ -83,9 +79,8 @@ interface ThemeState {
   pickTheme: (id: string, deleteOnRevert?: boolean) => Promise<void>;
   setBloom: (bloom: number) => void;
   setColorOverride: (token: Token, value: string) => void;
-  setSpacingOverride: (key: keyof Spacing, value: string) => void;
-  setRadiusOverride: (key: keyof Radii, value: string) => void;
-  setTypographyOverride: (key: keyof Typography, value: string) => void;
+  setRadiusRoleOverride: (role: RadiusRole, value: string) => void;
+  setFontFamilyOverride: (family: FontFamilyRole, value: string) => void;
   toggleLightRefined: () => void;
   saveTheme: (name: string) => Promise<void>;
   /** Save `sourceId` under a new name — the active theme's live edits apply only when `sourceId` is the active theme. */
@@ -189,10 +184,9 @@ export function effective(
 }
 
 /**
- * Spacing, radii and typography for the active theme. Presets and `neutral`
- * carry colours only, so they always resolve to the static defaults; a
- * file-backed theme may supply any subset, and untrusted values are read the
- * same way `paletteFromTokens` reads colours.
+ * The active theme's own glow strength. Presets and `neutral` carry colours
+ * only, so they always resolve to the default; a file-backed theme supplies it
+ * either as a v2 `bloom` or, for a pre-v2 file, as `shadows.glowIntensity`.
  */
 export function resolvedExtras(
   activeId: string,
@@ -206,40 +200,10 @@ export function resolvedExtras(
     string,
     unknown
   >;
-  const spacing = stringEntries(root.spacing);
-  const radii = stringEntries(root.radii);
-  const typography = stringEntries(root.typography);
-  return {
-    spacing: {
-      xs: spacing.xs ?? DEFAULT_SPACING.xs,
-      sm: spacing.sm ?? DEFAULT_SPACING.sm,
-      md: spacing.md ?? DEFAULT_SPACING.md,
-      lg: spacing.lg ?? DEFAULT_SPACING.lg,
-    },
-    radii: {
-      control: radii.control ?? DEFAULT_RADII.control,
-      row: radii.row ?? DEFAULT_RADII.row,
-      chip: radii.chip ?? DEFAULT_RADII.chip,
-      pill: radii.pill ?? DEFAULT_RADII.pill,
-    },
-    typography: {
-      uiFont: typography.uiFont ?? DEFAULT_TYPOGRAPHY.uiFont,
-      dataFont: typography.dataFont ?? DEFAULT_TYPOGRAPHY.dataFont,
-    },
-    shadows: {
-      glowIntensity: (root.schemaVersion === 2 ? parseTokens(root).bloom : glowIntensityOf(root.shadows)) ?? DEFAULT_EXTRAS.shadows.glowIntensity,
-    },
-  };
-}
-
-/** The string-valued entries of one untrusted `tokens.json` group; anything else is dropped. */
-function stringEntries(raw: unknown): Record<string, string> {
-  if (typeof raw !== "object" || raw === null) return {};
-  const out: Record<string, string> = {};
-  for (const [key, value] of Object.entries(raw)) {
-    if (typeof value === "string") out[key] = value;
-  }
-  return out;
+  const glowIntensity =
+    (root.schemaVersion === 2 ? parseTokens(root).bloom : glowIntensityOf(root.shadows)) ??
+    DEFAULT_EXTRAS.shadows.glowIntensity;
+  return { shadows: { glowIntensity } };
 }
 
 /** The numeric `glowIntensity` of an untrusted `tokens.json` `shadows` group; anything else is dropped. */
@@ -249,20 +213,68 @@ function glowIntensityOf(raw: unknown): number | undefined {
   return typeof glowIntensity === "number" ? glowIntensity : undefined;
 }
 
-/** The extras that actually render, editor overrides merged. Not per-scheme — these don't vary by mode. */
-export function effectiveExtras(
+/** A role's value: the scale step it names, or the literal itself. */
+function resolveStep(scale: unknown, value: TokenValue | undefined): string {
+  if (
+    typeof value === "string" &&
+    typeof scale === "object" &&
+    scale !== null &&
+    Object.prototype.hasOwnProperty.call(scale, value)
+  ) {
+    return String((scale as Record<string, TokenValue>)[value]);
+  }
+  return String(value);
+}
+
+/**
+ * The theme's own v2 tokens with the customiser's role overrides merged on top
+ * — what `applyTheme` writes as `--t-…`, and what a live duplicate saves.
+ * Neutral fills anything the theme or the overrides leave out.
+ */
+export function mergeRoleOverrides(
+  tokens: Partial<TokensV2> | undefined,
+  customExtras: CustomExtrasOverrides,
+): Partial<TokensV2> | undefined {
+  const { radius, family } = customExtras;
+  const hasRadius = Object.keys(radius).length > 0;
+  const hasFamily = Object.keys(family).length > 0;
+  if (tokens === undefined && !hasRadius && !hasFamily) return undefined;
+  return {
+    scales: {
+      ...tokens?.scales,
+      ...(hasFamily && {
+        type: { ...tokens?.scales?.type, family: { ...tokens?.scales?.type?.family, ...family } },
+      }),
+    },
+    roles: {
+      ...tokens?.roles,
+      ...(hasRadius && { radius: { ...tokens?.roles?.radius, ...radius } }),
+    },
+  };
+}
+
+/** The six values the customiser's inputs show: the active theme's resolved roles over Neutral, editor overrides on top. */
+export function effectiveRoleValues(
   activeId: string,
   themeFiles: Record<string, ThemeFile>,
   customExtras: CustomExtrasOverrides,
-): ThemeExtras {
-  const base = resolvedExtras(activeId, themeFiles);
+): { radius: Record<RadiusRole, string>; family: Record<FontFamilyRole, string> } {
+  const raw = themeFiles[activeId]?.tokens as Record<string, unknown> | undefined;
+  const resolved = resolveTokens(raw?.schemaVersion === 2 ? parseTokens(raw) : undefined);
+  const { scales, roles } = resolved;
   return {
-    spacing: { ...base.spacing, ...customExtras.spacing },
-    radii: { ...base.radii, ...customExtras.radii },
-    typography: { ...base.typography, ...customExtras.typography },
-    // Bloom's live override lives in the store's own `bloom` field (the
-    // customiser's slider writes there), so nothing merges here.
-    shadows: base.shadows,
+    radius: {
+      window: resolveStep(scales.radius, roles.radius.window),
+      panel: resolveStep(scales.radius, roles.radius.panel),
+      row: resolveStep(scales.radius, roles.radius.row),
+      control: resolveStep(scales.radius, roles.radius.control),
+      ...customExtras.radius,
+    },
+    family: {
+      ui: String(scales.type.family.ui),
+      data: String(scales.type.family.data),
+      ...customExtras.family,
+    },
   };
 }
 
@@ -382,7 +394,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   scheme: "dark",
   activeId: "neutral",
   custom: { dark: {}, light: {} },
-  customExtras: { spacing: {}, radii: {}, typography: {} },
+  customExtras: { radius: {}, family: {} },
   lightRefined: false,
   bloom: DEFAULT_EXTRAS.shadows.glowIntensity,
   installedThemes: [],
@@ -494,11 +506,8 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     applyTheme(
       effective(scheme, activeId, files, custom),
       scheme,
-      {
-        ...effectiveExtras(activeId, files, customExtras),
-        shadows: { glowIntensity: bloom },
-      },
-      tokens ? { scales: tokens.scales, roles: tokens.roles } : undefined,
+      { shadows: { glowIntensity: bloom } },
+      mergeRoleOverrides(tokens, customExtras),
       values ?? {},
     );
     // CSS belongs to an installed theme's own files; a preset or
@@ -553,7 +562,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     set({
       activeId: id,
       custom: { dark: {}, light: {} },
-      customExtras: { spacing: {}, radii: {}, typography: {} },
+      customExtras: { radius: {}, family: {} },
       lightRefined: false,
       // Bloom follows the same base-plus-override shape as the other extras:
       // the picked theme supplies the base, the slider overrides it afterwards.
@@ -597,23 +606,19 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     get().apply();
   },
 
-  // Extras overrides are flat, not per-scheme: spacing, radii and fonts don't
-  // vary between dark and light, so nothing here re-derives anything.
-  setSpacingOverride: (key, value) => {
-    const { spacing } = get().customExtras;
-    set({ customExtras: { ...get().customExtras, spacing: { ...spacing, [key]: value } } });
+  // Role overrides are flat, not per-scheme: radii and fonts don't vary
+  // between dark and light, so nothing here re-derives anything. They land in
+  // the v2 tokens apply() hands to applyTheme, which is what the `--t-…`
+  // variables are written from.
+  setRadiusRoleOverride: (role, value) => {
+    const customExtras = get().customExtras;
+    set({ customExtras: { ...customExtras, radius: { ...customExtras.radius, [role]: value } } });
     get().apply();
   },
 
-  setRadiusOverride: (key, value) => {
-    const { radii } = get().customExtras;
-    set({ customExtras: { ...get().customExtras, radii: { ...radii, [key]: value } } });
-    get().apply();
-  },
-
-  setTypographyOverride: (key, value) => {
-    const { typography } = get().customExtras;
-    set({ customExtras: { ...get().customExtras, typography: { ...typography, [key]: value } } });
+  setFontFamilyOverride: (family, value) => {
+    const customExtras = get().customExtras;
+    set({ customExtras: { ...customExtras, family: { ...customExtras.family, [family]: value } } });
     get().apply();
   },
 
@@ -622,11 +627,14 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   },
 
   saveTheme: async (name) => {
+    // SPEC §4.6 asks for the edits to land in the active theme when it is a
+    // user theme; the backend's create-only `save_theme` has no in-place
+    // tokens write yet, so every save duplicates instead.
     await get().duplicateTheme(get().activeId, name);
   },
 
   duplicateTheme: async (sourceId, name) => {
-    const { activeId, custom, themeFiles, bloom } = get();
+    const { activeId, custom, customExtras, themeFiles, bloom } = get();
     const live = sourceId === activeId;
     const pair = resolvedPair(sourceId, themeFiles);
     const dark = {} as Palette;
@@ -656,21 +664,28 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     // Only a v2 source carries scales/roles to copy; a palette-only or v1
     // source starts from Neutral's.
     const sourceTokens = themeFiles[sourceId]?.tokens;
-    const source =
+    const parsedSource =
       typeof sourceTokens === "object" &&
       sourceTokens !== null &&
       "schemaVersion" in sourceTokens &&
       sourceTokens.schemaVersion === 2
         ? parseTokens(sourceTokens)
         : undefined;
+    const source = {
+      scales: parsedSource?.scales ?? NEUTRAL_TOKENS.scales,
+      roles: parsedSource?.roles ?? NEUTRAL_TOKENS.roles,
+    };
+    // Saving the active theme takes the customiser's role edits with it; a
+    // copy of any other theme keeps that theme's own roles.
+    const merged = (live ? mergeRoleOverrides(source, customExtras) : undefined) ?? source;
     const tokens: TokensV2 = {
       schemaVersion: 2,
       colors: { dark, light },
       // Saving the live theme keeps whatever the slider shows; a copy of any
       // other theme keeps that theme's own bloom.
       bloom: live ? bloom : resolvedExtras(sourceId, themeFiles).shadows.glowIntensity,
-      scales: source?.scales ?? NEUTRAL_TOKENS.scales,
-      roles: source?.roles ?? NEUTRAL_TOKENS.roles,
+      scales: merged.scales ?? NEUTRAL_TOKENS.scales,
+      roles: merged.roles ?? NEUTRAL_TOKENS.roles,
     };
 
     try {
@@ -706,7 +721,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   resetToBase: () => {
     set({
       custom: { dark: {}, light: {} },
-      customExtras: { spacing: {}, radii: {}, typography: {} },
+      customExtras: { radius: {}, family: {} },
       lightRefined: false,
     });
     get().apply();

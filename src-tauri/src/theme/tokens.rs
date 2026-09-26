@@ -157,8 +157,9 @@ token_group! {
 
 token_group! {
     FamilyTypeScalesTokensV2 {
-        ui: TokenValue = "system-ui, -apple-system, Segoe UI, Roboto, sans-serif".into() => "ui",
-        data: TokenValue = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace".into() => "data",
+        // Mirrors UI_FONT_STACK / DATA_FONT_STACK in src/theme/palette.ts.
+        ui: TokenValue = "\"Inter\", \"Segoe UI\", system-ui, sans-serif".into() => "ui",
+        data: TokenValue = "\"JetBrains Mono\", \"Fira Code\", \"Consolas\", monospace".into() => "data",
     }
 }
 

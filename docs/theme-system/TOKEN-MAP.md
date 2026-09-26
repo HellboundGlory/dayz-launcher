@@ -2,7 +2,7 @@
 
 The v2 token spine exposes Neutral scales and semantic roles on the document root. Role values are scale step names or literals; the emitter resolves each step against its matching scale before writing CSS. Palette variables and `--glow` retain their existing names and derivation.
 
-Packages 2.2, 2.3, 2.4a, and 2.4b migrate the shell, controls, server browser, Mods, Settings, Update, Themes page, and theme customizer components listed below. Other sources remain migration references for subsequent packages. Consumers bind individual type properties: unmentioned properties still inherit their existing values, including legacy Inter/JetBrains Mono families; the v2 system-family defaults are unchanged. Structural zero/full-size utilities and layout-slot width overrides remain structural constraints, not spacing defaults.
+Packages 2.2, 2.3, 2.4a, and 2.4b migrate the shell, controls, server browser, Mods, Settings, Update, Themes page, and theme customizer components listed below. Other sources remain migration references for subsequent packages. Consumers bind individual type properties: unmentioned properties still inherit their existing values, including the bundled Inter/JetBrains Mono families that the family scale now carries. Structural zero/full-size utilities and layout-slot width overrides remain structural constraints, not spacing defaults.
 
 Type roles expose five variables; motion roles expose duration and easing separately. Shell consumers use arbitrary CSS property utilities (for example `[font-size:var(--t-type-body-size)]`) so no literal-style utility prefixes remain. New radius, spacing, brand tracking and shadow variants preserve the original computed values; slider knob travel derives from the track and knob roles. Scale/role collisions at `border.hairline` and `shadow.glow` resolve to values, not self-references.
 
@@ -37,72 +37,72 @@ Type roles expose five variables; motion roles expose duration and easing separa
 | `space.inlineGap` | `--t-space-inlineGap` | `6` → `6px` | server-row-actions.tsx:190, Join icon/label gap-1.5; migrated: src/components/sidebar.tsx:159; src/components/footer-bar.tsx:64; src/components/filter-bar.tsx:253,299,397,708 |
 | `space.sectionGap` | `--t-space-sectionGap` | `14` → `14px` | theme-customiser.tsx:118,245,293, subsection mt-3.5; settings-view.tsx:405 field mb-3.5 |
 | `space.listGap` | `--t-space-listGap` | `6` → `6px` | server-list.tsx:416, virtualizer gap: 6 (not a CSS utility) |
-| `type.display.family` | `--t-type-display-family` | `data` → `ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace` | server-info-modal.tsx:675, Stat value |
+| `type.display.family` | `--t-type-display-family` | `data` → `"JetBrains Mono", "Fira Code", "Consolas", monospace` | server-info-modal.tsx:675, Stat value |
 | `type.display.size` | `--t-type-display-size` | `3xl` → `22px` | server-info-modal.tsx:675, Stat value; Package 2.3: src/components/server-info-modal.tsx:675 |
 | `type.display.weight` | `--t-type-display-weight` | `extrabold` → `800` | server-info-modal.tsx:675, Stat value |
 | `type.display.tracking` | `--t-type-display-tracking` | `none` → `0` | server-info-modal.tsx:675, Stat value |
 | `type.display.leading` | `--t-type-display-leading` | `none` → `1` | server-info-modal.tsx:675, Stat value |
-| `type.heading.family` | `--t-type-heading-family` | `ui` → `system-ui, -apple-system, Segoe UI, Roboto, sans-serif` | server-info-modal.tsx:206, server-name h2 |
+| `type.heading.family` | `--t-type-heading-family` | `ui` → `"Inter", "Segoe UI", system-ui, sans-serif` | server-info-modal.tsx:206, server-name h2 |
 | `type.heading.size` | `--t-type-heading-size` | `2xl` → `14px` | server-info-modal.tsx:206, server-name h2; Package 2.3: src/components/server-info-modal.tsx:206 |
 | `type.heading.weight` | `--t-type-heading-weight` | `bold` → `700` | server-info-modal.tsx:206, server-name h2 |
 | `type.heading.tracking` | `--t-type-heading-tracking` | `none` → `0` | server-info-modal.tsx:206, server-name h2 |
 | `type.heading.leading` | `--t-type-heading-leading` | `snug` → `1.375` | server-info-modal.tsx:206, server-name h2; migrated: src/components/filter-bar.tsx:636 |
-| `type.subheading.family` | `--t-type-subheading-family` | `ui` → `system-ui, -apple-system, Segoe UI, Roboto, sans-serif` | settings-accordion.tsx:63, title |
+| `type.subheading.family` | `--t-type-subheading-family` | `ui` → `"Inter", "Segoe UI", system-ui, sans-serif` | settings-accordion.tsx:63, title |
 | `type.subheading.size` | `--t-type-subheading-size` | `lg` → `12px` | settings-accordion.tsx:63, title; migrated: src/components/sidebar.tsx:110,168 |
 | `type.subheading.weight` | `--t-type-subheading-weight` | `semibold` → `600` | settings-accordion.tsx:63, title |
 | `type.subheading.tracking` | `--t-type-subheading-tracking` | `none` → `0` | settings-accordion.tsx:63, title |
 | `type.subheading.leading` | `--t-type-subheading-leading` | `normal` → `1.5` | settings-accordion.tsx:63, title |
-| `type.body.family` | `--t-type-body-family` | `ui` → `system-ui, -apple-system, Segoe UI, Roboto, sans-serif` | src/App.tsx:805, update message; settings-view.tsx:434, checkbox label |
+| `type.body.family` | `--t-type-body-family` | `ui` → `"Inter", "Segoe UI", system-ui, sans-serif` | src/App.tsx:805, update message; settings-view.tsx:434, checkbox label |
 | `type.body.size` | `--t-type-body-size` | `md` → `11px` | src/App.tsx:805, update message; settings-view.tsx:434, checkbox label; migrated: src/App.tsx:805,847,860; src/components/filter-bar.tsx:308; Package 2.3: src/components/server-list.tsx:437; src/components/server-row-actions.tsx:387,463; src/components/server-info-modal.tsx:405,533,591 |
 | `type.body.weight` | `--t-type-body-weight` | `normal` → `400` | src/App.tsx:805, update message; settings-view.tsx:434, checkbox label |
 | `type.body.tracking` | `--t-type-body-tracking` | `none` → `0` | src/App.tsx:805, update message; settings-view.tsx:434, checkbox label |
 | `type.body.leading` | `--t-type-body-leading` | `normal` → `1.5` | src/App.tsx:805, update message; settings-view.tsx:434, checkbox label |
-| `type.label.family` | `--t-type-label-family` | `ui` → `system-ui, -apple-system, Segoe UI, Roboto, sans-serif` | settings-view.tsx:406, field label |
+| `type.label.family` | `--t-type-label-family` | `ui` → `"Inter", "Segoe UI", system-ui, sans-serif` | settings-view.tsx:406, field label |
 | `type.label.size` | `--t-type-label-size` | `sm` → `10px` | settings-view.tsx:406, field label; migrated: src/App.tsx:802,813,819,844,857,863; src/components/footer-bar.tsx:85; src/components/filter-bar.tsx:90,106,122,138,151,166,341,397,487,563,708; Package 2.3: src/components/server-info-modal.tsx:304,511,520,525,621,636,640,643 |
 | `type.label.weight` | `--t-type-label-weight` | `semibold` → `600` | settings-view.tsx:406, field label; migrated: src/App.tsx:802,819,844,857; src/components/sidebar.tsx:110,168; src/components/footer-bar.tsx:64,88,93,109,119; src/components/filter-bar.tsx:341,402 |
 | `type.label.tracking` | `--t-type-label-tracking` | `none` → `0` | settings-view.tsx:406, field label |
 | `type.label.leading` | `--t-type-label-leading` | `normal` → `1.5` | settings-view.tsx:406, field label |
-| `type.caption.family` | `--t-type-caption-family` | `ui` → `system-ui, -apple-system, Segoe UI, Roboto, sans-serif` | settings-view.tsx:407, field hint |
+| `type.caption.family` | `--t-type-caption-family` | `ui` → `"Inter", "Segoe UI", system-ui, sans-serif` | settings-view.tsx:407, field hint |
 | `type.caption.size` | `--t-type-caption-size` | `xs` → `9px` | settings-view.tsx:407, field hint; migrated: src/components/footer-bar.tsx:64,129,149; Package 2.3: src/components/server-row-actions.tsx:342,359; src/components/server-info-modal.tsx:684 |
 | `type.caption.weight` | `--t-type-caption-weight` | `normal` → `400` | settings-view.tsx:407, field hint |
 | `type.caption.tracking` | `--t-type-caption-tracking` | `none` → `0` | settings-view.tsx:407, field hint |
 | `type.caption.leading` | `--t-type-caption-leading` | `1.4` | settings-view.tsx:407, field hint |
-| `type.micro.family` | `--t-type-micro-family` | `ui` → `system-ui, -apple-system, Segoe UI, Roboto, sans-serif` | theme-customiser.tsx:120, Presets + your saved skins |
+| `type.micro.family` | `--t-type-micro-family` | `ui` → `"Inter", "Segoe UI", system-ui, sans-serif` | theme-customiser.tsx:120, Presets + your saved skins |
 | `type.micro.size` | `--t-type-micro-size` | `2xs` → `8px` | theme-customiser.tsx:120, Presets + your saved skins; migrated: src/components/filter-bar.tsx:357,636; Package 2.3: src/components/server-info-modal.tsx:666,676 |
 | `type.micro.weight` | `--t-type-micro-weight` | `normal` → `400` | theme-customiser.tsx:120, Presets + your saved skins |
 | `type.micro.tracking` | `--t-type-micro-tracking` | `none` → `0` | theme-customiser.tsx:120, Presets + your saved skins |
 | `type.micro.leading` | `--t-type-micro-leading` | `normal` → `1.5` | theme-customiser.tsx:120, Presets + your saved skins |
-| `type.button.family` | `--t-type-button-family` | `ui` → `system-ui, -apple-system, Segoe UI, Roboto, sans-serif` | server-row-actions.tsx:190, Join |
+| `type.button.family` | `--t-type-button-family` | `ui` → `"Inter", "Segoe UI", system-ui, sans-serif` | server-row-actions.tsx:190, Join |
 | `type.button.size` | `--t-type-button-size` | `sm` → `10px` | server-row-actions.tsx:190, Join; Package 2.3: src/components/server-row-actions.tsx:190,391,401; src/components/server-info-modal.tsx:334,341,354,375,477,486,495,503,595,605 |
 | `type.button.weight` | `--t-type-button-weight` | `bold` → `700` | server-row-actions.tsx:190, Join; migrated: src/App.tsx:813; src/components/sidebar.tsx:142; src/components/footer-bar.tsx:131; src/components/filter-bar.tsx:90,106,122,138,151,166,357,397,710 |
 | `type.button.tracking` | `--t-type-button-tracking` | `wider` → `0.05em` | server-row-actions.tsx:190, Join; migrated: src/App.tsx:802,813,819; src/components/footer-bar.tsx:129; src/components/filter-bar.tsx:90,106,122,138,151,166,357,710 |
 | `type.button.leading` | `--t-type-button-leading` | `normal` → `1.5` | server-row-actions.tsx:190, Join |
-| `type.chip.family` | `--t-type-chip-family` | `ui` → `system-ui, -apple-system, Segoe UI, Roboto, sans-serif` | server-list.tsx:573, Tag |
+| `type.chip.family` | `--t-type-chip-family` | `ui` → `"Inter", "Segoe UI", system-ui, sans-serif` | server-list.tsx:573, Tag |
 | `type.chip.size` | `--t-type-chip-size` | `2xs` → `8px` | server-list.tsx:573, Tag; Package 2.3: src/components/server-list.tsx:573 |
 | `type.chip.weight` | `--t-type-chip-weight` | `bold` → `700` | server-list.tsx:573, Tag |
 | `type.chip.tracking` | `--t-type-chip-tracking` | `0.04em` | server-list.tsx:573, Tag; Package 2.3: src/components/server-list.tsx:573 |
 | `type.chip.leading` | `--t-type-chip-leading` | `1.3` | server-list.tsx:573, Tag; Package 2.3: src/components/server-list.tsx:573 |
-| `type.data.family` | `--t-type-data-family` | `data` → `ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace` | server-info-modal.tsx:209, server address; :684, property value |
+| `type.data.family` | `--t-type-data-family` | `data` → `"JetBrains Mono", "Fira Code", "Consolas", monospace` | server-info-modal.tsx:209, server address; :684, property value |
 | `type.data.size` | `--t-type-data-size` | `sm` → `10px` | server-info-modal.tsx:209, server address; :684, property value; Package 2.3: src/components/server-list.tsx:166; src/components/server-info-modal.tsx:209,554,685 |
 | `type.data.weight` | `--t-type-data-weight` | `normal` → `400` | server-info-modal.tsx:209, server address; :684, property value |
 | `type.data.tracking` | `--t-type-data-tracking` | `none` → `0` | server-info-modal.tsx:209, server address; :684, property value; migrated: src/components/footer-bar.tsx:149 |
 | `type.data.leading` | `--t-type-data-leading` | `normal` → `1.5` | server-info-modal.tsx:209, server address; :684, property value |
-| `type.rowName.family` | `--t-type-rowName-family` | `ui` → `system-ui, -apple-system, Segoe UI, Roboto, sans-serif` | server-list.tsx:488, name-line parent; name child :115-119 inherits |
+| `type.rowName.family` | `--t-type-rowName-family` | `ui` → `"Inter", "Segoe UI", system-ui, sans-serif` | server-list.tsx:488, name-line parent; name child :115-119 inherits |
 | `type.rowName.size` | `--t-type-rowName-size` | `lg` → `12px` | server-list.tsx:488, name-line parent; name child :115-119 inherits; Package 2.3: src/components/server-list.tsx:488 |
 | `type.rowName.weight` | `--t-type-rowName-weight` | `semibold` → `600` | server-list.tsx:488, name-line parent; name child :115-119 inherits |
 | `type.rowName.tracking` | `--t-type-rowName-tracking` | `none` → `0` | server-list.tsx:488, name-line parent; name child :115-119 inherits |
 | `type.rowName.leading` | `--t-type-rowName-leading` | `normal` → `1.5` | server-list.tsx:488, name-line parent; name child :115-119 inherits |
-| `type.rowMeta.family` | `--t-type-rowMeta-family` | `ui` → `system-ui, -apple-system, Segoe UI, Roboto, sans-serif` | server-list.tsx:491, detail-line parent |
+| `type.rowMeta.family` | `--t-type-rowMeta-family` | `ui` → `"Inter", "Segoe UI", system-ui, sans-serif` | server-list.tsx:491, detail-line parent |
 | `type.rowMeta.size` | `--t-type-rowMeta-size` | `xs` → `9px` | server-list.tsx:491, detail-line parent; Package 2.3: src/components/server-list.tsx:491 |
 | `type.rowMeta.weight` | `--t-type-rowMeta-weight` | `normal` → `400` | server-list.tsx:491, detail-line parent |
 | `type.rowMeta.tracking` | `--t-type-rowMeta-tracking` | `none` → `0` | server-list.tsx:491, detail-line parent |
 | `type.rowMeta.leading` | `--t-type-rowMeta-leading` | `normal` → `1.5` | server-list.tsx:491, detail-line parent |
-| `type.statValue.family` | `--t-type-statValue-family` | `data` → `ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace` | server-list.tsx:154, player count; :186 ping |
+| `type.statValue.family` | `--t-type-statValue-family` | `data` → `"JetBrains Mono", "Fira Code", "Consolas", monospace` | server-list.tsx:154, player count; :186 ping |
 | `type.statValue.size` | `--t-type-statValue-size` | `xl` → `13px` | server-list.tsx:154, player count; :186 ping; Package 2.3: src/components/server-list.tsx:152,183,526,534,542 |
 | `type.statValue.weight` | `--t-type-statValue-weight` | `bold` → `700` | server-list.tsx:154, player count; :186 ping |
 | `type.statValue.tracking` | `--t-type-statValue-tracking` | `none` → `0` | server-list.tsx:154, player count; :186 ping |
 | `type.statValue.leading` | `--t-type-statValue-leading` | `none` → `1` | server-list.tsx:154, player count; :186 ping |
-| `type.statCaption.family` | `--t-type-statCaption-family` | `ui` → `system-ui, -apple-system, Segoe UI, Roboto, sans-serif` | server-list.tsx:176,199,208, Players/Ping/Mods captions |
+| `type.statCaption.family` | `--t-type-statCaption-family` | `ui` → `"Inter", "Segoe UI", system-ui, sans-serif` | server-list.tsx:176,199,208, Players/Ping/Mods captions |
 | `type.statCaption.size` | `--t-type-statCaption-size` | `3xs` → `7px` | server-list.tsx:176,199,208, Players/Ping/Mods captions; Package 2.3: src/components/server-list.tsx:173,196,204 |
 | `type.statCaption.weight` | `--t-type-statCaption-weight` | `bold` → `700` | server-list.tsx:176,199,208, Players/Ping/Mods captions |
 | `type.statCaption.tracking` | `--t-type-statCaption-tracking` | `0.07em` | server-list.tsx:176,199,208, Players/Ping/Mods captions; Package 2.3: src/components/server-list.tsx:173,196,204 |
@@ -235,7 +235,7 @@ Do not apply one role indiscriminately to differently styled consumers. Existing
 
 ## Retained semantic palette call sites
 
-These existing utilities remain bound to the live palette, including their hover and conditional uses. Legacy font utilities remain bound to `--font-data`; inherited UI text retains `--font-ui`.
+These existing utilities remain bound to the live palette, including their hover and conditional uses. The font utilities are bound to the family scale steps: `.font-mono-data` and the update changelog read `--t-type-family-data`, and inherited UI text reads `--t-type-family-ui`.
 
 | Utility | Call Sites |
 |---|---|

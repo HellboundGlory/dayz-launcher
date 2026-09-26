@@ -4,15 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_EXTRAS } from "./apply";
 import { useDevStore } from "./dev/dev-store";
 import {
-  DEFAULT_RADII,
-  DEFAULT_SPACING,
-  DEFAULT_TYPOGRAPHY,
   NEUTRAL_DARK,
   NEUTRAL_LIGHT,
   type Palette,
 } from "./palette";
 import {
-  effectiveExtras,
+  effectiveRoleValues,
   getActiveLayout,
   getThemeOwnedLayout,
   mergeSettingsValues,
@@ -182,7 +179,12 @@ beforeEach(() => {
   backend.getThemeErrorsById = {};
   themeCssHead.length = 0;
   for (const name of Object.keys(writtenProps)) delete writtenProps[name];
-  useThemeStore.setState({ activeId: "neutral", themeFiles: {}, settingsValues: {} });
+  useThemeStore.setState({
+    activeId: "neutral",
+    themeFiles: {},
+    settingsValues: {},
+    customExtras: { radius: {}, family: {} },
+  });
   clearFallbackMemory();
   useDevStore.getState().clear();
 });
@@ -292,26 +294,9 @@ describe("theme extras", () => {
     expect(writtenProps["--t-space-rowX"]).toBe("12px");
   });
 
-  it("fills the missing spacing keys of a partial theme from the defaults", () => {
-    const themeFiles = files({ spacing: { md: "12px" } });
-
-    const extras = resolvedExtras("local.partial", themeFiles);
-
-    expect(extras.spacing).toEqual({ ...DEFAULT_SPACING, md: "12px" });
-  });
-
-  it("keeps the defaults for a preset and for a theme with no extras", () => {
+  it("keeps the defaults for a preset and for a theme with no tokens", () => {
     expect(resolvedExtras("neutral", files({}))).toEqual(DEFAULT_EXTRAS);
     expect(resolvedExtras("local.partial", files({}))).toEqual(DEFAULT_EXTRAS);
-  });
-
-  it("ignores non-string values in an untrusted tokens.json", () => {
-    const themeFiles = files({ spacing: { md: 12, lg: "20px" }, typography: null });
-
-    expect(resolvedExtras("local.partial", themeFiles).spacing).toEqual({
-      ...DEFAULT_SPACING,
-      lg: "20px",
-    });
   });
 
   it("reads a numeric glowIntensity and drops a non-numeric one", () => {
@@ -326,43 +311,65 @@ describe("theme extras", () => {
     });
   });
 
-  it("lets a customExtras override beat both the theme's own value and the default", () => {
-    const themeFiles = files({ spacing: { md: "12px" }, radii: { row: "2px" } });
-
-    const extras = effectiveExtras("local.partial", themeFiles, {
-      spacing: { md: "6px" },
-      radii: {},
-      typography: { uiFont: "Comic Sans" },
+  it("shows Neutral's resolved roles for a theme with no v2 tokens", () => {
+    expect(effectiveRoleValues("local.partial", files({}), { radius: {}, family: {} })).toEqual({
+      radius: { window: "8px", panel: "9px", row: "8px", control: "6px" },
+      family: {
+        ui: NEUTRAL_TOKENS.scales.type.family.ui,
+        data: NEUTRAL_TOKENS.scales.type.family.data,
+      },
     });
-
-    expect(extras.spacing).toEqual({ ...DEFAULT_SPACING, md: "6px" });
-    expect(extras.radii).toEqual({ ...DEFAULT_RADII, row: "2px" });
-    expect(extras.typography.uiFont).toBe("Comic Sans");
-    expect(extras.typography.dataFont).toBe(DEFAULT_TYPOGRAPHY.dataFont);
   });
 
-  it("passes the merged extras and the live bloom to applyTheme, and clears them on reset", () => {
+  it("resolves the theme's own roles through its scales, with the editor override winning", () => {
+    const themeFiles = files({
+      schemaVersion: 2,
+      scales: { radius: { md: "9px" } },
+      roles: { radius: { row: "md" } },
+    });
+
+    const roles = effectiveRoleValues("local.partial", themeFiles, { radius: { row: "2px" }, family: {} });
+
+    expect(roles.radius).toEqual({ window: "8px", panel: "9px", row: "2px", control: "9px" });
+  });
+
+  it("writes an editor role override into the v2 variables, and stops writing the legacy ones", () => {
     useThemeStore.setState({
-      activeId: "local.partial",
-      themeFiles: files({ spacing: { md: "12px" } }),
-      customExtras: { spacing: { lg: "40px" }, radii: {}, typography: {} },
+      activeId: "neutral",
+      customExtras: { radius: { row: "14px" }, family: { ui: "Comic Sans" } },
+    });
+
+    useThemeStore.getState().apply();
+
+    expect(writtenProps["--t-radius-row"]).toBe("14px");
+    expect(writtenProps["--t-type-family-ui"]).toBe("Comic Sans");
+    // The type roles name that family step, so they pick the override up too.
+    expect(writtenProps["--t-type-body-family"]).toBe("Comic Sans");
+    // Everything else keeps Neutral's own value.
+    expect(writtenProps["--t-radius-control"]).toBe("6px");
+    expect(writtenProps["--t-type-family-data"]).toBe(NEUTRAL_TOKENS.scales.type.family.data);
+    for (const dead of ["--space-md", "--radius-row", "--font-ui", "--font-data"]) {
+      expect(writtenProps[dead]).toBeUndefined();
+    }
+  });
+
+  it("passes the live bloom to applyTheme, and clears the role overrides on reset", () => {
+    useThemeStore.setState({
+      activeId: "neutral",
+      customExtras: { radius: { row: "40px" }, family: { data: "Comic Sans" } },
       bloom: 0.35,
     });
 
     useThemeStore.getState().apply();
-    expect(writtenProps["--space-lg"]).toBe("40px");
-    expect(writtenProps["--space-md"]).toBe("12px");
+    expect(writtenProps["--t-radius-row"]).toBe("40px");
+    expect(writtenProps["--t-type-family-data"]).toBe("Comic Sans");
     // The slider's live value renders; the theme's own glowIntensity only
     // seeds it at pick time.
     expect(writtenProps["--bloom"]).toBe("0.35");
 
     useThemeStore.getState().resetToBase();
-    expect(writtenProps["--space-lg"]).toBe(DEFAULT_SPACING.lg);
-    expect(useThemeStore.getState().customExtras).toEqual({
-      spacing: {},
-      radii: {},
-      typography: {},
-    });
+    expect(writtenProps["--t-radius-row"]).toBe("8px");
+    expect(useThemeStore.getState().customExtras).toEqual({ radius: {}, family: {} });
   });
 
   it("persists the live bloom into a saved theme's v2 palette", async () => {
@@ -445,6 +452,37 @@ describe("duplicateTheme", () => {
     // The source's own bloom, not the slider's — only the live theme takes the slider.
     expect(tokens.bloom).toBe(0.3);
   });
+
+  it("writes the live editor role overrides into the saved tokens", async () => {
+    useThemeStore.setState({
+      activeId: "local.source",
+      themeFiles: { "local.source": themeFile({ schemaVersion: 2, roles: { radius: { row: "9px" } } }) },
+      customExtras: { radius: { window: "2px", row: "3px" }, family: { ui: "Comic Sans" } },
+    });
+
+    await useThemeStore.getState().saveTheme("Role skin");
+
+    const tokens = parseTokens(backend.savedTokens[0]);
+    expect(tokens.roles).toEqual({ radius: { row: "3px", window: "2px" } });
+    expect(tokens.scales?.type?.family).toEqual({
+      ...NEUTRAL_TOKENS.scales.type.family,
+      ui: "Comic Sans",
+    });
+  });
+
+  it("keeps the editor's role overrides out of a copy of another theme", async () => {
+    useThemeStore.setState({
+      activeId: "neutral",
+      themeFiles: { "local.source": themeFile({ schemaVersion: 2, roles: { radius: { row: "9px" } } }) },
+      customExtras: { radius: { row: "3px" }, family: { ui: "Comic Sans" } },
+    });
+
+    await useThemeStore.getState().duplicateTheme("local.source", "Copy");
+
+    const tokens = parseTokens(backend.savedTokens[0]);
+    expect(tokens.roles).toEqual({ radius: { row: "9px" } });
+    expect(tokens.scales).toEqual(NEUTRAL_TOKENS.scales);
+  });
 });
 
 describe("apply() asset wiring", () => {
@@ -491,9 +529,12 @@ describe("settings values", () => {
     backend.installed = [{ id, name: id }];
     backend.schemaById[id] = SCHEMA;
     backend.tokensById[id] = {
-      dark: { accent: "hsl({{accentHue}}, 45%, 60%)" },
-      light: { accent: "hsl({{accentHue}}, 45%, 60%)" },
-      spacing: { md: "{{accentHue}}px" },
+      schemaVersion: 2,
+      colors: {
+        dark: { accent: "hsl({{accentHue}}, 45%, 60%)" },
+        light: { accent: "hsl({{accentHue}}, 45%, 60%)" },
+      },
+      roles: { radius: { row: "{{accentHue}}px" } },
     };
     return id;
   };
@@ -574,7 +615,7 @@ describe("settings values", () => {
       compactRows: false,
     });
     expect(writtenProps["--accent"]).toBe("hsl(300, 45%, 60%)");
-    expect(writtenProps["--space-md"]).toBe("300px");
+    expect(writtenProps["--t-radius-row"]).toBe("300px");
   });
 
   it("renders a never-tuned field as its schema default, not literal or undefined", async () => {
@@ -585,7 +626,7 @@ describe("settings values", () => {
     // A complete values object always reaches substitution: the untuned field
     // carries its own default, which is what renders.
     expect(writtenProps["--accent"]).toBe("hsl(210, 45%, 60%)");
-    expect(writtenProps["--space-md"]).toBe("210px");
+    expect(writtenProps["--t-radius-row"]).toBe("210px");
   });
 
   it("leaves a placeholder no field names literal, per Package C's contract", async () => {
@@ -623,9 +664,12 @@ describe("apply() dev settings override", () => {
           id,
           name: id,
           tokens: {
-            dark: { accent: "hsl({{hue}}, 50%, 50%)" },
-            light: { accent: "hsl({{hue}}, 50%, 50%)" },
-            spacing: { md: "{{hue}}px" },
+            schemaVersion: 2,
+            colors: {
+              dark: { accent: "hsl({{hue}}, 50%, 50%)" },
+              light: { accent: "hsl({{hue}}, 50%, 50%)" },
+            },
+            roles: { radius: { row: "{{hue}}px" } },
           },
         } as ThemeFile,
       },
@@ -641,14 +685,14 @@ describe("apply() dev settings override", () => {
     useDevStore.getState().setSettingsOverride({ hue: 250 });
     useThemeStore.getState().apply();
     expect(writtenProps["--accent"]).toBe("hsl(250, 50%, 50%)");
-    expect(writtenProps["--space-md"]).toBe("250px");
+    expect(writtenProps["--t-radius-row"]).toBe("250px");
     expect(writtenProps["--setting-hue"]).toBe("250");
   });
 
   it("substitutes the stored values exactly as before when there is no override", () => {
     useThemeStore.getState().apply();
     expect(writtenProps["--accent"]).toBe("hsl(100, 50%, 50%)");
-    expect(writtenProps["--space-md"]).toBe("100px");
+    expect(writtenProps["--t-radius-row"]).toBe("100px");
     expect(writtenProps["--setting-hue"]).toBe("100");
   });
 });
