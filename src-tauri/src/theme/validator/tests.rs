@@ -476,6 +476,33 @@ fn alternatives_do_not_double_count_element_placements() {
 }
 
 #[test]
+fn a_region_id_may_repeat_across_variants_but_not_within_one_root() {
+    let root = json!({"type":"box","id":"r-same","children":[{"type":"box","id":"r-child"}]});
+    assert!(validate_layout_value(
+        SHELL,
+        &json!({"schemaVersion":2,"variants":[
+            {"minWidth":0,"root":root},{"minWidth":900,"root":root}
+        ]})
+    )
+    .is_empty());
+    check(
+        SHELL,
+        json!({"schemaVersion":2,"variants":[
+            {"minWidth":0,"root":{"type":"box","id":"r-same","children":[{"type":"box","id":"r-same"}]}},
+            {"minWidth":900,"root":{"type":"box","id":"r-same","children":[{"type":"box","id":"r-child"}]}}
+        ]}),
+        "LAY-08",
+        "/variants/0/root/children/0/id",
+    );
+    check(
+        SHELL,
+        layout(json!({"type":"box","id":"r-same","children":[{"type":"box","id":"r-same"}]})),
+        "LAY-08",
+        "/root/children/0/id",
+    );
+}
+
+#[test]
 fn tabs_accordion_and_collapsed_subtrees_are_traversed() {
     check(
         SHELL,

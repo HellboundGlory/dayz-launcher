@@ -17,6 +17,7 @@ pub(super) fn validate(
         registry,
         issues: Vec::new(),
         regions: HashSet::new(),
+        root_regions: HashSet::new(),
         references: Vec::new(),
         placements: HashSet::new(),
     };
@@ -48,6 +49,8 @@ struct Validator<'a> {
     registry: &'a Registry,
     issues: Vec<ValidationIssue>,
     regions: HashSet<String>,
+    /// `(root, id)` pairs already seen, for LAY-08 within one composition.
+    root_regions: HashSet<(String, String)>,
     references: Vec<(String, String)>,
     placements: HashSet<(String, String)>,
 }
@@ -241,13 +244,22 @@ impl Validator<'_> {
             };
             if let Some(id) = props.get("id") {
                 if let Some(id) = id.as_str().filter(|id| region_id(id)) {
-                    if !self.regions.insert(id.into()) {
+                    // Responsive roots never coexist, so an id may repeat across
+                    // variants; only a repeat inside one root is a duplicate.
+                    let root = roots
+                        .iter()
+                        .map(|(_, path, _)| path.as_str())
+                        .filter(|path| pointer.starts_with(*path))
+                        .max_by_key(|path| path.len())
+                        .unwrap_or_default();
+                    if !self.root_regions.insert((root.to_string(), id.into())) {
                         self.issue(
                             "LAY-08",
                             &child(&pointer, "id"),
-                            "Region id is duplicated in this file",
+                            "Region id is duplicated in this root",
                         );
                     }
+                    self.regions.insert(id.into());
                 } else {
                     self.issue(
                         "LAY-07",
