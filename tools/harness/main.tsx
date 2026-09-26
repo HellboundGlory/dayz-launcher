@@ -152,6 +152,7 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   get_mod_usage: () => [],
   get_unique_mods_summary: () => [],
   get_known_mods: () => [],
+  get_workshop_previews: () => ({}),
   "plugin:window|get_all_windows": () => ["main", "splash"],
 };
 
