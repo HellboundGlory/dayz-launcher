@@ -16,10 +16,12 @@ pub mod tokens;
 pub mod validator;
 pub mod watch;
 
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 pub use manifest::{ThemeManifest, ThemePreview};
 use serde_json::Value;
+use validator::{Severity, ValidationIssue};
 
 /// The manifest file's name, in one place because `save` and `scan` both need it.
 pub const MANIFEST_FILE: &str = "theme.json";
@@ -118,6 +120,8 @@ pub struct ThemeFile {
     pub settings_schema: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub layouts: std::collections::BTreeMap<String, serde_json::Value>,
+    /// Files dropped from `layouts` for failing validation, with the issues that dropped them.
+    pub fallbacks: Vec<ValidationIssue>,
 }
 
 /// A scan's result: themes found, and one skip message per directory that failed.
@@ -223,21 +227,51 @@ fn read_optional_json(
     validate(&value)?;
     Ok(Some(value))
 }
-/// Reads every layout file a theme ships from [`LAYOUT_ALLOWLIST`].
-fn read_layouts(dir: &Path) -> Result<std::collections::BTreeMap<String, Value>, String> {
-    let mut layouts = std::collections::BTreeMap::new();
+/// Reads every layout file a theme ships from [`LAYOUT_ALLOWLIST`], parse-tolerantly:
+/// a file that fails to parse contributes its own issues instead of failing the read,
+/// so one broken screen costs one file. An unreadable file still fails.
+pub(crate) fn read_layout_files(
+    dir: &Path,
+) -> Result<(HashMap<String, Value>, Vec<ValidationIssue>), String> {
+    let mut parsed = HashMap::new();
+    let mut issues = Vec::new();
     for rel_path in LAYOUT_ALLOWLIST {
         let file = dir.join(rel_path);
         if !file.is_file() {
             continue;
         }
-        let raw = std::fs::read_to_string(&file)
+        let content = std::fs::read_to_string(&file)
             .map_err(|e| format!("Could not read {}: {e}", file.display()))?;
-        let value: Value = serde_json::from_str(&raw)
-            .map_err(|e| format!("{} is not valid JSON: {e}", file.display()))?;
-        layouts.insert((*rel_path).to_string(), value);
+        match serde_json::from_str(&content) {
+            Ok(value) => {
+                parsed.insert((*rel_path).to_string(), value);
+            }
+            Err(_) => issues.extend(validator::validate_layout_file(rel_path, &content)),
+        }
     }
-    Ok(layouts)
+    Ok((parsed, issues))
+}
+
+/// `parsed` split into the layouts that render and the ones that fall back: an
+/// issue naming a file in the map with `Severity::Error` removes that file and
+/// is kept as its fallback reason. Warnings remove nothing and are dropped.
+fn fall_back_broken_layouts(
+    parsed: HashMap<String, Value>,
+    issues: Vec<ValidationIssue>,
+) -> (BTreeMap<String, Value>, Vec<ValidationIssue>) {
+    let mut fallbacks = Vec::new();
+    let mut broken = HashSet::new();
+    for issue in issues {
+        if issue.severity == Severity::Error && parsed.contains_key(&issue.file) {
+            broken.insert(issue.file.clone());
+            fallbacks.push(issue);
+        }
+    }
+    let layouts = parsed
+        .into_iter()
+        .filter(|(file, _)| !broken.contains(file))
+        .collect();
+    (layouts, fallbacks)
 }
 
 /// One theme's manifest, tokens, and whichever optional content files it ships.
@@ -265,13 +299,18 @@ pub fn get(themes_root: &Path, id: &str) -> Result<ThemeFile, String> {
     validate_tokens(&tokens)?;
 
     let settings_schema = read_optional_json(&dir, SETTINGS_SCHEMA_FILE, validate_settings_schema)?;
-    let layouts = read_layouts(&dir)?;
+
+    let (parsed, mut fallbacks) = read_layout_files(&dir)?;
+    let layout_issues = validator::validate_theme_layouts(&parsed);
+    let (layouts, removals) = fall_back_broken_layouts(parsed, layout_issues);
+    fallbacks.extend(removals);
 
     Ok(ThemeFile {
         manifest,
         tokens,
         settings_schema,
         layouts,
+        fallbacks,
     })
 }
 
@@ -610,6 +649,113 @@ mod tests {
         // With it gone, the theme reads again — the failure was the file, not the theme.
         assert!(get(&root, "dev.bad").is_ok());
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    fn write_layout(dir: &Path, relative: &str, content: &str) {
+        let path = dir.join(relative);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, content).unwrap();
+    }
+
+    /// A layout file that fails to parse costs only itself: the theme still
+    /// loads, the file is out of `layouts`, and `fallbacks` names why.
+    #[test]
+    fn a_malformed_layout_file_falls_back_without_failing_the_theme() {
+        let root = scratch("layout-parse");
+        save(&root, &manifest("dev.layout"), &tokens()).expect("save");
+        let dir = root.join("dev.layout");
+        write_layout(
+            &dir,
+            "layout/shell.json",
+            r#"{"schemaVersion":2,"root":{"type":"box"}}"#,
+        );
+        write_layout(&dir, "layout/views/mods.json", "{ not json");
+
+        let loaded = get(&root, "dev.layout").expect("one bad layout file is not fatal");
+
+        assert!(loaded.layouts.contains_key("layout/shell.json"));
+        assert!(!loaded.layouts.contains_key("layout/views/mods.json"));
+        assert!(
+            loaded
+                .fallbacks
+                .iter()
+                .any(|i| i.rule_id == "LAY-01" && i.file == "layout/views/mods.json"),
+            "{:?}",
+            loaded.fallbacks
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// An error issue naming a file removes that file, keeping the issue as its reason.
+    #[test]
+    fn a_layout_file_that_fails_a_required_element_rule_falls_back() {
+        let root = scratch("layout-req");
+        save(&root, &manifest("dev.req"), &tokens()).expect("save");
+        let dir = root.join("dev.req");
+        // A servers row with no `server.join` — REQ-05.
+        write_layout(
+            &dir,
+            "layout/lists/servers.json",
+            r#"{"schemaVersion":2,"columns":[{"id":"name","width":"1fr","sort":"name"}],
+                "row":{"type":"grid","children":[{"element":"server.name","column":"name"}]}}"#,
+        );
+
+        let loaded = get(&root, "dev.req").expect("get");
+
+        assert!(!loaded.layouts.contains_key("layout/lists/servers.json"));
+        assert!(
+            loaded
+                .fallbacks
+                .iter()
+                .any(|i| i.rule_id == "REQ-05" && i.file == "layout/lists/servers.json"),
+            "{:?}",
+            loaded.fallbacks
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// No layout rule emits a warning yet, so this drives the split directly:
+    /// a warning must remove nothing and never reach `fallbacks`.
+    #[test]
+    fn a_warning_never_removes_a_layout() {
+        let mut parsed = HashMap::new();
+        parsed.insert(
+            "layout/views/mods.json".to_string(),
+            serde_json::json!({ "schemaVersion": 2 }),
+        );
+        let warning = ValidationIssue {
+            rule_id: "ELE-99".into(),
+            severity: Severity::Warning,
+            file: "layout/views/mods.json".into(),
+            pointer: String::new(),
+            message: "a warned file is still a file".into(),
+            hint: None,
+        };
+
+        let (layouts, fallbacks) = fall_back_broken_layouts(parsed, vec![warning]);
+
+        assert!(layouts.contains_key("layout/views/mods.json"));
+        assert!(fallbacks.is_empty(), "{fallbacks:?}");
+    }
+
+    /// The shipped builtin is real content: it must not need the fallback path.
+    #[test]
+    fn the_shipped_builtin_theme_has_no_fallbacks() {
+        let shipped = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/builtin-themes");
+
+        let loaded = get(&shipped, "builtin.tactical").expect("builtin.tactical loads");
+
+        assert!(loaded.fallbacks.is_empty(), "{:?}", loaded.fallbacks);
+        assert!(
+            !loaded.layouts.is_empty(),
+            "it ships layouts to fall back from"
+        );
+        let wire = serde_json::to_value(&loaded).expect("serialise");
+        assert_eq!(
+            wire["fallbacks"],
+            serde_json::json!([]),
+            "always present, even empty"
+        );
     }
 
     /// Create-only: an existing id must be refused, not merged into or overwritten.
