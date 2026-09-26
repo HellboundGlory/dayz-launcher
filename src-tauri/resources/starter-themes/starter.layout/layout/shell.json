@@ -1,59 +1,305 @@
 {
   "schemaVersion": 2,
-  "root": {
-    "type": "stack",
-    "direction": "column",
-    "height": "100%",
-    "children": [
-      {
+  "variants": [
+    {
+      "minWidth": 0,
+      "root": {
         "type": "stack",
-        "direction": "row",
-        "align": "center",
-        "landmark": "banner",
-        "children": [
-          { "surface": "surface.windowControls" },
-          { "element": "app.dragRegion", "grow": 1 },
-          { "surface": "surface.navRail" }
-        ]
-      },
-      { "element": "notice.error" },
-      { "element": "notice.storage" },
-      {
-        "type": "stack",
-        "id": "r-main",
-        "direction": "row",
-        "landmark": "main",
-        "grow": 1,
-        "minHeight": "0px",
-        "children": [{ "type": "outlet", "name": "view" }]
-      },
-      {
-        "type": "stack",
-        "direction": "row",
-        "align": "center",
-        "justify": "spaceBetween",
-        "landmark": "contentinfo",
+        "id": "r-shell",
+        "direction": "column",
+        "height": "100%",
         "children": [
           {
             "type": "stack",
+            "id": "r-header",
             "direction": "row",
+            "align": "center",
+            "landmark": "banner",
             "children": [
-              { "element": "status.steam" },
-              { "element": "status.listSource" }
+              {
+                "type": "stack",
+                "id": "r-brand",
+                "direction": "row",
+                "align": "center",
+                "children": [
+                  {
+                    "element": "app.logo",
+                    "options": {
+                      "wordmark": false
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "stack",
+                "id": "r-nav",
+                "direction": "row",
+                "landmark": "navigation",
+                "children": [
+                  {
+                    "element": "nav.servers",
+                    "options": {
+                      "display": "icon"
+                    }
+                  },
+                  {
+                    "element": "nav.favourites",
+                    "options": {
+                      "display": "icon"
+                    }
+                  },
+                  {
+                    "element": "nav.recent",
+                    "options": {
+                      "display": "icon"
+                    }
+                  },
+                  {
+                    "element": "nav.mods",
+                    "options": {
+                      "display": "icon"
+                    }
+                  }
+                ]
+              },
+              {
+                "element": "app.dragRegion",
+                "grow": 1
+              },
+              {
+                "element": "status.steam",
+                "options": {
+                  "display": "dot"
+                }
+              },
+              {
+                "element": "nav.settings",
+                "options": {
+                  "display": "icon"
+                }
+              },
+              {
+                "surface": "surface.windowControls"
+              }
+            ],
+            "shrink": 0
+          },
+          {
+            "element": "notice.update"
+          },
+          {
+            "element": "notice.error"
+          },
+          {
+            "element": "notice.launch"
+          },
+          {
+            "element": "notice.storage"
+          },
+          {
+            "type": "stack",
+            "id": "r-main",
+            "direction": "row",
+            "landmark": "main",
+            "grow": 1,
+            "minHeight": "0px",
+            "children": [
+              {
+                "type": "outlet",
+                "name": "view"
+              }
             ]
           },
           {
             "type": "stack",
+            "id": "r-footer",
             "direction": "row",
+            "align": "center",
+            "justify": "spaceBetween",
+            "landmark": "contentinfo",
             "children": [
-              { "element": "status.populated" },
-              { "element": "status.serverTotal" },
-              { "element": "status.lastRefreshed" }
-            ]
+              {
+                "type": "stack",
+                "id": "r-footer-stats",
+                "direction": "row",
+                "align": "center",
+                "children": [
+                  {
+                    "element": "status.serverTotal"
+                  },
+                  {
+                    "element": "status.populated"
+                  },
+                  {
+                    "element": "status.lastRefreshed",
+                    "options": {
+                      "label": "refreshed"
+                    }
+                  }
+                ]
+              },
+              {
+                "element": "app.uiScale",
+                "options": {
+                  "label": "Scale"
+                }
+              }
+            ],
+            "shrink": 0
+          },
+          {
+            "type": "outlet",
+            "name": "modals"
           }
         ]
-      },
-      { "type": "outlet", "name": "modals" }
-    ]
-  }
+      }
+    },
+    {
+      "minWidth": 900,
+      "root": {
+        "type": "stack",
+        "id": "r-shell",
+        "direction": "column",
+        "height": "100%",
+        "children": [
+          {
+            "type": "stack",
+            "id": "r-header",
+            "direction": "row",
+            "align": "center",
+            "landmark": "banner",
+            "children": [
+              {
+                "type": "stack",
+                "id": "r-brand",
+                "direction": "row",
+                "align": "center",
+                "children": [
+                  {
+                    "element": "app.logo"
+                  }
+                ]
+              },
+              {
+                "type": "stack",
+                "id": "r-nav",
+                "direction": "row",
+                "landmark": "navigation",
+                "children": [
+                  {
+                    "element": "nav.servers",
+                    "options": {
+                      "display": "iconLabel"
+                    }
+                  },
+                  {
+                    "element": "nav.favourites",
+                    "options": {
+                      "display": "iconLabel"
+                    }
+                  },
+                  {
+                    "element": "nav.recent",
+                    "options": {
+                      "display": "iconLabel"
+                    }
+                  },
+                  {
+                    "element": "nav.mods",
+                    "options": {
+                      "display": "iconLabel"
+                    }
+                  }
+                ]
+              },
+              {
+                "element": "app.dragRegion",
+                "grow": 1
+              },
+              {
+                "element": "status.steam"
+              },
+              {
+                "element": "nav.settings",
+                "options": {
+                  "display": "icon"
+                }
+              },
+              {
+                "surface": "surface.windowControls"
+              }
+            ],
+            "shrink": 0
+          },
+          {
+            "element": "notice.update"
+          },
+          {
+            "element": "notice.error"
+          },
+          {
+            "element": "notice.launch"
+          },
+          {
+            "element": "notice.storage"
+          },
+          {
+            "type": "stack",
+            "id": "r-main",
+            "direction": "row",
+            "landmark": "main",
+            "grow": 1,
+            "minHeight": "0px",
+            "children": [
+              {
+                "type": "outlet",
+                "name": "view"
+              }
+            ]
+          },
+          {
+            "type": "stack",
+            "id": "r-footer",
+            "direction": "row",
+            "align": "center",
+            "justify": "spaceBetween",
+            "landmark": "contentinfo",
+            "children": [
+              {
+                "type": "stack",
+                "id": "r-footer-stats",
+                "direction": "row",
+                "align": "center",
+                "children": [
+                  {
+                    "element": "status.serverTotal"
+                  },
+                  {
+                    "element": "status.populated"
+                  },
+                  {
+                    "element": "status.lastRefreshed",
+                    "options": {
+                      "label": "refreshed"
+                    }
+                  }
+                ]
+              },
+              {
+                "element": "app.uiScale",
+                "options": {
+                  "label": "Scale"
+                }
+              }
+            ],
+            "shrink": 0
+          },
+          {
+            "type": "outlet",
+            "name": "modals"
+          }
+        ]
+      }
+    }
+  ]
 }

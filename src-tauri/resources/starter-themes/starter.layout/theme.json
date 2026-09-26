@@ -6,7 +6,7 @@
   "version": "1.0.0",
   "themeApi": "2.0",
   "minimumLauncherVersion": "2.6.0",
-  "description": "Lays out the window itself: a shell, a view, a list row and a detail panel. Copy this one to rearrange where things go, not just how they look.",
+  "description": "A complete rearranged layout — top tabs, a column table and a server detail panel — to copy and make your own.",
   "license": "PolyForm-Noncommercial-1.0.0",
   "homepage": "https://tetralauncher.com/",
   "tags": ["starter", "layout"],
