@@ -1,7 +1,7 @@
 // The layout renderer, asserted as the markup a themed screen actually emits:
 // variant selection, the four containers, the leaves, sizing, anchored
 // positioning, landmarks, outlets and settings-driven hidden conditions.
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactNode } from "react";
 import { useDevStore } from "@/theme/dev/dev-store";
@@ -285,6 +285,43 @@ describe("hidden conditions", () => {
   it("hides on a not-match", () => {
     expect(render(tree({ setting: "mode", not: "grid" }), { settings: { mode: "list" } })).not.toContain("gone");
     expect(render(tree({ setting: "mode", not: "grid" }), { settings: { mode: "grid" } })).toContain("gone");
+  });
+});
+
+describe("viewport width", () => {
+  const variants: LayoutFile = {
+    schemaVersion: 2,
+    variants: [
+      { minWidth: 0, root: { type: "box", id: "r-narrow", children: [] } },
+      { minWidth: 1400, root: { type: "box", id: "r-wide", children: [] } },
+    ],
+  };
+  const html = (props: { width?: number } = {}) =>
+    renderToStaticMarkup(<LayoutRenderer file={variants} {...props} />);
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("picks the variant for the measured viewport when no width prop is given", () => {
+    vi.stubGlobal("window", { innerWidth: 975 });
+    expect(html()).toContain('id="r-narrow"');
+
+    vi.stubGlobal("window", { innerWidth: 1400 });
+    expect(html()).toContain('id="r-wide"');
+  });
+
+  it("reads no viewport without a window, and still renders the first variant", () => {
+    expect(html()).toContain('id="r-narrow"');
+  });
+
+  it("prefers an explicit width prop over the viewport", () => {
+    vi.stubGlobal("window", { innerWidth: 1400 });
+    expect(html({ width: 975 })).toContain('id="r-narrow"');
+  });
+
+  it("prefers a dev variantWidth over both", () => {
+    vi.stubGlobal("window", { innerWidth: 975 });
+    useDevStore.getState().setVariantWidth(1400);
+    expect(html({ width: 975 })).toContain('id="r-wide"');
   });
 });
 
