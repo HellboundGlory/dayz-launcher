@@ -434,3 +434,138 @@
     display: none;
   }
 }
+
+/* ── Element reference ──────────────────────────────────────────── */
+/* The generated page at /docs/themes/elements: the filter box, one compact
+   card per element, and a two-column definition list inside each. */
+
+.el-search {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 24px;
+}
+.el-search input {
+  flex: 1 1 220px;
+  min-width: 0;
+  max-width: 320px;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-ctl);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+.el-search input:focus-visible {
+  border-color: var(--accent-line);
+  outline: none;
+}
+.el-search-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.el-group h2 {
+  margin-top: 44px;
+}
+.el-group h2 code {
+  font-size: 0.62em;
+  color: var(--muted);
+}
+.el-group > .md {
+  margin-bottom: 16px;
+}
+
+.el {
+  margin: 0 0 6px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-ctl);
+  background: var(--surface);
+  line-height: 1.45;
+}
+.el h3 {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 14px;
+  line-height: 1.35;
+}
+.el h3 code {
+  font-family: var(--font-data);
+  font-size: 13.5px;
+}
+.el-kind,
+.el-since {
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-tag);
+  font-family: var(--font-data);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.el-since {
+  border-color: var(--accent-line);
+  color: var(--accent);
+}
+.el dl {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 0 12px;
+  margin: 0;
+  font-size: 13px;
+}
+.el dt {
+  font-family: var(--font-data);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.el dd {
+  margin: 0;
+  color: var(--muted2);
+  overflow-wrap: anywhere;
+}
+.prose .prose .el-options li {
+  margin: 0;
+}
+.el-notes {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-weak);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.el-notes p,
+.el-notes ul,
+.el-notes ol {
+  margin-bottom: 10px;
+}
+.el-notes > :last-child {
+  margin-bottom: 0;
+}
+
+.docs-nav a code {
+  font-size: 0.85em;
+  color: var(--muted);
+}
+
+@media (max-width: 560px) {
+  .el {
+    padding: 10px 12px;
+  }
+  .el dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .el dt {
+    margin-top: 6px;
+  }
+}

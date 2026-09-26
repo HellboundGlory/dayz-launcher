@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "docs:themes": "node tools/docs/theme-docs.mjs",
     "lint": "eslint .",
     "harness:smoke": "node tools/harness/smoke.mjs",
     "perf": "node tools/harness/perf.mjs",

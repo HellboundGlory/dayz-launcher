@@ -1,0 +1,176 @@
+{
+  "intro": "Everything here is theme API 2.0, except the nine elements that say **since 2.1**: `status.activity`, `notice.launch`, `server.refresh`, `server.manageMods`, `mod.created`, `mod.publishedSize`, `mod.subscribers`, `mod.folder` and `settings.done`.\n\n**Kinds**\n\n| Kind | What it is |\n|---|---|\n| `display` | Read-only content: text, a number, a thumbnail. |\n| `input` | A control that holds or writes state. |\n| `action` | A button. |\n| `nav` | Moves between views, or opens Settings. |\n| `notice` | A launcher message. |\n| `list` | A list, its header and its rows. |\n| `block` | A launcher-owned block, placed whole. |\n\n**Where codes**\n\n| Code | Allowed files and positions |\n|---|---|\n| `app` | `layout/shell.json`, any view file, or `layout/settings.json`. |\n| `browser` | `layout/views/browser.json`. |\n| `mods` | `layout/views/mods.json`. |\n| `settings` | `layout/settings.json`. |\n| `server` | Anywhere a server is the subject: a `list.servers` row, `layout/modals/serverInfo.json`, a container with `\"context\": \"selection\"`, or `popup.serverActions`. |\n| `server-panel` | Same as `server`, minus rows. |\n| `mod` | A `list.mods` row, or a container with `\"context\": \"modSelection\"` in `layout/views/mods.json`. |\n| `mod-panel` | A container with `\"context\": \"modSelection\"`, not a row. |\n| `serverMod` | A `list.serverMods` row. |\n| `modServer` | A `list.modServers` row. |\n| `workshopMod` | A `list.modFilterResults` row, or a container with `\"context\": \"modFilterPreview\"` in `layout/modals/modFilter.json`. |\n| `modFilter` | `layout/modals/modFilter.json`. |\n| `update` | `layout/modals/update.json`. |\n| `modal` | Any themeable modal file. |\n| `selection` | A container with `\"context\": \"selection\"`, not a row or modal. |\n| `popup` | Any themeable popup file. |\n| `popup:<id>` | That popup's file, `layout/popups/<id>.json`. |\n\nPlacing an element outside the positions its codes allow is an import error.\n\n**Req codes**\n\n| Code | Required in |\n|---|---|\n| `views` | Every composition of the shell with the server browser, and of the shell with Mods. |\n| `views+settings` | As `views`, plus the composition of the shell with Settings. |\n| `browser` / `mods` / `settings` | That composition only. |\n| `row` | Every row template of the named list. |\n| `modal` | The named modal file. |\n| `popup` | The named popup file. |\n| `with join` | Every subject context that places `server.join`. |\n\nA required element doesn't have to sit in the file its requirement names: window controls placed in each view file instead of the shell still count. What it may not do is go missing. A layout file that omits a required element fails validation, and the launcher renders Neutral's version of that screen in its place.\n\n**Compositions and multiplicity**\n\nMultiplicity is checked over a composition, which is the shell together with one view, the shell together with Settings, a modal file, or a popup file.\n\n- `display` elements repeat freely.\n- `input`, `nav`, `notice`, `list` and screen-level `action` elements appear at most once per composition, so a control never fights a copy of itself over focus and a notice is announced once.\n- An action on a subject — a server or a mod — appears at most once per subject context. A server row, the server info modal and each selection panel can each hold one `server.join`.\n\n**Labels, wording and icons**\n\n- **Free labels:** an optional element with a `label` part accepts the `label` option. It is plain text of at most 40 characters and becomes both the visible and the accessible name. Required elements never accept `label`.\n- **Wording variants:** some required elements offer `wording` variants instead of a free label, and the launcher picks the exact words for the current state.\n- **Icons:** an element with an `icon` part accepts the `icon` option in one of three forms: a launcher icon name from the list under Icons; a package image path (`images/…`, SVG or PNG), rendered as a decorative `<img alt=\"\">`; or `\"none\"`, allowed only when the element still renders a label.\n- **`display` options:** these choose between `iconLabel`, `label` and `icon`. With `icon`, the launcher's wording remains the accessible name and the tooltip.",
+  "groups": {
+    "app": {
+      "title": "window and shell",
+      "blurb": "The window frame: window controls, the drag region, the logo and the window-level switches. The window's resize edges are always present and launcher-owned."
+    },
+    "nav": {
+      "title": "views and Settings",
+      "blurb": "Moving between the views and opening Settings.\n\n- **Labels and icons:** Servers (Globe), Favourites (Star), Recent (Clock), Mods (Package), Settings (gear).\n- **The current nav item:** `current` sets `aria-current=\"page\"`.\n- **Opening Settings:** `nav.settings` toggles Settings and sets `aria-pressed`.\n- **Keyboard:** inside a container with `\"landmark\": \"navigation\"`, nav items rove with the arrow keys and Home/End."
+    },
+    "status": {
+      "title": "launcher status",
+      "blurb": "Read-only figures about the launcher and the server list."
+    },
+    "notice": {
+      "title": "launcher messages",
+      "blurb": "A notice renders only while its condition holds, and the visibility check measures it only while it is showing. Beyond these elements, three more notices are launcher-owned and never placed by a theme: the theme-fallback notice, the incompatible-theme notice and the Activation Safety Window."
+    },
+    "filter": {
+      "title": "server browser filters and sorting",
+      "blurb": "The filter bar: one control per server filter, plus the reset button.\n\n- **Popup triggers:** `filter.map`, `filter.tags`, `filter.region` and `filter.sort` open `popup.mapFilter`, `popup.tagsFilter`, `popup.regionFilter` and `popup.sort`, with `aria-haspopup=\"listbox\"` and `aria-expanded`. The `trigger` part is the chip that opens the popup.\n- **Filter popups:** while open, `filter.map`, `filter.tags` and `filter.region` render an inline `popup` part holding one `option` part per row: a checkbox `box` (map), a tri-state `indicator` (tags), or a leading `clear` row (region). `filter.map`'s `empty` part renders \"Loading maps…\" while its list is still loading.\n- **`filter.mods`** opens the mod filter modal.\n- **`active` state:** map, tags, region and mods are `active` while they filter anything. Sort is `active` unless it is Players, descending. Ping is `active` below 500.\n- **Hide toggles:** labelled \"Hide empty\", \"Hide full\", \"Hide locked\" and \"Hide offline\". Default off, persisted, and cleared by `filter.reset` along with every other filter. The control role follows the `control` option: `button` is a pressable button with `aria-pressed`, `checkbox` has `role=\"checkbox\"` and `switch` has `role=\"switch\"`. The `box` part renders only for `checkbox` and `switch`.\n- **Sort keys:** Players, Ping, Mods, Name and Map.\n\nLabel and value wording: labels are MAP, TAGS, REGION, MODS, SORT and PING.\n\n| Element | Value |\n|---|---|\n| Map | \"Any\", the map name, or \"{n} maps\" |\n| Tags | \"Any\" or \"{n} tag(s)\" |\n| Mods | \"Any\", \"{n} mod(s)\", \"{n} excluded\", or \"{i} in, {e} out\" |\n| Region | \"Any\", the region, or \"{n} regions\" |\n| Sort | \"{key}\" followed by the direction arrow |\n| Ping | \"{v}ms\" or \"Any\" |"
+    },
+    "servers": {
+      "title": "server browser actions",
+      "blurb": "Actions on the server list as a whole, rather than on one server."
+    },
+    "server": {
+      "title": "one server",
+      "blurb": "Elements that read or act on a single server: its actions first, then the display elements.\n\n**Formats**\n\n| Element | Format |\n|---|---|\n| `server.gameTime` | \"h:mm AM/PM · {multiplier}\"; \"--:--\" when unknown |\n| `server.players` | \"{players}/{max}\", with \"+{queue}\" when queued |\n| `server.ping` | A number, or \"—\"; `good` ≤ 80, `fair` ≤ 120, `poor` above 120 |\n| `server.modCount` | The count, \"—\" for none, or \"?\" when modded but not yet probed |\n| `server.lastPlayed` | \"played {relative time}\" or a date; renders nothing when the server was never played, or \"—\" with `showNever`. With `recentOnly` it also renders nothing outside the Recent scope. With `label: \"\"` the \"played\" prefix is dropped |\n| `server.region` | Europe, North America, South America, Asia, Oceania, the raw code if unmapped, or \"Unknown region\" |\n\n- **Readiness data:** `server.readiness` and `server.downloadSize` read the data fetched for the selection and the server info modal. They are not allowed in rows, where fetching per visible row would flood Steam.\n- **Offline servers:** `offline` is added to every server element's states while the server didn't answer the last refresh, and its figures are then the last known values."
+    },
+    "serverMod": {
+      "title": "a server's required mods",
+      "blurb": "These elements are placed in the row template of `list.serverMods`. Rows keep the server's declared order."
+    },
+    "mods": {
+      "title": "Mods view actions",
+      "blurb": "Actions on the Mods view as a whole.\n\n- **Menus:** `mods.unsubscribeMenu` and `mods.verifyMenu` open `popup.modsUnsubscribe` and `popup.modsVerify`.\n- **Menu items:** \"Unsubscribe selected ({n})\", \"Unsubscribe from all {n} (destructive)\", \"Verify selected ({n})\" and \"Verify all ({n})\".\n- **Confirmations:** every unsubscribe and clean-up action opens the launcher's confirmation dialog first."
+    },
+    "mod": {
+      "title": "one subscribed mod",
+      "blurb": "Elements that read or act on one subscribed mod, in a `list.mods` row or a selection panel.\n\n- **Selection:** `mod.select` checks the mod for bulk actions; it doesn't select it for detail panels. Its accessible name is \"Select {title}\". Clicking elsewhere on a row selects the mod.\n- **Formats:** `mod.tags` falls back to the Workshop id when the mod has no tags; `mod.size` shows the size on disk to one decimal place; `mod.rating` shows \"{up}▲ / {down}▼\", or \"—\" when both are zero."
+    },
+    "modServer": {
+      "title": "servers that need a mod",
+      "blurb": "These elements are placed in the row template of `list.modServers`. Entries are servers in the browser that declare the selected mod, most recently played first. They are not server entries for the Join rule and carry no actions."
+    },
+    "modal": {
+      "title": "any themeable modal",
+      "blurb": "The one element every themeable modal needs. The three themeable modals are listed under Modals."
+    },
+    "modFilter": {
+      "title": "the mod filter modal",
+      "blurb": "The mod filter modal: its sources, its search and its summary.\n\n- **On open:** the picks are seeded from the current filter, and focus moves to `modFilter.search`, or to the first focusable element if the theme didn't place it."
+    },
+    "workshopMod": {
+      "title": "mods inside the mod filter modal",
+      "blurb": "Elements for one mod inside the mod filter modal, in a `list.modFilterResults` row or a preview panel.\n\n- **Previewing:** clicking a row, or pressing Enter or Space on it, previews that mod in `modFilterPreview` containers.\n- **Formats:** `workshopMod.serverCount` shows \"{n} srv\" or \"—\"; `workshopMod.score` shows \"{score}%\"; `workshopMod.subscribers` shows \"{n} subscribers\"; `workshopMod.updated` shows \"Updated {relative time}\"."
+    },
+    "update": {
+      "title": "the update modal",
+      "blurb": "The update modal, and the notice that opens it."
+    },
+    "settings": {
+      "title": "Settings",
+      "blurb": "The Settings screen: one control per setting, plus the headings that group them.\n\n- **Required controls:** every Settings control is required, and each saves as soon as it changes. They may sit in closed sections, and their labels, hints, placeholders and choices are the launcher's current wording.\n- **Section and group text:** `settings.sectionTitle`, `settings.sectionDescription` and `settings.sectionIcon` render the wording for the Game, Launcher and Theme sections; `settings.groupTitle` renders the checkbox group headings Window, Startup and Discord."
+    },
+    "list": {
+      "title": "the lists",
+      "blurb": "Every list follows one model: the theme declares the list's columns once, a launcher-rendered header shows them, and a row template places elements into those same columns. Subjects, sort keys, states and empty text are under Lists."
+    },
+    "popup": {
+      "title": "the themeable popups",
+      "blurb": "Each popup has its own file, `layout/popups/<id>.json`, declaring its placement mode and its contents. A missing file means the launcher's default popup.\n\n- **Option lists:** `popup.mapOptions`, `popup.regionOptions` and `popup.uniqueServerOptions` are single lists of `role=\"option\"` entries with a check mark on the selected ones. `popup.tagOptions` cycles Official, Modded and First person through include (✓), exclude (✗) and off. `popup.sortOptions` lists the server sort keys.\n- **Empty text:** \"Loading maps…\" for maps, and \"No favourites or recently played servers yet.\" for unique servers.\n- **Server actions in menus:** `popup.serverActions` and `popup.serverLoad` may hold any `server.*` action, and `server.actionNotice`. They read the server their trigger belongs to."
+    }
+  },
+  "elements": {
+    "app.dragRegion": "Fills whatever size the layout gives it, and dragging it moves the window. It never contains other nodes.",
+    "app.collapseToggle": "Collapses and expands the named region. Its accessible name is \"Collapse {label}\" or \"Expand {label}\", and it carries `aria-expanded` and `aria-controls`.",
+    "status.steam": "Reads \"Steam connected\" or \"Steam not connected\". With `display: dot`, that text becomes the accessible name and the tooltip.",
+    "status.serverTotal": "Renders nothing while Steam is disconnected.",
+    "status.populated": "Renders nothing while Steam is disconnected.",
+    "status.listSource": "Renders nothing while Steam is disconnected, and nothing until the list source is known.",
+    "status.lastRefreshed": "Renders nothing while Steam is disconnected, and nothing before the first refresh.",
+    "status.activity": "The `dot` and `label` parts share one state. `discovering` reads \"Discovering servers from Steam…\"; `refreshing` reads \"Probing server details…\"; otherwise `live` reads \"Live · {time}\", or \"Live · waiting\" before the first refresh.",
+    "notice.launch": "A bar naming the server last acted on, carrying the same join warning or launch refusal as that server's `server.actionNotice`. A successful launch never shows here. Dismissing it clears the notice for `server.actionNotice` too. A composition that places it may hide `server.actionNotice` in list rows.",
+    "notice.update": "\"Update\" opens the update modal; \"Later\" dismisses the notice for the session. It is optional, because the update modal and Settings also offer updates.",
+    "notice.modsResult": "Carries the outcome of verify, unsubscribe, clean-up and select-unique.",
+    "filter.search": "Writes the search filter after a 250 ms trailing debounce. Its placeholder is \"Search name or description\".",
+    "servers.refresh": "Re-probes the servers currently on screen. It reads \"Refresh\", or \"Refreshing…\" while `busy`, when it is disabled and its icon spins.",
+    "server.join": "Runs the join, which verifies and fixes mods first.\n\n**Wording**\n\n| State | Wording |\n|---|---|\n| Idle | \"Join\", or \"Fix and join\" when the variant is `fixAndJoin` and mods need a download or update |\n| `busy` | The phase label: \"Launching…\", \"Starting DayZ…\", \"Subscribing…\", \"Downloading…\" or \"Verifying…\" |\n| `playing` | \"Playing\" |\n\n- **Disabled:** during any operation, or while DayZ is running. The tooltip reads \"DayZ is running. Quit the game before joining another server.\"\n- **Icon:** Download for modded servers, Play otherwise.\n- **Selection:** clicking Join never selects its row.\n- **Visibility:** the check measures the selected row's Join, but a visible `server.join` inside a `selection` container satisfies it, because joining the selected server always works. A focused-but-unselected row still needs its own.",
+    "server.actionNotice": "Shows this server's current join warning or error, or the last launch result; a refused launch also carries `refused`. It is required in every context that places `server.join`, and a file that omits it fails validation and falls back to Neutral's version of that screen. It renders only while it has something to report, so the visibility check measures it only then.",
+    "server.cancel": "Renders only while this server has a wait that can be cancelled.",
+    "server.loadToMenu": "Reads \"Load to menu\": it verifies the mod list, then starts DayZ at the main menu without joining. It is disabled under the same conditions as Join.",
+    "server.info": "Reads \"More info\" and opens the server info modal.",
+    "server.menu": "Opens `popup.serverActions` or `popup.serverLoad`, with `aria-haspopup=\"menu\"`. Its accessible name is \"More actions for {server}\".",
+    "server.favourite": "Reads \"Add to favourites\" or \"Remove from favourites\". The change is applied optimistically and reverted if saving fails.",
+    "server.refresh": "Reads \"Refresh this server\" and re-probes only this server. Only one row probes at a time: the probing row is `busy`, and every other row's `server.refresh` is `disabled` until it finishes.",
+    "server.manageMods": "Reads \"Manage mods\"; once the mod count is known, its `count` part reads \"· {n} declared\". Opens the Mods view.",
+    "server.subscribeAll": "Reads \"Download mods\" and subscribes to every mod the server declares.",
+    "server.checkMods": "Reads \"Check mods\". It re-reads the server's mod list and each mod's state, and never queues a download.",
+    "server.unsubscribeUnique": "Reads \"Unsubscribe unique mods\". It opens the launcher's confirmation, and is disabled when no mod is unique to this server.",
+    "server.copyAddress": "Reads \"Copy address\", or \"Copied\" for 1.5 s after copying `ip:gamePort`.",
+    "server.deselect": "Reads \"Close details\" and clears the selection.",
+    "server.tags": "Renders chips in the order offline, official (VANILLA or OFFICIAL), first person (1PP), modded, locked, BattlEye, mod update.",
+    "server.modUpdate": "Renders \"UPDATE\" only while a declared mod has a pending Steam update.",
+    "serverMod.state": "**Wording**\n\n| State | Wording |\n|---|---|\n| `ready` | \"Ready\" |\n| `needsUpdate` | \"Needs update\" |\n| `downloading` | \"Downloading\" |\n| `notInstalled` | \"Not installed\" |\n| `notSubscribed` | \"Not subscribed\" |\n| `serverSide` | \"Server-side\" |\n| `checking` | \"Checking…\" |",
+    "serverMod.size": "Shows the full size for `notSubscribed` and `notInstalled`, \"up to {size}\" for `needsUpdate`, and nothing for `ready` and `serverSide`.",
+    "serverMod.progress": "Renders only while downloading, and is `indeterminate` until Steam reports a total.",
+    "serverMod.unique": "Reads \"Only this server\" when no other cared-about server needs the mod.",
+    "serverMod.openInSteam": "Is disabled for server-side mods, which have no Workshop page.",
+    "mods.search": "Matches title, tags or Workshop id, with no debounce. Its placeholder is \"Search mods by name, tag or id…\".",
+    "mods.statusFilter": "Offers All, Outdated and Downloading as a single-choice group (`role=\"radiogroup\"`).",
+    "mods.refresh": "Re-reads the mod list and refreshes Workshop details.",
+    "mods.count": "Reads \"{s} of {n} selected\" while anything is selected, otherwise \"{n} mod(s)\".",
+    "mods.selectAll": "Reads \"Select all\" and renders only when it would change the checked set. In a list header — a column's `headerElement` — it always renders, as a toggle: `checked` while every visible mod is checked, and a click checks all visible mods or clears them. Its accessible name is then \"Select all visible\" or \"Deselect all\".",
+    "mods.clearSelection": "Reads \"Clear\" and renders only when it would change the checked set.",
+    "mods.selectUnique": "Reads \"Select unique…\", or \"Unique: {server}\" with the name truncated to 24 characters, and opens `popup.modsUnique`. It is disabled when there are no cared-about servers.",
+    "mods.cleanupRemoved": "Reads \"Clean up {n}\" and renders only when removed mods exist.",
+    "mods.unsubscribe": "Reads \"Unsubscribe {n}\", \"Unsubscribe\" or \"Removing…\". It acts on the checked mods and is disabled when none are checked.",
+    "mods.updateOutdated": "Reads \"Update {n}\" and renders only when mods are outdated.",
+    "mods.verify": "Reads \"Verify mods\" or \"Verifying…\". It verifies every mod and re-downloads anything outdated.",
+    "mod.status": "\"Installed\", \"Update available\", \"Downloading\", \"Not downloaded\", \"Not subscribed\" or \"Server-side\". While downloading with a known total, the `label` part instead reads \"{downloaded} / {total}\" to one decimal place and the `progress` part renders as a bar with an inline width percentage; the state follows a 1.5 s live poll, but a live \"ready\" poll never downgrades an authoritative \"Update available\" row. The `dot` part carries the same status as the label.",
+    "mod.thumbnail": "Shows the preview image. Without one, it shows the placeholder (Package icon) and carries the `missing` state.",
+    "mod.disabledBadge": "Reads \"Disabled\" and renders only while the mod is locally disabled. `disabled` is also added to every mod element's states then.",
+    "mod.created": "Reads \"Created\", the date the Workshop item was published.",
+    "mod.publishedSize": "Reads \"Published size\", the Workshop item's published download size.",
+    "mod.subscribers": "Reads \"Subscribers\", the localised Workshop subscriber count for this mod.",
+    "mod.folder": "Reads \"Folder\", the mod's install folder name; shows \"—\" with the `unknown` state without a folder on disk.",
+    "mod.neededBy": "Reads \"Needed by {n} servers\" for the selected mod, counting the entries of `list.modServers`.",
+    "mod.update": "Reads \"Update\" and renders only while the mod needs an update.",
+    "mod.openInSteam": "Reads \"Open in Steam\".",
+    "mod.openFolder": "Reads \"Open folder\" and renders only while the mod has a folder on disk.",
+    "mod.reinstall": "Reads \"Reinstall\".",
+    "mod.deselect": "Reads \"Close details\" and clears the mod selection.",
+    "modal.close": "Closes the modal without applying anything. Its accessible name is \"Close\".",
+    "modFilter.apply": "Reads \"Apply\". It writes the included mods, the excluded mods and the match mode to the server filter, then closes.",
+    "modFilter.source": "Offers Subscribed, Seen on servers and Search Workshop as an ARIA tablist with arrow keys. Switching clears the preview.",
+    "modFilter.search": "Its placeholder follows the source: \"Filter your subscribed mods…\", \"Filter mods seen on these servers…\" or \"Search the Workshop by name…\". It filters locally, except on Search Workshop, where it runs a 350 ms debounced search and is `busy` while searching.",
+    "modFilter.summary": "Reads \"Nothing selected\", or shows up to 4 thumbnails, \"+{n}\", and \"{n} included · {n} excluded\".",
+    "modFilter.clear": "Reads \"Clear\" and removes every pick.",
+    "modFilter.matchMode": "Offers \"Match any\" and \"Match all\" as a radiogroup.",
+    "modFilter.cancel": "Reads \"Cancel\" and closes without applying.",
+    "workshopMod.pick": "Cycles from none to include (✓) to exclude (⊘) and back to none. Its accessible name follows the next step: \"Include {t}\", \"Exclude {t} instead\" or \"Clear the {t} filter\".",
+    "workshopMod.subscribed": "Renders ★ only for subscribed mods.",
+    "workshopMod.include": "Reads \"Include\" or \"Included\".",
+    "workshopMod.exclude": "Reads \"Exclude\" or \"Excluded\".",
+    "workshopMod.viewOnSteam": "Reads \"View on Steam\" and opens the Workshop page.",
+    "update.install": "Reads \"Update & Restart\" and renders only for an installed copy. It and `update.viewRelease` are both required, so the modal always has its primary action.",
+    "update.viewRelease": "Reads \"View Release\" and renders only for a portable copy.",
+    "update.later": "Reads \"Later\", or \"Updating…\" while installing.",
+    "update.title": "Reads \"Update available\" or \"Updates\".",
+    "update.summary": "Reads \"A newer version of Tetra Launcher is available.\" with \"v{version}\" and the date, or \"You're up to date.\".",
+    "update.changelog": "Markdown rendered by the launcher, with links opening externally.",
+    "update.progress": "Reads \"Downloading… {pct}%\", and shows any error.",
+    "settings.back": "Reads \"Back\" and closes Settings. When Settings is presented as a view, it returns to the previous view. Its accessible name is \"Back to the launcher\".",
+    "settings.done": "Reads \"Done\" and closes Settings. It is optional, since `settings.back` and an overlay's `backdropClose` also close it.",
+    "settings.themeManagement": "The launcher-owned theme management block: installed themes, Import, New theme and pagination; the active theme strip, the token customiser and theme settings; Dev Mode and Reset to Default.",
+    "settings.detectPaths": "Reads \"Detect\", or \"…\" while `busy`, and fills in the Steam, DayZ and Workshop paths.",
+    "settings.workshopPath": "A read-only field showing the Workshop folder.",
+    "settings.dataFolder": "A read-only field; it shows \"Locating…\" until its path is known.",
+    "settings.openDataFolder": "Reads \"Open\" and is disabled until the path is known.",
+    "settings.startWithWindows": "Its `note` part is the always-shown debug-build note.",
+    "settings.startMinimised": "Disabled unless Start with Windows is on.",
+    "popup.regionNote": "Reads \"Approximate — based on IP block, not confirmed location\".",
+    "popup.clear": "Reads \"Clear\" and resets that filter.",
+    "popup.close": "Required only where a popup can't be dismissed by clicking outside an anchored panel, so a region or inline popup always has a way out."
+  },
+  "sections": {
+    "surfaces": "A surface is placed whole. Its elements keep their own ids, states and parts, so CSS still reaches them; only its arrangement is fixed. Placing a surface satisfies the requirements of every required element inside it, and counts as one placement of each element inside it — so placing `surface.filterBar` and a separate `filter.search` in the same composition is a multiplicity error.",
+    "lists": "Every list follows one model: the theme declares the list's columns once, a launcher-rendered header shows them, and a row template places elements into those same columns.\n\n- **Sort keys:** a column may name a sort key only from its own list's set. Clicking that column's header sorts by it; clicking again reverses the direction. `popup.sort` offers the server keys Players, Ping, Mods, Name and Map, and `lastPlayed` is reachable only through a column header.\n- **Row states:** every row carries `data-state`, and rows are not focusable themselves — Tab moves into their elements. In the server and Mods lists, every second row also carries `even`, for zebra striping.\n\n**Empty and loading text.** The `empty` and `loading` parts carry the launcher's wording:\n\n| List | Text |\n|---|---|\n| `list.servers` | \"No servers match the current filters.\" after the first load; \"No servers yet — the list fills in once Steam connects.\" before it |\n| `list.mods` | \"Loading subscribed mods…\", \"No mods match the current filter.\", or \"You have no subscribed DayZ Workshop mods.\" |\n| `list.modFilterResults` | \"Loading…\", \"Type a mod name above to search the Workshop.\", \"No subscribed DayZ mods.\", or \"No mods match.\" |\n| `list.serverMods` | \"This server declares no mods.\" |\n| `list.modServers` | \"No servers in the browser need this mod.\" |\n\nA theme may place its own theme text instead, by giving the list an `empty` subtree.",
+    "modals": "Three dialogs are themeable, and each one is a file under `layout/modals/`. Every other dialog is launcher-owned and takes only colour and type tokens: the destructive confirmations, theme import and export, delete-theme, Steam required, and first-run setup. If a modal file omits one of its required elements, the launcher renders Neutral's version of that modal.",
+    "popups": "Each popup has its own file, `layout/popups/<id>.json`, declaring its placement mode and its contents. A missing file means the launcher's default popup.",
+    "notPlaceable": "These are launcher-owned and never appear in a layout file:\n\n- the window's resize edges;\n- the theme-fallback notice, the incompatible-theme notice and the Activation Safety Window;\n- Steam required, first-run setup and the splash;\n- the confirmation dialog, and the theme import, export and delete dialogs;\n- everything inside `settings.themeManagement`."
+  }
+}
