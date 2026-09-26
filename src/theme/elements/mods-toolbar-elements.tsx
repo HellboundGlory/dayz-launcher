@@ -14,7 +14,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useModsStore, visibleRows, type ModStatusFilter } from "@/stores/mods-store";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/confirm-dialog";
-import { getThemeOwnedLayout } from "../theme-store";
+import { getThemeOwnedLayout, useLayoutSubscription } from "../theme-store";
 import type { PopupLayoutFile } from "../renderer/types";
 import { FilterPopup, UniqueServerOptionsList, useTriggerRect } from "./popup-elements";
 import { OptionIcon } from "./option-icon";
@@ -653,6 +653,7 @@ export function ModsSelectUnique({ options, className, style }: { options?: Reco
   const { open, setOpen, ref } = useModsMenu();
   const baseLabel = (options?.label as string) ?? "Select unique…";
   const disabled = caredServers.length === 0;
+  useLayoutSubscription();
   const themedPopup = getThemeOwnedLayout("layout/popups/modsUnique.json") as PopupLayoutFile | undefined;
   const triggerRect = useTriggerRect(ref, open && !!themedPopup);
 

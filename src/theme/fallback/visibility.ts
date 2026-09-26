@@ -3,6 +3,9 @@ export interface ElementVisibilityResult {
   reason?: string;
 }
 
+/** A required element with no node in the current composition. */
+export const MISSING_ELEMENT_REASON = "Element not found in document";
+
 export interface VisibilityCheckFailure {
   element: string;
   reason: string;
@@ -77,21 +80,14 @@ export function checkElementVisibility(
     }
   }
 
-  // 5. Interactive focusability
+  // 5. Interactive focusability. A `disabled` control is launcher state, not a
+  // layout fault — ELEMENTS.md has required actions going `disabled` while busy
+  // or playing — so only a theme-removed tab stop fails here.
   const tag = element.tagName.toLowerCase();
   const isInteractiveTag = ["button", "a", "input", "select", "textarea"].includes(tag);
   const hasTabIndex = element.hasAttribute("tabindex") && element.tabIndex >= 0;
 
   if (isInteractiveTag || hasTabIndex) {
-    const isDisabled =
-      (element as { disabled?: boolean }).disabled === true ||
-      element.hasAttribute("disabled") ||
-      element.getAttribute("aria-disabled") === "true";
-
-    if (isDisabled) {
-      return { visible: false, reason: "interactive element is disabled" };
-    }
-
     const isTabDisabled = element.tabIndex === -1 || element.getAttribute("tabindex") === "-1";
     if (isTabDisabled) {
       return { visible: false, reason: "interactive element has tabIndex === -1" };
@@ -147,6 +143,16 @@ export function runVisibilityCheck(options: VisibilityCheckOptions = {}): Visibi
       if (!isSelected && !isFocused) {
         return true;
       }
+
+      // The selected row scrolled out of view has nothing measurable; failing it
+      // would fall the list back on a resize.
+      const rowRect =
+        typeof row.getBoundingClientRect === "function" ? row.getBoundingClientRect() : null;
+      const viewportHeight =
+        options.windowBounds?.height ?? (typeof window !== "undefined" ? window.innerHeight : 768);
+      if (rowRect && (rowRect.bottom <= 0 || rowRect.top >= viewportHeight)) {
+        return true;
+      }
     }
 
     // Skip closed accordion sections, inactive tab panels, collapsed subtrees
@@ -198,8 +204,9 @@ export function runVisibilityCheck(options: VisibilityCheckOptions = {}): Visibi
     for (const reqId of options.requiredElements) {
       const matches = Array.from(root.querySelectorAll<HTMLElement>(`[data-el="${reqId}"]`));
 
-      // Notices that aren't showing are skipped if missing or hidden
-      if (reqId.startsWith("notice.")) {
+      // Notices that aren't showing are skipped if missing or hidden. The action
+      // notice is in this class: it renders only while it has something to report.
+      if (reqId.startsWith("notice.") || reqId === "server.actionNotice") {
         if (matches.length === 0) continue;
         const showing = matches.some((el) => !isSkipped(el));
         if (!showing) continue;
@@ -229,7 +236,7 @@ export function runVisibilityCheck(options: VisibilityCheckOptions = {}): Visibi
       }
 
       if (matches.length === 0) {
-        failures.push({ element: reqId, reason: "Element not found in document" });
+        failures.push({ element: reqId, reason: MISSING_ELEMENT_REASON });
         continue;
       }
 
