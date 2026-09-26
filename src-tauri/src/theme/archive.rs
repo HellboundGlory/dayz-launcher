@@ -2664,7 +2664,6 @@ mod tests {
                 ..manifest()
             },
             &serde_json::json!({ "schemaVersion": manifest::SCHEMA_VERSION }),
-            None,
         )
         .unwrap();
         let zip_path = fixture_with_manifest(&root, "scansafe", &manifest());
@@ -2724,7 +2723,6 @@ mod tests {
             &root,
             &installed,
             &serde_json::json!({ "schemaVersion": manifest::SCHEMA_VERSION, "dark": { "bg": "#000000" } }),
-            None,
         )
         .unwrap();
 
@@ -2768,7 +2766,6 @@ mod tests {
                 ..manifest()
             },
             &serde_json::json!({ "schemaVersion": manifest::SCHEMA_VERSION }),
-            None,
         )
         .unwrap();
         let replacement = ThemeManifest {
@@ -2805,7 +2802,6 @@ mod tests {
                 ..manifest()
             },
             &serde_json::json!({ "schemaVersion": manifest::SCHEMA_VERSION }),
-            None,
         )
         .unwrap();
         let before = std::fs::read_dir(&root).unwrap().count();
@@ -2821,8 +2817,7 @@ mod tests {
     /// Install one theme into `themes_root` so an export has something live to read.
     fn install(root: &Path, manifest: &ThemeManifest, tokens: &str) {
         let tokens: serde_json::Value = serde_json::from_str(tokens).unwrap();
-        crate::theme::save(root, manifest, &tokens, None)
-            .expect("could not install the fixture theme");
+        crate::theme::save(root, manifest, &tokens).expect("could not install the fixture theme");
     }
 
     #[test]
@@ -2925,7 +2920,7 @@ mod tests {
                 .collect(),
             ..manifest()
         };
-        crate::theme::save(&root, &advanced, &tokens, None).unwrap();
+        crate::theme::save(&root, &advanced, &tokens).unwrap();
         std::fs::create_dir_all(root.join("aurora.test/layout")).unwrap();
         std::fs::write(
             root.join("aurora.test/layout/shell.json"),

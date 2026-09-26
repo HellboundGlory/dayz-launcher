@@ -180,7 +180,6 @@ pub fn run() {
             commands::theme::delete_theme,
             commands::theme::get_theme_settings_values,
             commands::theme::set_theme_settings_value,
-            commands::theme::save_theme_layout,
             commands::theme::set_active_theme_id,
             commands::theme::migrate_legacy_custom_themes,
             commands::theme::import_theme_preview,
