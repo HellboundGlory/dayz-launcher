@@ -16,6 +16,7 @@ use crate::theme::{self, LegacyTheme, ThemeFile, ThemeManifest, ThemeSummary};
 /// missing, unreadable or corrupt is skipped and logged, not fatal.
 #[tauri::command]
 pub fn list_installed_themes(app: AppHandle) -> Vec<ThemeSummary> {
+    seed_builtin_themes(&app);
     let scan = theme::scan(&crate::paths::themes_dir(&app));
     for message in &scan.skipped {
         crate::log::log_line(&app, "theme", message);
@@ -26,6 +27,7 @@ pub fn list_installed_themes(app: AppHandle) -> Vec<ThemeSummary> {
 /// One installed theme: its manifest plus the raw `tokens.json`.
 #[tauri::command]
 pub fn get_theme(app: AppHandle, id: String) -> Result<ThemeFile, String> {
+    seed_builtin_themes(&app);
     theme::get(&crate::paths::themes_dir(&app), &id)
 }
 
@@ -911,8 +913,15 @@ fn refresh_builtin_theme(
     }))
 }
 
-/// Never fatal: every outcome is logged and startup carries on.
+/// Never fatal: every outcome is logged and startup carries on. Runs once per
+/// process, from `setup` or from whichever theme command gets there first: on
+/// Windows the webview can load and list themes before `setup` runs.
 pub fn seed_builtin_themes(app: &AppHandle) {
+    static SEEDED: std::sync::Once = std::sync::Once::new();
+    SEEDED.call_once(|| seed_builtin_themes_now(app));
+}
+
+fn seed_builtin_themes_now(app: &AppHandle) {
     let Ok(source_root) = builtin_themes_dir(app) else {
         return;
     };
