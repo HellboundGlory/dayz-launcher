@@ -273,4 +273,45 @@ describe("ElementHost & Elements", () => {
       expect(selectedHtml).toContain('data-el="status.steam"');
     });
   });
+
+  describe("glow", () => {
+    it("marks an always-glowing element root with the launcher property", () => {
+      const html = render(<ElementHost node={{ element: "app.logo", glow: "always" }} />);
+      expect(html).toContain('data-el="app.logo"');
+      expect(html).toContain("--t-glow-mode:always");
+    });
+
+    it("marks a selected-only element, leaving its own state to decide", () => {
+      const html = render(<ElementHost node={{ element: "nav.servers", glow: "selected" }} />, {
+        activeView: "servers",
+      });
+      expect(html).toContain('data-el="nav.servers"');
+      expect(html).toContain('data-state="current"');
+      expect(html).toContain("--t-glow-mode:selected");
+    });
+
+    it("emits nothing for never or an untagged element", () => {
+      expect(render(<ElementHost node={{ element: "app.logo", glow: "never" }} />)).not.toContain(
+        "--t-glow-mode",
+      );
+      expect(render(<ElementHost node={{ element: "app.logo" }} />)).not.toContain("--t-glow-mode");
+    });
+
+    it("keeps the host's own style alongside the glow property", () => {
+      const html = render(
+        <ElementHost node={{ element: "app.logo", glow: "always" }} style={{ width: "12px" }} />,
+      );
+      expect(html).toContain('style="width:12px;--t-glow-mode:always"');
+    });
+
+    it("carries the glow through a layout render with the node's sizing", () => {
+      const file: LayoutFile = {
+        schemaVersion: 2,
+        root: { type: "box", children: [{ element: "app.logo", glow: "always", width: "24px" }] },
+      };
+      expect(render(<LayoutRenderer file={file} />)).toContain(
+        'style="width:24px;--t-glow-mode:always"',
+      );
+    });
+  });
 });

@@ -91,6 +91,7 @@ pub const COMMON_PROPS: &[&str] = &[
     "position",
     "hidden",
     "landmark",
+    "glow",
     "context",
     "collapsible",
     "resizable",

@@ -30,6 +30,9 @@ export interface PositionDef {
 
 export type Landmark = "navigation" | "main" | "complementary" | "banner" | "contentinfo";
 
+/** Launcher glow on an element: always, only while its `data-state` says selected, or never (§5.5). */
+export type GlowMode = "always" | "selected" | "never";
+
 export type SettingValue = string | number | boolean;
 
 /** `true` always hides; the object forms hide on a settings match (§5.8). */
@@ -142,6 +145,7 @@ export interface ElementNode extends CommonProps {
   element: string;
   options?: Record<string, unknown>;
   label?: string;
+  glow?: GlowMode;
 }
 
 export interface SurfaceNode extends CommonProps {

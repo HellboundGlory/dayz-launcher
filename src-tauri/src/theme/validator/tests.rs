@@ -154,8 +154,33 @@ fn layout_rules_report_exact_pointers() {
             "LAY-12",
             "/root/sections/0/body",
         ),
+        (
+            layout(json!({"type":"box","glow":"always"})),
+            "LAY-03",
+            "/root/glow",
+        ),
+        (
+            layout(json!({"type":"text","value":"hi","glow":"selected"})),
+            "LAY-03",
+            "/root/glow",
+        ),
+        (
+            layout(json!({"element":"app.logo","glow":"sometimes"})),
+            "LAY-03",
+            "/root/glow",
+        ),
     ] {
         check(SHELL, value, rule, pointer);
+    }
+}
+
+#[test]
+fn glow_is_accepted_on_element_nodes_in_every_mode() {
+    for mode in ["always", "selected", "never"] {
+        assert_eq!(
+            validate_layout_value(SHELL, &layout(json!({"element":"app.logo","glow":mode}))),
+            vec![]
+        );
     }
 }
 
