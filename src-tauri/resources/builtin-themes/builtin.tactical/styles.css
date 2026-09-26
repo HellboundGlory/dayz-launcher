@@ -1464,9 +1464,7 @@
   color: var(--muted);
 }
 
-/* The pane's copy of the info modal's mods list and toolbar. The list claims a
-   starting 120px — roughly four rows at its 32px estimated row height — and
-   grows into whatever height is left; r-actions stays pinned. */
+/* Pane mods list: starts at ~4 rows and grows into the remaining height. */
 [data-region="r-detail"] > [data-el="list.serverMods"] {
   flex-basis: 120px;
   min-width: 0;
