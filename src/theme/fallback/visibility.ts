@@ -25,15 +25,65 @@ export interface VisibilityCheckOptions {
   settingsPresentation?: "overlay" | "panel" | "view";
 }
 
+/** Every host an open popup renders into: `popup-host.tsx` adds `data-popup-host`,
+ * the launcher's own popup bodies carry `data-part="popup"`. */
+const OPEN_POPUP_SELECTOR = '[data-popup-host], [data-part="popup"]';
+
+interface CheckedStyle {
+  display?: string;
+  visibility?: string;
+  opacity?: string;
+  overflowX?: string;
+  overflowY?: string;
+}
+
+function computedStyle(element: HTMLElement): CheckedStyle {
+  if (typeof window !== "undefined" && typeof window.getComputedStyle === "function") {
+    return window.getComputedStyle(element) as unknown as CheckedStyle;
+  }
+  return (element.style ?? {}) as CheckedStyle;
+}
+
+/** The nearest ancestor the element is scrolled out of, when that ancestor scrolls on the axis. */
+function scrolledOutPane(
+  element: HTMLElement,
+  rect: { top: number; bottom: number; left: number; right: number },
+): HTMLElement | null {
+  for (let node = element.parentElement; node; node = node.parentElement) {
+    const style = computedStyle(node);
+    const scrollsX =
+      (style.overflowX === "auto" || style.overflowX === "scroll") &&
+      node.scrollWidth > node.clientWidth;
+    const scrollsY =
+      (style.overflowY === "auto" || style.overflowY === "scroll") &&
+      node.scrollHeight > node.clientHeight;
+    const paneRect = node.getBoundingClientRect();
+    const outX = rect.left < paneRect.left || rect.right > paneRect.right;
+    const outY = rect.top < paneRect.top || rect.bottom > paneRect.bottom;
+    if ((scrollsX && outX) || (scrollsY && outY)) return node;
+  }
+  return null;
+}
+
+/** Whether the hit test at a centre point lands on something else. */
+function centreOccluded(container: HTMLElement, cx: number, cy: number): boolean {
+  if (typeof document === "undefined" || typeof document.elementFromPoint !== "function") {
+    return false;
+  }
+  const hit = document.elementFromPoint(cx, cy);
+  if (!hit || hit === container || container.contains(hit)) return false;
+
+  // An open popup paints over the page, so the page beneath it isn't occluded.
+  const popup = typeof hit.closest === "function" ? hit.closest(OPEN_POPUP_SELECTOR) : null;
+  return !popup || popup.contains(container);
+}
+
 export function checkElementVisibility(
   element: HTMLElement,
   windowBounds?: { width: number; height: number },
 ): ElementVisibilityResult {
   // 1. Style checks
-  const style =
-    typeof window !== "undefined" && typeof window.getComputedStyle === "function"
-      ? window.getComputedStyle(element)
-      : (element.style ?? {});
+  const style = computedStyle(element);
 
   if (style.display === "none") {
     return { visible: false, reason: "display is none" };
@@ -55,7 +105,14 @@ export function checkElementVisibility(
     return { visible: false, reason: "dimensions are zero or negative" };
   }
 
-  // 3. Inside window bounds
+  // 3. Geometry. An element scrolled out of its pane is reachable by scrolling,
+  // so a pane that passes stands in for it (§15 judges what the user can reach).
+  const geometryFailure = (reason: string): ElementVisibilityResult => {
+    const pane = scrolledOutPane(element, rect);
+    return pane ? checkElementVisibility(pane, windowBounds) : { visible: false, reason };
+  };
+
+  // 4. Inside window bounds
   const winWidth = windowBounds?.width ?? (typeof window !== "undefined" ? window.innerWidth : 1024);
   const winHeight = windowBounds?.height ?? (typeof window !== "undefined" ? window.innerHeight : 768);
 
@@ -66,21 +123,15 @@ export function checkElementVisibility(
     rect.left < winWidth;
 
   if (!inBounds) {
-    return { visible: false, reason: "outside window bounds" };
+    return geometryFailure("outside window bounds");
   }
 
-  // 4. Center point occlusion
-  const cx = rect.left + rect.width / 2;
-  const cy = rect.top + rect.height / 2;
-
-  if (typeof document !== "undefined" && typeof document.elementFromPoint === "function") {
-    const hit = document.elementFromPoint(cx, cy);
-    if (hit && hit !== element && !element.contains(hit)) {
-      return { visible: false, reason: "center point occluded by another element" };
-    }
+  // 5. Center point occlusion
+  if (centreOccluded(element, rect.left + rect.width / 2, rect.top + rect.height / 2)) {
+    return geometryFailure("center point occluded by another element");
   }
 
-  // 5. Interactive focusability. A `disabled` control is launcher state, not a
+  // 6. Interactive focusability. A `disabled` control is launcher state, not a
   // layout fault — ELEMENTS.md has required actions going `disabled` while busy
   // or playing — so only a theme-removed tab stop fails here.
   const tag = element.tagName.toLowerCase();
