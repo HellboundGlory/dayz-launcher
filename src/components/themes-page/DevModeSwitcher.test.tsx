@@ -114,7 +114,6 @@ describe("DevModeSwitcher variant widths", () => {
     version: "1.0.0",
     themeApi: "2.0",
     minimumLauncherVersion: "2.6.0",
-    tier: "custom",
     description: "",
     preview: null,
     license: null,

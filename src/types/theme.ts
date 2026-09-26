@@ -19,8 +19,6 @@ export interface ThemeManifest {
   version: string;
   themeApi: string;
   minimumLauncherVersion: string;
-  /** Kept for v1 manifests' display metadata; capabilities govern v2 content. */
-  tier: string;
   description: string;
   preview: string | null;
   license: string | null;

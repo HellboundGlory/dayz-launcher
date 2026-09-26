@@ -169,18 +169,17 @@ fn theme_dir(themes_root: &Path, id: &str) -> Result<PathBuf, String> {
     Ok(themes_root.join(id))
 }
 
-/// v1 keeps its envelope check until the package-format cutover.
+/// A palette must be an object carrying `schemaVersion` 2 and a shape
+/// [`tokens::TokensV2`] accepts; a v1 envelope is not a fallback (ADR-0003).
 pub fn validate_tokens(tokens: &Value) -> Result<(), String> {
     let Some(object) = tokens.as_object() else {
         return Err("tokens.json must be a JSON object".to_string());
     };
-    if !object.contains_key("schemaVersion") {
-        return Err("tokens.json has no `schemaVersion`".to_string());
+    if object.get("schemaVersion").and_then(Value::as_u64) != Some(2) {
+        return Err("tokens.json must declare `schemaVersion` 2".to_string());
     }
-    if object.get("schemaVersion").and_then(Value::as_u64) == Some(2) {
-        serde_json::from_value::<tokens::TokensV2>(tokens.clone())
-            .map_err(|error| format!("Invalid tokens.json: {error}"))?;
-    }
+    serde_json::from_value::<tokens::TokensV2>(tokens.clone())
+        .map_err(|error| format!("Invalid tokens.json: {error}"))?;
     Ok(())
 }
 
@@ -390,6 +389,25 @@ pub fn slugify(name: &str) -> String {
     slug.trim_matches('-').to_string()
 }
 
+/// One scheme's colours out of a legacy blob: the twelve v1 palette keys copied
+/// over `defaults` when the blob holds them as strings. A key the blob lacks,
+/// or holds as anything but a string, keeps its default; every other key the
+/// blob carried is dropped.
+fn legacy_scheme(defaults: &Value, legacy: &Value) -> Value {
+    let Some(legacy) = legacy.as_object() else {
+        return defaults.clone();
+    };
+    let mut colors = defaults.clone();
+    if let Some(colors) = colors.as_object_mut() {
+        for (key, value) in legacy {
+            if value.is_string() && colors.contains_key(key) {
+                colors.insert(key.clone(), value.clone());
+            }
+        }
+    }
+    colors
+}
+
 /// Bring themes saved in the frontend's `localStorage` into file-backed
 /// storage, one directory each. Best-effort: a bad entry is reported and the rest still migrate.
 pub fn migrate(themes_root: &Path, legacy: &[LegacyTheme]) -> Migration {
@@ -406,11 +424,23 @@ pub fn migrate(themes_root: &Path, legacy: &[LegacyTheme]) -> Migration {
         }
 
         let id = format!("local.{}", slugify(&theme.name));
-        let tokens = serde_json::json!({
-            "schemaVersion": manifest::SCHEMA_VERSION,
-            "dark": theme.dark,
-            "light": theme.light,
-        });
+        let mut tokens = match serde_json::to_value(tokens::TokensV2::default()) {
+            Ok(tokens) => tokens,
+            Err(e) => {
+                migration
+                    .skipped
+                    .push(format!("{}: could not build the palette: {e}", fallback()));
+                continue;
+            }
+        };
+        tokens["colors"]["dark"] = {
+            let defaults = &tokens["colors"]["dark"];
+            legacy_scheme(defaults, &theme.dark)
+        };
+        tokens["colors"]["light"] = {
+            let defaults = &tokens["colors"]["light"];
+            legacy_scheme(defaults, &theme.light)
+        };
 
         let manifest = ThemeManifest {
             id: id.clone(),
@@ -494,7 +524,10 @@ mod tests {
     }
 
     fn tokens() -> Value {
-        serde_json::json!({ "schemaVersion": 1, "dark": { "bg": "#0d0f13" }, "light": {} })
+        serde_json::json!({
+            "schemaVersion": 2,
+            "colors": { "dark": { "bg": "#0d0f13" }, "light": {} },
+        })
     }
 
     fn settings_schema() -> Value {
@@ -705,13 +738,33 @@ mod tests {
             let loaded = get(&root, id).expect("migrated theme should load");
             assert_eq!(loaded.manifest.tier, "basic");
             assert_eq!(loaded.manifest.capabilities, vec!["tokens".to_string()]);
-            assert_eq!(loaded.tokens["dark"]["bg"], bg);
-            assert!(loaded.tokens["light"].is_object());
+            // The authored pair arrives under the v2 palette keys, with the
+            // rest of the palette at Neutral's defaults.
+            assert_eq!(loaded.tokens["schemaVersion"], 2);
+            assert_eq!(loaded.tokens["colors"]["dark"]["bg"], bg);
+            assert!(loaded.tokens["colors"]["light"].is_object());
+            assert_eq!(loaded.tokens["colors"]["dark"]["accent"], "#8fa3bd");
+            assert!(loaded.tokens["scales"].is_object());
+            assert!(loaded.tokens["roles"].is_object());
         }
-        // The authored pair arrives intact under the documented keys.
+        // The authored pair arrives intact under the documented keys, and a
+        // scheme the legacy blob left empty keeps Neutral's light palette.
         let first = get(&root, "local.my-cool-theme").expect("load");
-        assert_eq!(first.tokens["dark"]["bg"], "#111111");
-        assert_eq!(first.tokens["light"]["bg"], "#eeeeee");
+        assert_eq!(first.tokens["colors"]["dark"]["bg"], "#111111");
+        assert_eq!(first.tokens["colors"]["light"]["bg"], "#eeeeee");
+        let second = get(&root, "local.second-one").expect("load");
+        assert_eq!(second.tokens["colors"]["light"]["bg"], "#f3f4f6");
+        // ...and the grid shows it as a current-format theme.
+        let scanned = scan(&root);
+        assert!(scanned.skipped.is_empty(), "{:?}", scanned.skipped);
+        assert!(
+            scanned
+                .themes
+                .iter()
+                .all(|theme| !theme.incompatible && theme.incompatible_reason.is_none()),
+            "{:?}",
+            scanned.themes
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -749,10 +802,110 @@ mod tests {
     }
 
     #[test]
-    fn tokens_must_be_an_object_carrying_a_schema_version() {
-        assert!(validate_tokens(&serde_json::json!({ "schemaVersion": 1 })).is_ok());
-        assert!(validate_tokens(&serde_json::json!({ "dark": {} })).is_err());
+    fn tokens_must_be_a_v2_palette() {
+        assert!(validate_tokens(&tokens()).is_ok());
+        assert!(validate_tokens(&serde_json::json!({ "schemaVersion": 2 })).is_ok());
+        assert!(validate_tokens(&serde_json::json!({ "dark": {}, "light": {} })).is_err());
+        assert!(validate_tokens(&serde_json::json!({ "schemaVersion": 1 })).is_err());
+        assert!(validate_tokens(
+            &serde_json::json!({ "schemaVersion": 1, "dark": {}, "light": {} })
+        )
+        .is_err());
+        // A v2 envelope is not enough on its own: the contents must be a
+        // shape `TokensV2` accepts.
+        assert!(validate_tokens(
+            &serde_json::json!({ "schemaVersion": 2, "roles": { "radius": { "row": true } } })
+        )
+        .is_err());
         assert!(validate_tokens(&serde_json::json!([1, 2])).is_err());
+    }
+
+    /// The v1 envelope the picker used to write is refusable wherever a palette
+    /// enters — the read of an installed theme and the write of a new one.
+    #[test]
+    fn a_v1_tokens_file_is_rejected_on_read_and_on_save() {
+        let root = scratch("v1tokens");
+        save(&root, &manifest("dev.v2"), &tokens()).expect("save");
+        std::fs::write(
+            root.join("dev.v2").join(TOKENS_FILE),
+            r##"{"schemaVersion":1,"dark":{"bg":"#111111"},"light":{}}"##,
+        )
+        .unwrap();
+
+        let err = get(&root, "dev.v2").expect_err("a v1 palette must not load");
+        assert!(err.contains("schemaVersion"), "{err}");
+
+        let err = save(
+            &root,
+            &manifest("dev.v1"),
+            &serde_json::json!({ "schemaVersion": 1, "dark": {}, "light": {} }),
+        )
+        .expect_err("a v1 palette must not save");
+        assert!(err.contains("schemaVersion"), "{err}");
+        assert!(!root.join("dev.v1").exists());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Exactly what `duplicateTheme` puts on the wire: a v2 manifest with no
+    /// `tier`, and a full `TokensV2` — the resolved colours, the bloom, and the
+    /// scales/roles copied from the source. Both halves must survive the
+    /// backend and read as a compatible theme.
+    #[test]
+    fn a_frontend_duplicate_saves_and_scans_as_compatible() {
+        let root = scratch("frontend-duplicate");
+        let manifest: ThemeManifest = serde_json::from_value(serde_json::json!({
+            "schemaVersion": 2,
+            "id": "local.extras-skin",
+            "name": "Extras skin",
+            "author": "local",
+            "version": "1.0.0",
+            "themeApi": "2.0",
+            "minimumLauncherVersion": "0.0.0",
+            "description": "",
+            "preview": null,
+            "license": null,
+            "homepage": null,
+            "tags": [],
+            "capabilities": ["tokens"],
+        }))
+        .expect("the frontend's manifest shape must deserialise");
+        assert_eq!(manifest.tier, "", "the frontend writes no tier");
+
+        let tokens = serde_json::json!({
+            "schemaVersion": 2,
+            "colors": {
+                "dark": {
+                    "bg": "#0d0f13", "surface": "#12151b", "surface2": "#1a1e26",
+                    "border": "#262b34", "text": "#e7ebf0", "muted": "#7a8494",
+                    "muted2": "#98a2b2", "accent": "#8fa3bd", "accent2": "#b0976a",
+                    "success": "#4d9a75", "warn": "#c19a55", "danger": "#b3564d",
+                },
+                "light": {
+                    "bg": "#f3f4f6", "surface": "#ffffff", "surface2": "#e9ebef",
+                    "border": "#d2d6dc", "text": "#181b20", "muted": "#5d6570",
+                    "muted2": "#8a919d", "accent": "#3e5f7d", "accent2": "#8a6d34",
+                    "success": "#287a4f", "warn": "#9a7b3a", "danger": "#a94a42",
+                },
+            },
+            "bloom": 0.42,
+            "scales": { "radius": { "md": "9px" }, "type": { "size": { "md": "11px" } } },
+            "roles": { "radius": { "row": "9px" }, "type": { "heading": { "size": "2xl" } } },
+        });
+
+        let id = save(&root, &manifest, &tokens).expect("the duplicate must save");
+        assert_eq!(id, "local.extras-skin");
+        assert_eq!(
+            get(&root, &id).expect("the duplicate must load").tokens,
+            tokens,
+            "the palette round-trips verbatim"
+        );
+
+        let scanned = scan(&root);
+        assert!(scanned.skipped.is_empty(), "{:?}", scanned.skipped);
+        assert_eq!(scanned.themes.len(), 1);
+        assert!(!scanned.themes[0].incompatible, "{:?}", scanned.themes[0]);
+        assert_eq!(scanned.themes[0].incompatible_reason, None);
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// The settings schema is held to the same rule: an object with a
