@@ -783,9 +783,15 @@
 }
 
 .t-row [data-el="server.favourite"] [data-part="icon"] > :first-child {
-  width: 11px;
-  height: 11px;
-  fill: currentColor;
+  width: 12px;
+  height: 12px;
+}
+
+/* A lone button in a centred cell only centres once the cell is a flex box. */
+[data-list="servers"] .t-row > [data-column="favourite"],
+.t-mod-row > [data-column="select"] {
+  display: flex;
+  align-items: center;
 }
 
 .t-row [data-el="server.favourite"]:hover {
@@ -2158,13 +2164,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
 }
 
 /* Mod details pane */
-.t-mod-empty-pane {
-  width: 340px;
-  flex-shrink: 0;
-  background-color: var(--surface);
-  border-left: 1px solid var(--border);
-}
-
 [data-region="r-mod-hero"],
 [data-region="r-mod-content"] {
   flex-shrink: 0;
@@ -2453,12 +2452,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   height: 12px;
 }
 
-.t-mod-empty {
-  color: var(--muted);
-  text-align: center;
-  padding: 24px;
-}
-
 /* Mods action bar */
 [data-region="r-mods-actions"] {
   padding: 8px 12px;
@@ -2726,13 +2719,15 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   text-align: center;
 }
 
-.t-mod-row {
+.t-server-mod-row {
+  height: 41px;
+  align-items: center;
   gap: 8px;
   padding: 6px 0;
   border-bottom: 1px solid var(--border);
 }
 
-.t-mod-row:last-child {
+.t-server-mod-row:last-child {
   border-bottom: none;
 }
 
