@@ -605,6 +605,93 @@ describe("Theme Fallback & Visibility (Package 4.5)", () => {
       expect(result.passed).toBe(true);
     });
 
+    /** A selected row whose Join the detail panel covers, plus that panel. */
+    function selectedRowWithPanel(options: {
+      rowState?: string;
+      panelJoin?: "visible" | "hidden" | "absent";
+    } = {}) {
+      const container = document.createElement("div");
+
+      const row = createMockElement({
+        attributes: { role: "row", "data-state": options.rowState ?? "selected" },
+      });
+      row.appendChild(
+        createMockElement({
+          tag: "button",
+          attributes: { "data-el": "server.join" },
+          rect: { width: 100, height: 40, top: 100, bottom: 140, left: 100, right: 200 },
+        }),
+      );
+      container.appendChild(row);
+
+      // The hit test reports this node for the Join column: it occludes the row's
+      // Join, while a panel-owned node leaves the panel's own Join clear.
+      let occluder = createMockElement({});
+      const panelJoin = options.panelJoin ?? "visible";
+
+      if (panelJoin !== "absent") {
+        const panel = createMockElement({ attributes: { "data-context": "selection" } });
+        const selectionJoin = createMockElement({
+          tag: "button",
+          attributes: { "data-el": "server.join" },
+          style: panelJoin === "hidden" ? { display: "none" } : undefined,
+          rect: { width: 200, height: 40, top: 280, bottom: 320, left: 400, right: 600 },
+        });
+        panel.appendChild(selectionJoin);
+        container.appendChild(panel);
+
+        if (panelJoin === "visible") {
+          occluder = createMockElement({});
+          selectionJoin.appendChild(occluder);
+        }
+      }
+
+      mockDocument.elementFromPoint = vi.fn().mockReturnValue(occluder);
+      return container;
+    }
+
+    it("accepts the selection panel's Join for the selected row", () => {
+      const result = runVisibilityCheck({
+        root: selectedRowWithPanel(),
+        requiredElements: ["server.join"],
+      });
+
+      expect(result.passed).toBe(true);
+    });
+
+    it("fails the selected row's Join when no selection panel shows one", () => {
+      const result = runVisibilityCheck({
+        root: selectedRowWithPanel({ panelJoin: "absent" }),
+        requiredElements: ["server.join"],
+      });
+
+      expect(result.passed).toBe(false);
+      expect(result.failures).toEqual([
+        { element: "server.join", reason: "center point occluded by another element" },
+      ]);
+    });
+
+    it("fails when the selection panel's Join is hidden", () => {
+      const result = runVisibilityCheck({
+        root: selectedRowWithPanel({ panelJoin: "hidden" }),
+        requiredElements: ["server.join"],
+      });
+
+      expect(result.passed).toBe(false);
+      expect(result.failures.map((failure) => failure.reason)).toEqual(
+        expect.arrayContaining(["center point occluded by another element", "display is none"]),
+      );
+    });
+
+    it("does not cover a focused but unselected row", () => {
+      const result = runVisibilityCheck({
+        root: selectedRowWithPanel({ rowState: "focused" }),
+        requiredElements: ["server.join"],
+      });
+
+      expect(result.passed).toBe(false);
+    });
+
     it("skips elements inside closed accordion sections or inactive tab panels", () => {
       const container = document.createElement("div");
 

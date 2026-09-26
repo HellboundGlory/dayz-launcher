@@ -97,6 +97,29 @@ export function checkElementVisibility(
   return { visible: true };
 }
 
+/** The row a list element lives in, when that row is the selected one. */
+function rowIsSelected(element: HTMLElement): boolean {
+  const row = element.closest('[role="row"], [data-row]');
+  if (!row) return false;
+  const state = row.getAttribute("data-state") ?? "";
+  return state.includes("selected") || row.getAttribute("aria-selected") === "true";
+}
+
+/** Whether any `server.join` inside the selection panel renders visibly. */
+function selectionPanelJoinVisible(
+  root: HTMLElement | Document,
+  windowBounds?: { width: number; height: number },
+): boolean {
+  const panels = root.querySelectorAll<HTMLElement>('[data-context="selection"]');
+  for (const panel of Array.from(panels)) {
+    const joins = panel.querySelectorAll<HTMLElement>('[data-el="server.join"]');
+    for (const join of Array.from(joins)) {
+      if (checkElementVisibility(join, windowBounds).visible) return true;
+    }
+  }
+  return false;
+}
+
 export function runVisibilityCheck(options: VisibilityCheckOptions = {}): VisibilityCheckResult {
   const doc = typeof document !== "undefined" ? document : null;
   const root = options.root ?? doc;
@@ -244,6 +267,16 @@ export function runVisibilityCheck(options: VisibilityCheckOptions = {}): Visibi
         if (isSkipped(el)) continue;
         const res = checkElementVisibility(el, options.windowBounds);
         if (!res.visible) {
+          // Joining the selected server always works (§15), so the selection panel's
+          // own Join covers the selected row's. A focused-but-unselected row still
+          // needs its own.
+          if (
+            reqId === "server.join" &&
+            rowIsSelected(el) &&
+            selectionPanelJoinVisible(root, options.windowBounds)
+          ) {
+            continue;
+          }
           failures.push({ element: reqId, reason: res.reason ?? "Visibility check failed" });
         }
       }
