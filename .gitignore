@@ -29,6 +29,9 @@ screenshots/
 # Harness scratch output (prod build, server logs) — regenerable
 /tools/harness/.out/
 
+# Visual baselines — regenerable with `npm run visual`
+/tools/harness/baselines/
+
 # Backend deployment secrets — holds the Steam Web API key
 deploy/.env
 
