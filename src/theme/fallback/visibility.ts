@@ -28,6 +28,8 @@ export interface VisibilityCheckOptions {
 /** Every host an open popup renders into: `popup-host.tsx` adds `data-popup-host`,
  * the launcher's own popup bodies carry `data-part="popup"`. */
 const OPEN_POPUP_SELECTOR = '[data-popup-host], [data-part="popup"]';
+// Dev Mode's own floating panels; a theme can't keep clear of them.
+const DEV_TOOLING_SELECTOR = "[data-dev-panel], [data-dev-inspector]";
 
 interface CheckedStyle {
   display?: string;
@@ -72,6 +74,7 @@ function centreOccluded(container: HTMLElement, cx: number, cy: number): boolean
   }
   const hit = document.elementFromPoint(cx, cy);
   if (!hit || hit === container || container.contains(hit)) return false;
+  if (typeof hit.closest === "function" && hit.closest(DEV_TOOLING_SELECTOR)) return false;
 
   // An open popup paints over the page, so the page beneath it isn't occluded.
   const popup = typeof hit.closest === "function" ? hit.closest(OPEN_POPUP_SELECTOR) : null;
