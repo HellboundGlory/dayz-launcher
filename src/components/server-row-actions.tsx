@@ -21,6 +21,7 @@ import {
   unsubscribeUniqueMods,
   copyServerAddress,
 } from "@/lib/tauri";
+import { useRowProbeStore, probeRow, rowProbeState } from "@/theme/elements/row-probe-store";
 
 interface RowActionsProps {
   server: Server;
@@ -83,6 +84,7 @@ export function ServerRowActions({
   const menuRef = useRef<HTMLDivElement>(null);
 
   const actions = useServerActions();
+  const probe = useRowProbeStore((s) => s);
   const hookModPending = useServerStore((s) => s.modPending[server.addr]);
   const storeModPending =
     typeof window === "undefined"
@@ -148,6 +150,7 @@ export function ServerRowActions({
       ref={ref}
       className="row-act relative flex shrink-0 items-center gap-[5px]"
     >
+      {refreshButton()}
       {joinButton()}
       {chevronButton()}
       {noticeInline()}
@@ -155,6 +158,23 @@ export function ServerRowActions({
       {confirmDialog()}
     </div>
   );
+
+  function refreshButton(): React.ReactNode {
+    const { busy, disabled } = rowProbeState(probe, server.addr, server.query_port);
+    return (
+      <button
+        type="button"
+        data-tetra-el="rowRefreshAction"
+        onClick={(e) => probeRow(probe, server.addr, server.query_port, e)}
+        disabled={disabled}
+        aria-label="Refresh this server"
+        title={`Re-probe ${server.name || server.addr}`}
+        className="flex shrink-0 items-center [border-radius:var(--t-radius-control)] border border-line bg-surface2 p-[5px] text-muted2 transition-colors hover:border-accent-line hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        <RefreshCw className={cn("size-3.5", busy && "animate-spin")} />
+      </button>
+    );
+  }
 
   function joinButton(): React.ReactNode {
     return (
