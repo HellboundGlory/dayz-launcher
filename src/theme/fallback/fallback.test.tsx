@@ -41,6 +41,10 @@ class MockHTMLElement {
   textContent: string = "";
   tabIndex: number = 0;
   disabled: boolean = false;
+  scrollWidth: number = 0;
+  clientWidth: number = 0;
+  scrollHeight: number = 0;
+  clientHeight: number = 0;
   rect: MockRect = { width: 100, height: 40, top: 100, bottom: 140, left: 100, right: 200 };
   classList = {
     contains: (cls: string) => (this.attributes.get("class") ?? "").split(/\s+/).includes(cls),
@@ -387,10 +391,20 @@ describe("Theme Fallback & Visibility (Package 4.5)", () => {
       attributes?: Record<string, string>;
       disabled?: boolean;
       tabIndex?: number;
+      scroll?: {
+        scrollWidth?: number;
+        clientWidth?: number;
+        scrollHeight?: number;
+        clientHeight?: number;
+      };
     }) {
       const el = new MockHTMLElement(options.tag ?? "div");
       const defaultRect = { width: 100, height: 40, top: 100, bottom: 140, left: 100, right: 200 };
       el.rect = options.rect ?? defaultRect;
+
+      if (options.scroll) {
+        Object.assign(el, options.scroll);
+      }
 
       if (options.style) {
         Object.assign(el.style, options.style);
@@ -690,6 +704,136 @@ describe("Theme Fallback & Visibility (Package 4.5)", () => {
       });
 
       expect(result.passed).toBe(false);
+    });
+
+    it("passes an element scrolled out of its pane", () => {
+      const container = document.createElement("div");
+      const pane = createMockElement({
+        style: { overflowY: "auto" },
+        scroll: { scrollHeight: 600, clientHeight: 100 },
+        rect: { width: 300, height: 100, top: 100, bottom: 200, left: 100, right: 400 },
+      });
+      container.appendChild(pane);
+
+      const setting = createMockElement({
+        attributes: { "data-el": "settings.discordPresence" },
+        rect: { width: 200, height: 40, top: 800, bottom: 840, left: 150, right: 350 },
+      });
+      pane.appendChild(setting);
+
+      const result = runVisibilityCheck({
+        root: container,
+        requiredElements: ["settings.discordPresence"],
+      });
+
+      expect(result.passed).toBe(true);
+    });
+
+    it("fails a scrolled-out element once its pane is hidden", () => {
+      const container = document.createElement("div");
+      const pane = createMockElement({
+        style: { overflowY: "auto", display: "none" },
+        scroll: { scrollHeight: 600, clientHeight: 100 },
+        rect: { width: 300, height: 100, top: 100, bottom: 200, left: 100, right: 400 },
+      });
+      container.appendChild(pane);
+
+      const setting = createMockElement({
+        attributes: { "data-el": "settings.discordPresence" },
+        rect: { width: 200, height: 40, top: 800, bottom: 840, left: 150, right: 350 },
+      });
+      pane.appendChild(setting);
+
+      const result = runVisibilityCheck({
+        root: container,
+        requiredElements: ["settings.discordPresence"],
+      });
+
+      expect(result.passed).toBe(false);
+      expect(result.failures).toEqual([
+        { element: "settings.discordPresence", reason: "display is none" },
+      ]);
+    });
+
+    it("passes a list column the list has scrolled out of view", () => {
+      const container = document.createElement("div");
+      const list = createMockElement({
+        style: { overflowX: "auto" },
+        scroll: { scrollWidth: 600, clientWidth: 300 },
+        rect: { width: 300, height: 200, top: 300, bottom: 500, left: 100, right: 400 },
+      });
+      container.appendChild(list);
+
+      const row = createMockElement({ attributes: { role: "row", "data-state": "selected" } });
+      list.appendChild(row);
+
+      const status = createMockElement({
+        attributes: { "data-el": "mod.status" },
+        rect: { width: 180, height: 40, top: 320, bottom: 360, left: 420, right: 600 },
+      });
+      row.appendChild(status);
+
+      // Clipped away: the hit test lands on the list's own visible content.
+      const visibleRow = createMockElement({});
+      list.appendChild(visibleRow);
+      mockDocument.elementFromPoint = vi.fn().mockReturnValue(visibleRow);
+
+      const result = runVisibilityCheck({ root: container, requiredElements: ["mod.status"] });
+
+      expect(result.passed).toBe(true);
+    });
+
+    it("passes an element an open popup covers", () => {
+      const container = document.createElement("div");
+      const refresh = createMockElement({
+        tag: "button",
+        attributes: { "data-el": "servers.refresh" },
+      });
+      container.appendChild(refresh);
+
+      const popup = createMockElement({ attributes: { "data-part": "popup" } });
+      const popupBody = createMockElement({});
+      popup.appendChild(popupBody);
+      container.appendChild(popup);
+      mockDocument.elementFromPoint = vi.fn().mockReturnValue(popupBody);
+
+      const result = runVisibilityCheck({ root: container, requiredElements: ["servers.refresh"] });
+
+      expect(result.passed).toBe(true);
+    });
+
+    it("still measures the open popup's own elements", () => {
+      const container = document.createElement("div");
+      const popup = createMockElement({ attributes: { "data-part": "popup" } });
+      const close = createMockElement({ tag: "button", attributes: { "data-el": "popup.close" } });
+      const blocker = createMockElement({});
+      popup.appendChild(close);
+      popup.appendChild(blocker);
+      container.appendChild(popup);
+      mockDocument.elementFromPoint = vi.fn().mockReturnValue(blocker);
+
+      const result = runVisibilityCheck({ root: container, requiredElements: ["popup.close"] });
+
+      expect(result.passed).toBe(false);
+    });
+
+    it("still fails an element an ordinary sibling covers", () => {
+      const container = document.createElement("div");
+      const refresh = createMockElement({
+        tag: "button",
+        attributes: { "data-el": "servers.refresh" },
+      });
+      const blocker = createMockElement({});
+      container.appendChild(refresh);
+      container.appendChild(blocker);
+      mockDocument.elementFromPoint = vi.fn().mockReturnValue(blocker);
+
+      const result = runVisibilityCheck({ root: container, requiredElements: ["servers.refresh"] });
+
+      expect(result.passed).toBe(false);
+      expect(result.failures).toEqual([
+        { element: "servers.refresh", reason: "center point occluded by another element" },
+      ]);
     });
 
     it("skips elements inside closed accordion sections or inactive tab panels", () => {
