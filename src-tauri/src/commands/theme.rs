@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::state::{PendingActivation, RestoreSnapshot};
+use crate::state::PendingActivation;
 use crate::theme::validator::{self, Severity, ValidationIssue};
 use crate::theme::{self, LegacyTheme, ThemeFile, ThemeManifest, ThemeSummary, LAYOUT_ALLOWLIST};
 
@@ -329,14 +329,12 @@ fn arm(
     previous_id: Option<String>,
     new_id: Option<String>,
     delete_on_revert: bool,
-    restore: Option<RestoreSnapshot>,
     at: Instant,
 ) -> Option<PendingActivation> {
     subject.replace(PendingActivation {
         previous_id,
         new_id,
         delete_on_revert,
-        restore,
         deadline: at + ACTIVATION_WINDOW,
     })
 }
@@ -437,36 +435,6 @@ pub fn arm_activation(
     delete_on_revert: bool,
 ) -> Result<(), String> {
     let previous_id = crate::commands::settings::current(&app).active_theme_id;
-    arm_and_show(&app, previous_id, new_id, delete_on_revert, None)
-}
-
-/// Begin a safety-window preview of an edit to the *active* theme's own
-/// `layout.json` — the id never changes, so both ids are `id` and revert
-/// restores the snapshot instead of switching themes. `previous_bytes` is the
-/// file's content before the edit was written, or `None` if it did not
-/// exist, which revert honours by deleting it.
-#[tauri::command]
-pub fn arm_layout_edit(
-    app: AppHandle,
-    id: String,
-    file: String,
-    previous_bytes: Option<Vec<u8>>,
-) -> Result<(), String> {
-    let restore = layout_edit_restore(&id, &file, previous_bytes)?;
-    arm_and_show(&app, Some(id.clone()), Some(id), false, Some(restore))
-}
-
-/// The body both arm commands share: swap in a new pending activation under
-/// the lock, clean up whatever it displaced, then show the guard window. The
-/// caller has already resolved `previous_id` (settings) and built any
-/// [`RestoreSnapshot`], so the two differ only in their arguments.
-fn arm_and_show(
-    app: &AppHandle,
-    previous_id: Option<String>,
-    new_id: Option<String>,
-    delete_on_revert: bool,
-    restore: Option<RestoreSnapshot>,
-) -> Result<(), String> {
     let displaced = {
         let state = app.state::<crate::state::AppState>();
         let mut slot = state
@@ -478,23 +446,22 @@ fn arm_and_show(
             previous_id,
             new_id.clone(),
             delete_on_revert,
-            restore,
             Instant::now(),
         )
     };
     // A re-arm before the previous one was confirmed or reverted abandons it
     // exactly like a revert would — clean it up the same way.
     if let Some(displaced) = abandoned_duplicate(displaced, &new_id) {
-        delete_orphaned_duplicate(app, &displaced);
+        delete_orphaned_duplicate(&app, &displaced);
     }
 
-    show_guard_window(app)
+    show_guard_window(&app)
 }
 
 /// The displaced activation worth cleaning up, if any. An activation whose
 /// `new_id` matches the one just armed is the *same* target pressed twice
-/// (double-click, or a re-arm of the theme being edited), never an abandoned
-/// duplicate — cleaning it up would delete the theme the caller still wants.
+/// (a double-click), never an abandoned duplicate — cleaning it up would
+/// delete the theme the caller still wants.
 fn abandoned_duplicate(
     displaced: Option<PendingActivation>,
     new_id: &Option<String>,
@@ -517,9 +484,6 @@ pub fn confirm_activation(app: AppHandle) -> Result<(), String> {
     };
 
     if let Some(pending) = armed {
-        // Only `new_id` is persisted; a layout edit's `restore` snapshot is
-        // dropped here on purpose — the edit already wrote the new bytes to
-        // disk, and keeping the edit means keeping exactly that.
         let message = format!("Confirmed theme {:?}", pending.new_id);
         crate::commands::settings::set_active_theme_id(&app, pending.new_id)?;
         crate::log::log_line(&app, "theme", &message);
@@ -544,9 +508,6 @@ pub fn revert_activation(app: AppHandle) -> Result<(), String> {
     };
 
     if let Some(pending) = armed {
-        // A layout edit's revert is the file going back, not the id changing;
-        // the frontend still gets the event so it can re-read the theme.
-        restore_snapshot(&app, pending.restore.as_ref());
         let _ = app.emit("theme-activation-reverted", reverted_payload(&pending));
         crate::log::log_line(
             &app,
@@ -560,80 +521,9 @@ pub fn revert_activation(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// The v1 layout file the activation guard still snapshots and restores until
-/// that guard is removed.
-const LEGACY_LAYOUT_FILE: &str = "layout.json";
-
-/// The snapshot [`arm_layout_edit`] arms, built purely so both guards are
-/// testable without an `AppHandle`. `file` and `theme_id` each become a path
-/// component under the themes root, so only the one file this action snapshots
-/// and restores may be named, and the id must be a single directory name —
-/// `theme_dir`'s own rule, which this path bypasses.
-fn layout_edit_restore(
-    id: &str,
-    file: &str,
-    previous_bytes: Option<Vec<u8>>,
-) -> Result<RestoreSnapshot, String> {
-    if file != LEGACY_LAYOUT_FILE {
-        return Err(format!(
-            "`{file}` is not a theme file this action can restore"
-        ));
-    }
-    if !theme::is_usable_id(id) {
-        return Err(format!(
-            "`{id}` is not a usable theme id — it must be a single directory name"
-        ));
-    }
-    Ok(RestoreSnapshot {
-        theme_id: id.to_string(),
-        file: file.to_string(),
-        previous_bytes,
-    })
-}
-
-/// The `theme-activation-reverted` payload. `restoredTheme` is the theme whose
-/// file was put back, or `null` for an ordinary id-switch revert, which has no
-/// snapshot and nothing to restore on disk.
+/// The `theme-activation-reverted` payload: the theme the frontend re-applies.
 fn reverted_payload(pending: &PendingActivation) -> serde_json::Value {
-    serde_json::json!({
-        "previousId": pending.previous_id,
-        "restoredTheme": pending.restore.as_ref().map(|r| r.theme_id.clone()),
-    })
-}
-
-/// Put a snapshotted file back exactly as it was. Best-effort by design: the
-/// guard window is already closing and the user has no way to retry from
-/// there, so a failed restore is logged rather than allowed to block the rest
-/// of revert. A `None` snapshot of a file that never existed means delete it.
-fn restore_snapshot(app: &AppHandle, restore: Option<&RestoreSnapshot>) {
-    let Some(snapshot) = restore else { return };
-    match restore_snapshot_at(&crate::paths::themes_dir(app), snapshot) {
-        Ok(()) => crate::log::log_line(
-            app,
-            "theme",
-            &format!(
-                "Restored `{}` for theme `{}`",
-                snapshot.file, snapshot.theme_id
-            ),
-        ),
-        Err(e) => crate::log::log_line(app, "theme", &format!("Could not restore layout: {e}")),
-    }
-}
-
-/// [`restore_snapshot`]'s disk half, taking a plain root so it is testable
-/// against a scratch directory. `theme_id`/`file` were validated before the
-/// snapshot was built, and `file` is always `LEGACY_LAYOUT_FILE` — never a
-/// caller-chosen path.
-fn restore_snapshot_at(themes_root: &Path, snapshot: &RestoreSnapshot) -> Result<(), String> {
-    let path = themes_root.join(&snapshot.theme_id).join(&snapshot.file);
-    match &snapshot.previous_bytes {
-        Some(bytes) => crate::atomic_write::write_atomically(&path, bytes)
-            .map_err(|e| format!("Could not write {}: {e}", path.display())),
-        None => match std::fs::remove_file(&path) {
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            other => other.map_err(|e| format!("Could not delete {}: {e}", path.display())),
-        },
-    }
+    serde_json::json!({ "previousId": pending.previous_id })
 }
 
 /// The pending activation, for the guard window's countdown poll. Read-only —
@@ -1083,18 +973,8 @@ mod tests {
 
     fn armed_at(at: Instant) -> Option<PendingActivation> {
         let mut slot = None;
-        arm(&mut slot, None, Some("local.ember".into()), false, None, at);
+        arm(&mut slot, None, Some("local.ember".into()), false, at);
         slot
-    }
-
-    /// Write `value` as the theme's `layout.json`, the way the (still-present)
-    /// activation guard expects to find it.
-    fn write_layout(dir: &Path, value: &serde_json::Value) {
-        std::fs::write(
-            dir.join(LEGACY_LAYOUT_FILE),
-            serde_json::to_vec_pretty(value).unwrap(),
-        )
-        .unwrap();
     }
 
     /// A scratch themes root holding one installed theme directory.
@@ -1116,7 +996,6 @@ mod tests {
             previous_id: None,
             new_id: None,
             delete_on_revert: false,
-            restore: None,
             deadline: Instant::now(),
         };
 
@@ -1214,7 +1093,6 @@ mod tests {
             Some("local.ember".into()),
             Some("dev.pack".into()),
             false,
-            None,
             later,
         );
 
@@ -1235,7 +1113,6 @@ mod tests {
             None,
             Some("local.first".into()),
             true,
-            None,
             Instant::now(),
         );
         assert!(first.is_none(), "nothing was pending yet");
@@ -1245,7 +1122,6 @@ mod tests {
             None,
             Some("local.second".into()),
             false,
-            None,
             Instant::now(),
         );
         let displaced = second.expect("the first arm was displaced");
@@ -1268,162 +1144,8 @@ mod tests {
         assert!(take_any(&mut slot).is_none());
     }
 
-    /// The whole layout-edit flow minus the Tauri plumbing: snapshot the file,
-    /// write the edit, then revert — the original bytes must be back on disk.
-    #[test]
-    fn arming_a_layout_edit_then_reverting_restores_the_previous_bytes() {
-        let (root, dir) = installed("revert", "local.edited");
-        let original = b"{\n  \"schemaVersion\": 1,\n  \"slots\": { \"sidebar\": \"aside\" }\n}";
-        std::fs::write(dir.join(LEGACY_LAYOUT_FILE), original).unwrap();
-
-        let snapshot =
-            layout_edit_restore("local.edited", LEGACY_LAYOUT_FILE, Some(original.to_vec()))
-                .unwrap();
-        // What the edit does while it is previewed.
-        write_layout(
-            &dir,
-            &serde_json::json!({ "schemaVersion": 1, "slots": { "toolbar": "hidden" } }),
-        );
-        assert_ne!(
-            std::fs::read(dir.join(LEGACY_LAYOUT_FILE)).unwrap(),
-            original
-        );
-
-        restore_snapshot_at(&root, &snapshot).unwrap();
-
-        assert_eq!(
-            std::fs::read(dir.join(LEGACY_LAYOUT_FILE)).unwrap(),
-            original,
-            "revert is byte-for-byte, not a re-serialisation"
-        );
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    /// `previous_bytes: None` means the theme had no `layout.json` before the
-    /// edit, so revert deletes the file rather than writing empty content.
-    #[test]
-    fn reverting_a_layout_edit_deletes_a_file_that_did_not_exist_before() {
-        let (root, dir) = installed("revert-new", "local.edited");
-        assert!(!dir.join(LEGACY_LAYOUT_FILE).exists());
-        let snapshot = layout_edit_restore("local.edited", LEGACY_LAYOUT_FILE, None).unwrap();
-
-        write_layout(&dir, &serde_json::json!({ "schemaVersion": 1 }));
-        assert!(dir.join(LEGACY_LAYOUT_FILE).exists());
-
-        restore_snapshot_at(&root, &snapshot).unwrap();
-        assert!(!dir.join(LEGACY_LAYOUT_FILE).exists());
-
-        // Already gone is not an error: the automatic revert can arrive twice.
-        restore_snapshot_at(&root, &snapshot).unwrap();
-        assert!(!dir.join(LEGACY_LAYOUT_FILE).exists());
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    /// Keeping the edit leaves exactly the content the edit wrote
-    /// and drops the snapshot — `confirm_activation` reads only `new_id`.
-    #[test]
-    fn confirming_a_layout_edit_keeps_the_new_bytes_and_clears_the_slot() {
-        let (root, dir) = installed("confirm", "local.edited");
-        let before = b"{\"schemaVersion\": 1}";
-        std::fs::write(dir.join(LEGACY_LAYOUT_FILE), before).unwrap();
-        let snapshot =
-            layout_edit_restore("local.edited", LEGACY_LAYOUT_FILE, Some(before.to_vec())).unwrap();
-
-        let mut slot = None;
-        arm(
-            &mut slot,
-            Some("local.edited".into()),
-            Some("local.edited".into()),
-            false,
-            Some(snapshot),
-            Instant::now(),
-        );
-        let edited = serde_json::json!({ "schemaVersion": 1, "slots": { "toolbar": "hidden" } });
-        write_layout(&dir, &edited);
-
-        let kept = take_if_live(&mut slot, Instant::now()).expect("armed");
-        assert_eq!(kept.new_id.as_deref(), Some("local.edited"));
-        assert!(slot.is_none(), "confirm clears the slot");
-
-        assert_eq!(
-            serde_json::from_slice::<serde_json::Value>(
-                &std::fs::read(dir.join(LEGACY_LAYOUT_FILE)).unwrap()
-            )
-            .unwrap(),
-            edited,
-            "the snapshot is never applied on confirm"
-        );
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    /// Both path components of the snapshot — `file` and the theme id — are
-    /// refused when they are not a single name, before an activation is armed.
-    #[test]
-    fn arming_a_layout_edit_refuses_any_file_but_layout_json() {
-        for file in [
-            "theme.json",
-            "tokens.json",
-            "../layout.json",
-            "components/server.row.json",
-            "",
-        ] {
-            let err = layout_edit_restore("local.edited", file, None).expect_err("must refuse");
-            assert!(err.contains("not a theme file"), "{file}: {err}");
-        }
-        let slot: Option<PendingActivation> = None;
-        assert!(read(&slot, Instant::now()).is_none(), "nothing was armed");
-
-        // The id is the other path component, so a traversing one is refused
-        // here too rather than reaching `restore_snapshot_at` unchecked.
-        for id in ["../../evil", "..", "", "dev/nested"] {
-            let err = layout_edit_restore(id, LEGACY_LAYOUT_FILE, None).expect_err("must refuse");
-            assert!(err.contains("not a usable theme id"), "{id}: {err}");
-        }
-    }
-
-    /// A second arm — of either kind — before the first settled abandons it
-    /// exactly like two `arm_activation` calls, snapshot and all.
-    #[test]
-    fn arming_an_ordinary_activation_replaces_a_pending_layout_edit() {
-        let started = Instant::now();
-        let snapshot =
-            layout_edit_restore("local.edited", LEGACY_LAYOUT_FILE, Some(b"{}".to_vec())).unwrap();
-        let mut slot = None;
-        arm(
-            &mut slot,
-            Some("local.edited".into()),
-            Some("local.edited".into()),
-            false,
-            Some(snapshot),
-            started,
-        );
-
-        let displaced = arm(
-            &mut slot,
-            Some("local.edited".into()),
-            Some("dev.pack".into()),
-            false,
-            None,
-            started,
-        );
-        let abandoned = abandoned_duplicate(displaced, &Some("dev.pack".into()))
-            .expect("the edit was abandoned");
-        assert_eq!(abandoned.new_id.as_deref(), Some("local.edited"));
-        assert!(
-            abandoned.restore.is_some(),
-            "carried the snapshot it was armed with"
-        );
-
-        let pending = slot.as_ref().expect("still armed");
-        assert_eq!(pending.new_id.as_deref(), Some("dev.pack"));
-        assert!(
-            pending.restore.is_none(),
-            "an ordinary activation has nothing to restore"
-        );
-    }
-
     /// Re-arming the *same* id is one flow pressed twice, not an abandoned
-    /// duplicate — cleaning it up would delete the theme still being edited.
+    /// duplicate — cleaning it up would delete the theme the caller still wants.
     #[test]
     fn re_arming_the_same_id_is_not_an_abandoned_duplicate() {
         let id = Some("local.ember".to_string());
@@ -1433,7 +1155,6 @@ mod tests {
             Some("local.ember".into()),
             id.clone(),
             true,
-            None,
             Instant::now(),
         );
 
@@ -1442,47 +1163,27 @@ mod tests {
             Some("local.ember".into()),
             id.clone(),
             false,
-            None,
             Instant::now(),
         );
 
         assert!(abandoned_duplicate(displaced, &id).is_none());
     }
 
-    /// The event names the theme whose file came back, and stays `null` for an
-    /// ordinary id-switch revert, which restores nothing on disk.
+    /// The event carries the id `main` re-applies, and nothing else.
     #[test]
-    fn the_reverted_payload_names_the_restored_theme_only_for_a_layout_edit() {
-        let mut ordinary_slot = None;
+    fn the_reverted_payload_names_the_theme_to_re_apply() {
+        let mut slot = None;
         arm(
-            &mut ordinary_slot,
+            &mut slot,
             Some("local.ember".into()),
             Some("dev.pack".into()),
             false,
-            None,
-            Instant::now(),
-        );
-        let ordinary = ordinary_slot.as_ref().unwrap();
-        assert_eq!(reverted_payload(ordinary)["previousId"], "local.ember");
-        assert_eq!(
-            reverted_payload(ordinary)["restoredTheme"],
-            serde_json::Value::Null
-        );
-
-        let mut slot = None;
-        let snapshot = layout_edit_restore("local.edited", LEGACY_LAYOUT_FILE, None).unwrap();
-        arm(
-            &mut slot,
-            Some("local.edited".into()),
-            Some("local.edited".into()),
-            false,
-            Some(snapshot),
             Instant::now(),
         );
 
         assert_eq!(
-            reverted_payload(slot.as_ref().unwrap())["restoredTheme"],
-            "local.edited"
+            reverted_payload(slot.as_ref().unwrap()),
+            serde_json::json!({ "previousId": "local.ember" })
         );
     }
 
