@@ -466,7 +466,7 @@ export function ModsVerify({ options, className, style }: { options?: Record<str
       className={
         className ??
         cn(
-          "flex items-center justify-center gap-1.5 [border-top-left-radius:var(--t-radius-control)] [border-bottom-left-radius:var(--t-radius-control)] bg-accent px-3 py-[7px] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-shadow-glow)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50",
+          "flex items-center justify-center gap-1.5 [border-top-left-radius:var(--t-radius-control)] [border-bottom-left-radius:var(--t-radius-control)] bg-accent px-3 py-[7px] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50",
           busy && "animate-pulse",
         )
       }
@@ -551,7 +551,7 @@ export function ModsVerifyMenu({ options, className, style }: { options?: Record
       ref={ref}
       data-el="mods.verifyMenu"
       data-state={statesAttr(open && "open", busy && "disabled")}
-      className={cn("relative", className ?? "flex items-center justify-center [border-top-right-radius:var(--t-radius-control)] [border-bottom-right-radius:var(--t-radius-control)] bg-accent px-1.5 [color:var(--t-color-onAccent)] [box-shadow:var(--t-shadow-glow)] transition-colors hover:brightness-110 data-[state~=disabled]:opacity-50")}
+      className={cn("relative", className ?? "flex items-center justify-center [border-top-right-radius:var(--t-radius-control)] [border-bottom-right-radius:var(--t-radius-control)] bg-accent px-1.5 [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 data-[state~=disabled]:opacity-50")}
       style={style}
     >
       <button
