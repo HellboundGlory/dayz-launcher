@@ -13,7 +13,8 @@ and let the user tune a few values themselves.
 - **`tokens.json`** — the palette, exactly as in the Colours only starter:
   `colors.dark` and `colors.light`, twelve tokens each.
 - **`styles.css`** — element-level styling. Selectors may only be
-  `[data-el="..."]` (an element's stable id, listed in `ELEMENTS.md`),
+  `[data-el="..."]` (an element's stable id, listed at
+  <https://tetralauncher.com/docs/themes/elements>),
   optionally combined with `[data-state="..."]` or `[data-context="..."]`, or
   a `t-`-prefixed class a layout file has declared. Reach the palette and
   scales through the CSS variables already on the window root (`--accent`,
@@ -24,7 +25,7 @@ and let the user tune a few values themselves.
   (`number`/`boolean`/`choice`/`color`) and a `default`; a `number` also
   needs `min`/`max`, a `choice` needs at least two `options`. A saved value
   substitutes `{{id}}` in `tokens.json`, reaches CSS as `--setting-<id>`, and
-  can drive a layout node's `hidden` — never CSS text directly (ADR-0022).
+  can drive a layout node's `hidden` — never CSS text directly.
 
 ## Adding fonts
 

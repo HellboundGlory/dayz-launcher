@@ -855,7 +855,7 @@ fn capability_for_path(name: &str) -> Option<usize> {
 
 fn validate_manifest(parsed: &ThemeManifest) -> Result<(), String> {
     if parsed.theme_api.starts_with("1.") || parsed.schema_version == 1 {
-        return Err("This is a theme system v1 package (themeApi 1.0). v1 packages cannot be imported; theme system v2 is required (ADR-0003).".to_string());
+        return Err("This is a theme system v1 package (themeApi 1.0). v1 packages cannot be imported; theme system v2 is required.".to_string());
     }
     if !parsed.theme_api.starts_with("2.") || parsed.schema_version != 2 {
         return Err(format!("MAN-05: theme API {} is unsupported; theme system {SUPPORTED_THEME_API_RANGE} is required.", parsed.theme_api));
@@ -1209,7 +1209,6 @@ mod tests {
                 ],
             );
             let error = stage_for_preview(&root, &package, &[]).unwrap_err();
-            assert!(error.contains("ADR-0003"), "{error}");
             assert!(error.contains("v1 packages cannot be imported"), "{error}");
         }
     }

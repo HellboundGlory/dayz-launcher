@@ -1,5 +1,5 @@
 /* Every element the launcher renders carries a `data-el="..."` attribute;
-   that is the only hook theme CSS may select on (SPEC §12). Tokens from
+   that is the main hook theme CSS selects on. Tokens from
    tokens.json are on the window root as CSS variables (`--accent`, `--bg`,
    ...), and this theme's own settings.schema.json fields are exposed the
    same way, prefixed `--setting-<id>`. */
