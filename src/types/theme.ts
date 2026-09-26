@@ -56,6 +56,8 @@ export type ThemeFile = ThemeManifest & {
   settingsSchema: unknown | null;
   /** Keyed by package-relative path (`layout/shell.json`) — absent when the theme ships none. */
   layouts?: Record<string, LayoutFile>;
+  /** Files the backend dropped from `layouts` for failing validation, with the issues that dropped them. */
+  fallbacks: ValidationIssue[];
 };
 
 /** A custom theme as an older build kept it in `localStorage`, for the one-time import. */

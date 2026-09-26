@@ -47,6 +47,7 @@ import {
 } from "@/lib/tauri";
 import type { LegacyTheme, ThemeFile, ThemeManifest, ThemeSummary, ValidationIssue } from "@/types/theme";
 import { getNeutralLayout } from "./neutral";
+import { clearFallbacks, isFileFallenBack, markFileFallback, useFallbackStore } from "./fallback/store";
 import type { LayoutFile } from "./renderer/types";
 
 export type SettingsValue = string | number | boolean;
@@ -287,6 +288,7 @@ async function refreshInstalledThemes(): Promise<void> {
     }),
   );
   useThemeStore.setState({ installedThemes, themeFiles });
+  syncFallbacks(useThemeStore.getState().activeId);
 }
 
 /**
@@ -350,6 +352,30 @@ function loadLegacyThemes(): LegacyTheme[] | null {
   } catch {
     return null;
   }
+}
+
+/** Mirrors the active theme's dropped layout files into the fallback store, which the layout getters switch on. */
+function syncFallbacks(id: string): void {
+  clearFallbacks();
+  for (const issue of useThemeStore.getState().themeFiles[id]?.fallbacks ?? []) {
+    markFileFallback(id, issue.file, `${issue.ruleId}: ${issue.message}`);
+  }
+}
+
+/** SPEC §16.4: a hot reload keeps a broken file's last valid version on screen instead of falling back. */
+function holdLastValidLayouts(file: ThemeFile, previous: ThemeFile | undefined): ThemeFile {
+  const fallbacks = file.fallbacks ?? [];
+  if (fallbacks.length === 0 || previous?.layouts === undefined) return file;
+  const held = new Set<string>();
+  const layouts = { ...file.layouts };
+  for (const issue of fallbacks) {
+    const prior = previous.layouts[issue.file];
+    if (prior === undefined) continue;
+    layouts[issue.file] = prior;
+    held.add(issue.file);
+  }
+  if (held.size === 0) return file;
+  return { ...file, layouts, fallbacks: fallbacks.filter((issue) => !held.has(issue.file)) };
 }
 
 export const useThemeStore = create<ThemeState>((set, get) => ({
@@ -434,6 +460,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       ...(stored.scheme !== undefined && { scheme: stored.scheme }),
       ...(stored.bloom !== undefined && { bloom: stored.bloom }),
     });
+    syncFallbacks(activeId);
     // Before the first paint, so a theme the user already tuned renders its
     // tuned values immediately rather than one tick later.
     await refreshSettingsValues(activeId);
@@ -532,6 +559,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       // the picked theme supplies the base, the slider overrides it afterwards.
       bloom: resolvedExtras(id, get().themeFiles).shadows.glowIntensity,
     });
+    syncFallbacks(id);
     // Before apply(), so a theme with tuned values renders tuned the moment it
     // becomes active — not one tick later.
     await refreshSettingsValues(id);
@@ -697,6 +725,7 @@ export function watchThemeActivationReverted(): () => void {
       activeId,
       bloom: resolvedExtras(activeId, state.themeFiles).shadows.glowIntensity,
     });
+    syncFallbacks(activeId);
     state.apply();
     void refreshInstalledThemes();
   });
@@ -725,7 +754,9 @@ export function watchHotReload(): () => void {
           useDevStore.getState().noteReload(issues, held, error);
           if (held) return;
           const store = useThemeStore.getState();
-          useThemeStore.setState({ themeFiles: { ...store.themeFiles, [id]: file } });
+          const next = holdLastValidLayouts(file, store.themeFiles[id]);
+          useThemeStore.setState({ themeFiles: { ...store.themeFiles, [id]: next } });
+          syncFallbacks(id);
           store.apply();
         };
         return validateTheme(id).then(
@@ -741,6 +772,7 @@ export function watchHotReload(): () => void {
 }
 
 export function getActiveLayout(path: string): LayoutFile | undefined {
+  if (isFileFallenBack(path)) return getNeutralLayout(path);
   const { activeId, themeFiles } = useThemeStore.getState();
   const file = themeFiles[activeId]?.layouts?.[path];
   if (file) return file;
@@ -749,7 +781,15 @@ export function getActiveLayout(path: string): LayoutFile | undefined {
 
 /** Like `getActiveLayout`, but only the active theme's own file — never Neutral. */
 export function getThemeOwnedLayout(path: string): LayoutFile | undefined {
+  if (isFileFallenBack(path)) return undefined;
   const { activeId, themeFiles } = useThemeStore.getState();
   return themeFiles[activeId]?.layouts?.[path];
+}
+
+/** Re-renders a component that reads the layout getters when theme files swap or a file falls back. */
+export function useLayoutSubscription(): void {
+  useThemeStore((s) => s.activeId);
+  useThemeStore((s) => s.themeFiles);
+  useFallbackStore((s) => s.fallbackFiles);
 }
 

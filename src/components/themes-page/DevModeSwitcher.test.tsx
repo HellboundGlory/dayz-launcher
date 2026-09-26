@@ -123,6 +123,7 @@ describe("DevModeSwitcher variant widths", () => {
     tokens: {},
     settingsSchema: null,
     layouts,
+    fallbacks: [],
   });
 
   it("adds a chip for every variant minWidth across the theme's layout files", () => {

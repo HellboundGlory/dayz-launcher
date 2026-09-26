@@ -13,6 +13,7 @@ import {
 } from "./palette";
 import {
   effectiveExtras,
+  getActiveLayout,
   getThemeOwnedLayout,
   mergeSettingsValues,
   resolvedExtras,
@@ -20,6 +21,8 @@ import {
   watchHotReload,
   watchThemeActivationReverted,
 } from "./theme-store";
+import { clearFallbackMemory, isFileFallenBack, useFallbackStore } from "./fallback/store";
+import { getNeutralLayout } from "./neutral";
 import type { ThemeFile, ValidationIssue } from "@/types/theme";
 import { NEUTRAL_TOKENS, parseTokens } from "./tokens";
 import type { LayoutFile } from "./renderer/types";
@@ -37,6 +40,10 @@ const backend = vi.hoisted(() => ({
   savedManifests: [] as unknown[],
   /** `tokens.json` contents `get_theme` returns, by id. */
   tokensById: {} as Record<string, unknown>,
+  /** Layout files `get_theme` returns, by id. */
+  layoutsById: {} as Record<string, Record<string, LayoutFile>>,
+  /** Files `get_theme` reports as dropped, by id. */
+  fallbacksById: {} as Record<string, ValidationIssue[]>,
   /** `settings.values.json` contents `get_theme_settings_values` returns, by id. */
   settingsById: {} as Record<string, Record<string, unknown>>,
   /** Each theme's `settings.schema.json`, by id. */
@@ -90,6 +97,8 @@ vi.mock("@/lib/tauri", () => ({
       name: id,
       tokens: backend.tokensById[id] ?? {},
       settingsSchema: backend.schemaById[id] ?? null,
+      layouts: backend.layoutsById[id] ?? {},
+      fallbacks: backend.fallbacksById[id] ?? [],
     };
   },
   getSettings: async () => ({ activeThemeId: null }),
@@ -161,6 +170,8 @@ beforeEach(() => {
   backend.savedTokens.length = 0;
   backend.savedManifests.length = 0;
   backend.tokensById = {};
+  backend.layoutsById = {};
+  backend.fallbacksById = {};
   backend.settingsById = {};
   backend.schemaById = {};
   backend.setSettingsCalls.length = 0;
@@ -172,6 +183,7 @@ beforeEach(() => {
   themeCssHead.length = 0;
   for (const name of Object.keys(writtenProps)) delete writtenProps[name];
   useThemeStore.setState({ activeId: "neutral", themeFiles: {}, settingsValues: {} });
+  clearFallbackMemory();
   useDevStore.getState().clear();
 });
 
@@ -829,5 +841,137 @@ describe("getThemeOwnedLayout", () => {
     });
 
     expect(getThemeOwnedLayout("layout/modals/serverInfo.json")).toBeUndefined();
+  });
+});
+
+describe("per-file fallbacks", () => {
+  const FILE: LayoutFile = { schemaVersion: 2, root: { type: "stack", children: [] } };
+  const brokenBrowser: ValidationIssue = {
+    ruleId: "LAY-01",
+    severity: "error",
+    file: "layout/views/browser.json",
+    pointer: "",
+    message: "no valid variant for 650x413",
+  };
+
+  async function pickAurora(): Promise<void> {
+    backend.installed = [{ id: "local.aurora", name: "Aurora" }];
+    backend.tokensById["local.aurora"] = {};
+    await useThemeStore.getState().pickTheme("local.aurora");
+  }
+
+  it("marks every file the backend dropped, with its rule and message", async () => {
+    backend.fallbacksById["local.aurora"] = [brokenBrowser];
+
+    await pickAurora();
+
+    expect(isFileFallenBack("layout/views/browser.json")).toBe(true);
+    expect(useFallbackStore.getState().fallbackReasons["layout/views/browser.json"]).toEqual([
+      "LAY-01: no valid variant for 650x413",
+    ]);
+  });
+
+  it("clears the previous theme's fallbacks when the active theme changes", async () => {
+    backend.fallbacksById["local.aurora"] = [brokenBrowser];
+    await pickAurora();
+    expect(isFileFallenBack("layout/views/browser.json")).toBe(true);
+
+    backend.installed = [{ id: "local.clean", name: "Clean" }];
+    backend.tokensById["local.clean"] = {};
+    await useThemeStore.getState().pickTheme("local.clean");
+
+    expect(isFileFallenBack("layout/views/browser.json")).toBe(false);
+  });
+
+  it("getActiveLayout returns Neutral's file for a dropped file, the theme's own otherwise", async () => {
+    backend.layoutsById["local.aurora"] = {
+      "layout/views/browser.json": FILE,
+      "layout/views/mods.json": FILE,
+    };
+    backend.fallbacksById["local.aurora"] = [brokenBrowser];
+
+    await pickAurora();
+
+    expect(getActiveLayout("layout/views/browser.json")).toBe(
+      getNeutralLayout("layout/views/browser.json"),
+    );
+    expect(getActiveLayout("layout/views/mods.json")).toBe(FILE);
+  });
+
+  it("getThemeOwnedLayout returns undefined for a dropped file", async () => {
+    backend.layoutsById["local.aurora"] = { "layout/views/mods.json": FILE };
+    backend.fallbacksById["local.aurora"] = [brokenBrowser];
+
+    await pickAurora();
+
+    expect(getThemeOwnedLayout("layout/views/browser.json")).toBeUndefined();
+    expect(getThemeOwnedLayout("layout/views/mods.json")).toBe(FILE);
+  });
+
+  it("Neutral owns no shell, browser or Mods file, so App keeps its legacy screens", () => {
+    useThemeStore.setState({ activeId: "neutral", themeFiles: {} });
+
+    expect(getThemeOwnedLayout("layout/shell.json")).toBeUndefined();
+    expect(getThemeOwnedLayout("layout/views/browser.json")).toBeUndefined();
+    expect(getThemeOwnedLayout("layout/views/mods.json")).toBeUndefined();
+    // Neutral's own files stay reachable as the fallback target.
+    expect(getActiveLayout("layout/shell.json")).toBe(getNeutralLayout("layout/shell.json"));
+  });
+});
+
+describe("hot reload holding the last valid file", () => {
+  const VALID: LayoutFile = { schemaVersion: 2, root: { type: "stack", children: [] } };
+  const brokenShell: ValidationIssue = {
+    ruleId: "LAY-01",
+    severity: "error",
+    file: "layout/shell.json",
+    pointer: "/root",
+    message: "bad root",
+  };
+
+  async function reload(): Promise<void> {
+    watchHotReload();
+    events.hotReload?.({ payload: { id: "local.aurora" } });
+    await settled();
+  }
+
+  it("keeps the previous file and leaves it unmarked when the reload drops it", async () => {
+    useThemeStore.setState({
+      activeId: "local.aurora",
+      themeFiles: {
+        "local.aurora": { layouts: { "layout/shell.json": VALID } } as unknown as ThemeFile,
+      },
+    });
+    backend.fallbacksById["local.aurora"] = [brokenShell];
+
+    await reload();
+
+    expect(useThemeStore.getState().themeFiles["local.aurora"]?.layouts?.["layout/shell.json"]).toBe(VALID);
+    expect(isFileFallenBack("layout/shell.json")).toBe(false);
+    expect(getThemeOwnedLayout("layout/shell.json")).toBe(VALID);
+  });
+
+  it("marks a dropped file that was never valid in this session", async () => {
+    useThemeStore.setState({ activeId: "local.aurora", themeFiles: {} });
+    backend.fallbacksById["local.aurora"] = [brokenShell];
+
+    await reload();
+
+    expect(isFileFallenBack("layout/shell.json")).toBe(true);
+    expect(getActiveLayout("layout/shell.json")).toBe(getNeutralLayout("layout/shell.json"));
+  });
+
+  it("clears the fallback when a later reload brings the file back", async () => {
+    useThemeStore.setState({ activeId: "local.aurora", themeFiles: {} });
+    backend.fallbacksById["local.aurora"] = [brokenShell];
+    await reload();
+    expect(isFileFallenBack("layout/shell.json")).toBe(true);
+
+    backend.layoutsById["local.aurora"] = { "layout/shell.json": VALID };
+    backend.fallbacksById["local.aurora"] = [];
+    await reload();
+
+    expect(isFileFallenBack("layout/shell.json")).toBe(false);
+    expect(getThemeOwnedLayout("layout/shell.json")).toBe(VALID);
   });
 });
