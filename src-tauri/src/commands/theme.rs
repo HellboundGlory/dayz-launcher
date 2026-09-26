@@ -1804,7 +1804,7 @@ mod starter_templates {
                 name: "Already Here".to_string(),
                 ..ThemeManifest::default()
             },
-            &serde_json::json!({ "schemaVersion": 1, "dark": {}, "light": {} }),
+            &serde_json::json!({ "schemaVersion": 2, "colors": { "dark": {}, "light": {} } }),
         )
         .expect("seed the installed theme");
 

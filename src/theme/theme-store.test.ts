@@ -3,7 +3,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_EXTRAS } from "./apply";
 import { useDevStore } from "./dev/dev-store";
-import { DEFAULT_RADII, DEFAULT_SPACING, DEFAULT_TYPOGRAPHY, type Palette } from "./palette";
+import {
+  DEFAULT_RADII,
+  DEFAULT_SPACING,
+  DEFAULT_TYPOGRAPHY,
+  NEUTRAL_DARK,
+  NEUTRAL_LIGHT,
+  type Palette,
+} from "./palette";
 import {
   effectiveExtras,
   getThemeOwnedLayout,
@@ -14,6 +21,7 @@ import {
   watchThemeActivationReverted,
 } from "./theme-store";
 import type { ThemeFile, ValidationIssue } from "@/types/theme";
+import { NEUTRAL_TOKENS, parseTokens } from "./tokens";
 import type { LayoutFile } from "./renderer/types";
 
 const backend = vi.hoisted(() => ({
@@ -25,6 +33,8 @@ const backend = vi.hoisted(() => ({
   installed: [] as { id: string; name: string; incompatible?: boolean }[],
   /** The `tokens` object each `save_theme` call received, in call order. */
   savedTokens: [] as unknown[],
+  /** The manifest each `save_theme` call received, in call order. */
+  savedManifests: [] as unknown[],
   /** `tokens.json` contents `get_theme` returns, by id. */
   tokensById: {} as Record<string, unknown>,
   /** `settings.values.json` contents `get_theme_settings_values` returns, by id. */
@@ -86,7 +96,10 @@ vi.mock("@/lib/tauri", () => ({
   setActiveThemeId: async (id: string | null) => void backend.setActiveCalls.push(id),
   migrateLegacyCustomThemes: async () => backend.migratedIds,
   armActivation: async () => {},
-  saveTheme: async (_manifest: unknown, tokens: unknown) => void backend.savedTokens.push(tokens),
+  saveTheme: async (manifest: unknown, tokens: unknown) => {
+    backend.savedManifests.push(manifest);
+    backend.savedTokens.push(tokens);
+  },
   deleteTheme: async () => {},
   getThemeSettingsValues: async (id: string) => backend.settingsById[id] ?? {},
   setThemeSettingsValue: async (id: string, fieldId: string, value: string | number | boolean) => {
@@ -146,6 +159,7 @@ beforeEach(() => {
   backend.setActiveCalls.length = 0;
   backend.installed = [];
   backend.savedTokens.length = 0;
+  backend.savedManifests.length = 0;
   backend.tokensById = {};
   backend.settingsById = {};
   backend.schemaById = {};
@@ -339,25 +353,85 @@ describe("theme extras", () => {
     });
   });
 
-  it("persists the merged extras into a saved theme's tokens", async () => {
+  it("persists the live bloom into a saved theme's v2 palette", async () => {
     useThemeStore.setState({
       activeId: "local.partial",
-      themeFiles: files({ spacing: { md: "12px" } }),
-      customExtras: { spacing: {}, radii: { chip: "1px" }, typography: {} },
+      themeFiles: { "local.partial": { id: "local.partial", tokens: { schemaVersion: 2 } } as ThemeFile },
       bloom: 0.42,
     });
 
     await useThemeStore.getState().saveTheme("Extras skin");
 
     expect(backend.savedTokens).toHaveLength(1);
-    const tokens = backend.savedTokens[0] as Record<string, unknown>;
-    expect(tokens.spacing).toEqual({ ...DEFAULT_SPACING, md: "12px" });
-    expect(tokens.radii).toEqual({ ...DEFAULT_RADII, chip: "1px" });
-    expect(tokens.typography).toEqual(DEFAULT_TYPOGRAPHY);
-    // effectiveExtras never merges bloom in — saving the live theme must
-    // still capture whatever the slider currently shows, same as every
-    // other extras field, not silently keep the source theme's own value.
-    expect(tokens.shadows).toEqual({ glowIntensity: 0.42 });
+    // The slider's live value, not the source theme's own glowIntensity.
+    expect(parseTokens(backend.savedTokens[0]).bloom).toBe(0.42);
+  });
+});
+
+describe("duplicateTheme", () => {
+  const themeFile = (tokens: unknown): ThemeFile =>
+    ({
+      id: "local.source",
+      name: "Source",
+      tokens,
+      settingsSchema: null,
+      layouts: {},
+    }) as unknown as ThemeFile;
+
+  it("writes a v2 manifest and a v2 palette, copying the source's scales and roles", async () => {
+    const sourceTokens = {
+      schemaVersion: 2,
+      bloom: 0.2,
+      colors: { dark: { bg: "#010101" } },
+      scales: { radius: { md: "9px" } },
+      roles: { radius: { row: "9px" } },
+    };
+    useThemeStore.setState({
+      activeId: "local.source",
+      themeFiles: { "local.source": themeFile(sourceTokens) },
+      custom: { dark: { accent: "#00ff00" }, light: {} },
+      bloom: 0.42,
+    });
+
+    await useThemeStore.getState().saveTheme("Extras skin");
+
+    expect(backend.savedManifests[0]).toMatchObject({
+      schemaVersion: 2,
+      themeApi: "2.0",
+      id: "local.extras-skin",
+      author: "local",
+      capabilities: ["tokens"],
+    });
+    expect(backend.savedManifests[0]).not.toHaveProperty("tier");
+
+    // `parseTokens` is the same validation the backend's TokensV2 applies: a
+    // shape it rejects would throw here.
+    const tokens = parseTokens(backend.savedTokens[0]);
+    expect(tokens.schemaVersion).toBe(2);
+    // The source's own scales/roles carry over...
+    expect(tokens.scales).toEqual({ radius: { md: "9px" } });
+    expect(tokens.roles).toEqual({ radius: { row: "9px" } });
+    // ...its palette arrives with the live colour edit, and the live bloom.
+    expect(tokens.colors?.dark).toEqual({ ...NEUTRAL_DARK, bg: "#010101", accent: "#00ff00" });
+    expect(tokens.colors?.light).toEqual(NEUTRAL_LIGHT);
+    expect(tokens.bloom).toBe(0.42);
+  });
+
+  it("falls back to Neutral's scales and roles for a palette-only source, and keeps its bloom", async () => {
+    useThemeStore.setState({
+      activeId: "neutral",
+      themeFiles: { "local.old": themeFile({ shadows: { glowIntensity: 0.3 } }) },
+      bloom: 0.42,
+    });
+
+    await useThemeStore.getState().duplicateTheme("local.old", "Copy");
+
+    const tokens = parseTokens(backend.savedTokens[0]);
+    expect(tokens.schemaVersion).toBe(2);
+    expect(tokens.scales).toEqual(NEUTRAL_TOKENS.scales);
+    expect(tokens.roles).toEqual(NEUTRAL_TOKENS.roles);
+    // The source's own bloom, not the slider's — only the live theme takes the slider.
+    expect(tokens.bloom).toBe(0.3);
   });
 });
 

@@ -25,7 +25,7 @@ import {
 } from "./palette";
 import { applyTheme, DEFAULT_EXTRAS, type ThemeExtras } from "./apply";
 import { useDevStore } from "./dev/dev-store";
-import { parseTokens } from "./tokens";
+import { NEUTRAL_TOKENS, parseTokens, type TokensV2 } from "./tokens";
 import { applyThemeStylesheet } from "./css-loader";
 import {
   resolveSettingsSchema,
@@ -598,7 +598,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   },
 
   duplicateTheme: async (sourceId, name) => {
-    const { activeId, custom, customExtras, themeFiles, bloom } = get();
+    const { activeId, custom, themeFiles, bloom } = get();
     const live = sourceId === activeId;
     const pair = resolvedPair(sourceId, themeFiles);
     const dark = {} as Palette;
@@ -610,15 +610,14 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 
     const id = `local.${slugify(name)}`;
     const manifest: ThemeManifest = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       id,
       name,
       author: "local",
       version: "1.0.0",
-      themeApi: "1.0",
+      themeApi: "2.0",
       // No frontend-exposed app version yet; "0.0.0" means no floor.
       minimumLauncherVersion: "0.0.0",
-      tier: "basic",
       description: "",
       preview: null,
       license: null,
@@ -626,16 +625,24 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       tags: [],
       capabilities: ["tokens"],
     };
-    const tokens = {
-      schemaVersion: 1,
-      dark,
-      light,
-      ...(live ? effectiveExtras(sourceId, themeFiles, customExtras) : resolvedExtras(sourceId, themeFiles)),
-      // effectiveExtras never merges bloom in (apply() does that separately,
-      // straight from the store's own `bloom` field) — without this, saving
-      // the live theme would silently drop whatever the slider currently
-      // shows and keep the source theme's original glowIntensity instead.
-      ...(live && { shadows: { glowIntensity: bloom } }),
+    // Only a v2 source carries scales/roles to copy; a palette-only or v1
+    // source starts from Neutral's.
+    const sourceTokens = themeFiles[sourceId]?.tokens;
+    const source =
+      typeof sourceTokens === "object" &&
+      sourceTokens !== null &&
+      "schemaVersion" in sourceTokens &&
+      sourceTokens.schemaVersion === 2
+        ? parseTokens(sourceTokens)
+        : undefined;
+    const tokens: TokensV2 = {
+      schemaVersion: 2,
+      colors: { dark, light },
+      // Saving the live theme keeps whatever the slider shows; a copy of any
+      // other theme keeps that theme's own bloom.
+      bloom: live ? bloom : resolvedExtras(sourceId, themeFiles).shadows.glowIntensity,
+      scales: source?.scales ?? NEUTRAL_TOKENS.scales,
+      roles: source?.roles ?? NEUTRAL_TOKENS.roles,
     };
 
     try {
