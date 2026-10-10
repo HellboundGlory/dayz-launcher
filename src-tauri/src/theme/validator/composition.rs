@@ -343,9 +343,11 @@ pub(super) fn validate(
     }
     // Context-local requirements never borrow an action notice from another file or selection.
     for (file, layout) in &layouts {
-        let rule = if file.starts_with("layout/lists/") {
-            "REQ-05"
-        } else if file.starts_with("layout/modals/") {
+        // A list row carries the join result in the launch notice bar, not inline.
+        if file.starts_with("layout/lists/") {
+            continue;
+        }
+        let rule = if file.starts_with("layout/modals/") {
             "REQ-03"
         } else if file.starts_with("layout/popups/") {
             "REQ-04"
@@ -354,17 +356,23 @@ pub(super) fn validate(
         };
         for root in &layout.roots {
             for (pointer, elements) in &root.contexts {
-                if elements.contains("server.join") {
-                    for (id, def) in &registry.elements {
-                        if def.required.iter().any(|code| code == "withJoin")
-                            && !elements.contains(id.as_str())
-                        {
-                            issue(&mut issues, rule, file, pointer, format!("Element {id:?} is required alongside server.join in this context"));
-                        }
-                    }
-                }
                 if !elements.contains("server.join") {
                     continue;
+                }
+                for (id, def) in &registry.elements {
+                    if def.required.iter().any(|code| code == "withJoin")
+                        && !elements.contains(id.as_str())
+                    {
+                        issue(
+                            &mut issues,
+                            rule,
+                            file,
+                            pointer,
+                            format!(
+                                "Element {id:?} is required alongside server.join in this context"
+                            ),
+                        );
+                    }
                 }
                 let local_required: Vec<_> = registry
                     .elements

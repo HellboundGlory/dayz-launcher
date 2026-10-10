@@ -262,45 +262,15 @@ describe("ServerJoin", () => {
     expect(html).toContain(">Join<");
   });
 
-  it("shows the real formatted outstanding size for the selected server's fix-and-join sublabel", async () => {
+  it("renders no download size text on the fix-and-join button", async () => {
     await setReadiness(readiness([mod({ state: "not_installed", size_bytes: 2_000_000 })]), false);
     const html = await render(
       { subjectContext: { kind: "server", data: server }, contextName: "selection", selectedServer: server },
       { wording: "fixAndJoin" },
     );
-    expect(html).toContain('data-part="sublabel"');
-    expect(html).toContain(formatBytes(2_000_000));
-    expect(html).toContain("first");
-  });
-
-  it("prefixes the sublabel with 'up to' when the outstanding size is an estimate", async () => {
-    await setReadiness(
-      readiness([mod({ state: "needs_update", size_bytes: 5000, size_is_upper_bound: true })]),
-      false,
-    );
-    const html = await render(
-      { subjectContext: { kind: "server", data: server }, contextName: "selection", selectedServer: server },
-      { wording: "fixAndJoin" },
-    );
-    expect(html).toContain(`up to ${formatBytes(5000)} first`);
-  });
-
-  it("omits the sublabel entirely when there is nothing outstanding", async () => {
-    await setReadiness(readiness([mod({ state: "ready" })]), false);
-    const html = await render(
-      { subjectContext: { kind: "server", data: server }, contextName: "selection", selectedServer: server },
-      { wording: "fixAndJoin" },
-    );
     expect(html).not.toContain('data-part="sublabel"');
-  });
-
-  it("omits the sublabel when the element's subject is not the selected server", async () => {
-    await setReadiness(readiness([mod({ state: "not_installed", size_bytes: 2_000_000 })]), false);
-    const html = await render(
-      { subjectContext: { kind: "server", data: server }, contextName: "selection", selectedServer: otherServer },
-      { wording: "fixAndJoin" },
-    );
-    expect(html).not.toContain('data-part="sublabel"');
+    expect(html).not.toContain(formatBytes(2_000_000));
+    expect(html).not.toContain("first");
   });
 });
 

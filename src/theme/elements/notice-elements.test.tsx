@@ -10,6 +10,7 @@ import {
   NoticeStorage,
   NoticeUpdate,
   ServerActionNotice,
+  launchErrorMessage,
 } from "./notice-elements";
 import { ElementContextProvider, type ElementContextValue } from "./context";
 import type { LaunchResult, Notice, ServerNotice } from "@/stores/launch-store";
@@ -108,18 +109,25 @@ describe("ServerActionNotice", () => {
     expect(html).toBe("");
   });
 
-  it("renders a W-code notice for this server, in the compact row form", () => {
+  it("renders nothing in a row context even when a warning notice is set", () => {
     setNotice(moddedServer.addr, { kind: "code", code: "W02" });
-    const html = render({ contextName: "row", selectedServer: moddedServer });
+    expect(render({ contextName: "row", selectedServer: moddedServer })).toBe("");
+  });
+
+  it("renders nothing in a row context for an error-code notice", () => {
+    setNotice(moddedServer.addr, { kind: "code", code: "E01" });
+    expect(render({ contextName: "row", selectedServer: moddedServer })).toBe("");
+  });
+
+  it("renders a W-code notice in the bordered panel form outside a row", () => {
+    setNotice(moddedServer.addr, { kind: "code", code: "W02" });
+    const html = render({ contextName: "selection", selectedServer: moddedServer });
     expect(html).toContain('data-el="server.actionNotice"');
     expect(html).toContain('data-state="warning"');
     expect(html).toContain('data-part="code"');
     expect(html).toContain("W02");
-    expect(html).toContain('data-part="message"');
     expect(html).toContain("Downloads stalled");
-    expect(html).toContain("Allow downloads during gameplay");
-    expect(html).not.toContain("p-3");
-    expect(html).not.toContain("border bg-surface2");
+    expect(html).toContain("p-3");
   });
 
   it("renders an E-code notice with data-state=error, in the bordered panel form", () => {
@@ -135,13 +143,13 @@ describe("ServerActionNotice", () => {
 
   it("renders nothing when the notice is tagged with a different server's addr", () => {
     setNotice(otherServer.addr, { kind: "code", code: "W02" });
-    const html = render({ contextName: "row", selectedServer: moddedServer });
+    const html = render({ contextName: "selection", selectedServer: moddedServer });
     expect(html).toBe("");
   });
 
   it("renders a launch-result message with data-state=success", () => {
     setResult({ addr: moddedServer.addr, message: "Launched." });
-    const html = render({ contextName: "row", selectedServer: moddedServer });
+    const html = render({ contextName: "selection", selectedServer: moddedServer });
     expect(html).toContain('data-el="server.actionNotice"');
     expect(html).toContain('data-state="success"');
     expect(html).toContain('data-part="message"');
@@ -152,7 +160,7 @@ describe("ServerActionNotice", () => {
 
   it("renders a launch refusal with a title and the full error message", () => {
     setResult({ addr: moddedServer.addr, error: "Steam refused to launch DayZ." });
-    const html = render({ contextName: "row", selectedServer: moddedServer });
+    const html = render({ contextName: "selection", selectedServer: moddedServer });
     expect(html).toContain('data-state="error refused"');
     expect(html).toContain('data-part="title"');
     expect(html).toContain("Launch refused");
@@ -162,7 +170,7 @@ describe("ServerActionNotice", () => {
 
   it("renders a plain notice with only a message part", () => {
     setNotice(moddedServer.addr, { kind: "plain", text: "Waiting for Steam." });
-    const html = render({ contextName: "row", selectedServer: moddedServer });
+    const html = render({ contextName: "selection", selectedServer: moddedServer });
     expect(html).toContain('data-state="warning"');
     expect(html).toContain('data-part="message"');
     expect(html).toContain("Waiting for Steam.");
@@ -179,7 +187,7 @@ describe("ServerActionNotice", () => {
   it("still renders a launch result for an unmodded server", () => {
     const unmodded: Server = { ...moddedServer, modded: false };
     setResult({ addr: unmodded.addr, error: "Failed to launch." });
-    const html = render({ contextName: "row", selectedServer: unmodded });
+    const html = render({ contextName: "selection", selectedServer: unmodded });
     expect(html).toContain('data-state="error refused"');
     expect(html).toContain("Launch refused");
     expect(html).toContain("Failed to launch.");
@@ -368,5 +376,16 @@ describe("NoticeModsResult", () => {
     );
     expect(html).toContain('data-state="success"');
     expect(html).toContain("Removed ok");
+  });
+});
+
+describe("launchErrorMessage", () => {
+  it.each([
+    ["TypeError: x is undefined", "Could not start DayZ. The launcher log has the details."],
+    ["ReferenceError: y is not defined", "Could not start DayZ. The launcher log has the details."],
+    ["Error: boom", "boom"],
+    ["DayZ is already running.", "DayZ is already running."],
+  ])("turns %j into %j", (raw, expected) => {
+    expect(launchErrorMessage(raw)).toBe(expected);
   });
 });

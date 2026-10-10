@@ -47,6 +47,8 @@ import {
   getThemeOwnedLayout,
 } from "./theme/theme-store";
 import { FallbackNotice } from "./theme/fallback/fallback-notice";
+import { NoticeLaunch } from "./theme/elements/notice-elements";
+import { isElementInLayout } from "./theme/fallback/auto-placement";
 import { IncompatibleThemeNotice } from "./theme/fallback/incompatible-theme-notice";
 import { useVisibilityCheck } from "./theme/fallback/use-visibility-check";
 import { ElementContextProvider, SubjectContextProvider, useElementContext } from "./theme/elements/context";
@@ -987,6 +989,11 @@ export function App() {
           <FallbackNotice themeId={activeId} launcherVersion={launcherVersion} />
         )}
 
+        {/* Rows never show a join result, so a themed shell without the bar still gets one. */}
+        {shellLayout &&
+          !isElementInLayout(shellLayout, "notice.launch") &&
+          !(browserLayout && isElementInLayout(browserLayout, "notice.launch")) && <NoticeLaunch />}
+
         {shellLayout ? (
           <>
             <div className="flex min-h-0 flex-1 flex-col">
@@ -1152,6 +1159,8 @@ export function App() {
                       onOpenModFilter={() => setModFilterOpen(true)}
                       modFilterOpen={modFilterOpen}
                     />
+
+                    <NoticeLaunch />
 
                     {/* Not dismissible — favourites/recent are not being saved. */}
                     {storageDegraded && (

@@ -206,7 +206,7 @@
   <section class="el" id="el-notice-launch" data-el="notice.launch">
   <h3><code>notice.launch</code> <span class="el-kind">notice</span> <span class="el-since">SINCE 2.1</span></h3>
   <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Parts</dt><dd><code>tag</code>, <code>server</code>, <code>message</code>, <code>dismiss</code> · States: <code>warning</code>, <code>error</code>, <code>refused</code></dd></dl>
-  <div class="md el-notes"><p>A bar naming the server last acted on, carrying the same join warning or launch refusal as that server's <code>server.actionNotice</code>. A successful launch never shows here. Dismissing it clears the notice for <code>server.actionNotice</code> too. A composition that places it may hide <code>server.actionNotice</code> in list rows.</p></div>
+  <div class="md el-notes"><p>A bar naming the server last acted on, carrying the same join warning or launch refusal as that server's <code>server.actionNotice</code>. A successful launch never shows here. Dismissing it clears the notice for <code>server.actionNotice</code> too. A list row never shows <code>server.actionNotice</code>; this bar is where a row's join result appears. A shell that places neither gets the bar drawn above it by the launcher.</p></div>
 </section>
   <section class="el" id="el-notice-update" data-el="notice.update">
   <h3><code>notice.update</code> <span class="el-kind">notice</span></h3>
@@ -324,7 +324,7 @@
   <section class="el" id="el-server-actionNotice" data-el="server.actionNotice">
   <h3><code>server.actionNotice</code> <span class="el-kind">notice</span></h3>
   <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Required in</dt><dd>every subject context that places <code>server.join</code></dd><dt>Parts</dt><dd><code>code</code>, <code>title</code>, <code>message</code> · States: <code>warning</code>, <code>error</code>, <code>success</code>, <code>refused</code>, <code>offline</code></dd></dl>
-  <div class="md el-notes"><p>Shows this server's current join warning or error, or the last launch result; a refused launch also carries <code>refused</code>. It is required in every context that places <code>server.join</code>, and a file that omits it fails validation and falls back to Neutral's version of that screen. It renders only while it has something to report, so the visibility check measures it only then.</p></div>
+  <div class="md el-notes"><p>Shows this server's current join warning or error, or the last launch result; a refused launch also carries <code>refused</code>. It is required beside <code>server.join</code> in modals, popups and panels (a file that omits it there fails validation and falls back to Neutral's version of that screen). In a list row it renders nothing: a row's join result shows in <code>notice.launch</code>. It renders only while it has something to report, so the visibility check measures it only then.</p></div>
 </section>
   <section class="el" id="el-server-cancel" data-el="server.cancel">
   <h3><code>server.cancel</code> <span class="el-kind">action</span></h3>

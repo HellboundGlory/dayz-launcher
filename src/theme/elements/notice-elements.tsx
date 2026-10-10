@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { playerMessage } from "@/lib/player-message";
 import { useShallow } from "zustand/react/shallow";
 import { cn } from "@/lib/utils";
 import { useElementContext } from "./context";
@@ -244,6 +245,10 @@ export function NoticeModsOutdated({ className, style }: { className?: string; s
   );
 }
 
+export function launchErrorMessage(raw: string): string {
+  return playerMessage(raw, "Could not start DayZ. The launcher log has the details.");
+}
+
 type ActionNoticeContent =
   | { kind: "code"; code: string; message: string; detail: string; state: "warning" | "error" }
   | { kind: "plain"; message: string; state: "warning" | "success" }
@@ -271,7 +276,7 @@ function resolveActionNoticeContent(
 
   if (result && result.addr === addr && (result.message || result.error)) {
     if (result.error) {
-      return { kind: "refusal", title: "Launch refused", message: result.error, state: "error" };
+      return { kind: "refusal", title: "Launch refused", message: launchErrorMessage(result.error), state: "error" };
     }
     return { kind: "plain", message: result.message!, state: "success" };
   }
@@ -354,6 +359,9 @@ export function ServerActionNotice({ className, style }: { className?: string; s
   const server = (subjectContext?.kind === "server" ? subjectContext.data : selectedServer) as import("@/types/server").Server | null;
   if (!server) return null;
 
+  // Rows report join results in the launch notice bar instead, never inline.
+  if (contextName === "row") return null;
+
   const content = resolveActionNoticeContent(server.addr, storeNotice, result);
   if (!content) return null;
 
@@ -384,26 +392,6 @@ export function ServerActionNotice({ className, style }: { className?: string; s
         {content.title}
       </span>
     ) : null;
-
-  // In a row, the notice sits on the row's single line — no border/padding/margin.
-  if (contextName === "row") {
-    return (
-      <div
-        data-el="server.actionNotice"
-        data-state={content.kind === "refusal" ? "error refused" : content.state}
-        className={cn(
-          "flex min-w-0 items-center gap-[var(--t-space-inlineGapWide)] [font-size:var(--t-type-label-size)]",
-          className,
-        )}
-        style={style}
-      >
-        {leading}
-        <span data-part="message" className="truncate text-muted2">
-          {content.message}
-        </span>
-      </div>
-    );
-  }
 
   return (
     <div

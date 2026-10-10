@@ -685,8 +685,8 @@
         <p>
           A few elements have to be somewhere in each composition: the window controls,
           the drag region, navigation to every view and Settings, both required notices,
-          and, in every context that places <code>server.join</code>,
-          <code>server.actionNotice</code> beside it. The launcher checks that the
+          and, wherever <code>server.join</code> sits outside a list row (modals,
+          popups, panels), <code>server.actionNotice</code> beside it. The launcher checks that the
           element is placed anywhere in the composition, not in a fixed slot, and it
           checks every variant and every settings combination a user can reach.
         </p>
@@ -704,8 +704,8 @@
           API 2.1, for join warnings and launch refusals. It repeats the same content as
           the server's own action notice, in a bar that names the server. A successful
           launch never shows here, and dismissing it clears the server's action notice
-          too. A composition that places it may hide <code>server.actionNotice</code> in
-          list rows, because the bar already carries that content.
+          too. List rows never show <code>server.actionNotice</code>, so this bar is where
+          a row's join result appears; a shell that places none gets one drawn above it.
         </p>
         <p>
           Tab order is file order: keyboard users move through the screen in the order

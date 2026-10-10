@@ -4,6 +4,7 @@ import { useServerStore } from "@/stores/server-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useLaunchStore, type ActiveOp, type Notice as StoreNotice } from "@/stores/launch-store";
 import {
+  logClient,
   launchGame,
   verifyServerMods,
   steamModStates,
@@ -12,6 +13,7 @@ import {
   type ModState,
 } from "@/lib/tauri";
 import { formatBytes } from "@/lib/utils";
+import { playerMessage } from "@/lib/player-message";
 import type { Server } from "@/types/server";
 
 /** Short codes for anything that went sideways. `W` = join went ahead anyway, `E` = stopped it. */
@@ -46,6 +48,8 @@ export const NOTICES = {
 } as const;
 
 export type NoticeCode = keyof typeof NOTICES;
+
+const MOD_CHECK_FAILED = "Could not check this server's mods. The launcher log has the details.";
 
 /** How often the wait loop re-reads Steam install state (a cheap local lookup). */
 const MOD_STATE_POLL_MS = 1500;
@@ -116,6 +120,7 @@ export function useServerActions() {
       useLaunchStore.getState().setResult({ addr, message: outcome.message });
       setPhase("starting");
     } catch (e) {
+      void logClient("launch", `launch failed: ${String(e)}`);
       useLaunchStore.getState().setResult({ addr, error: String(e) });
     }
   }
@@ -238,7 +243,8 @@ export function useServerActions() {
 
       await launch(addr, gamePort, toMenu);
     } catch (e) {
-      setStoreNotice(addr, { kind: "plain", text: String(e) });
+      void logClient("launch", `join check failed: ${String(e)}`);
+      setStoreNotice(addr, { kind: "plain", text: playerMessage(String(e), MOD_CHECK_FAILED) });
     } finally {
       // `cancel` is this call's identity token — a mismatch means a newer
       // operation replaced this one, so leave its state alone.
@@ -306,7 +312,8 @@ export function useServerActions() {
         text: `${missing.length} mod${missing.length === 1 ? "" : "s"} subscribed — Steam is downloading them in the background.`,
       });
     } catch (e) {
-      setStoreNotice(addr, { kind: "plain", text: String(e) });
+      void logClient("launch", `join check failed: ${String(e)}`);
+      setStoreNotice(addr, { kind: "plain", text: playerMessage(String(e), MOD_CHECK_FAILED) });
     } finally {
       // See the matching guard in verifyAndJoin.
       if (useLaunchStore.getState().op?.cancel === cancel) {
