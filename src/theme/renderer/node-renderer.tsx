@@ -13,8 +13,8 @@ import { SurfaceHost } from "../elements/surface-host";
 import { SubjectContextProvider, useElementContext, type ElementContextValue } from "../elements/context";
 import { Tabs } from "../interaction/tabs";
 import { Accordion } from "../interaction/accordion";
-import { ResizableHandle } from "../interaction/resizable";
-import { getPersistedCollapsed, getPersistedSize } from "../interaction/store";
+import { ResizableHandle, useRegionSize } from "../interaction/resizable";
+import { getPersistedCollapsed } from "../interaction/store";
 import { useColumnPlacement } from "../lists/column-context";
 
 export interface RenderContextValue {
@@ -84,6 +84,10 @@ export function LayoutNodeRenderer({ node }: { node: LayoutNode }) {
 function ContainerRenderer({ node, columnStyle }: { node: ContainerNode; columnStyle?: CSSProperties }) {
   const ctx = useContext(RenderContext);
   const elementCtx = useElementContext();
+  const [regionSize, setRegionSize] = useRegionSize(node, ctx.themeId);
+  const handle = node.resizable ? (
+    <ResizableHandle node={node} size={regionSize} onSizeChange={setRegionSize} />
+  ) : null;
 
   if (node.context !== undefined) {
     let subjectData: unknown = null;
@@ -112,19 +116,21 @@ function ContainerRenderer({ node, columnStyle }: { node: ContainerNode; columnS
         subject={{ kind: subjectKind, data: subjectData }}
         contextName={node.context}
       >
-        {renderContainer(node, ctx, elementCtx, columnStyle)}
+        {renderContainer(node, ctx, elementCtx, columnStyle, regionSize, handle)}
       </SubjectContextProvider>
     );
   }
 
-  return renderContainer(node, ctx, elementCtx, columnStyle);
+  return renderContainer(node, ctx, elementCtx, columnStyle, regionSize, handle);
 }
 
 function renderContainer(
   node: ContainerNode,
   ctx: RenderContextValue,
   elementCtx: ElementContextValue,
-  columnStyle?: CSSProperties,
+  columnStyle: CSSProperties | undefined,
+  regionSize: string | undefined,
+  handle: ReactNode,
 ) {
   const hasPositionedChildren =
     "children" in node && Array.isArray(node.children)
@@ -136,12 +142,11 @@ function renderContainer(
   const regionId = node.id ?? "";
 
   if (node.resizable && regionId) {
-    const persistedSize = getPersistedSize(ctx.themeId, regionId);
-    if (persistedSize) {
+    if (regionSize) {
       const isHoriz = node.resizable.edge === "left" || node.resizable.edge === "right";
       attrs.style = {
         ...attrs.style,
-        [isHoriz ? "width" : "height"]: persistedSize,
+        [isHoriz ? "width" : "height"]: regionSize,
       };
     }
     if (attrs.style?.position === undefined) {
@@ -169,7 +174,7 @@ function renderContainer(
     const collapsedContent = (
       <>
         <LayoutNodeRenderer node={node.collapsible.collapsed} />
-        {node.resizable && <ResizableHandle node={node} />}
+        {handle}
       </>
     );
 
@@ -188,19 +193,19 @@ function renderContainer(
   }
 
   if (node.type === "tabs") {
-    return <Tabs node={node} attrs={attrs} as={As} />;
+    return <Tabs node={node} attrs={attrs} as={As} handle={handle} />;
   }
 
   if (node.type === "accordion") {
-    return <Accordion node={node} attrs={attrs} as={As} />;
+    return <Accordion node={node} attrs={attrs} as={As} handle={handle} />;
   }
 
   const children = (
     <>
       {(node.children ?? []).map((child, index) => (
-        <LayoutNodeRenderer key={index} node={child} />
+        <LayoutNodeRenderer key={child.id !== undefined ? `id:${child.id}` : index} node={child} />
       ))}
-      {node.resizable && <ResizableHandle node={node} />}
+      {handle}
     </>
   );
 

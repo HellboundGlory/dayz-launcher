@@ -1,18 +1,19 @@
-import { useContext, useState, type ElementType, type KeyboardEvent } from "react";
+import { useContext, useState, type ElementType, type KeyboardEvent, type ReactNode } from "react";
 import type { AccordionNode } from "../renderer/types";
 import type { RenderedAttrs } from "../renderer/props";
 import { LayoutNodeRenderer, RenderContext } from "../renderer/node-renderer";
 import { getPersistedAccordion, setPersistedAccordion } from "./store";
-import { ResizableHandle } from "./resizable";
 
 export function Accordion({
   node,
   attrs,
   as: As = "div",
+  handle,
 }: {
   node: AccordionNode;
   attrs: RenderedAttrs;
   as?: ElementType;
+  handle?: ReactNode;
 }) {
   const themeCtx = useContext(RenderContext);
   const [openIds, setOpenIds] = useState<string[]>(() => {
@@ -106,7 +107,7 @@ export function Accordion({
           </div>
         );
       })}
-      {node.resizable && <ResizableHandle node={node} />}
+      {handle}
     </As>
   );
 }

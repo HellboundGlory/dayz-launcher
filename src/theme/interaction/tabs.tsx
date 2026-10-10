@@ -1,9 +1,8 @@
-import { useContext, useState, type ElementType, type KeyboardEvent } from "react";
+import { useContext, useState, type ElementType, type KeyboardEvent, type ReactNode } from "react";
 import type { TabsNode } from "../renderer/types";
 import type { RenderedAttrs } from "../renderer/props";
 import { LayoutNodeRenderer, RenderContext } from "../renderer/node-renderer";
 import { getPersistedTab, setPersistedTab } from "./store";
-import { ResizableHandle } from "./resizable";
 
 /** Which tab index a key press moves to, or `null` if the key is not one of
  * the tab navigation keys for the given orientation. */
@@ -40,10 +39,12 @@ export function Tabs({
   node,
   attrs,
   as: As = "div",
+  handle,
 }: {
   node: TabsNode;
   attrs: RenderedAttrs;
   as?: ElementType;
+  handle?: ReactNode;
 }) {
   const themeCtx = useContext(RenderContext);
   const defaultTab = node.tabs[0]?.id;
@@ -120,7 +121,7 @@ export function Tabs({
           <LayoutNodeRenderer node={activeTabDef.content} />
         </div>
       )}
-      {node.resizable && <ResizableHandle node={node} />}
+      {handle}
     </As>
   );
 }
