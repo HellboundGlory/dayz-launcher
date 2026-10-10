@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "./confirm-dialog";
 import {
   useThemeStore,
   activePreset,
   activeInstalled,
+  deleteThemeMessage,
   effective,
   effectiveRoleValues,
   isUserTheme,
   resolvedPair,
+  slugify,
 } from "@/theme/theme-store";
 import {
   GROUP_DEF,
@@ -41,6 +44,8 @@ const SAVE_BUTTON_CLASS =
 const SECONDARY_BUTTON_CLASS =
   "shrink-0 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-[7px] [font-size:var(--t-type-caption-size)] font-semibold uppercase tracking-[0.04em] text-muted2 transition-colors hover:text-ink";
 
+const ACTIVE_NAME_NOTICE = "A theme with that name is active. Pick another name.";
+
 // Theme accordion body. Owns only local dropdown/save-input state — every
 // colour decision writes straight to the theme store.
 export function ThemeCustomiser() {
@@ -59,13 +64,14 @@ export function ThemeCustomiser() {
   const setRadiusRoleOverride = useThemeStore((s) => s.setRadiusRoleOverride);
   const setFontFamilyOverride = useThemeStore((s) => s.setFontFamilyOverride);
   const saveTheme = useThemeStore((s) => s.saveTheme);
-  const duplicateTheme = useThemeStore((s) => s.duplicateTheme);
   const deleteTheme = useThemeStore((s) => s.deleteTheme);
   const resetToBase = useThemeStore((s) => s.resetToBase);
 
   const [dropOpen, setDropOpen] = useState(false);
   const [name, setName] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
   const dropRef = useRef<HTMLDivElement>(null);
+  const confirm = useConfirm();
 
   const pair = resolvedPair(activeId, themeFiles);
   const palette = effective(scheme, activeId, themeFiles, custom);
@@ -84,6 +90,47 @@ export function ThemeCustomiser() {
   useOutsideClick(dropOpen, closeOnOutside);
 
   const isDark = scheme === "dark";
+
+  /** Saves the typed name as a new theme; a name already on disk asks before replacing it. */
+  function saveNewName() {
+    const trimmed = name.trim() || "Untitled theme";
+    setNotice(null);
+    setName("");
+    void saveNamed(trimmed, false).then((result) => {
+      if (result === "exists") requestReplace(trimmed);
+    });
+  }
+
+  /** Reads the store at call time, so a confirm retry acts on the state then, not at click time. */
+  function saveNamed(target: string, overwrite: boolean) {
+    const state = useThemeStore.getState();
+    return isUserTheme(state.activeId, state.installedThemes)
+      ? state.duplicateTheme(state.activeId, target, { overwrite })
+      : state.saveTheme(target, { overwrite });
+  }
+
+  /** The backend refuses to delete the active theme, so replacing its own name is not offered. */
+  function requestReplace(target: string) {
+    if (isActiveName(target)) {
+      setNotice(ACTIVE_NAME_NOTICE);
+      return;
+    }
+    confirm(
+      "Replace theme",
+      `A theme called “${target}” already exists. Replace it? Its files are deleted and can't be recovered.`,
+      () => {
+        if (isActiveName(target)) {
+          setNotice(ACTIVE_NAME_NOTICE);
+          return;
+        }
+        void saveNamed(target, true);
+      },
+    );
+  }
+
+  function isActiveName(target: string): boolean {
+    return `local.${slugify(target)}` === useThemeStore.getState().activeId;
+  }
 
   return (
     <>
@@ -213,7 +260,13 @@ export function ThemeCustomiser() {
                   <button
                     type="button"
                       aria-label={`Delete theme ${t.name}`}
-                      onClick={() => void deleteTheme(t.id)}
+                      onClick={() =>
+                        confirm(
+                          "Delete theme",
+                          deleteThemeMessage(t.name),
+                          () => void deleteTheme(t.id),
+                        )
+                      }
                       className="cd shrink-0 cursor-pointer px-1 [font-size:var(--t-type-micro-size)] text-muted transition-colors hover:text-danger"
                     >
                       ✕
@@ -333,25 +386,22 @@ export function ThemeCustomiser() {
         <input
           type="text"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            setName(e.target.value);
+            setNotice(null);
+          }}
           placeholder="Name your theme…"
           maxLength={28}
           onKeyDown={(e) => {
             if (e.key !== "Enter") return;
-            const trimmed = name.trim() || "Untitled theme";
-            if (userTheme) void duplicateTheme(activeId, trimmed);
-            else void saveTheme(trimmed);
-            setName("");
+            saveNewName();
           }}
           className="min-w-0 flex-1 [border-radius:var(--t-radius-control)] border border-line bg-bg px-2.5 py-[7px] [font-size:var(--t-type-body-size)] text-ink placeholder-muted outline-none transition-colors focus:border-accent-line"
         />
         {userTheme ? (
           <button
             type="button"
-            onClick={() => {
-              void duplicateTheme(activeId, name.trim() || "Untitled theme");
-              setName("");
-            }}
+            onClick={saveNewName}
             className={SECONDARY_BUTTON_CLASS}
           >
             Save as new
@@ -359,16 +409,19 @@ export function ThemeCustomiser() {
         ) : (
           <button
             type="button"
-            onClick={() => {
-              void saveTheme(name.trim() || "Untitled theme");
-              setName("");
-            }}
+            onClick={saveNewName}
             className={SAVE_BUTTON_CLASS}
           >
             Save theme
           </button>
         )}
       </div>
+
+      {notice && (
+        <p role="status" className="mt-1.5 [font-size:var(--t-type-caption-size)] leading-[1.4] text-danger">
+          {notice}
+        </p>
+      )}
 
       <div className="reset-row mt-2 flex items-center gap-2">
         <button

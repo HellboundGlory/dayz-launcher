@@ -64,9 +64,12 @@ export function ThemesSection({
     [themeFiles, activeId],
   );
 
-  /** Names a new theme must avoid: the built-in presets and everything installed. */
+  /** Names a new theme must avoid: the presets, and every installed theme by name and by id. */
   function takenNames(): string[] {
-    return [...PRESETS.map((p) => p.name), ...installedThemes.map((t) => t.name)];
+    return [
+      ...PRESETS.map((p) => p.name),
+      ...installedThemes.flatMap((t) => [t.name, t.id.replace(/^local\./, "")]),
+    ];
   }
 
   async function createFromTemplate(templateId: string, templateName: string) {
