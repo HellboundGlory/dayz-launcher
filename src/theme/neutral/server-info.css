@@ -1,1 +1,132 @@
 @layer launcher, neutral, theme, guarantees;
+
+@layer neutral {
+  [data-modal-host]:has(.t-neutral-serverinfo) {
+    @apply [background-color:var(--t-color-scrim)];
+  }
+
+  [data-part="modal-dialog"]:has(> .t-neutral-serverinfo) {
+    @apply w-[min(480px,calc(100%-40px))];
+  }
+
+  .t-neutral-serverinfo {
+    @apply w-full max-h-[85vh] overflow-hidden border border-line bg-surface [border-radius:var(--t-radius-modal)] [box-shadow:var(--t-shadow-modal)];
+  }
+
+  .t-neutral-serverinfo-body {
+    @apply min-h-0 flex-1;
+  }
+
+  .t-neutral-serverinfo-close {
+    @apply flex text-muted transition-colors hover:text-ink;
+  }
+
+  .t-neutral-serverinfo-close svg {
+    @apply size-4;
+  }
+
+  .t-neutral-serverinfo-identity {
+    @apply shrink-0 p-3.5;
+  }
+
+  .t-neutral-serverinfo-name {
+    @apply block [font-size:var(--t-type-heading-size)] font-bold leading-snug text-ink;
+  }
+
+  .t-neutral-serverinfo-address {
+    @apply block mt-0.5 [font-family:var(--t-type-family-data)] [font-size:var(--t-type-data-size)] text-muted;
+  }
+
+  .t-neutral-serverinfo-address [data-part="gamePort"]::before {
+    content: " ·";
+  }
+
+  .t-neutral-serverinfo-tags {
+    @apply mt-1.5 flex flex-wrap gap-1;
+  }
+
+  .t-neutral-serverinfo-tags [data-part="chip"] {
+    @apply inline-flex items-center border-0 [border-radius:var(--t-radius-badge)] px-1.5 py-px [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-[0.05em] leading-[1.4];
+  }
+
+  .t-neutral-serverinfo-tags [data-part="chip"][data-state~="offline"],
+  .t-neutral-serverinfo-tags [data-part="chip"][data-state~="locked"] {
+    @apply bg-danger-soft text-danger;
+  }
+
+  .t-neutral-serverinfo-tags [data-part="chip"][data-state~="official"] {
+    @apply bg-success-soft text-success;
+  }
+
+  .t-neutral-serverinfo-tags [data-part="chip"][data-state~="modded"] {
+    @apply bg-accent2-soft text-accent2;
+  }
+
+  .t-neutral-serverinfo-tags [data-part="chip"][data-state~="firstPerson"] {
+    @apply bg-muted-soft text-muted2;
+  }
+
+  .t-neutral-serverinfo-tags [data-part="chip"][data-state~="battleye"] {
+    @apply bg-accent-soft text-accent;
+  }
+
+  .t-neutral-serverinfo-scroll {
+    @apply min-h-0 flex-1;
+  }
+
+  .t-neutral-serverinfo-stats {
+    @apply grid-cols-3 gap-px border-b border-line bg-line;
+  }
+
+  .t-neutral-serverinfo-stat {
+    @apply bg-surface px-2 py-3.5 text-center;
+  }
+
+  .t-neutral-serverinfo-stat-value {
+    @apply [font-family:var(--t-type-family-data)] [font-size:var(--t-type-display-size)] font-extrabold leading-none;
+  }
+
+  .t-neutral-serverinfo-players {
+    @apply text-accent2;
+  }
+
+  .t-neutral-serverinfo-ping[data-state~="good"] {
+    @apply text-success;
+  }
+
+  .t-neutral-serverinfo-ping[data-state~="fair"] {
+    @apply text-warn;
+  }
+
+  .t-neutral-serverinfo-ping[data-state~="poor"] {
+    @apply text-danger;
+  }
+
+  .t-neutral-serverinfo-ping[data-state~="unknown"] {
+    @apply text-muted;
+  }
+
+  .t-neutral-serverinfo-time {
+    @apply text-accent;
+  }
+
+  .t-neutral-serverinfo-stat-label {
+    @apply mt-1 !font-bold !tracking-[0.06em] uppercase text-muted;
+  }
+
+  .t-neutral-serverinfo-props {
+    @apply px-3.5 py-2;
+  }
+
+  .t-neutral-serverinfo-prop {
+    @apply items-baseline justify-between gap-2 py-0.5;
+  }
+
+  .t-neutral-serverinfo-prop-label {
+    @apply shrink-0 uppercase text-muted !font-bold !tracking-[0.06em] !leading-normal;
+  }
+
+  .t-neutral-serverinfo-prop-value {
+    @apply min-w-0 truncate [font-family:var(--t-type-family-data)] [font-size:var(--t-type-data-size)] text-ink;
+  }
+}
