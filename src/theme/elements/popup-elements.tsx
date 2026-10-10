@@ -32,7 +32,7 @@ export function PopupContextProvider({
 /**
  * A trigger's popup: the theme's own `layout/popups/<id>.json` through `PopupHost`
  * when it owns one, else `children` (the launcher's default body). Renders nothing
- * while closed. Shared by every `filter.*` popup trigger and `mods.selectUnique`.
+ * while closed. Shared by every `filter.*` popup trigger, `server.menu` and the mods menus.
  */
 export function FilterPopup({
   open,

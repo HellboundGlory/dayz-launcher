@@ -80,7 +80,7 @@
     "status.steam": "Reads \"Steam connected\" or \"Steam not connected\". With `display: dot`, that text becomes the accessible name and the tooltip.",
     "status.serverTotal": "Renders nothing while Steam is disconnected.",
     "status.populated": "Renders nothing while Steam is disconnected.",
-    "status.listSource": "Renders nothing while Steam is disconnected, and nothing until the list source is known.",
+    "status.listSource": "Renders nothing while Steam is disconnected, and nothing until the list source is known. Reads \"via index\" or \"via Steam\"; a `label` option replaces the word after \"via\". The tooltip says where the list came from.",
     "status.lastRefreshed": "Renders nothing while Steam is disconnected, and nothing before the first refresh.",
     "status.activity": "The `dot` and `label` parts share one state. `discovering` reads \"Discovering servers from Steam…\"; `refreshing` reads \"Probing server details…\"; otherwise `live` reads \"Live · {time}\", or \"Live · waiting\" before the first refresh.",
     "notice.launch": "A bar naming the server last acted on, carrying the same join warning or launch refusal as that server's `server.actionNotice`. A successful launch never shows here. Dismissing it clears the notice for `server.actionNotice` too. A list row never shows `server.actionNotice`; this bar is where a row's join result appears. A shell that places neither gets the bar drawn above it by the launcher.",

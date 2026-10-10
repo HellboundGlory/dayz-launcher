@@ -397,6 +397,7 @@ export function ModUpdate({
       data-state={modStates(mod, busy && "busy", busy && "disabled")}
       disabled={busy}
       aria-label={label}
+      title="Download the newer Workshop copy"
       onClick={handleClick}
       className={className}
       style={style}
