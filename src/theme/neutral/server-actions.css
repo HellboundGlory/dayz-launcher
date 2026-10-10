@@ -1,1 +1,47 @@
 @layer launcher, neutral, theme, guarantees;
+
+@layer neutral {
+  [data-popup-host]:has(> .t-neutral-servers-menu-panel) {
+    @apply [border-radius:var(--t-radius-popup)] [box-shadow:var(--t-shadow-popup)];
+  }
+
+  .t-neutral-servers-menu-panel {
+    @apply w-[184px] [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1;
+  }
+
+  .t-neutral-servers-menu-item {
+    @apply flex w-full items-center gap-2 [border-radius:var(--t-radius-popupItem)] px-2.5 py-[7px] text-left [font-size:var(--t-type-body-size)] font-semibold text-ink transition-colors hover:bg-accent-soft hover:text-accent disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .t-neutral-servers-menu-item [data-part="icon"] {
+    @apply flex h-[15px] w-[15px] shrink-0 items-center justify-center text-muted2;
+  }
+
+  .t-neutral-servers-menu-item [data-part="icon"] svg {
+    @apply size-3.5;
+  }
+
+  .t-neutral-servers-menu-item [data-part="label"] {
+    @apply truncate;
+  }
+
+  .t-neutral-servers-menu-item[data-state~="copied"] [data-part="icon"] {
+    @apply text-success;
+  }
+
+  .t-neutral-servers-notice {
+    @apply mt-1 mb-0 border-0 border-t border-line-weak px-2.5 pb-1 pt-1.5;
+  }
+
+  .t-neutral-servers-notice [data-part="message"] {
+    @apply truncate text-warn [font-size:var(--t-type-caption-size)] leading-snug;
+  }
+
+  .t-neutral-servers-notice[data-state~="error"] [data-part="message"] {
+    @apply text-danger;
+  }
+
+  .t-neutral-servers-notice[data-state~="success"] [data-part="message"] {
+    @apply text-success;
+  }
+}

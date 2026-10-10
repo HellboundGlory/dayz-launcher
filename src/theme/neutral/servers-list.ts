@@ -3,38 +3,64 @@ import "./servers-list.css";
 
 export const SERVERS_LIST: LayoutFile = {
   schemaVersion: 2,
-  columns: [
-    { id: "favourite", width: "40px" },
-    { id: "name", width: "1fr", label: "Server Name", sort: "name" },
-    { id: "players", width: "90px", label: "Players", sort: "players" },
-    { id: "map", width: "120px", label: "Map", sort: "map" },
-    { id: "ping", width: "70px", label: "Ping", sort: "ping" },
-    { id: "actions", width: "140px", label: "Actions" },
-  ],
+  estimatedRowHeight: "48px",
   row: {
     type: "stack",
     direction: "row",
     align: "center",
+    class: "t-neutral-servers-row",
     children: [
-      { element: "server.favourite", column: "favourite" },
+      { element: "server.favourite", class: "t-neutral-servers-fav" },
       {
         type: "stack",
         direction: "column",
-        column: "name",
+        class: "t-neutral-servers-main",
         children: [
-          { element: "server.name" },
-          { element: "server.tags" },
+          {
+            type: "stack",
+            direction: "row",
+            align: "center",
+            class: "t-neutral-servers-nameline",
+            children: [
+              { element: "server.tags", class: "t-neutral-servers-tags" },
+              { element: "server.name", class: "t-neutral-servers-name" },
+            ],
+          },
+          {
+            type: "stack",
+            direction: "row",
+            align: "center",
+            class: "t-neutral-servers-details",
+            children: [
+              { element: "server.map", class: "t-neutral-servers-mono" },
+              { element: "server.gameTime" },
+              { element: "server.region", class: "t-neutral-servers-plain", options: { format: "name" } },
+              { element: "server.address", class: "t-neutral-servers-mono" },
+              { element: "server.lastPlayed", class: "t-neutral-servers-plain", options: { recentOnly: true } },
+            ],
+          },
         ],
       },
-      { element: "server.players", column: "players", options: { showCaption: false } },
-      { element: "server.map", column: "map" },
-      { element: "server.ping", column: "ping", options: { showCaption: false } },
       {
         type: "stack",
         direction: "row",
-        column: "actions",
+        align: "center",
+        class: "t-neutral-servers-stats",
         children: [
-          { element: "server.join" },
+          { element: "server.players", class: "t-neutral-servers-players" },
+          { element: "server.ping", class: "t-neutral-servers-ping" },
+          { element: "server.modCount", class: "t-neutral-servers-mods" },
+        ],
+      },
+      {
+        type: "stack",
+        direction: "row",
+        align: "center",
+        class: "t-neutral-servers-actions",
+        children: [
+          { element: "server.refresh", class: "t-neutral-servers-refresh" },
+          { element: "server.join", class: "t-neutral-servers-join", options: { wording: "fixAndJoin" } },
+          { element: "server.menu", class: "t-neutral-servers-menu", options: { icon: "chevronDown" } },
           { element: "server.actionNotice" },
         ],
       },

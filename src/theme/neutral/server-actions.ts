@@ -7,14 +7,19 @@ export const SERVER_ACTIONS_POPUP: PopupLayoutFile = {
   root: {
     type: "stack",
     direction: "column",
+    class: "t-neutral-servers-menu-panel",
     children: [
-      { element: "server.info", options: { display: "iconLabel", label: "More info" } },
-      { element: "server.loadToMenu", options: { display: "iconLabel", icon: "listTree" } },
-      { element: "server.subscribeAll", options: { display: "iconLabel" } },
-      { element: "server.checkMods", options: { display: "iconLabel", icon: "refresh" } },
-      { element: "server.unsubscribeUnique", options: { display: "iconLabel", label: "Unsubscribe unique mods" } },
-      { element: "server.copyAddress", options: { display: "iconLabel" } },
-      { element: "server.actionNotice" },
+      { element: "server.info", class: "t-neutral-servers-menu-item", options: { display: "iconLabel", label: "More info" } },
+      { element: "server.loadToMenu", class: "t-neutral-servers-menu-item", options: { display: "iconLabel", icon: "listTree" } },
+      { element: "server.subscribeAll", class: "t-neutral-servers-menu-item", options: { display: "iconLabel" } },
+      { element: "server.checkMods", class: "t-neutral-servers-menu-item", options: { display: "iconLabel", icon: "refresh" } },
+      {
+        element: "server.unsubscribeUnique",
+        class: "t-neutral-servers-menu-item",
+        options: { display: "iconLabel", label: "Unsubscribe unique mods" },
+      },
+      { element: "server.copyAddress", class: "t-neutral-servers-menu-item", options: { display: "iconLabel" } },
+      { element: "server.actionNotice", class: "t-neutral-servers-notice" },
     ],
   },
 };
