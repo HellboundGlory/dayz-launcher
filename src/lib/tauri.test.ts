@@ -36,6 +36,11 @@ describe("copyAddress and copyServerAddress", () => {
     expect(writtenText).toBe("192.168.1.50:2302");
   });
 
+  it("keeps an IPv6 host intact", async () => {
+    await copyAddress("2001:db8::1:27016", 2302);
+    expect(writtenText).toBe("2001:db8::1:2302");
+  });
+
   it("copyServerAddress calls copyAddress with server properties", async () => {
     await copyServerAddress({ addr: "10.0.0.1:27016", game_port: 2303 });
     expect(writtenText).toBe("10.0.0.1:2303");

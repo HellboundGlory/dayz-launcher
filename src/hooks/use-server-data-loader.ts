@@ -10,8 +10,33 @@ import {
 
 const MAP_LIST_REFRESH_MS = 10_000;
 
+interface ServerQuery {
+  filterParams: FilterParams;
+  sortParams: SortParams;
+}
+
+/** One read of the server table; a failure lands in the store's `loadError`. */
+export async function loadServerRows(query: ServerQuery): Promise<void> {
+  const { setServers, setLoadError } = useServerStore.getState();
+  const t0 = performance.now();
+  void logClient("servers", "load: start", true);
+  try {
+    const rows = await getServerList(query.filterParams, query.sortParams);
+    setServers(rows);
+    setLoadError(null);
+    void logClient(
+      "servers",
+      `load: ${rows.length} rows in ${Math.round(performance.now() - t0)}ms`,
+      true,
+    );
+  } catch (e) {
+    void logClient("servers", `load: failed: ${String(e)}`);
+    console.error("Failed to load servers:", e);
+    setLoadError(`Could not load the server list: ${String(e)}`);
+  }
+}
+
 export function useServerDataLoader() {
-  const setServers = useServerStore((s) => s.setServers);
   const filter = useServerStore((s) => s.filter);
   const sortKey = useServerStore((s) => s.sortKey);
   const sortDir = useServerStore((s) => s.sortDir);
@@ -22,10 +47,7 @@ export function useServerDataLoader() {
 
   const loadInFlight = useRef(false);
   const reloadQueued = useRef(false);
-  const queryRef = useRef<{
-    filterParams: FilterParams;
-    sortParams: SortParams;
-  } | null>(null);
+  const queryRef = useRef<ServerQuery | null>(null);
 
   const runLoad = useCallback(async () => {
     if (loadInFlight.current) {
@@ -39,30 +61,14 @@ export function useServerDataLoader() {
         reloadQueued.current = false;
         const query = queryRef.current;
         if (!query) break;
-        const t0 = performance.now();
-        void logClient("servers", "load: start", true);
-        try {
-          const rows = await getServerList(
-            query.filterParams,
-            query.sortParams,
-          );
-          setServers(rows);
-          void logClient(
-            "servers",
-            `load: ${rows.length} rows in ${Math.round(performance.now() - t0)}ms`,
-            true,
-          );
-        } catch (e) {
-          void logClient("servers", `load: failed: ${String(e)}`);
-          console.error("Failed to load servers:", e);
-        }
+        await loadServerRows(query);
       } while (reloadQueued.current);
     } finally {
       loadInFlight.current = false;
       setLoading(false);
       setHasLoadedOnce();
     }
-  }, [setLoading, setServers, setHasLoadedOnce]);
+  }, [setLoading, setHasLoadedOnce]);
 
   useEffect(() => {
     queryRef.current = {

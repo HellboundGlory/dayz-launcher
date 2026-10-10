@@ -25,8 +25,11 @@ interface ServerState {
   mapsLoaded: boolean;
   /** True once the server table has completed its first load, empty or not — a splash-readiness gate. */
   hasLoadedOnce: boolean;
+  /** Why the last server-list load failed, or null. Cleared by the next successful load. */
+  loadError: string | null;
   setMaps: (maps: [string, string][]) => void;
   setHasLoadedOnce: () => void;
+  setLoadError: (error: string | null) => void;
 
   setServers: (servers: Server[]) => void;
   setSelectedServer: (server: Server | null) => void;
@@ -150,6 +153,7 @@ export const useServerStore = create<ServerState>((set) => ({
   maps: [],
   mapsLoaded: false,
   hasLoadedOnce: false,
+  loadError: null,
 
   // Replaces the table's rows and re-points the selection at its new row, so
   // the details panel stays live instead of showing a stale click-time snapshot.
@@ -197,6 +201,7 @@ export const useServerStore = create<ServerState>((set) => ({
   setTotalCount: (totalCount) => set({ totalCount }),
   setMaps: (maps) => set({ maps, mapsLoaded: true }),
   setHasLoadedOnce: () => set({ hasLoadedOnce: true }),
+  setLoadError: (loadError) => set({ loadError }),
   mergeModPending: (entries) =>
     set((state) => {
       if (entries.length === 0) return state;
