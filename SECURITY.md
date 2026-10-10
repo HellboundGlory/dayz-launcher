@@ -1,6 +1,4 @@
-from pathlib import Path
-
-security_md = """# Security Policy
+# Security Policy
 
 Security is taken seriously in Tetra Launcher. If you discover a vulnerability, please report it responsibly so it can be investigated and fixed before details are made public.
 
@@ -152,4 +150,3 @@ Official project:
 Crashes, incorrect server information, mod-management problems, UI bugs, compatibility issues, and other defects without a security impact should be reported through the normal GitHub issue tracker.
 
 Thank you for helping keep Tetra Launcher and its users safe.
-"""

@@ -72,14 +72,14 @@ To check the code without producing a binary:
 
 ```bash
 cargo fmt --all --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
+cargo clippy --locked --workspace --all-targets -- -D warnings
+cargo test --locked --workspace
 npm run build
 npm test
 npm run lint
 ```
 
-These are exactly what CI runs on every push — see
+These are exactly what CI runs on every push that touches more than `docs/` — see
 [`.github/workflows/check.yml`](.github/workflows/check.yml).
 
 The workspace is a Tauri v2 app: a Rust backend split into crates

@@ -13,8 +13,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-# `tray-icon` is kept ahead of its consumer: the `closeToTray` setting already
-# exists and "minimise to tray instead of closing" is a tracked backlog item.
+# The tray icon is built at startup and used by the close/minimise-to-tray setting.
 tauri = { version = "2", features = ["tray-icon"] }
 # Only the plugins something actually calls. `os`, `fs` and `store` were
 # registered here (and permissioned in capabilities/default.json) without
