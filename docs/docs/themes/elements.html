@@ -1003,15 +1003,15 @@
 <ul><li><strong>Option lists:</strong> <code>popup.mapOptions</code>, <code>popup.regionOptions</code> and <code>popup.uniqueServerOptions</code> are single lists of <code>role=&quot;option&quot;</code> entries with a check mark on the selected ones. <code>popup.tagOptions</code> cycles Official, Modded and First person through include (✓), exclude (✗) and off. <code>popup.sortOptions</code> lists the server sort keys.</li><li><strong>Empty text:</strong> &quot;Loading maps…&quot; for maps, and &quot;No favourites or recently played servers yet.&quot; for unique servers.</li><li><strong>Server actions in menus:</strong> <code>popup.serverActions</code> and <code>popup.serverLoad</code> may hold any <code>server.*</code> action, and <code>server.actionNotice</code>. They read the server their trigger belongs to.</li></ul></div>
   <section class="el" id="el-popup-mapOptions" data-el="popup.mapOptions">
   <h3><code>popup.mapOptions</code> <span class="el-kind">input</span></h3>
-  <dl><dt>Placed in</dt><dd>the mapFilter popup · once per composition</dd><dt>Required in</dt><dd>the mapFilter popup</dd><dt>Parts</dt><dd><code>option</code>, <code>empty</code> · States: <code>selected</code></dd></dl>
+  <dl><dt>Placed in</dt><dd>the mapFilter popup · once per composition</dd><dt>Required in</dt><dd>the mapFilter popup</dd><dt>Parts</dt><dd><code>option</code>, <code>empty</code>, <code>box</code> · States: <code>selected</code></dd></dl>
 </section>
   <section class="el" id="el-popup-tagOptions" data-el="popup.tagOptions">
   <h3><code>popup.tagOptions</code> <span class="el-kind">input</span></h3>
-  <dl><dt>Placed in</dt><dd>the tagsFilter popup · once per composition</dd><dt>Required in</dt><dd>the tagsFilter popup</dd><dt>Parts</dt><dd><code>option</code> · States: <code>included</code>, <code>excluded</code></dd></dl>
+  <dl><dt>Placed in</dt><dd>the tagsFilter popup · once per composition</dd><dt>Required in</dt><dd>the tagsFilter popup</dd><dt>Parts</dt><dd><code>option</code>, <code>box</code>, <code>indicator</code> · States: <code>included</code>, <code>excluded</code>, <code>selected</code></dd></dl>
 </section>
   <section class="el" id="el-popup-regionOptions" data-el="popup.regionOptions">
   <h3><code>popup.regionOptions</code> <span class="el-kind">input</span></h3>
-  <dl><dt>Placed in</dt><dd>the regionFilter popup · once per composition</dd><dt>Required in</dt><dd>the regionFilter popup</dd><dt>Parts</dt><dd><code>option</code> · States: <code>selected</code></dd></dl>
+  <dl><dt>Placed in</dt><dd>the regionFilter popup · once per composition</dd><dt>Required in</dt><dd>the regionFilter popup</dd><dt>Parts</dt><dd><code>option</code>, <code>box</code> · States: <code>selected</code></dd></dl>
 </section>
   <section class="el" id="el-popup-regionNote" data-el="popup.regionNote">
   <h3><code>popup.regionNote</code> <span class="el-kind">display</span></h3>
@@ -1020,7 +1020,7 @@
 </section>
   <section class="el" id="el-popup-sortOptions" data-el="popup.sortOptions">
   <h3><code>popup.sortOptions</code> <span class="el-kind">input</span></h3>
-  <dl><dt>Placed in</dt><dd>the sort popup · once per composition</dd><dt>Required in</dt><dd>the sort popup</dd><dt>Parts</dt><dd><code>option</code> · States: <code>selected</code>, <code>ascending</code>, <code>descending</code></dd></dl>
+  <dl><dt>Placed in</dt><dd>the sort popup · once per composition</dd><dt>Required in</dt><dd>the sort popup</dd><dt>Parts</dt><dd><code>option</code>, <code>box</code> · States: <code>selected</code>, <code>ascending</code>, <code>descending</code></dd></dl>
 </section>
   <section class="el" id="el-popup-uniqueServerOptions" data-el="popup.uniqueServerOptions">
   <h3><code>popup.uniqueServerOptions</code> <span class="el-kind">input</span></h3>

@@ -117,6 +117,21 @@ describe("PopupMapOptions", () => {
     expect(html).toContain('data-part="option" data-state="selected"');
     expect(html).toContain("Chernarus");
   });
+
+  it("exposes each map as an option whose aria-selected follows the filter", async () => {
+    const html = await withServerStore(
+      {
+        maps: [
+          ["chernarusplus", "Chernarus"],
+          ["namalsk", "Namalsk"],
+        ],
+        filter: { maps: ["chernarusplus"] },
+      },
+      () => renderToStaticMarkup(<PopupMapOptions />),
+    );
+    expect(html).toContain('role="option" aria-selected="true"');
+    expect(html).toContain('role="option" aria-selected="false"');
+  });
 });
 
 describe("PopupTagOptions", () => {
@@ -125,8 +140,15 @@ describe("PopupTagOptions", () => {
       { filter: { official: true, modded: false } },
       () => renderToStaticMarkup(<PopupTagOptions />),
     );
-    expect(html).toContain('data-state="included"');
+    expect(html).toContain('data-state="selected included"');
     expect(html).toContain('data-state="excluded"');
+  });
+
+  it("labels the tags as the filter bar does", async () => {
+    const html = await withServerStore({}, () => renderToStaticMarkup(<PopupTagOptions />));
+    expect(html).toContain(">Official<");
+    expect(html).toContain(">Modded<");
+    expect(html).toContain(">First person<");
   });
 });
 
@@ -155,7 +177,7 @@ describe("PopupSortOptions", () => {
       renderToStaticMarkup(<PopupSortOptions />),
     );
     expect(html).toContain('data-state="selected ascending"');
-    expect(html).toContain("↑");
+    expect(html).toContain('aria-selected="true"');
   });
 
   it("does not offer lastPlayed as a sort key", async () => {
