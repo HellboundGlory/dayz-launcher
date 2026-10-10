@@ -1988,6 +1988,14 @@
         },
         "label": {
           "type": "text"
+        },
+        "basis": {
+          "type": "enum",
+          "values": [
+            "readiness",
+            "declared"
+          ],
+          "default": "readiness"
         }
       },
       "freeLabel": true,
@@ -2021,13 +2029,13 @@
       "options": {},
       "freeLabel": false,
       "parts": [
+        "count",
         "qualifier",
         "value"
       ],
       "states": [
         "upperBound",
         "none",
-        "checking",
         "offline"
       ],
       "since": "2.0",
