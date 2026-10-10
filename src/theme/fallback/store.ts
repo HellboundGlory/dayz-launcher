@@ -4,9 +4,13 @@ export interface FallbackStore {
   fallbackFiles: Record<string, boolean>;
   fallbackReasons: Record<string, string[]>;
   fallbackNoticeDismissed: Record<string, boolean>;
+  /** Files the screen check marked at runtime, as opposed to validation fall-backs. */
+  runtimeFiles: Record<string, boolean>;
   markFileFallback: (themeId: string, file: string, reason: string | string[]) => void;
+  markRuntimeFallback: (file: string, reason: string | string[]) => void;
   isFileFallenBack: (file: string) => boolean;
   clearFallbacks: () => void;
+  clearRuntimeFallbacks: () => void;
   isFallbackNoticeDismissed: (themeId: string, version: string) => boolean;
   dismissFallbackNotice: (themeId: string, version: string) => void;
 }
@@ -43,20 +47,34 @@ function writePersistedDismissed(themeId: string, version: string, dismissed: bo
   memoryDismissed.set(key, dismissed);
 }
 
+function withFallback(
+  state: Pick<FallbackStore, "fallbackFiles" | "fallbackReasons">,
+  file: string,
+  reason: string | string[],
+) {
+  const reasonsToAdd = Array.isArray(reason) ? reason : [reason];
+  const prev = state.fallbackReasons[file] ?? [];
+  return {
+    fallbackFiles: { ...state.fallbackFiles, [file]: true },
+    fallbackReasons: { ...state.fallbackReasons, [file]: [...prev, ...reasonsToAdd] },
+  };
+}
+
 export const useFallbackStore = create<FallbackStore>((set, get) => ({
   fallbackFiles: {},
   fallbackReasons: {},
   fallbackNoticeDismissed: {},
+  runtimeFiles: {},
 
   markFileFallback: (_themeId, file, reason) => {
-    const reasonsToAdd = Array.isArray(reason) ? reason : [reason];
-    set((state) => {
-      const prev = state.fallbackReasons[file] ?? [];
-      return {
-        fallbackFiles: { ...state.fallbackFiles, [file]: true },
-        fallbackReasons: { ...state.fallbackReasons, [file]: [...prev, ...reasonsToAdd] },
-      };
-    });
+    set((state) => withFallback(state, file, reason));
+  },
+
+  markRuntimeFallback: (file, reason) => {
+    set((state) => ({
+      ...withFallback(state, file, reason),
+      runtimeFiles: { ...state.runtimeFiles, [file]: true },
+    }));
   },
 
   isFileFallenBack: (file) => {
@@ -64,7 +82,21 @@ export const useFallbackStore = create<FallbackStore>((set, get) => ({
   },
 
   clearFallbacks: () => {
-    set({ fallbackFiles: {}, fallbackReasons: {} });
+    set({ fallbackFiles: {}, fallbackReasons: {}, runtimeFiles: {} });
+  },
+
+  clearRuntimeFallbacks: () => {
+    set((state) => {
+      const files = Object.keys(state.runtimeFiles);
+      if (files.length === 0) return state;
+      const fallbackFiles = { ...state.fallbackFiles };
+      const fallbackReasons = { ...state.fallbackReasons };
+      for (const file of files) {
+        delete fallbackFiles[file];
+        delete fallbackReasons[file];
+      }
+      return { fallbackFiles, fallbackReasons, runtimeFiles: {} };
+    });
   },
 
   isFallbackNoticeDismissed: (themeId, version) => {
@@ -97,8 +129,16 @@ export function isFileFallenBack(file: string): boolean {
   return useFallbackStore.getState().isFileFallenBack(file);
 }
 
+export function markRuntimeFallback(file: string, reason: string | string[]): void {
+  useFallbackStore.getState().markRuntimeFallback(file, reason);
+}
+
 export function clearFallbacks(): void {
   useFallbackStore.getState().clearFallbacks();
+}
+
+export function clearRuntimeFallbacks(): void {
+  useFallbackStore.getState().clearRuntimeFallbacks();
 }
 
 export function isFallbackNoticeDismissed(themeId: string, version: string): boolean {
@@ -115,5 +155,6 @@ export function clearFallbackMemory(): void {
     fallbackFiles: {},
     fallbackReasons: {},
     fallbackNoticeDismissed: {},
+    runtimeFiles: {},
   });
 }
