@@ -126,6 +126,7 @@ pub fn run() {
             }
         })
         .manage(state::AppState::new())
+        .manage(protocol::PendingConnect::from_args())
         .invoke_handler(tauri::generate_handler![
             commands::server::get_server_list,
             commands::server::get_server,
@@ -151,6 +152,7 @@ pub fn run() {
             commands::launch::launch_game,
             commands::launch::verify_server_mods,
             commands::launch::register_protocol_handler,
+            protocol::take_pending_connect,
             commands::launch::discover_steam_paths,
             commands::launch::validate_dayz_path,
             commands::launch::open_steam,
@@ -321,11 +323,6 @@ pub fn run() {
             // Moved/Resized for a window merely created and shown, so this is
             // what seeds the cache if nobody ever drags it.
             window_state::remember(&window.as_ref().window());
-
-            // A `dzsa://` link on this process's own argv — single-instance
-            // wasn't around to forward it.
-            let argv: Vec<String> = std::env::args().collect();
-            protocol::handle_argv(app.handle(), &argv);
 
             if let Err(e) = commands::launch::register_protocol_handler() {
                 eprintln!("[setup] Could not register the dzsa:// protocol handler: {e}");

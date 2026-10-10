@@ -59,9 +59,21 @@ export async function discoverServers(): Promise<void> {
   return invoke<void>("discover_servers");
 }
 
+/** A `dzsa://connect/...` link, as parsed by the backend and handed to the frontend. */
+export interface DzsaConnect {
+  ip: string;
+  queryPort: number;
+  favourite: boolean;
+}
+
 /** Look up a single server by address, independent of the loaded filter/sort — backs the dzsa:// deep-link flow. */
 export async function getServer(addr: string, queryPort: number): Promise<Server | null> {
   return invoke<Server | null>("get_server", { addr, queryPort });
+}
+
+/** A `dzsa://` link that started this process, for the frontend to pick up once it can listen. */
+export async function takePendingConnect(): Promise<DzsaConnect | null> {
+  return invoke<DzsaConnect | null>("take_pending_connect");
 }
 
 export async function toggleFavourite(
