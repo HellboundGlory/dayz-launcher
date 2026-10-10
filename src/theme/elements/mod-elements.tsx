@@ -76,10 +76,10 @@ export function ModSelect({ className, style }: { className?: string; style?: CS
 }
 
 const MOD_STATUS_LABEL: Record<ModState, string> = {
-  ready: "Installed",
-  needs_update: "Update available",
+  ready: "Ready",
+  needs_update: "Update",
   downloading: "Downloading",
-  not_installed: "Not downloaded",
+  not_installed: "Missing",
   not_subscribed: "Not subscribed",
   not_on_workshop: "Server-side",
 };
@@ -92,9 +92,7 @@ export function ModStatus({ className, style }: { className?: string; style?: CS
 
   const state = effectiveModState(mod.state, live);
   const downloading = state === "downloading" && !!progress && !!progress.total && Number(progress.total) > 0;
-  const label = downloading
-    ? `${formatBytes(Number(progress!.downloaded), 1)} / ${formatBytes(Number(progress!.total), 1)}`
-    : MOD_STATUS_LABEL[state];
+  const label = MOD_STATUS_LABEL[state];
   const pct = downloading
     ? Math.min(100, (Number(progress!.downloaded) / Number(progress!.total)) * 100)
     : 0;
@@ -110,15 +108,36 @@ export function ModStatus({ className, style }: { className?: string; style?: CS
 
 export function ModThumbnail({ className, style }: { className?: string; style?: CSSProperties }) {
   const mod = useModSubject();
+  const { contextName } = useElementContext();
+  const [brokenUrl, setBrokenUrl] = useState<string | null>(null);
   if (!mod) return null;
 
-  const missing = !mod.preview_url;
+  const image = mod.preview_url && mod.preview_url !== brokenUrl ? mod.preview_url : null;
+  const missing = !image;
+  const inSelection = contextName === "modSelection";
+  const placeholder = inSelection ? "No preview image" : mod.locally_disabled ? "⏸" : "—";
   return (
     <span data-el="mod.thumbnail" data-state={modStates(mod, missing && "missing")} className={className} style={style}>
-      {mod.preview_url ? (
-        <img data-part="image" src={mod.preview_url} alt="" loading="lazy" draggable={false} className="h-full w-full object-cover" />
+      {image ? (
+        <img
+          data-part="image"
+          src={image}
+          alt=""
+          loading="lazy"
+          draggable={false}
+          className="h-full w-full object-cover"
+          onError={() => setBrokenUrl(image)}
+        />
       ) : (
-        <Package data-part="placeholder" className="size-full text-muted" />
+        <span
+          data-part="placeholder"
+          className={cn(
+            "flex size-full items-center justify-center text-muted",
+            inSelection ? "[font-size:var(--t-type-label-size)]" : "[font-size:var(--t-type-caption-size)]",
+          )}
+        >
+          {placeholder}
+        </span>
       )}
     </span>
   );
@@ -300,7 +319,7 @@ export function ModRating({ className, style }: { className?: string; style?: CS
         "—"
       ) : (
         <>
-          <span data-part="up">{up}▲</span> <span data-part="down">{down}▼</span>
+          <span data-part="up">{up}▲</span> / <span data-part="down">{down}▼</span>
         </>
       )}
     </span>
@@ -407,7 +426,7 @@ export function ModUpdate({
           <OptionIcon icon={options?.icon} fallback={Download} className={cn("size-3", busy && "animate-pulse")} />
         </span>
       )}
-      {showLabel && <span data-part="label">{label}</span>}
+      {showLabel && <span data-part="label">{busy ? "…" : label}</span>}
     </button>
   );
 }
@@ -535,7 +554,7 @@ export function ModReinstall({
           <OptionIcon icon={options?.icon} fallback={RefreshCw} className={cn("size-3", busy && "animate-spin")} />
         </span>
       )}
-      {showLabel && <span data-part="label">{label}</span>}
+      {showLabel && <span data-part="label">{busy ? "…" : label}</span>}
     </button>
   );
 }
@@ -696,7 +715,7 @@ const SERVER_MOD_VIEWS: Record<string, ServerModView> = {
   downloading: { name: "downloading", label: "Downloading", dot: "↓", dotClass: "text-muted", labelClass: "text-muted" },
   not_installed: { name: "notInstalled", label: "Not installed", dot: "·", dotClass: "text-muted", labelClass: "text-muted" },
   not_subscribed: { name: "notSubscribed", label: "Not subscribed", dot: "+", dotClass: "text-danger", labelClass: "text-danger font-semibold" },
-  not_on_workshop: { name: "serverSide", label: "Server-side", dot: "·", dotClass: "text-muted", labelClass: "text-muted" },
+  not_on_workshop: { name: "serverSide", label: "Unlisted", dot: "·", dotClass: "text-muted", labelClass: "text-muted" },
 };
 
 const SERVER_MOD_CHECKING: ServerModView = {
@@ -769,10 +788,10 @@ export function ServerModSize({ className, style }: { className?: string; style?
   if (!mod) return null;
 
   const view = serverModView(mod);
-  if (view.name === "ready" || view.name === "serverSide") return null;
-
-  const size = mod.size_bytes ? formatBytes(mod.size_bytes) : null;
+  const size = mod.size_bytes ? formatBytes(mod.size_bytes, 1) : null;
   const upperBound = !!mod.size_is_upper_bound && size !== null;
+  // The state element already says "Ready".
+  if (view.name === "ready") return null;
 
   return (
     <span
