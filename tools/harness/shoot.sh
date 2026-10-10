@@ -11,7 +11,7 @@ HEIGHT=${4:-744}
 SCALE=${HARNESS_SCALE:-1.25}
 PORT=${HARNESS_PORT:-1431}
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-BROWSER=${HARNESS_BROWSER:-$(ls -d "$HOME"/.cache/ms-playwright/chromium_headless_shell-*/chrome-linux/headless_shell 2>/dev/null | tail -1)}
+BROWSER=${HARNESS_BROWSER:-$(ls -d "$HOME"/.cache/ms-playwright/chromium_headless_shell-*/chrome-linux/headless_shell 2>/dev/null | tail -1 || true)}
 if [ -z "$BROWSER" ]; then
   echo "No headless Chromium: run  npx -y playwright install chromium-headless-shell" >&2
   exit 1

@@ -83,8 +83,8 @@ try {
   frames after the repaint, so the perf harness can time apply-to-first-paint.
   `window.__harness.visibilityCheck()` runs the fallback visibility check over
   every registry element with a non-empty `required`, for the same harness.
-  `modal=` is the one query that needs `dev`: the rest of `__harness` comes from
-  `App.tsx`, which only exposes it under `import.meta.env.DEV`.
+  `modal=` is reachable in the prod build too: `main.tsx` defines
+  `window.__harness` before `App` loads.
 
 `npm run harness:smoke` exercises the driver end to end: prod build, then
 `theme=neutral` and `theme=builtin.tactical&scheme=light`, each asserting

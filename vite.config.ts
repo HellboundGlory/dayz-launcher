@@ -29,15 +29,15 @@ export default defineConfig({
     // Each separate window (splash, theme-guard) gets its own entry alongside index.html.
     rollupOptions: {
       input: {
-        main: path.resolve(__dirname, "index.html"),
-        splash: path.resolve(__dirname, "splash.html"),
-        "theme-guard": path.resolve(__dirname, "theme-guard.html"),
+        main: path.resolve(import.meta.dirname, "index.html"),
+        splash: path.resolve(import.meta.dirname, "splash.html"),
+        "theme-guard": path.resolve(import.meta.dirname, "theme-guard.html"),
       },
     },
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
   plugins: [react()],
