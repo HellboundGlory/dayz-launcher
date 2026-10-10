@@ -291,6 +291,11 @@
     outline-offset: 1px;
   }
 
+  /* Popups scroll, which would clip a ring drawn outside their full-width options. */
+  [data-part="popup"] :focus-visible:not(input) {
+    outline-offset: -2px;
+  }
+
   /* Global reduced-motion kill switch */
   @media (prefers-reduced-motion: reduce) {
     * {
