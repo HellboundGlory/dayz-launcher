@@ -339,16 +339,14 @@ describe("hide toggles", () => {
     expect(html).toContain('aria-pressed="true"');
   });
 
-  it("renders role=checkbox with a box part when control is checkbox", () => {
-    const html = renderToStaticMarkup(<FilterHideEmpty options={{ control: "checkbox" }} />);
-    expect(html).toContain('role="checkbox"');
-    expect(html).toContain('data-part="box"');
-  });
-
-  it("renders role=switch when control is switch", () => {
-    const html = renderToStaticMarkup(<FilterHideEmpty options={{ control: "switch" }} />);
-    expect(html).toContain('role="switch"');
-  });
+  it.each(["checkbox", "switch"] as const)(
+    "renders a focusable button with role=%s and aria-checked",
+    (control) => {
+      const html = renderToStaticMarkup(<FilterHideEmpty options={{ control }} />);
+      expect(html).toMatch(new RegExp(`<button[^>]*role="${control}"[^>]*aria-checked="false"`));
+      expect(html).toContain('data-part="box"');
+    },
+  );
 
   it("omits the icon part with no option, and honours it when set", () => {
     expect(renderToStaticMarkup(<FilterHideEmpty />)).not.toContain('data-part="icon"');

@@ -139,17 +139,30 @@ export function ListHost<T = unknown>({
   const wrapperMinWidth = isScroll ? pxColumnWidthSum(effectiveColumns) : undefined;
 
   const [headerHeight, setHeaderHeight] = useState(0);
+  const [scrollbarWidth, setScrollbarWidth] = useState(0);
+  const isEmpty = items.length === 0;
 
+  // Clip mode's header sits above the scroller, so it reserves the scrollbar's width to line up with the rows.
   useEffect(() => {
     const el = scrollRef.current;
-    if (!isScroll || !el) return;
-    const measure = () => setAvailableWidth(el.clientWidth);
+    if (!el) {
+      setScrollbarWidth(0);
+      return;
+    }
+    const measure = () => {
+      if (isScroll) {
+        setAvailableWidth(el.clientWidth);
+        setScrollbarWidth(0);
+      } else {
+        setScrollbarWidth(el.offsetWidth - el.clientWidth);
+      }
+    };
     measure();
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [isScroll]);
+  }, [isScroll, isEmpty]);
 
   const isVirtualized =
     listId === "list.servers" ||
@@ -244,6 +257,7 @@ export function ListHost<T = unknown>({
         onSortChange={onSortChange}
         onResizeStart={startResize}
         onResizeReset={resetColumn}
+        scrollbarWidth={scrollbarWidth}
       />
     ) : null;
 

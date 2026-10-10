@@ -22,6 +22,14 @@ const OPPOSITE: Record<Side, Side> = {
   right: "left",
 };
 
+/** Distance from the trigger's edge to the popup's edge that faces it. */
+export function anchorGap(side: Side, trigger: Rect, popup: Rect): number {
+  if (side === "bottom") return popup.top - (trigger.top + trigger.height);
+  if (side === "top") return trigger.top - (popup.top + popup.height);
+  if (side === "right") return popup.left - (trigger.left + trigger.width);
+  return trigger.left - (popup.left + popup.width);
+}
+
 /** Space between the trigger's edge and the matching viewport edge. */
 function sideRoom(side: Side, trigger: Rect, viewport: { width: number; height: number }): number {
   if (side === "bottom") return viewport.height - (trigger.top + trigger.height);
@@ -52,6 +60,13 @@ export function placePopup(input: {
     if (opposite > room) side = OPPOSITE[side];
   }
 
+  const roomOnSide = sideRoom(side, trigger, viewport);
+  const maxHeightOut = vertical
+    ? Math.max(0, roomOnSide - offset - margin)
+    : Math.max(0, viewport.height - 2 * margin);
+  // Position with the height the popup will actually get, so a capped popup never slides over its trigger.
+  const shown = Math.min(height, maxHeightOut);
+
   const alongCross = vertical
     ? align === "start"
       ? trigger.left
@@ -61,8 +76,8 @@ export function placePopup(input: {
     : align === "start"
       ? trigger.top
       : align === "end"
-        ? trigger.top + trigger.height - height
-        : trigger.top + trigger.height / 2 - height / 2;
+        ? trigger.top + trigger.height - shown
+        : trigger.top + trigger.height / 2 - shown / 2;
 
   let top: number;
   let left: number;
@@ -70,7 +85,7 @@ export function placePopup(input: {
     top = trigger.top + trigger.height + offset;
     left = alongCross;
   } else if (side === "top") {
-    top = trigger.top - offset - height;
+    top = trigger.top - offset - shown;
     left = alongCross;
   } else if (side === "right") {
     left = trigger.left + trigger.width + offset;
@@ -80,13 +95,8 @@ export function placePopup(input: {
     top = alongCross;
   }
 
-  const roomOnSide = sideRoom(side, trigger, viewport);
-  const maxHeightOut = vertical
-    ? Math.max(0, roomOnSide - offset - margin)
-    : Math.max(0, viewport.height - 2 * margin);
-
   left = Math.min(Math.max(left, margin), Math.max(margin, viewport.width - popup.width - margin));
-  top = Math.min(Math.max(top, margin), Math.max(margin, viewport.height - height - margin));
+  top = Math.min(Math.max(top, margin), Math.max(margin, viewport.height - shown - margin));
 
   return { top, left, maxHeight: maxHeightOut, side };
 }
