@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { useServerStore } from "@/stores/server-store";
 import type { ThemeFile } from "@/types/theme";
 import type * as VisibilityModule from "./visibility";
+import type * as NeutralModule from "../neutral";
 import type { LayoutFile } from "../renderer/types";
 import { SETTINGS_LAYOUT, SERVER_INFO_MODAL } from "../neutral";
 import { SettingsHost } from "../interaction/settings-host";
@@ -28,6 +29,12 @@ const visibility = vi.hoisted(() => ({ runVisibilityCheck: vi.fn() }));
 vi.mock("./visibility", async (importOriginal) => {
   const actual = await importOriginal<typeof VisibilityModule>();
   return { ...actual, runVisibilityCheck: visibility.runVisibilityCheck };
+});
+
+const engine = vi.hoisted(() => ({ files: new Set<string>() }));
+vi.mock("../neutral", async (importOriginal) => {
+  const actual = await importOriginal<typeof NeutralModule>();
+  return { ...actual, NEUTRAL_ENGINE_FILES: engine.files };
 });
 
 /** The attribute-selector subset the resolver uses, over a tiny element tree. */
@@ -103,6 +110,7 @@ beforeEach(() => {
 
 afterEach(() => {
   clearFallbacks();
+  engine.files.clear();
   useThemeStore.setState({ activeId: "neutral", themeFiles: {} });
 });
 
@@ -335,11 +343,17 @@ describe("measureVisibilityCheck", () => {
     expect(map.size).toBe(0);
   });
 
-  it("skips the pass while the theme owns no shell (legacy components render)", () => {
-    useThemeStore.setState({ activeId: "neutral", themeFiles: {} });
+  it("runs the pass when the engine draws a shell the theme lacks", () => {
+    engine.files.add(SHELL);
+    installTheme("local.test", { [BROWSER]: layoutWith("list.servers") });
+    visibility.runVisibilityCheck.mockReturnValue({
+      passed: false,
+      failures: [{ element: "filter.search", reason: "Element not found in document" }],
+    });
+
     const map = measureVisibilityCheck({ env: baseEnv, root: asRoot(browserTree()) });
-    expect(map.size).toBe(0);
-    expect(visibility.runVisibilityCheck).not.toHaveBeenCalled();
+
+    expect(map.get(BROWSER)).toEqual(["filter.search: Element not found in document"]);
   });
 });
 

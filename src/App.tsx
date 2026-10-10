@@ -44,7 +44,7 @@ import {
   useLayoutSubscription,
   watchHotReload,
   watchThemeActivationReverted,
-  getThemeOwnedLayout,
+  getEngineLayout,
 } from "./theme/theme-store";
 import { FallbackNotice } from "./theme/fallback/fallback-notice";
 import { NoticeLaunch } from "./theme/elements/notice-elements";
@@ -325,22 +325,22 @@ export function App() {
   useServerDataLoader();
   useLayoutSubscription();
 
-  // Theme-owned reads: Neutral, and any screen that fell back, render through the legacy components.
-  const shellLayout = getThemeOwnedLayout("layout/shell.json");
-  const browserLayout = getThemeOwnedLayout("layout/views/browser.json");
-  const modsLayout = getThemeOwnedLayout("layout/views/mods.json");
-  const settingsLayout = getThemeOwnedLayout("layout/settings.json") as
-    | SettingsLayoutFile
-    | undefined;
-  const themedServerInfoModal = getThemeOwnedLayout("layout/modals/serverInfo.json") as
+  // The file the engine draws for each screen; `undefined` means the launcher's own component still draws it.
+  const shellLayout = getEngineLayout("layout/shell.json");
+  const browserLayout = getEngineLayout("layout/views/browser.json");
+  const modsLayout = getEngineLayout("layout/views/mods.json");
+  const settingsLayout = getEngineLayout("layout/settings.json") as SettingsLayoutFile | undefined;
+  const themedServerInfoModal = getEngineLayout("layout/modals/serverInfo.json") as
     | ModalLayoutFile
     | undefined;
-  const themedModFilterModal = getThemeOwnedLayout("layout/modals/modFilter.json") as
+  const themedModFilterModal = getEngineLayout("layout/modals/modFilter.json") as
     | ModalLayoutFile
     | undefined;
-  const themedUpdateModal = getThemeOwnedLayout("layout/modals/update.json") as
+  const themedUpdateModal = getEngineLayout("layout/modals/update.json") as
     | ModalLayoutFile
     | undefined;
+  const browserPlaces = (element: string) =>
+    !!browserLayout && isElementInLayout(browserLayout, element);
   const settingsMode = settingsLayout?.presentation?.mode ?? "overlay";
   const closeSettings = () => setSettingsOpen(false);
 
@@ -979,6 +979,79 @@ export function App() {
     };
   });
 
+  const modsView = modsLayout ? (
+    <ModsViewHost file={modsLayout} themeId={activeId} settings={settingsValues[activeId]} />
+  ) : (
+    <ModsTab />
+  );
+  const engineBrowser = browserLayout && (
+    <LayoutRenderer file={browserLayout} themeId={activeId} settings={settingsValues[activeId]} />
+  );
+
+  const modalLayer = (
+    <>
+      {devMode && <DevModeInspector />}
+      {devMode && <DevModeValidationPanel />}
+      {showOnboarding && steamConnected && (
+        <OnboardingModal onDone={() => setShowOnboarding(false)} />
+      )}
+      {themedUpdateModal ? (
+        updateOpen && (
+          <ModalHost
+            file={themedUpdateModal}
+            themeId={activeId}
+            settings={settingsValues[activeId]}
+            onClose={() => setUpdateOpen(false)}
+          />
+        )
+      ) : (
+        <UpdateModal open={updateOpen} onClose={() => setUpdateOpen(false)} />
+      )}
+      {infoServer && (
+        themedServerInfoModal ? (
+          <SubjectContextProvider
+            subject={{ kind: "server", data: infoServer }}
+            contextName="modal"
+          >
+            <ModalHost
+              file={themedServerInfoModal}
+              themeId={activeId}
+              settings={settingsValues[activeId]}
+              onClose={() => setInfoServer(null)}
+            />
+          </SubjectContextProvider>
+        ) : (
+          <ServerInfoModal
+            server={infoServer}
+            onClose={() => setInfoServer(null)}
+          />
+        )
+      )}
+      {modFilterOpen && (
+        themedModFilterModal ? (
+          <ThemedModFilterModal
+            file={themedModFilterModal}
+            themeId={activeId}
+            settings={settingsValues[activeId]}
+            onClose={() => setModFilterOpen(false)}
+          />
+        ) : (
+          <ModFilterModal onClose={() => setModFilterOpen(false)} />
+        )
+      )}
+      {/* Blocking: nothing works without Steam. */}
+      {!steamConnected && steamError && (
+        <SteamRequiredModal
+          error={steamError}
+          checking={connecting}
+          exhausted={autoRetryExhausted}
+          onRetry={() => void connectSteam(true)}
+        />
+      )}
+      <ConfirmDialog />
+    </>
+  );
+
   return (
     <ElementContextProvider value={elementContextValue}>
       <div
@@ -990,11 +1063,12 @@ export function App() {
         {activeId !== "neutral" && (
           <FallbackNotice themeId={activeId} launcherVersion={launcherVersion} />
         )}
+        {shellLayout && <IncompatibleThemeNotice />}
 
         {/* Rows never show a join result, so a themed shell without the bar still gets one. */}
         {shellLayout &&
           !isElementInLayout(shellLayout, "notice.launch") &&
-          !(browserLayout && isElementInLayout(browserLayout, "notice.launch")) && <NoticeLaunch />}
+          !browserPlaces("notice.launch") && <NoticeLaunch />}
 
         {shellLayout ? (
           <>
@@ -1014,21 +1088,9 @@ export function App() {
                         onDevModeChange={setDevMode}
                       />
                     ) : activeView === "mods" ? (
-                      modsLayout ? (
-                        <ModsViewHost
-                          file={modsLayout}
-                          themeId={activeId}
-                          settings={settingsValues[activeId]}
-                        />
-                      ) : (
-                        <ModsTab />
-                      )
+                      modsView
                     ) : browserLayout ? (
-                      <LayoutRenderer
-                        file={browserLayout}
-                        themeId={activeId}
-                        settings={settingsValues[activeId]}
-                      />
+                      engineBrowser
                     ) : (
                       <div className="flex min-h-0 flex-1 flex-col">
                         <FilterBar
@@ -1040,68 +1102,7 @@ export function App() {
                         <ServerList view={activeView} onMoreInfo={setInfoServer} />
                       </div>
                     ),
-                  modals: (
-                    <>
-                      <ConfirmDialog />
-                      {devMode && <DevModeInspector />}
-                      {devMode && <DevModeValidationPanel />}
-                      {showOnboarding && steamConnected && (
-                        <OnboardingModal onDone={() => setShowOnboarding(false)} />
-                      )}
-                      {themedUpdateModal ? (
-                        updateOpen && (
-                          <ModalHost
-                            file={themedUpdateModal}
-                            themeId={activeId}
-                            settings={settingsValues[activeId]}
-                            onClose={() => setUpdateOpen(false)}
-                          />
-                        )
-                      ) : (
-                        <UpdateModal open={updateOpen} onClose={() => setUpdateOpen(false)} />
-                      )}
-                      {infoServer && (
-                        themedServerInfoModal ? (
-                          <SubjectContextProvider
-                            subject={{ kind: "server", data: infoServer }}
-                            contextName="modal"
-                          >
-                            <ModalHost
-                              file={themedServerInfoModal}
-                              themeId={activeId}
-                              settings={settingsValues[activeId]}
-                              onClose={() => setInfoServer(null)}
-                            />
-                          </SubjectContextProvider>
-                        ) : (
-                          <ServerInfoModal
-                            server={infoServer}
-                            onClose={() => setInfoServer(null)}
-                          />
-                        )
-                      )}
-                      {modFilterOpen && (
-                        themedModFilterModal ? (
-                          <ThemedModFilterModal
-                            file={themedModFilterModal}
-                            themeId={activeId}
-                            settings={settingsValues[activeId]}
-                            onClose={() => setModFilterOpen(false)}
-                          />
-                        ) : (
-                          <ModFilterModal onClose={() => setModFilterOpen(false)} />
-                        )
-                      )}
-                      {!steamConnected && steamError && (
-                        <SteamRequiredModal
-                          error={steamError}
-                          checking={connecting}
-                          exhausted={autoRetryExhausted}
-                          onRetry={() => void connectSteam(true)}
-                        />
-                      )}
-                    </>
-                  ),
+                  modals: modalLayer,
                 }}
               />
             </div>
@@ -1152,20 +1153,22 @@ export function App() {
 
                 {activeView === "mods" ? (
                   /* Mods tab replaces the whole server-browser stack while active. */
-                  <ModsTab />
+                  modsView
                 ) : (
                   <div className="flex min-h-0 flex-1 flex-col">
-                    <FilterBar
-                      onRefresh={handleRefresh}
-                      refreshing={refreshing}
-                      onOpenModFilter={() => setModFilterOpen(true)}
-                      modFilterOpen={modFilterOpen}
-                    />
+                    {!browserLayout && (
+                      <FilterBar
+                        onRefresh={handleRefresh}
+                        refreshing={refreshing}
+                        onOpenModFilter={() => setModFilterOpen(true)}
+                        modFilterOpen={modFilterOpen}
+                      />
+                    )}
 
-                    <NoticeLaunch />
+                    {!browserPlaces("notice.launch") && <NoticeLaunch />}
 
                     {/* Not dismissible — favourites/recent are not being saved. */}
-                    {storageDegraded && (
+                    {storageDegraded && !browserPlaces("notice.storage") && (
                       <div className="flex items-center gap-[var(--t-space-inlineGapWide)] border-b border-warn bg-warn-soft px-[var(--t-space-rowX)] py-[var(--t-space-controlY)]">
                         <span className="[font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase text-warn">
                           STORAGE
@@ -1178,7 +1181,7 @@ export function App() {
                       </div>
                     )}
 
-                    {shownError && (
+                    {shownError && !browserPlaces("notice.error") && (
                       <div className="flex items-center gap-[var(--t-space-inlineGapWide)] border-b border-danger bg-surface2 px-[var(--t-space-rowX)] py-[var(--t-space-controlY)]">
                         <span className="[font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase text-danger">
                           ERROR
@@ -1193,7 +1196,7 @@ export function App() {
                       </div>
                     )}
 
-                    <ServerList view={activeView} onMoreInfo={setInfoServer} />
+                    {engineBrowser || <ServerList view={activeView} onMoreInfo={setInfoServer} />}
                   </div>
                 )}
 
@@ -1216,36 +1219,7 @@ export function App() {
               />
             )}
 
-            <ConfirmDialog />
-            {devMode && <DevModeInspector />}
-            {devMode && <DevModeValidationPanel />}
-
-            {showOnboarding && steamConnected && (
-              <OnboardingModal onDone={() => setShowOnboarding(false)} />
-            )}
-
-            <UpdateModal open={updateOpen} onClose={() => setUpdateOpen(false)} />
-
-            {infoServer && (
-              <ServerInfoModal
-                server={infoServer}
-                onClose={() => setInfoServer(null)}
-              />
-            )}
-
-            {modFilterOpen && (
-              <ModFilterModal onClose={() => setModFilterOpen(false)} />
-            )}
-
-            {/* Blocking: nothing works without Steam. */}
-            {!steamConnected && steamError && (
-              <SteamRequiredModal
-                error={steamError}
-                checking={connecting}
-                exhausted={autoRetryExhausted}
-                onRetry={() => void connectSteam(true)}
-              />
-            )}
+            {modalLayer}
           </>
         )}
       </div>

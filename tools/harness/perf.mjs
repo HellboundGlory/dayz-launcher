@@ -18,7 +18,7 @@ const BUDGETS = { fps: 55, activationMs: 300, visibilityMs: 16, memoryRatio: 1.1
 // components only carry row hooks, so the walk to the scroller starts from a row.
 const SCROLL_SEED = {
   "builtin.tactical": '[data-list="servers"] [data-row]',
-  neutral: '[data-tetra-el="name"]',
+  neutral: '[data-tetra-el="name"], [data-list="servers"] [data-row]',
 };
 
 const alwaysOk = process.argv.slice(2).includes("--no-fail");

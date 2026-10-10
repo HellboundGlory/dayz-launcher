@@ -30,33 +30,52 @@ const SIZES = [
   [975, 620],
 ];
 
-/** `click=` for a legacy (`data-tetra-el`) hook, encoded for a query string. */
-function legacyClick(hook, tail = "") {
-  return new URLSearchParams([["click", `[data-tetra-el="${hook}"]${tail}`]]).toString();
+/**
+ * `click=` for a legacy (`data-tetra-el`) hook or the engine element that replaces it,
+ * so one query reaches the screen whichever tree draws it. Encoded for a query string.
+ */
+function neutralClick(hook, engine, tail = "", engineTail = tail) {
+  const selector = `[data-tetra-el="${hook}"]${tail}, [data-el="${engine}"]${engineTail}`;
+  return new URLSearchParams([["click", selector]]).toString();
 }
 
 /**
- * The matrix, one row per scenario. `neutral` is the query that reaches the same
- * state under theme=neutral, whose legacy components carry `data-tetra-el` hooks
- * instead of `data-el`.
+ * The matrix, one row per scenario. `neutral` is the extra query that reaches the same
+ * state under theme=neutral: a click on its legacy hook or on the engine element.
  */
 const SCENARIOS = [
   { id: "browser", query: "" },
   { id: "servers0", query: "servers=0" },
   { id: "select3", query: "select=3" },
   { id: "storage-degraded", query: "storage=degraded" },
-  { id: "view-favourites", query: "view=favourites", neutral: legacyClick("navFavourites") },
-  { id: "view-recent", query: "view=recent", neutral: legacyClick("navRecent") },
-  { id: "view-mods", query: "view=mods", neutral: legacyClick("navMods") },
+  {
+    id: "view-favourites",
+    query: "view=favourites",
+    neutral: neutralClick("navFavourites", "nav.favourites"),
+  },
+  { id: "view-recent", query: "view=recent", neutral: neutralClick("navRecent", "nav.recent") },
+  { id: "view-mods", query: "view=mods", neutral: neutralClick("navMods", "nav.mods") },
   {
     id: "view-mods-selectmod0",
     query: "view=mods&selectMod=0",
-    neutral: `selectMod=0&${legacyClick("navMods")}`,
+    neutral: `selectMod=0&${neutralClick("navMods", "nav.mods")}`,
   },
-  { id: "settings", query: "settings=1", neutral: legacyClick("settingsEntry") },
-  { id: "popup-map", query: "popup=map", neutral: legacyClick("mapFilter", " button") },
-  { id: "popup-tags", query: "popup=tags", neutral: legacyClick("tagsFilter", " button") },
-  { id: "popup-region", query: "popup=region", neutral: legacyClick("countryFilter", " button") },
+  { id: "settings", query: "settings=1", neutral: neutralClick("settingsEntry", "nav.settings") },
+  {
+    id: "popup-map",
+    query: "popup=map",
+    neutral: neutralClick("mapFilter", "filter.map", " button", ' [data-part="trigger"]'),
+  },
+  {
+    id: "popup-tags",
+    query: "popup=tags",
+    neutral: neutralClick("tagsFilter", "filter.tags", " button", ' [data-part="trigger"]'),
+  },
+  {
+    id: "popup-region",
+    query: "popup=region",
+    neutral: neutralClick("countryFilter", "filter.region", " button", ' [data-part="trigger"]'),
+  },
   { id: "modal-serverinfo", query: "modal=serverInfo" },
   { id: "modal-modfilter", query: "modal=modFilter" },
   { id: "modal-update", query: "modal=update" },
