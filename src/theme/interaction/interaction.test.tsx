@@ -15,7 +15,7 @@ import {
   setPersistedSize,
   setPersistedTab,
 } from "./store";
-import { handleResizeKey, parseLengthPx, ResizableHandle } from "./resizable";
+import { handleResizeKey, parseLengthPx, reseedRegionSize, ResizableHandle } from "./resizable";
 import { nextTabIndex } from "./tabs";
 import { ModalHost } from "./modal-host";
 import { PopupHost } from "./popup-host";
@@ -330,6 +330,8 @@ describe("Theme Interaction & Presentation (Package 4.4)", () => {
             resizable: { edge: "bottom", min: "100px", max: "300px" },
             height: "150px",
           }}
+          size={undefined}
+          onSizeChange={() => {}}
         />,
       );
 
@@ -397,6 +399,15 @@ describe("Theme Interaction & Presentation (Package 4.4)", () => {
       expect(parseLengthPx("250px", 100)).toBe(250);
       expect(parseLengthPx(undefined, 100)).toBe(100);
       expect(parseLengthPx("invalid", 100)).toBe(100);
+    });
+
+    it("reseeds the region size only when its theme or region key changes", () => {
+      const saved = { key: "theme-a|r-sidebar", size: "300px" };
+      expect(reseedRegionSize(saved, "theme-a|r-sidebar", () => "999px")).toBe(saved);
+      expect(reseedRegionSize(saved, "theme-b|r-sidebar", () => "450px")).toEqual({
+        key: "theme-b|r-sidebar",
+        size: "450px",
+      });
     });
   });
 

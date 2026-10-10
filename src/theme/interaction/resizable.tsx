@@ -59,12 +59,40 @@ export function handleResizeKey({
   return Math.max(min, Math.min(max, next));
 }
 
+interface RegionSizeState {
+  key: string;
+  size: string | undefined;
+}
+
+export function reseedRegionSize(
+  state: RegionSizeState,
+  key: string,
+  read: () => string | undefined,
+): RegionSizeState {
+  return state.key === key ? state : { key, size: read() };
+}
+
+export function useRegionSize(
+  node: CommonProps,
+  themeId: string,
+): [string | undefined, (size: string) => void] {
+  const regionId = node.resizable ? node.id : undefined;
+  const key = regionId ? `${themeId}|${regionId}` : "";
+  const read = () => (regionId ? getPersistedSize(themeId, regionId) : undefined);
+  const [state, setState] = useState<RegionSizeState>(() => ({ key, size: read() }));
+  const current = reseedRegionSize(state, key, read);
+  if (current !== state) setState(current);
+  return [current.size, (size) => setState({ key, size })];
+}
+
 export function ResizableHandle({
   node,
+  size,
   onSizeChange,
 }: {
   node: CommonProps;
-  onSizeChange?: (size: string) => void;
+  size: string | undefined;
+  onSizeChange: (size: string) => void;
 }) {
   const themeCtx = useContext(RenderContext);
   const resizable = node.resizable;
@@ -78,37 +106,34 @@ export function ResizableHandle({
     isVertical ? node.width : node.height,
     Math.min(max, Math.max(min, 240)),
   );
-
-  const [size, setSize] = useState<number>(() => {
-    if (!regionId) return defaultSize;
-    const persisted = getPersistedSize(themeCtx.themeId, regionId);
-    return persisted ? parseLengthPx(persisted, defaultSize) : defaultSize;
-  });
+  const current = parseLengthPx(size, defaultSize);
 
   if (!resizable) return null;
 
-
   const updateSize = (next: number) => {
     const clamped = Math.max(min, Math.min(max, next));
-    setSize(clamped);
     const sizeStr = `${clamped}px`;
+    onSizeChange(sizeStr);
+    return sizeStr;
+  };
+
+  const persistSize = (sizeStr: string) => {
     if (regionId) {
       setPersistedSize(themeCtx.themeId, regionId, sizeStr);
     }
-    onSizeChange?.(sizeStr);
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const next = handleResizeKey({
       key: e.key,
       edge,
-      current: size,
+      current,
       min,
       max,
     });
     if (next !== null) {
       e.preventDefault();
-      updateSize(next);
+      persistSize(updateSize(next));
     }
   };
 
@@ -117,7 +142,8 @@ export function ResizableHandle({
     e.preventDefault();
     const startX = e.clientX;
     const startY = e.clientY;
-    const startSize = size;
+    const startSize = current;
+    let latest: string | undefined;
 
     const onPointerMove = (ev: globalThis.PointerEvent) => {
       let delta = 0;
@@ -125,12 +151,13 @@ export function ResizableHandle({
       else if (edge === "left") delta = startX - ev.clientX;
       else if (edge === "bottom") delta = ev.clientY - startY;
       else if (edge === "top") delta = startY - ev.clientY;
-      updateSize(startSize + delta);
+      latest = updateSize(startSize + delta);
     };
 
     const onPointerUp = () => {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
+      if (latest) persistSize(latest);
     };
 
     window.addEventListener("pointermove", onPointerMove);
@@ -179,7 +206,7 @@ export function ResizableHandle({
       role="separator"
       tabIndex={0}
       aria-orientation={isVertical ? "vertical" : "horizontal"}
-      aria-valuenow={size}
+      aria-valuenow={current}
       aria-valuemin={min}
       aria-valuemax={max}
       aria-label={node.id ? `Resize ${node.id}` : "Resize"}
