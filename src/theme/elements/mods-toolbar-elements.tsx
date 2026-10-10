@@ -393,7 +393,7 @@ export function ModsUnsubscribeMenu({ options, className, style }: { options?: R
         disabled={busy}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex h-full w-full items-center justify-center gap-1 border-0 bg-transparent p-0 [font:inherit] [color:inherit] disabled:cursor-not-allowed"
+        className="flex h-full w-full items-center justify-center gap-1 border-0 bg-transparent p-0 [font:inherit] [text-transform:inherit] [color:inherit] disabled:cursor-not-allowed"
       >
         <span data-part="icon" className="flex">
           <OptionIcon icon={options?.icon} fallback={ChevronDown} className={cn("size-3 transition-transform", open && "rotate-180")} />
@@ -543,7 +543,7 @@ export function ModsVerifyMenu({ options, className, style }: { options?: Record
         disabled={busy}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex h-full w-full items-center justify-center gap-1 border-0 bg-transparent p-0 [font:inherit] [color:inherit] disabled:cursor-not-allowed"
+        className="flex h-full w-full items-center justify-center gap-1 border-0 bg-transparent p-0 [font:inherit] [text-transform:inherit] [color:inherit] disabled:cursor-not-allowed"
       >
         <span data-part="icon" className="flex">
           <OptionIcon icon={options?.icon} fallback={ChevronDown} className={cn("size-3 transition-transform", open && "rotate-180")} />
@@ -668,7 +668,7 @@ export function ModsSelectUnique({ options, className, style }: { options?: Reco
         aria-haspopup="menu"
         aria-expanded={open}
         title="Select the mods only one server uses, in case you want to prune it"
-        className="flex h-full w-full items-center justify-center gap-1 border-0 bg-transparent p-0 [font:inherit] [color:inherit] disabled:cursor-not-allowed"
+        className="flex h-full w-full items-center justify-center gap-1 border-0 bg-transparent p-0 [font:inherit] [text-transform:inherit] [color:inherit] disabled:cursor-not-allowed"
       >
         <span data-part="icon" className="flex">
           <Star className="size-3" />
