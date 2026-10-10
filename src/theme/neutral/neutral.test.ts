@@ -2,13 +2,14 @@ import { createElement } from "react";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { REGISTRY } from "../registry";
-import type { LayoutNode } from "../renderer/types";
+import type { LayoutFile, LayoutNode } from "../renderer/types";
 import { LayoutRenderer } from "../renderer/layout-renderer";
 import { ModalHost } from "../interaction/modal-host";
 import { SettingsHost } from "../interaction/settings-host";
 import { ListRow } from "../lists/list-row";
 import { ElementContextProvider } from "../elements/context";
-import { getMissingRequiredElements, isElementInLayout } from "../fallback/auto-placement";
+import { isElementInLayout } from "../layout-query";
+import { resolveRequiredElements } from "../fallback/use-visibility-check";
 import {
   BROWSER_LAYOUT,
   MOD_FILTER_MODAL,
@@ -52,9 +53,29 @@ describe("Neutral layouts", () => {
   });
 
   describe("Required elements completeness", () => {
+    it.each<[string, LayoutFile]>([
+      ["views", SHELL_LAYOUT],
+      ["views+settings", SHELL_LAYOUT],
+      ["view:browser", BROWSER_LAYOUT],
+      ["view:mods", MODS_LAYOUT],
+      ["settings", SETTINGS_LAYOUT],
+      ["modal:serverInfo", SERVER_INFO_MODAL],
+      ["modal:update", UPDATE_MODAL],
+      ["modal:modFilter", MOD_FILTER_MODAL],
+      ["list:servers/row", SERVERS_LIST],
+      ["list:mods/row", MODS_LIST],
+      ["list:modFilterResults/row", MOD_FILTER_RESULTS_LIST],
+    ])("%s places every element it requires", (context, layout) => {
+      // The same extra contexts the runtime check adds: `modal` for any modal, `withJoin` wherever Join is required.
+      const contexts = [context];
+      if (context.startsWith("modal:")) contexts.push("modal");
+      if ((REGISTRY.elements["server.join"]?.required ?? []).includes(context)) contexts.push("withJoin");
+      const required = [...resolveRequiredElements(contexts).keys()];
+      expect(required.length).toBeGreaterThan(0);
+      expect(required.filter((id) => !isElementInLayout(layout, id))).toEqual([]);
+    });
+
     it("shell contains all required elements for views and views+settings", () => {
-      expect(getMissingRequiredElements(SHELL_LAYOUT, "views")).toEqual([]);
-      expect(getMissingRequiredElements(SHELL_LAYOUT, "views+settings")).toEqual([]);
       expect(isElementInLayout(SHELL_LAYOUT, "app.minimize")).toBe(true);
       expect(isElementInLayout(SHELL_LAYOUT, "app.maximize")).toBe(true);
       expect(isElementInLayout(SHELL_LAYOUT, "app.close")).toBe(true);
@@ -70,7 +91,6 @@ describe("Neutral layouts", () => {
     });
 
     it("browser view contains view:browser required elements and selection panel withJoin", () => {
-      expect(getMissingRequiredElements(BROWSER_LAYOUT, "view:browser")).toEqual([]);
       expect(isElementInLayout(BROWSER_LAYOUT, "filter.search")).toBe(true);
       expect(isElementInLayout(BROWSER_LAYOUT, "servers.refresh")).toBe(true);
       expect(isElementInLayout(BROWSER_LAYOUT, "list.servers")).toBe(true);
@@ -79,7 +99,6 @@ describe("Neutral layouts", () => {
     });
 
     it("mods view contains view:mods required elements and modSelection panel", () => {
-      expect(getMissingRequiredElements(MODS_LAYOUT, "view:mods")).toEqual([]);
       expect(isElementInLayout(MODS_LAYOUT, "notice.modsError")).toBe(true);
       expect(isElementInLayout(MODS_LAYOUT, "notice.modsCached")).toBe(true);
       expect(isElementInLayout(MODS_LAYOUT, "notice.modsResult")).toBe(true);
@@ -96,7 +115,6 @@ describe("Neutral layouts", () => {
     });
 
     it("settings layout contains all 16 required settings elements", () => {
-      expect(getMissingRequiredElements(SETTINGS_LAYOUT, "settings")).toEqual([]);
       const settingsReqs = [
         "settings.back",
         "settings.themeManagement",
@@ -121,40 +139,34 @@ describe("Neutral layouts", () => {
     });
 
     it("serverInfo modal contains all modal:serverInfo required elements", () => {
-      expect(getMissingRequiredElements(SERVER_INFO_MODAL, "modal:serverInfo")).toEqual([]);
       expect(isElementInLayout(SERVER_INFO_MODAL, "modal.close")).toBe(true);
       expect(isElementInLayout(SERVER_INFO_MODAL, "server.join")).toBe(true);
       expect(isElementInLayout(SERVER_INFO_MODAL, "server.actionNotice")).toBe(true);
     });
 
     it("update modal contains all modal:update required elements", () => {
-      expect(getMissingRequiredElements(UPDATE_MODAL, "modal:update")).toEqual([]);
       expect(isElementInLayout(UPDATE_MODAL, "modal.close")).toBe(true);
       expect(isElementInLayout(UPDATE_MODAL, "update.install")).toBe(true);
       expect(isElementInLayout(UPDATE_MODAL, "update.viewRelease")).toBe(true);
     });
 
     it("modFilter modal contains all modal:modFilter required elements", () => {
-      expect(getMissingRequiredElements(MOD_FILTER_MODAL, "modal:modFilter")).toEqual([]);
       expect(isElementInLayout(MOD_FILTER_MODAL, "modal.close")).toBe(true);
       expect(isElementInLayout(MOD_FILTER_MODAL, "modFilter.apply")).toBe(true);
       expect(isElementInLayout(MOD_FILTER_MODAL, "list.modFilterResults")).toBe(true);
     });
 
     it("servers list row contains list:servers/row required elements and withJoin notice", () => {
-      expect(getMissingRequiredElements(SERVERS_LIST, "list:servers/row")).toEqual([]);
       expect(isElementInLayout(SERVERS_LIST, "server.join")).toBe(true);
       expect(isElementInLayout(SERVERS_LIST, "server.actionNotice")).toBe(true);
     });
 
     it("mods list row contains list:mods/row required elements", () => {
-      expect(getMissingRequiredElements(MODS_LIST, "list:mods/row")).toEqual([]);
       expect(isElementInLayout(MODS_LIST, "mod.select")).toBe(true);
       expect(isElementInLayout(MODS_LIST, "mod.status")).toBe(true);
     });
 
     it("modFilterResults list row contains list:modFilterResults/row required elements", () => {
-      expect(getMissingRequiredElements(MOD_FILTER_RESULTS_LIST, "list:modFilterResults/row")).toEqual([]);
       expect(isElementInLayout(MOD_FILTER_RESULTS_LIST, "workshopMod.pick")).toBe(true);
     });
   });

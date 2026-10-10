@@ -8,7 +8,6 @@ export type OptionDef =
   | { type: "boolean"; default?: boolean }
   | { type: "icon" | "text" | "length" | "token"; default?: string }
   | { type: "region" };
-export type FallbackPlacement = "append" | `afterElement:${string}` | `anchor:${string}`;
 
 export interface ElementDef {
   kind: ElementKind;
@@ -24,7 +23,6 @@ export interface ElementDef {
   states: string[];
   since: "2.0" | "2.1";
   aliases: string[];
-  fallbackPlacement?: Record<string, FallbackPlacement>;
 }
 
 export interface SurfaceDef {
