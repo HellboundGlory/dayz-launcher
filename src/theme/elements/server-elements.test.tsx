@@ -421,10 +421,11 @@ describe("ServerModCount", () => {
     expect(html).toContain("This server declares mods");
   });
 
-  it("shows — and state none for a vanilla server with an unknown count", async () => {
+  it("shows — and states none vanilla for a vanilla server with an unknown count", async () => {
     const vanilla: Server = { ...server, mod_count: null, modded: false };
     const html = renderNode(<ServerModCount />, { subjectContext: { kind: "server", data: vanilla } });
-    expect(html).toContain('data-state="none"');
+    const states = html.match(/data-state="([^"]*)"/)?.[1].split(" ");
+    expect(states).toEqual(expect.arrayContaining(["none", "vanilla"]));
     expect(html).toContain('data-part="value">—</span>');
   });
 
