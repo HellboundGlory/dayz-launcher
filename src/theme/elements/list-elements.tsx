@@ -12,7 +12,7 @@ import type { SortKey } from "@/types/filters";
 import { ListHost } from "../lists/list-host";
 import { ListRow } from "../lists/list-row";
 import { getActiveLayout, useLayoutSubscription } from "../theme-store";
-import { SERVERS_LIST, MODS_LIST, MOD_SERVERS_LIST, MOD_FILTER_RESULTS_LIST } from "../neutral";
+import { SERVERS_LIST, MODS_LIST, MOD_SERVERS_LIST, MOD_FILTER_RESULTS_LIST, SERVER_MODS_LIST } from "../neutral";
 import { serverModReadiness, type ModState, type SubscribedMod } from "@/lib/tauri";
 import { useSelectionReadiness } from "./use-selection-readiness";
 import { effectiveModState, filterAndSortMods } from "@/components/mods-tab";
@@ -174,7 +174,7 @@ export function ServerModsListHost({
   }
 
   useLayoutSubscription();
-  const listLayout = getActiveLayout("layout/lists/serverMods.json") as LayoutFile | undefined;
+  const listLayout = (getActiveLayout("layout/lists/serverMods.json") ?? SERVER_MODS_LIST) as LayoutFile;
 
   return (
     <ServerModsList state={state} mods={mods} listLayout={listLayout} className={className} style={style} />

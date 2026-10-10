@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ServerModsList, loadServerMods, resolveModsListDisplay } from "./list-elements";
+import { getNeutralLayout } from "../neutral";
 import type { ModReadinessEntry, Server, ServerModReadiness } from "@/types/server";
 
 vi.mock("@/lib/tauri", () => ({
@@ -37,9 +38,17 @@ describe("ServerModsList rendering", () => {
   });
 
   it("renders only the mods actually returned", () => {
-    const html = renderToStaticMarkup(<ServerModsList state={undefined} mods={[oneMod]} />);
+    const html = renderToStaticMarkup(
+      <ServerModsList
+        state={undefined}
+        mods={[oneMod]}
+        listLayout={getNeutralLayout("layout/lists/serverMods.json")}
+      />,
+    );
     expect(html).toContain('data-part="rows"');
     expect(html).not.toContain("This server declares no mods.");
+    expect(html).toContain("CF");
+    expect(html).toContain('data-el="serverMod.order"');
   });
 
   it("renders the loading state without any rows", () => {
