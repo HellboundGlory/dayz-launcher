@@ -9,6 +9,7 @@
 // `check` shoots into tools/harness/.out/visual and diffs against those.
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
+import { availableParallelism } from "node:os";
 import path from "node:path";
 import pixelmatch from "pixelmatch";
 import { PNG } from "pngjs";
@@ -196,40 +197,51 @@ async function main() {
   });
   const browser = await launchBrowser();
 
-  const rows = [];
-  try {
-    for (const [i, shot] of shots.entries()) {
-      const shotStarted = Date.now();
-      let page = null;
-      let result;
-      try {
-        page = await openScenario(browser, server.url, shot.query, {
-          width: shot.width,
-          height: shot.height,
-          scale: 1,
-          scheme: shot.scheme,
-        });
-        // A query whose hook never appeared shot the wrong screen; a baseline for
-        // it would be a lie, so report it instead of writing one.
-        const missing = await page.evaluate(() => window.__harness?.missing ?? []);
-        const png = await page.screenshot({ type: "png" });
-        result =
-          missing.length > 0
-            ? { status: "no-hook", changed: 0, total: 0, note: `never found ${missing.join(", ")}` }
-            : await store(mode, shot, png);
-      } catch (error) {
-        result = { status: "error", changed: 0, total: 0, note: String(error).split("\n")[0] };
-      } finally {
-        await page?.context().close().catch(() => {});
-      }
-      process.stderr.write(
-        `[${i + 1}/${shots.length}] ${((Date.now() - shotStarted) / 1000).toFixed(1)}s ${shot.rel}\n`,
-      );
-      rows.push({ shot, ...result });
-      if (mode === "record") {
-        console.log(result.status === "recorded" ? `recorded  ${shot.rel}` : `FAILED    ${shot.rel} — ${result.note}`);
-      }
+  const rows = new Array(shots.length);
+  const jobs = Number(process.env.HARNESS_JOBS ?? Math.min(12, availableParallelism()));
+  if (!Number.isInteger(jobs) || jobs < 1) throw new Error(`HARNESS_JOBS must be a whole number of at least 1, not "${process.env.HARNESS_JOBS}"`);
+  let next = 0;
+  let done = 0;
+  async function shoot(i) {
+    const shot = shots[i];
+    const shotStarted = Date.now();
+    let page = null;
+    let result;
+    try {
+      page = await openScenario(browser, server.url, shot.query, {
+        width: shot.width,
+        height: shot.height,
+        scale: 1,
+        scheme: shot.scheme,
+      });
+      // A query whose hook never appeared shot the wrong screen; a baseline for
+      // it would be a lie, so report it instead of writing one.
+      const missing = await page.evaluate(() => window.__harness?.missing ?? []);
+      const png = await page.screenshot({ type: "png" });
+      result =
+        missing.length > 0
+          ? { status: "no-hook", changed: 0, total: 0, note: `never found ${missing.join(", ")}` }
+          : await store(mode, shot, png);
+    } catch (error) {
+      result = { status: "error", changed: 0, total: 0, note: String(error).split("\n")[0] };
+    } finally {
+      await page?.context().close().catch(() => {});
     }
+    done += 1;
+    process.stderr.write(
+      `[${done}/${shots.length}] ${((Date.now() - shotStarted) / 1000).toFixed(1)}s ${shot.rel}\n`,
+    );
+    rows[i] = { shot, ...result };
+    if (mode === "record") {
+      console.log(result.status === "recorded" ? `recorded  ${shot.rel}` : `FAILED    ${shot.rel} — ${result.note}`);
+    }
+  }
+  try {
+    await Promise.all(
+      Array.from({ length: Math.min(jobs, shots.length) }, async () => {
+        while (next < shots.length) await shoot(next++);
+      }),
+    );
   } finally {
     await browser.close();
     await server.stop();
