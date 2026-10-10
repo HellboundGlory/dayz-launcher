@@ -72,38 +72,33 @@ impl ModState {
     }
 }
 
-/// Whether the Workshop holds a newer version than the copy on disk. Both zero
-/// guards fail safe ("assume current"); see `.ai-notes/crates/tetra-steam/src/workshop.rs.md`.
-pub fn is_stale(installed_at: u32, updated_at: u32) -> bool {
-    installed_at != 0 && updated_at != 0 && updated_at > installed_at
+/// Whether the copy on disk is missing or older than the Workshop copy.
+/// `updated_at == 0` means Steam has not answered yet, so hold off.
+pub fn is_outdated(installed_at: u32, updated_at: u32) -> bool {
+    updated_at != 0 && (installed_at == 0 || updated_at > installed_at)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{is_stale, ItemFlags, ModState};
+    use super::{is_outdated, ItemFlags, ModState};
 
     #[test]
-    fn a_workshop_copy_newer_than_the_disk_copy_is_stale() {
-        assert!(is_stale(1_700_000_000, 1_700_000_001));
-    }
-
-    #[test]
-    fn an_up_to_date_or_newer_local_copy_is_not_stale() {
-        assert!(!is_stale(1_700_000_000, 1_700_000_000));
-        // Local ahead of the Workshop should never happen, but if clocks or
-        // Steam disagree it is not a reason to re-download.
-        assert!(!is_stale(1_700_000_001, 1_700_000_000));
-    }
-
-    #[test]
-    fn an_unanswered_workshop_query_is_not_stale() {
-        assert!(!is_stale(1_700_000_000, 0));
-    }
-
-    #[test]
-    fn an_uninstalled_item_is_not_stale() {
-        assert!(!is_stale(0, 1_700_000_000));
-        assert!(!is_stale(0, 0));
+    fn outdated_follows_the_disk_and_workshop_timestamps() {
+        let cases = [
+            (0, 0, false),
+            (0, 1_700_000_000, true),
+            (1_700_000_000, 0, false),
+            (1_700_000_000, 1_700_000_001, true),
+            (1_700_000_000, 1_700_000_000, false),
+            (1_700_000_001, 1_700_000_000, false),
+        ];
+        for (installed_at, updated_at, expected) in cases {
+            assert_eq!(
+                is_outdated(installed_at, updated_at),
+                expected,
+                "installed_at={installed_at} updated_at={updated_at}"
+            );
+        }
     }
 
     /// Pinned against Steam's wire values — renumbering these silently
