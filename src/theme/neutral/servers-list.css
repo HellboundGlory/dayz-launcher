@@ -151,7 +151,7 @@
     @apply text-accent2;
   }
 
-  .t-neutral-servers-mods[data-state~="none"] {
+  .t-neutral-servers-mods[data-state~="vanilla"] {
     @apply text-muted;
   }
 

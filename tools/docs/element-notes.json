@@ -97,7 +97,7 @@
     "server.players": "In a `selection` container it shows a `label` part reading \"PLAYERS\" above the value, and no `caption`.",
     "server.ping": "In a `selection` container it shows a `label` part reading \"PING\" above the value, and no `caption`.",
     "server.gameTime": "In a `selection` container it shows a `label` part reading \"TIME\" above the time.",
-    "server.modCount": "In a `selection` container it shows a `label` part reading \"MODS\" above the `value`, and no `caption`.",
+    "server.modCount": "In a `selection` container it shows a `label` part reading \"MODS\" above the `value`, and no `caption`. `none` marks a \"—\" (no mods); `vanilla` is added when the server is not modded and was never probed, so a server checked and found to have 0 mods can be styled apart from a vanilla one.",
     "list.modServers": "Shows the first 8 servers; beyond that a `more` part reads \"+{n} more\".",
     "server.favourite": "Reads \"Add to favourites\" or \"Remove from favourites\". The change is applied optimistically and reverted if saving fails.",
     "server.refresh": "Reads \"Refresh this server\" and re-probes only this server. Only one row probes at a time: the probing row is `busy`, and every other row's `server.refresh` is `disabled` until it finishes.",

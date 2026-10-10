@@ -1114,7 +1114,7 @@ export function ServerModCount({
     state = "unprobed";
   } else {
     text = "—";
-    state = "none";
+    state = "none vanilla";
   }
 
   return (

@@ -1818,6 +1818,7 @@
       ],
       "states": [
         "none",
+        "vanilla",
         "unprobed",
         "offline"
       ],
