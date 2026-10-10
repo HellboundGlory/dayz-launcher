@@ -420,10 +420,23 @@ pub fn update_tokens(themes_root: &Path, id: &str, tokens: &Value) -> Result<(),
         .map_err(|e| format!("Could not write {}: {e}", path.display()))
 }
 
-/// Delete an installed theme. Refuses an id with no directory (a built-in
-/// preset, checked first so the error isn't misleading) and refuses `active`,
+/// The reserved id prefix of launcher-bundled themes.
+const BUILTIN_ID_PREFIX: &str = "builtin.";
+
+/// Whether `id` is in the built-in namespace. Ignores ASCII case, because
+/// Windows folders are case-insensitive and `BUILTIN.x` would reach a built-in.
+pub fn is_builtin_id(id: &str) -> bool {
+    id.get(..BUILTIN_ID_PREFIX.len())
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case(BUILTIN_ID_PREFIX))
+}
+
+/// Delete an installed theme. Refuses a `builtin.*` id, an id with no directory
+/// (a built-in preset, checked first so the error isn't misleading) and `active`,
 /// which would otherwise leave the selection pointing at nothing.
 pub fn delete(themes_root: &Path, id: &str, active: Option<&str>) -> Result<(), String> {
+    if is_builtin_id(id) {
+        return Err(format!("`{id}` is a built-in theme and can't be deleted"));
+    }
     let dir = theme_dir(themes_root, id)?;
     if !dir.is_dir() {
         return Err(format!(
@@ -863,6 +876,21 @@ mod tests {
         // ...and goes once the selection has moved away.
         delete(&root, "dev.active", Some("neutral")).expect("delete after switching");
         assert!(get(&root, "dev.active").is_err());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn deleting_a_builtin_theme_is_refused() {
+        let root = scratch("builtin");
+        for id in ["builtin.tactical", "BUILTIN.tactical"] {
+            let dir = root.join(id);
+            std::fs::create_dir_all(&dir).unwrap();
+
+            let err = delete(&root, id, None).expect_err("must refuse");
+
+            assert!(err.contains("can't be deleted"), "{id}: {err}");
+            assert!(dir.is_dir(), "{id} must survive the refusal");
+        }
         let _ = std::fs::remove_dir_all(&root);
     }
 

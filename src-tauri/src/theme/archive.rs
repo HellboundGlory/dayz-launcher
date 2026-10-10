@@ -911,7 +911,7 @@ fn validate_manifest(parsed: &ThemeManifest) -> Result<(), String> {
     if !parsed.theme_api.starts_with("2.") || parsed.schema_version != 2 {
         return Err(format!("MAN-05: theme API {} is unsupported; theme system {SUPPORTED_THEME_API_RANGE} is required.", parsed.theme_api));
     }
-    if parsed.id.starts_with("builtin.") {
+    if super::is_builtin_id(&parsed.id) {
         return Err("Theme ID starts with reserved prefix 'builtin.'".to_string());
     }
     let id = parsed.id.as_bytes();
