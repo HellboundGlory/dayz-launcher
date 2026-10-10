@@ -141,7 +141,7 @@ describe("Neutral layouts", () => {
           createElement(ModalHost, { file: UPDATE_MODAL, onClose: () => {} }),
         ),
       );
-      expect(updateHtml).toContain("Update Available");
+      expect(updateHtml).toContain("Updates");
       expect(updateHtml).toContain('data-el="update.viewRelease"');
 
       const modFilterHtml = renderToStaticMarkup(
