@@ -50,7 +50,7 @@ pub fn validate_css_stylesheet(
 
     let mut parser = Parser::new(source);
 
-    parse_rules(&mut parser, file_path, known_classes, false, &mut issues);
+    parse_rules(&mut parser, file_path, known_classes, false, &mut issues, 0);
 
     issues
 }
@@ -61,6 +61,7 @@ fn parse_rules(
     known_classes: Option<&HashSet<String>>,
     in_font_face: bool,
     issues: &mut Vec<ValidationIssue>,
+    depth: u32,
 ) {
     while !parser.is_exhausted() {
         let state = parser.state();
@@ -73,11 +74,26 @@ fn parse_rules(
             Token::WhiteSpace(_) | Token::Comment(_) => continue,
             Token::AtKeyword(name) => {
                 let at_name = name.to_ascii_lowercase();
-                validate_at_rule(parser, &at_name, file_path, known_classes, issues);
+                validate_at_rule(
+                    parser,
+                    &at_name,
+                    file_path,
+                    known_classes,
+                    issues,
+                    depth,
+                    false,
+                );
             }
             _ => {
                 parser.reset(&state);
-                parse_qualified_rule(parser, file_path, known_classes, in_font_face, issues);
+                parse_qualified_rule(
+                    parser,
+                    file_path,
+                    known_classes,
+                    in_font_face,
+                    issues,
+                    depth,
+                );
             }
         }
     }
@@ -89,6 +105,8 @@ fn validate_at_rule(
     file_path: &str,
     known_classes: Option<&HashSet<String>>,
     issues: &mut Vec<ValidationIssue>,
+    depth: u32,
+    inside_style_rule: bool,
 ) {
     match at_name {
         "media" => {
@@ -101,10 +119,33 @@ fn validate_at_rule(
                 match token {
                     Token::CurlyBracketBlock => {
                         validate_media_prelude_parser(parser, file_path, &prelude_tokens, issues);
-                        let _ = parser.parse_nested_block(|nested| {
-                            parse_rules(nested, file_path, known_classes, false, issues);
-                            Ok::<(), ParseError<()>>(())
-                        });
+                        if depth >= MAX_BLOCK_DEPTH {
+                            issues.push(nesting_too_deep(file_path, &format!("@{at_name}")));
+                            let _ = parser.parse_nested_block(|_| Ok::<(), ParseError<()>>(()));
+                        } else {
+                            let _ = parser.parse_nested_block(|nested| {
+                                if inside_style_rule {
+                                    parse_declarations(
+                                        nested,
+                                        file_path,
+                                        known_classes,
+                                        false,
+                                        issues,
+                                        depth + 1,
+                                    );
+                                } else {
+                                    parse_rules(
+                                        nested,
+                                        file_path,
+                                        known_classes,
+                                        false,
+                                        issues,
+                                        depth + 1,
+                                    );
+                                }
+                                Ok::<(), ParseError<()>>(())
+                            });
+                        }
                         break;
                     }
                     Token::Semicolon => {
@@ -138,7 +179,13 @@ fn validate_at_rule(
                 match token {
                     Token::CurlyBracketBlock => {
                         let _ = parser.parse_nested_block(|nested| {
-                            parse_keyframes_block(nested, file_path, issues);
+                            parse_keyframes_block(
+                                nested,
+                                file_path,
+                                known_classes,
+                                issues,
+                                depth + 1,
+                            );
                             Ok::<(), ParseError<()>>(())
                         });
                         break;
@@ -157,7 +204,14 @@ fn validate_at_rule(
                 match token {
                     Token::CurlyBracketBlock => {
                         let _ = parser.parse_nested_block(|nested| {
-                            parse_declarations(nested, file_path, true, issues);
+                            parse_declarations(
+                                nested,
+                                file_path,
+                                known_classes,
+                                true,
+                                issues,
+                                depth + 1,
+                            );
                             Ok::<(), ParseError<()>>(())
                         });
                         break;
@@ -245,7 +299,9 @@ fn is_allowed_media_feature(feature: &str) -> bool {
 fn parse_keyframes_block(
     parser: &mut Parser<'_>,
     file_path: &str,
+    known_classes: Option<&HashSet<String>>,
     issues: &mut Vec<ValidationIssue>,
+    depth: u32,
 ) {
     while !parser.is_exhausted() {
         let token = match parser.next_including_whitespace_and_comments() {
@@ -255,7 +311,7 @@ fn parse_keyframes_block(
         match token {
             Token::CurlyBracketBlock => {
                 let _ = parser.parse_nested_block(|nested| {
-                    parse_declarations(nested, file_path, false, issues);
+                    parse_declarations(nested, file_path, known_classes, false, issues, depth);
                     Ok::<(), ParseError<()>>(())
                 });
             }
@@ -265,22 +321,49 @@ fn parse_keyframes_block(
     }
 }
 
+fn nesting_too_deep(file_path: &str, pointer: &str) -> ValidationIssue {
+    ValidationIssue {
+        rule_id: "CSS-01".into(),
+        severity: Severity::Error,
+        file: file_path.into(),
+        pointer: pointer.into(),
+        message: format!("Nesting depth exceeds {MAX_BLOCK_DEPTH}"),
+        hint: None,
+    }
+}
+
 fn parse_qualified_rule(
     parser: &mut Parser<'_>,
     file_path: &str,
     known_classes: Option<&HashSet<String>>,
     in_font_face: bool,
     issues: &mut Vec<ValidationIssue>,
+    depth: u32,
 ) {
     parse_selector_and_validate(parser, file_path, known_classes, issues);
 
-    if let Ok(token) = parser.next_including_whitespace_and_comments() {
-        if matches!(token, Token::CurlyBracketBlock) {
-            let _ = parser.parse_nested_block(|nested| {
-                parse_declarations(nested, file_path, in_font_face, issues);
-                Ok::<(), ParseError<()>>(())
-            });
+    let state = parser.state();
+    match parser.next_including_whitespace_and_comments() {
+        Ok(Token::CurlyBracketBlock) => {
+            if depth >= MAX_BLOCK_DEPTH {
+                issues.push(nesting_too_deep(file_path, ""));
+                let _ = parser.parse_nested_block(|_| Ok::<(), ParseError<()>>(()));
+            } else {
+                let _ = parser.parse_nested_block(|nested| {
+                    parse_declarations(
+                        nested,
+                        file_path,
+                        known_classes,
+                        in_font_face,
+                        issues,
+                        depth + 1,
+                    );
+                    Ok::<(), ParseError<()>>(())
+                });
+            }
         }
+        Ok(_) => parser.reset(&state),
+        Err(_) => {}
     }
 }
 
@@ -558,10 +641,13 @@ fn is_allowed_pseudo_element(pseudo: &str) -> bool {
 fn parse_declarations(
     parser: &mut Parser<'_>,
     file_path: &str,
+    known_classes: Option<&HashSet<String>>,
     in_font_face: bool,
     issues: &mut Vec<ValidationIssue>,
+    depth: u32,
 ) {
     while !parser.is_exhausted() {
+        let statement = parser.state();
         let token = match parser.next_including_whitespace_and_comments() {
             Ok(t) => t,
             Err(_) => break,
@@ -569,6 +655,29 @@ fn parse_declarations(
 
         match token {
             Token::WhiteSpace(_) | Token::Comment(_) | Token::Semicolon => continue,
+            Token::AtKeyword(name) => {
+                let at_name = name.to_ascii_lowercase();
+                validate_at_rule(
+                    parser,
+                    &at_name,
+                    file_path,
+                    known_classes,
+                    issues,
+                    depth,
+                    true,
+                );
+            }
+            Token::CurlyBracketBlock => {
+                issues.push(ValidationIssue {
+                    rule_id: "CSS-01".into(),
+                    severity: Severity::Error,
+                    file: file_path.into(),
+                    pointer: String::new(),
+                    message: "Nested block without a selector is not allowed".into(),
+                    hint: None,
+                });
+                let _ = parser.parse_nested_block(|_| Ok::<(), ParseError<()>>(()));
+            }
             Token::Ident(prop_name) => {
                 let property_name = prop_name.to_ascii_lowercase();
 
@@ -592,7 +701,32 @@ fn parse_declarations(
                     }
                 }
 
-                if !colon_found {
+                // A custom property may hold a `{` block as its value; anything
+                // else with a block, or an identifier with no colon, is a rule.
+                let has_block = declaration_has_block(parser);
+                let declaration = colon_found && (property_name.starts_with("--") || !has_block);
+                if !declaration {
+                    if has_block {
+                        parser.reset(&statement);
+                        parse_qualified_rule(
+                            parser,
+                            file_path,
+                            known_classes,
+                            false,
+                            issues,
+                            depth,
+                        );
+                    } else {
+                        issues.push(ValidationIssue {
+                            rule_id: "CSS-01".into(),
+                            severity: Severity::Error,
+                            file: file_path.into(),
+                            pointer: property_name.clone(),
+                            message: format!("Declaration '{property_name}' is missing ':'"),
+                            hint: None,
+                        });
+                        skip_statement(parser);
+                    }
                     continue;
                 }
 
@@ -619,7 +753,49 @@ fn parse_declarations(
                     issues,
                 );
             }
+            _ => {
+                parser.reset(&statement);
+                parse_qualified_rule(parser, file_path, known_classes, false, issues, depth);
+            }
+        }
+    }
+}
+
+/// Whether the declaration value starting at the parser's position holds a
+/// top-level `{` block (a nested rule rather than a declaration value).
+fn declaration_has_block(parser: &mut Parser<'_>) -> bool {
+    let state = parser.state();
+    let mut found = false;
+    while !parser.is_exhausted() {
+        let token = match parser.next_including_whitespace_and_comments() {
+            Ok(t) => t,
+            Err(_) => break,
+        };
+        match token {
+            Token::Semicolon => break,
+            Token::CurlyBracketBlock => {
+                found = true;
+                break;
+            }
+            Token::Function(_) | Token::ParenthesisBlock | Token::SquareBracketBlock => {
+                let _ = parser.parse_nested_block(|_| Ok::<(), ParseError<()>>(()));
+            }
             _ => {}
+        }
+    }
+    parser.reset(&state);
+    found
+}
+
+fn skip_statement(parser: &mut Parser<'_>) {
+    while !parser.is_exhausted() {
+        match parser.next_including_whitespace_and_comments() {
+            Ok(Token::Semicolon) => break,
+            Ok(Token::Function(_) | Token::ParenthesisBlock | Token::SquareBracketBlock) => {
+                let _ = parser.parse_nested_block(|_| Ok::<(), ParseError<()>>(()));
+            }
+            Ok(_) => {}
+            Err(_) => break,
         }
     }
 }
@@ -720,14 +896,7 @@ fn collect_block<'i>(
     sink.tokens.push(opener);
 
     if depth >= MAX_BLOCK_DEPTH {
-        sink.issues.push(ValidationIssue {
-            rule_id: "CSS-01".into(),
-            severity: Severity::Error,
-            file: sink.file.into(),
-            pointer: sink.property.to_string(),
-            message: format!("Nesting depth exceeds {MAX_BLOCK_DEPTH}"),
-            hint: None,
-        });
+        sink.issues.push(nesting_too_deep(sink.file, sink.property));
         let _ = parser.parse_nested_block(|_| Ok::<(), ParseError<()>>(()));
     } else {
         let _ = parser.parse_nested_block(|nested| {
@@ -1204,5 +1373,140 @@ mod tests {
         let issues = validate_css_stylesheet("styles.css", &large_css, None);
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].rule_id, "CSS-08");
+    }
+
+    #[test]
+    fn a_nested_rule_is_checked_like_a_top_level_rule() {
+        let pairs = [
+            (
+                r#"[data-el="b"] { .x { background: url(https://evil/p.png) } }"#,
+                r#".x { background: url(https://evil/p.png) }"#,
+            ),
+            (
+                r#"[data-el="b"] { & #root, * { display: none !important } }"#,
+                "& #root, * { display: none !important }",
+            ),
+        ];
+        for (nested, flat) in pairs {
+            let nested_ids: Vec<String> = validate_css_stylesheet("styles.css", nested, None)
+                .iter()
+                .map(|i| i.rule_id.clone())
+                .collect();
+            let flat_ids: Vec<String> = validate_css_stylesheet("styles.css", flat, None)
+                .iter()
+                .map(|i| i.rule_id.clone())
+                .collect();
+            assert_eq!(
+                nested_ids, flat_ids,
+                "nested rule in `{nested}` was not checked"
+            );
+            assert!(!nested_ids.is_empty());
+        }
+    }
+
+    #[test]
+    fn a_url_inside_nested_rules_is_refused() {
+        let css =
+            r#"[data-el="b"] { [data-el="c"] { .x { background: url(https://evil/p.png) } } }"#;
+        let issues = validate_css_stylesheet("styles.css", css, None);
+        assert!(
+            issues.iter().any(|i| i.rule_id == "CSS-07"),
+            "Got: {issues:#?}"
+        );
+    }
+
+    #[test]
+    fn a_legitimate_nested_rule_passes() {
+        let css = r#"[data-el="x"] { &:hover { color: var(--accent); } }"#;
+        let issues = validate_css_stylesheet("styles.css", css, None);
+        assert!(issues.is_empty(), "Expected 0 issues, got: {issues:#?}");
+    }
+
+    #[test]
+    fn nested_rules_deeper_than_the_limit_are_refused() {
+        let css = format!("{}{}", "[data-el=\"b\"] {".repeat(40), "}".repeat(40));
+        let issues = validate_css_stylesheet("styles.css", &css, None);
+        assert!(
+            issues.iter().any(|i| i.rule_id == "CSS-01"),
+            "Got: {issues:#?}"
+        );
+    }
+
+    #[test]
+    fn a_nested_block_without_a_selector_is_refused() {
+        let css = r#"[data-el="b"] { { color: red; } }"#;
+        let issues = validate_css_stylesheet("styles.css", css, None);
+        assert!(
+            issues.iter().any(|i| i.rule_id == "CSS-01"),
+            "Got: {issues:#?}"
+        );
+    }
+
+    #[test]
+    fn a_font_face_src_with_local_then_url_passes() {
+        let css = r#"@font-face { font-family: "Inter"; src: local("Inter"), url("fonts/x.woff2") format("woff2"); }"#;
+        let issues = validate_css_stylesheet("styles.css", css, None);
+        assert!(issues.is_empty(), "Expected 0 issues, got: {issues:#?}");
+    }
+
+    #[test]
+    fn a_media_rule_inside_a_style_rule_still_checks_its_declarations() {
+        let cases = [
+            (
+                r#"[data-el="b"] { @media all { &;background:url(https://evil.example/x.png) } }"#,
+                "CSS-07",
+            ),
+            (
+                r#"[data-el="b"] { @media all { z-index: 9 !important } }"#,
+                "CSS-04",
+            ),
+            (
+                r#"[data-el="b"] { @media all { behavior: url(x.htc) } }"#,
+                "CSS-05",
+            ),
+        ];
+        for (css, expected) in cases {
+            let issues = validate_css_stylesheet("styles.css", css, None);
+            assert!(
+                issues.iter().any(|i| i.rule_id == expected),
+                "Expected {expected} for `{css}`, got: {issues:#?}"
+            );
+        }
+    }
+
+    #[test]
+    fn declarations_in_a_media_rule_inside_a_style_rule_pass() {
+        let css = r#"[data-el="x"] { @media (max-width: 600px) { color: var(--accent); } }"#;
+        let issues = validate_css_stylesheet("styles.css", css, None);
+        assert!(issues.is_empty(), "Expected 0 issues, got: {issues:#?}");
+    }
+
+    #[test]
+    fn a_statement_without_a_colon_is_a_bad_declaration() {
+        let css = r#"[data-el="b"] { color red; }"#;
+        let issues = validate_css_stylesheet("styles.css", css, None);
+        assert_eq!(issues.len(), 1, "Got: {issues:#?}");
+        assert_eq!(issues[0].rule_id, "CSS-01");
+        assert!(
+            !issues[0].message.contains("selector"),
+            "Expected a declaration error, got: {}",
+            issues[0].message
+        );
+    }
+
+    #[test]
+    fn alternating_group_and_style_rules_share_the_one_depth_limit() {
+        let mut css = String::from("[data-el=\"b\"] {");
+        for _ in 0..20 {
+            css.push_str(" @media screen { & {");
+        }
+        css.push_str(&" } }".repeat(20));
+        css.push('}');
+        let issues = validate_css_stylesheet("styles.css", &css, None);
+        let depth: Vec<&ValidationIssue> = issues
+            .iter()
+            .filter(|i| i.message.contains("Nesting depth"))
+            .collect();
+        assert_eq!(depth.len(), 1, "Got: {issues:#?}");
     }
 }
