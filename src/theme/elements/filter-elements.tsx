@@ -62,7 +62,7 @@ function DropdownTrigger({
       title={title}
       aria-haspopup="listbox"
       aria-expanded={open}
-      className="flex items-center gap-1.5 border-0 bg-transparent p-0 [font:inherit] [color:inherit]"
+      className="flex items-center gap-1.5 border-0 bg-transparent p-0 [font:inherit] [text-transform:inherit] [color:inherit]"
     >
       {label !== null && (
         <span data-part="label" className="text-muted text-[10px] font-bold">
