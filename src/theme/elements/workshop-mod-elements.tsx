@@ -1,11 +1,12 @@
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import { Ban, Check, ExternalLink, Star } from "lucide-react";
-import { cn, formatBytes, formatLastPlayed } from "@/lib/utils";
+import { cn, formatBytes } from "@/lib/utils";
 import { openWorkshopInSteam } from "@/lib/tauri";
 import { useModFilterStore, type ModFilterEntry } from "@/stores/mod-filter-store";
 import { useElementContext } from "./context";
 import { OptionIcon } from "./option-icon";
 import { hashHue, initials } from "./mod-thumbnail";
+import { formatElementTime } from "./element-utils";
 import type { ElementNode } from "../renderer/types";
 
 function useWorkshopModSubject(): ModFilterEntry | null {
@@ -14,13 +15,6 @@ function useWorkshopModSubject(): ModFilterEntry | null {
     return subjectContext.data as ModFilterEntry;
   }
   return previewMod as ModFilterEntry | null;
-}
-
-function formatEntryTime(unixSeconds: number, format: unknown): string {
-  if (format === "date") {
-    return new Date(unixSeconds * 1000).toLocaleDateString();
-  }
-  return formatLastPlayed(unixSeconds);
 }
 
 function WorkshopModPick({ className, style }: { className?: string; style?: CSSProperties }) {
@@ -194,7 +188,7 @@ function WorkshopModUpdated({
   return (
     <span data-el="workshopMod.updated" className={className} style={style}>
       <span data-part="label">{label}</span>{" "}
-      <span data-part="value">{formatEntryTime(entry.timeUpdated, options?.format ?? "relative")}</span>
+      <span data-part="value">{formatElementTime(entry.timeUpdated, options?.format ?? "relative")}</span>
     </span>
   );
 }

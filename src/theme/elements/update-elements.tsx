@@ -3,11 +3,7 @@ import { open as openLink } from "@tauri-apps/plugin-shell";
 import { useUpdateStore } from "@/stores/update-store";
 import { DOWNLOAD_URL, UpdateChangelogMarkdown } from "@/components/update-modal";
 import { useElementContext } from "./context";
-
-function joinStates(...states: (string | false | null | undefined)[]): string | undefined {
-  const active = states.filter(Boolean) as string[];
-  return active.length > 0 ? active.join(" ") : undefined;
-}
+import { states } from "./element-utils";
 
 export function UpdateInstall({
   className,
@@ -25,7 +21,7 @@ export function UpdateInstall({
     <button
       type="button"
       data-el="update.install"
-      data-state={joinStates(installing && "busy", installing && "disabled")}
+      data-state={states(installing && "busy", installing && "disabled")}
       disabled={installing}
       onClick={() => void install()}
       className={className}
@@ -82,7 +78,7 @@ export function UpdateLater({
     <button
       type="button"
       data-el="update.later"
-      data-state={joinStates(installing && "disabled")}
+      data-state={states(installing && "disabled")}
       disabled={installing}
       onClick={handleClick}
       className={className}
@@ -186,7 +182,7 @@ export function UpdateProgress({
   return (
     <div
       data-el="update.progress"
-      data-state={joinStates(progress && installing && "downloading", error && "failed")}
+      data-state={states(progress && installing && "downloading", error && "failed")}
       className={className}
       style={style}
     >
@@ -209,7 +205,8 @@ export function UpdatePortableNote({
   style?: CSSProperties;
 }) {
   const installed = useUpdateStore((s) => s.installed);
-  if (installed === true) return null;
+  const available = useUpdateStore((s) => s.available);
+  if (installed === true || !available) return null;
 
   return (
     <span data-el="update.portableNote" className={className} style={style}>

@@ -2,6 +2,8 @@ import type { CSSProperties } from "react";
 import type { ModReadinessEntry, ServerModReadiness } from "@/types/server";
 import { formatBytes } from "@/lib/utils";
 import { useSelectionReadiness } from "./use-selection-readiness";
+import { useServerSubject } from "./server-elements";
+import { states } from "./element-utils";
 
 export type ReadinessState =
   | "checking"
@@ -98,7 +100,9 @@ export function ServerReadiness({
   style?: CSSProperties;
 }) {
   const { readiness, loading } = useSelectionReadiness();
+  const server = useServerSubject();
   const view = computeReadinessView(readiness, loading);
+  const offline = server !== null && !server.online;
 
   const showDot = options?.showDot !== false;
   const showSize = options?.showSize !== false;
@@ -110,7 +114,7 @@ export function ServerReadiness({
       : null;
 
   return (
-    <div data-el="server.readiness" data-state={view.dataState} className={className} style={style}>
+    <div data-el="server.readiness" data-state={states(view.dataState, offline && "offline")} className={className} style={style}>
       {showDot && <span data-part="dot" />}
       <span data-part="label">{labelOverride ?? view.label}</span>
       {showSize && sizeText && <span data-part="size">{sizeText}</span>}
@@ -126,7 +130,9 @@ export function ServerDownloadSize({
   style?: CSSProperties;
 }) {
   const { readiness, loading } = useSelectionReadiness();
+  const server = useServerSubject();
   const view = computeReadinessView(readiness, loading);
+  const offline = server !== null && !server.online;
 
   let dataState: "checking" | "none" | "upperBound" | undefined;
   let qualifier: string | null = null;
@@ -147,7 +153,7 @@ export function ServerDownloadSize({
   }
 
   return (
-    <div data-el="server.downloadSize" data-state={dataState} className={className} style={style}>
+    <div data-el="server.downloadSize" data-state={states(dataState, offline && "offline")} className={className} style={style}>
       {qualifier && <span data-part="qualifier">{qualifier}</span>}
       <span data-part="value">{value}</span>
     </div>

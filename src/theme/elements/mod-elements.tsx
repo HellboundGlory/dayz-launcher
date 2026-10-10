@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type MouseEvent } from "react";
 import { Check, Download, ExternalLink, FolderOpen, Package, RefreshCw, X } from "lucide-react";
-import { cn, formatBytes, formatLastPlayed } from "@/lib/utils";
+import { cn, formatBytes } from "@/lib/utils";
 import { useModsStore } from "@/stores/mods-store";
 import { effectiveModState } from "@/components/mods-tab";
 import {
@@ -14,6 +14,7 @@ import {
 import { useElementContext } from "./context";
 import { MOD_STATE_NAME } from "./list-elements";
 import { OptionIcon } from "./option-icon";
+import { displayOption, formatElementTime, states } from "./element-utils";
 
 function useModSubject(): SubscribedMod | null {
   const { subjectContext, selectedMod } = useElementContext();
@@ -23,10 +24,9 @@ function useModSubject(): SubscribedMod | null {
   return selectedMod as SubscribedMod | null;
 }
 
-/** Every mod element's own `data-state` starts with `disabled` for a locally-disabled mod. */
-function modStates(mod: SubscribedMod, ...states: (string | false | null | undefined)[]): string | undefined {
-  const list = [mod.locally_disabled && "disabled", ...states].filter(Boolean) as string[];
-  return list.length ? list.join(" ") : undefined;
+/** The mod's own states, prefixed with `disabled` for a locally-disabled mod. */
+function modStates(mod: SubscribedMod, ...rest: (string | false | null | undefined)[]): string | undefined {
+  return states(mod.locally_disabled && "disabled", ...rest);
 }
 
 function useModLiveState(mod: SubscribedMod | null): ModState | undefined {
@@ -39,13 +39,6 @@ function useModProgress(mod: SubscribedMod | null): { downloaded: string; total:
 
 function modSubscribedTime(mod: SubscribedMod): number {
   return mod.time_added_to_user_list || mod.install_timestamp || 0;
-}
-
-function formatModTime(unixSeconds: number, format: unknown): string {
-  if (format === "date") {
-    return new Date(unixSeconds * 1000).toLocaleDateString();
-  }
-  return formatLastPlayed(unixSeconds);
 }
 
 export function ModSelect({ className, style }: { className?: string; style?: CSSProperties }) {
@@ -234,7 +227,7 @@ export function ModUpdated({
   const missing = !mod.time_updated;
   return (
     <span data-el="mod.updated" data-state={modStates(mod, missing && "unknown")} className={className ?? "text-muted"} style={style}>
-      <span data-part="value">{missing ? "—" : formatModTime(mod.time_updated, options?.format ?? "relative")}</span>
+      <span data-part="value">{missing ? "—" : formatElementTime(mod.time_updated, options?.format ?? "relative")}</span>
     </span>
   );
 }
@@ -255,7 +248,7 @@ export function ModSubscribed({
   const missing = !ts;
   return (
     <span data-el="mod.subscribed" data-state={modStates(mod, missing && "unknown")} className={className ?? "text-muted"} style={style}>
-      <span data-part="value">{missing ? "—" : formatModTime(ts, options?.format ?? "relative")}</span>
+      <span data-part="value">{missing ? "—" : formatElementTime(ts, options?.format ?? "relative")}</span>
     </span>
   );
 }
@@ -275,7 +268,7 @@ export function ModCreated({
   const missing = !mod.time_created;
   return (
     <span data-el="mod.created" data-state={modStates(mod, missing && "unknown")} className={className ?? "text-muted"} style={style}>
-      <span data-part="value">{missing ? "—" : formatModTime(mod.time_created, options?.format ?? "date")}</span>
+      <span data-part="value">{missing ? "—" : formatElementTime(mod.time_created, options?.format ?? "date")}</span>
     </span>
   );
 }
@@ -373,16 +366,6 @@ export function ModDescription({
   );
 }
 
-function modDisplayOptions(options: Record<string, unknown> | undefined, fallbackLabel: string) {
-  const display = (options?.display as string | undefined) ?? "label";
-  const label = (options?.label as string | undefined) ?? fallbackLabel;
-  return {
-    label,
-    showIcon: display === "iconLabel" || display === "icon",
-    showLabel: display === "iconLabel" || display === "label",
-  };
-}
-
 export function ModUpdate({
   options,
   className,
@@ -399,7 +382,7 @@ export function ModUpdate({
   if (!mod) return null;
   if (effectiveModState(mod.state, live) !== "needs_update") return null;
 
-  const { label, showIcon, showLabel } = modDisplayOptions(options, "Update");
+  const { label, showIcon, showLabel } = displayOption(options, "Update");
   const busy = op?.kind === "update";
 
   const handleClick = (e: MouseEvent) => {
@@ -440,7 +423,7 @@ export function ModOpenInSteam({
   const mod = useModSubject();
   if (!mod) return null;
 
-  const { label, showIcon, showLabel } = modDisplayOptions(options, "Open in Steam");
+  const { label, showIcon, showLabel } = displayOption(options, "Open in Steam");
 
   const handleClick = (e: MouseEvent) => {
     e.stopPropagation();
@@ -479,7 +462,7 @@ export function ModOpenFolder({
   const mod = useModSubject();
   if (!mod) return null;
 
-  const { label, showIcon, showLabel } = modDisplayOptions(options, "Open folder");
+  const { label, showIcon, showLabel } = displayOption(options, "Open folder");
   const disabled = !mod.folder;
 
   const handleClick = (e: MouseEvent) => {
@@ -522,7 +505,7 @@ export function ModReinstall({
   const [busy, setBusy] = useState(false);
   if (!mod) return null;
 
-  const { label, showIcon, showLabel } = modDisplayOptions(options, "Reinstall");
+  const { label, showIcon, showLabel } = displayOption(options, "Reinstall");
 
   const handleClick = (e: MouseEvent) => {
     e.stopPropagation();
@@ -658,7 +641,7 @@ export function ModServerLastPlayed({
 
   const label = options?.label !== undefined ? String(options.label) : undefined;
   const never = srv.last_played === null;
-  const value = never ? "never" : formatModTime(srv.last_played!, options?.format ?? "relative");
+  const value = never ? "never" : formatElementTime(srv.last_played!, options?.format ?? "relative");
 
   return (
     <span data-el="modServer.lastPlayed" data-state={never ? "never" : undefined} className={className} style={style}>
@@ -673,6 +656,7 @@ export interface ServerModData {
   name?: string;
   state?: string;
   size_bytes?: number | null;
+  size_is_upper_bound?: boolean;
   preview_url?: string | null;
   is_unique?: boolean;
   order?: number;
@@ -688,6 +672,45 @@ function useServerModSubject(): ServerModData | null {
   return null;
 }
 
+type ServerModStateName =
+  | "checking"
+  | "ready"
+  | "needsUpdate"
+  | "downloading"
+  | "notInstalled"
+  | "notSubscribed"
+  | "serverSide";
+
+interface ServerModView {
+  name: ServerModStateName;
+  label: string;
+  dot: string;
+  dotClass: string;
+  labelClass: string;
+}
+
+const SERVER_MOD_VIEWS: Record<string, ServerModView> = {
+  ready: { name: "ready", label: "Ready", dot: "✓", dotClass: "text-success", labelClass: "text-muted" },
+  needs_update: { name: "needsUpdate", label: "Needs update", dot: "↓", dotClass: "text-warn", labelClass: "text-warn font-semibold" },
+  downloading: { name: "downloading", label: "Downloading", dot: "↓", dotClass: "text-muted", labelClass: "text-muted" },
+  not_installed: { name: "notInstalled", label: "Not installed", dot: "·", dotClass: "text-muted", labelClass: "text-muted" },
+  not_subscribed: { name: "notSubscribed", label: "Not subscribed", dot: "+", dotClass: "text-danger", labelClass: "text-danger font-semibold" },
+  not_on_workshop: { name: "serverSide", label: "Server-side", dot: "·", dotClass: "text-muted", labelClass: "text-muted" },
+};
+
+const SERVER_MOD_CHECKING: ServerModView = {
+  name: "checking",
+  label: "Checking…",
+  dot: "·",
+  dotClass: "text-muted",
+  labelClass: "text-muted",
+};
+
+/** An unknown or absent backend state reads as still checking. */
+function serverModView(mod: ServerModData): ServerModView {
+  return SERVER_MOD_VIEWS[mod.state ?? ""] ?? SERVER_MOD_CHECKING;
+}
+
 export function ServerModState({
   options,
   className,
@@ -700,34 +723,33 @@ export function ServerModState({
   const mod = useServerModSubject();
   if (!mod) return null;
 
-  const display = (options?.display as string) ?? "label";
-  const state = mod.state ?? "ready";
+  const display = (options?.display as string | undefined) ?? "dotLabel";
+  const view = serverModView(mod);
+  const wording = (options?.label as string | undefined) ?? view.label;
+  const dotOnly = display === "dot";
+  const showDot = display === "dotLabel" || dotOnly;
+  const showLabel = display === "dotLabel" || display === "label";
 
-  if (display === "dot") {
-    if (state === "ready") {
-      return <span data-el="serverMod.state" data-part="dot" className={className ?? "text-success font-bold text-xs mr-2"} style={style}>✓</span>;
-    }
-    if (state === "needs_update" || state === "update") {
-      return <span data-el="serverMod.state" data-part="dot" className={className ?? "text-warn font-bold text-xs mr-2"} style={style}>↓</span>;
-    }
-    if (state === "not_subscribed") {
-      return <span data-el="serverMod.state" data-part="dot" className={className ?? "text-danger font-bold text-xs mr-2"} style={style}>+</span>;
-    }
-    return <span data-el="serverMod.state" data-part="dot" className={className ?? "text-muted font-bold text-xs mr-2"} style={style}>·</span>;
-  }
-
-  if (state === "ready") {
-    return <span data-el="serverMod.state" data-part="label" className={className ?? "text-muted font-mono-data text-xs"} style={style}>ready</span>;
-  }
-  if (state === "needs_update" || state === "update") {
-    const sizeStr = mod.size_bytes ? ` ${formatBytes(mod.size_bytes)}` : "";
-    return <span data-el="serverMod.state" data-part="label" className={className ?? "text-warn font-mono-data text-xs font-semibold"} style={style}>update{sizeStr}</span>;
-  }
-  if (state === "not_subscribed") {
-    return <span data-el="serverMod.state" data-part="label" className={className ?? "text-danger font-mono-data text-xs font-semibold"} style={style}>not subscribed</span>;
-  }
-
-  return <span data-el="serverMod.state" data-part="label" className={className ?? "text-muted font-mono-data text-xs"} style={style}>{state}</span>;
+  return (
+    <span
+      data-el="serverMod.state"
+      data-state={view.name}
+      className={className ?? "inline-flex items-center gap-[var(--t-space-inlineGap)]"}
+      style={style}
+    >
+      {showDot && (
+        <span
+          data-part="dot"
+          role={dotOnly ? "img" : undefined}
+          aria-label={dotOnly ? wording : undefined}
+          className={cn(view.dotClass, "font-bold text-xs")}
+        >
+          {view.dot}
+        </span>
+      )}
+      {showLabel && <span data-part="label" className={cn(view.labelClass, "font-mono-data text-xs")}>{wording}</span>}
+    </span>
+  );
 }
 
 export function ServerModName({ className, style }: { className?: string; style?: CSSProperties }) {
@@ -743,11 +765,27 @@ export function ServerModName({ className, style }: { className?: string; style?
 
 export function ServerModSize({ className, style }: { className?: string; style?: CSSProperties }) {
   const mod = useServerModSubject();
-  if (!mod || !mod.size_bytes) return null;
+  if (!mod) return null;
+
+  const view = serverModView(mod);
+  if (view.name === "ready" || view.name === "serverSide") return null;
+
+  const size = mod.size_bytes ? formatBytes(mod.size_bytes) : null;
+  const upperBound = !!mod.size_is_upper_bound && size !== null;
 
   return (
-    <span data-el="serverMod.size" className={className ?? "font-mono-data text-xs text-muted mr-2"} style={style}>
-      {formatBytes(mod.size_bytes)}
+    <span
+      data-el="serverMod.size"
+      data-state={size === null ? "unknown" : upperBound ? "upperBound" : undefined}
+      className={className ?? "font-mono-data text-xs text-muted mr-2"}
+      style={style}
+    >
+      {upperBound && (
+        <>
+          <span data-part="qualifier">up to</span>{" "}
+        </>
+      )}
+      <span data-part="value">{size ?? "—"}</span>
     </span>
   );
 }
@@ -829,10 +867,7 @@ export function ServerModOpenInSteam({
   if (!mod) return null;
 
   const disabled = mod.state === "not_on_workshop";
-  const display = (options?.display as string | undefined) ?? "icon";
-  const label = (options?.label as string | undefined) ?? "Open in Steam";
-  const showIcon = display === "iconLabel" || display === "icon";
-  const showLabel = display === "iconLabel" || display === "label";
+  const { label, showIcon, showLabel } = displayOption(options, "Open in Steam", "icon");
 
   const handleClick = (e: MouseEvent) => {
     e.stopPropagation();

@@ -680,4 +680,110 @@ describe("serverMod elements", () => {
       expect(tauriMocks.openWorkshopInSteam).not.toHaveBeenCalled();
     });
   });
+
+  describe("ServerModState", () => {
+    const cases: [string, string, string][] = [
+      ["ready", "Ready", "ready"],
+      ["needs_update", "Needs update", "needsUpdate"],
+      ["downloading", "Downloading", "downloading"],
+      ["not_installed", "Not installed", "notInstalled"],
+      ["not_subscribed", "Not subscribed", "notSubscribed"],
+      ["not_on_workshop", "Server-side", "serverSide"],
+      ["checking", "Checking…", "checking"],
+    ];
+
+    it("renders the dot and the wording, with the state name, for every state", async () => {
+      const { ServerModState } = await import("./mod-elements");
+      for (const [state, wording, name] of cases) {
+        const html = renderWithServerMod(<ServerModState />, { state });
+        expect(html).toContain(`data-state="${name}"`);
+        expect(html).toContain('data-part="dot"');
+        expect(html).toContain('data-part="label"');
+        expect(html).toContain(wording);
+      }
+    });
+
+    it("renders only the dot, with the wording as its role=img label, for display dot", async () => {
+      const { ServerModState } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModState options={{ display: "dot" }} />, { state: "ready" });
+      expect(html).toContain('data-state="ready"');
+      expect(html).toContain('data-part="dot"');
+      expect(html).not.toContain('data-part="label"');
+      expect(html).toContain('role="img"');
+      expect(html).toContain('aria-label="Ready"');
+    });
+
+    it("renders only the label for display label", async () => {
+      const { ServerModState } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModState options={{ display: "label" }} />, { state: "ready" });
+      expect(html).not.toContain('data-part="dot"');
+      expect(html).toContain('data-part="label"');
+    });
+
+    it("uses the label option as the wording", async () => {
+      const { ServerModState } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModState options={{ label: "Ready to go" }} />, { state: "ready" });
+      expect(html).toContain("Ready to go");
+    });
+
+    it("maps a missing state to checking", async () => {
+      const { ServerModState } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModState />, {});
+      expect(html).toContain('data-state="checking"');
+      expect(html).toContain("Checking…");
+    });
+  });
+
+  describe("ServerModSize", () => {
+    const text = (html: string) => html.replace(/<[^>]*>/g, "");
+
+    it("shows the full size for a missing or unsubscribed mod", async () => {
+      const { ServerModSize } = await import("./mod-elements");
+      for (const state of ["not_installed", "not_subscribed"]) {
+        const html = renderWithServerMod(<ServerModSize />, { state, size_bytes: 1024, size_is_upper_bound: false });
+        expect(text(html)).toBe("1 KB");
+        expect(html).not.toContain('data-part="qualifier"');
+        expect(html).not.toContain("data-state=");
+      }
+    });
+
+    it("shows 'up to' the size with the upperBound state when the backend flags an upper bound", async () => {
+      const { ServerModSize } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModSize />, {
+        state: "not_installed",
+        size_bytes: 1024,
+        size_is_upper_bound: true,
+      });
+      expect(html).toContain('data-state="upperBound"');
+      expect(html).toContain('data-part="qualifier"');
+      expect(text(html)).toBe("up to 1 KB");
+    });
+
+    it("shows no upper bound for a needs_update mod the backend did not flag", async () => {
+      const { ServerModSize } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModSize />, {
+        state: "needs_update",
+        size_bytes: 4096,
+        size_is_upper_bound: false,
+      });
+      expect(html).not.toContain('data-part="qualifier"');
+      expect(html).not.toContain("data-state=");
+      expect(text(html)).toBe("4 KB");
+    });
+
+    it("renders nothing for ready and server-side mods", async () => {
+      const { ServerModSize } = await import("./mod-elements");
+      for (const state of ["ready", "not_on_workshop"]) {
+        const html = renderWithServerMod(<ServerModSize />, { state, size_bytes: 1024 });
+        expect(html).toBe("");
+      }
+    });
+
+    it("shows — with the unknown state when the size is missing", async () => {
+      const { ServerModSize } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModSize />, { state: "not_installed", size_bytes: null });
+      expect(html).toContain('data-state="unknown"');
+      expect(html).toContain('data-part="value">—<');
+    });
+  });
 });
