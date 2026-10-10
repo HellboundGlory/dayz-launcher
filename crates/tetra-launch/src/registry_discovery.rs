@@ -7,6 +7,102 @@ pub struct SteamPaths {
     pub workshop_dir: PathBuf,
 }
 
+const DAYZ_APP_ID: &str = "221100";
+
+fn dayz_dir(root: &std::path::Path) -> PathBuf {
+    root.join("steamapps").join("common").join("DayZ")
+}
+
+fn dayz_manifest(root: &std::path::Path) -> PathBuf {
+    root.join("steamapps")
+        .join(format!("appmanifest_{DAYZ_APP_ID}.acf"))
+}
+
+fn workshop_dir(root: &std::path::Path) -> PathBuf {
+    root.join("steamapps")
+        .join("workshop")
+        .join("content")
+        .join(DAYZ_APP_ID)
+}
+
+/// Library roots declared in `libraryfolders.vdf`, in file order. Reads both
+/// the `"path"  "<dir>"` form and the older `"<n>"  "<dir>"` form.
+fn library_paths(vdf: &str) -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    for line in vdf.lines() {
+        let tokens = quoted_tokens(line);
+        if tokens.len() != 2 {
+            continue;
+        }
+        let (key, value) = (&tokens[0], &tokens[1]);
+        let numbered = key.chars().all(|c| c.is_ascii_digit());
+        if key.as_str() == "path" || (numbered && looks_like_path(value)) {
+            roots.push(PathBuf::from(value));
+        }
+    }
+    roots
+}
+
+fn looks_like_path(value: &str) -> bool {
+    value.contains(':') || value.contains('/') || value.contains('\\')
+}
+
+/// Split a VDF line into its quoted values, unescaping `\\` and `\"`.
+fn quoted_tokens(line: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut chars = line.chars();
+    while let Some(c) = chars.next() {
+        if c != '"' {
+            continue;
+        }
+        let mut value = String::new();
+        loop {
+            match chars.next() {
+                Some('\\') => {
+                    if let Some(escaped) = chars.next() {
+                        value.push(escaped);
+                    }
+                }
+                Some('"') | None => break,
+                Some(other) => value.push(other),
+            }
+        }
+        tokens.push(value);
+    }
+    tokens
+}
+
+/// The library root that holds DayZ: the one with DayZ's app manifest, or
+/// failing that the one with a `common/DayZ` folder. The Steam root is
+/// checked before any declared library.
+fn dayz_library(steam_install: &std::path::Path, libraries: &[PathBuf]) -> Option<PathBuf> {
+    let roots = || std::iter::once(steam_install).chain(libraries.iter().map(PathBuf::as_path));
+    roots()
+        .find(|root| dayz_manifest(root).exists())
+        .or_else(|| roots().find(|root| dayz_dir(root).exists()))
+        .map(std::path::Path::to_path_buf)
+}
+
+/// Resolve both paths from the library that holds DayZ; the workshop folder
+/// is always under that library, whether or not Steam has created it yet.
+fn resolve_paths(steam_install: &std::path::Path, libraries: &[PathBuf]) -> Option<SteamPaths> {
+    let library = dayz_library(steam_install, libraries)?;
+    Some(SteamPaths {
+        steam_install: steam_install.to_path_buf(),
+        dayz_install: dayz_dir(&library),
+        workshop_dir: workshop_dir(&library),
+    })
+}
+
+/// Library roots declared beside a Steam root, if `libraryfolders.vdf` exists.
+fn declared_libraries(steam_install: &std::path::Path) -> Vec<PathBuf> {
+    let vdf = steam_install.join("steamapps").join("libraryfolders.vdf");
+    match std::fs::read_to_string(vdf) {
+        Ok(text) => library_paths(&text),
+        Err(_) => Vec::new(),
+    }
+}
+
 #[cfg(windows)]
 mod imp {
     use super::*;
@@ -21,21 +117,8 @@ mod imp {
         let steam_install: String = steam_key.get_value("InstallPath").ok()?;
         let steam_install = PathBuf::from(steam_install);
 
-        // The library that actually holds DayZ, not necessarily `steam_install`
-        // itself — workshop content lives in the same library as the app.
-        let dayz_library = find_dayz_library(&steam_install)?;
-        let dayz_install = dayz_library.join("steamapps").join("common").join("DayZ");
-        let workshop_dir = dayz_library
-            .join("steamapps")
-            .join("workshop")
-            .join("content")
-            .join("221100");
-
-        Some(SteamPaths {
-            steam_install,
-            dayz_install,
-            workshop_dir,
-        })
+        let libraries = declared_libraries(&steam_install);
+        resolve_paths(&steam_install, &libraries)
     }
 
     /// Locate `steam.exe` so the launcher can offer to start Steam for the user.
@@ -56,36 +139,6 @@ mod imp {
                 .filter(|path| path.exists())
         })
     }
-
-    /// The Steam library *root* containing DayZ (not the DayZ path itself),
-    /// so `find_steam_paths` can derive `workshop_dir` from the same library.
-    fn find_dayz_library(steam_dir: &std::path::Path) -> Option<PathBuf> {
-        // Default Steam library location
-        let default_dayz = steam_dir.join("steamapps").join("common").join("DayZ");
-        if default_dayz.exists() {
-            return Some(steam_dir.to_path_buf());
-        }
-
-        // Check LibraryFolders for alternate install locations
-        let library_folders = steam_dir.join("steamapps").join("libraryfolders.vdf");
-
-        if let Ok(contents) = std::fs::read_to_string(&library_folders) {
-            for line in contents.lines() {
-                // Parse lines like: "1"		"E:\\SteamLibrary"
-                if let Some(path_str) = line.split('"').nth(3) {
-                    if path_str.contains(':') {
-                        let root = PathBuf::from(path_str);
-                        let candidate = root.join("steamapps").join("common").join("DayZ");
-                        if candidate.exists() {
-                            return Some(root);
-                        }
-                    }
-                }
-            }
-        }
-
-        None
-    }
 }
 
 /// Discover Steam/DayZ/Workshop paths on Linux (native Steam, under
@@ -96,38 +149,8 @@ mod imp {
 
     pub fn find_steam_paths() -> Option<SteamPaths> {
         let steam_install = steam_root()?;
-
-        // Every candidate library root: the Steam root itself plus any extra
-        // libraries declared in libraryfolders.vdf.
-        let mut roots = vec![steam_install.clone()];
-        roots.extend(library_paths(&steam_install));
-
-        let dayz_install = roots
-            .iter()
-            .map(|r| r.join("steamapps").join("common").join("DayZ"))
-            .find(|d| d.exists())?;
-
-        let workshop_dir = roots
-            .iter()
-            .map(|r| {
-                r.join("steamapps")
-                    .join("workshop")
-                    .join("content")
-                    .join("221100")
-            })
-            .find(|w| w.is_dir());
-
-        Some(SteamPaths {
-            steam_install: steam_install.clone(),
-            dayz_install,
-            workshop_dir: workshop_dir.unwrap_or_else(|| {
-                steam_install
-                    .join("steamapps")
-                    .join("workshop")
-                    .join("content")
-                    .join("221100")
-            }),
-        })
+        let libraries = declared_libraries(&steam_install);
+        resolve_paths(&steam_install, &libraries)
     }
 
     /// Locate the native `steam` launcher so the launcher can start Steam.
@@ -159,36 +182,6 @@ mod imp {
         None
     }
 
-    /// Collect library roots declared in `libraryfolders.vdf`.
-    fn library_paths(root: &std::path::Path) -> Vec<PathBuf> {
-        let vdf = root.join("steamapps").join("libraryfolders.vdf");
-        let mut out = Vec::new();
-        let Ok(text) = std::fs::read_to_string(&vdf) else {
-            return out;
-        };
-        for line in text.lines() {
-            // Pull every `"quoted"` token. A line whose first token is "path"
-            // carries the library path as its second token, e.g.:
-            //   "1"  {  "path"  "/mnt/games"  }
-            let mut tokens: Vec<String> = Vec::new();
-            let mut rest = line;
-            while let Some(q) = rest.find('"') {
-                rest = &rest[q + 1..];
-                match rest.find('"') {
-                    Some(e) => tokens.push(rest[..e].to_string()),
-                    None => break,
-                }
-                rest = &rest[rest.find('"').unwrap() + 1..];
-            }
-            if tokens.first().map(|t| t == "path").unwrap_or(false) {
-                if let Some(v) = tokens.get(1) {
-                    out.push(PathBuf::from(v));
-                }
-            }
-        }
-        out
-    }
-
     fn find_in_path(name: &str) -> Option<PathBuf> {
         let path = std::env::var_os("PATH")?;
         for dir in std::env::split_paths(&path) {
@@ -209,4 +202,108 @@ pub fn find_steam_paths() -> Option<SteamPaths> {
 /// Locate the Steam launcher binary so the app can offer to start it.
 pub fn find_steam_exe() -> Option<PathBuf> {
     imp::find_steam_exe()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    /// A per-test scratch directory that deletes itself on drop.
+    struct ScratchDir(PathBuf);
+
+    impl ScratchDir {
+        fn new() -> Self {
+            static N: AtomicU64 = AtomicU64::new(0);
+            let id = N.fetch_add(1, Ordering::Relaxed);
+            let dir =
+                std::env::temp_dir().join(format!("tetra-steam-paths-{}-{id}", std::process::id()));
+            std::fs::create_dir_all(&dir).expect("could not create scratch dir");
+            Self(dir)
+        }
+    }
+
+    impl std::ops::Deref for ScratchDir {
+        type Target = Path;
+
+        fn deref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for ScratchDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn touch(root: &Path, rel: &str) {
+        std::fs::create_dir_all(root.join(rel)).expect("could not create fixture dir");
+    }
+
+    #[test]
+    fn library_paths_parses_declared_roots() {
+        let cases: &[(&str, &[&str])] = &[
+            (
+                "\"libraryfolders\"\n{\n\t\"0\"\n\t{\n\t\t\"path\"\t\t\"/steam\"\n\t}\n}\n",
+                &["/steam"],
+            ),
+            (
+                "\"libraryfolders\"\n{\n\t\"0\"\n\t{\n\t\t\"path\"\t\t\"/steam\"\n\t}\n\t\"1\"\n\t{\n\t\t\"path\"\t\t\"/games\"\n\t}\n}\n",
+                &["/steam", "/games"],
+            ),
+            (
+                "\"1\"\n{\n\t\"path\"\t\t\"/mnt/games/Steam Library\"\n}\n",
+                &["/mnt/games/Steam Library"],
+            ),
+            (
+                "\"1\"\n{\n\t\"path\"\t\t\"E:\\\\SteamLibrary\"\n}\n",
+                &["E:\\SteamLibrary"],
+            ),
+            (
+                "\"LibraryFolders\"\n{\n\t\"TimeNextStatsReport\"\t\t\"42\"\n\t\"1\"\t\t\"D:\\\\SteamLibrary\"\n}\n",
+                &["D:\\SteamLibrary"],
+            ),
+            (
+                "\"libraryfolders\"\n{\n}\n\t\"1\"\t\t\"42\"\n\tsome junk line\n",
+                &[],
+            ),
+        ];
+        for (vdf, expected) in cases {
+            let want: Vec<PathBuf> = expected.iter().map(PathBuf::from).collect();
+            assert_eq!(library_paths(vdf), want, "vdf: {vdf:?}");
+        }
+    }
+
+    #[test]
+    fn the_manifest_decides_which_library_holds_dayz() {
+        // A leftover DayZ folder sits in the Steam root, but the install of
+        // record (the app manifest) is in an extra library.
+        let root = ScratchDir::new();
+        touch(&root.join("steam"), "steamapps/common/DayZ");
+        touch(&root.join("extra"), "steamapps/common/DayZ");
+        touch(&root.join("extra"), "steamapps/appmanifest_221100.acf");
+        let paths = resolve_paths(&root.join("steam"), &[root.join("extra")]).unwrap();
+        assert_eq!(paths.dayz_install, root.join("extra/steamapps/common/DayZ"));
+        assert_eq!(
+            paths.workshop_dir,
+            root.join("extra/steamapps/workshop/content/221100")
+        );
+    }
+
+    #[test]
+    fn the_workshop_folder_follows_dayz_even_before_it_exists() {
+        // Stale workshop content under the Steam root, DayZ installed elsewhere.
+        let root = ScratchDir::new();
+        touch(&root.join("steam"), "steamapps/workshop/content/221100");
+        touch(&root.join("extra"), "steamapps/common/DayZ");
+        touch(&root.join("extra"), "steamapps/appmanifest_221100.acf");
+        let paths = resolve_paths(&root.join("steam"), &[root.join("extra")]).unwrap();
+        assert_eq!(paths.dayz_install, root.join("extra/steamapps/common/DayZ"));
+        assert_eq!(
+            paths.workshop_dir,
+            root.join("extra/steamapps/workshop/content/221100")
+        );
+    }
 }
