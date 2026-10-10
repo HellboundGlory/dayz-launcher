@@ -128,6 +128,10 @@ matches that path and `--theme <id>` narrows to one theme. The server ports are
 picked free at runtime (`HARNESS_PORT` still overrides the prod one), so a
 `shoot.sh` Vite left on 1431 does not collide with a run.
 
+Shots run in parallel (`HARNESS_JOBS`, default one per core up to 12), and each
+page is shot once its DOM has stopped changing and its images have decoded, so
+the full check takes about 25 s.
+
 Two things worth knowing about the matrix:
 
 - The prod build drives the whole matrix, `modal=` included: `App` exposes the

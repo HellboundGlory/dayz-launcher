@@ -208,36 +208,48 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Selectors a scenario asked for and never found: the shot shows the wrong state. */
 const missing: string[] = [];
 
-async function waitFor(
-  selector: string,
-  timeout = 8000,
-  { optional = false }: { optional?: boolean } = {},
-): Promise<HTMLElement | null> {
+/** Polls until `check` is truthy; a timeout is recorded in `missing` under `label`. */
+async function waitUntil<T>(check: () => T, label: string, timeout = 8000, interval = 50): Promise<T | null> {
   // `performance.now()`: `static=1` freezes the wall clock.
   const start = performance.now();
   while (performance.now() - start < timeout) {
-    const el = document.querySelector<HTMLElement>(selector);
-    if (el) return el;
-    await sleep(50);
+    const value = check();
+    if (value) return value;
+    await sleep(interval);
   }
-  if (!optional) missing.push(selector);
-  console.warn(`[harness] never found ${selector}`);
+  missing.push(label);
+  console.warn(`[harness] never found ${label}`);
   return null;
 }
 
-async function runScenario() {
-  // Neutral renders the base components (data-tetra-el hooks); a theme package
-  // renders the element pipeline (data-el). Either proves the list painted — and
-  // an empty list has none of them, so this one is allowed to miss.
-  await waitFor('[data-list="servers"] [data-row], [data-el="list.servers"], [data-tetra-el="name"]', 8000, {
-    optional: true,
+const waitFor = (selector: string) =>
+  waitUntil(() => document.querySelector<HTMLElement>(selector), selector);
+
+/** Resolves once the DOM has gone `quietMs` without a change and every image has decoded. */
+async function settle(quietMs = 100, cap = 3000) {
+  let last = performance.now();
+  const observer = new MutationObserver(() => {
+    last = performance.now();
   });
-  await sleep(300);
+  observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
+  await waitUntil(() => performance.now() - last >= quietMs, "a DOM that stops changing", cap, 20);
+  observer.disconnect();
+  await Promise.all([...document.images].map((img) => img.decode().catch(() => {})));
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+}
+
+async function runScenario() {
+  await settle();
   const { useServerStore } = await import("@/stores/server-store");
   const view = params.get("view");
-  if (view) (await waitFor(`[data-el="nav.${view}"]`))?.click();
-  await sleep(300);
+  if (view) {
+    (await waitFor(`[data-el="nav.${view}"]`))?.click();
+    await settle();
+  }
   const select = params.get("select");
+  if (select !== null || params.get("modal") === "serverInfo") {
+    await waitUntil(() => useServerStore.getState().servers.length > 0, "the server list");
+  }
   if (select !== null) {
     const list = useServerStore.getState().servers;
     useServerStore.getState().setSelectedServer(list[Number(select)] ?? null);
@@ -246,10 +258,7 @@ async function runScenario() {
   if (selectMod !== null) {
     const { useModsStore, visibleRows } = await import("@/stores/mods-store");
     const { filterAndSortMods } = await import("@/components/mods-tab");
-    const start = performance.now();
-    while (visibleRows(useModsStore.getState().rows).length === 0 && performance.now() - start < 8000) {
-      await sleep(50);
-    }
+    await waitUntil(() => visibleRows(useModsStore.getState().rows).length > 0, "the mods list");
     const mods = useModsStore.getState();
     const list = filterAndSortMods(mods.rows, mods);
     useModsStore.getState().openMod(list[Number(selectMod)]?.workshop_id ?? null);
@@ -258,7 +267,7 @@ async function runScenario() {
     (await waitFor('[data-el="nav.settings"]'))?.click();
     const settingsTab = params.get("settingsTab");
     if (settingsTab) {
-      await sleep(200);
+      await settle();
       const tab = [...document.querySelectorAll<HTMLElement>('[data-part="tab"]')].find(
         (el) => el.dataset.tab === settingsTab || el.textContent?.trim() === settingsTab,
       );
@@ -280,10 +289,11 @@ async function runScenario() {
     }
   }
   for (const selector of params.getAll("click")) {
-    await sleep(200);
+    await settle();
     (await waitFor(selector))?.click();
   }
-  await sleep(600);
+  // Longer than the app's own debounces (readiness waits 250 ms before it fetches).
+  await settle(400);
   document.body.dataset.harnessReady = "1";
 }
 
