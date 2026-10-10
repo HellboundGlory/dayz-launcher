@@ -14,6 +14,11 @@ const FIELD_ID_REGEX = /^[a-z][a-zA-Z0-9]{0,31}$/;
 const OPTION_VALUE_REGEX = /^[a-z0-9-]+$/;
 const COLOR_HEX_REGEX = /^#[0-9a-fA-F]{6}$/;
 
+/** Whether `value` is a complete `#rrggbb` — the only colour form the store takes. */
+export function isHexColor(value: string): boolean {
+  return COLOR_HEX_REGEX.test(value);
+}
+
 export function resolveSettingsSchema(schemaJson: unknown): {
   fields: SettingsField[];
   issues: SettingsIssue[];
