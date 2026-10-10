@@ -129,7 +129,7 @@ export function TextLeaf({ node, attrs }: { node: TextNode; attrs: RenderedAttrs
     ...attrs.style,
   };
   return (
-    <Tag id={attrs.id} className={attrs.className} style={style}>
+    <Tag id={attrs.id} className={attrs.className} style={style} role={attrs.role}>
       {node.value}
     </Tag>
   );
@@ -139,7 +139,7 @@ export function ImageLeaf({ node, themeId, attrs }: { node: ImageNode; themeId: 
   if (node.icon !== undefined) {
     const Icon = ICONS[node.icon];
     if (Icon === undefined) return null;
-    return <Icon id={attrs.id} className={attrs.className} style={attrs.style} aria-hidden />;
+    return <Icon id={attrs.id} className={attrs.className} style={attrs.style} role={attrs.role} aria-hidden />;
   }
   if (node.src === undefined) return null;
   const style: CSSProperties = {
@@ -151,6 +151,7 @@ export function ImageLeaf({ node, themeId, attrs }: { node: ImageNode; themeId: 
       id={attrs.id}
       className={attrs.className}
       style={Object.keys(style).length > 0 ? style : undefined}
+      role={attrs.role}
       src={resolveThemeAsset(themeId, node.src)}
       alt=""
       aria-hidden
@@ -172,7 +173,7 @@ export function OutletLeaf({
     return <>{content}</>;
   }
   return (
-    <div id={attrs.id} className={attrs.className} style={attrs.style}>
+    <div id={attrs.id} className={attrs.className} style={attrs.style} role={attrs.role}>
       {content}
     </div>
   );

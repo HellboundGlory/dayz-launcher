@@ -13,6 +13,7 @@ export interface SubjectContext {
 }
 
 export interface ElementContextValue {
+  themeId: string;
   subjectContext: SubjectContext | null;
   contextName?: ContextName;
   collapsedRegions: Record<string, boolean>;
@@ -49,6 +50,7 @@ export interface ElementContextValue {
 }
 
 const ElementContext = createContext<ElementContextValue>({
+  themeId: "",
   subjectContext: null,
   collapsedRegions: {},
   toggleCollapsed: () => {},
@@ -85,6 +87,8 @@ const ElementContext = createContext<ElementContextValue>({
 
 export const useElementContext = () => useContext(ElementContext);
 
+const NO_COLLAPSED: Record<string, boolean> = {};
+
 export function ElementContextProvider({
   children,
   value,
@@ -92,28 +96,30 @@ export function ElementContextProvider({
   children?: ReactNode;
   value?: Partial<ElementContextValue>;
 }) {
-  const [collapsedRegions, setCollapsedRegions] = useState<Record<string, boolean>>(
-    value?.collapsedRegions ?? {},
-  );
+  const themeId = value?.themeId ?? "";
+  const [collapsed, setCollapsed] = useState<{ themeId: string; regions: Record<string, boolean> }>(() => ({
+    themeId,
+    regions: value?.collapsedRegions ?? {},
+  }));
+  const collapsedRegions = collapsed.themeId === themeId ? collapsed.regions : NO_COLLAPSED;
 
   const toggleCollapsed = (regionId: string) => {
-    setCollapsedRegions((prev) => {
-      const current = prev[regionId] ?? getPersistedCollapsed("", regionId, false);
-      const next = !current;
-      setPersistedCollapsed("", regionId, next);
-      return { ...prev, [regionId]: next };
-    });
+    const current = collapsedRegions[regionId] ?? getPersistedCollapsed(themeId, regionId, false);
+    const next = !current;
+    setPersistedCollapsed(themeId, regionId, next);
+    setCollapsed({ themeId, regions: { ...collapsedRegions, [regionId]: next } });
   };
 
   const isCollapsed = (regionId: string) => {
     if (collapsedRegions[regionId] !== undefined) {
       return !!collapsedRegions[regionId];
     }
-    return getPersistedCollapsed("", regionId, false);
+    return getPersistedCollapsed(themeId, regionId, false);
   };
 
 
   const merged = useMemo<ElementContextValue>(() => ({
+    themeId: "",
     subjectContext: null,
     activeView: "servers",
     onViewChange: () => {},
@@ -148,7 +154,7 @@ export function ElementContextProvider({
     toggleCollapsed: value?.toggleCollapsed ?? toggleCollapsed,
     isCollapsed: value?.isCollapsed ?? isCollapsed,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [value, collapsedRegions]);
+  }), [value, collapsedRegions, themeId]);
 
   return <ElementContext.Provider value={merged}>{children}</ElementContext.Provider>;
 }

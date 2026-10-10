@@ -6,7 +6,7 @@
 import { createContext, useContext, type CSSProperties, type ReactNode } from "react";
 import { Box, Grid, Scroll, Stack } from "./containers";
 import { ImageLeaf, OutletLeaf, TextLeaf } from "./leaves";
-import { commonAttrs, isHidden, LANDMARK_TAGS, positionStyle, sizingStyle, withStyle, type SettingsValues } from "./props";
+import { commonAttrs, isHidden, LANDMARK_TAGS, positionStyle, sizingStyle, withColumn, type SettingsValues } from "./props";
 import type { ContainerNode, HostNode, LayoutNode } from "./types";
 import { ElementHost } from "../elements/element-host";
 import { SurfaceHost } from "../elements/surface-host";
@@ -59,7 +59,11 @@ export function LayoutNodeRenderer({ node }: { node: LayoutNode }) {
         : { ...(node.position !== undefined ? positionStyle(node.position) : undefined), ...columnStyle };
     if (style === undefined) return <>{content}</>;
     return (
-      <div data-column={columnStyle !== undefined ? node.column : undefined} style={style}>
+      <div
+        role={columnStyle !== undefined ? "gridcell" : undefined}
+        data-column={columnStyle !== undefined ? node.column : undefined}
+        style={style}
+      >
         {content}
       </div>
     );
@@ -67,11 +71,11 @@ export function LayoutNodeRenderer({ node }: { node: LayoutNode }) {
 
   switch (node.type) {
     case "text":
-      return <TextLeaf node={node} attrs={withStyle(commonAttrs(node), columnStyle)} />;
+      return <TextLeaf node={node} attrs={withColumn(commonAttrs(node), columnStyle)} />;
     case "image":
-      return <ImageLeaf node={node} themeId={ctx.themeId} attrs={withStyle(commonAttrs(node), columnStyle)} />;
+      return <ImageLeaf node={node} themeId={ctx.themeId} attrs={withColumn(commonAttrs(node), columnStyle)} />;
     case "outlet":
-      return <OutletLeaf node={node} outlets={ctx.outlets} attrs={withStyle(commonAttrs(node), columnStyle)} />;
+      return <OutletLeaf node={node} outlets={ctx.outlets} attrs={withColumn(commonAttrs(node), columnStyle)} />;
     default:
       return <ContainerRenderer node={node} columnStyle={columnStyle} />;
   }
@@ -127,7 +131,7 @@ function renderContainer(
       ? node.children.some((child) => child.position !== undefined)
       : false;
   const hostsPositioned = node.position === undefined && hasPositionedChildren;
-  const attrs = withStyle(commonAttrs(node, hostsPositioned), columnStyle);
+  const attrs = withColumn(commonAttrs(node, hostsPositioned), columnStyle);
   const As = node.landmark !== undefined ? LANDMARK_TAGS[node.landmark] : "div";
   const regionId = node.id ?? "";
 
@@ -179,11 +183,7 @@ function renderContainer(
       case "box":
         return <Box node={node} attrs={attrs} as={As}>{collapsedContent}</Box>;
       default:
-        return (
-          <As id={attrs.id} data-region={attrs["data-region"]} data-context={attrs["data-context"]} className={attrs.className} style={attrs.style} data-state={attrs["data-state"]}>
-            {collapsedContent}
-          </As>
-        );
+        return <As {...attrs}>{collapsedContent}</As>;
     }
   }
 

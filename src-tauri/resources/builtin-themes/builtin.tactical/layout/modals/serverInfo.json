@@ -71,7 +71,7 @@
                 "role": "label",
                 "class": "t-info-stat-label"
               },
-              { "element": "server.players" }
+              { "element": "server.players", "options": { "showCaption": false } }
             ]
           },
           {
@@ -89,7 +89,8 @@
               {
                 "element": "server.ping",
                 "options": {
-                  "showUnit": true
+                  "showUnit": true,
+                  "showCaption": false
                 }
               }
             ]

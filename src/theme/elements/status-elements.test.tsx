@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { StatusActivity, StatusLastRefreshed } from "./status-elements";
+import { StatusActivity, StatusLastRefreshed, StatusListSource, StatusPopulated, StatusServerTotal } from "./status-elements";
 import { AppUiScale } from "./app-elements";
 import { ElementContextProvider, type ElementContextValue } from "./context";
 
@@ -68,6 +68,19 @@ describe("StatusLastRefreshed", () => {
       refreshedAt: "09:32",
     });
     expect(html).toContain("Updated");
+  });
+});
+
+describe("count and source labels", () => {
+  const counted = { steamConnected: true, listSource: "index" as const, serverCounts: { total: 3, populated: 2 } };
+  it.each([
+    { name: "status.serverTotal", node: (o?: Record<string, unknown>) => <StatusServerTotal options={o} />, fallback: " servers" },
+    { name: "status.populated", node: (o?: Record<string, unknown>) => <StatusPopulated options={o} />, fallback: " populated" },
+    { name: "status.listSource", node: (o?: Record<string, unknown>) => <StatusListSource options={o} />, fallback: "Indexed" },
+  ])("$name reads its label option, else its launcher wording", ({ node, fallback }) => {
+    expect(render(node(), counted)).toContain(fallback);
+    expect(render(node({ label: "X" }), counted)).toContain("X</span>");
+    expect(render(node({ label: "X" }), counted)).not.toContain(fallback);
   });
 });
 

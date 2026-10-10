@@ -126,12 +126,13 @@ export interface RenderedAttrs {
   "data-state"?: string;
   "data-region"?: string;
   "data-context"?: string;
+  role?: string;
 }
 
-/** Merges an extra style (e.g. column placement) into already-computed attrs. */
-export function withStyle(attrs: RenderedAttrs, extra?: CSSProperties): RenderedAttrs {
-  if (extra === undefined) return attrs;
-  return { ...attrs, style: { ...attrs.style, ...extra } };
+/** Merges a list column's placement into already-computed attrs; a node in a column is a grid cell. */
+export function withColumn(attrs: RenderedAttrs, placement?: CSSProperties): RenderedAttrs {
+  if (placement === undefined) return attrs;
+  return { ...attrs, style: { ...attrs.style, ...placement }, role: "gridcell" };
 }
 
 /** The id, class and non-layout style every node shares. `hostsPositioned`

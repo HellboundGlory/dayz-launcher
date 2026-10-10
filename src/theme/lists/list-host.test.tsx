@@ -175,16 +175,16 @@ describe("ListRow column placement", () => {
     expect(html).toContain("min-width:0");
   });
 
-  it("tags an element placed in a column with data-column", () => {
+  it.each<{ name: string; child: LayoutNode; gridcell: boolean }>([
+    { name: "a host element", child: { element: "server.name", column: "ping" }, gridcell: true },
+    { name: "a text leaf", child: { type: "text", value: "42", column: "ping" }, gridcell: true },
+    { name: "a stack container", child: { type: "stack", children: [{ type: "text", value: "42" }], column: "ping" }, gridcell: true },
+    { name: "a node with no column", child: { type: "text", value: "42" }, gridcell: false },
+  ])("marks $name as a gridcell only when it is placed in a column", ({ child, gridcell }) => {
     const html = renderToStaticMarkup(
-      <ListRow
-        columns={sampleColumns}
-        item={mockServer}
-        subjectKind="server"
-        rowNode={{ type: "grid", children: [{ element: "server.name", column: "ping" }] }}
-      />,
+      <ListRow columns={sampleColumns} item={mockServer} subjectKind="server" rowNode={{ type: "grid", children: [child] }} />,
     );
-    expect(html).toMatch(/<div data-column="ping" style="grid-column:4/);
+    expect(html.includes('role="gridcell"')).toBe(gridcell);
   });
 
   it("floors a cell at its column's declared minWidth", () => {

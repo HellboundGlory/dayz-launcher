@@ -196,7 +196,7 @@ export function ElementHost({
         <StatusPopulated options={node.options} className={mergedClass} style={style} />
       );
     case "status.listSource":
-      return <StatusListSource className={mergedClass} style={style} />;
+      return <StatusListSource options={node.options} className={mergedClass} style={style} />;
     case "status.lastRefreshed":
       return (
         <StatusLastRefreshed options={node.options} className={mergedClass} style={style} />
