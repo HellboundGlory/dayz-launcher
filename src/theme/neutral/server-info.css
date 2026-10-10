@@ -62,6 +62,10 @@
     @apply bg-accent2-soft text-accent2;
   }
 
+  .t-neutral-serverinfo-tags:has([data-state~="official"]) [data-part="chip"][data-state~="modded"] {
+    @apply hidden;
+  }
+
   .t-neutral-serverinfo-tags [data-part="chip"][data-state~="firstPerson"] {
     @apply bg-muted-soft text-muted2;
   }
