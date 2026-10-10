@@ -494,4 +494,105 @@ mod tests {
         );
         assert_eq!(rows[0].name, "Vertex PvP");
     }
+
+    #[test]
+    fn filter_params_map_onto_the_registry_filter() {
+        let mut p = default_params();
+        p.search = Some("pvp".into());
+        p.maps = vec!["chernarus".into(), "livonia".into()];
+        p.countries = vec!["DE".into()];
+        p.max_ping = Some(120);
+        p.hide_empty = true;
+        p.hide_full = true;
+        p.hide_locked = true;
+        p.hide_offline = true;
+        p.favourites_only = true;
+        p.recent_only = true;
+        p.official = Some(true);
+        p.modded = Some(false);
+        p.first_person = Some(true);
+        p.mod_ids = vec!["123".into(), "456".into(), "not-a-number".into()];
+        p.mod_ids_exclude = vec!["789".into(), "bad".into()];
+
+        let f = super::filter_from_params(p);
+
+        assert_eq!(f.search.as_deref(), Some("pvp"));
+        assert_eq!(f.maps, vec!["chernarus", "livonia"]);
+        assert_eq!(f.countries, vec!["DE"]);
+        assert_eq!(f.max_ping_ms, Some(120));
+        assert!(f.hide_empty && f.hide_full && f.hide_locked && f.hide_offline);
+        assert!(f.favourites_only && f.recent_only);
+        assert_eq!(f.official, Some(true));
+        assert_eq!(f.modded, Some(false));
+        assert_eq!(f.first_person, Some(true));
+        assert_eq!(f.mod_ids, vec![123, 456]);
+        assert_eq!(f.mod_ids_exclude, vec![789]);
+        // A never-probed row has nothing to show, so the list always hides it.
+        assert!(f.hide_unnamed);
+    }
+
+    #[test]
+    fn mod_match_all_is_the_only_value_that_requires_every_mod() {
+        use tetra_registry::filter::ModMatch;
+
+        let mut p = default_params();
+        p.mod_match = "all".into();
+        assert_eq!(super::filter_from_params(p).mod_match, ModMatch::All);
+
+        for value in ["any", "", "ALL", "nonsense"] {
+            let mut p = default_params();
+            p.mod_match = value.into();
+            assert_eq!(
+                super::filter_from_params(p).mod_match,
+                ModMatch::Any,
+                "mod_match {value:?} should mean any"
+            );
+        }
+    }
+
+    #[test]
+    fn sort_params_map_every_key_and_direction_with_a_players_desc_fallback() {
+        use tetra_registry::filter::{SortDir, SortKey};
+
+        for (key, expected) in [
+            ("players", SortKey::Players),
+            ("ping", SortKey::Ping),
+            ("mod_count", SortKey::ModCount),
+            ("name", SortKey::Name),
+            ("map", SortKey::Map),
+            ("last_played", SortKey::LastPlayed),
+        ] {
+            let p = super::SortParams {
+                sort_key: key.into(),
+                sort_dir: "asc".into(),
+                limit: 0,
+            };
+            assert_eq!(
+                super::sort_from_params(&p),
+                (expected, SortDir::Asc),
+                "key {key}"
+            );
+        }
+
+        let desc = super::SortParams {
+            sort_key: "name".into(),
+            sort_dir: "desc".into(),
+            limit: 0,
+        };
+        assert_eq!(
+            super::sort_from_params(&desc),
+            (SortKey::Name, SortDir::Desc)
+        );
+
+        // Anything but "asc" sorts descending, and an unknown key sorts by players.
+        let unknown = super::SortParams {
+            sort_key: "nonsense".into(),
+            sort_dir: "sideways".into(),
+            limit: 0,
+        };
+        assert_eq!(
+            super::sort_from_params(&unknown),
+            (SortKey::Players, SortDir::Desc)
+        );
+    }
 }

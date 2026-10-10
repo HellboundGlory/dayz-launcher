@@ -270,14 +270,17 @@ pub(crate) async fn resolve_workshop_cache(
 
 #[tauri::command]
 pub async fn check_server_mods(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     addr: String,
     query_port: u16,
 ) -> Result<ServerModReadiness, String> {
-    check_server_mods_impl(&state, addr, query_port).await
+    check_server_mods_impl(Some(&app), &state, addr, query_port).await
 }
 
 pub(crate) async fn check_server_mods_impl(
+    // `None` in tests, which have no live `AppHandle` to log through.
+    app: Option<&tauri::AppHandle>,
     state: &AppState,
     addr: String,
     query_port: u16,
@@ -307,8 +310,21 @@ pub(crate) async fn check_server_mods_impl(
         guard.as_ref().map(|r| r.writer())
     };
     if let Some(writer) = writer {
-        let _ = writer.upsert_server_mods(key, declared).await;
-        let _ = writer.set_online(vec![key], true).await;
+        let log = |msg: String| {
+            if let Some(app) = app {
+                crate::log::log_line(app, "refresh", &msg);
+            }
+        };
+        if let Err(e) = writer.upsert_server_mods(key, declared).await {
+            log(format!(
+                "check_server_mods: storing the mod list failed: {e}"
+            ));
+        }
+        if let Err(e) = writer.set_online(vec![key], true).await {
+            log(format!(
+                "check_server_mods: marking the server online failed: {e}"
+            ));
+        }
     }
 
     let mut readiness = server_mod_readiness_impl(state, addr, query_port).await?;
@@ -921,9 +937,10 @@ mod tests {
             }
         });
 
-        let res = super::check_server_mods_impl(&app_state, key.ip.to_string(), key.query_port)
-            .await
-            .expect("check_server_mods");
+        let res =
+            super::check_server_mods_impl(None, &app_state, key.ip.to_string(), key.query_port)
+                .await
+                .expect("check_server_mods");
 
         assert!(!res.stale);
         assert_eq!(res.mods.len(), 1);
