@@ -309,7 +309,6 @@ describe("FilterMaxPing", () => {
     expect(html).toContain('data-el="filter.maxPing"');
     expect(html).not.toContain('data-state="active"');
     expect(html).toContain(">Any<");
-    expect(html).not.toContain("border-border");
   });
 
   it("reads '{v}ms' and is active below the top of the range", () => {

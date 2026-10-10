@@ -113,7 +113,7 @@ function DropdownRoot({
       ref={innerRef}
       data-el={el}
       data-state={states.length > 0 ? states.join(" ") : undefined}
-      className={className ?? "relative flex items-center gap-1.5 border border-border bg-surface2 px-2.5 py-1 text-xs text-text transition-colors hover:border-accent"}
+      className={className ?? "relative flex items-center gap-1.5 border border-line bg-surface2 px-2.5 py-1 text-xs text-ink transition-colors hover:border-accent"}
       style={style}
     >
       {children}
@@ -153,7 +153,7 @@ export function FilterSearch({
     <div
       data-el="filter.search"
       data-state={filled ? "filled" : undefined}
-      className={className ?? "flex items-center gap-2 border border-border bg-surface2 px-2.5 py-1 text-sm text-text"}
+      className={className ?? "flex items-center gap-2 border border-line bg-surface2 px-2.5 py-1 text-sm text-ink"}
       style={style}
     >
       {showIcon && (
@@ -167,7 +167,7 @@ export function FilterSearch({
         placeholder="Search name or description"
         value={text}
         onChange={(e) => setText(e.target.value)}
-        className="bg-transparent outline-none text-text placeholder:text-muted min-w-[180px] text-xs"
+        className="bg-transparent outline-none text-ink placeholder:text-muted min-w-[180px] text-xs"
       />
     </div>
   );
@@ -216,7 +216,7 @@ export function FilterMap({
       >
         <div
           data-part="popup"
-          className="absolute left-0 top-full mt-1 z-30 max-h-64 min-w-[224px] overflow-y-auto border border-border bg-surface2 p-1 shadow-lg text-xs"
+          className="absolute left-0 top-full mt-1 z-30 max-h-64 min-w-[224px] overflow-y-auto border border-line bg-surface2 p-1 shadow-lg text-xs"
         >
           <PopupMapOptions />
         </div>
@@ -267,7 +267,7 @@ export function FilterTags({
       >
         <div
           data-part="popup"
-          className="absolute left-0 top-full mt-1 z-30 min-w-[208px] border border-border bg-surface2 p-1.5 shadow-lg text-xs space-y-1"
+          className="absolute left-0 top-full mt-1 z-30 min-w-[208px] border border-line bg-surface2 p-1.5 shadow-lg text-xs space-y-1"
         >
           <PopupTagOptions />
         </div>
@@ -318,7 +318,7 @@ export function FilterRegion({
       >
         <div
           data-part="popup"
-          className="absolute left-0 top-full mt-1 z-30 min-w-[176px] max-h-64 overflow-y-auto border border-border bg-surface2 p-1.5 shadow-lg text-xs space-y-1"
+          className="absolute left-0 top-full mt-1 z-30 min-w-[176px] max-h-64 overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg text-xs space-y-1"
         >
           <PopupClear />
           <PopupRegionOptions />
@@ -365,7 +365,7 @@ export function FilterMaxPing({
     <div
       data-el="filter.maxPing"
       data-state={active ? "active" : undefined}
-      className={className ?? "flex items-center gap-2 px-2.5 py-1 text-xs text-text"}
+      className={className ?? "flex items-center gap-2 px-2.5 py-1 text-xs text-ink"}
       style={style}
     >
       {showLabel && (
@@ -421,7 +421,7 @@ function HideToggle({
     "px-2.5 py-1 text-xs font-bold uppercase tracking-wider border transition-colors",
     on
       ? "border-accent bg-accent text-bg shadow-[0_0_6px_var(--accent)]"
-      : "border-border bg-surface text-muted2 hover:text-text hover:border-border",
+      : "border-line bg-surface text-muted2 hover:text-ink hover:border-accent",
   );
 
   const commonProps = {
@@ -450,7 +450,7 @@ function HideToggle({
         aria-checked={on}
         className={cn(commonProps.className, "flex items-center gap-1.5 cursor-pointer")}
       >
-        <span data-part="box" className="size-3 border border-border inline-flex items-center justify-center">
+        <span data-part="box" className="size-3 border border-line inline-flex items-center justify-center">
           {on && <span className="size-1.5 bg-accent" />}
         </span>
         {iconSpan}
@@ -504,7 +504,7 @@ export function ServersRefresh({
       onClick={onRefresh}
       disabled={refreshing}
       aria-label="Refresh server list"
-      className={className ?? "flex items-center gap-1.5 p-1.5 border border-border bg-surface2 hover:border-accent text-muted hover:text-ink transition-colors disabled:opacity-60 disabled:cursor-not-allowed"}
+      className={className ?? "flex items-center gap-1.5 p-1.5 border border-line bg-surface2 hover:border-accent text-muted hover:text-ink transition-colors disabled:opacity-60 disabled:cursor-not-allowed"}
       style={style}
     >
       {display !== "label" && (
@@ -555,7 +555,7 @@ export function FilterMods({
       onClick={openModFilter}
       aria-haspopup="dialog"
       aria-expanded={modFilterOpen}
-      className={className ?? "flex items-center gap-1.5 border border-border bg-surface2 px-2.5 py-1 text-xs text-text transition-colors hover:border-accent"}
+      className={className ?? "flex items-center gap-1.5 border border-line bg-surface2 px-2.5 py-1 text-xs text-ink transition-colors hover:border-accent"}
       style={style}
     >
       {showLabel && (
@@ -618,7 +618,7 @@ export function FilterSort({
       >
         <div
           data-part="popup"
-          className="absolute left-0 top-full mt-1 z-30 min-w-[176px] border border-border bg-surface2 p-1.5 shadow-lg text-xs space-y-1"
+          className="absolute left-0 top-full mt-1 z-30 min-w-[176px] border border-line bg-surface2 p-1.5 shadow-lg text-xs space-y-1"
         >
           <PopupSortOptions />
         </div>
@@ -646,7 +646,7 @@ export function FilterReset({
       data-el="filter.reset"
       onClick={() => resetFilter()}
       aria-label="Reset filters"
-      className={className ?? "flex items-center gap-1 px-2 py-1 text-xs border border-border bg-surface2 hover:border-accent text-muted hover:text-ink transition-colors"}
+      className={className ?? "flex items-center gap-1 px-2 py-1 text-xs border border-line bg-surface2 hover:border-accent text-muted hover:text-ink transition-colors"}
       style={style}
     >
       {display !== "label" && (

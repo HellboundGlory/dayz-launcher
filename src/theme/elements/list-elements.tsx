@@ -104,10 +104,10 @@ export function ServerModsList({
       data-el="list.serverMods"
       data-list="serverMods"
       data-state={state}
-      className={className ?? "flex flex-col flex-1 min-h-0 my-2 border-t border-border overflow-hidden"}
+      className={className ?? "flex flex-col flex-1 min-h-0 my-2 border-t border-line overflow-hidden"}
       style={style}
     >
-      <div data-part="header" className="flex items-center justify-between py-1.5 px-2 text-[10px] text-muted font-bold tracking-wider uppercase border-b border-border">
+      <div data-part="header" className="flex items-center justify-between py-1.5 px-2 text-[10px] text-muted font-bold tracking-wider uppercase border-b border-line">
         <span>REQUIRED MODS · SERVER ORDER</span>
         <span className="font-mono-data">{mods.length}</span>
       </div>
