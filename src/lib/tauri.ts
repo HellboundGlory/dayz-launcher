@@ -421,7 +421,8 @@ export async function unsubscribeUniqueMods(
 }
 
 export async function copyAddress(addr: string, gamePort: number): Promise<void> {
-  const host = addr.includes(":") ? addr.split(":")[0] : addr;
+  // The query port is the last `:`-separated field, so an IPv6 host survives.
+  const host = addr.includes(":") ? addr.slice(0, addr.lastIndexOf(":")) : addr;
   await navigator.clipboard.writeText(`${host}:${gamePort}`);
 }
 

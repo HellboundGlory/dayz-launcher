@@ -23,3 +23,14 @@ describe("notice", () => {
     expect(useLaunchStore.getState().notice).toBeNull();
   });
 });
+
+describe("begin", () => {
+  it("cancels the previous operation before installing the new one", () => {
+    const first = useLaunchStore.getState().begin("1.2.3.4:2302", "First Server");
+
+    const second = useLaunchStore.getState().begin("5.6.7.8:2302", "Second Server");
+
+    expect(first.cancelled).toBe(true);
+    expect(second.cancelled).toBe(false);
+  });
+});

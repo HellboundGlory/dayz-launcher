@@ -115,6 +115,14 @@ const SPLASH_READY_MS = 400;
 /** Hard ceiling so a stuck backend can never leave the splash up forever. */
 const SPLASH_FAILSAFE_MS = 120_000;
 
+/** The splash milestone shown while discovery streams. */
+const FETCHING_STATUS = "Fetching servers from Steam…";
+
+/** The splash's live "Found N servers" detail line. */
+function splashDetail(found: number): string | undefined {
+  return found > 0 ? `Found ${found.toLocaleString()} servers` : undefined;
+}
+
 export function App() {
   const [activeView, setActiveView] = useState<ViewId>("servers");
   /** The row whose ⋯ menu asked for "More info" — drives the M1 modal. */
@@ -129,6 +137,7 @@ export function App() {
   const serverCount = useServerStore((s) => s.servers.length);
   const mapsLoaded = useServerStore((s) => s.mapsLoaded);
   const hasLoadedOnce = useServerStore((s) => s.hasLoadedOnce);
+  const loadError = useServerStore((s) => s.loadError);
 
   const sidebarRight = false;
   const sideWidthValue = sideCollapsed
@@ -166,9 +175,8 @@ export function App() {
   /** Set the moment discovery starts; stays true for the session. The splash
       uses it to tell "connected but not yet fetching" from "really done". */
   const [discoveryStarted, setDiscoveryStarted] = useState(false);
-  /** Live count from `discovery-progress` (`payload.found`), currently ignored
-      otherwise — the splash shows it as the "Found N servers" detail line. */
-  const [discovered, setDiscovered] = useState(0);
+  /** Latest `discovery-progress` count, for the splash's "Found N servers" line. */
+  const discovered = useRef(0);
   const [refreshing, setRefreshing] = useState(false);
   const autoRefreshSecs = useSettingsStore((s) => s.autoRefreshIntervalSecs);
   const settingsLoaded = useSettingsStore((s) => s.loaded);
@@ -195,6 +203,10 @@ export function App() {
   // Guards handleRefresh against overlapping manual/auto-refresh runs.
   const refreshInFlight = useRef(false);
   const [error, setError] = useState<string | null>(null);
+  // One-shot: the backend's registry may not be open yet when the first queries run.
+  const registryReadyHandled = useRef(false);
+  // One error value for both shells: a failed list load shows like a failed action.
+  const shownError = error ?? (registryReadyHandled.current ? loadError : null);
   const [counts, setCounts] = useState({ total: 0, populated: 0 });
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -236,7 +248,13 @@ export function App() {
       triggerReload();
       setRefreshedAt(new Date().toLocaleTimeString());
       getServerCounts()
-        .then(setCounts)
+        .then((next) =>
+          setCounts((prev) =>
+            prev.total === next.total && prev.populated === next.populated
+              ? prev
+              : next,
+          ),
+        )
         .catch(() => {});
     }, delay);
   }, [triggerReload]);
@@ -450,18 +468,27 @@ export function App() {
   useEffect(() => {
     if (!steamConnected) return;
     let cancelled = false;
+    let failureLogged = false;
     const timer = window.setInterval(() => {
-      void steamConnectionState().then((up) => {
-        if (cancelled || up) return;
-        setSteamConnected(false);
-        setSteamError({
-          kind: "disconnected",
-          message:
-            "The connection to Steam was lost while the launcher was running.",
-          autoRetry: false,
-          autoRetryLimit: 0,
+      void steamConnectionState()
+        .then((up) => {
+          if (cancelled || up) return;
+          setSteamConnected(false);
+          setSteamError({
+            kind: "disconnected",
+            message:
+              "The connection to Steam was lost while the launcher was running.",
+            autoRetry: false,
+            autoRetryLimit: 0,
+          });
+        })
+        .catch((e) => {
+          // A failed check says nothing about the connection; log once and keep polling.
+          if (failureLogged) return;
+          failureLogged = true;
+          console.error("Steam connection check failed:", e);
+          void logClient("steam", `connection check failed: ${String(e)}`);
         });
-      });
     }, CONNECTION_POLL_MS);
     return () => {
       cancelled = true;
@@ -471,13 +498,14 @@ export function App() {
 
   // One-shot retry once the backend confirms its registry is actually open —
   // startup's own queries can otherwise race ahead of it.
-  const registryReadyHandled = useRef(false);
   useEffect(() => {
     const unlistenRegistryReady = listen<{ degraded: boolean }>(
       "registry-ready",
       (event) => {
         if (registryReadyHandled.current) return;
         registryReadyHandled.current = true;
+        // A load that failed before the registry opened says nothing; the reload below decides.
+        useServerStore.getState().setLoadError(null);
         void logClient(
           "startup",
           `registry-ready received (degraded=${event.payload.degraded}) -> scheduleReload`,
@@ -497,8 +525,13 @@ export function App() {
       requests: number;
       found: number;
     }>("discovery-progress", (event) => {
-      // The splash's live detail line ("Found N servers") reads this.
-      setDiscovered(event.payload.found);
+      discovered.current = event.payload.found;
+      // Keep the milestone's detail current for a late splash-ready replay.
+      const detail = splashDetail(event.payload.found);
+      latestSplash.current = { ...latestSplash.current, detail };
+      if (!revealDone.current && latestSplash.current.status === FETCHING_STATUS) {
+        emitSplash(detail);
+      }
       // Log a thin sample (first + every 1000) — the full event stream
       // during discovery would otherwise be the whole log.
       if (
@@ -742,13 +775,13 @@ export function App() {
     })();
   }, []);
 
-  // Let "Ready" show briefly, then reveal. A Steam failure also reveals so
-  // the required-modal is actionable.
+  // Let "Ready" show briefly, then reveal; Steam or a post-registry list failure forces it.
   useEffect(() => {
-    if (!(startupReady || steamError)) return;
+    if (!(startupReady || steamError || (registryReadyHandled.current && loadError)))
+      return;
     const t = window.setTimeout(revealLauncherWhenReady, SPLASH_READY_MS);
     return () => clearTimeout(t);
-  }, [startupReady, steamError, revealLauncherWhenReady]);
+  }, [startupReady, steamError, loadError, revealLauncherWhenReady]);
 
   // Safety net: some Windows/WebView2 setups stall reloads while the window
   // is hidden, so force one the first time it becomes visible. Scoped to
@@ -781,12 +814,9 @@ export function App() {
     }
     if (!discoveryStarted || discovering) {
       return {
-        status: "Fetching servers from Steam…",
+        status: FETCHING_STATUS,
         pct: 45,
-        detail:
-          discovered > 0
-            ? `Found ${discovered.toLocaleString()} servers`
-            : undefined,
+        detail: splashDetail(discovered.current),
       };
     }
     if (serverCount === 0) {
@@ -800,13 +830,17 @@ export function App() {
 
   // Publish the current milestone to the splash window as it changes.
   const latestSplash = useRef(splash);
+  const emitSplash = useCallback((detail?: string) => {
+    const current = latestSplash.current;
+    void emit("splash-progress", {
+      status: current.status,
+      detail: detail ?? current.detail,
+      pct: current.pct,
+    });
+  }, []);
   useEffect(() => {
     latestSplash.current = splash;
-    void emit("splash-progress", {
-      status: splash.status,
-      detail: splash.detail,
-      pct: splash.pct,
-    });
+    emitSplash();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [splash.status, splash.detail, splash.pct]);
 
@@ -825,16 +859,15 @@ export function App() {
   // miss early events while still registering its listener.
   useEffect(() => {
     const pending = listen("splash-ready", () => {
-      void emit("splash-progress", {
-        status: latestSplash.current.status,
-        detail: latestSplash.current.detail,
-        pct: latestSplash.current.pct,
-      });
+      emitSplash();
     });
     return () => {
       void pending.then((unlisten) => unlisten());
     };
-  }, []);
+  }, [emitSplash]);
+
+  const onOpenSettings = useCallback(() => setSettingsOpen(true), []);
+  const onCloseSettings = useCallback(() => setSettingsOpen(false), []);
 
   // Hoisted so `position: "right"` can place it after the main column.
   const sidebar = (
@@ -842,53 +875,92 @@ export function App() {
       activeView={activeView}
       onViewChange={handleViewChange}
       settingsOpen={settingsOpen}
-      onOpenSettings={() => setSettingsOpen(true)}
-      onCloseSettings={() => setSettingsOpen(false)}
+      onOpenSettings={onOpenSettings}
+      onCloseSettings={onCloseSettings}
       onCollapsedChange={setSideCollapsed}
     />
   );
 
-  const openModFilter = () => {
+  const openModFilter = useCallback(() => {
     useModFilterStore.getState().begin();
     setModFilterOpen(true);
-  };
+  }, []);
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     if (infoServer) setInfoServer(null);
     else if (modFilterOpen) setModFilterOpen(false);
     else if (updateOpen) setUpdateOpen(false);
-  };
+  }, [infoServer, modFilterOpen, updateOpen]);
 
-  const elementContextValue = {
-    activeView,
-    onViewChange: handleViewChange,
-    settingsOpen,
-    onOpenSettings: () => setSettingsOpen(true),
-    onCloseSettings: () => setSettingsOpen(false),
-    error,
-    dismissError: () => setError(null),
-    storageDegraded,
-    serverCounts: counts,
-    refreshedAt,
-    steamConnected,
-    listSource,
-    updateAvailable,
-    updateBannerDismissed,
-    dismissUpdateBanner: () => setUpdateBannerDismissed(true),
-    openUpdateModal: () => setUpdateOpen(true),
-    // A panel-mode Settings covers the detail panel, so hide it until Settings closes.
-    selectedServer: settingsOpen && settingsMode === "panel" ? null : selectedServer,
-    selectedMod: settingsOpen && settingsMode === "panel" ? null : selectedModRow,
-    onRefresh: handleRefresh,
-    refreshing,
-    discovering,
-    devMode,
-    onDevModeChange: setDevMode,
-    openServerInfo: setInfoServer,
-    openModFilter,
-    modFilterOpen,
-    closeModal,
-  };
+  const dismissError = useCallback(() => {
+    // Clear only what the banner is showing.
+    if (error) setError(null);
+    else useServerStore.getState().setLoadError(null);
+  }, [error]);
+  const dismissUpdateBanner = useCallback(() => setUpdateBannerDismissed(true), []);
+  const openUpdateModal = useCallback(() => setUpdateOpen(true), []);
+
+  // Every field a themed element can read; rebuilt only when one changes.
+  const elementContextValue = useMemo(
+    () => ({
+      activeView,
+      onViewChange: handleViewChange,
+      settingsOpen,
+      onOpenSettings,
+      onCloseSettings,
+      error: shownError,
+      dismissError,
+      storageDegraded,
+      serverCounts: counts,
+      refreshedAt,
+      steamConnected,
+      listSource,
+      updateAvailable,
+      updateBannerDismissed,
+      dismissUpdateBanner,
+      openUpdateModal,
+      // A panel-mode Settings covers the detail panel, so hide it until Settings closes.
+      selectedServer: settingsOpen && settingsMode === "panel" ? null : selectedServer,
+      selectedMod: settingsOpen && settingsMode === "panel" ? null : selectedModRow,
+      onRefresh: handleRefresh,
+      refreshing,
+      discovering,
+      devMode,
+      onDevModeChange: setDevMode,
+      openServerInfo: setInfoServer,
+      openModFilter,
+      modFilterOpen,
+      closeModal,
+    }),
+    [
+      activeView,
+      handleViewChange,
+      settingsOpen,
+      onOpenSettings,
+      onCloseSettings,
+      shownError,
+      dismissError,
+      storageDegraded,
+      counts,
+      refreshedAt,
+      steamConnected,
+      listSource,
+      updateAvailable,
+      updateBannerDismissed,
+      dismissUpdateBanner,
+      openUpdateModal,
+      settingsMode,
+      selectedServer,
+      selectedModRow,
+      handleRefresh,
+      refreshing,
+      discovering,
+      devMode,
+      openModFilter,
+      modFilterOpen,
+      closeModal,
+    ],
+  );
 
   // Harness-only: the headless UI harness has no other way to reach this state.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1095,14 +1167,14 @@ export function App() {
                       </div>
                     )}
 
-                    {error && (
+                    {shownError && (
                       <div className="flex items-center gap-[var(--t-space-inlineGapWide)] border-b border-danger bg-surface2 px-[var(--t-space-rowX)] py-[var(--t-space-controlY)]">
                         <span className="[font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase text-danger">
                           ERROR
                         </span>
-                        <span className="truncate [font-size:var(--t-type-body-size)] text-ink">{error}</span>
+                        <span className="truncate [font-size:var(--t-type-body-size)] text-ink">{shownError}</span>
                         <button
-                          onClick={() => setError(null)}
+                          onClick={dismissError}
                           className="ml-auto shrink-0 [font-size:var(--t-type-label-size)] text-muted hover:text-ink"
                         >
                           DISMISS

@@ -72,6 +72,9 @@ export const useLaunchStore = create<LaunchState>((set, get) => ({
   dayzRunning: false,
 
   begin: (addr, serverName) => {
+    // Superseding an op cancels it, so a missed view guard can't run two launches.
+    const prior = get().op;
+    if (prior) prior.cancel.cancelled = true;
     const cancel = { cancelled: false };
     set({
       op: { addr, serverName, phase: "verifying", note: null, cancel },
