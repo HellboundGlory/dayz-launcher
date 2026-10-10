@@ -1,18 +1,24 @@
-import {
-  useEffect,
-  useRef,
-  type CSSProperties,
-  type MouseEvent,
-  type ReactNode,
-} from "react";
+import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import type { HostNode, ModalLayoutFile } from "../renderer/types";
 import { positionStyle, type SettingsValues } from "../renderer/props";
 import { LayoutNodeRenderer, RenderContextProvider } from "../renderer/node-renderer";
 import { useResolvedRoot } from "../renderer/use-resolved-root";
 
+const FOCUSABLE =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const PRIMARY = '[data-primary="true"], [data-action="primary"], button[type="submit"]';
+
+// Only the topmost modal handles keys, so a confirm dialog above this one owns them even with focus on body.
+function isTopModal(self: HTMLElement | null) {
+  const all = document.querySelectorAll('[aria-modal="true"]');
+  return all[all.length - 1] === self;
+}
+
 export interface ModalHostProps {
   file: ModalLayoutFile;
+  initialFocus?: string;
   isOpen?: boolean;
+  label?: string;
   onClose: () => void;
   outlets?: Record<string, ReactNode>;
   renderElement?: (node: HostNode) => ReactNode;
@@ -22,7 +28,9 @@ export interface ModalHostProps {
 
 export function ModalHost({
   file,
+  initialFocus,
   isOpen = true,
+  label,
   onClose,
   outlets,
   renderElement,
@@ -30,12 +38,16 @@ export function ModalHost({
   themeId = "",
 }: ModalHostProps) {
   const modalRef = useRef<HTMLDivElement>(null);
-  const backdropRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
 
   const placement = file.placement ?? { mode: "center" };
   const backdrop = file.backdrop ?? "dim";
   const root = useResolvedRoot(file);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!isOpen || typeof document === "undefined") return;
@@ -44,29 +56,29 @@ export function ModalHost({
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
-    const focusable = modalRef.current?.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    );
-    if (focusable && focusable.length > 0) {
-      const primary = modalRef.current?.querySelector<HTMLElement>(
-        '[data-primary="true"], [data-action="primary"], button[type="submit"]',
-      );
-      (primary ?? focusable[0]).focus();
+    const modal = modalRef.current;
+    const focusable = modal?.querySelectorAll<HTMLElement>(FOCUSABLE);
+    if (modal && focusable && focusable.length > 0) {
+      const explicit = initialFocus
+        ? Array.from(modal.querySelectorAll<HTMLElement>(initialFocus)).find((el) =>
+            el.matches(FOCUSABLE),
+          )
+        : undefined;
+      const primary = modal.querySelector<HTMLElement>(PRIMARY);
+      (explicit ?? primary ?? focusable[0]).focus();
     }
 
     const onKeyDown = (e: globalThis.KeyboardEvent) => {
+      if (!isTopModal(modalRef.current)) return;
+
       if (e.key === "Escape") {
         e.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
 
       if (e.key === "Tab" && modalRef.current) {
-        const nodes = Array.from(
-          modalRef.current.querySelectorAll<HTMLElement>(
-            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-          ),
-        );
+        const nodes = Array.from(modalRef.current.querySelectorAll<HTMLElement>(FOCUSABLE));
         if (nodes.length === 0) {
           e.preventDefault();
           return;
@@ -96,22 +108,15 @@ export function ModalHost({
       window.removeEventListener("keydown", onKeyDown);
       previousFocusRef.current?.focus();
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, initialFocus]);
 
   if (!isOpen) return null;
-
-  const handleBackdropClick = (e: MouseEvent<HTMLDivElement>) => {
-    if (e.target === backdropRef.current) {
-      onClose();
-    }
-  };
 
   const backdropStyle: CSSProperties = {
     position: "fixed",
     inset: 0,
     zIndex: 50,
     display: "flex",
-    backgroundColor: backdrop === "dim" ? "rgba(0, 0, 0, 0.65)" : "transparent",
     ...(placement.mode === "center" && {
       alignItems: "center",
       justifyContent: "center",
@@ -140,16 +145,18 @@ export function ModalHost({
 
   return (
     <div
-      ref={backdropRef}
       data-modal-host=""
       data-backdrop={backdrop}
       data-placement={placement.mode}
       style={backdropStyle}
-      onClick={handleBackdropClick}
+      onMouseDown={(e) => {
+        if (e.button === 0 && e.target === e.currentTarget) onClose();
+      }}
     >
       <div
         ref={modalRef}
         role="dialog"
+        aria-label={label}
         aria-modal="true"
         data-part="modal-dialog"
         style={dialogStyle}

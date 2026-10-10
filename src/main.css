@@ -282,6 +282,10 @@
     border-top: 1px solid var(--border);
     margin: 1em 0;
   }
+
+  [data-modal-host][data-backdrop="dim"] {
+    background-color: rgba(0, 0, 0, 0.65);
+  }
 }
 
 @layer guarantees {

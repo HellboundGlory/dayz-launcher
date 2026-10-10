@@ -999,6 +999,8 @@ export function App() {
         updateOpen && (
           <ModalHost
             file={themedUpdateModal}
+            label="Update"
+            initialFocus='[data-el="update.install"], [data-el="update.viewRelease"]'
             themeId={activeId}
             settings={settingsValues[activeId]}
             onClose={() => setUpdateOpen(false)}
@@ -1015,6 +1017,8 @@ export function App() {
           >
             <ModalHost
               file={themedServerInfoModal}
+              label={`Server info: ${infoServer.name || infoServer.addr}`}
+              initialFocus='[data-el="server.join"]'
               themeId={activeId}
               settings={settingsValues[activeId]}
               onClose={() => setInfoServer(null)}
@@ -1291,13 +1295,16 @@ function ThemedModFilterModal({
     [tab, query, subscribedRows, known, searchResults, usage, previewId],
   );
 
-  useEffect(() => {
-    document.querySelector<HTMLInputElement>('[data-el="modFilter.search"] input')?.focus();
-  }, []);
-
   return (
     <ElementContextProvider value={{ ...parent, previewMod }}>
-      <ModalHost file={file} themeId={themeId} settings={settings} onClose={onClose} />
+      <ModalHost
+        file={file}
+        label="Filter by mod"
+        initialFocus='[data-el="modFilter.search"] input'
+        themeId={themeId}
+        settings={settings}
+        onClose={onClose}
+      />
     </ElementContextProvider>
   );
 }
