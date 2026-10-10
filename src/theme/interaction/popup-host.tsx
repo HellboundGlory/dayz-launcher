@@ -10,22 +10,13 @@ import { type SettingsValues } from "../renderer/props";
 import { LayoutNodeRenderer, RenderContextProvider } from "../renderer/node-renderer";
 import { useResolvedRoot } from "../renderer/use-resolved-root";
 import { parseLengthPx } from "./resizable";
-
-export interface TriggerRect {
-  top: number;
-  bottom: number;
-  left: number;
-  right: number;
-  width: number;
-  height: number;
-}
+import { useAnchoredPopup } from "./use-anchored-popup";
 
 export interface PopupHostProps {
   file: PopupLayoutFile;
   isOpen?: boolean;
   onClose: () => void;
-  triggerRect?: TriggerRect;
-  triggerRef?: RefObject<HTMLElement | null>;
+  triggerRef: RefObject<HTMLElement | null>;
   outlets?: Record<string, ReactNode>;
   renderElement?: (node: HostNode) => ReactNode;
   settings?: SettingsValues;
@@ -36,7 +27,6 @@ export function PopupHost({
   file,
   isOpen = true,
   onClose,
-  triggerRect,
   triggerRef,
   outlets,
   renderElement,
@@ -50,11 +40,17 @@ export function PopupHost({
   const align = placement.align ?? "start";
   const offsetPx = parseLengthPx(placement.offset, 4);
   const root = useResolvedRoot(file);
+  const anchoredStyle = useAnchoredPopup(isOpen && mode === "anchored", triggerRef, popupRef, {
+    side,
+    align,
+    offset: offsetPx,
+    maxHeight: placement.maxHeight,
+  });
 
   useEffect(() => {
     if (!isOpen || typeof document === "undefined") return;
 
-    const triggerEl = triggerRef?.current;
+    const triggerEl = triggerRef.current;
 
     // Focus into popup: first item or active
     const focusable = popupRef.current?.querySelectorAll<HTMLElement>(
@@ -98,35 +94,7 @@ export function PopupHost({
   };
 
   if (mode === "anchored") {
-    containerStyle = {
-      position: "fixed",
-      zIndex: 40,
-      maxHeight: placement.maxHeight ?? "320px",
-      overflowY: "auto",
-      ...containerStyle,
-    };
-
-    if (triggerRect) {
-      if (side === "bottom") {
-        containerStyle.top = triggerRect.bottom + offsetPx;
-      } else if (side === "top") {
-        containerStyle.bottom = (typeof window !== "undefined" ? window.innerHeight : 800) - triggerRect.top + offsetPx;
-      } else if (side === "right") {
-        containerStyle.left = triggerRect.right + offsetPx;
-      } else if (side === "left") {
-        containerStyle.right = (typeof window !== "undefined" ? window.innerWidth : 1200) - triggerRect.left + offsetPx;
-      }
-
-      if (side === "bottom" || side === "top") {
-        if (align === "start") containerStyle.left = triggerRect.left;
-        else if (align === "end") containerStyle.right = (typeof window !== "undefined" ? window.innerWidth : 1200) - triggerRect.right;
-        else if (align === "center") containerStyle.left = triggerRect.left + triggerRect.width / 2;
-      } else {
-        if (align === "start") containerStyle.top = triggerRect.top;
-        else if (align === "end") containerStyle.bottom = (typeof window !== "undefined" ? window.innerHeight : 800) - triggerRect.bottom;
-        else if (align === "center") containerStyle.top = triggerRect.top + triggerRect.height / 2;
-      }
-    }
+    containerStyle = { zIndex: 40, overflowY: "auto", ...anchoredStyle };
   } else if (mode === "inline") {
     containerStyle = {
       position: "relative",

@@ -36,7 +36,7 @@ const PLAIN = { schemaVersion: 2, root: { type: "text" as const, value: "plain-r
 const HOSTS: { name: string; render: (file: HostFile) => string }[] = [
   { name: "SettingsHost", render: (file) => renderToStaticMarkup(<SettingsHost file={file} />) },
   { name: "ModalHost", render: (file) => renderToStaticMarkup(<ModalHost file={file} onClose={() => {}} />) },
-  { name: "PopupHost", render: (file) => renderToStaticMarkup(<PopupHost file={file} onClose={() => {}} />) },
+  { name: "PopupHost", render: (file) => renderToStaticMarkup(<PopupHost file={file} onClose={() => {}} triggerRef={{ current: null }} />) },
 ];
 
 afterEach(() => {

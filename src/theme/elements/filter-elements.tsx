@@ -17,7 +17,6 @@ import {
   regionDisplayValue,
   sortValueLabel,
   tagsDisplayValue,
-  useTriggerRect,
 } from "./popup-elements";
 
 export {
@@ -189,7 +188,6 @@ export function FilterMap({
   const { open, setOpen, ref } = useDropdown();
   useLayoutSubscription();
   const themedPopup = getThemeOwnedLayout("layout/popups/mapFilter.json") as PopupLayoutFile | undefined;
-  const triggerRect = useTriggerRect(ref, open && !!themedPopup);
 
   const selected = filter.maps ?? [];
   const value = mapDisplayValue(selected, maps);
@@ -211,7 +209,6 @@ export function FilterMap({
         popupId="mapFilter"
         close={() => setOpen(false)}
         themedPopup={themedPopup}
-        triggerRect={triggerRect}
         triggerRef={ref}
       >
         <div
@@ -240,7 +237,6 @@ export function FilterTags({
   const { open, setOpen, ref } = useDropdown();
   useLayoutSubscription();
   const themedPopup = getThemeOwnedLayout("layout/popups/tagsFilter.json") as PopupLayoutFile | undefined;
-  const triggerRect = useTriggerRect(ref, open && !!themedPopup);
 
   const activeCount = [filter.official, filter.modded, filter.first_person].filter((v) => v !== null).length;
   const value = tagsDisplayValue(activeCount);
@@ -262,7 +258,6 @@ export function FilterTags({
         popupId="tagsFilter"
         close={() => setOpen(false)}
         themedPopup={themedPopup}
-        triggerRect={triggerRect}
         triggerRef={ref}
       >
         <div
@@ -291,7 +286,6 @@ export function FilterRegion({
   const { open, setOpen, ref } = useDropdown();
   useLayoutSubscription();
   const themedPopup = getThemeOwnedLayout("layout/popups/regionFilter.json") as PopupLayoutFile | undefined;
-  const triggerRect = useTriggerRect(ref, open && !!themedPopup);
 
   const selected = filter.countries ?? [];
   const value = regionDisplayValue(selected);
@@ -313,7 +307,6 @@ export function FilterRegion({
         popupId="regionFilter"
         close={() => setOpen(false)}
         themedPopup={themedPopup}
-        triggerRect={triggerRect}
         triggerRef={ref}
       >
         <div
@@ -587,7 +580,6 @@ export function FilterSort({
   const { open, setOpen, ref } = useDropdown();
   useLayoutSubscription();
   const themedPopup = getThemeOwnedLayout("layout/popups/sort.json") as PopupLayoutFile | undefined;
-  const triggerRect = useTriggerRect(ref, open && !!themedPopup);
 
   const value = sortValueLabel(sortKey);
   const active = !(sortKey === "players" && sortDir === "desc");
@@ -613,7 +605,6 @@ export function FilterSort({
         popupId="sort"
         close={() => setOpen(false)}
         themedPopup={themedPopup}
-        triggerRect={triggerRect}
         triggerRef={ref}
       >
         <div

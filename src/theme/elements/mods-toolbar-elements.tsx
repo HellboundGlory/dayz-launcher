@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/confirm-dialog";
 import { getThemeOwnedLayout, useLayoutSubscription } from "../theme-store";
 import type { PopupLayoutFile } from "../renderer/types";
-import { FilterPopup, UniqueServerOptionsList, useTriggerRect } from "./popup-elements";
+import { FilterPopup, UniqueServerOptionsList } from "./popup-elements";
 import { OptionIcon } from "./option-icon";
 
 function toolbarDisplayOptions(
@@ -655,7 +655,6 @@ export function ModsSelectUnique({ options, className, style }: { options?: Reco
   const disabled = caredServers.length === 0;
   useLayoutSubscription();
   const themedPopup = getThemeOwnedLayout("layout/popups/modsUnique.json") as PopupLayoutFile | undefined;
-  const triggerRect = useTriggerRect(ref, open && !!themedPopup);
 
   return (
     <div
@@ -697,7 +696,6 @@ export function ModsSelectUnique({ options, className, style }: { options?: Reco
         popupId="modsUnique"
         close={() => setOpen(false)}
         themedPopup={themedPopup}
-        triggerRect={triggerRect}
         triggerRef={ref}
       >
         <ModsSelectUniquePopup

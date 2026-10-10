@@ -1,11 +1,11 @@
-import { createContext, useContext, useEffect, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { createContext, useContext, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { ChevronRight, X } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useServerStore } from "@/stores/server-store";
 import { useModsStore } from "@/stores/mods-store";
 import type { ServerFilter, SortDir, SortKey } from "@/types/filters";
 import type { ElementNode, PopupLayoutFile } from "../renderer/types";
-import { PopupHost, type TriggerRect } from "../interaction/popup-host";
+import { PopupHost } from "../interaction/popup-host";
 import { OptionIcon } from "./option-icon";
 
 /** Which popup an option/clear/close element lives in, and how to close it. */
@@ -29,25 +29,6 @@ export function PopupContextProvider({
   return <PopupContext.Provider value={{ popupId, close }}>{children}</PopupContext.Provider>;
 }
 
-/** Measures a trigger's viewport rect once a themed anchored popup opens. */
-export function useTriggerRect(ref: RefObject<HTMLElement | null>, active: boolean): TriggerRect | undefined {
-  const [rect, setRect] = useState<TriggerRect | undefined>(undefined);
-
-  useEffect(() => {
-    if (!active) {
-      setRect(undefined);
-      return;
-    }
-    const el = ref.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    setRect({ top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width, height: r.height });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]);
-
-  return rect;
-}
-
 /**
  * A trigger's popup: the theme's own `layout/popups/<id>.json` through `PopupHost`
  * when it owns one, else `children` (the launcher's default body). Renders nothing
@@ -58,7 +39,6 @@ export function FilterPopup({
   popupId,
   close,
   themedPopup,
-  triggerRect,
   triggerRef,
   children,
 }: {
@@ -66,7 +46,6 @@ export function FilterPopup({
   popupId: string;
   close: () => void;
   themedPopup: PopupLayoutFile | undefined;
-  triggerRect?: TriggerRect;
   triggerRef: RefObject<HTMLElement | null>;
   children: ReactNode;
 }) {
@@ -74,7 +53,7 @@ export function FilterPopup({
   return (
     <PopupContextProvider popupId={popupId} close={close}>
       {themedPopup ? (
-        <PopupHost file={themedPopup} isOpen={open} onClose={close} triggerRect={triggerRect} triggerRef={triggerRef} />
+        <PopupHost file={themedPopup} isOpen={open} onClose={close} triggerRef={triggerRef} />
       ) : (
         children
       )}
