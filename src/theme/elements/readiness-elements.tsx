@@ -99,8 +99,8 @@ export function ServerReadiness({
   className?: string;
   style?: CSSProperties;
 }) {
-  const { readiness, loading } = useSelectionReadiness();
   const server = useServerSubject();
+  const { readiness, loading } = useSelectionReadiness(server);
   const view = computeReadinessView(readiness, loading);
   const offline = server !== null && !server.online;
 
@@ -129,8 +129,8 @@ export function ServerDownloadSize({
   className?: string;
   style?: CSSProperties;
 }) {
-  const { readiness, loading } = useSelectionReadiness();
   const server = useServerSubject();
+  const { readiness, loading } = useSelectionReadiness(server);
   const view = computeReadinessView(readiness, loading);
   const offline = server !== null && !server.online;
 

@@ -4719,7 +4719,7 @@
       "options": {
         "header": {
           "type": "boolean",
-          "default": false
+          "default": true
         },
         "rowGap": {
           "type": "token",

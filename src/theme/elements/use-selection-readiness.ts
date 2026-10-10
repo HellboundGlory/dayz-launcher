@@ -1,7 +1,8 @@
 import { useEffect, useSyncExternalStore } from "react";
-import { useServerStore } from "@/stores/server-store";
 import { getCachedReadiness, getReadinessVersion, scheduleReadinessFetch, subscribeReadiness } from "@/stores/readiness-store";
-import type { ServerModReadiness } from "@/types/server";
+import type { Server, ServerModReadiness } from "@/types/server";
+import { useElementContext } from "./context";
+import { usePopupContext } from "./popup-elements";
 
 export interface SelectionReadiness {
   readiness: ServerModReadiness | null;
@@ -9,15 +10,17 @@ export interface SelectionReadiness {
 }
 
 /**
- * Fetches mod readiness for the current selection only (SPEC §11.2). Never
- * call this per row — it flouts the "no per-row Steam fetch" rule in
- * ELEMENTS.md. `loading` distinguishes an in-flight fetch from a resolved
- * empty/error result, both of which report `readiness: null`.
+ * Mod readiness for `server`, the server the element is drawn for. Rows get
+ * none, since a fetch per row would break the no-per-row Steam fetch rule; a
+ * popup opened from a row does. `loading` tells an in-flight fetch from a
+ * resolved empty/error result.
  */
-export function useSelectionReadiness(): SelectionReadiness {
-  const selectedServer = useServerStore((s) => s.selectedServer);
-  const addr = selectedServer?.addr ?? null;
-  const queryPort = selectedServer?.query_port ?? null;
+export function useSelectionReadiness(server: Server | null): SelectionReadiness {
+  const { contextName } = useElementContext();
+  const { popupId } = usePopupContext();
+  const target = contextName === "row" && !popupId ? null : server;
+  const addr = target?.addr ?? null;
+  const queryPort = target?.query_port ?? null;
   const version = useSyncExternalStore(subscribeReadiness, getReadinessVersion, getReadinessVersion);
 
   useEffect(() => {

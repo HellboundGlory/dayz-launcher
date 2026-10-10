@@ -15,7 +15,7 @@ function notify(): void {
   for (const listener of listeners) listener();
 }
 
-function readinessKey(addr: string, queryPort: number): string {
+export function readinessKey(addr: string, queryPort: number): string {
   return `${addr}:${queryPort}`;
 }
 
