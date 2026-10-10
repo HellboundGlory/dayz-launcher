@@ -15,6 +15,9 @@ const ENDPOINT: &str = "https://api.steampowered.com/IGameServersService/GetServ
 /// the crawl is a best-effort sweep, not a transaction.
 const ATTEMPTS: u32 = 3;
 const RETRY_BACKOFF: Duration = Duration::from_secs(1);
+/// A throttling response may ask to wait minutes; a shard is not worth blocking
+/// the crawl that long.
+const MAX_THROTTLE_BACKOFF: Duration = Duration::from_secs(30);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Ceiling on requests per crawl, so a list that suddenly refuses to split
@@ -28,6 +31,11 @@ pub enum SteamError {
     /// Transport failure, with the URL stripped — it carries the API key.
     Http(String),
     Status(u16),
+    /// 429 or 408: a busy server, worth another try.
+    Throttled {
+        status: u16,
+        retry_after: Option<Duration>,
+    },
     Decode(String),
 }
 
@@ -35,7 +43,9 @@ impl fmt::Display for SteamError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Http(e) => write!(f, "request failed: {e}"),
-            Self::Status(code) => write!(f, "HTTP {code}"),
+            Self::Status(code) | Self::Throttled { status: code, .. } => {
+                write!(f, "HTTP {code}")
+            }
             Self::Decode(e) => write!(f, "malformed response: {e}"),
         }
     }
@@ -108,7 +118,8 @@ impl SteamClient {
         Ok(Self { http, key })
     }
 
-    /// One `GetServerList` request, retried on transport and 5xx failures.
+    /// One `GetServerList` request, retried on transport, 5xx and throttling
+    /// (429/408) failures.
     pub async fn server_list(
         &self,
         filter: &str,
@@ -119,19 +130,17 @@ impl SteamClient {
         for attempt in 1..=ATTEMPTS {
             match self.request(filter, limit).await {
                 Ok(rows) => return Ok(rows),
-                // A rejected key or a bad filter will be rejected again; only
-                // transport and server-side faults are worth another try.
-                Err(SteamError::Status(code)) if (400..500).contains(&code) => {
-                    return Err(SteamError::Status(code))
-                }
                 Err(e) => {
+                    let Some(delay) = retry_delay(&e, backoff) else {
+                        return Err(e);
+                    };
                     tracing::debug!(filter, attempt, error = %e, "shard request failed");
                     last = e;
+                    if attempt < ATTEMPTS {
+                        tokio::time::sleep(delay).await;
+                        backoff *= 2;
+                    }
                 }
-            }
-            if attempt < ATTEMPTS {
-                tokio::time::sleep(backoff).await;
-                backoff *= 2;
             }
         }
         Err(last)
@@ -153,7 +162,13 @@ impl SteamClient {
             .await
             .map_err(|e| SteamError::Http(e.without_url().to_string()))?;
         if !res.status().is_success() {
-            return Err(SteamError::Status(res.status().as_u16()));
+            let status = res.status().as_u16();
+            let retry_after = res
+                .headers()
+                .get(reqwest::header::RETRY_AFTER)
+                .and_then(|value| value.to_str().ok())
+                .and_then(parse_retry_after);
+            return Err(status_error(status, retry_after));
         }
         let body = res
             .bytes()
@@ -162,6 +177,41 @@ impl SteamClient {
         let envelope: Envelope =
             serde_json::from_slice(&body).map_err(|e| SteamError::Decode(e.to_string()))?;
         Ok(envelope.response.servers)
+    }
+}
+
+/// How long to wait before the next try, or `None` when `err` is permanent.
+fn retry_delay(err: &SteamError, backoff: Duration) -> Option<Duration> {
+    match err {
+        // A rejected key or a bad filter will be rejected again; only
+        // transport, server-side and throttling faults are worth another try.
+        SteamError::Status(code) if (400..500).contains(code) => None,
+        SteamError::Throttled { retry_after, .. } => Some(
+            retry_after
+                .unwrap_or(backoff)
+                .max(backoff)
+                .min(MAX_THROTTLE_BACKOFF),
+        ),
+        _ => Some(backoff),
+    }
+}
+
+/// `Retry-After` when it is a whole number of seconds. The HTTP-date form is
+/// ignored.
+fn parse_retry_after(value: &str) -> Option<Duration> {
+    value.trim().parse::<u64>().ok().map(Duration::from_secs)
+}
+
+/// 429 and 408 are the server asking us to slow down; every other non-success
+/// status is permanent as far as a retry is concerned.
+fn status_error(status: u16, retry_after: Option<Duration>) -> SteamError {
+    if status == 429 || status == 408 {
+        SteamError::Throttled {
+            status,
+            retry_after,
+        }
+    } else {
+        SteamError::Status(status)
     }
 }
 
@@ -282,6 +332,67 @@ mod tests {
         assert!(envelope.response.servers.is_empty());
         let envelope: Envelope = serde_json::from_slice(br#"{}"#).unwrap();
         assert!(envelope.response.servers.is_empty());
+    }
+
+    #[test]
+    fn retry_delay_keeps_only_backoffable_failures() {
+        let backoff = Duration::from_secs(1);
+        let throttled = |status, retry_after| SteamError::Throttled {
+            status,
+            retry_after,
+        };
+
+        assert_eq!(retry_delay(&SteamError::Status(403), backoff), None);
+        assert_eq!(retry_delay(&SteamError::Status(404), backoff), None);
+        assert_eq!(
+            retry_delay(&SteamError::Status(500), backoff),
+            Some(backoff)
+        );
+        assert_eq!(
+            retry_delay(&SteamError::Http("boom".into()), backoff),
+            Some(backoff)
+        );
+        assert_eq!(
+            retry_delay(&throttled(429, Some(Duration::from_secs(5))), backoff),
+            Some(Duration::from_secs(5))
+        );
+        assert_eq!(retry_delay(&throttled(429, None), backoff), Some(backoff));
+        assert_eq!(
+            retry_delay(&throttled(429, Some(Duration::from_millis(500))), backoff),
+            Some(backoff)
+        );
+        assert_eq!(
+            retry_delay(&throttled(429, Some(Duration::from_secs(120))), backoff),
+            Some(Duration::from_secs(30))
+        );
+        assert_eq!(retry_delay(&throttled(408, None), backoff), Some(backoff));
+    }
+
+    #[test]
+    fn throttling_statuses_become_throttled_errors() {
+        assert!(matches!(
+            status_error(429, Some(Duration::from_secs(5))),
+            SteamError::Throttled {
+                status: 429,
+                retry_after: Some(_)
+            }
+        ));
+        assert!(matches!(
+            status_error(408, None),
+            SteamError::Throttled {
+                status: 408,
+                retry_after: None
+            }
+        ));
+        assert!(matches!(status_error(403, None), SteamError::Status(403)));
+    }
+
+    #[test]
+    fn retry_after_reads_only_whole_seconds() {
+        assert_eq!(parse_retry_after("5"), Some(Duration::from_secs(5)));
+        assert_eq!(parse_retry_after(" 10 "), Some(Duration::from_secs(10)));
+        assert_eq!(parse_retry_after("Wed, 21 Oct 2015 07:28:00 GMT"), None);
+        assert_eq!(parse_retry_after(""), None);
     }
 
     #[test]
