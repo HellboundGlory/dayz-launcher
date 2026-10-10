@@ -1,1 +1,142 @@
 @layer launcher, neutral, theme, guarantees;
+
+@layer neutral {
+  .t-neutral-browser {
+    @apply min-h-0 flex-1;
+  }
+
+  .t-neutral-browser-filters {
+    @apply shrink-0 items-center gap-x-[var(--t-space-inlineGap)] gap-y-[var(--t-space-inlineGapWide)] border-b border-line bg-surface px-[var(--t-space-controlSmallX)] py-[var(--t-space-rowY)];
+  }
+
+  .t-neutral-browser-search {
+    @apply flex min-w-[var(--t-space-searchMinWidth)] flex-1 items-center gap-[var(--t-space-inlineGap)] [border-radius:var(--t-radius-input)] border border-line bg-surface2 px-[var(--t-space-controlSmallX)] py-[var(--t-space-controlCompactY)];
+  }
+
+  .t-neutral-browser-search [data-part="icon"],
+  .t-neutral-browser-search [data-part="icon"] svg {
+    @apply size-[var(--t-space-iconSmall)] shrink-0 text-muted;
+  }
+
+  .t-neutral-browser-search [data-part="input"] {
+    @apply min-w-0 flex-1 bg-transparent [font-size:var(--t-type-body-size)] [line-height:inherit] text-ink outline-none placeholder:text-muted;
+  }
+
+  .t-neutral-browser-dropdown {
+    @apply relative;
+  }
+
+  .t-neutral-browser-dropdown [data-part="trigger"],
+  .t-neutral-browser-mods {
+    @apply flex items-center gap-[var(--t-space-inlineGap)] whitespace-nowrap [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-button-weight)] text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)];
+  }
+
+  .t-neutral-browser-dropdown[data-state~="active"] [data-part="trigger"],
+  .t-neutral-browser-mods[data-state~="active"] {
+    @apply border-accent-line bg-accent-soft text-accent [box-shadow:var(--t-glow-selected)];
+  }
+
+  .t-neutral-browser-dropdown [data-part="trigger"]:hover,
+  .t-neutral-browser-mods:hover {
+    @apply border-accent-line text-ink;
+  }
+
+  .t-neutral-browser-dropdown [data-part="label"],
+  .t-neutral-browser-mods [data-part="label"] {
+    @apply [font-size:inherit] [font-weight:inherit] [color:inherit];
+  }
+
+  .t-neutral-browser-dropdown [data-part="value"],
+  .t-neutral-browser-mods [data-part="value"] {
+    @apply truncate [font-weight:var(--t-type-label-weight)] text-muted2;
+  }
+
+  .t-neutral-browser-dropdown[data-state~="active"] [data-part="value"],
+  .t-neutral-browser-dropdown[data-state~="active"] [data-part="direction"],
+  .t-neutral-browser-mods[data-state~="active"] [data-part="value"] {
+    @apply text-accent;
+  }
+
+  .t-neutral-browser-dropdown [data-part="direction"] {
+    @apply -ml-[var(--t-space-inlineGap)] [font-size:inherit] [font-weight:var(--t-type-label-weight)] text-muted2;
+  }
+
+  .t-neutral-browser-dropdown [data-part="direction"]::before {
+    content: "\00a0";
+  }
+
+  .t-neutral-browser-dropdown [data-part="chevron"],
+  .t-neutral-browser-mods [data-part="chevron"] {
+    @apply ml-0 size-[var(--t-space-iconTiny)] text-muted;
+  }
+
+  .t-neutral-browser-ping {
+    @apply flex shrink-0 items-center gap-[var(--t-space-inlineGap)] px-[var(--t-space-separatorX)] [font-size:var(--t-type-label-size)] text-muted;
+  }
+
+  .t-neutral-browser-ping [data-part="label"] {
+    @apply [font-size:inherit] [font-weight:var(--t-type-button-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-muted2;
+  }
+
+  .t-neutral-browser-ping [data-part="knob"] {
+    @apply h-[var(--t-space-sliderHeight)] w-[var(--t-space-pingTrackWidth)] cursor-pointer appearance-none [border-radius:var(--t-radius-pill)] bg-line accent-accent;
+  }
+
+  .t-neutral-browser-ping [data-part="value"] {
+    @apply w-[var(--t-space-dataWidth)] [font-family:var(--t-type-family-data)] [font-size:inherit] [line-height:inherit] normal-nums text-muted2;
+  }
+
+  .t-neutral-browser-toggle,
+  .t-neutral-browser-reset,
+  .t-neutral-browser-refresh {
+    @apply flex shrink-0 items-center gap-[var(--t-space-inlineGapSmall)] [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-button-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)];
+  }
+
+  .t-neutral-browser-toggle:not([data-state~="on"]):hover,
+  .t-neutral-browser-reset:hover {
+    @apply text-ink;
+  }
+
+  .t-neutral-browser-toggle[data-state~="on"] {
+    @apply border-accent-line bg-accent-soft text-accent;
+  }
+
+  .t-neutral-browser-reset [data-part="icon"],
+  .t-neutral-browser-refresh [data-part="icon"] {
+    @apply flex shrink-0;
+  }
+
+  .t-neutral-browser-reset [data-part="icon"] svg,
+  .t-neutral-browser-refresh [data-part="icon"] svg {
+    @apply size-[var(--t-space-iconSmall)];
+  }
+
+  .t-neutral-browser-reset [data-part="label"],
+  .t-neutral-browser-refresh [data-part="label"] {
+    @apply [font-size:inherit] [font-weight:inherit];
+  }
+
+  .t-neutral-browser-refresh {
+    @apply justify-center border-accent-line bg-accent-soft text-accent [box-shadow:var(--t-glow-rest)];
+  }
+
+  .t-neutral-browser-refresh:not([data-state~="busy"]):hover {
+    @apply brightness-110;
+  }
+
+  .t-neutral-browser-refresh[data-state~="busy"] {
+    @apply cursor-not-allowed border-line bg-surface2 text-muted [box-shadow:none];
+  }
+
+  .t-neutral-browser-list {
+    @apply flex-1 min-h-0 w-full;
+  }
+
+  .t-neutral-browser-list [data-part="scroller"] {
+    @apply p-2;
+  }
+
+  .t-neutral-browser-list [data-part="empty"] {
+    @apply m-2 h-32 flex-none p-0 [font-size:var(--t-type-body-size)] text-muted;
+  }
+}

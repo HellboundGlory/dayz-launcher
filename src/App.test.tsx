@@ -112,7 +112,7 @@ describe("engine-drawn files", () => {
     {
       file: "layout/views/browser.json",
       setup: () => {},
-      draws: ['data-surface="surface.filterBar"'],
+      draws: ['data-el="list.servers"'],
       omits: [LEGACY_LIST, PIPELINE_SHELL],
     },
     {
@@ -149,7 +149,7 @@ describe("App screen source", () => {
     const html = renderToStaticMarkup(<App />);
 
     expect(html).toContain(PIPELINE_SHELL);
-    expect(html).toContain('data-surface="surface.filterBar"');
+    expect(html).toContain('data-el="list.servers"');
     expect(html).not.toContain(LEGACY_LIST);
   });
 
@@ -160,7 +160,7 @@ describe("App screen source", () => {
     const html = renderToStaticMarkup(<App />);
 
     expect(html).toContain(PIPELINE_SHELL);
-    expect(html).not.toContain('data-surface="surface.filterBar"');
+    expect(html).not.toContain('data-el="list.servers"');
     expect(html).toContain(LEGACY_LIST);
   });
 
@@ -171,7 +171,7 @@ describe("App screen source", () => {
     const html = renderToStaticMarkup(<App />);
 
     expect(html).not.toContain(PIPELINE_SHELL);
-    expect(html).toContain('data-surface="surface.filterBar"');
+    expect(html).toContain('data-el="list.servers"');
     expect(html).not.toContain(LEGACY_LIST);
   });
 
