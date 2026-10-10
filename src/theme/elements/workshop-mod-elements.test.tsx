@@ -289,7 +289,7 @@ describe("workshopMod.serverNote", () => {
 
 describe("workshopMod.viewOnSteam", () => {
   it("reads View on Steam and opens the workshop page for the mod id", () => {
-    const entry = makeEntry({ id: "99" });
+    const entry = makeEntry({ id: "99", workshopUrl: "https://steamcommunity.com/sharedfiles/filedetails/?id=99" });
     const html = renderEl("workshopMod.viewOnSteam", entry);
     expect(html).toContain("View on Steam");
 
@@ -297,6 +297,10 @@ describe("workshopMod.viewOnSteam", () => {
     (captured["workshopMod.viewOnSteam"].onClick as (e: { stopPropagation: () => void }) => void)({ stopPropagation });
     expect(stopPropagation).toHaveBeenCalled();
     expect(tauriMocks.openWorkshopInSteam).toHaveBeenCalledWith("99");
+  });
+
+  it("renders nothing without a Workshop URL", () => {
+    expect(renderEl("workshopMod.viewOnSteam", makeEntry({ workshopUrl: null }))).toBe("");
   });
 });
 

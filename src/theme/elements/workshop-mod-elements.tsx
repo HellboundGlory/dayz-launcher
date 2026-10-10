@@ -296,7 +296,7 @@ function WorkshopModViewOnSteam({
   style?: CSSProperties;
 }) {
   const entry = useWorkshopModSubject();
-  if (!entry) return null;
+  if (!entry?.workshopUrl) return null;
 
   const label = (options?.label as string | undefined) ?? "View on Steam";
 
