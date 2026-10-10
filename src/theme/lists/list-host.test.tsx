@@ -462,6 +462,19 @@ describe("ListHost", () => {
 
     expect(html).toContain("height:74px");
   });
+
+  it("applies a row gap token to the rows wrapper", () => {
+    const html = renderToStaticMarkup(
+      <ListHost
+        listId="list.serverMods"
+        items={[mockServer, { ...mockServer }]}
+        columns={sampleColumns}
+        rowGap="rowY"
+      />,
+    );
+
+    expect(html).toContain("row-gap:var(--t-space-rowY)");
+  });
 });
 
 describe("ListHost column widths", () => {

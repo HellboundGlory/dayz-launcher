@@ -19,12 +19,22 @@ import { effectiveModState, filterAndSortMods } from "@/components/mods-tab";
 import type { Server, ModReadinessEntry, ServerModReadiness } from "@/types/server";
 import type { LayoutFile } from "../renderer/types";
 
+// Only the options a list's registry entry declares reach the host.
+function listHostOptions(options: Record<string, unknown> | undefined) {
+  return {
+    header: options?.header !== false,
+    rowGap: typeof options?.rowGap === "string" ? options.rowGap : undefined,
+  };
+}
+
 export function ServerListHost({
   className,
   style,
+  options,
 }: {
   className?: string;
   style?: CSSProperties;
+  options?: Record<string, unknown>;
 }) {
   const servers = useServerStore((s) => s.servers);
   const selectedServer = useServerStore((s) => s.selectedServer);
@@ -40,6 +50,7 @@ export function ServerListHost({
       <ListHost<Server>
         listId="list.servers"
         items={servers}
+        {...listHostOptions(options)}
         columns={listLayout?.columns}
         rowNode={listLayout?.row}
         overflowX={listLayout?.overflowX}
@@ -235,9 +246,11 @@ export const MOD_STATE_NAME: Record<ModState, string> = {
 export function ModsListHost({
   className,
   style,
+  options,
 }: {
   className?: string;
   style?: CSSProperties;
+  options?: Record<string, unknown>;
 }) {
   const { rows, search, statusFilter, sortKey, sortDir, states, selectedModId, selectedIds, openMod, setSort } =
     useModsStore(
@@ -269,6 +282,7 @@ export function ModsListHost({
       <ListHost<SubscribedMod>
         listId="list.mods"
         items={mods}
+        {...listHostOptions(options)}
         columns={listLayout?.columns}
         rowNode={listLayout?.row}
         overflowX={listLayout?.overflowX}
@@ -305,9 +319,11 @@ function modFilterResultsEmptyText(loading: boolean, tab: string, query: string)
 export function ModFilterResultsListHost({
   className,
   style,
+  options,
 }: {
   className?: string;
   style?: CSSProperties;
+  options?: Record<string, unknown>;
 }) {
   const modsRows = useModsStore((s) => s.rows);
   const modsLoading = useModsStore((s) => s.loading);
@@ -355,6 +371,7 @@ export function ModFilterResultsListHost({
       <ListHost<ModFilterEntry>
         listId="list.modFilterResults"
         items={loading ? [] : items}
+        {...listHostOptions(options)}
         columns={listLayout?.columns}
         rowNode={listLayout?.row}
         emptyNode={{ type: "text", value: modFilterResultsEmptyText(loading, tab, query) }}

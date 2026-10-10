@@ -327,11 +327,11 @@ export function ElementHost({
       return <UpdatePortableNote className={mergedClass} style={style} />;
 
     case "list.servers":
-      return <ServerListHost className={mergedClass} style={style} />;
+      return <ServerListHost options={node.options} className={mergedClass} style={style} />;
     case "list.serverMods":
       return <ServerModsListHost className={mergedClass} style={style} />;
     case "list.modFilterResults":
-      return <ModFilterResultsListHost className={mergedClass} style={style} />;
+      return <ModFilterResultsListHost options={node.options} className={mergedClass} style={style} />;
 
     case "serverMod.state":
       return <ServerModState options={node.options} className={mergedClass} style={style} />;
