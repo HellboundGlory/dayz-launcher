@@ -1,4 +1,4 @@
-@layer launcher, theme, guarantees;
+@layer launcher, neutral, theme, guarantees;
 
 @layer launcher {
   @tailwind base;
