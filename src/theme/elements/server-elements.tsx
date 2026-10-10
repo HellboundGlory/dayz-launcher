@@ -290,30 +290,30 @@ export function ServerTags({
   return (
     <div data-el="server.tags" data-state={serverStates(offline)} className={className ?? "flex items-center gap-1 text-[10px]"} style={style}>
       {showOffline && offline && (
-        <span data-part="chip" data-state="offline" className={cn(chipClass, "text-danger border-danger/40")}>OFFLINE</span>
+        <span data-part="chip" data-state="offline" className={cn(chipClass, "text-danger border-danger-line")}>OFFLINE</span>
       )}
       {showOfficial && server.official && (
-        <span data-part="chip" data-state="official" className={cn(chipClass, "text-accent border-accent/40")}>
+        <span data-part="chip" data-state="official" className={cn(chipClass, "text-accent border-accent-line")}>
           {officialWording === "official" ? "OFFICIAL" : "VANILLA"}
         </span>
       )}
       {showFirstPerson && server.first_person && (
-        <span data-part="chip" data-state="firstPerson" className={cn(chipClass, "text-muted border-border")}>1PP</span>
+        <span data-part="chip" data-state="firstPerson" className={cn(chipClass, "text-muted border-line")}>1PP</span>
       )}
       {showModded && server.modded && (
-        <span data-part="chip" data-state="modded" className={cn(chipClass, "text-accent2 border-accent2/40")}>MODDED</span>
+        <span data-part="chip" data-state="modded" className={cn(chipClass, "text-accent2 border-accent2-line")}>MODDED</span>
       )}
       {showLocked && server.locked && (
-        <span data-part="chip" data-state="locked" className={cn(chipClass, "text-danger border-danger/40")}>LOCKED</span>
+        <span data-part="chip" data-state="locked" className={cn(chipClass, "text-danger border-danger-line")}>LOCKED</span>
       )}
       {showBattleye && server.battleye && (
-        <span data-part="chip" data-state="battleye" className={cn(chipClass, "text-accent border-accent/40")}>BATTLEYE</span>
+        <span data-part="chip" data-state="battleye" className={cn(chipClass, "text-accent border-accent-line")}>BATTLEYE</span>
       )}
       {showModUpdate && hasModUpdate && (
         <span
           data-part="chip"
           data-state="modUpdate"
-          className={cn(chipClass, "text-accent border-accent/40")}
+          className={cn(chipClass, "text-accent border-accent-line")}
           title="A declared mod has a Steam update pending"
         >
           UPDATE
@@ -701,7 +701,7 @@ export function ServerLoadMenuPopup({
     <div
       data-part="popup"
       role="menu"
-      className="absolute right-0 top-full mt-1 min-w-[140px] rounded border border-border bg-surface py-1 shadow-xl"
+      className="absolute right-0 top-full mt-1 min-w-[140px] rounded border border-line bg-surface py-1 shadow-xl"
     >
       <button
         type="button"
@@ -1194,7 +1194,7 @@ export function ServerCheckMods({
       onClick={handleClick}
       aria-label={label}
       title={showLabel ? undefined : label}
-      className={className ?? "flex-1 py-2 px-3 text-xs font-semibold text-center border border-border bg-surface2 hover:border-accent text-text transition-colors"}
+      className={className ?? "flex-1 py-2 px-3 text-xs font-semibold text-center border border-line bg-surface2 hover:border-accent text-ink transition-colors"}
       style={style}
     >
       {showIcon && (
@@ -1239,7 +1239,7 @@ export function ServerSubscribeAll({
       onClick={handleClick}
       aria-label={label}
       title={showLabel ? undefined : label}
-      className={className ?? "flex-1 py-2 px-3 text-xs font-semibold text-center border border-border bg-surface2 hover:border-accent text-text transition-colors"}
+      className={className ?? "flex-1 py-2 px-3 text-xs font-semibold text-center border border-line bg-surface2 hover:border-accent text-ink transition-colors"}
       style={style}
     >
       {showIcon && (
@@ -1315,7 +1315,7 @@ export function ServerUnsubscribeUnique({
       onClick={handleClick}
       aria-label={label}
       title={showLabel ? undefined : label}
-      className={className ?? "flex-1 py-2 px-3 text-xs font-semibold text-center border border-border bg-surface2 hover:border-accent text-text transition-colors"}
+      className={className ?? "flex-1 py-2 px-3 text-xs font-semibold text-center border border-line bg-surface2 hover:border-accent text-ink transition-colors"}
       style={style}
     >
       {showIcon && (

@@ -380,7 +380,7 @@ function ModCount({ server }: { server: Server }) {
   if (server.modded) {
     return (
       <div
-        className="font-mono-data [font-size:var(--t-type-statValue-size)] font-bold leading-none text-warn/80"
+        className="font-mono-data [font-size:var(--t-type-statValue-size)] font-bold leading-none text-warn"
         title="This server declares mods. The mod list is fetched on refresh."
       >
         ?

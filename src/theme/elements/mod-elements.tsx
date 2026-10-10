@@ -735,7 +735,7 @@ export function ServerModName({ className, style }: { className?: string; style?
   if (!mod) return null;
 
   return (
-    <span data-el="serverMod.name" className={className ?? "truncate text-xs font-medium text-text"} style={style}>
+    <span data-el="serverMod.name" className={className ?? "truncate text-xs font-medium text-ink"} style={style}>
       {mod.name ?? "Unknown mod"}
     </span>
   );

@@ -503,7 +503,7 @@ function modRowNodes(
       <div className="mx-title flex min-w-0 items-center gap-1.5 [font-size:var(--t-type-body-size)] font-semibold">
         <span data-tetra-el="modName" className="truncate text-ink">{mod.title ?? mod.workshop_id}</span>
         {mod.locally_disabled && (
-          <span className="shrink-0 [border-radius:var(--t-radius-chip)] border border-muted/50 px-1 [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-wider text-muted2">
+          <span className="shrink-0 [border-radius:var(--t-radius-chip)] border border-muted px-1 [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-wider text-muted2">
             Disabled
           </span>
         )}
@@ -605,7 +605,7 @@ function ModInspector({ mod }: { mod: SubscribedMod }) {
           </div>
         )}
         {mod.locally_disabled && (
-          <span className="absolute left-2 top-2 rounded border border-muted/60 bg-black/60 px-1.5 py-0.5 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-wider text-ink">
+          <span className="absolute left-2 top-2 rounded border border-muted bg-black/60 px-1.5 py-0.5 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-wider text-ink">
             Disabled
           </span>
         )}

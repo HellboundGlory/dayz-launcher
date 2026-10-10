@@ -361,10 +361,10 @@ export function ServerActionNotice({ className, style }: { className?: string; s
     content.state === "error" ? "text-danger" : content.state === "success" ? "text-success" : "text-warn";
   const borderClass =
     content.state === "error"
-      ? "border-danger/70"
+      ? "border-danger-line"
       : content.state === "success"
-        ? "border-success/70"
-        : "border-warn/70";
+        ? "border-success-line"
+        : "border-warn-line";
 
   const leading =
     content.kind === "code" ? (
@@ -374,7 +374,7 @@ export function ServerActionNotice({ className, style }: { className?: string; s
         className={cn(
           "shrink-0 [border-radius:var(--t-radius-controlSmall)] px-1 font-mono-data text-[9px] font-semibold uppercase",
           stateClass,
-          content.state === "error" ? "bg-danger/15" : "bg-warn/15",
+          content.state === "error" ? "bg-danger-soft" : "bg-warn-soft",
         )}
       >
         {content.code}
@@ -409,7 +409,7 @@ export function ServerActionNotice({ className, style }: { className?: string; s
     <div
       data-el="server.actionNotice"
       data-state={content.kind === "refusal" ? "error refused" : content.state}
-      className={cn("border bg-surface2/60 p-3 my-2", borderClass, className)}
+      className={cn("border p-3 my-2", borderClass, className)}
       style={style}
     >
       {leading && <div className="mb-1">{leading}</div>}
