@@ -7,6 +7,7 @@ import { useLaunchStore, type ServerNotice, type LaunchResult } from "@/stores/l
 import { useModsStore, visibleRows } from "@/stores/mods-store";
 import { useServerStore } from "@/stores/server-store";
 import { NOTICES } from "@/hooks/use-server-actions";
+import { usePopupContext } from "./popup-elements";
 
 export function NoticeStorage({ className, style }: { className?: string; style?: CSSProperties }) {
   const { storageDegraded } = useElementContext();
@@ -354,13 +355,14 @@ export function NoticeLaunch({ className, style }: { className?: string; style?:
 
 export function ServerActionNotice({ className, style }: { className?: string; style?: CSSProperties }) {
   const { subjectContext, selectedServer, contextName } = useElementContext();
+  const { popupId } = usePopupContext();
   const storeNotice = useLaunchStore((s) => s.notice);
   const result = useLaunchStore((s) => s.result);
   const server = (subjectContext?.kind === "server" ? subjectContext.data : selectedServer) as import("@/types/server").Server | null;
   if (!server) return null;
 
-  // Rows report join results in the launch notice bar instead, never inline.
-  if (contextName === "row") return null;
+  // Rows report join results in the launch notice bar instead, never inline; a row's popup shows them.
+  if (contextName === "row" && !popupId) return null;
 
   const content = resolveActionNoticeContent(server.addr, storeNotice, result);
   if (!content) return null;
