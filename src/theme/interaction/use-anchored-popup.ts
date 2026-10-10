@@ -14,7 +14,7 @@ export interface AnchoredPopupOptions {
 }
 
 /** A CSS length (px, rem, vh, %) in pixels, as the browser resolves it for a fixed box. */
-function resolveLengthPx(value: string): number {
+export function resolveLengthPx(value: string): number {
   const probe = document.createElement("div");
   probe.style.cssText = `position:fixed;visibility:hidden;height:${value}`;
   document.body.appendChild(probe);

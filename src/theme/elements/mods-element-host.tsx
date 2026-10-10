@@ -182,7 +182,7 @@ export function renderModsElement(
     case "modServer.lastPlayed":
       return <ModServerLastPlayed options={node.options} className={className} style={style} />;
     case "list.mods":
-      return <ModsListHost className={className} style={style} />;
+      return <ModsListHost options={node.options} className={className} style={style} />;
     case "list.modServers":
       return <ModServersListHost className={className} style={style} />;
     case "mods.selectAll":

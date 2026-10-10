@@ -16,6 +16,8 @@ import { fitColumns, useColumnWidths } from "./use-column-widths";
 import type { ColumnDef, ListId, SortState } from "./types";
 import type { LayoutNode } from "../renderer/types";
 import { LayoutNodeRenderer } from "../renderer/node-renderer";
+import { resolveSpace } from "../renderer/props";
+import { resolveLengthPx } from "../interaction/use-anchored-popup";
 import { REGISTRY } from "../registry";
 import { useThemeStore } from "../theme-store";
 
@@ -91,6 +93,7 @@ export interface ListHostProps<T = unknown> {
   rowNode?: LayoutNode;
   emptyNode?: LayoutNode;
   header?: boolean;
+  rowGap?: string;
   selectedItem?: T | null;
   onSelect?: (item: T | null) => void;
   sortState?: SortState;
@@ -109,6 +112,7 @@ export function ListHost<T = unknown>({
   rowNode,
   emptyNode,
   header = true,
+  rowGap,
   selectedItem,
   onSelect,
   sortState,
@@ -179,7 +183,10 @@ export function ListHost<T = unknown>({
       return;
     }
     const el = headerRef.current;
-    if (!el) return;
+    if (!el) {
+      setHeaderHeight(0);
+      return;
+    }
     const measure = () => setHeaderHeight(el.offsetHeight);
     measure();
     if (typeof ResizeObserver === "undefined") return;
@@ -190,10 +197,18 @@ export function ListHost<T = unknown>({
 
   const scrollMargin = isScroll ? headerHeight : 0;
 
+  const rowGapVar = rowGap && rowGap !== "none" ? resolveSpace(rowGap) : undefined;
+  // Only for rows not yet measured; a measured row carries its gap as padding.
+  const rowGapPx = useMemo(
+    () => (rowGapVar && typeof document !== "undefined" ? resolveLengthPx(rowGapVar) : 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the token's value changes with the theme
+    [rowGapVar, activeThemeId],
+  );
+
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => rowHeightPx,
+    estimateSize: (index) => rowHeightPx + (index > 0 ? rowGapPx : 0),
     overscan: 5,
     scrollMargin,
     observeElementRect: observeBoundedRect,
@@ -269,6 +284,7 @@ export function ListHost<T = unknown>({
 
   const rowList = isVirtualized ? (
     <div
+      data-part="rows"
       style={{
         height: `${virtualizer.getTotalSize()}px`,
         width: "100%",
@@ -287,10 +303,11 @@ export function ListHost<T = unknown>({
             data-index={virtualRow.index}
             style={{
               position: "absolute",
-              top: 0,
+              top: virtualRow.start - scrollMargin,
               left: 0,
               width: "100%",
-              transform: `translateY(${virtualRow.start - scrollMargin}px)`,
+              // Part of the measured row, so the gap follows token changes.
+              paddingTop: virtualRow.index > 0 ? rowGapVar : undefined,
             }}
           >
             <ListRow
@@ -306,7 +323,7 @@ export function ListHost<T = unknown>({
       })}
     </div>
   ) : (
-    <>
+    <div data-part="rows" className="flex flex-col" style={{ rowGap: rowGapVar }}>
       {items.map((item, index) => {
         const isSelected = item === selectedItem;
         return (
@@ -321,7 +338,7 @@ export function ListHost<T = unknown>({
           />
         );
       })}
-    </>
+    </div>
   );
 
   return (
@@ -334,7 +351,12 @@ export function ListHost<T = unknown>({
       style={style}
     >
       {isScroll ? (
-        <div ref={scrollRef} onWheel={onScrollerWheel} className="relative min-h-0 flex-1 overflow-auto">
+        <div
+          ref={scrollRef}
+          data-part="scroller"
+          onWheel={onScrollerWheel}
+          className="relative min-h-0 flex-1 overflow-auto"
+        >
           <div
             style={{
               minWidth: wrapperMinWidth ? `${wrapperMinWidth}px` : undefined,
@@ -362,6 +384,7 @@ export function ListHost<T = unknown>({
           ) : (
             <div
               ref={scrollRef}
+              data-part="scroller"
               className={
                 isVirtualized
                   ? "relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
