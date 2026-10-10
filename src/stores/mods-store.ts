@@ -14,6 +14,7 @@ import {
   type CaredServer,
   type ServerNeeding,
 } from "@/lib/tauri";
+import { invalidateReadiness } from "@/stores/readiness-store";
 
 /** How the list is ordered. "Subscribed date" falls back to the install stamp. */
 export type ModSortKey = "name" | "status" | "size" | "updated" | "subscribed";
@@ -120,6 +121,13 @@ function sameEntries<T>(a: Record<string, T>, eq: (x: T, y: T) => boolean) {
   };
 }
 
+// A poll that changes nothing must keep the current rows array: the readiness
+// cache is dropped when its identity changes.
+function sameRows(a: SubscribedMod[], b: SubscribedMod[]): boolean {
+  const byId = (rows: SubscribedMod[]) => Object.fromEntries(rows.map((r) => [r.workshop_id, r]));
+  return sameEntries(byId(a), (x, y) => JSON.stringify(x) === JSON.stringify(y))(byId(b));
+}
+
 export const useModsStore = create<ModsState>((set, get) => ({
   rows: [],
   fromCache: false,
@@ -146,9 +154,10 @@ export const useModsStore = create<ModsState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const outcome = await getSubscribedMods(force);
-      const rows = outcome.rows;
+      const incoming = outcome.rows;
+      const rows = sameRows(incoming, get().rows) ? get().rows : incoming;
       const selected = new Set(
-        [...get().selectedIds].filter((id) => rows.some((r) => r.workshop_id === id)),
+        [...get().selectedIds].filter((id) => incoming.some((r) => r.workshop_id === id)),
       );
       set({
         rows,
@@ -156,7 +165,7 @@ export const useModsStore = create<ModsState>((set, get) => ({
         loading: false,
         selectedIds: selected,
         selectedModId:
-          get().selectedModId && rows.some((r) => r.workshop_id === get().selectedModId)
+          get().selectedModId && incoming.some((r) => r.workshop_id === get().selectedModId)
             ? get().selectedModId
             : null,
         // Clear cached live states on a forced refresh so stale poll data
@@ -292,6 +301,7 @@ export const useModsStore = create<ModsState>((set, get) => ({
         mutationFailures: outcome.failures.length ? outcome.failures : null,
         op: null,
       });
+      invalidateReadiness();
       void get().load(true);
     } catch (e) {
       set({ op: null, error: String(e) });
@@ -332,7 +342,10 @@ async function runVerify(ids: string[]) {
         }
         return r;
       });
+      // Replacing rows already drops the cached readiness.
       set({ rows: updatedRows });
+    } else {
+      invalidateReadiness();
     }
 
     set({
@@ -354,6 +367,7 @@ async function runUpdate(ids: string[]) {
   try {
     await updateSubscribedMods(ids);
     set({ op: null });
+    invalidateReadiness();
     // Re-poll now so the "downloading" dots appear without waiting for the
     // 1.5s poll interval.
     void refreshLiveState();
@@ -372,6 +386,7 @@ async function runUnsubscribe(ids: string[]) {
       mutationFailures: outcome.failures.length ? outcome.failures : null,
       op: null,
     });
+    invalidateReadiness();
     // Steam lags its own unsubscribe callback, so re-enumerate to get an
     // authoritative list rather than trusting our stale rows.
     void useModsStore.getState().load(true);
@@ -403,3 +418,9 @@ async function refreshLiveState() {
 
 /** A tiny `set` bound to the store, so the helpers above stay terse. */
 const set = (partial: Partial<ModsState>) => useModsStore.setState(partial);
+
+// A new rows array means a mod changed on disk — a download finished, a
+// subscribe landed, an unsubscribe reloaded — so drop the cached readiness.
+useModsStore.subscribe((state, previous) => {
+  if (state.rows !== previous.rows) invalidateReadiness();
+});

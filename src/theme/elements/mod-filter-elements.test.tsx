@@ -184,6 +184,17 @@ describe("modFilter.search", () => {
     expect(renderEl("modFilter.search")).not.toContain('data-part="icon"');
     expect(renderEl("modFilter.search", { showIcon: true })).toContain('data-part="icon"');
   });
+
+  it("shows the Workshop search error while the store reports one", () => {
+    useModFilterStore.setState({ tab: "workshop", searchError: "Steam is offline" }, false);
+    const html = renderEl("modFilter.search");
+    expect(html).toContain('data-part="error"');
+    expect(html).toContain('role="alert"');
+    expect(html).toContain("Steam is offline");
+
+    useModFilterStore.setState({ searchError: null }, false);
+    expect(renderEl("modFilter.search")).not.toContain('data-part="error"');
+  });
 });
 
 describe("modFilter.summary", () => {

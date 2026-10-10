@@ -165,6 +165,7 @@ function ModFilterSearch({
   const query = useModFilterStore((s) => s.query);
   const setQuery = useModFilterStore((s) => s.setQuery);
   const searchLoading = useModFilterStore((s) => s.searchLoading);
+  const searchError = useModFilterStore((s) => s.searchError);
 
   const showIcon = options?.showIcon === true;
   const busy = tab === "workshop" && searchLoading;
@@ -184,6 +185,11 @@ function ModFilterSearch({
         placeholder={searchPlaceholder(tab)}
         aria-label="Search mods"
       />
+      {searchError && (
+        <span data-part="error" role="alert">
+          {searchError}
+        </span>
+      )}
     </div>
   );
 }

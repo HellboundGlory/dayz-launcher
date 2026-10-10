@@ -5,7 +5,7 @@ import { getPersistedCollapsed, setPersistedCollapsed } from "../interaction/sto
 
 export type ViewId = "servers" | "fav" | "recent" | "mods";
 export type ContextSubjectKind = "server" | "mod" | "serverMod" | "modServer" | "workshopMod";
-export type ContextName = "row" | "selection" | "modal" | "modSelection" | "modFilterPreview" | "popup";
+export type ContextName = "row" | "selection" | "modal" | "modSelection" | "modFilterPreview" | "popup" | "listHeader";
 
 export interface SubjectContext {
   kind: ContextSubjectKind;
