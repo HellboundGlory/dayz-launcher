@@ -11,6 +11,7 @@ import {
 import {
   effectiveRoleValues,
   getActiveLayout,
+  getEngineLayout,
   getThemeOwnedLayout,
   mergeSettingsValues,
   resolvedExtras,
@@ -18,7 +19,7 @@ import {
   watchHotReload,
   watchThemeActivationReverted,
 } from "./theme-store";
-import { clearFallbackMemory, isFileFallenBack, useFallbackStore } from "./fallback/store";
+import { clearFallbackMemory, isFileFallenBack, markFileFallback, useFallbackStore } from "./fallback/store";
 import { getNeutralLayout } from "./neutral";
 import type { ThemeFile, ThemeSummary, ValidationIssue } from "@/types/theme";
 import { NEUTRAL_TOKENS, parseTokens } from "./tokens";
@@ -1148,6 +1149,44 @@ describe("getThemeOwnedLayout", () => {
     });
 
     expect(getThemeOwnedLayout("layout/modals/serverInfo.json")).toBeUndefined();
+  });
+});
+
+describe("getEngineLayout", () => {
+  const PATH = "layout/shell.json";
+  const OWN: LayoutFile = { schemaVersion: 2, root: { type: "stack", children: [] } };
+  const ENGINE: ReadonlySet<string> = new Set([PATH]);
+
+  it("returns the active theme's own file when it ships the path", () => {
+    useThemeStore.setState({
+      activeId: "local.aurora",
+      themeFiles: { "local.aurora": { layouts: { [PATH]: OWN } } as unknown as ThemeFile },
+    });
+
+    expect(getEngineLayout(PATH, ENGINE)).toBe(OWN);
+  });
+
+  it("draws an owned path from Neutral, with or without the layout/ prefix", () => {
+    useThemeStore.setState({ activeId: "neutral", themeFiles: {} });
+
+    expect(getEngineLayout(PATH, ENGINE)).toBe(getNeutralLayout(PATH));
+    expect(getEngineLayout("shell.json", ENGINE)).toBe(getNeutralLayout(PATH));
+  });
+
+  it("draws Neutral's file for a dropped theme file on an owned path", () => {
+    useThemeStore.setState({
+      activeId: "local.aurora",
+      themeFiles: { "local.aurora": { layouts: { [PATH]: OWN } } as unknown as ThemeFile },
+    });
+    markFileFallback("local.aurora", PATH, "LAY-01: no valid variant for 650x413");
+
+    expect(getEngineLayout(PATH, ENGINE)).toBe(getNeutralLayout(PATH));
+  });
+
+  it("returns undefined for a path the engine doesn't own", () => {
+    useThemeStore.setState({ activeId: "neutral", themeFiles: {} });
+
+    expect(getEngineLayout(PATH, new Set())).toBeUndefined();
   });
 });
 
