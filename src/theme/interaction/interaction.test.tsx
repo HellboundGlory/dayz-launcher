@@ -472,6 +472,7 @@ describe("Theme Interaction & Presentation (Package 4.4)", () => {
             root: { type: "text", value: "Popup Content" },
           }}
           onClose={() => {}}
+          triggerRef={{ current: null }}
         />,
       );
 
@@ -492,6 +493,7 @@ describe("Theme Interaction & Presentation (Package 4.4)", () => {
             root: { type: "text", value: "Drawer Popup" },
           }}
           onClose={() => {}}
+          triggerRef={{ current: null }}
         />,
       );
       expect(regionHtml).toContain('data-mode="region"');
@@ -505,6 +507,7 @@ describe("Theme Interaction & Presentation (Package 4.4)", () => {
             root: { type: "text", value: "Inline Popup" },
           }}
           onClose={() => {}}
+          triggerRef={{ current: null }}
         />,
       );
       expect(inlineHtml).toContain('data-mode="inline"');
