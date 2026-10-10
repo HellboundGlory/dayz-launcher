@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ServerModsList, loadServerMods, resolveModsListDisplay } from "./list-elements";
+import { ServerModsList, ServerModsListHost, loadServerMods, resolveModsListDisplay } from "./list-elements";
+import { ElementContextProvider, SubjectContextProvider } from "./context";
+import { PopupContextProvider } from "./popup-elements";
 import { getNeutralLayout } from "../neutral";
+import { setCachedReadiness } from "@/stores/readiness-store";
 import type { ModReadinessEntry, Server, ServerModReadiness } from "@/types/server";
 
 vi.mock("@/lib/tauri", () => ({
@@ -29,6 +32,12 @@ const oneMod: ModReadinessEntry = {
 };
 
 describe("ServerModsList rendering", () => {
+  it("omits the header when the list is configured without one", () => {
+    const html = renderToStaticMarkup(<ServerModsList header={false} state={undefined} mods={[oneMod]} />);
+    expect(html).not.toContain('data-part="header"');
+    expect(html).toContain('data-part="rows"');
+  });
+
   it("renders the empty state text for a server with no mods, never invented rows", () => {
     const html = renderToStaticMarkup(<ServerModsList state="empty" mods={[]} />);
     expect(html).toContain("This server declares no mods.");
@@ -55,6 +64,41 @@ describe("ServerModsList rendering", () => {
     const html = renderToStaticMarkup(<ServerModsList state="loading" mods={[]} />);
     expect(html).toContain('data-part="loading"');
     expect(html).not.toContain('data-part="rows"');
+  });
+});
+
+describe("ServerModsListHost", () => {
+  const serverA = { ...moddedServer, addr: "10.0.0.1", query_port: 27017 } as Server;
+  const serverB = { ...moddedServer, addr: "10.0.0.2", query_port: 27018 } as Server;
+
+  it("lists the mods of the server it is drawn for, not the selected one", () => {
+    setCachedReadiness(serverB.addr, serverB.query_port, { stale: false, mods: [oneMod] });
+    const html = renderToStaticMarkup(
+      <ElementContextProvider value={{ selectedServer: serverA }}>
+        <SubjectContextProvider subject={{ kind: "server", data: serverB }} contextName="modal">
+          <ServerModsListHost />
+        </SubjectContextProvider>
+      </ElementContextProvider>,
+    );
+    expect(html).toContain("CF");
+  });
+
+  it("reads readiness inside a popup opened from a row, but not in the row itself", () => {
+    setCachedReadiness(serverB.addr, serverB.query_port, { stale: false, mods: [oneMod] });
+    const inRow = (children: React.ReactNode) => (
+      <SubjectContextProvider subject={{ kind: "server", data: serverB }} contextName="row">
+        {children}
+      </SubjectContextProvider>
+    );
+    expect(renderToStaticMarkup(inRow(<ServerModsListHost />))).not.toContain("CF");
+    const popup = renderToStaticMarkup(
+      inRow(
+        <PopupContextProvider popupId="serverActions" close={() => {}}>
+          <ServerModsListHost />
+        </PopupContextProvider>,
+      ),
+    );
+    expect(popup).toContain("CF");
   });
 });
 

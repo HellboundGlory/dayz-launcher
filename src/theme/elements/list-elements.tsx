@@ -15,6 +15,8 @@ import { getActiveLayout, useLayoutSubscription } from "../theme-store";
 import { SERVERS_LIST, MODS_LIST, MOD_SERVERS_LIST, MOD_FILTER_RESULTS_LIST, SERVER_MODS_LIST } from "../neutral";
 import { serverModReadiness, type ModState, type SubscribedMod } from "@/lib/tauri";
 import { useSelectionReadiness } from "./use-selection-readiness";
+import { readinessKey } from "@/stores/readiness-store";
+import { useServerSubject } from "./server-elements";
 import { effectiveModState, filterAndSortMods } from "@/components/mods-tab";
 import type { Server, ModReadinessEntry, ServerModReadiness } from "@/types/server";
 import type { LayoutFile } from "../renderer/types";
@@ -100,12 +102,14 @@ export async function loadServerMods(
 export function ServerModsList({
   state,
   mods,
+  header = true,
   listLayout,
   className,
   style,
 }: {
   state: ServerModsListState;
   mods: ModReadinessEntry[];
+  header?: boolean;
   listLayout?: LayoutFile;
   className?: string;
   style?: CSSProperties;
@@ -118,10 +122,12 @@ export function ServerModsList({
       className={className ?? "flex flex-col flex-1 min-h-0 my-2 border-t border-line overflow-hidden"}
       style={style}
     >
-      <div data-part="header" className="flex items-center justify-between py-1.5 px-2 text-[10px] text-muted font-bold tracking-wider uppercase border-b border-line">
-        <span>REQUIRED MODS · SERVER ORDER</span>
-        <span className="font-mono-data">{mods.length}</span>
-      </div>
+      {header && (
+        <div data-part="header" className="flex items-center justify-between py-1.5 px-2 text-[10px] text-muted font-bold tracking-wider uppercase border-b border-line">
+          <span>REQUIRED MODS · SERVER ORDER</span>
+          <span className="font-mono-data">{mods.length}</span>
+        </div>
+      )}
 
       <div data-part="scroller" className="flex-1 overflow-y-auto min-h-0">
         {state === "loading" ? (
@@ -170,25 +176,36 @@ export function resolveModsListDisplay(
 export function ServerModsListHost({
   className,
   style,
+  options,
 }: {
   className?: string;
   style?: CSSProperties;
+  options?: Record<string, unknown>;
 }) {
-  const selectedServer = useServerStore((s) => s.selectedServer);
-  const { readiness, loading } = useSelectionReadiness();
-  const lastModsRef = useRef<ModReadinessEntry[]>([]);
+  const server = useServerSubject();
+  const { readiness, loading } = useSelectionReadiness(server);
+  const lastRef = useRef<{ key: string | null; mods: ModReadinessEntry[] }>({ key: null, mods: [] });
+  const key = server ? readinessKey(server.addr, server.query_port) : null;
 
-  const { state, mods } = resolveModsListDisplay(selectedServer, loading, readiness, lastModsRef.current);
-  const isFreshResult = !!selectedServer?.modded && !loading && readiness !== null && !readiness.stale;
+  const lastMods = lastRef.current.key === key ? lastRef.current.mods : [];
+  const { state, mods } = resolveModsListDisplay(server, loading, readiness, lastMods);
+  const isFreshResult = !!server?.modded && !loading && readiness !== null && !readiness.stale;
   if (isFreshResult) {
-    lastModsRef.current = mods;
+    lastRef.current = { key, mods };
   }
 
   useLayoutSubscription();
   const listLayout = (getActiveLayout("layout/lists/serverMods.json") ?? SERVER_MODS_LIST) as LayoutFile;
 
   return (
-    <ServerModsList state={state} mods={mods} listLayout={listLayout} className={className} style={style} />
+    <ServerModsList
+      state={state}
+      mods={mods}
+      header={listHostOptions(options).header}
+      listLayout={listLayout}
+      className={className}
+      style={style}
+    />
   );
 }
 

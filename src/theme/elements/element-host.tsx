@@ -329,7 +329,7 @@ export function ElementHost({
     case "list.servers":
       return <ServerListHost options={node.options} className={mergedClass} style={style} />;
     case "list.serverMods":
-      return <ServerModsListHost className={mergedClass} style={style} />;
+      return <ServerModsListHost options={node.options} className={mergedClass} style={style} />;
     case "list.modFilterResults":
       return <ModFilterResultsListHost options={node.options} className={mergedClass} style={style} />;
 

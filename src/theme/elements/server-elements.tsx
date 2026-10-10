@@ -459,7 +459,7 @@ function ServerJoinIdleSelection({
   style?: CSSProperties;
 }) {
   const { selectedServer } = useElementContext();
-  const { readiness } = useSelectionReadiness();
+  const { readiness } = useSelectionReadiness(server);
 
   let missingCount = 0;
   let arrivingCount = 0;
@@ -866,7 +866,7 @@ export function ServerManageMods({
 }) {
   const { onViewChange } = useElementContext();
   const server = useServerSubject();
-  const { readiness, loading } = useSelectionReadiness();
+  const { readiness, loading } = useSelectionReadiness(server);
   if (!server) return null;
 
   const display = (options?.display as string) ?? "iconLabel";
