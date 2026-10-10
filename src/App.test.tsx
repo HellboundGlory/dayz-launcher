@@ -2,11 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { clearFallbackMemory, markFileFallback } from "./theme/fallback/store";
 import { SHELL_LAYOUT, BROWSER_LAYOUT, MODS_LAYOUT } from "./theme/neutral";
+import type * as NeutralModule from "./theme/neutral";
 import type { useThemeStore } from "./theme/theme-store";
 import type { LayoutFile } from "./theme/renderer/types";
 import type { ThemeFile } from "./types/theme";
 
 type ThemeStoreHook = typeof useThemeStore;
+
+const engine = vi.hoisted(() => ({ files: new Set<string>() }));
+
+vi.mock("./theme/neutral", async (importOriginal) => {
+  const actual = await importOriginal<typeof NeutralModule>();
+  return { ...actual, NEUTRAL_ENGINE_FILES: engine.files };
+});
 
 vi.mock("@tauri-apps/api/event", () => ({
   listen: async () => () => {},
@@ -96,6 +104,35 @@ const LEGACY_LIST = "l2-body";
 beforeEach(() => {
   themeStore.setState({ activeId: "neutral", themeFiles: {}, incompatibleSwitch: null });
   clearFallbackMemory();
+  engine.files.clear();
+});
+
+describe("engine-drawn files", () => {
+  it.each([
+    {
+      file: "layout/views/browser.json",
+      setup: () => {},
+      draws: ['data-surface="surface.filterBar"'],
+      omits: [LEGACY_LIST, PIPELINE_SHELL],
+    },
+    {
+      file: "layout/shell.json",
+      setup: () => {
+        themed(ALL_SCREENS);
+        markFileFallback("local.aurora", "layout/shell.json", "LAY-01: dropped");
+      },
+      draws: [PIPELINE_SHELL],
+      omits: [LEGACY_LIST],
+    },
+  ])("draws $file from the engine inside either shell", ({ file, setup, draws, omits }) => {
+    engine.files.add(file);
+    setup();
+
+    const html = renderToStaticMarkup(<App />);
+
+    for (const marker of draws) expect(html).toContain(marker);
+    for (const marker of omits) expect(html).not.toContain(marker);
+  });
 });
 
 describe("App screen source", () => {
@@ -127,15 +164,15 @@ describe("App screen source", () => {
     expect(html).toContain(LEGACY_LIST);
   });
 
-  it("drops a fallen-back shell to the legacy shell", () => {
+  it("drops a fallen-back shell to the legacy shell, keeping the theme's views inside it", () => {
     themed(ALL_SCREENS);
     markFileFallback("local.aurora", "layout/shell.json", "LAY-01: dropped");
 
     const html = renderToStaticMarkup(<App />);
 
     expect(html).not.toContain(PIPELINE_SHELL);
-    expect(html).not.toContain('data-surface="surface.filterBar"');
-    expect(html).toContain(LEGACY_LIST);
+    expect(html).toContain('data-surface="surface.filterBar"');
+    expect(html).not.toContain(LEGACY_LIST);
   });
 
   it("shows the fallback notice for a themed file and never for Neutral", () => {
@@ -147,14 +184,16 @@ describe("App screen source", () => {
     expect(renderToStaticMarkup(<App />)).toContain('data-part="fallback-notice"');
   });
 
-  it("shows the incompatible-theme notice on the Neutral branch only", () => {
+  it("shows the incompatible-theme notice whichever shell draws", () => {
     themeStore.setState({ incompatibleSwitch: { id: "local.old", name: "Old Timer" } });
 
-    expect(renderToStaticMarkup(<App />)).toContain('data-part="incompatible-theme-notice"');
+    const notices = () => renderToStaticMarkup(<App />).split('data-part="incompatible-theme-notice"').length - 1;
+
+    expect(notices()).toBe(1);
 
     themed(ALL_SCREENS);
 
-    expect(renderToStaticMarkup(<App />)).not.toContain('data-part="incompatible-theme-notice"');
+    expect(notices()).toBe(1);
   });
 });
 
