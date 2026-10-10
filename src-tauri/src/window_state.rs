@@ -54,9 +54,14 @@ pub fn capture(window: &Window, prev: Option<WindowState>) -> Option<WindowState
 /// `set_min_size` (which would otherwise un-maximise here).
 pub fn restore(window: &Window, state: WindowState) {
     if state.width > 0 && state.height > 0 {
+        let app = window.app_handle();
         let size = PhysicalSize::new(state.width, state.height);
         if let Err(e) = window.set_size(size) {
-            eprintln!("[window] Could not restore the window size: {e}");
+            crate::log::log_line(
+                app,
+                "window",
+                &format!("Could not restore the window size: {e}"),
+            );
         }
 
         // Only restore position if it still lands on a connected monitor —
@@ -64,13 +69,21 @@ pub fn restore(window: &Window, state: WindowState) {
         let position = PhysicalPosition::new(state.x, state.y);
         if on_a_connected_monitor(window, position, size) {
             if let Err(e) = window.set_position(position) {
-                eprintln!("[window] Could not restore the window position: {e}");
+                crate::log::log_line(
+                    app,
+                    "window",
+                    &format!("Could not restore the window position: {e}"),
+                );
             }
         } else {
-            eprintln!(
-                "[window] Saved position {},{} is off every connected monitor; \
-                 letting the OS place the window.",
-                state.x, state.y
+            crate::log::log_line(
+                app,
+                "window",
+                &format!(
+                    "Saved position {},{} is off every connected monitor; \
+                     letting the OS place the window.",
+                    state.x, state.y
+                ),
             );
         }
     }
@@ -80,7 +93,11 @@ pub fn restore(window: &Window, state: WindowState) {
 /// Called after `apply_ui_scale` and `fit_window_to_minimum` — order matters, see [`restore`].
 pub fn restore_maximized(window: &Window) {
     if let Err(e) = window.maximize() {
-        eprintln!("[window] Could not restore the maximised state: {e}");
+        crate::log::log_line(
+            window.app_handle(),
+            "window",
+            &format!("Could not restore the maximised state: {e}"),
+        );
     }
 }
 
@@ -126,13 +143,19 @@ pub fn adopt_legacy(dir: &Path) -> Option<WindowState> {
     let adopted = parsed.ok().and_then(|windows| windows.get("main").copied());
 
     if let Err(e) = std::fs::remove_file(&path) {
-        eprintln!("[window] Could not remove {}: {e}", path.display());
+        crate::log::line(
+            "window",
+            &format!("Could not remove {}: {e}", path.display()),
+        );
     }
     match adopted {
         Some(state) => {
-            eprintln!(
-                "[window] Adopted window geometry from the retired {} file",
-                crate::paths::LEGACY_WINDOW_STATE
+            crate::log::line(
+                "window",
+                &format!(
+                    "Adopted window geometry from the retired {} file",
+                    crate::paths::LEGACY_WINDOW_STATE
+                ),
             );
             Some(state)
         }

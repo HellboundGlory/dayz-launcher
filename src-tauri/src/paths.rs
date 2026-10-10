@@ -55,6 +55,7 @@ pub fn themes_dir(app: &AppHandle) -> PathBuf {
     data_root(app).join("themes")
 }
 
+// Stderr only: the log lives under the data root, which this call is still resolving.
 fn resolve(app: &AppHandle) -> Root {
     match portable_root() {
         Some(dir) => {
@@ -203,7 +204,10 @@ fn copy_group(from: &Path, to: &Path, names: &[&str]) -> bool {
         match std::fs::copy(from.join(name), &target) {
             Ok(_) => written.push(target),
             Err(e) => {
-                eprintln!("[paths] Could not copy {name} into {}: {e}", to.display());
+                crate::log::line(
+                    "paths",
+                    &format!("Could not copy {name} into {}: {e}", to.display()),
+                );
                 for path in &written {
                     let _ = std::fs::remove_file(path);
                 }

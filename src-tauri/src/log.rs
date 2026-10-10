@@ -3,7 +3,8 @@
 //! stderr and no tracing subscriber. Deliberately dependency-free.
 
 use std::io::{Read, Seek, SeekFrom, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use tauri::{AppHandle, Manager};
 
 /// The log file: `<data root>/tetra-launcher.log`, beside the registry.
@@ -14,8 +15,20 @@ pub fn path(app: &AppHandle) -> PathBuf {
 /// Log file size cap, checked on the write that crosses it.
 const MAX_LOG_BYTES: u64 = 2 * 1024 * 1024;
 
-/// Bytes kept on rotation — half the cap, so rotation isn't immediately repeated.
-const KEEP_LOG_BYTES: u64 = MAX_LOG_BYTES / 2;
+static APP: OnceLock<AppHandle> = OnceLock::new();
+
+/// Called first in `setup`; anything logged before it only reaches stderr.
+pub fn init(app: &AppHandle) {
+    let _ = APP.set(app.clone());
+}
+
+/// For code with no `AppHandle` in scope.
+pub fn line(level: &str, msg: &str) {
+    match APP.get() {
+        Some(app) => log_line(app, level, msg),
+        None => eprintln!("[{level}] {msg}"),
+    }
+}
 
 /// Append one timestamped line. Best-effort and never panics.
 pub fn log_line(app: &AppHandle, level: &str, msg: &str) {
@@ -43,11 +56,18 @@ fn write_line(app: &AppHandle, line: &str) {
     let Ok(mut slot) = state.log_file.lock() else {
         return;
     };
+    append(&mut slot, &path(app), line, MAX_LOG_BYTES);
+}
+
+/// Append `line` through the handle in `slot`, opening it on first use, and
+/// rotate in place once the file passes `max_bytes`. The caller holds the lock
+/// for the whole call, so no other writer can append mid-rotation.
+fn append(slot: &mut Option<std::fs::File>, path: &Path, line: &str, max_bytes: u64) {
     if slot.is_none() {
         *slot = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
-            .open(path(app))
+            .open(path)
             .ok();
     }
     let Some(file) = slot.as_mut() else { return };
@@ -60,34 +80,32 @@ fn write_line(app: &AppHandle, line: &str) {
 
     let oversized = file
         .metadata()
-        .map(|m| m.len() > MAX_LOG_BYTES)
+        .map(|m| m.len() > max_bytes)
         .unwrap_or(false);
     if oversized {
         // Drop the handle before rotating so a stale append handle doesn't
         // keep writing past the truncation point.
         *slot = None;
-        drop(slot);
-        rotate(app);
+        rotate(path, max_bytes / 2);
     }
 }
 
-/// Keep only the newest [`KEEP_LOG_BYTES`], dropping the partial line at the
-/// start of the kept tail. Best-effort.
-fn rotate(app: &AppHandle) {
-    let p = path(app);
-    let Ok(mut file) = std::fs::File::open(&p) else {
+/// Keep only the newest `keep_bytes`, dropping the partial line at the start of
+/// the kept tail. Best-effort.
+fn rotate(path: &Path, keep_bytes: u64) {
+    let Ok(mut file) = std::fs::File::open(path) else {
         return;
     };
     let Ok(len) = file.metadata().map(|m| m.len()) else {
         return;
     };
-    if len <= KEEP_LOG_BYTES {
+    if len <= keep_bytes {
         return;
     }
-    if file.seek(SeekFrom::Start(len - KEEP_LOG_BYTES)).is_err() {
+    if file.seek(SeekFrom::Start(len - keep_bytes)).is_err() {
         return;
     }
-    let mut tail = Vec::with_capacity(KEEP_LOG_BYTES as usize);
+    let mut tail = Vec::with_capacity(keep_bytes as usize);
     if file.read_to_end(&mut tail).is_err() {
         return;
     }
@@ -96,7 +114,7 @@ fn rotate(app: &AppHandle) {
         .position(|&b| b == b'\n')
         .map(|i| i + 1)
         .unwrap_or(0);
-    let _ = std::fs::write(&p, &tail[start..]);
+    let _ = std::fs::write(path, &tail[start..]);
 }
 
 /// Sortable timestamp without a date dependency: `unix-seconds HH:MM:SSZ`.
@@ -114,4 +132,54 @@ fn stamp() -> String {
         (day % 3600) / 60,
         day % 60
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::append;
+    use std::fs::File;
+    use std::sync::Mutex;
+
+    const BODY: &str = "xxxxxxxxxxxxxxxxxxxx";
+
+    #[test]
+    fn writers_sharing_the_handle_across_rotation_keep_whole_lines() {
+        let dir = std::env::temp_dir().join(format!("tetra-log-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("tetra-launcher.log");
+        let _ = std::fs::remove_file(&path);
+        let slot: Mutex<Option<File>> = Mutex::new(None);
+        const CAP: u64 = 1024;
+
+        std::thread::scope(|s| {
+            for writer in 0..4 {
+                let (slot, path) = (&slot, &path);
+                s.spawn(move || {
+                    for i in 0..1000 {
+                        let line = format!("[{writer}-{i:04}] {BODY}\n");
+                        append(&mut slot.lock().unwrap(), path, &line, CAP);
+                    }
+                });
+            }
+        });
+        append(&mut slot.lock().unwrap(), &path, "final\n", CAP);
+
+        let text = std::fs::read_to_string(&path).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(text.ends_with("final\n"), "{text:?}");
+        // Rotation drops only the oldest lines, so each writer's survivors must run on without a gap.
+        let mut last: [Option<u32>; 4] = [None; 4];
+        for line in text.lines().filter(|line| *line != "final") {
+            assert!(
+                line.len() == 29 && line.starts_with('[') && line.ends_with(BODY),
+                "torn line: {line:?}"
+            );
+            let writer = (line.as_bytes()[1] - b'0') as usize;
+            let seq: u32 = line[3..7].parse().unwrap();
+            if let Some(prev) = last[writer] {
+                assert_eq!(seq, prev + 1, "writer {writer} lost a line");
+            }
+            last[writer] = Some(seq);
+        }
+    }
 }

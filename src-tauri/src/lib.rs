@@ -202,6 +202,7 @@ pub fn run() {
             commands::update::is_installed_copy,
         ])
         .setup(|app| {
+            crate::log::init(app.handle());
             let setup_started = Instant::now();
             let state = app.state::<state::AppState>();
 
@@ -240,10 +241,14 @@ pub fn run() {
                     registry
                 }
                 Err(e) => {
-                    eprintln!(
-                        "[setup] Could not open {}: {e}. Falling back to in-memory — \
-                         favourites and recently-played will not persist.",
-                        db_path.display()
+                    crate::log::log_line(
+                        app.handle(),
+                        "setup",
+                        &format!(
+                            "Could not open {}: {e}. Falling back to in-memory — \
+                             favourites and recently-played will not persist.",
+                            db_path.display()
+                        ),
                     );
                     *state.registry_degraded.lock().unwrap() = true;
                     Registry::open_in_memory().expect("Failed to open in-memory registry")
@@ -299,7 +304,11 @@ pub fn run() {
             // Cosmetic — a build that can't composite acrylic shouldn't refuse to start.
             #[cfg(target_os = "windows")]
             if let Err(e) = apply_acrylic(&window, Some((18, 18, 18, 85))) {
-                eprintln!("[setup] Acrylic unavailable, using an opaque window: {e}");
+                crate::log::log_line(
+                    app.handle(),
+                    "setup",
+                    &format!("Acrylic unavailable, using an opaque window: {e}"),
+                );
             }
 
             // Restore geometry before the window is shown, and seed the cache
@@ -330,7 +339,11 @@ pub fn run() {
             window_state::remember(&window.as_ref().window());
 
             if let Err(e) = commands::launch::register_protocol_handler() {
-                eprintln!("[setup] Could not register the dzsa:// protocol handler: {e}");
+                crate::log::log_line(
+                    app.handle(),
+                    "setup",
+                    &format!("Could not register the dzsa:// protocol handler: {e}"),
+                );
             }
 
             // No splash for a silent autostart — it goes straight to the tray.
