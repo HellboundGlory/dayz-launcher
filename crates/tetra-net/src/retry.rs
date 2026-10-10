@@ -16,11 +16,17 @@ where
     Fut: std::future::Future<Output = Result<T, NetError>>,
 {
     let attempts = config.attempts.max(1);
+    // The loop sleeps backoff, 2*backoff, ... before every attempt but the
+    // last, so the chain's total sleep is backoff * (2^(attempts-1) - 1).
+    let sleeps = 1u32
+        .checked_shl(attempts - 1)
+        .map(|v| v - 1)
+        .unwrap_or(u32::MAX);
     let deadline = config
         .timeout
         .saturating_mul(EXCHANGE_TIMEOUT_MULTIPLIER)
         .saturating_mul(attempts)
-        + config.backoff.saturating_mul(attempts);
+        .saturating_add(config.backoff.saturating_mul(sleeps));
 
     let chain = async {
         let mut backoff = config.backoff;
@@ -111,6 +117,43 @@ mod tests {
             calls.load(Ordering::SeqCst),
             3,
             "all 3 configured attempts should run — the deadline must not cut the chain short"
+        );
+    }
+
+    /// The deadline must budget the backoff the loop actually sleeps, or a
+    /// later attempt is cut off before it can run.
+    #[tokio::test]
+    async fn every_attempt_runs_when_the_backoff_outgrows_the_timeout() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let counted = Arc::clone(&calls);
+
+        let tight = ProbeConfig {
+            timeout: Duration::from_millis(1),
+            attempts: 4,
+            backoff: Duration::from_millis(30),
+            max_in_flight: 4,
+        };
+
+        let result: Result<(), NetError> = with_retries(addr(), &tight, move || {
+            let counted = Arc::clone(&counted);
+            async move {
+                counted.fetch_add(1, Ordering::SeqCst);
+                Err(NetError::NoResponse {
+                    addr: addr(),
+                    attempts: 1,
+                })
+            }
+        })
+        .await;
+
+        assert!(result.is_err());
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            4,
+            "the geometric backoff must fit inside the deadline"
         );
     }
 

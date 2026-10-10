@@ -53,9 +53,17 @@ impl Prober {
                 if tx.is_closed() {
                     return;
                 }
-                let started = Instant::now();
-                let result = with_retries(addr, &config, || query_info(addr, config.timeout)).await;
-                let rtt = result.is_ok().then(|| started.elapsed());
+                let result = with_retries(addr, &config, || async {
+                    let started = Instant::now();
+                    query_info(addr, config.timeout)
+                        .await
+                        .map(|info| (info, started.elapsed()))
+                })
+                .await;
+                let (result, rtt) = match result {
+                    Ok((info, rtt)) => (Ok(info), Some(rtt)),
+                    Err(e) => (Err(e), None),
+                };
                 drop(permit);
                 let _ = tx.send(ProbeOutcome { addr, result, rtt }).await;
             });
@@ -234,6 +242,55 @@ mod tests {
 
         drop(held);
         assert_eq!(clone.permits.available_permits(), 1);
+    }
+
+    /// A successful A2S_INFO response a fake server can send back.
+    fn info_response() -> Vec<u8> {
+        let mut v = vec![0xff, 0xff, 0xff, 0xff, 0x49, 17];
+        for s in ["Test", "chernarusplus", "dayz", "DayZ"] {
+            v.extend_from_slice(s.as_bytes());
+            v.push(0);
+        }
+        v.extend_from_slice(&1u16.to_le_bytes());
+        v.extend_from_slice(&[0, 60, 0, b'd', b'l', 0, 1]);
+        v.extend_from_slice(b"1.0\0");
+        v
+    }
+
+    /// The reported rtt must time the attempt that answered, not the whole
+    /// retry chain — otherwise the backoff sleep inflates the ping.
+    #[tokio::test]
+    async fn a_retried_probe_reports_the_answering_attempts_rtt() {
+        let server = tokio::net::UdpSocket::bind("127.0.0.1:0")
+            .await
+            .expect("bind fake server");
+        let addr = server.local_addr().expect("local addr");
+
+        let responder = tokio::spawn(async move {
+            let mut buf = [0u8; 64];
+            server.recv_from(&mut buf).await.expect("first request");
+            let (_, client) = server.recv_from(&mut buf).await.expect("retry");
+            let _ = server.send_to(&info_response(), client).await;
+        });
+
+        let backoff = Duration::from_millis(200);
+        let prober = Prober::new(ProbeConfig {
+            timeout: Duration::from_millis(20),
+            attempts: 3,
+            backoff,
+            max_in_flight: 1,
+        });
+
+        let outcome = prober.refresh(vec![addr]).recv().await.expect("an outcome");
+
+        assert!(outcome.result.is_ok(), "the responder answered the retry");
+        let rtt = outcome.rtt.expect("a successful probe carries an rtt");
+        assert!(
+            rtt < backoff,
+            "rtt {rtt:?} must not include the {backoff:?} backoff sleep"
+        );
+
+        responder.abort();
     }
 
     /// A separately constructed `Prober` is a separate budget — the reason the

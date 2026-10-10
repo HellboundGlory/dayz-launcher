@@ -212,10 +212,17 @@ fn succeed(state: &State<'_, AppState>, window: &tauri::Window, servers: usize, 
 
 fn stale_reason(health: &Health) -> String {
     match health.snapshot_generated_at {
-        Some(t) => format!(
-            "snapshot is {}s old (limit {MAX_SNAPSHOT_AGE_SECS}s)",
-            now().saturating_sub(t)
-        ),
+        Some(t) => {
+            let n = now();
+            if t > n {
+                format!("snapshot is stamped {}s in the future", t - n)
+            } else {
+                format!(
+                    "snapshot is {}s old (limit {MAX_SNAPSHOT_AGE_SECS}s)",
+                    n - t
+                )
+            }
+        }
         None => "backend has never built a snapshot".to_string(),
     }
 }
@@ -572,5 +579,37 @@ mod tests {
             .expect("get")
             .expect("row");
         assert_eq!(row.ping_ms, 42);
+    }
+
+    fn health_at(stamp: Option<i64>) -> Health {
+        Health {
+            format_version: tetra_index::FORMAT_VERSION,
+            version: "test".into(),
+            servers: 0,
+            responsive: 0,
+            with_mods: 0,
+            populated: 0,
+            last_hot_pull: None,
+            last_full_pull: None,
+            last_info_sweep: None,
+            last_rules_sweep: None,
+            snapshot_generated_at: stamp,
+        }
+    }
+
+    /// A stamp ahead of the local clock must not be shown as a negative age.
+    #[test]
+    fn a_snapshot_stamped_in_the_future_is_reported_as_such() {
+        let reason = stale_reason(&health_at(Some(now() + 3600)));
+        assert!(
+            reason.contains("in the future"),
+            "expected a future-stamp reason, got {reason:?}"
+        );
+
+        let reason = stale_reason(&health_at(Some(now() - 100)));
+        assert!(
+            reason.contains("old"),
+            "a past stamp still reads as an age, got {reason:?}"
+        );
     }
 }

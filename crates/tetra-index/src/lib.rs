@@ -141,10 +141,13 @@ impl Health {
     /// Whether the snapshot is recent enough to prefer over a Steam pass.
     /// `now` is passed in rather than read here so callers can test it.
     pub fn is_fresh(&self, now: i64, max_age_secs: i64) -> bool {
+        // A day of forward clock skew is tolerated — a player's PC clock can
+        // be hours off — but a stamp years ahead is refused.
+        const CLOCK_SKEW_SECS: i64 = 24 * 60 * 60;
         self.format_version == FORMAT_VERSION
-            && self
-                .snapshot_generated_at
-                .is_some_and(|t| now.saturating_sub(t) <= max_age_secs)
+            && self.snapshot_generated_at.is_some_and(|t| {
+                t <= now.saturating_add(CLOCK_SKEW_SECS) && now.saturating_sub(t) <= max_age_secs
+            })
     }
 }
 
@@ -227,6 +230,15 @@ mod tests {
         h.snapshot_generated_at = Some(400);
         assert!(h.is_fresh(1000, 600));
         assert!(!h.is_fresh(1001, 600), "one second past the limit is stale");
+
+        h.snapshot_generated_at = Some(1000 + 20 * 3600);
+        assert!(h.is_fresh(1000, 600), "hours of clock skew are allowed");
+
+        h.snapshot_generated_at = Some(1000 + 400 * 24 * 3600);
+        assert!(
+            !h.is_fresh(1000, 600),
+            "a stamp years in the future is not fresh"
+        );
 
         h.format_version = FORMAT_VERSION + 1;
         assert!(
