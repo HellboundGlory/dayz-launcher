@@ -69,7 +69,7 @@ export function ModsSearch({ className, style }: { className?: string; style?: C
         data-part="input"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search mods by name, tag or id..."
+        placeholder="Search mods by name, tag or id…"
         aria-label="Search mods"
         className="min-w-0 flex-1 bg-transparent py-0.5 [font-size:var(--t-type-body-size)] text-ink outline-none placeholder:text-muted"
       />
@@ -158,9 +158,7 @@ export function ModsCount({ className, style }: { className?: string; style?: CS
         </>
       ) : (
         <>
-          <span data-part="value" className="font-semibold text-ink">
-            {allCount}
-          </span>{" "}
+          <span data-part="value">{allCount}</span>{" "}
           <span data-part="label">mod{allCount === 1 ? "" : "s"}</span>
         </>
       )}

@@ -133,7 +133,7 @@ describe("ListRow", () => {
     expect(html).toContain("Community-Online-Tools");
     expect(html).toContain('data-el="mod.size"');
     expect(html).toContain('data-el="mod.status"');
-    expect(html).toContain("Update available");
+    expect(html).toContain(">Update<");
     expect(html).toContain('data-el="mod.subscribed"');
   });
 });

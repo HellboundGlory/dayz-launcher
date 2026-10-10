@@ -129,25 +129,26 @@ describe("ModStatus", () => {
   it("labels each registry state", async () => {
     const { ModStatus } = await import("./mod-elements");
     const cases: [SubscribedMod["state"], string][] = [
-      ["ready", "Installed"],
-      ["needs_update", "Update available"],
-      ["not_installed", "Not downloaded"],
+      ["ready", "Ready"],
+      ["needs_update", "Update"],
+      ["downloading", "Downloading"],
+      ["not_installed", "Missing"],
       ["not_subscribed", "Not subscribed"],
       ["not_on_workshop", "Server-side"],
     ];
     for (const [state, label] of cases) {
       const mod = makeMod("1", { state });
       const html = renderWithMod(<ModStatus />, mod);
-      expect(html).toContain(label);
+      expect(html).toContain(`>${label}<`);
     }
   });
 
-  it("shows byte progress and a width-styled progress part while downloading with a known total", async () => {
+  it("shows a width-styled progress part while downloading with a known total", async () => {
     const { ModStatus } = await import("./mod-elements");
     const mod = makeMod("1", { state: "downloading" });
     await withStore({ progress: { "1": { downloaded: "500000", total: "1000000" } } }, () => {
       const html = renderWithMod(<ModStatus />, mod);
-      expect(html).toContain(`${formatBytes(500000, 1)} / ${formatBytes(1000000, 1)}`);
+      expect(html).toContain(">Downloading<");
       expect(html).toContain('data-part="progress"');
       expect(html).toContain("width:50%");
     });
@@ -166,7 +167,7 @@ describe("ModStatus", () => {
     const mod = makeMod("1", { state: "needs_update" });
     await withStore({ states: { "1": "ready" } }, () => {
       const html = renderWithMod(<ModStatus />, mod);
-      expect(html).toContain("Update available");
+      expect(html).toContain(">Update<");
       expect(html).toContain("update");
     });
   });
@@ -688,7 +689,7 @@ describe("serverMod elements", () => {
       ["downloading", "Downloading", "downloading"],
       ["not_installed", "Not installed", "notInstalled"],
       ["not_subscribed", "Not subscribed", "notSubscribed"],
-      ["not_on_workshop", "Server-side", "serverSide"],
+      ["not_on_workshop", "Unlisted", "serverSide"],
       ["checking", "Checking…", "checking"],
     ];
 
@@ -771,11 +772,15 @@ describe("serverMod elements", () => {
       expect(text(html)).toBe("4 KB");
     });
 
-    it("renders nothing for ready and server-side mods", async () => {
+    it("is empty for ready mods, reads 'up to' for an upper bound and the size for unlisted mods", async () => {
       const { ServerModSize } = await import("./mod-elements");
-      for (const state of ["ready", "not_on_workshop"]) {
-        const html = renderWithServerMod(<ServerModSize />, { state, size_bytes: 1024 });
-        expect(html).toBe("");
+      const cases: [import("./mod-elements").ServerModData, string][] = [
+        [{ state: "ready", size_bytes: null }, ""],
+        [{ state: "not_installed", size_bytes: 1280, size_is_upper_bound: true }, `up to ${formatBytes(1280, 1)}`],
+        [{ state: "not_on_workshop", size_bytes: 1280 }, formatBytes(1280, 1)],
+      ];
+      for (const [mod, wording] of cases) {
+        expect(text(renderWithServerMod(<ServerModSize />, mod))).toBe(wording);
       }
     });
 
