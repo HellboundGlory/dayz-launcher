@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { useState, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from "react";
 import {
   Star,
   Play,
@@ -35,7 +35,10 @@ import {
 import { useRowProbeStore, probeRow, rowProbeState } from "./row-probe-store";
 import { useConfirm } from "@/components/confirm-dialog";
 import { OptionIcon } from "./option-icon";
-import { useAnchoredPopup } from "../interaction/use-anchored-popup";
+import { usePopupTrigger } from "../interaction/use-popup-trigger";
+import { getThemeOwnedLayout, useLayoutSubscription } from "../theme-store";
+import type { PopupLayoutFile } from "../renderer/types";
+import { FilterPopup } from "./popup-elements";
 import { displayOption, formatElementTime } from "./element-utils";
 
 export function useServerSubject(): Server | null {
@@ -683,32 +686,18 @@ export function ServerMenu({
 }) {
   const server = useServerSubject();
   const { op, dayzUp, verifyAndJoin } = useServerActions();
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const popupRef = useRef<HTMLDivElement>(null);
-  const popupStyle = useAnchoredPopup(open, rootRef, popupRef, { side: "bottom", align: "end", offset: 4 });
-
-  useEffect(() => {
-    if (!open) return;
-    const onMouseDown = (e: globalThis.MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onMouseDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onMouseDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
+  const menuKind = options?.menu === "serverLoad" ? "serverLoad" : "serverActions";
+  useLayoutSubscription();
+  const themedPopup = getThemeOwnedLayout(`layout/popups/${menuKind}.json`) as PopupLayoutFile | undefined;
+  const { open, setOpen, close, ref: rootRef, popupRef, popupStyle } = usePopupTrigger(
+    { side: "bottom", align: "end" },
+    themedPopup,
+  );
 
   if (!server) return null;
 
-  const menuKind = (options?.menu as string) ?? "serverActions";
   const label = (options?.label as string | undefined) ?? "Server actions";
-  if (menuKind !== "serverLoad") {
+  if (menuKind === "serverActions" && !themedPopup) {
     const handleClick = (e: MouseEvent) => {
       e.stopPropagation();
     };
@@ -729,7 +718,7 @@ export function ServerMenu({
     );
   }
 
-  const disabled = op !== null || dayzUp;
+  const disabled = menuKind === "serverLoad" && (op !== null || dayzUp);
 
   const handleTriggerClick = (e: MouseEvent) => {
     e.stopPropagation();
@@ -738,7 +727,7 @@ export function ServerMenu({
 
   const handleLoad = (e: MouseEvent) => {
     e.stopPropagation();
-    setOpen(false);
+    close();
     void verifyAndJoin(server, true);
   };
 
@@ -765,7 +754,11 @@ export function ServerMenu({
           <OptionIcon icon={options?.icon} fallback={ChevronDown} className="size-3.5" />
         </span>
       </button>
-      <ServerLoadMenuPopup open={open} onLoad={handleLoad} popupRef={popupRef} style={popupStyle} />
+      <FilterPopup open={open} popupId={menuKind} close={close} themedPopup={themedPopup} triggerRef={rootRef}>
+        {menuKind === "serverLoad" && (
+          <ServerLoadMenuPopup open={open} onLoad={handleLoad} popupRef={popupRef} style={popupStyle} />
+        )}
+      </FilterPopup>
     </div>
   );
 }

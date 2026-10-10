@@ -1332,7 +1332,8 @@
       ],
       "states": [
         "open",
-        "offline"
+        "offline",
+        "disabled"
       ],
       "since": "2.0",
       "aliases": []
@@ -1702,7 +1703,8 @@
       "parts": [
         "icon",
         "time",
-        "multiplier"
+        "multiplier",
+        "label"
       ],
       "states": [
         "day",
@@ -1744,7 +1746,8 @@
         "value",
         "max",
         "queue",
-        "caption"
+        "caption",
+        "label"
       ],
       "states": [
         "empty",
@@ -1777,7 +1780,8 @@
       "parts": [
         "value",
         "unit",
-        "caption"
+        "caption",
+        "label"
       ],
       "states": [
         "good",
@@ -1806,7 +1810,8 @@
       "freeLabel": false,
       "parts": [
         "value",
-        "caption"
+        "caption",
+        "label"
       ],
       "states": [
         "none",
@@ -4771,7 +4776,8 @@
         "scroller",
         "rows",
         "empty",
-        "loading"
+        "loading",
+        "more"
       ],
       "states": [
         "empty",

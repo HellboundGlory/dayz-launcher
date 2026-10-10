@@ -6,6 +6,9 @@ import type { ModReadinessEntry, ServerModReadiness } from "@/types/server";
 import { formatBytes, formatGameTime, gameTimeParts } from "@/lib/utils";
 import { useServerStore } from "@/stores/server-store";
 import { useRowProbeStore } from "./row-probe-store";
+import { useThemeStore } from "../theme-store";
+import { REGISTRY } from "../registry";
+import type { ThemeFile } from "@/types/theme";
 import { ElementContextProvider, type ElementContextValue } from "./context";
 import {
   ServerAddress,
@@ -655,6 +658,20 @@ describe("ServerMenu", () => {
     expect(html).not.toContain('data-part="popup"');
   });
 
+  it("serverActions with a theme popup file renders the documented trigger", () => {
+    useThemeStore.setState({
+      activeId: "local.test",
+      themeFiles: { "local.test": { layouts: { "layout/popups/serverActions.json": {} } } as unknown as ThemeFile },
+    });
+    try {
+      const html = renderNode(<ServerMenu />, { subjectContext: { kind: "server", data: server } });
+      expect(html).toContain('data-part="trigger"');
+      expect(html).toContain('aria-haspopup="menu"');
+    } finally {
+      useThemeStore.setState({ activeId: "neutral", themeFiles: {} });
+    }
+  });
+
   it("serverLoad renders the popup item only once opened", () => {
     const closedHtml = renderToStaticMarkup(<>{ServerLoadMenuPopup({ open: false, onLoad: vi.fn() })}</>);
     expect(closedHtml).toBe("");
@@ -673,6 +690,29 @@ describe("ServerMenu", () => {
     mockServerActions.op = null;
     expect(captured["trigger"].disabled).toBe(true);
     expect(html).toContain('data-state="disabled"');
+  });
+});
+
+describe("selection forms emit only documented parts", () => {
+  const cases: [string, ReactNode][] = [
+    ["server.players", <ServerPlayers options={{}} />],
+    ["server.ping", <ServerPing options={{}} />],
+    ["server.gameTime", <ServerGameTime options={{}} />],
+    ["server.modCount", <ServerModCount options={{}} />],
+  ];
+
+  it("renders each part the registry lists for the element", () => {
+    for (const [id, node] of cases) {
+      const html = renderNode(node, {
+        subjectContext: { kind: "server", data: server },
+        contextName: "selection",
+      });
+      const parts = Array.from(html.matchAll(/data-part="([^"]+)"/g), (m) => m[1]);
+      expect(parts.length, id).toBeGreaterThan(0);
+      for (const part of parts) {
+        expect(REGISTRY.elements[id as keyof typeof REGISTRY.elements].parts, id).toContain(part);
+      }
+    }
   });
 });
 

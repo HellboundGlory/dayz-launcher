@@ -343,8 +343,8 @@
 </section>
   <section class="el" id="el-server-menu" data-el="server.menu">
   <h3><code>server.menu</code> <span class="el-kind">action</span></h3>
-  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup, not any themeable popup · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>trigger</code>, <code>popup</code>, <code>item</code> · States: <code>open</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>menu</code> (one of <code>serverActions</code>, <code>serverLoad</code>, default <code>serverActions</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
-  <div class="md el-notes"><p>Opens <code>popup.serverActions</code> or <code>popup.serverLoad</code>, with <code>aria-haspopup=&quot;menu&quot;</code>. Its accessible name is &quot;More actions for {server}&quot;.</p></div>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup, not any themeable popup · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>trigger</code>, <code>popup</code>, <code>item</code> · States: <code>open</code>, <code>offline</code>, <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>menu</code> (one of <code>serverActions</code>, <code>serverLoad</code>, default <code>serverActions</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Opens <code>popup.serverActions</code> or <code>popup.serverLoad</code>, with <code>aria-haspopup=&quot;menu&quot;</code>. Its accessible name is &quot;More actions for {server}&quot;. It is <code>disabled</code> while a <code>serverLoad</code> menu can't load (while another operation runs or DayZ is running).</p></div>
 </section>
   <section class="el" id="el-server-favourite" data-el="server.favourite">
   <h3><code>server.favourite</code> <span class="el-kind">action</span></h3>
@@ -399,19 +399,23 @@
 </section>
   <section class="el" id="el-server-gameTime" data-el="server.gameTime">
   <h3><code>server.gameTime</code> <span class="el-kind">display</span></h3>
-  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>icon</code>, <code>time</code>, <code>multiplier</code> · States: <code>day</code>, <code>night</code>, <code>unknown</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showIcon</code> (on or off, default on)</li><li><code>showMultiplier</code> (on or off, default on)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>icon</code>, <code>time</code>, <code>multiplier</code>, <code>label</code> · States: <code>day</code>, <code>night</code>, <code>unknown</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showIcon</code> (on or off, default on)</li><li><code>showMultiplier</code> (on or off, default on)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+  <div class="md el-notes"><p>In a <code>selection</code> container it shows a <code>label</code> part reading &quot;TIME&quot; above the time.</p></div>
 </section>
   <section class="el" id="el-server-players" data-el="server.players">
   <h3><code>server.players</code> <span class="el-kind">display</span></h3>
-  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>value</code>, <code>max</code>, <code>queue</code>, <code>caption</code> · States: <code>empty</code>, <code>full</code>, <code>queued</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>format</code> (one of <code>countMax</code>, <code>count</code>, default <code>countMax</code>)</li><li><code>showQueue</code> (on or off, default on)</li><li><code>showCaption</code> (on or off, default on)</li></ul></dd></dl>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>value</code>, <code>max</code>, <code>queue</code>, <code>caption</code>, <code>label</code> · States: <code>empty</code>, <code>full</code>, <code>queued</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>format</code> (one of <code>countMax</code>, <code>count</code>, default <code>countMax</code>)</li><li><code>showQueue</code> (on or off, default on)</li><li><code>showCaption</code> (on or off, default on)</li></ul></dd></dl>
+  <div class="md el-notes"><p>In a <code>selection</code> container it shows a <code>label</code> part reading &quot;PLAYERS&quot; above the value, and no <code>caption</code>.</p></div>
 </section>
   <section class="el" id="el-server-ping" data-el="server.ping">
   <h3><code>server.ping</code> <span class="el-kind">display</span></h3>
-  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>value</code>, <code>unit</code>, <code>caption</code> · States: <code>good</code>, <code>fair</code>, <code>poor</code>, <code>unknown</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showUnit</code> (on or off, default off)</li><li><code>showCaption</code> (on or off, default on)</li></ul></dd></dl>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>value</code>, <code>unit</code>, <code>caption</code>, <code>label</code> · States: <code>good</code>, <code>fair</code>, <code>poor</code>, <code>unknown</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showUnit</code> (on or off, default off)</li><li><code>showCaption</code> (on or off, default on)</li></ul></dd></dl>
+  <div class="md el-notes"><p>In a <code>selection</code> container it shows a <code>label</code> part reading &quot;PING&quot; above the value, and no <code>caption</code>.</p></div>
 </section>
   <section class="el" id="el-server-modCount" data-el="server.modCount">
   <h3><code>server.modCount</code> <span class="el-kind">display</span></h3>
-  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>value</code>, <code>caption</code> · States: <code>none</code>, <code>unprobed</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showCaption</code> (on or off, default on)</li></ul></dd></dl>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>value</code>, <code>caption</code>, <code>label</code> · States: <code>none</code>, <code>unprobed</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showCaption</code> (on or off, default on)</li></ul></dd></dl>
+  <div class="md el-notes"><p>In a <code>selection</code> container it shows a <code>label</code> part reading &quot;MODS&quot; above the <code>value</code>, and no <code>caption</code>.</p></div>
 </section>
   <section class="el" id="el-server-version" data-el="server.version">
   <h3><code>server.version</code> <span class="el-kind">display</span></h3>
@@ -988,7 +992,8 @@
 </section>
   <section class="el" id="el-list-modServers" data-el="list.modServers">
   <h3><code>list.modServers</code> <span class="el-kind">list</span></h3>
-  <dl><dt>Placed in</dt><dd>a modSelection container, not a row · once per subject context</dd><dt>Parts</dt><dd><code>header</code>, <code>column</code>, <code>scroller</code>, <code>rows</code>, <code>empty</code>, <code>loading</code> · States: <code>empty</code>, <code>loading</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>header</code> (on or off, default off)</li><li><code>rowGap</code> (token name, default <code>none</code>)</li><li><code>estimatedRowHeight</code> (length, default <code>32px</code>)</li></ul></dd></dl>
+  <dl><dt>Placed in</dt><dd>a modSelection container, not a row · once per subject context</dd><dt>Parts</dt><dd><code>header</code>, <code>column</code>, <code>scroller</code>, <code>rows</code>, <code>empty</code>, <code>loading</code>, <code>more</code> · States: <code>empty</code>, <code>loading</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>header</code> (on or off, default off)</li><li><code>rowGap</code> (token name, default <code>none</code>)</li><li><code>estimatedRowHeight</code> (length, default <code>32px</code>)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Shows the first 8 servers; beyond that a <code>more</code> part reads &quot;+{n} more&quot;.</p></div>
 </section>
 </section>
 
