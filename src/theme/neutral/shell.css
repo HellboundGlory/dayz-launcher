@@ -1,2 +1,107 @@
 /* Every stylesheet repeats this line; whichever loads first fixes the layer order. */
 @layer launcher, neutral, theme, guarantees;
+
+@layer neutral {
+  .t-neutral-shell-root {
+    @apply min-h-0;
+  }
+
+  .t-neutral-shell-rail {
+    @apply relative shrink-0 overflow-hidden border-r border-line bg-surface w-[var(--t-space-sidebarWidth)] transition-[width] [transition-duration:var(--t-motion-expand-duration)] [transition-timing-function:var(--t-motion-expand-easing)];
+  }
+
+  .t-neutral-shell-rail:has(> .t-neutral-shell-rail-body[data-state~="collapsed"]) {
+    @apply w-[var(--t-space-sidebarCollapsedWidth)];
+  }
+
+  .t-neutral-shell-rail-body {
+    @apply min-h-0;
+  }
+
+  .t-neutral-shell-brand {
+    @apply shrink-0 border-b border-line px-[var(--t-space-rowX)] py-[var(--t-space-sidebarLogoY)];
+  }
+
+  .t-neutral-shell-logo {
+    @apply flex min-w-0 items-center gap-[var(--t-space-inlineGapWide)];
+  }
+
+  .t-neutral-shell-rail-body[data-state~="collapsed"] .t-neutral-shell-brand {
+    @apply justify-center px-0;
+  }
+
+  .t-neutral-shell-rail-body[data-state~="collapsed"] .t-neutral-shell-logo {
+    @apply gap-0;
+  }
+
+  .t-neutral-shell-nav {
+    @apply flex-1 gap-[var(--t-space-sidebarListGap)] p-[var(--t-space-sidebarPad)];
+  }
+
+  .t-neutral-shell-settings {
+    @apply shrink-0 gap-[var(--t-space-inlineGap)] border-t border-line p-[var(--t-space-sidebarSettingsPad)];
+  }
+
+  .t-neutral-shell-rail-body[data-state~="collapsed"] .t-neutral-shell-settings {
+    @apply items-center;
+  }
+
+  .t-neutral-shell-item {
+    @apply flex items-center gap-[var(--t-space-sidebarItemGap)] [border-radius:var(--t-radius-sidebarItem)] px-[var(--t-space-controlSmallX)] py-[var(--t-space-rowY)] [font-size:var(--t-type-subheading-size)] [font-weight:var(--t-type-label-weight)] text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)];
+  }
+
+  .t-neutral-shell-item[data-state~="current"],
+  .t-neutral-shell-item[data-state~="open"] {
+    @apply bg-accent-soft text-accent [box-shadow:var(--t-glow-selected)];
+  }
+
+  .t-neutral-shell-item:hover {
+    @apply bg-surface2 text-ink;
+  }
+
+  .t-neutral-shell-rail-body[data-state~="collapsed"] .t-neutral-shell-item {
+    @apply justify-center px-0;
+  }
+
+  .t-neutral-shell-item [data-part="icon"] {
+    @apply h-[var(--t-space-iconBox)] w-[var(--t-space-iconBox)];
+  }
+
+  .t-neutral-shell-item [data-part="icon"] svg {
+    @apply size-[var(--t-space-iconLarge)] [stroke-width:1.6];
+  }
+
+  .t-neutral-shell-toggle {
+    @apply absolute bottom-[var(--t-space-sidebarToggleOffset)] right-0 z-[5] flex h-[var(--t-space-sidebarToggleHeight)] w-[var(--t-space-iconLarge)] items-center justify-center [border-top-left-radius:var(--t-radius-controlSmall)] [border-bottom-left-radius:var(--t-radius-controlSmall)] border border-line border-r-0 bg-surface2 text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:bg-accent-soft hover:text-accent;
+  }
+
+  .t-neutral-shell-toggle [data-part="icon"] svg {
+    @apply size-[var(--t-space-iconChevron)];
+  }
+
+  .t-neutral-shell-titlebar {
+    @apply h-[var(--t-space-windowControlHeight)] shrink-0 border-b border-line bg-surface;
+  }
+
+  .t-neutral-shell-drag {
+    @apply h-full select-none;
+  }
+
+  .t-neutral-shell-controls {
+    @apply flex;
+  }
+
+  .t-neutral-shell-controls [data-el="app.minimize"],
+  .t-neutral-shell-controls [data-el="app.maximize"],
+  .t-neutral-shell-controls [data-el="app.close"] {
+    @apply flex h-[var(--t-space-windowControlHeight)] w-[var(--t-space-windowControlWidth)] items-center justify-center text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:bg-surface2 hover:text-ink;
+  }
+
+  .t-neutral-shell-controls [data-el="app.close"]:hover {
+    @apply bg-danger;
+  }
+
+  .t-neutral-shell-main {
+    @apply min-w-0 flex-1;
+  }
+}
