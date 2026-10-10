@@ -2,6 +2,7 @@ import type { CSSProperties, PointerEvent } from "react";
 import type { ColumnDef, SortState } from "./types";
 import { isColumnResizable } from "./use-column-widths";
 import { ElementHost } from "../elements/element-host";
+import { SubjectContextProvider } from "../elements/context";
 
 export function ListHeader({
   columns,
@@ -60,7 +61,9 @@ export function ListHeader({
             style={colStyle}
           >
             {col.headerElement ? (
-              <ElementHost node={{ element: col.headerElement }} />
+              <SubjectContextProvider subject={null} contextName="listHeader">
+                <ElementHost node={{ element: col.headerElement }} />
+              </SubjectContextProvider>
             ) : isSortable ? (
               <button
                 type="button"

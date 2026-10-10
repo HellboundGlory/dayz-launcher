@@ -23,6 +23,7 @@ import { useElementContext } from "./context";
 import { useServerActions, phaseLabel } from "@/hooks/use-server-actions";
 import { useSelectionReadiness } from "./use-selection-readiness";
 import { useServerStore } from "@/stores/server-store";
+import { invalidateReadiness, setCachedReadiness } from "@/stores/readiness-store";
 import { joinAction } from "@/lib/join-action";
 import {
   toggleFavourite as toggleFavouriteRemote,
@@ -1134,6 +1135,7 @@ export function ServerCheckMods({
     setBusy(true);
     try {
       const res = await checkServerMods(server.addr, server.query_port);
+      setCachedReadiness(server.addr, server.query_port, res);
       const hasPending = res.mods.some((m) => m.state !== "ready" && m.state !== "not_on_workshop");
       mergeModPending([{ addr: server.addr, pending: hasPending }]);
       triggerReload();
@@ -1235,6 +1237,7 @@ export function ServerUnsubscribeUnique({
     setBusy(true);
     try {
       const outcome = await unsubscribeUniqueMods(server.addr, server.query_port);
+      invalidateReadiness();
       setNotice(
         {
           kind: "plain",

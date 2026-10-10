@@ -4,6 +4,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useModsStore, visibleRows } from "@/stores/mods-store";
 import type { ElementNode } from "../renderer/types";
 import { OptionIcon } from "./option-icon";
+import { useElementContext } from "./context";
 import {
   ModCreated,
   ModDescription,
@@ -51,7 +52,7 @@ import {
   ModsVerifySelected,
 } from "./mods-toolbar-elements";
 
-/** Checked while every visible mod is checked; options only apply outside a list header. */
+/** A list header keeps the checked/unchecked toggle; anywhere else it is the one-way "Select all" action. */
 function ModsSelectAll({
   options,
   className,
@@ -61,6 +62,7 @@ function ModsSelectAll({
   className?: string;
   style?: CSSProperties;
 }) {
+  const { contextName } = useElementContext();
   const { rows, selectedIds, setAllSelected } = useModsStore(
     useShallow((s) => ({
       rows: s.rows,
@@ -70,18 +72,17 @@ function ModsSelectAll({
   );
   const visible = visibleRows(rows);
   const allSelected = visible.length > 0 && visible.every((r) => selectedIds.has(r.workshop_id));
-  const defaultLabel = allSelected ? "Deselect all" : "Select all visible";
-  const hasOptions = options?.icon !== undefined || options?.display !== undefined || options?.label !== undefined;
 
-  if (!hasOptions) {
+  if (contextName === "listHeader") {
+    const headerLabel = allSelected ? "Deselect all" : "Select all visible";
     return (
       <button
         type="button"
         data-el="mods.selectAll"
         aria-pressed={allSelected}
         data-state={allSelected ? "checked" : undefined}
-        title={defaultLabel}
-        aria-label={defaultLabel}
+        title={headerLabel}
+        aria-label={headerLabel}
         onClick={() => setAllSelected(!allSelected)}
         className={className ?? "flex items-center justify-center text-accent hover:text-accent2"}
         style={style}
@@ -97,7 +98,9 @@ function ModsSelectAll({
     );
   }
 
-  const label = (options?.label as string | undefined) ?? defaultLabel;
+  if (visible.length === 0 || allSelected) return null;
+
+  const label = (options?.label as string | undefined) ?? "Select all";
   const display = (options?.display as string | undefined) ?? "iconLabel";
   const showIcon = display === "iconLabel" || display === "icon";
   const showLabel = display === "iconLabel" || display === "label";
@@ -106,11 +109,9 @@ function ModsSelectAll({
     <button
       type="button"
       data-el="mods.selectAll"
-      aria-pressed={allSelected}
-      data-state={allSelected ? "checked" : undefined}
       title={label}
       aria-label={label}
-      onClick={() => setAllSelected(!allSelected)}
+      onClick={() => setAllSelected(true)}
       className={className ?? "flex items-center gap-1 text-accent hover:text-accent2"}
       style={style}
     >

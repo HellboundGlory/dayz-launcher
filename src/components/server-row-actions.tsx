@@ -15,6 +15,7 @@ import { cn, formatBytes } from "@/lib/utils";
 import type { Server } from "@/types/server";
 import { useServerActions, NOTICES } from "@/hooks/use-server-actions";
 import { useServerStore } from "@/stores/server-store";
+import { invalidateReadiness, setCachedReadiness } from "@/stores/readiness-store";
 import {
   checkServerMods,
   getUniqueModsSummary,
@@ -260,6 +261,7 @@ export function ServerRowActions({
   async function handleCheckMods() {
     try {
       const readiness = await checkServerMods(server.addr, server.query_port);
+      setCachedReadiness(server.addr, server.query_port, readiness);
       const hasPending = readiness.mods.some(
         (m) => m.state !== "ready" && m.state !== "not_on_workshop",
       );
@@ -279,6 +281,7 @@ export function ServerRowActions({
         action: async () => {
           try {
             const outcome = await unsubscribeUniqueMods(server.addr, server.query_port);
+            invalidateReadiness();
             actions.setNotice(
               {
                 kind: "plain",

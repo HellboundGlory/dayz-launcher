@@ -3212,15 +3212,17 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   color: var(--accent);
 }
 
+/* The input is the visible box, so the keyboard focus outline traces it. */
 [data-el="modFilter.search"] {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  position: relative;
   margin: 10px 14px 0;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background-color: var(--surface2);
-  padding: 6px 10px;
+}
+
+[data-el="modFilter.search"] [data-part="icon"] {
+  position: absolute;
+  left: 10px;
+  top: 16px;
+  transform: translateY(-50%);
 }
 
 [data-el="modFilter.search"] [data-part="icon"] > :first-child {
@@ -3230,11 +3232,26 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
 }
 
 [data-el="modFilter.search"] [data-part="input"] {
-  flex: 1 1 auto;
+  width: 100%;
   min-width: 0;
-  background-color: transparent;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background-color: var(--surface2);
+  padding: 6px 10px 6px 28px;
   font-size: 12px;
+  line-height: 18px;
   color: var(--text);
+}
+
+[data-el="modFilter.search"] [data-part="input"]:focus {
+  border-color: var(--accent);
+}
+
+[data-el="modFilter.search"] [data-part="error"] {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--danger);
 }
 
 [data-el="modFilter.search"][data-state~="busy"] [data-part="input"] {

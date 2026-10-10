@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import type { Server, ServerModReadiness, ModReadinessEntry } from "@/types/server";
 import { useServerStore } from "@/stores/server-store";
+import { invalidateReadiness, setCachedReadiness } from "@/stores/readiness-store";
 import { cn, formatBytes, formatGameTime, regionName } from "@/lib/utils";
 import { useServerActions, NOTICES } from "@/hooks/use-server-actions";
 import {
@@ -380,6 +381,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
     setCheckingMods(true);
     try {
       const res = await checkServerMods(server.addr, server.query_port);
+      setCachedReadiness(server.addr, server.query_port, res);
       setReadinessData(res);
       const hasPending = res.mods.some(
         (m) => m.state !== "ready" && m.state !== "not_on_workshop",
@@ -402,6 +404,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
         action: async () => {
           try {
             const outcome = await unsubscribeUniqueMods(server.addr, server.query_port);
+            invalidateReadiness();
             actions.setNotice(
               {
                 kind: "plain",

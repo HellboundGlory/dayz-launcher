@@ -433,12 +433,10 @@ export function ModsUnsubscribeMenu({ options, className, style }: { options?: R
 }
 
 export function ModsVerify({ options, className, style }: { options?: Record<string, unknown>; className?: string; style?: CSSProperties }) {
-  const { selectedCount, allCount, op, verifySelected, verifyAll } = useModsStore(
+  const { allCount, op, verifyAll } = useModsStore(
     useShallow((s) => ({
-      selectedCount: s.selectedIds.size,
       allCount: visibleRows(s.rows).length,
       op: s.op,
-      verifySelected: s.verifySelected,
       verifyAll: s.verifyAll,
     })),
   );
@@ -450,17 +448,12 @@ export function ModsVerify({ options, className, style }: { options?: Record<str
   const disabled = !!op || allCount === 0;
   const labelText = busy ? op?.note ?? "Verifying…" : baseLabel;
 
-  function handleClick() {
-    if (selectedCount > 0) void verifySelected();
-    else void verifyAll();
-  }
-
   return (
     <button
       type="button"
       data-el="mods.verify"
       data-state={busy ? "busy" : undefined}
-      onClick={handleClick}
+      onClick={() => void verifyAll()}
       disabled={disabled}
       title="Verify every mod against the Workshop and re-download anything outdated"
       className={
@@ -594,8 +587,9 @@ export function ModsUpdateOutdated({ options, className, style }: { options?: Re
   const showIcon = display === "iconLabel" || display === "icon";
   const showLabel = display === "iconLabel" || display === "label";
   const busy = op?.kind === "update";
-  const disabled = !!op || outdatedCount === 0;
-  const labelText = busy ? op?.note ?? "Updating…" : `${baseLabel} ${outdatedCount} outdated`;
+  if (outdatedCount === 0) return null;
+  const disabled = !!op;
+  const labelText = busy ? op?.note ?? "Updating…" : `${baseLabel} ${outdatedCount}`;
 
   return (
     <button
