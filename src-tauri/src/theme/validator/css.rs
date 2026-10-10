@@ -22,9 +22,17 @@ fn is_url_function(name: &str) -> bool {
         "-webkit-image-set",
         "cross-fade",
         "image",
+        "src",
     ]
     .iter()
     .any(|candidate| name.eq_ignore_ascii_case(candidate))
+}
+
+/// Functions whose value is only known at render time, so they cannot sit inside a URL.
+fn is_render_time_function(name: &str) -> bool {
+    ["var", "attr", "env", "inherit"]
+        .iter()
+        .any(|candidate| name.eq_ignore_ascii_case(candidate))
 }
 
 /// Validate a CSS stylesheet string according to Theme System SPEC §12.
@@ -50,7 +58,7 @@ pub fn validate_css_stylesheet(
 
     let mut parser = Parser::new(source);
 
-    parse_rules(&mut parser, file_path, known_classes, false, &mut issues, 0);
+    parse_rules(&mut parser, file_path, known_classes, &mut issues, 0);
 
     issues
 }
@@ -59,7 +67,6 @@ fn parse_rules(
     parser: &mut Parser<'_>,
     file_path: &str,
     known_classes: Option<&HashSet<String>>,
-    in_font_face: bool,
     issues: &mut Vec<ValidationIssue>,
     depth: u32,
 ) {
@@ -86,14 +93,7 @@ fn parse_rules(
             }
             _ => {
                 parser.reset(&state);
-                parse_qualified_rule(
-                    parser,
-                    file_path,
-                    known_classes,
-                    in_font_face,
-                    issues,
-                    depth,
-                );
+                parse_qualified_rule(parser, file_path, known_classes, issues, depth);
             }
         }
     }
@@ -110,6 +110,11 @@ fn validate_at_rule(
 ) {
     match at_name {
         "media" => {
+            if depth >= MAX_BLOCK_DEPTH {
+                issues.push(nesting_too_deep(file_path, "@media"));
+                skip_at_rule(parser);
+                return;
+            }
             let mut prelude_tokens = Vec::new();
             while !parser.is_exhausted() {
                 let token = match parser.next_including_whitespace_and_comments() {
@@ -119,33 +124,21 @@ fn validate_at_rule(
                 match token {
                     Token::CurlyBracketBlock => {
                         validate_media_prelude_parser(parser, file_path, &prelude_tokens, issues);
-                        if depth >= MAX_BLOCK_DEPTH {
-                            issues.push(nesting_too_deep(file_path, &format!("@{at_name}")));
-                            let _ = parser.parse_nested_block(|_| Ok::<(), ParseError<()>>(()));
-                        } else {
-                            let _ = parser.parse_nested_block(|nested| {
-                                if inside_style_rule {
-                                    parse_declarations(
-                                        nested,
-                                        file_path,
-                                        known_classes,
-                                        false,
-                                        issues,
-                                        depth + 1,
-                                    );
-                                } else {
-                                    parse_rules(
-                                        nested,
-                                        file_path,
-                                        known_classes,
-                                        false,
-                                        issues,
-                                        depth + 1,
-                                    );
-                                }
-                                Ok::<(), ParseError<()>>(())
-                            });
-                        }
+                        let _ = parser.parse_nested_block(|nested| {
+                            if inside_style_rule {
+                                parse_declarations(
+                                    nested,
+                                    file_path,
+                                    known_classes,
+                                    false,
+                                    issues,
+                                    depth + 1,
+                                );
+                            } else {
+                                parse_rules(nested, file_path, known_classes, issues, depth + 1);
+                            }
+                            Ok::<(), ParseError<()>>(())
+                        });
                         break;
                     }
                     Token::Semicolon => {
@@ -153,18 +146,22 @@ fn validate_at_rule(
                         break;
                     }
                     Token::ParenthesisBlock => {
-                        let mut paren_idents = Vec::new();
-                        let _ = parser.parse_nested_block(|nested| {
-                            while let Ok(t) = nested.next_including_whitespace_and_comments() {
-                                if let Token::Ident(id) = t {
-                                    paren_idents.push(id.to_string());
-                                }
-                            }
-                            Ok::<(), ParseError<()>>(())
-                        });
-                        for id in paren_idents {
-                            prelude_tokens.push(Token::Ident(id.into()));
-                        }
+                        parse_block_at_depth(
+                            parser,
+                            file_path,
+                            "@media",
+                            issues,
+                            depth,
+                            |nested, issues, child_depth| {
+                                collect_media_features(
+                                    nested,
+                                    file_path,
+                                    &mut prelude_tokens,
+                                    issues,
+                                    child_depth,
+                                );
+                            },
+                        );
                     }
                     t => prelude_tokens.push(t.clone()),
                 }
@@ -178,16 +175,22 @@ fn validate_at_rule(
                 };
                 match token {
                     Token::CurlyBracketBlock => {
-                        let _ = parser.parse_nested_block(|nested| {
-                            parse_keyframes_block(
-                                nested,
-                                file_path,
-                                known_classes,
-                                issues,
-                                depth + 1,
-                            );
-                            Ok::<(), ParseError<()>>(())
-                        });
+                        parse_block_at_depth(
+                            parser,
+                            file_path,
+                            "@keyframes",
+                            issues,
+                            depth,
+                            |nested, issues, child_depth| {
+                                parse_keyframes_block(
+                                    nested,
+                                    file_path,
+                                    known_classes,
+                                    issues,
+                                    child_depth,
+                                );
+                            },
+                        );
                         break;
                     }
                     Token::Semicolon => break,
@@ -203,17 +206,23 @@ fn validate_at_rule(
                 };
                 match token {
                     Token::CurlyBracketBlock => {
-                        let _ = parser.parse_nested_block(|nested| {
-                            parse_declarations(
-                                nested,
-                                file_path,
-                                known_classes,
-                                true,
-                                issues,
-                                depth + 1,
-                            );
-                            Ok::<(), ParseError<()>>(())
-                        });
+                        parse_block_at_depth(
+                            parser,
+                            file_path,
+                            "@font-face",
+                            issues,
+                            depth,
+                            |nested, issues, child_depth| {
+                                parse_declarations(
+                                    nested,
+                                    file_path,
+                                    known_classes,
+                                    true,
+                                    issues,
+                                    child_depth,
+                                );
+                            },
+                        );
                         break;
                     }
                     Token::Semicolon => break,
@@ -232,20 +241,25 @@ fn validate_at_rule(
                 hint: None,
             });
 
-            while !parser.is_exhausted() {
-                let token = match parser.next_including_whitespace_and_comments() {
-                    Ok(t) => t,
-                    Err(_) => break,
-                };
-                match token {
-                    Token::CurlyBracketBlock => {
-                        let _ = parser.parse_nested_block(|_| Ok::<(), ParseError<()>>(()));
-                        break;
-                    }
-                    Token::Semicolon => break,
-                    _ => {}
-                }
+            skip_at_rule(parser);
+        }
+    }
+}
+
+/// Skips the rest of an at-rule up to and including its block or semicolon.
+fn skip_at_rule(parser: &mut Parser<'_>) {
+    while !parser.is_exhausted() {
+        let token = match parser.next_including_whitespace_and_comments() {
+            Ok(t) => t,
+            Err(_) => break,
+        };
+        match token {
+            Token::CurlyBracketBlock => {
+                let _ = parser.parse_nested_block(|_| Ok::<(), ParseError<()>>(()));
+                break;
             }
+            Token::Semicolon => break,
+            _ => {}
         }
     }
 }
@@ -296,6 +310,52 @@ fn is_allowed_media_feature(feature: &str) -> bool {
     )
 }
 
+/// Parses the block just opened at `depth + 1`, or reports it and skips it past the limit.
+fn parse_block_at_depth<'i>(
+    parser: &mut Parser<'i>,
+    file_path: &str,
+    pointer: &str,
+    issues: &mut Vec<ValidationIssue>,
+    depth: u32,
+    parse: impl FnOnce(&mut Parser<'i>, &mut Vec<ValidationIssue>, u32),
+) {
+    if depth >= MAX_BLOCK_DEPTH {
+        issues.push(nesting_too_deep(file_path, pointer));
+        let _ = parser.parse_nested_block(|_| Ok::<(), ParseError<()>>(()));
+    } else {
+        let _ = parser.parse_nested_block(|nested| {
+            parse(nested, issues, depth + 1);
+            Ok::<(), ParseError<()>>(())
+        });
+    }
+}
+
+/// Collects the identifiers of a media query, looking inside nested parentheses.
+fn collect_media_features<'i>(
+    parser: &mut Parser<'i>,
+    file_path: &str,
+    prelude: &mut Vec<Token<'i>>,
+    issues: &mut Vec<ValidationIssue>,
+    depth: u32,
+) {
+    while let Ok(token) = parser.next_including_whitespace_and_comments() {
+        match token {
+            Token::Ident(_) => prelude.push(token.clone()),
+            Token::ParenthesisBlock => parse_block_at_depth(
+                parser,
+                file_path,
+                "@media",
+                issues,
+                depth,
+                |nested, issues, child_depth| {
+                    collect_media_features(nested, file_path, prelude, issues, child_depth);
+                },
+            ),
+            _ => {}
+        }
+    }
+}
+
 fn parse_keyframes_block(
     parser: &mut Parser<'_>,
     file_path: &str,
@@ -310,10 +370,23 @@ fn parse_keyframes_block(
         };
         match token {
             Token::CurlyBracketBlock => {
-                let _ = parser.parse_nested_block(|nested| {
-                    parse_declarations(nested, file_path, known_classes, false, issues, depth);
-                    Ok::<(), ParseError<()>>(())
-                });
+                parse_block_at_depth(
+                    parser,
+                    file_path,
+                    "@keyframes",
+                    issues,
+                    depth,
+                    |nested, issues, child_depth| {
+                        parse_declarations(
+                            nested,
+                            file_path,
+                            known_classes,
+                            false,
+                            issues,
+                            child_depth,
+                        );
+                    },
+                );
             }
             Token::Semicolon => {}
             _ => {}
@@ -336,7 +409,6 @@ fn parse_qualified_rule(
     parser: &mut Parser<'_>,
     file_path: &str,
     known_classes: Option<&HashSet<String>>,
-    in_font_face: bool,
     issues: &mut Vec<ValidationIssue>,
     depth: u32,
 ) {
@@ -345,22 +417,23 @@ fn parse_qualified_rule(
     let state = parser.state();
     match parser.next_including_whitespace_and_comments() {
         Ok(Token::CurlyBracketBlock) => {
-            if depth >= MAX_BLOCK_DEPTH {
-                issues.push(nesting_too_deep(file_path, ""));
-                let _ = parser.parse_nested_block(|_| Ok::<(), ParseError<()>>(()));
-            } else {
-                let _ = parser.parse_nested_block(|nested| {
+            parse_block_at_depth(
+                parser,
+                file_path,
+                "",
+                issues,
+                depth,
+                |nested, issues, child_depth| {
                     parse_declarations(
                         nested,
                         file_path,
                         known_classes,
-                        in_font_face,
+                        false,
                         issues,
-                        depth + 1,
+                        child_depth,
                     );
-                    Ok::<(), ParseError<()>>(())
-                });
-            }
+                },
+            );
         }
         Ok(_) => parser.reset(&state),
         Err(_) => {}
@@ -391,7 +464,7 @@ fn parse_selector_and_validate(
             Token::Comma => {
                 expect_ident_is_type = true;
             }
-            Token::WhiteSpace(_) | Token::Comment(_) => {
+            Token::WhiteSpace(_) | Token::Comment(_) | Token::CDO | Token::CDC => {
                 expect_ident_is_type = true;
             }
             Token::Delim('>') | Token::Delim('+') | Token::Delim('~') => {
@@ -508,22 +581,34 @@ fn parse_selector_and_validate(
                 let state2 = parser.state();
                 match parser.next_including_whitespace_and_comments() {
                     Ok(Token::Colon) => {
-                        if let Ok(Token::Ident(pseudo_el)) =
-                            parser.next_including_whitespace_and_comments()
+                        let pseudo = match parser.next_including_whitespace_and_comments().cloned()
                         {
-                            let lower = pseudo_el.to_ascii_lowercase();
+                            Ok(Token::Ident(name)) => Some((name, false)),
+                            Ok(Token::Function(name)) => Some((name, true)),
+                            _ => None,
+                        };
+                        if let Some((name, is_function)) = pseudo {
+                            let lower = name.to_ascii_lowercase();
                             if lower != "before"
                                 && lower != "after"
                                 && !is_allowed_pseudo_element(&lower)
                             {
+                                let shown = if is_function {
+                                    format!("{name}()")
+                                } else {
+                                    name.to_string()
+                                };
                                 issues.push(ValidationIssue {
                                     rule_id: "CSS-01".into(),
                                     severity: Severity::Error,
                                     file: file_path.into(),
-                                    pointer: format!("::{pseudo_el}"),
-                                    message: format!("Disallowed pseudo-element '::{pseudo_el}'"),
+                                    pointer: format!("::{shown}"),
+                                    message: format!("Disallowed pseudo-element '::{shown}'"),
                                     hint: None,
                                 });
+                            }
+                            if is_function {
+                                let _ = parser.parse_nested_block(|_| Ok::<(), ParseError<()>>(()));
                             }
                         }
                     }
@@ -708,14 +793,7 @@ fn parse_declarations(
                 if !declaration {
                     if has_block {
                         parser.reset(&statement);
-                        parse_qualified_rule(
-                            parser,
-                            file_path,
-                            known_classes,
-                            false,
-                            issues,
-                            depth,
-                        );
+                        parse_qualified_rule(parser, file_path, known_classes, issues, depth);
                     } else {
                         issues.push(ValidationIssue {
                             rule_id: "CSS-01".into(),
@@ -755,7 +833,7 @@ fn parse_declarations(
             }
             _ => {
                 parser.reset(&statement);
-                parse_qualified_rule(parser, file_path, known_classes, false, issues, depth);
+                parse_qualified_rule(parser, file_path, known_classes, issues, depth);
             }
         }
     }
@@ -864,6 +942,21 @@ fn collect_nested_tokens<'i>(
             | Token::ParenthesisBlock
             | Token::SquareBracketBlock
             | Token::CurlyBracketBlock => {
+                if let (true, Token::Function(name)) = (url_context, &v) {
+                    if is_render_time_function(name) {
+                        sink.issues.push(ValidationIssue {
+                            rule_id: "CSS-07".into(),
+                            severity: Severity::Error,
+                            file: sink.file.into(),
+                            pointer: sink.property.to_string(),
+                            message: format!(
+                                "{}() is not allowed inside a URL function",
+                                name.to_ascii_lowercase()
+                            ),
+                            hint: None,
+                        });
+                    }
+                }
                 let opener = v.clone();
                 collect_block(parser, sink, opener, url_context, depth);
             }
@@ -1508,5 +1601,101 @@ mod tests {
             .filter(|i| i.message.contains("Nesting depth"))
             .collect();
         assert_eq!(depth.len(), 1, "Got: {issues:#?}");
+    }
+
+    #[test]
+    fn constructs_browsers_still_apply_are_refused() {
+        let deep_media = format!("@media {}hover{} {{}}", "(".repeat(200), ")".repeat(200));
+        let deep_font_face = format!("{}{}", "@font-face{".repeat(40), "}".repeat(40));
+        let deep_keyframes = format!("{}{}", "@keyframes k{from{".repeat(40), "}".repeat(80));
+        let media_at_limit = format!(
+            "{}@media (max-width: 1px) {{}}{}",
+            "[data-el=\"b\"] {".repeat(32),
+            "}".repeat(32)
+        );
+        let cases = [
+            (
+                r#"[data-el="b"] { --u: "https://e/x.png"; background: image-set(var(--u) 1x); }"#,
+                "CSS-07",
+                "var() is not allowed",
+            ),
+            (
+                r#"[data-el="b"] { background: cross-fade(var(--u), url(b.png), 50%); }"#,
+                "CSS-07",
+                "var() is not allowed",
+            ),
+            (
+                r#"[data-el="b"] { background: src("https://e/x.png"); }"#,
+                "CSS-07",
+                "prohibited scheme",
+            ),
+            ("<!--body { display: none }", "CSS-01", "Tag selector"),
+            (
+                "-->div, [data-el=\"b\"] { display: none }",
+                "CSS-01",
+                "Tag selector",
+            ),
+            (
+                r#"[data-el="b"] { color: red } <!--body { visibility: hidden }"#,
+                "CSS-01",
+                "Tag selector",
+            ),
+            (
+                "@media all { <!--body { display: none } }",
+                "CSS-01",
+                "Tag selector",
+            ),
+            (
+                r#"[data-el="b"]::part(x) { color: red }"#,
+                "CSS-01",
+                "pseudo-element",
+            ),
+            (
+                r#"[data-el="b"]::view-transition-old(root) { color: red }"#,
+                "CSS-01",
+                "pseudo-element",
+            ),
+            (
+                "@media (not (hover)) { [data-el=\"b\"] { color: red } }",
+                "CSS-06",
+                "disallowed feature",
+            ),
+            (
+                "[data-el=\"b\"] { @media ((hover)) { color: red } }",
+                "CSS-06",
+                "disallowed feature",
+            ),
+            (deep_media.as_str(), "CSS-01", "Nesting depth"),
+            (deep_font_face.as_str(), "CSS-01", "Nesting depth"),
+            (deep_keyframes.as_str(), "CSS-01", "Nesting depth"),
+            (media_at_limit.as_str(), "CSS-01", "Nesting depth"),
+            (
+                r#"[data-el="b"] { background: image-set(attr(data-src) 1x); }"#,
+                "CSS-07",
+                "not allowed inside a URL function",
+            ),
+            (
+                r#"[data-el="b"] { background: cross-fade(env(safe-area-inset-top), url(b.png), 50%); }"#,
+                "CSS-07",
+                "not allowed inside a URL function",
+            ),
+            (
+                r#"[data-el="b"] { background: image-set(inherit(--u) 1x); }"#,
+                "CSS-07",
+                "not allowed inside a URL function",
+            ),
+        ];
+        let missing: Vec<&str> = cases
+            .into_iter()
+            .filter(|(css, rule_id, fragment)| {
+                validate_css_stylesheet("styles.css", css, None)
+                    .iter()
+                    .filter(|i| i.rule_id == *rule_id && i.message.contains(fragment))
+                    .count()
+                    != 1
+            })
+            .map(|(css, _, _)| css)
+            .collect();
+        assert!(missing.is_empty(), "Not refused exactly once: {missing:#?}");
     }
 }
