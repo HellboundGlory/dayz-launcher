@@ -11,6 +11,7 @@ import { LayoutNodeRenderer, RenderContextProvider } from "../renderer/node-rend
 import { useResolvedRoot } from "../renderer/use-resolved-root";
 import { parseLengthPx } from "./resizable";
 import { useAnchoredPopup } from "./use-anchored-popup";
+import { usePopupKeyboard } from "./popup-keyboard";
 
 export interface PopupHostProps {
   file: PopupLayoutFile;
@@ -47,26 +48,12 @@ export function PopupHost({
     maxHeight: placement.maxHeight ?? "320px",
   });
 
+  usePopupKeyboard(isOpen, popupRef, onClose);
+
   useEffect(() => {
     if (!isOpen || typeof document === "undefined") return;
 
     const triggerEl = triggerRef.current;
-
-    // Focus into popup: first item or active
-    const focusable = popupRef.current?.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    );
-    if (focusable && focusable.length > 0) {
-      const selected = popupRef.current?.querySelector<HTMLElement>('[aria-selected="true"]');
-      (selected ?? focusable[0]).focus();
-    }
-
-    const onKeyDown = (e: globalThis.KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-      }
-    };
 
     const onPointerDown = (e: globalThis.PointerEvent) => {
       const target = e.target as Node | null;
@@ -76,13 +63,10 @@ export function PopupHost({
       onClose();
     };
 
-    window.addEventListener("keydown", onKeyDown);
     window.addEventListener("pointerdown", onPointerDown);
 
     return () => {
-      window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("pointerdown", onPointerDown);
-      triggerEl?.focus();
     };
   }, [isOpen, onClose, triggerRef]);
 

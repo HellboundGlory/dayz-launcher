@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { Search, RefreshCw, RotateCcw, ChevronDown, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useServerStore } from "@/stores/server-store";
 import { useElementContext } from "./context";
 import { OptionIcon } from "./option-icon";
 import { getThemeOwnedLayout, useLayoutSubscription } from "../theme-store";
-import { useAnchoredPopup } from "../interaction/use-anchored-popup";
+import { usePopupTrigger } from "../interaction/use-popup-trigger";
 import type { PopupLayoutFile } from "../renderer/types";
 import {
   FilterPopup,
@@ -31,31 +31,6 @@ export {
 
 
 const SEARCH_DEBOUNCE_MS = 250;
-
-function useDropdown(themedPopup: PopupLayoutFile | undefined) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const popupRef = useRef<HTMLDivElement>(null);
-  const popupStyle = useAnchoredPopup(open && !themedPopup, ref, popupRef, { side: "bottom", align: "start", offset: 4 });
-
-  useEffect(() => {
-    if (!open) return;
-    function onMouseDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("mousedown", onMouseDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onMouseDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
-  return { open, setOpen, ref, popupRef, popupStyle };
-}
 
 function DropdownTrigger({
   label,
@@ -190,7 +165,7 @@ export function FilterMap({
   const label = (options?.label as string) ?? "MAP";
   useLayoutSubscription();
   const themedPopup = getThemeOwnedLayout("layout/popups/mapFilter.json") as PopupLayoutFile | undefined;
-  const { open, setOpen, ref, popupRef, popupStyle } = useDropdown(themedPopup);
+  const { open, setOpen, close, ref, popupRef, popupStyle } = usePopupTrigger({ side: "bottom", align: "start" }, themedPopup);
 
   const selected = filter.maps ?? [];
   const value = mapDisplayValue(selected, maps);
@@ -210,7 +185,7 @@ export function FilterMap({
       <FilterPopup
         open={open}
         popupId="mapFilter"
-        close={() => setOpen(false)}
+        close={close}
         themedPopup={themedPopup}
         triggerRef={ref}
       >
@@ -241,7 +216,7 @@ export function FilterTags({
   const label = (options?.label as string) ?? "TAGS";
   useLayoutSubscription();
   const themedPopup = getThemeOwnedLayout("layout/popups/tagsFilter.json") as PopupLayoutFile | undefined;
-  const { open, setOpen, ref, popupRef, popupStyle } = useDropdown(themedPopup);
+  const { open, setOpen, close, ref, popupRef, popupStyle } = usePopupTrigger({ side: "bottom", align: "start" }, themedPopup);
 
   const activeCount = [filter.official, filter.modded, filter.first_person].filter((v) => v !== null).length;
   const value = tagsDisplayValue(activeCount);
@@ -261,7 +236,7 @@ export function FilterTags({
       <FilterPopup
         open={open}
         popupId="tagsFilter"
-        close={() => setOpen(false)}
+        close={close}
         themedPopup={themedPopup}
         triggerRef={ref}
       >
@@ -292,7 +267,7 @@ export function FilterRegion({
   const label = (options?.label as string) ?? "REGION";
   useLayoutSubscription();
   const themedPopup = getThemeOwnedLayout("layout/popups/regionFilter.json") as PopupLayoutFile | undefined;
-  const { open, setOpen, ref, popupRef, popupStyle } = useDropdown(themedPopup);
+  const { open, setOpen, close, ref, popupRef, popupStyle } = usePopupTrigger({ side: "bottom", align: "start" }, themedPopup);
 
   const selected = filter.countries ?? [];
   const value = regionDisplayValue(selected);
@@ -312,7 +287,7 @@ export function FilterRegion({
       <FilterPopup
         open={open}
         popupId="regionFilter"
-        close={() => setOpen(false)}
+        close={close}
         themedPopup={themedPopup}
         triggerRef={ref}
       >
@@ -589,7 +564,7 @@ export function FilterSort({
   const label = (options?.label as string) ?? "SORT";
   useLayoutSubscription();
   const themedPopup = getThemeOwnedLayout("layout/popups/sort.json") as PopupLayoutFile | undefined;
-  const { open, setOpen, ref, popupRef, popupStyle } = useDropdown(themedPopup);
+  const { open, setOpen, close, ref, popupRef, popupStyle } = usePopupTrigger({ side: "bottom", align: "start" }, themedPopup);
 
   const value = sortValueLabel(sortKey);
   const active = !(sortKey === "players" && sortDir === "desc");
@@ -613,7 +588,7 @@ export function FilterSort({
       <FilterPopup
         open={open}
         popupId="sort"
-        close={() => setOpen(false)}
+        close={close}
         themedPopup={themedPopup}
         triggerRef={ref}
       >

@@ -28,6 +28,8 @@ export interface VisibilityCheckOptions {
 /** Every host an open popup renders into: `popup-host.tsx` adds `data-popup-host`,
  * the launcher's own popup bodies carry `data-part="popup"`. */
 const OPEN_POPUP_SELECTOR = '[data-popup-host], [data-part="popup"]';
+// Themed popups are `role="dialog" aria-modal="false"`; only real modals isolate the page.
+const MODAL_SELECTOR = '[data-modal-host], [aria-modal="true"]';
 // Dev Mode's own floating panels; a theme can't keep clear of them.
 const DEV_TOOLING_SELECTOR = "[data-dev-panel], [data-dev-inspector]";
 
@@ -183,7 +185,7 @@ export function runVisibilityCheck(options: VisibilityCheckOptions = {}): Visibi
 
   const failures: VisibilityCheckFailure[] = [];
 
-  const modalEl = root.querySelector?.('[data-modal-host], [role="dialog"]');
+  const modalEl = root.querySelector?.(MODAL_SELECTOR);
   const isModalOpen = options.isModalOpen ?? Boolean(modalEl);
 
   const settingsEl = root.querySelector?.(
@@ -252,7 +254,7 @@ export function runVisibilityCheck(options: VisibilityCheckOptions = {}): Visibi
 
     // While a modal is open: only check modal elements
     if (isModalOpen) {
-      const inModal = el.closest('[data-modal-host], [role="dialog"]');
+      const inModal = el.closest(MODAL_SELECTOR);
       if (!inModal) {
         return true;
       }
@@ -291,7 +293,7 @@ export function runVisibilityCheck(options: VisibilityCheckOptions = {}): Visibi
 
       // If modal is open, elements outside modal belong to underlying page and are skipped
       if (isModalOpen) {
-        const inModalMatches = matches.filter((el) => el.closest('[data-modal-host], [role="dialog"]'));
+        const inModalMatches = matches.filter((el) => el.closest(MODAL_SELECTOR));
         if (inModalMatches.length === 0) {
           continue;
         }

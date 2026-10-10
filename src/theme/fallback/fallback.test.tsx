@@ -582,6 +582,25 @@ describe("Theme Fallback & Visibility (Package 4.5)", () => {
       expect(result.passed).toBe(true);
     });
 
+    it("checks the page under an open themed popup, which is not a modal", () => {
+      const container = document.createElement("div");
+      const refresh = createMockElement({
+        tag: "button",
+        rect: { width: 0, height: 0, top: 0, bottom: 0, left: 0, right: 0 },
+        attributes: { "data-el": "servers.refresh" },
+      });
+      container.appendChild(refresh);
+
+      const popup = createMockElement({
+        attributes: { role: "dialog", "aria-modal": "false", "data-popup-host": "" },
+      });
+      container.appendChild(popup);
+
+      const result = runVisibilityCheck({ root: container, requiredElements: ["servers.refresh"] });
+
+      expect(result.failures.map((f) => f.element)).toEqual(["servers.refresh"]);
+    });
+
     it("passes an element Dev Mode's validation panel covers", () => {
       const container = document.createElement("div");
       const refresh = createMockElement({
