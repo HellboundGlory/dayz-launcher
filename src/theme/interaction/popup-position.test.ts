@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { placePopup, type Align, type Placement, type Side } from "./popup-position";
+import { anchorGap, placePopup, type Align, type Placement, type Side } from "./popup-position";
 
 const VIEWPORT = { width: 1000, height: 800 };
 
@@ -109,6 +109,18 @@ const CASES: Case[] = [
   },
 ];
 
+describe("anchorGap", () => {
+  const trigger = { top: 100, left: 50, width: 80, height: 30 };
+  it.each([
+    { side: "bottom", popup: { top: 138, left: 50, width: 80, height: 40 }, gap: 8 },
+    { side: "top", popup: { top: 40, left: 50, width: 80, height: 56 }, gap: 4 },
+    { side: "right", popup: { top: 100, left: 140, width: 60, height: 30 }, gap: 10 },
+    { side: "left", popup: { top: 100, left: 0, width: 40, height: 30 }, gap: 10 },
+  ] as const)("measures the $side gap from the trigger edge facing the popup", ({ side, popup, gap }) => {
+    expect(anchorGap(side, trigger, popup)).toBe(gap);
+  });
+});
+
 describe("placePopup", () => {
   it.each(CASES)("$name", (c) => {
     const result = placePopup({
@@ -122,5 +134,23 @@ describe("placePopup", () => {
       margin: c.margin,
     });
     expect(result).toEqual(c.expected);
+  });
+});
+
+describe("placePopup in a short window", () => {
+  it("shrinks a popup below its trigger instead of sliding it over the trigger", () => {
+    const trigger = { top: 45, left: 448, width: 100, height: 26 };
+    const placement = placePopup({
+      trigger,
+      popup: { width: 176, height: 190 },
+      viewport: { width: 975, height: 220 },
+      side: "bottom",
+      align: "start",
+      offset: 4,
+      maxHeight: 256,
+    });
+    expect(placement.side).toBe("bottom");
+    expect(placement.top).toBe(trigger.top + trigger.height + 4);
+    expect(placement.top + placement.maxHeight).toBeLessThanOrEqual(220 - 8);
   });
 });

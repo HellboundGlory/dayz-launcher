@@ -44,7 +44,7 @@ export function PopupHost({
     side,
     align,
     offset: offsetPx,
-    maxHeight: placement.maxHeight,
+    maxHeight: placement.maxHeight ?? "320px",
   });
 
   useEffect(() => {

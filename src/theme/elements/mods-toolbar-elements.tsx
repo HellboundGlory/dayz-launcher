@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import {
   ChevronDown,
   Download,
@@ -15,6 +15,8 @@ import { useModsStore, visibleRows, type ModStatusFilter } from "@/stores/mods-s
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/confirm-dialog";
 import { getThemeOwnedLayout, useLayoutSubscription } from "../theme-store";
+import { useAnchoredPopup } from "../interaction/use-anchored-popup";
+import type { Align, Side } from "../interaction/popup-position";
 import type { PopupLayoutFile } from "../renderer/types";
 import { FilterPopup, UniqueServerOptionsList } from "./popup-elements";
 import { OptionIcon } from "./option-icon";
@@ -49,9 +51,11 @@ function truncate(s: string, n: number): string {
 }
 
 /** Outside-mousedown/Escape close, same pattern as `filter-elements.tsx`'s dropdowns. */
-function useModsMenu() {
+function useModsMenu(placement: { side: Side; align: Align }, themedPopup?: PopupLayoutFile) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const popupStyle = useAnchoredPopup(open && !themedPopup, ref, popupRef, { ...placement, offset: 4 });
 
   useEffect(() => {
     if (!open) return;
@@ -69,7 +73,7 @@ function useModsMenu() {
     };
   }, [open]);
 
-  return { open, setOpen, ref };
+  return { open, setOpen, ref, popupRef, popupStyle };
 }
 
 export function ModsSearch({ className, style }: { className?: string; style?: CSSProperties }) {
@@ -394,7 +398,7 @@ export function ModsUnsubscribeAll({ options, className, style, onDone }: MenuIt
 
 export function ModsUnsubscribeMenu({ options, className, style }: { options?: Record<string, unknown>; className?: string; style?: CSSProperties }) {
   const op = useModsStore((s) => s.op);
-  const { open, setOpen, ref } = useModsMenu();
+  const { open, setOpen, ref, popupRef, popupStyle } = useModsMenu({ side: "top", align: "end" });
   const busy = !!op;
 
   return (
@@ -420,9 +424,11 @@ export function ModsUnsubscribeMenu({ options, className, style }: { options?: R
       </button>
       {open && (
         <div
+          ref={popupRef}
+          style={popupStyle}
           data-part="popup"
           role="menu"
-          className="absolute bottom-full right-0 mb-1 w-56 [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)]"
+          className="absolute bottom-full right-0 mb-1 w-56 overflow-y-auto [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)]"
         >
           <ModsUnsubscribeSelected onDone={() => setOpen(false)} />
           <ModsUnsubscribeAll onDone={() => setOpen(false)} />
@@ -536,7 +542,7 @@ export function ModsVerifyAll({ options, className, style, onDone }: MenuItemPro
 
 export function ModsVerifyMenu({ options, className, style }: { options?: Record<string, unknown>; className?: string; style?: CSSProperties }) {
   const op = useModsStore((s) => s.op);
-  const { open, setOpen, ref } = useModsMenu();
+  const { open, setOpen, ref, popupRef, popupStyle } = useModsMenu({ side: "top", align: "end" });
   const busy = !!op;
 
   return (
@@ -562,9 +568,11 @@ export function ModsVerifyMenu({ options, className, style }: { options?: Record
       </button>
       {open && (
         <div
+          ref={popupRef}
+          style={popupStyle}
           data-part="popup"
           role="menu"
-          className="absolute bottom-full right-0 mb-1 w-56 [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)]"
+          className="absolute bottom-full right-0 mb-1 w-56 overflow-y-auto [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)]"
         >
           <ModsVerifySelected onDone={() => setOpen(false)} />
           <ModsVerifyAll onDone={() => setOpen(false)} />
@@ -623,14 +631,20 @@ export function ModsSelectUniquePopup({
   open,
   caredServers,
   onSelect,
+  popupRef,
+  style,
 }: {
   open: boolean;
   caredServers: { addr: string; query_port: number; name: string }[];
   onSelect: (addr: string, queryPort: number, name: string) => void;
+  popupRef?: RefObject<HTMLDivElement>;
+  style?: CSSProperties;
 }) {
   if (!open) return null;
   return (
     <div
+      ref={popupRef}
+      style={style}
       data-part="popup"
       role="menu"
       className="absolute bottom-full left-0 mb-1 max-h-64 w-80 overflow-y-auto [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)]"
@@ -644,11 +658,11 @@ export function ModsSelectUnique({ options, className, style }: { options?: Reco
   const { caredServers, uniqueSource, selectUniqueTo } = useModsStore(
     useShallow((s) => ({ caredServers: s.caredServers, uniqueSource: s.uniqueSource, selectUniqueTo: s.selectUniqueTo })),
   );
-  const { open, setOpen, ref } = useModsMenu();
   const baseLabel = (options?.label as string) ?? "Select unique…";
   const disabled = caredServers.length === 0;
   useLayoutSubscription();
   const themedPopup = getThemeOwnedLayout("layout/popups/modsUnique.json") as PopupLayoutFile | undefined;
+  const { open, setOpen, ref, popupRef, popupStyle } = useModsMenu({ side: "top", align: "start" }, themedPopup);
 
   return (
     <div
@@ -694,6 +708,8 @@ export function ModsSelectUnique({ options, className, style }: { options?: Reco
       >
         <ModsSelectUniquePopup
           open={open}
+          popupRef={popupRef}
+          style={popupStyle}
           caredServers={caredServers}
           onSelect={(addr, queryPort, name) => {
             setOpen(false);

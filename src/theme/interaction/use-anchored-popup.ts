@@ -4,7 +4,7 @@ import {
   type CSSProperties,
   type RefObject,
 } from "react";
-import { placePopup, type Align, type Side } from "./popup-position";
+import { anchorGap, placePopup, type Align, type Side } from "./popup-position";
 
 export interface AnchoredPopupOptions {
   side: Side;
@@ -12,8 +12,6 @@ export interface AnchoredPopupOptions {
   offset: number;
   maxHeight?: string;
 }
-
-const DEFAULT_MAX_HEIGHT = "320px";
 
 /** A CSS length (px, rem, vh, %) in pixels, as the browser resolves it for a fixed box. */
 function resolveLengthPx(value: string): number {
@@ -23,6 +21,20 @@ function resolveLengthPx(value: string): number {
   const px = probe.getBoundingClientRect().height;
   probe.remove();
   return px;
+}
+
+/** The popup's own CSS layout, read with the hook's inline placement cleared (a previous placement would otherwise win). */
+function naturalLayout(popup: HTMLElement) {
+  const saved = popup.style.cssText;
+  popup.style.cssText = "";
+  const css = getComputedStyle(popup);
+  const layout = {
+    absolute: css.position === "absolute",
+    maxHeight: css.maxHeight,
+    rect: popup.getBoundingClientRect(),
+  };
+  popup.style.cssText = saved;
+  return layout;
 }
 
 export function useAnchoredPopup(
@@ -35,8 +47,11 @@ export function useAnchoredPopup(
     position: "fixed",
     top: 0,
     left: 0,
+    right: "auto",
+    bottom: "auto",
+    margin: 0,
     visibility: "hidden",
-    maxHeight: opts.maxHeight ?? DEFAULT_MAX_HEIGHT,
+    maxHeight: opts.maxHeight,
   }));
 
   useLayoutEffect(() => {
@@ -45,8 +60,13 @@ export function useAnchoredPopup(
     const popup = popupRef.current;
     if (!trigger || !popup) return;
 
-    const themeMax = opts.maxHeight ?? DEFAULT_MAX_HEIGHT;
-    const capPx = resolveLengthPx(themeMax);
+    const natural = naturalLayout(popup);
+    const themeMax = opts.maxHeight ?? natural.maxHeight;
+    const capPx = themeMax === "none" ? Infinity : resolveLengthPx(themeMax);
+    // A popup its own CSS places absolutely keeps the gap that CSS gives it; anything else takes opts.offset.
+    const offset = natural.absolute
+      ? anchorGap(opts.side, trigger.getBoundingClientRect(), natural.rect)
+      : opts.offset;
 
     const measure = () => {
       const rect = trigger.getBoundingClientRect();
@@ -57,19 +77,29 @@ export function useAnchoredPopup(
           width: rect.width,
           height: rect.height,
         },
-        // scrollHeight is the content's own height, not what the last cap squeezed it to.
-        popup: { width: popup.offsetWidth, height: popup.scrollHeight },
+        // Content height plus borders: scrollHeight leaves the borders out, and offsetHeight is squeezed by the last cap.
+        popup: {
+          width: popup.offsetWidth,
+          height: popup.scrollHeight + popup.offsetHeight - popup.clientHeight,
+        },
         viewport: { width: window.innerWidth, height: window.innerHeight },
         side: opts.side,
         align: opts.align,
-        offset: opts.offset,
+        offset,
         maxHeight: capPx,
       });
       const next: CSSProperties = {
         position: "fixed",
         top: placement.top,
         left: placement.left,
-        maxHeight: `min(${themeMax}, ${placement.maxHeight}px)`,
+        right: "auto",
+        bottom: "auto",
+        // The measured gap already includes the theme's margin.
+        margin: 0,
+        maxHeight:
+          themeMax === "none"
+            ? `${placement.maxHeight}px`
+            : `min(${themeMax}, ${placement.maxHeight}px)`,
       };
       setStyle((prev) =>
         prev.top === next.top &&

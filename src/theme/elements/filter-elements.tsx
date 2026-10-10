@@ -5,6 +5,7 @@ import { useServerStore } from "@/stores/server-store";
 import { useElementContext } from "./context";
 import { OptionIcon } from "./option-icon";
 import { getThemeOwnedLayout, useLayoutSubscription } from "../theme-store";
+import { useAnchoredPopup } from "../interaction/use-anchored-popup";
 import type { PopupLayoutFile } from "../renderer/types";
 import {
   FilterPopup,
@@ -31,9 +32,11 @@ export {
 
 const SEARCH_DEBOUNCE_MS = 250;
 
-function useDropdown() {
+function useDropdown(themedPopup: PopupLayoutFile | undefined) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const popupStyle = useAnchoredPopup(open && !themedPopup, ref, popupRef, { side: "bottom", align: "start", offset: 4 });
 
   useEffect(() => {
     if (!open) return;
@@ -51,7 +54,7 @@ function useDropdown() {
     };
   }, [open]);
 
-  return { open, setOpen, ref };
+  return { open, setOpen, ref, popupRef, popupStyle };
 }
 
 function DropdownTrigger({
@@ -185,9 +188,9 @@ export function FilterMap({
   const maps = useServerStore((s) => s.maps);
   const showLabel = options?.showLabel !== false;
   const label = (options?.label as string) ?? "MAP";
-  const { open, setOpen, ref } = useDropdown();
   useLayoutSubscription();
   const themedPopup = getThemeOwnedLayout("layout/popups/mapFilter.json") as PopupLayoutFile | undefined;
+  const { open, setOpen, ref, popupRef, popupStyle } = useDropdown(themedPopup);
 
   const selected = filter.maps ?? [];
   const value = mapDisplayValue(selected, maps);
@@ -212,6 +215,8 @@ export function FilterMap({
         triggerRef={ref}
       >
         <div
+          ref={popupRef}
+          style={popupStyle}
           data-part="popup"
           className="absolute left-0 top-full mt-1 z-30 max-h-64 min-w-[224px] overflow-y-auto border border-line bg-surface2 p-1 shadow-lg text-xs"
         >
@@ -234,9 +239,9 @@ export function FilterTags({
   const filter = useServerStore((s) => s.filter);
   const showLabel = options?.showLabel !== false;
   const label = (options?.label as string) ?? "TAGS";
-  const { open, setOpen, ref } = useDropdown();
   useLayoutSubscription();
   const themedPopup = getThemeOwnedLayout("layout/popups/tagsFilter.json") as PopupLayoutFile | undefined;
+  const { open, setOpen, ref, popupRef, popupStyle } = useDropdown(themedPopup);
 
   const activeCount = [filter.official, filter.modded, filter.first_person].filter((v) => v !== null).length;
   const value = tagsDisplayValue(activeCount);
@@ -261,8 +266,10 @@ export function FilterTags({
         triggerRef={ref}
       >
         <div
+          ref={popupRef}
+          style={popupStyle}
           data-part="popup"
-          className="absolute left-0 top-full mt-1 z-30 min-w-[208px] border border-line bg-surface2 p-1.5 shadow-lg text-xs space-y-1"
+          className="absolute left-0 top-full mt-1 z-30 min-w-[208px] overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg text-xs space-y-1"
         >
           <PopupTagOptions />
         </div>
@@ -283,9 +290,9 @@ export function FilterRegion({
   const filter = useServerStore((s) => s.filter);
   const showLabel = options?.showLabel !== false;
   const label = (options?.label as string) ?? "REGION";
-  const { open, setOpen, ref } = useDropdown();
   useLayoutSubscription();
   const themedPopup = getThemeOwnedLayout("layout/popups/regionFilter.json") as PopupLayoutFile | undefined;
+  const { open, setOpen, ref, popupRef, popupStyle } = useDropdown(themedPopup);
 
   const selected = filter.countries ?? [];
   const value = regionDisplayValue(selected);
@@ -310,6 +317,8 @@ export function FilterRegion({
         triggerRef={ref}
       >
         <div
+          ref={popupRef}
+          style={popupStyle}
           data-part="popup"
           className="absolute left-0 top-full mt-1 z-30 min-w-[176px] max-h-64 overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg text-xs space-y-1"
         >
@@ -437,7 +446,8 @@ function HideToggle({
 
   if (control === "checkbox" || control === "switch") {
     return (
-      <div
+      <button
+        type="button"
         {...commonProps}
         role={control}
         aria-checked={on}
@@ -448,7 +458,7 @@ function HideToggle({
         </span>
         {iconSpan}
         {labelSpan}
-      </div>
+      </button>
     );
   }
 
@@ -577,9 +587,9 @@ export function FilterSort({
   const sortDir = useServerStore((s) => s.sortDir);
   const showLabel = options?.showLabel !== false;
   const label = (options?.label as string) ?? "SORT";
-  const { open, setOpen, ref } = useDropdown();
   useLayoutSubscription();
   const themedPopup = getThemeOwnedLayout("layout/popups/sort.json") as PopupLayoutFile | undefined;
+  const { open, setOpen, ref, popupRef, popupStyle } = useDropdown(themedPopup);
 
   const value = sortValueLabel(sortKey);
   const active = !(sortKey === "players" && sortDir === "desc");
@@ -608,8 +618,10 @@ export function FilterSort({
         triggerRef={ref}
       >
         <div
+          ref={popupRef}
+          style={popupStyle}
           data-part="popup"
-          className="absolute left-0 top-full mt-1 z-30 min-w-[176px] border border-line bg-surface2 p-1.5 shadow-lg text-xs space-y-1"
+          className="absolute left-0 top-full mt-1 z-30 min-w-[176px] overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg text-xs space-y-1"
         >
           <PopupSortOptions />
         </div>
