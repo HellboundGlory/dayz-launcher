@@ -46,11 +46,19 @@ impl RateLimiter {
         if buckets.len() >= MAX_TRACKED && !buckets.contains_key(client) {
             // A full bucket is indistinguishable from a client that has never
             // been seen, so forgetting it costs nothing. If every tracked
-            // client is mid-quota there is nothing safe to evict, and a reset
-            // beats an unbounded map.
-            buckets.retain(|_, b| refill(b, now, self.per_sec, self.capacity) < self.capacity);
+            // client is mid-quota, drop the one idle longest rather than
+            // resetting everyone.
+            buckets.retain(|_, b| {
+                projected_tokens(b, now, self.per_sec, self.capacity) < self.capacity
+            });
             if buckets.len() >= MAX_TRACKED {
-                buckets.clear();
+                let oldest = buckets
+                    .iter()
+                    .min_by_key(|(_, b)| b.last)
+                    .map(|(key, _)| key.clone());
+                if let Some(oldest) = oldest {
+                    buckets.remove(&oldest);
+                }
             }
         }
 
@@ -70,8 +78,15 @@ impl RateLimiter {
 }
 
 fn refill(bucket: &mut Bucket, now: Instant, per_sec: f64, capacity: f64) -> f64 {
-    let elapsed = now.saturating_duration_since(bucket.last).as_secs_f64();
+    let tokens = projected_tokens(bucket, now, per_sec, capacity);
     bucket.last = now;
+    tokens
+}
+
+/// Tokens `bucket` would hold at `now`, without touching it — used by the
+/// eviction sweep, which must not spend the refill it is reading.
+fn projected_tokens(bucket: &Bucket, now: Instant, per_sec: f64, capacity: f64) -> f64 {
+    let elapsed = now.saturating_duration_since(bucket.last).as_secs_f64();
     (bucket.tokens + elapsed * per_sec).min(capacity)
 }
 
@@ -104,6 +119,61 @@ mod tests {
             assert!(limiter.check_at("1.2.3.4", t2).is_ok());
         }
         assert!(limiter.check_at("1.2.3.4", t2).is_err());
+    }
+
+    #[test]
+    fn a_full_map_evicts_the_idle_bucket_and_keeps_the_rest() {
+        let limiter = RateLimiter::new(60);
+        let t0 = Instant::now();
+        for i in 0..MAX_TRACKED {
+            let key = format!("10.{}.{}", i / 256, i % 256);
+            assert!(limiter
+                .check_at(&key, t0 + Duration::from_micros(i as u64))
+                .is_ok());
+        }
+        let victim = "10.0.0";
+        let survivor = format!("10.{}.{}", (MAX_TRACKED - 1) / 256, (MAX_TRACKED - 1) % 256);
+
+        // A brand-new client at an instant where nothing has refilled: the one
+        // client that has been idle longest makes room for it.
+        assert!(limiter
+            .check_at("203.0.113.9", t0 + Duration::from_millis(10))
+            .is_ok());
+
+        let buckets = limiter
+            .buckets
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        assert_eq!(buckets.len(), MAX_TRACKED);
+        assert!(buckets.get(victim).is_none(), "idle bucket made room");
+        // The tracked clients kept their spent quota instead of being reset.
+        let kept = buckets.get(&survivor).expect("tracked client kept");
+        assert!(kept.tokens < limiter.capacity);
+    }
+
+    #[test]
+    fn a_sweep_keeps_the_tokens_a_waited_bucket_earned() {
+        let limiter = RateLimiter::new(60);
+        let t0 = Instant::now();
+
+        let patient = "203.0.113.7";
+        for _ in 0..60 {
+            assert!(limiter.check_at(patient, t0).is_ok());
+        }
+        assert!(limiter.check_at(patient, t0).is_err());
+
+        // Fill the map so the next unseen key runs the eviction sweep.
+        for i in 0..MAX_TRACKED - 1 {
+            assert!(limiter
+                .check_at(&format!("10.{}.{}", i / 256, i % 256), t0)
+                .is_ok());
+        }
+
+        let t1 = t0 + Duration::from_secs(5);
+        assert!(limiter.check_at("198.51.100.4", t1).is_ok());
+
+        // Five seconds of refill are banked; the sweep must not discard them.
+        assert!(limiter.check_at(patient, t1).is_ok());
     }
 
     #[test]

@@ -153,6 +153,10 @@ server {
 }
 ```
 
+The rate limiter uses the last `X-Forwarded-For` hop when the connection
+comes from a local proxy, so the front end must append to or set that header
+(both snippets above do).
+
 Both already handle gzip; the service also gzips the snapshot itself, so do not
 double-compress if you tune this further.
 
