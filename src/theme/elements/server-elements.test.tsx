@@ -308,7 +308,7 @@ describe("ServerPlayers", () => {
       { subjectContext: { kind: "server", data: full } },
     );
     expect(html).toContain('data-state="full queued"');
-    expect(html).toContain('data-part="queue"> +4</span>');
+    expect(html).toContain('data-part="queue" title="4 waiting in the join queue"> +4</span>');
   });
 
   it("marks the empty state for zero players and offline on an offline server", async () => {
@@ -652,10 +652,11 @@ describe("ServerFavourite", () => {
 });
 
 describe("ServerMenu", () => {
-  it("serverActions (default) renders a plain trigger button with no popup machinery", async () => {
+  it("serverActions with no theme file renders the menu trigger named for the server", () => {
     const html = renderInteractive(<ServerMenu />, { subjectContext: { kind: "server", data: server } });
-    expect(html).toContain('data-el="server.menu"');
-    expect(html).not.toContain('data-part="popup"');
+    expect(html).toContain('data-part="trigger"');
+    expect(html).toContain('aria-haspopup="menu"');
+    expect(html).toContain('aria-label="More actions for DayZ Test Server"');
   });
 
   it("serverActions with a theme popup file renders the documented trigger", () => {
@@ -1152,10 +1153,9 @@ describe("ServerCopyAddress", () => {
     }
   });
 
-  it("logs, rather than throws, when the copy fails", async () => {
+  it("shows a failed copy as the server's notice", async () => {
     const { copyServerAddress } = await import("@/lib/tauri");
     vi.mocked(copyServerAddress).mockRejectedValueOnce(new Error("clipboard denied"));
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
     renderInteractive(<ServerCopyAddress />, { subjectContext: { kind: "server", data: server } });
     const onClick = captured["server.copyAddress"].onClick as (e: { stopPropagation: () => void }) => void;
@@ -1163,8 +1163,10 @@ describe("ServerCopyAddress", () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(consoleError).toHaveBeenCalled();
-    consoleError.mockRestore();
+    expect(mockServerActions.setNotice).toHaveBeenCalledWith(
+      { kind: "plain", text: "Error: clipboard denied" },
+      server.addr,
+    );
   });
 
   it("honours the label option", () => {

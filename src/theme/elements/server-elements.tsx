@@ -3,7 +3,6 @@ import {
   Star,
   Play,
   Info,
-  MoreHorizontal,
   Loader2,
   Check,
   Copy,
@@ -36,9 +35,9 @@ import { useRowProbeStore, probeRow, rowProbeState } from "./row-probe-store";
 import { useConfirm } from "@/components/confirm-dialog";
 import { OptionIcon } from "./option-icon";
 import { usePopupTrigger } from "../interaction/use-popup-trigger";
-import { getThemeOwnedLayout, useLayoutSubscription } from "../theme-store";
+import { getActiveLayout, getThemeOwnedLayout, useLayoutSubscription } from "../theme-store";
 import type { PopupLayoutFile } from "../renderer/types";
-import { FilterPopup } from "./popup-elements";
+import { FilterPopup, usePopupContext } from "./popup-elements";
 import { displayOption, formatElementTime } from "./element-utils";
 
 export function useServerSubject(): Server | null {
@@ -114,7 +113,9 @@ export function ServerPlayers({
           /<span data-part="max">{server.max_players}</span>
         </>
       )}
-      {showQueue && queue > 0 && <span data-part="queue"> +{queue}</span>}
+      {showQueue && queue > 0 && (
+        <span data-part="queue" title={`${queue} waiting in the join queue`}> +{queue}</span>
+      )}
     </>
   );
 
@@ -130,7 +131,13 @@ export function ServerPlayers({
   }
 
   return (
-    <span data-el="server.players" data-state={states} className={className} style={style}>
+    <span
+      data-el="server.players"
+      data-state={states}
+      className={className}
+      style={style}
+      title={offline ? "Last known player count — server did not respond" : undefined}
+    >
       {countNode}
       {showCaption && <span data-part="caption"> players</span>}
     </span>
@@ -175,7 +182,13 @@ export function ServerPing({
   }
 
   return (
-    <span data-el="server.ping" data-state={states} className={className ?? pingClass} style={style}>
+    <span
+      data-el="server.ping"
+      data-state={states}
+      className={className ?? pingClass}
+      style={style}
+      title={offline ? "Server did not respond to the last refresh" : undefined}
+    >
       <span data-part="value">{text}</span>
       {showUnit && !unknown && <span data-part="unit"> ms</span>}
       {showCaption && <span data-part="caption"> ping</span>}
@@ -612,12 +625,14 @@ export function ServerInfo({
 }) {
   const server = useServerSubject();
   const { openServerInfo } = useElementContext();
+  const { close } = usePopupContext();
   if (!server) return null;
 
   const { label, showIcon, showLabel } = displayOption(options, "Server information", "icon");
 
   const handleClick = (e: MouseEvent) => {
     e.stopPropagation();
+    close();
     openServerInfo(server);
   };
 
@@ -688,7 +703,11 @@ export function ServerMenu({
   const { op, dayzUp, verifyAndJoin } = useServerActions();
   const menuKind = options?.menu === "serverLoad" ? "serverLoad" : "serverActions";
   useLayoutSubscription();
-  const themedPopup = getThemeOwnedLayout(`layout/popups/${menuKind}.json`) as PopupLayoutFile | undefined;
+  const themedPopup = (
+    menuKind === "serverActions"
+      ? getActiveLayout("layout/popups/serverActions.json")
+      : getThemeOwnedLayout("layout/popups/serverLoad.json")
+  ) as PopupLayoutFile | undefined;
   const { open, setOpen, close, ref: rootRef, popupRef, popupStyle } = usePopupTrigger(
     { side: "bottom", align: "end" },
     themedPopup,
@@ -696,28 +715,7 @@ export function ServerMenu({
 
   if (!server) return null;
 
-  const label = (options?.label as string | undefined) ?? "Server actions";
-  if (menuKind === "serverActions" && !themedPopup) {
-    const handleClick = (e: MouseEvent) => {
-      e.stopPropagation();
-    };
-    return (
-      <button
-        type="button"
-        data-el="server.menu"
-        onClick={handleClick}
-        aria-label={label}
-        title={label}
-        className={className ?? "text-muted hover:text-ink"}
-        style={style}
-      >
-        <span data-part="icon">
-          <OptionIcon icon={options?.icon} fallback={MoreHorizontal} className="size-3.5" />
-        </span>
-      </button>
-    );
-  }
-
+  const label = (options?.label as string | undefined) ?? `More actions for ${server.name || server.addr}`;
   const disabled = menuKind === "serverLoad" && (op !== null || dayzUp);
 
   const handleTriggerClick = (e: MouseEvent) => {
@@ -774,6 +772,7 @@ export function ServerLoadToMenu({
 }) {
   const server = useServerSubject();
   const { op, dayzUp, verifyAndJoin } = useServerActions();
+  const { close } = usePopupContext();
   if (!server) return null;
 
   const display = (options?.display as string) ?? "iconLabel";
@@ -784,6 +783,7 @@ export function ServerLoadToMenu({
 
   const handleClick = (e: MouseEvent) => {
     e.stopPropagation();
+    close();
     void verifyAndJoin(server, true);
   };
 
@@ -1118,6 +1118,7 @@ export function ServerCheckMods({
   const mergeModPending = useServerStore((s) => s.mergeModPending);
   const triggerReload = useServerStore((s) => s.triggerReload);
   const [busy, setBusy] = useState(false);
+  const { close } = usePopupContext();
   if (!server) return null;
 
   const { label, showIcon, showLabel } = displayOption(options, "Check mods", "label");
@@ -1126,6 +1127,7 @@ export function ServerCheckMods({
   const handleClick = async (e: MouseEvent) => {
     e.stopPropagation();
     if (disabled) return;
+    close();
     setBusy(true);
     try {
       const res = await checkServerMods(server.addr, server.query_port);
@@ -1173,6 +1175,7 @@ export function ServerSubscribeAll({
 }) {
   const server = useServerSubject();
   const { op, dayzUp, subscribeOnly } = useServerActions();
+  const { close } = usePopupContext();
   if (!server) return null;
 
   const { label, showIcon, showLabel } = displayOption(options, "Download mods", "label");
@@ -1182,6 +1185,7 @@ export function ServerSubscribeAll({
   const handleClick = (e: MouseEvent) => {
     e.stopPropagation();
     if (disabled) return;
+    close();
     void subscribeOnly(server);
   };
 
@@ -1221,6 +1225,7 @@ export function ServerUnsubscribeUnique({
   const triggerReload = useServerStore((s) => s.triggerReload);
   const askConfirm = useConfirm();
   const [busy, setBusy] = useState(false);
+  const { close } = usePopupContext();
   if (!subject) return null;
   const server = subject;
 
@@ -1250,6 +1255,7 @@ export function ServerUnsubscribeUnique({
   const handleClick = async (e: MouseEvent) => {
     e.stopPropagation();
     if (disabled) return;
+    close();
     try {
       const summary = await getUniqueModsSummary(server.addr, server.query_port);
       askConfirm(
@@ -1329,6 +1335,8 @@ export function ServerCopyAddress({
 }) {
   const server = useServerSubject();
   const [copied, setCopied] = useState(false);
+  const { popupId, close } = usePopupContext();
+  const { setNotice } = useServerActions();
   if (!server) return null;
 
   const display = (options?.display as string | undefined) ?? "iconLabel";
@@ -1338,12 +1346,15 @@ export function ServerCopyAddress({
 
   const handleClick = (e: MouseEvent) => {
     e.stopPropagation();
+    close();
     void copyServerAddress(server)
       .then(() => {
         setCopied(true);
         setTimeout(() => setCopied(false), COPY_ADDRESS_RESET_MS);
+        // The popup is gone, so its copied state can't show; say it in the server's notice.
+        if (popupId) setNotice({ kind: "plain", text: "Address copied" }, server.addr);
       })
-      .catch((err) => console.error("Failed to copy server address:", err));
+      .catch((err) => setNotice({ kind: "plain", text: String(err) }, server.addr));
   };
 
   return (
