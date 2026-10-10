@@ -1,5 +1,5 @@
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
-import { Ban, Check, ExternalLink, Star } from "lucide-react";
+import { Ban, Check, ExternalLink, Star, ThumbsUp, Users } from "lucide-react";
 import { cn, formatBytes } from "@/lib/utils";
 import { openWorkshopInSteam } from "@/lib/tauri";
 import { useModFilterStore, type ModFilterEntry } from "@/stores/mod-filter-store";
@@ -130,11 +130,22 @@ function WorkshopModServerCount({ className, style }: { className?: string; styl
   );
 }
 
-function WorkshopModScore({ className, style }: { className?: string; style?: CSSProperties }) {
+function WorkshopModScore({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
   const entry = useWorkshopModSubject();
   if (!entry || entry.score === null) return null;
   return (
     <span data-el="workshopMod.score" className={className} style={style}>
+      <span data-part="icon">
+        <OptionIcon icon={options?.icon} fallback={ThumbsUp} className="size-[10px] text-muted" />
+      </span>
       <span data-part="value">{Math.round(entry.score * 100)}%</span>
     </span>
   );
@@ -154,6 +165,9 @@ function WorkshopModSubscribers({
   const label = (options?.label as string | undefined) ?? "subscribers";
   return (
     <span data-el="workshopMod.subscribers" className={className} style={style}>
+      <span data-part="icon">
+        <OptionIcon icon={options?.icon} fallback={Users} className="size-[10px] text-muted" />
+      </span>
       <span data-part="value">{Number(entry.numSubscriptions).toLocaleString()}</span>{" "}
       <span data-part="label">{label}</span>
     </span>
@@ -335,6 +349,9 @@ function WorkshopModInclude({
       className={className}
       style={style}
     >
+      <span data-part="icon">
+        <OptionIcon icon={options?.icon} fallback={Check} className="size-[13px]" />
+      </span>
       <span data-part="label">{label}</span>
     </button>
   );
@@ -369,6 +386,9 @@ function WorkshopModExclude({
       className={className}
       style={style}
     >
+      <span data-part="icon">
+        <OptionIcon icon={options?.icon} fallback={Ban} className="size-[13px]" />
+      </span>
       <span data-part="label">{label}</span>
     </button>
   );
@@ -391,7 +411,7 @@ export function renderWorkshopModElement(
     case "workshopMod.serverCount":
       return <WorkshopModServerCount className={className} style={style} />;
     case "workshopMod.score":
-      return <WorkshopModScore className={className} style={style} />;
+      return <WorkshopModScore options={node.options} className={className} style={style} />;
     case "workshopMod.subscribers":
       return <WorkshopModSubscribers options={node.options} className={className} style={style} />;
     case "workshopMod.size":

@@ -249,19 +249,19 @@
   <section class="el" id="el-filter-search" data-el="filter.search">
   <h3><code>filter.search</code> <span class="el-kind">input</span></h3>
   <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Required in</dt><dd>the shell + server browser composition</dd><dt>Parts</dt><dd><code>icon</code>, <code>input</code> · States: <code>filled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showIcon</code> (on or off, default on)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
-  <div class="md el-notes"><p>Writes the search filter after a 250 ms trailing debounce. Its placeholder is &quot;Search name or description&quot;.</p></div>
+  <div class="md el-notes"><p>Writes the search filter after a 250 ms trailing debounce. Its placeholder is &quot;Search servers…&quot;.</p></div>
 </section>
   <section class="el" id="el-filter-map" data-el="filter.map">
   <h3><code>filter.map</code> <span class="el-kind">input</span></h3>
-  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Parts</dt><dd><code>label</code>, <code>value</code>, <code>chevron</code>, <code>trigger</code>, <code>popup</code>, <code>option</code>, <code>box</code>, <code>indicator</code>, <code>clear</code>, <code>empty</code> · States: <code>active</code>, <code>open</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showLabel</code> (on or off, default on)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Parts</dt><dd><code>label</code>, <code>value</code>, <code>chevron</code>, <code>trigger</code>, <code>popup</code>, <code>option</code>, <code>box</code>, <code>indicator</code>, <code>clear</code>, <code>separator</code>, <code>empty</code> · States: <code>active</code>, <code>open</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showLabel</code> (on or off, default on)</li><li><code>label</code> (text)</li></ul></dd></dl>
 </section>
   <section class="el" id="el-filter-tags" data-el="filter.tags">
   <h3><code>filter.tags</code> <span class="el-kind">input</span></h3>
-  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Parts</dt><dd><code>label</code>, <code>value</code>, <code>chevron</code>, <code>trigger</code>, <code>popup</code>, <code>option</code>, <code>box</code>, <code>indicator</code>, <code>clear</code>, <code>empty</code> · States: <code>active</code>, <code>open</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showLabel</code> (on or off, default on)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Parts</dt><dd><code>label</code>, <code>value</code>, <code>chevron</code>, <code>trigger</code>, <code>popup</code>, <code>option</code>, <code>box</code>, <code>indicator</code>, <code>clear</code>, <code>separator</code>, <code>empty</code> · States: <code>active</code>, <code>open</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showLabel</code> (on or off, default on)</li><li><code>label</code> (text)</li></ul></dd></dl>
 </section>
   <section class="el" id="el-filter-region" data-el="filter.region">
   <h3><code>filter.region</code> <span class="el-kind">input</span></h3>
-  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Parts</dt><dd><code>label</code>, <code>value</code>, <code>chevron</code>, <code>trigger</code>, <code>popup</code>, <code>option</code>, <code>box</code>, <code>indicator</code>, <code>clear</code>, <code>empty</code> · States: <code>active</code>, <code>open</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showLabel</code> (on or off, default on)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Parts</dt><dd><code>label</code>, <code>value</code>, <code>chevron</code>, <code>trigger</code>, <code>popup</code>, <code>option</code>, <code>box</code>, <code>indicator</code>, <code>clear</code>, <code>separator</code>, <code>empty</code> · States: <code>active</code>, <code>open</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showLabel</code> (on or off, default on)</li><li><code>label</code> (text)</li></ul></dd></dl>
 </section>
   <section class="el" id="el-filter-mods" data-el="filter.mods">
   <h3><code>filter.mods</code> <span class="el-kind">action</span></h3>
@@ -781,11 +781,11 @@
 </section>
   <section class="el" id="el-workshopMod-score" data-el="workshopMod.score">
   <h3><code>workshopMod.score</code> <span class="el-kind">display</span></h3>
-  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · any number of times</dd><dt>Parts</dt><dd><code>value</code></dd></dl>
+  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · any number of times</dd><dt>Parts</dt><dd><code>icon</code>, <code>value</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
 </section>
   <section class="el" id="el-workshopMod-subscribers" data-el="workshopMod.subscribers">
   <h3><code>workshopMod.subscribers</code> <span class="el-kind">display</span></h3>
-  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · any number of times</dd><dt>Parts</dt><dd><code>value</code>, <code>label</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · any number of times</dd><dt>Parts</dt><dd><code>icon</code>, <code>value</code>, <code>label</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
 </section>
   <section class="el" id="el-workshopMod-size" data-el="workshopMod.size">
   <h3><code>workshopMod.size</code> <span class="el-kind">display</span></h3>
@@ -814,12 +814,12 @@
 </section>
   <section class="el" id="el-workshopMod-include" data-el="workshopMod.include">
   <h3><code>workshopMod.include</code> <span class="el-kind">action</span></h3>
-  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · once per subject context</dd><dt>Parts</dt><dd><code>label</code> · States: <code>on</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>on</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
   <div class="md el-notes"><p>Reads &quot;Include&quot; or &quot;Included&quot;.</p></div>
 </section>
   <section class="el" id="el-workshopMod-exclude" data-el="workshopMod.exclude">
   <h3><code>workshopMod.exclude</code> <span class="el-kind">action</span></h3>
-  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · once per subject context</dd><dt>Parts</dt><dd><code>label</code> · States: <code>on</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li></ul></dd></dl>
+  <dl><dt>Placed in</dt><dd>a mod filter result row, or a modFilterPreview container in the mod filter modal · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>on</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>label</code> (text)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
   <div class="md el-notes"><p>Reads &quot;Exclude&quot; or &quot;Excluded&quot;.</p></div>
 </section>
 </section>
@@ -829,12 +829,12 @@
   <div class="md"><p>The update modal, and the notice that opens it.</p></div>
   <section class="el" id="el-update-install" data-el="update.install">
   <h3><code>update.install</code> <span class="el-kind">action</span></h3>
-  <dl><dt>Placed in</dt><dd>the update modal · once per composition</dd><dt>Required in</dt><dd>the <code>update</code> modal</dd><dt>Parts</dt><dd><code>label</code> · States: <code>busy</code>, <code>disabled</code></dd></dl>
+  <dl><dt>Placed in</dt><dd>the update modal · once per composition</dd><dt>Required in</dt><dd>the <code>update</code> modal</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>busy</code>, <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
   <div class="md el-notes"><p>Reads &quot;Update &amp; Restart&quot; and renders only for an installed copy. It and <code>update.viewRelease</code> are both required, so the modal always has its primary action.</p></div>
 </section>
   <section class="el" id="el-update-viewRelease" data-el="update.viewRelease">
   <h3><code>update.viewRelease</code> <span class="el-kind">action</span></h3>
-  <dl><dt>Placed in</dt><dd>the update modal · once per composition</dd><dt>Required in</dt><dd>the <code>update</code> modal</dd><dt>Parts</dt><dd><code>label</code></dd></dl>
+  <dl><dt>Placed in</dt><dd>the update modal · once per composition</dd><dt>Required in</dt><dd>the <code>update</code> modal</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
   <div class="md el-notes"><p>Reads &quot;View Release&quot; and renders only for a portable copy.</p></div>
 </section>
   <section class="el" id="el-update-later" data-el="update.later">
