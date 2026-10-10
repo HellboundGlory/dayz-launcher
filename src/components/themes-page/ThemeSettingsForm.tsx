@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useThemeStore } from "@/theme/theme-store";
-import type { SettingsField } from "@/theme/settings-schema";
+import { isHexColor, type SettingsField } from "@/theme/settings-schema";
 
 const COMMIT_DELAY_MS = 350;
 
@@ -24,20 +24,43 @@ export function scheduleCommit(timers: CommitTimers, fieldId: string, commit: ()
 export function ThemeSettingsForm({ id, fields }: { id: string; fields: SettingsField[] }) {
   const values = useThemeStore((s) => s.settingsValues[id]);
   const setSettingsValue = useThemeStore((s) => s.setSettingsValue);
-  const [dragged, setDragged] = useState<{ id: string; byField: Record<string, number> }>({
+  const [drafts, setDrafts] = useState<{ id: string; byField: Record<string, string | number> }>({
     id,
     byField: {},
   });
-  const shown = dragged.id === id ? dragged.byField : {};
+  const shown = drafts.id === id ? drafts.byField : {};
   const timers = useRef<CommitTimers>({});
 
-  function current(field: SettingsField): string | number | boolean {
-    if (field.type === "number" && shown[field.id] !== undefined) return shown[field.id]!;
+  function setDraft(fieldId: string, value: string | number) {
+    setDrafts((prev) => ({
+      id,
+      byField: { ...(prev.id === id ? prev.byField : {}), [fieldId]: value },
+    }));
+  }
+
+  function clearDraft(fieldId: string, expected?: string | number) {
+    setDrafts((prev) => {
+      if (prev.id !== id || prev.byField[fieldId] === undefined) return prev;
+      if (expected !== undefined && prev.byField[fieldId] !== expected) return prev;
+      const byField = { ...prev.byField };
+      delete byField[fieldId];
+      return { id, byField };
+    });
+  }
+
+  function committed(field: SettingsField): string | number | boolean {
     const cached = values?.[field.id];
     if (field.type === "number" && typeof cached === "number") return cached;
     if (field.type === "boolean" && typeof cached === "boolean") return cached;
     if ((field.type === "choice" || field.type === "color") && typeof cached === "string") return cached;
     return field.default;
+  }
+
+  function current(field: SettingsField): string | number | boolean {
+    const draft = shown[field.id];
+    if (field.type === "number" && typeof draft === "number") return draft;
+    if (field.type === "color" && typeof draft === "string") return draft;
+    return committed(field);
   }
 
   return (
@@ -65,19 +88,9 @@ export function ThemeSettingsForm({ id, fields }: { id: string; fields: Settings
                 value={current(field) as number}
                 onChange={(e) => {
                   const next = Number(e.target.value);
-                  setDragged((prev) => ({
-                    id,
-                    byField: { ...(prev.id === id ? prev.byField : {}), [field.id]: next },
-                  }));
+                  setDraft(field.id, next);
                   scheduleCommit(timers.current, field.id, () => {
-                    void setSettingsValue(id, field.id, next).then(() => {
-                      setDragged((prev) => {
-                        if (prev.id !== id || prev.byField[field.id] !== next) return prev;
-                        const byField = { ...prev.byField };
-                        delete byField[field.id];
-                        return { id, byField };
-                      });
-                    });
+                    void setSettingsValue(id, field.id, next).then(() => clearDraft(field.id, next));
                   });
                 }}
                 className="h-[3px] flex-1 accent-accent"
@@ -133,7 +146,8 @@ export function ThemeSettingsForm({ id, fields }: { id: string; fields: Settings
         }
 
         if (field.type === "color") {
-          const val = current(field) as string;
+          const committedValue = committed(field) as string;
+          const text = current(field) as string;
           return (
             <div
               key={field.id}
@@ -150,18 +164,29 @@ export function ThemeSettingsForm({ id, fields }: { id: string; fields: Settings
                 <input
                   type="color"
                   id={`theme-setting-${field.id}`}
-                  value={val}
-                  onChange={(e) => void setSettingsValue(id, field.id, e.target.value)}
+                  value={committedValue}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    clearDraft(field.id);
+                    scheduleCommit(timers.current, field.id, () => {
+                      void setSettingsValue(id, field.id, next);
+                    });
+                  }}
                   className="size-6 cursor-pointer rounded border-0 bg-transparent p-0"
                 />
                 <input
                   type="text"
-                  value={val}
+                  value={text}
                   onChange={(e) => {
                     const next = e.target.value;
-                    if (/^#[0-9a-fA-F]{6}$/.test(next)) {
-                      void setSettingsValue(id, field.id, next);
-                    }
+                    setDraft(field.id, next);
+                    if (!isHexColor(next)) return;
+                    scheduleCommit(timers.current, field.id, () => {
+                      void setSettingsValue(id, field.id, next).then(() => clearDraft(field.id, next));
+                    });
+                  }}
+                  onBlur={() => {
+                    if (timers.current[field.id] === undefined) clearDraft(field.id);
                   }}
                   className="w-24 rounded border border-line bg-surface px-2 py-1 font-mono-data [font-size:var(--t-type-caption-size)] text-ink"
                 />

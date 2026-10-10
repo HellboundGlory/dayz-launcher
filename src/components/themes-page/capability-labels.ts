@@ -3,8 +3,10 @@
 // capability label (SPEC §3.3). Kept out of any one dialog since both import/
 // export dialogs and the grid need them.
 
-/** The order both dialogs list capabilities in, whatever order a manifest uses. */
-const CAPABILITY_ORDER = ["tokens", "layout", "css", "fonts", "assets"] as const;
+/** The order both dialogs list capabilities in, whatever order a manifest uses.
+ * Exactly the strings the backend accepts (`CAPABILITIES` in
+ * `src-tauri/src/theme/archive.rs`). */
+const CAPABILITY_ORDER = ["tokens", "css", "fonts", "images", "layout", "settings"] as const;
 
 export type Capability = (typeof CAPABILITY_ORDER)[number];
 
@@ -13,10 +15,11 @@ export type Capability = (typeof CAPABILITY_ORDER)[number];
  * than re-derived from the package's files. */
 const CAPABILITY_LABELS: Record<Capability, string> = {
   tokens: "Tokens",
-  layout: "Layout",
   css: "Custom CSS",
   fonts: "Fonts",
-  assets: "Assets",
+  images: "Images",
+  layout: "Layout",
+  settings: "Settings",
 };
 
 /** Labels for whichever of `capabilities` are present; an unknown string is

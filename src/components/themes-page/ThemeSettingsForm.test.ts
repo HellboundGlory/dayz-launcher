@@ -1,10 +1,31 @@
-/** The two pieces of the settings form that are not plain rendering: a number
+/** The pieces of the settings form that are not plain rendering: a number
  * field's write is debounced so a slider drag is not one disk write per pixel
- * (while a toggle is not debounced at all), and its granularity is derived
- * from the schema's own span. Rendering the form needs a DOM this suite has no
- * environment for, so these are exercised directly. */
+ * (while a toggle is not debounced at all), its granularity is derived from
+ * the schema's own span, and the colour text field only hands the store a
+ * complete hex. Rendering the form needs a DOM this suite has no environment
+ * for, so these are exercised directly. */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { isHexColor } from "@/theme/settings-schema";
 import { scheduleCommit, stepFor, type CommitTimers } from "./ThemeSettingsForm";
+
+describe("isHexColor", () => {
+  it("accepts only a complete hex, so a partial one stays a draft", () => {
+    for (const partial of ["", "#", "#f", "#ff", "#ff00", "#ff000"]) {
+      expect(isHexColor(partial)).toBe(false);
+    }
+    expect(isHexColor("#ff0000")).toBe(true);
+  });
+
+  it("accepts a complete hex in either case", () => {
+    expect(isHexColor("#AbCdEf")).toBe(true);
+  });
+
+  it("rejects a string the store would have to sanitise", () => {
+    for (const value of ["#ff00001", "#ff000", "ff0000", "red"]) {
+      expect(isHexColor(value)).toBe(false);
+    }
+  });
+});
 
 describe("stepFor", () => {
   it("keeps an integer-valued schema exact at step 1", () => {

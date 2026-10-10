@@ -18,8 +18,9 @@ interface ExportThemeDialogProps {
 }
 
 /** The capabilities `export()` ships as extra files, named by their label rather
- * than one file each — `tokens`/`layout` are already named in the same list. */
-const EXTRA_FILE_CAPABILITIES: readonly Capability[] = ["css", "fonts", "assets"];
+ * than one file each — `tokens.json` and the `layout/…` files the theme walks
+ * are already named in the same list. */
+const EXTRA_FILE_CAPABILITIES: readonly Capability[] = ["css", "fonts", "images", "settings"];
 
 /** What `export()` actually packages: `theme.json` and `tokens.json` always,
  * the `layout/…` files the theme ships, then the labelled extras. */

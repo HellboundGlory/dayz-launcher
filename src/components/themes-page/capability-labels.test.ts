@@ -2,17 +2,38 @@
  * capability strings the backend validated -> display labels, and what an export
  * actually packages. Both stood in for hand-written/plain-text copy that had
  * already drifted, so these pin the mapping rather than the markup. */
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { capabilityLabel, capabilityLabels } from "./capability-labels";
 import { packagedFiles } from "./ExportThemeDialog";
 
+/** The backend gate every manifest passes: a capability it rejects never reaches
+ * a theme, so the label table has to cover exactly this set. */
+function backendCapabilities(): string[] {
+  const source = readFileSync(
+    new URL("../../../src-tauri/src/theme/archive.rs", import.meta.url),
+    "utf8",
+  );
+  const declared = source.match(/const CAPABILITIES: \[&str; \d+\] = \[([\s\S]*?)\];/);
+  if (declared === null) throw new Error("no CAPABILITIES list in archive.rs");
+  return [...declared[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+}
+
 describe("capabilityLabels", () => {
-  it("labels the capabilities a theme declares", () => {
-    expect(capabilityLabels(["css", "fonts", "assets"])).toEqual([
+  it("labels every capability a theme can declare", () => {
+    expect(capabilityLabels(["tokens", "css", "fonts", "images", "layout", "settings"])).toEqual([
+      "Tokens",
       "Custom CSS",
       "Fonts",
-      "Assets",
+      "Images",
+      "Layout",
+      "Settings",
     ]);
+  });
+
+  it("covers every capability the backend accepts", () => {
+    const capabilities = backendCapabilities();
+    expect(capabilityLabels(capabilities)).toHaveLength(capabilities.length);
   });
 
   it("drops capabilities that aren't present rather than placeholdering them", () => {
@@ -24,24 +45,24 @@ describe("capabilityLabels", () => {
   });
 
   it("ignores a string the label table has no entry for", () => {
-    expect(capabilityLabels(["tokens", "settings", "wat"])).toEqual(["Tokens"]);
+    expect(capabilityLabels(["tokens", "wat"])).toEqual(["Tokens"]);
   });
 
   it("lists in a fixed order whatever order the manifest uses", () => {
-    expect(capabilityLabels(["fonts", "tokens", "layout", "css"])).toEqual([
+    expect(capabilityLabels(["settings", "fonts", "tokens", "css"])).toEqual([
       "Tokens",
-      "Layout",
       "Custom CSS",
       "Fonts",
+      "Settings",
     ]);
   });
 
   it("narrows to a subset when asked, so callers can describe some as files", () => {
-    expect(capabilityLabels(["tokens", "layout", "css", "fonts", "assets"], [
+    expect(capabilityLabels(["tokens", "layout", "css", "fonts", "images"], [
       "css",
       "fonts",
-      "assets",
-    ])).toEqual(["Custom CSS", "Fonts", "Assets"]);
+      "images",
+    ])).toEqual(["Custom CSS", "Fonts", "Images"]);
   });
 });
 
@@ -94,6 +115,14 @@ describe("packagedFiles", () => {
       "tokens.json",
       "Custom CSS",
       "Fonts",
+    ]);
+  });
+
+  it("names the settings schema a theme declares", () => {
+    expect(packagedFiles({ layouts: {}, capabilities: ["tokens", "settings"] })).toEqual([
+      "theme.json",
+      "tokens.json",
+      "Settings",
     ]);
   });
 
