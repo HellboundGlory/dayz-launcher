@@ -236,9 +236,17 @@ describe("UpdatePortableNote", () => {
     expect(html).toBe("");
   });
 
+  it("renders nothing while no update is available", async () => {
+    const { UpdatePortableNote } = await import("./update-elements");
+    const html = await withUpdateStore({ installed: false, available: null }, () =>
+      renderToStaticMarkup(<UpdatePortableNote />),
+    );
+    expect(html).toBe("");
+  });
+
   it("reads the legacy portable note text", async () => {
     const { UpdatePortableNote } = await import("./update-elements");
-    const html = await withUpdateStore({ installed: false }, () =>
+    const html = await withUpdateStore({ installed: false, available: { version: "1.2.3" } }, () =>
       renderToStaticMarkup(<UpdatePortableNote />),
     );
     expect(html).toContain("portable copy");

@@ -36,7 +36,7 @@ import { useRowProbeStore, probeRow, rowProbeState } from "./row-probe-store";
 import { useConfirm } from "@/components/confirm-dialog";
 import { OptionIcon } from "./option-icon";
 
-function useServerSubject(): Server | null {
+export function useServerSubject(): Server | null {
   const { subjectContext, selectedServer } = useElementContext();
   if (subjectContext?.kind === "server") {
     return subjectContext.data as Server;

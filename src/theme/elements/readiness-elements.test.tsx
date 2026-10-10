@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { ModReadinessEntry, ServerModReadiness } from "@/types/server";
+import type { ModReadinessEntry, ServerModReadiness, Server } from "@/types/server";
 import { formatBytes } from "@/lib/utils";
 import { computeReadinessView } from "./readiness-elements";
+import { ElementContextProvider } from "./context";
 
 const mod = (overrides: Partial<ModReadinessEntry>): ModReadinessEntry => ({
   workshop_id: "1",
@@ -171,6 +172,41 @@ describe("ServerReadiness", () => {
     const html = renderToStaticMarkup(<ServerReadiness options={{ showSize: false }} />);
     expect(html).not.toContain('data-part="size"');
   });
+
+  it("adds offline to data-state while the selected server is offline", async () => {
+    const { useSelectionReadiness } = await import("./use-selection-readiness");
+    vi.mocked(useSelectionReadiness).mockReturnValue({
+      readiness: readiness([mod({ state: "not_installed", size_bytes: 1024 })]),
+      loading: false,
+    });
+    const { ServerReadiness } = await import("./readiness-elements");
+    const html = renderToStaticMarkup(
+      <ElementContextProvider value={{ selectedServer: { online: false } as Server }}>
+        <ServerReadiness />
+      </ElementContextProvider>,
+    );
+    expect(html).toContain('data-state="needsDownload offline"');
+  });
+
+  it("reads offline from its own server subject, not the selection", async () => {
+    const { useSelectionReadiness } = await import("./use-selection-readiness");
+    vi.mocked(useSelectionReadiness).mockReturnValue({
+      readiness: readiness([mod({ state: "ready" })]),
+      loading: false,
+    });
+    const { ServerReadiness } = await import("./readiness-elements");
+    const html = renderToStaticMarkup(
+      <ElementContextProvider
+        value={{
+          subjectContext: { kind: "server", data: { online: false } as Server },
+          selectedServer: { online: true } as Server,
+        }}
+      >
+        <ServerReadiness />
+      </ElementContextProvider>,
+    );
+    expect(html).toContain('data-state="ready offline"');
+  });
 });
 
 describe("ServerDownloadSize", () => {
@@ -216,5 +252,20 @@ describe("ServerDownloadSize", () => {
     expect(html).not.toContain("data-state=");
     expect(html).not.toContain('data-part="qualifier"');
     expect(html).toContain(formatBytes(3000));
+  });
+
+  it("adds offline to data-state while the selected server is offline", async () => {
+    const { useSelectionReadiness } = await import("./use-selection-readiness");
+    vi.mocked(useSelectionReadiness).mockReturnValue({
+      readiness: readiness([mod({ state: "ready" })]),
+      loading: false,
+    });
+    const { ServerDownloadSize } = await import("./readiness-elements");
+    const html = renderToStaticMarkup(
+      <ElementContextProvider value={{ selectedServer: { online: false } as Server }}>
+        <ServerDownloadSize />
+      </ElementContextProvider>,
+    );
+    expect(html).toContain('data-state="none offline"');
   });
 });
