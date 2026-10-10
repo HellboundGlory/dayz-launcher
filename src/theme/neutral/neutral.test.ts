@@ -151,7 +151,7 @@ describe("Neutral layouts", () => {
           createElement(ModalHost, { file: MOD_FILTER_MODAL, onClose: () => {} }),
         ),
       );
-      expect(modFilterHtml).toContain("Filter by Mod");
+      expect(modFilterHtml).toContain("Filter by mod");
       expect(modFilterHtml).toContain('data-el="modFilter.apply"');
       expect(modFilterHtml).toContain('data-el="list.modFilterResults"');
     });
