@@ -48,6 +48,19 @@ vi.mock("../theme-store", () => ({
   getThemeOwnedLayout: () => themedPopupFile,
 }));
 
+// The default popup body only exists while open, so a static render forces the trigger open.
+const popupState = { forceOpen: false };
+vi.mock("../interaction/use-popup-trigger", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../interaction/use-popup-trigger")>();
+  return {
+    ...actual,
+    usePopupTrigger: (...args: Parameters<typeof actual.usePopupTrigger>) => {
+      const trigger = actual.usePopupTrigger(...args);
+      return popupState.forceOpen ? { ...trigger, open: true } : trigger;
+    },
+  };
+});
+
 // Captures a button's props as it is created, since renderToStaticMarkup
 // discards event handlers from its HTML output.
 let capturedProps: Record<string, unknown> | null = null;
@@ -101,6 +114,7 @@ beforeEach(() => {
   mockStore.setSort.mockClear();
   mockStore.resetFilter.mockClear();
   themedPopupFile = undefined;
+  popupState.forceOpen = false;
   capturedProps = null;
   captureDataEl = null;
 });
@@ -187,7 +201,7 @@ describe("FilterSearch", () => {
     expect(html).not.toContain('data-state="filled"');
     expect(html).toContain('data-part="icon"');
     expect(html).toContain('data-part="input"');
-    expect(html).toContain("Search name or description");
+    expect(html).toContain('placeholder="Search servers…"');
   });
 
   it("renders the filled state when the store has a search term", () => {
@@ -228,6 +242,18 @@ describe("FilterMap", () => {
     mockStore.filter.maps = ["a", "b", "c"];
     const html = renderToStaticMarkup(<FilterMap />);
     expect(html).toContain("3 maps");
+  });
+
+  it("default body lists the options, then a separator and Clear", () => {
+    popupState.forceOpen = true;
+    mockStore.maps = [["chernarusplus", "Chernarus"]];
+    const html = renderToStaticMarkup(<FilterMap />);
+    const options = html.indexOf('data-el="popup.mapOptions"');
+    const separator = html.indexOf('data-part="separator"');
+    const clear = html.indexOf('data-el="popup.clear"');
+    expect(options).toBeGreaterThan(-1);
+    expect(separator).toBeGreaterThan(options);
+    expect(clear).toBeGreaterThan(separator);
   });
 });
 

@@ -541,6 +541,8 @@
   color: var(--danger);
 }
 
+[data-el="filter.map"] [data-el="popup.clear"],
+[data-el="filter.tags"] [data-el="popup.clear"],
 [data-el="filter.region"] [data-el="popup.clear"] {
   font-size: 10px;
   font-weight: 600;
@@ -3116,6 +3118,9 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
 
 [data-region="r-update-footer"] [data-el="update.install"],
 [data-region="r-update-footer"] [data-el="update.viewRelease"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border-radius: 4px;
   border: none;
   background-color: var(--accent);
@@ -3410,6 +3415,13 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
 
 [data-context="modFilterPreview"] [data-el="workshopMod.size"] {
   font-family: var(--t-type-family-data);
+}
+
+[data-context="modFilterPreview"] [data-el="workshopMod.score"],
+[data-context="modFilterPreview"] [data-el="workshopMod.subscribers"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 [data-context="modFilterPreview"] [data-el="workshopMod.tags"] {

@@ -722,6 +722,7 @@
         "box",
         "indicator",
         "clear",
+        "separator",
         "empty"
       ],
       "states": [
@@ -758,6 +759,7 @@
         "box",
         "indicator",
         "clear",
+        "separator",
         "empty"
       ],
       "states": [
@@ -794,6 +796,7 @@
         "box",
         "indicator",
         "clear",
+        "separator",
         "empty"
       ],
       "states": [
@@ -3657,9 +3660,14 @@
       ],
       "required": [],
       "multiplicity": "many",
-      "options": {},
+      "options": {
+        "icon": {
+          "type": "icon"
+        }
+      },
       "freeLabel": false,
       "parts": [
+        "icon",
         "value"
       ],
       "states": [],
@@ -3677,10 +3685,14 @@
       "options": {
         "label": {
           "type": "text"
+        },
+        "icon": {
+          "type": "icon"
         }
       },
       "freeLabel": true,
       "parts": [
+        "icon",
         "value",
         "label"
       ],
@@ -3846,10 +3858,14 @@
       "options": {
         "label": {
           "type": "text"
+        },
+        "icon": {
+          "type": "icon"
         }
       },
       "freeLabel": true,
       "parts": [
+        "icon",
         "label"
       ],
       "states": [
@@ -3869,10 +3885,14 @@
       "options": {
         "label": {
           "type": "text"
+        },
+        "icon": {
+          "type": "icon"
         }
       },
       "freeLabel": true,
       "parts": [
+        "icon",
         "label"
       ],
       "states": [
@@ -3890,9 +3910,14 @@
         "modal:update"
       ],
       "multiplicity": "perComposition",
-      "options": {},
+      "options": {
+        "icon": {
+          "type": "icon"
+        }
+      },
       "freeLabel": false,
       "parts": [
+        "icon",
         "label"
       ],
       "states": [
@@ -3911,9 +3936,14 @@
         "modal:update"
       ],
       "multiplicity": "perComposition",
-      "options": {},
+      "options": {
+        "icon": {
+          "type": "icon"
+        }
+      },
       "freeLabel": false,
       "parts": [
+        "icon",
         "label"
       ],
       "states": [],

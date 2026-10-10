@@ -310,7 +310,7 @@ export function ElementHost({
       return <ModalClose options={node.options} className={mergedClass} style={style} />;
 
     case "update.install":
-      return <UpdateInstall className={mergedClass} style={style} />;
+      return <UpdateInstall options={node.options} className={mergedClass} style={style} />;
     case "update.viewRelease":
       return <UpdateViewRelease options={node.options} className={mergedClass} style={style} />;
     case "update.later":

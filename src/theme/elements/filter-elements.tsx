@@ -11,6 +11,7 @@ import {
   FilterPopup,
   PopupClear,
   PopupMapOptions,
+  PopupRegionNote,
   PopupRegionOptions,
   PopupSortOptions,
   PopupTagOptions,
@@ -31,6 +32,10 @@ export {
 
 
 const SEARCH_DEBOUNCE_MS = 250;
+
+function PopupSeparator() {
+  return <div data-part="separator" aria-hidden className="mx-[var(--t-space-separatorX)] my-[var(--t-space-separatorY)] h-[var(--t-border-hairline)] bg-line" />;
+}
 
 function DropdownTrigger({
   label,
@@ -144,7 +149,7 @@ export function FilterSearch({
       <input
         data-part="input"
         type="text"
-        placeholder="Search name or description"
+        placeholder="Search servers…"
         aria-label="Search servers"
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -200,6 +205,8 @@ export function FilterMap({
           className="absolute left-0 top-full mt-1 z-30 max-h-64 min-w-[224px] overflow-y-auto border border-line bg-surface2 p-1 shadow-lg text-xs"
         >
           <PopupMapOptions />
+          <PopupSeparator />
+          <PopupClear />
         </div>
       </FilterPopup>
     </DropdownRoot>
@@ -251,6 +258,8 @@ export function FilterTags({
           className="absolute left-0 top-full mt-1 z-30 min-w-[208px] overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg text-xs space-y-1"
         >
           <PopupTagOptions />
+          <PopupSeparator />
+          <PopupClear />
         </div>
       </FilterPopup>
     </DropdownRoot>
@@ -302,8 +311,10 @@ export function FilterRegion({
           data-part="popup"
           className="absolute left-0 top-full mt-1 z-30 min-w-[176px] max-h-64 overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg text-xs space-y-1"
         >
-          <PopupClear />
           <PopupRegionOptions />
+          <PopupSeparator />
+          <PopupRegionNote className="px-[var(--t-space-controlCompactX)] pb-[var(--t-space-separatorY)] pt-[var(--t-space-separatorX)] [font-size:var(--t-type-micro-size)] [line-height:var(--t-type-heading-leading)] whitespace-normal text-muted" />
+          <PopupClear />
         </div>
       </FilterPopup>
     </DropdownRoot>

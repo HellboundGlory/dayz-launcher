@@ -1,14 +1,18 @@
 import type { CSSProperties, MouseEvent } from "react";
+import { Download, ExternalLink } from "lucide-react";
 import { open as openLink } from "@tauri-apps/plugin-shell";
 import { useUpdateStore } from "@/stores/update-store";
 import { DOWNLOAD_URL, UpdateChangelogMarkdown } from "@/components/update-modal";
 import { useElementContext } from "./context";
+import { OptionIcon } from "./option-icon";
 import { states } from "./element-utils";
 
 export function UpdateInstall({
+  options,
   className,
   style,
 }: {
+  options?: Record<string, unknown>;
   className?: string;
   style?: CSSProperties;
 }) {
@@ -27,12 +31,16 @@ export function UpdateInstall({
       className={className}
       style={style}
     >
+      <span data-part="icon">
+        <OptionIcon icon={options?.icon} fallback={Download} className="size-3" />
+      </span>
       <span data-part="label">Update &amp; Restart</span>
     </button>
   );
 }
 
 export function UpdateViewRelease({
+  options,
   className,
   style,
 }: {
@@ -51,6 +59,9 @@ export function UpdateViewRelease({
       className={className}
       style={style}
     >
+      <span data-part="icon">
+        <OptionIcon icon={options?.icon} fallback={ExternalLink} className="size-3" />
+      </span>
       <span data-part="label">View Release</span>
     </button>
   );
