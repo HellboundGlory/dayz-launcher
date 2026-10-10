@@ -465,6 +465,18 @@ describe("Theme Interaction & Presentation (Package 4.4)", () => {
 
       expect(html).toBe("");
     });
+
+    it("names the dialog with its label", () => {
+      const html = renderToStaticMarkup(
+        <ModalHost
+          file={{ schemaVersion: 2, root: { type: "text", value: "Body" } }}
+          label="Filter by mod"
+          onClose={() => {}}
+        />,
+      );
+
+      expect(html).toMatch(/role="dialog" aria-label="Filter by mod"/);
+    });
   });
 
   describe("PopupHost", () => {
