@@ -50,6 +50,9 @@ import type { LayoutFile } from "./renderer/types";
 
 export type SettingsValue = string | number | boolean;
 
+/** What saving a theme reports: `"exists"` when the name is taken and nothing was written. */
+export type ThemeSaveResult = "saved" | "exists" | "failed";
+
 /** A v1 folder hydrate switched off, kept only until its one-time notice is dismissed. */
 export interface IncompatibleSwitch {
   id: string;
@@ -95,9 +98,9 @@ interface ThemeState {
   setFontFamilyOverride: (family: FontFamilyRole, value: string) => void;
   toggleLightRefined: () => void;
   /** Save the active theme: in place when it is a user theme, otherwise as a new theme named `name` (SPEC §4.6). */
-  saveTheme: (name: string) => Promise<void>;
+  saveTheme: (name: string, opts?: { overwrite?: boolean }) => Promise<ThemeSaveResult>;
   /** Save `sourceId` under a new name — the active theme's live edits apply only when `sourceId` is the active theme. */
-  duplicateTheme: (sourceId: string, name: string) => Promise<void>;
+  duplicateTheme: (sourceId: string, name: string, opts?: { overwrite?: boolean }) => Promise<ThemeSaveResult>;
   deleteTheme: (id: string) => Promise<void>;
   resetToBase: () => void;
 }
@@ -157,6 +160,11 @@ export function slugify(name: string): string {
     else if (slug !== "" && !slug.endsWith("-")) slug += "-";
   }
   return slug.replace(/^-+|-+$/g, "");
+}
+
+/** The delete confirmation both the theme grid and the customiser show. */
+export function deleteThemeMessage(name: string): string {
+  return `Delete “${name}”? This removes its files from disk and can't be undone.`;
 }
 
 /** One scheme's palette out of an untrusted `tokens.json`; missing tokens fall back to neutral. */
@@ -481,6 +489,15 @@ function holdLastValidLayouts(file: ThemeFile, previous: ThemeFile | undefined):
   return { ...file, layouts, fallbacks: fallbacks.filter((issue) => !held.has(issue.file)) };
 }
 
+/** The overrides and the light latch a fresh preview starts from. */
+function clearedOverrides() {
+  return {
+    custom: { dark: {}, light: {} },
+    customExtras: { radius: {}, family: {} },
+    lightRefined: false,
+  };
+}
+
 export const useThemeStore = create<ThemeState>((set, get) => ({
   scheme: "dark",
   activeId: "neutral",
@@ -671,9 +688,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     }
     set({
       activeId: id,
-      custom: { dark: {}, light: {} },
-      customExtras: { radius: {}, family: {} },
-      lightRefined: false,
+      ...clearedOverrides(),
       // Bloom follows the same base-plus-override shape as the other extras:
       // the picked theme supplies the base, the slider overrides it afterwards.
       bloom: resolvedExtras(id, get().themeFiles).shadows.glowIntensity,
@@ -736,7 +751,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     set({ lightRefined: !get().lightRefined });
   },
 
-  saveTheme: async (name) => {
+  saveTheme: async (name, { overwrite = false } = {}) => {
     const { activeId, installedThemes, custom, customExtras, themeFiles, bloom } = get();
     // SPEC §4.6: the edits land in the active theme when it is a user theme —
     // one this launcher made (`local.*`). An imported package or a bundled
@@ -747,7 +762,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
         await updateThemeTokens(activeId, tokens);
       } catch (e) {
         console.error(`Could not save theme "${activeId}":`, e);
-        return;
+        return "failed";
       }
       try {
         // Re-read what's on disk so the cached palette is the file just written.
@@ -759,15 +774,17 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       }
       // The overrides are the theme's own values now.
       get().resetToBase();
-      return;
+      return "saved";
     }
-    await get().duplicateTheme(activeId, name);
+    return get().duplicateTheme(activeId, name, { overwrite });
   },
 
-  duplicateTheme: async (sourceId, name) => {
+  duplicateTheme: async (sourceId, name, { overwrite = false } = {}) => {
     const { activeId, custom, customExtras, themeFiles, bloom } = get();
 
     const id = `local.${slugify(name)}`;
+    const clash = activeInstalled(id, get().installedThemes) !== undefined;
+    if (clash && !overwrite) return "exists";
     const manifest: ThemeManifest = {
       schemaVersion: 2,
       id,
@@ -794,10 +811,11 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     );
 
     try {
-      // Both writes are create-only; re-saving under a name already used
-      // overwrites, as the old localStorage store did. The delete is refused
-      // for the active theme, in which case the write below reports the clash.
-      if (activeInstalled(id, get().installedThemes) !== undefined) {
+      // Both writes are create-only, so replacing an installed theme deletes
+      // its folder first — only ever after an overwrite was asked for. The
+      // delete is refused for the active theme, in which case the write below
+      // reports the clash.
+      if (clash) {
         await deleteThemeCmd(id);
       }
       // A source with a folder on disk brings its layout, CSS and settings
@@ -809,13 +827,14 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       }
     } catch (e) {
       console.error(`Could not save theme "${name}":`, e);
-      return;
+      return "failed";
     }
 
     await refreshInstalledThemes();
-    // Same arm/confirm flow as any other activation; deleteOnRevert so an
-    // abandoned duplicate doesn't linger in the library.
-    await get().pickTheme(id, true);
+    // Reverting an abandoned duplicate removes it, so a revert is not destructive;
+    // a replacement stands in for a theme the user already had and stays put.
+    await get().pickTheme(id, !overwrite);
+    return "saved";
   },
 
   deleteTheme: async (id) => {
@@ -830,11 +849,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   },
 
   resetToBase: () => {
-    set({
-      custom: { dark: {}, light: {} },
-      customExtras: { radius: {}, family: {} },
-      lightRefined: false,
-    });
+    set(clearedOverrides());
     get().apply();
   },
 }));
@@ -849,6 +864,7 @@ export function watchThemeActivationReverted(): () => void {
     const activeId = previousId ?? "neutral";
     useThemeStore.setState({
       activeId,
+      ...clearedOverrides(),
       bloom: resolvedExtras(activeId, state.themeFiles).shadows.glowIntensity,
     });
     syncFallbacks(activeId);

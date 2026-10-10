@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { PRESETS } from "@/theme/palette";
 import { resolveThemeAsset } from "@/theme/asset-resolver";
-import { resolvedPair } from "@/theme/theme-store";
+import { deleteThemeMessage, resolvedPair, slugify } from "@/theme/theme-store";
+import { useConfirm } from "@/components/confirm-dialog";
 import type { ThemeFile, ThemeSummary } from "@/types/theme";
 import { ThemeCard } from "./ThemeCard";
 import { Pagination } from "./Pagination";
@@ -78,13 +79,16 @@ export function buildGridEntries(installedThemes: ThemeSummary[]): GridEntry[] {
 }
 
 /**
- * `${baseName} copy`, then `… copy 2`, `… copy 3`, … — the first candidate not
- * already taken. Also used by the Settings "New theme" flow, so it's exported.
+ * `${baseName} copy`, then `… copy 2`, `… copy 3`, … — the first candidate
+ * whose id is free. Two names can differ as text and still derive the same
+ * `local.<slug>` id, so the comparison is on the slug. Also used by the
+ * Settings "New theme" flow, so it's exported.
  */
 export function nextDuplicateName(baseName: string, existingNames: string[]): string {
+  const taken = new Set(existingNames.map(slugify));
   let candidate = `${baseName} copy`;
   let n = 2;
-  while (existingNames.includes(candidate)) candidate = `${baseName} copy ${n++}`;
+  while (taken.has(slugify(candidate))) candidate = `${baseName} copy ${n++}`;
   return candidate;
 }
 
@@ -99,52 +103,15 @@ export function ThemeGrid({
 }: ThemeGridProps): JSX.Element {
   // Local page state on purpose — resets when the accordion section unmounts.
   const [page, setPage] = useState(0);
-  const [confirm, setConfirm] = useState<{
-    id: string;
-    title: string;
-    message: string;
-  } | null>(null);
-  const confirmWrapRef = useRef<HTMLDivElement>(null);
-  const confirmCancelRef = useRef<HTMLButtonElement>(null);
+  const confirm = useConfirm();
 
   const entries = buildGridEntries(installedThemes);
   const totalPages = Math.max(1, Math.ceil(entries.length / PER_PAGE));
   const clamped = Math.min(page, totalPages - 1);
   const visible = entries.slice(clamped * PER_PAGE, clamped * PER_PAGE + PER_PAGE);
 
-  // Focus Cancel by default (safer for a destructive action); Escape closes.
-  useEffect(() => {
-    if (!confirm) return;
-    confirmCancelRef.current?.focus();
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setConfirm(null);
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [confirm]);
-
-  /** Tab wraps within the confirm dialog; Shift+Tab goes backwards. */
-  function trapConfirmTab(e: React.KeyboardEvent) {
-    if (e.key !== "Tab") return;
-    const els = Array.from(
-      confirmWrapRef.current?.querySelectorAll<HTMLElement>(
-        "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])",
-      ) ?? [],
-    ).filter((el) => !el.hasAttribute("disabled"));
-    if (els.length === 0) return;
-    const first = els[0];
-    const last = els[els.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  }
-
   return (
-    <div className="relative">
+    <div>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
         {visible.map((entry) => {
           const dark = resolvedPair(entry.id, themeFiles).dark;
@@ -170,7 +137,7 @@ export function ThemeGrid({
                         entry.id,
                         nextDuplicateName(
                           entry.name,
-                          entries.map((e) => e.name),
+                          entries.flatMap((e) => [e.name, e.id.replace(/^local\./, "")]),
                         ),
                       )
               }
@@ -179,11 +146,11 @@ export function ThemeGrid({
               onRequestDelete={
                 custom && entry.id !== activeId
                   ? () =>
-                      setConfirm({
-                        id: entry.id,
-                        title: "Delete theme",
-                        message: `Delete “${entry.name}”? This removes its files from disk and can't be undone.`,
-                      })
+                      confirm(
+                        "Delete theme",
+                        deleteThemeMessage(entry.name),
+                        () => onDelete(entry.id),
+                      )
                   : undefined
               }
             />
@@ -198,45 +165,6 @@ export function ThemeGrid({
         onPrev={() => setPage((p) => Math.max(0, p - 1))}
         onNext={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
       />
-
-      {confirm && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setConfirm(null)}
-        >
-          <div
-            ref={confirmWrapRef}
-            role="dialog"
-            aria-modal="true"
-            aria-label={confirm.title}
-            onKeyDown={trapConfirmTab}
-            className="w-80 [border-radius:var(--t-radius-card)] border border-line bg-surface p-3 [box-shadow:var(--t-shadow-confirm)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="[font-size:var(--t-type-subheading-size)] font-bold text-ink">{confirm.title}</p>
-            <p className="mt-1.5 [font-size:var(--t-type-body-size)] leading-relaxed text-muted2">{confirm.message}</p>
-            <div className="mt-3 flex justify-end gap-2">
-              <button
-                ref={confirmCancelRef}
-                onClick={() => setConfirm(null)}
-                className="[border-radius:var(--t-radius-control)] border border-line bg-surface2 px-3 py-1.5 [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider text-muted2 transition-colors hover:text-ink"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  const id = confirm.id;
-                  setConfirm(null);
-                  onDelete(id);
-                }}
-                className="[border-radius:var(--t-radius-control)] bg-danger px-3 py-1.5 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onDanger)] transition-colors hover:brightness-110"
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

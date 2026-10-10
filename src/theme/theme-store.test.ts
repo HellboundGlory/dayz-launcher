@@ -23,6 +23,7 @@ import { getNeutralLayout } from "./neutral";
 import type { ThemeFile, ThemeSummary, ValidationIssue } from "@/types/theme";
 import { NEUTRAL_TOKENS, parseTokens } from "./tokens";
 import type { LayoutFile } from "./renderer/types";
+import { nextDuplicateName } from "@/components/themes-page/ThemeGrid";
 
 const backend = vi.hoisted(() => ({
   /** What `migrate_legacy_custom_themes` reports back, in input order. */
@@ -37,6 +38,10 @@ const backend = vi.hoisted(() => ({
   savedManifests: [] as unknown[],
   /** Every `derive_theme` call, in order. */
   derived: [] as { sourceId: string; manifest: unknown; tokens: unknown }[],
+  /** Ids `delete_theme` was asked for, in call order. */
+  deleted: [] as string[],
+  /** Every `arm_activation` call's id and `deleteOnRevert`, in order. */
+  armed: [] as { id: string | null; deleteOnRevert: boolean }[],
   /** Every `update_theme_tokens` call, in order. */
   updatedTokens: [] as { id: string; tokens: unknown }[],
   /** `tokens.json` contents `get_theme` returns, by id. */
@@ -105,7 +110,8 @@ vi.mock("@/lib/tauri", () => ({
   getSettings: async () => ({ activeThemeId: null }),
   setActiveThemeId: async (id: string | null) => void backend.setActiveCalls.push(id),
   migrateLegacyCustomThemes: async () => backend.migratedIds,
-  armActivation: async () => {},
+  armActivation: async (id: string | null, deleteOnRevert = false) =>
+    void backend.armed.push({ id, deleteOnRevert }),
   saveTheme: async (manifest: unknown, tokens: unknown) => {
     backend.savedManifests.push(manifest);
     backend.savedTokens.push(tokens);
@@ -118,7 +124,7 @@ vi.mock("@/lib/tauri", () => ({
     // The real command rewrites the file; `getTheme` re-reads what it wrote.
     backend.tokensById[id] = tokens;
   },
-  deleteTheme: async () => {},
+  deleteTheme: async (id: string) => void backend.deleted.push(id),
   getThemeSettingsValues: async (id: string) => backend.settingsById[id] ?? {},
   setThemeSettingsValue: async (id: string, fieldId: string, value: string | number | boolean) => {
     backend.setSettingsCalls.push({ id, fieldId, value });
@@ -179,6 +185,8 @@ beforeEach(() => {
   backend.savedTokens.length = 0;
   backend.savedManifests.length = 0;
   backend.derived.length = 0;
+  backend.deleted.length = 0;
+  backend.armed.length = 0;
   backend.updatedTokens.length = 0;
   backend.tokensById = {};
   backend.layoutsById = {};
@@ -666,6 +674,59 @@ describe("duplicateTheme", () => {
     expect(backend.savedManifests[0]).toMatchObject({ id: "local.copy" });
     expect(backend.savedTokens).toHaveLength(1);
   });
+
+  /** An installed `local.copy` and the palette source a name "Copy" clashes with. */
+  function installCopyClash(): void {
+    backend.installed = [summary("local.copy", "Copy")];
+    useThemeStore.setState({
+      activeId: "neutral",
+      installedThemes: [summary("local.copy", "Copy")],
+      themeFiles: { "local.source": themeFile({ schemaVersion: 2 }) },
+    });
+  }
+
+  it("reports the clash instead of replacing an installed theme's folder", async () => {
+    installCopyClash();
+
+    const result = await useThemeStore.getState().duplicateTheme("local.source", "Copy");
+
+    expect(result).toBe("exists");
+    expect(backend.deleted).toEqual([]);
+    expect(backend.savedManifests).toHaveLength(0);
+    expect(backend.derived).toHaveLength(0);
+  });
+
+  it("deletes the old folder and writes the new one when overwriting is asked for", async () => {
+    installCopyClash();
+
+    const result = await useThemeStore
+      .getState()
+      .duplicateTheme("local.source", "Copy", { overwrite: true });
+
+    expect(result).toBe("saved");
+    expect(backend.deleted).toEqual(["local.copy"]);
+    expect(backend.savedManifests[0]).toMatchObject({ id: "local.copy" });
+    expect(backend.savedTokens).toHaveLength(1);
+  });
+
+  it("marks a fresh duplicate for deletion on revert but not a replacement", async () => {
+    await useThemeStore.getState().duplicateTheme("local.source", "Fresh");
+    installCopyClash();
+    await useThemeStore
+      .getState()
+      .duplicateTheme("local.source", "Copy", { overwrite: true });
+
+    expect(backend.armed).toEqual([
+      { id: "local.fresh", deleteOnRevert: true },
+      { id: "local.copy", deleteOnRevert: false },
+    ]);
+  });
+});
+
+describe("nextDuplicateName", () => {
+  it("suffixes a name whose slug is already taken", () => {
+    expect(nextDuplicateName("Neutral", ["neutral copy"])).toBe("Neutral copy 2");
+  });
 });
 
 describe("apply() asset wiring", () => {
@@ -923,6 +984,25 @@ describe("pickTheme bloom reset", () => {
     expect(useThemeStore.getState().activeId).toBe("neutral");
     expect(useThemeStore.getState().bloom).toBe(DEFAULT_EXTRAS.shadows.glowIntensity);
     expect(writtenProps["--bloom"]).toBe(String(DEFAULT_EXTRAS.shadows.glowIntensity));
+  });
+
+  it("drops the customiser overrides when a preview reverts", async () => {
+    backend.tokensById["local.dim"] = { shadows: { glowIntensity: 0.4 } };
+    backend.installed = [{ id: "local.dim", name: "Dim" }];
+    await useThemeStore.getState().hydrate();
+    await useThemeStore.getState().pickTheme("local.dim");
+    useThemeStore.getState().setColorOverride("accent", "#00ff00");
+    useThemeStore.getState().setRadiusRoleOverride("row", "3px");
+    useThemeStore.getState().toggleLightRefined();
+
+    watchThemeActivationReverted();
+    events.reverted?.({ payload: { previousId: "neutral" } });
+
+    const state = useThemeStore.getState();
+    expect(state.activeId).toBe("neutral");
+    expect(state.custom).toEqual({ dark: {}, light: {} });
+    expect(state.customExtras).toEqual({ radius: {}, family: {} });
+    expect(state.lightRefined).toBe(false);
   });
 
   it("never fetches for an ordinary id-switch revert", async () => {
