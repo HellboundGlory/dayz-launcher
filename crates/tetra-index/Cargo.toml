@@ -17,5 +17,8 @@ serde_json = { workspace = true }
 thiserror.workspace = true
 reqwest = { workspace = true, optional = true }
 
+[dev-dependencies]
+tokio = { workspace = true }
+
 [lints.rust]
 unsafe_code = "forbid"
