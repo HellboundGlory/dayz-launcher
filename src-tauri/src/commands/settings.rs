@@ -208,10 +208,13 @@ fn move_corrupt_aside(path: &Path, reason: &str) -> Result<AppSettings, String> 
             corrupt.display()
         )
     })?;
-    eprintln!(
-        "[settings] {} is unreadable ({reason}); moved to {}; using defaults",
-        path.display(),
-        corrupt.display()
+    crate::log::line(
+        "settings",
+        &format!(
+            "{} is unreadable ({reason}); moved to {}; using defaults",
+            path.display(),
+            corrupt.display()
+        ),
     );
     Ok(AppSettings::default())
 }
@@ -254,7 +257,7 @@ pub fn current(app: &AppHandle) -> AppSettings {
     settings_path(app)
         .and_then(|path| read_locked(&path))
         .unwrap_or_else(|e| {
-            eprintln!("[settings] {e}; using defaults");
+            crate::log::log_line(app, "settings", &format!("{e}; using defaults"));
             AppSettings::default()
         })
 }
@@ -291,9 +294,13 @@ pub fn apply_autostart(app: &AppHandle, enabled: bool) {
         manager.disable()
     };
     if let Err(e) = result {
-        eprintln!(
-            "[settings] Could not {} start-with-Windows: {e}",
-            if enabled { "enable" } else { "disable" }
+        crate::log::log_line(
+            app,
+            "settings",
+            &format!(
+                "Could not {} start-with-Windows: {e}",
+                if enabled { "enable" } else { "disable" }
+            ),
         );
     }
 }
@@ -318,10 +325,18 @@ pub fn apply_ui_scale(app: &AppHandle, scale: f64) {
         return;
     };
     if let Err(e) = window.set_zoom(scale) {
-        eprintln!("[settings] Could not set interface scale to {scale}: {e}");
+        crate::log::log_line(
+            app,
+            "settings",
+            &format!("Could not set interface scale to {scale}: {e}"),
+        );
     }
     if let Err(e) = window.set_min_size(Some(minimum_size(scale))) {
-        eprintln!("[settings] Could not raise the minimum window size: {e}");
+        crate::log::log_line(
+            app,
+            "settings",
+            &format!("Could not raise the minimum window size: {e}"),
+        );
     }
     eprintln!("[settings] Interface scale {scale}");
 
@@ -362,7 +377,11 @@ pub fn fit_window_to_minimum(app: &AppHandle, scale: f64) {
             "[settings] Window was {}x{}, grown to the {}x{} minimum",
             current.width, current.height, grown.width, grown.height
         ),
-        Err(e) => eprintln!("[settings] Could not grow the window to the minimum: {e}"),
+        Err(e) => crate::log::log_line(
+            app,
+            "settings",
+            &format!("Could not grow the window to the minimum: {e}"),
+        ),
     }
 }
 
@@ -412,7 +431,11 @@ pub fn persist_window_state(app: &AppHandle) {
         settings.window = Some(state);
         true
     }) {
-        eprintln!("[settings] Could not save the window geometry: {e}");
+        crate::log::log_line(
+            app,
+            "settings",
+            &format!("Could not save the window geometry: {e}"),
+        );
     }
 }
 

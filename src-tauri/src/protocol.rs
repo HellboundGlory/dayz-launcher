@@ -88,7 +88,7 @@ fn request_from_argv(argv: &[String]) -> Option<ConnectRequest> {
     let link = link_in_argv(argv)?;
     let request = parse_connect_link(link);
     if request.is_none() {
-        eprintln!("[protocol] Could not parse dzsa:// link: {link}");
+        crate::log::line("protocol", &format!("Could not parse dzsa:// link: {link}"));
     }
     request
 }

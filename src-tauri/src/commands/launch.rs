@@ -457,7 +457,7 @@ pub async fn verify_server_mods(
             match queued {
                 Ok(ids) => (ids, true),
                 Err(e) => {
-                    eprintln!("[verify] Workshop freshness check failed: {e}");
+                    crate::log::line("verify", &format!("Workshop freshness check failed: {e}"));
                     (Vec::new(), false)
                 }
             }
@@ -481,7 +481,10 @@ pub async fn verify_server_mods(
 #[tauri::command]
 pub fn register_protocol_handler() -> Result<(), String> {
     if cfg!(debug_assertions) && std::env::var_os("TETRA_FORCE_PROTOCOL_REGISTER").is_none() {
-        eprintln!("[protocol] Debug build: dzsa:// registration left untouched.");
+        crate::log::line(
+            "protocol",
+            "Debug build: dzsa:// registration left untouched.",
+        );
         return Ok(());
     }
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
@@ -514,7 +517,10 @@ pub fn open_workshop_in_steam(workshop_id: String) -> Result<(), String> {
             .map_err(|e| format!("Could not open Steam: {e}"));
     }
 
-    eprintln!("[steam] No Steam executable found; falling back to the OS opener");
+    crate::log::line(
+        "steam",
+        "No Steam executable found; falling back to the OS opener",
+    );
     #[cfg(target_os = "windows")]
     let mut cmd = std::process::Command::new("explorer");
     #[cfg(not(target_os = "windows"))]

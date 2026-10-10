@@ -119,14 +119,22 @@ pub async fn get_subscribed_mods(
     let rows = match tokio::task::spawn_blocking(move || steam.subscribed_mods(cache_age)).await {
         Ok(Ok(rows)) => rows,
         Ok(Err(e)) => {
-            eprintln!("[mods] Enumeration failed ({e}); serving the last snapshot");
+            crate::log::log_line(
+                &app,
+                "mods",
+                &format!("Enumeration failed ({e}); serving the last snapshot"),
+            );
             return Ok(ModsListOutcome {
                 rows: cached.rows,
                 from_cache: true,
             });
         }
         Err(e) => {
-            eprintln!("[mods] Enumeration task failed ({e}); serving the last snapshot");
+            crate::log::log_line(
+                &app,
+                "mods",
+                &format!("Enumeration task failed ({e}); serving the last snapshot"),
+            );
             return Ok(ModsListOutcome {
                 rows: cached.rows,
                 from_cache: true,
