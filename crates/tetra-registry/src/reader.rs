@@ -575,13 +575,4 @@ impl Reader {
         }
         Ok(map)
     }
-
-    #[inline]
-    pub fn cached_workshop_details(
-        &self,
-        ids: &[u64],
-        max_age_secs: u64,
-    ) -> Result<std::collections::HashMap<u64, WorkshopCacheRow>, RegistryError> {
-        self.get_workshop_cache(ids, max_age_secs)
-    }
 }

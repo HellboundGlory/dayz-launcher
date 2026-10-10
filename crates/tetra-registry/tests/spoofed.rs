@@ -3,7 +3,10 @@
 //! joinable. See `tetra_core::classify::fake`.
 
 use std::net::Ipv4Addr;
+use tetra_core::a2s::dayz::ServerMod;
 use tetra_registry::{Registry, ServerFilter, ServerKey, ServerRow, SortDir, SortKey};
+
+const MOD_ID: u64 = 1_547_879_389;
 
 fn key(last_octet: u8) -> ServerKey {
     ServerKey {
@@ -93,6 +96,60 @@ async fn a_row_that_starts_lying_is_removed() {
         names(&registry).is_empty(),
         "a listing that turns spoofed must not linger"
     );
+}
+
+#[tokio::test]
+async fn a_server_that_starts_lying_loses_its_mods() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let writer = registry.writer();
+    let k = key(10);
+
+    writer
+        .upsert_servers(vec![row(k, "Survivor Haven", 42, 60, 0)])
+        .await
+        .expect("honest write");
+    writer
+        .upsert_server_mods(
+            k,
+            vec![ServerMod {
+                workshop_id: MOD_ID,
+                name: "Some Mod".into(),
+            }],
+        )
+        .await
+        .expect("mods");
+
+    let reader = registry.reader().expect("reader");
+    assert_eq!(reader.known_mods(50).expect("known").len(), 1);
+
+    // Same address, now reporting a mirrored bot count.
+    writer
+        .upsert_servers(vec![row(k, "Survivor Haven", 60, 60, 60)])
+        .await
+        .expect("spoofed write");
+
+    assert!(
+        reader.mods_for(k).expect("mods_for").is_empty(),
+        "mod rows of a dropped server must go with it"
+    );
+    assert!(
+        reader.known_mods(50).expect("known").is_empty(),
+        "a phantom mod must not linger in the Seen-on-servers pool"
+    );
+
+    // The refresh probes rules right after INFO, so the dropped server's mods
+    // arrive again; they must not be written without a server row.
+    writer
+        .upsert_server_mods(
+            k,
+            vec![ServerMod {
+                workshop_id: MOD_ID,
+                name: "Some Mod".into(),
+            }],
+        )
+        .await
+        .expect("late rules write");
+    assert!(reader.known_mods(50).expect("known").is_empty());
 }
 
 #[tokio::test]

@@ -227,7 +227,6 @@ pub(crate) fn build(
             binds.push(Value::Integer(id as i64));
         }
     }
-    // Name-based noise filters. `tetra_is_placeholder`/`tetra_is_english` are
     if filter.hide_unnamed {
         clauses.push("TRIM(name) <> ''".into());
     }

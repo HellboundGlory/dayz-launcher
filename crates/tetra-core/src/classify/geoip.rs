@@ -91,11 +91,6 @@ pub fn region_code(ip: Ipv4Addr) -> Option<&'static str> {
     REGIONS[ip.octets()[0] as usize]
 }
 
-/// Legacy alias matching the old `country_code` API.
-pub fn country_code(ip: Ipv4Addr) -> Option<&'static str> {
-    region_code(ip)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
