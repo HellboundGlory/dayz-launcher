@@ -150,7 +150,7 @@
     "workshopMod.subscribed": "Renders ★ only for subscribed mods.",
     "workshopMod.include": "Reads \"Include\" or \"Included\".",
     "workshopMod.exclude": "Reads \"Exclude\" or \"Excluded\".",
-    "workshopMod.viewOnSteam": "Reads \"View on Steam\" and opens the Workshop page.",
+    "workshopMod.viewOnSteam": "Reads \"View on Steam\" and opens the Workshop page. Renders nothing for a mod without a Workshop URL.",
     "update.install": "Reads \"Update & Restart\" and renders only for an installed copy. It and `update.viewRelease` are both required, so the modal always has its primary action.",
     "update.viewRelease": "Reads \"View Release\" and renders only for a portable copy.",
     "update.later": "Reads \"Later\", or \"Updating…\" while installing.",
