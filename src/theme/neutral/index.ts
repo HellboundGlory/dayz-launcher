@@ -386,6 +386,9 @@ export const MOD_FILTER_RESULTS_LIST: LayoutFile = {
   },
 };
 
+/** Paths the theme engine draws from Neutral's own file instead of the launcher's legacy component. */
+export const NEUTRAL_ENGINE_FILES: ReadonlySet<string> = new Set<string>([]);
+
 export const NEUTRAL_LAYOUTS: Record<string, LayoutFile> = {
   "layout/shell.json": SHELL_LAYOUT,
   "layout/views/browser.json": BROWSER_LAYOUT,
