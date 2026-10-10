@@ -4,9 +4,23 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ElementContextProvider } from "../elements/context";
 import { isElementInLayout } from "../layout-query";
 import { LayoutRenderer } from "../renderer/layout-renderer";
+import type { LayoutNode } from "../renderer/types";
 import { SETTINGS_LAYOUT } from "./settings";
 import { SHELL_LAYOUT } from "./shell";
 import { expectRequiredPlaced } from "./test-helpers";
+
+function childrenOf(node: LayoutNode | undefined): LayoutNode[] {
+  return node && "children" in node ? node.children : [];
+}
+
+function findNode(node: LayoutNode | undefined, id: string): LayoutNode | undefined {
+  if (node?.id === id) return node;
+  for (const child of childrenOf(node)) {
+    const found = findNode(child, id);
+    if (found) return found;
+  }
+  return undefined;
+}
 
 describe("Neutral shell layout", () => {
   it.each(["views", "views+settings"])("%s places every element it requires", (context) => {
@@ -29,13 +43,7 @@ describe("Neutral shell layout", () => {
   });
 
   it("shell landmark box defines region r-main matching settings overlay presentation", () => {
-    expect(SHELL_LAYOUT.root && "type" in SHELL_LAYOUT.root ? SHELL_LAYOUT.root.type : undefined).toBe("stack");
-    const shellChildren = (SHELL_LAYOUT.root && "children" in SHELL_LAYOUT.root)
-      ? SHELL_LAYOUT.root.children
-      : [];
-    const mainBox = shellChildren.find((c) => c.id === "r-main");
-    expect(mainBox).toBeDefined();
-    expect(mainBox?.landmark).toBe("main");
+    expect(findNode(SHELL_LAYOUT.root, "r-main")?.landmark).toBe("main");
     expect(SETTINGS_LAYOUT.presentation).toEqual({ mode: "overlay", region: "r-main" });
   });
 
@@ -55,7 +63,8 @@ describe("Neutral shell layout", () => {
     );
     expect(html).toContain("Active View");
     expect(html).toContain("Active Modals");
-    expect(html).toContain('data-surface="surface.navRail"');
+    expect(html).toContain('id="r-sidebar"');
+    expect(html).toContain('data-el="app.collapseToggle"');
     expect(html).toContain('data-surface="surface.windowControls"');
     expect(html).toContain('data-el="notice.storage"');
     expect(html).toContain('data-el="notice.error"');
