@@ -6,7 +6,7 @@ import { REGISTRY } from "../registry";
 import type { LayoutFile, PopupLayoutFile } from "../renderer/types";
 import { getThemeOwnedLayout, useThemeStore } from "../theme-store";
 import { isElementInLayout } from "../layout-query";
-import { isFileFallenBack, markFileFallback } from "./store";
+import { clearRuntimeFallbacks, isFileFallenBack, markRuntimeFallback } from "./store";
 import { MISSING_ELEMENT_REASON, runVisibilityCheck } from "./visibility";
 
 /** Perf entry the harness reads (§24). */
@@ -181,20 +181,19 @@ export function attributeElement(
 
 export interface VisibilityCheckRun {
   env: VisibilityCheckEnv;
-  themeId: string;
   root?: Document | HTMLElement;
 }
 
-/** One batched pass: measure, then fall back the screens that failed. */
-export function applyVisibilityCheck({
+/** One batched measurement: the failing screens and their reasons, marking nothing. */
+export function measureVisibilityCheck({
   env,
-  themeId,
   root = typeof document !== "undefined" ? document : undefined,
-}: VisibilityCheckRun): void {
-  if (!root) return;
+}: VisibilityCheckRun): Map<string, string[]> {
+  const reasonsByFile = new Map<string, string[]>();
+  if (!root) return reasonsByFile;
   // Without a theme-owned shell the launcher renders its legacy components,
   // which carry none of the themed host attributes.
-  if (!getThemeOwnedLayout(SHELL_FILE)) return;
+  if (!getThemeOwnedLayout(SHELL_FILE)) return reasonsByFile;
 
   const active = resolveActiveContexts(env, root);
   const required = resolveRequiredElements(active.contexts);
@@ -208,9 +207,8 @@ export function applyVisibilityCheck({
   perf?.measure?.(VISIBILITY_CHECK_MEASURE, START_MARK);
   perf?.clearMarks?.(START_MARK);
 
-  if (result.passed) return;
+  if (result.passed) return reasonsByFile;
 
-  const reasonsByFile = new Map<string, string[]>();
   for (const failure of result.failures) {
     const attribution = attributeElement(
       failure.element,
@@ -227,13 +225,12 @@ export function applyVisibilityCheck({
     reasons.push(`${failure.element}: ${failure.reason}`);
     reasonsByFile.set(attribution.file, reasons);
   }
-  for (const [file, reasons] of reasonsByFile) markFileFallback(themeId, file, reasons);
+  return reasonsByFile;
 }
 
 export interface VisibilityCheckTargets {
   /** Latest App state; read at run time so a stale render can't matter. */
   getEnv: () => VisibilityCheckEnv;
-  getThemeId: () => string;
   root?: Document | HTMLElement;
   /** Test seam: called once per completed pass. */
   onRun?: () => void;
@@ -247,7 +244,6 @@ export interface VisibilityCheckTargets {
  */
 export function startVisibilityChecks({
   getEnv,
-  getThemeId,
   root = typeof document !== "undefined" ? document : undefined,
   onRun,
 }: VisibilityCheckTargets): () => void {
@@ -258,20 +254,39 @@ export function startVisibilityChecks({
   let frame2 = 0;
   let generation = 0;
   let disposed = false;
+  // The failures of the last pass, held until a confirming pass repeats them.
+  let pending: Map<string, string[]> | null = null;
+  // Set by a resize and kept until a pass runs, so a later trigger can't drop the undo.
+  let undoRuntimeFallbacks = false;
 
   const run = () => {
     if (disposed) return;
     onRun?.();
-    applyVisibilityCheck({ env: getEnv(), themeId: getThemeId(), root });
+    const found = measureVisibilityCheck({ env: getEnv(), root });
+    if (pending) {
+      for (const [file, reasons] of found) {
+        if (pending.has(file)) markRuntimeFallback(file, reasons);
+      }
+      pending = null;
+    } else if (found.size > 0) {
+      schedule(RESIZE_DEBOUNCE_MS);
+      pending = found;
+    }
   };
 
   const schedule = (delay = 0) => {
     if (disposed) return;
+    // A queued pass supersedes a waiting confirm, so a confirm only compares one layout.
+    pending = null;
     generation += 1;
     const current = generation;
     if (timer !== undefined) window.clearTimeout(timer);
     timer = window.setTimeout(() => {
       timer = undefined;
+      if (undoRuntimeFallbacks) {
+        undoRuntimeFallbacks = false;
+        clearRuntimeFallbacks();
+      }
       const fontsReady =
         typeof document !== "undefined" && document.fonts
           ? document.fonts.ready
@@ -290,7 +305,11 @@ export function startVisibilityChecks({
 
   schedule(0);
 
-  const onResize = () => schedule(RESIZE_DEBOUNCE_MS);
+  // A fallen-back screen is not rendered from the theme, so it must come back to be measured.
+  const onResize = () => {
+    undoRuntimeFallbacks = true;
+    schedule(RESIZE_DEBOUNCE_MS);
+  };
   window.addEventListener("resize", onResize);
 
   const observer =
@@ -340,7 +359,6 @@ export function useVisibilityCheck(env: VisibilityCheckEnv): void {
     if (activeId === "neutral" || typeof document === "undefined") return;
     return startVisibilityChecks({
       getEnv: () => envRef.current,
-      getThemeId: () => activeId,
     });
   }, [
     activeId,

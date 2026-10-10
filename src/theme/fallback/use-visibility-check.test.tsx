@@ -9,10 +9,10 @@ import { SETTINGS_LAYOUT, SERVER_INFO_MODAL } from "../neutral";
 import { SettingsHost } from "../interaction/settings-host";
 import { ModalHost } from "../interaction/modal-host";
 import { useThemeStore } from "../theme-store";
-import { useFallbackStore, clearFallbacks } from "./store";
+import { useFallbackStore, clearFallbacks, markFileFallback } from "./store";
 import {
-  applyVisibilityCheck,
   attributeElement,
+  measureVisibilityCheck,
   resolveActiveContexts,
   resolveRequiredElements,
   startVisibilityChecks,
@@ -282,7 +282,7 @@ describe("attributeElement", () => {
   });
 });
 
-describe("applyVisibilityCheck", () => {
+describe("measureVisibilityCheck", () => {
   beforeEach(() => {
     visibility.runVisibilityCheck.mockReset();
   });
@@ -291,26 +291,24 @@ describe("applyVisibilityCheck", () => {
     installTheme("local.test", shellOnly);
     visibility.runVisibilityCheck.mockReturnValue({ passed: true, failures: [] });
 
-    applyVisibilityCheck({ env: baseEnv, themeId: "local.test", root: asRoot(browserTree()) });
+    measureVisibilityCheck({ env: baseEnv, root: asRoot(browserTree()) });
 
     expect(performance.getEntriesByName(VISIBILITY_CHECK_MEASURE)).toHaveLength(1);
     const [call] = visibility.runVisibilityCheck.mock.calls;
     expect(call[0].requiredElements).toEqual(expect.arrayContaining(["nav.servers"]));
   });
 
-  it("marks the attributed file with `<element>: <reason>`", () => {
+  it("reports the attributed file with `<element>: <reason>`", () => {
     installTheme("local.test", { ...shellOnly, [BROWSER]: layoutWith("filter.search") });
     visibility.runVisibilityCheck.mockReturnValue({
       passed: false,
       failures: [{ element: "filter.search", reason: "dimensions are zero or negative" }],
     });
 
-    applyVisibilityCheck({ env: baseEnv, themeId: "local.test", root: asRoot(browserTree()) });
+    const map = measureVisibilityCheck({ env: baseEnv, root: asRoot(browserTree()) });
 
-    expect(useFallbackStore.getState().fallbackReasons[BROWSER]).toEqual([
-      "filter.search: dimensions are zero or negative",
-    ]);
-    expect(useFallbackStore.getState().fallbackFiles[BROWSER]).toBe(true);
+    expect(map.get(BROWSER)).toEqual(["filter.search: dimensions are zero or negative"]);
+    expect(useFallbackStore.getState().fallbackFiles).toEqual({});
   });
 
   it("blames a theme-owned file that omits the element entirely", () => {
@@ -320,11 +318,9 @@ describe("applyVisibilityCheck", () => {
       failures: [{ element: "filter.search", reason: "Element not found in document" }],
     });
 
-    applyVisibilityCheck({ env: baseEnv, themeId: "local.test", root: asRoot(browserTree()) });
+    const map = measureVisibilityCheck({ env: baseEnv, root: asRoot(browserTree()) });
 
-    expect(useFallbackStore.getState().fallbackReasons[BROWSER]).toEqual([
-      "filter.search: Element not found in document",
-    ]);
+    expect(map.get(BROWSER)).toEqual(["filter.search: Element not found in document"]);
   });
 
   it("leaves a required element the launcher chose not to mount alone", () => {
@@ -334,14 +330,15 @@ describe("applyVisibilityCheck", () => {
       failures: [{ element: "filter.search", reason: "Element not found in document" }],
     });
 
-    applyVisibilityCheck({ env: baseEnv, themeId: "local.test", root: asRoot(browserTree()) });
+    const map = measureVisibilityCheck({ env: baseEnv, root: asRoot(browserTree()) });
 
-    expect(useFallbackStore.getState().fallbackFiles).toEqual({});
+    expect(map.size).toBe(0);
   });
 
   it("skips the pass while the theme owns no shell (legacy components render)", () => {
     useThemeStore.setState({ activeId: "neutral", themeFiles: {} });
-    applyVisibilityCheck({ env: baseEnv, themeId: "neutral", root: asRoot(browserTree()) });
+    const map = measureVisibilityCheck({ env: baseEnv, root: asRoot(browserTree()) });
+    expect(map.size).toBe(0);
     expect(visibility.runVisibilityCheck).not.toHaveBeenCalled();
   });
 });
@@ -398,7 +395,7 @@ describe("startVisibilityChecks", () => {
 
   it("runs once after paint on start", async () => {
     const onRun = vi.fn();
-    const stop = startVisibilityChecks({ getEnv: () => baseEnv, getThemeId: () => "local.test", root: asRoot(browserTree()), onRun });
+    const stop = startVisibilityChecks({ getEnv: () => baseEnv, root: asRoot(browserTree()), onRun });
 
     expect(onRun).not.toHaveBeenCalled();
     await settle();
@@ -408,7 +405,7 @@ describe("startVisibilityChecks", () => {
 
   it("debounces window resize to one pass", async () => {
     const onRun = vi.fn();
-    startVisibilityChecks({ getEnv: () => baseEnv, getThemeId: () => "local.test", root: asRoot(browserTree()), onRun });
+    startVisibilityChecks({ getEnv: () => baseEnv, root: asRoot(browserTree()), onRun });
     await settle();
 
     windowListeners.resize();
@@ -419,9 +416,79 @@ describe("startVisibilityChecks", () => {
     expect(onRun).toHaveBeenCalledTimes(2);
   });
 
+  const PASS = { passed: true, failures: [] };
+  const filterFails = (reason: string) => ({
+    passed: false,
+    failures: [{ element: "filter.search", reason }],
+  });
+
+  it.each([
+    ["a failure the confirming pass clears", [filterFails("dimensions are zero or negative"), PASS], {}],
+    [
+      "a failure both passes repeat, marked with the second pass's reason",
+      [filterFails("dimensions are zero or negative"), filterFails("zero height")],
+      { [BROWSER]: ["filter.search: zero height"] },
+    ],
+  ])("confirms a failing pass before marking: %s", async (_name, passes, expected) => {
+    installTheme("local.test", { ...shellOnly, [BROWSER]: layoutWith("filter.search") });
+    passes.forEach((result) => visibility.runVisibilityCheck.mockReturnValueOnce(result));
+    visibility.runVisibilityCheck.mockReturnValue(PASS);
+
+    startVisibilityChecks({ getEnv: () => baseEnv, root: asRoot(browserTree()) });
+    await settle();
+    await settle();
+
+    expect(useFallbackStore.getState().fallbackReasons).toEqual(expected);
+  });
+
+  it("undoes a runtime fall-back on resize and keeps the validation one", async () => {
+    installTheme("local.test", {
+      ...shellOnly,
+      [BROWSER]: layoutWith("filter.search"),
+      [SERVER_LIST]: layoutWith("server.join"),
+    });
+    markFileFallback("local.test", SERVER_LIST, "LAY-01: dropped");
+    visibility.runVisibilityCheck.mockReturnValueOnce(filterFails("dimensions are zero or negative"));
+    visibility.runVisibilityCheck.mockReturnValueOnce(filterFails("dimensions are zero or negative"));
+    visibility.runVisibilityCheck.mockReturnValue(PASS);
+
+    startVisibilityChecks({ getEnv: () => baseEnv, root: asRoot(browserTree()) });
+    await settle();
+    await settle();
+    expect(useFallbackStore.getState().fallbackFiles).toEqual({ [BROWSER]: true, [SERVER_LIST]: true });
+
+    windowListeners.resize();
+    await settle();
+
+    expect(useFallbackStore.getState().fallbackFiles).toEqual({ [SERVER_LIST]: true });
+  });
+
+  it("still undoes a runtime fall-back when another trigger lands before the resize pass", async () => {
+    installTheme("local.test", {
+      ...shellOnly,
+      [BROWSER]: layoutWith("filter.search"),
+      [SERVER_LIST]: layoutWith("server.join"),
+    });
+    markFileFallback("local.test", SERVER_LIST, "LAY-01: dropped");
+    visibility.runVisibilityCheck.mockReturnValueOnce(filterFails("dimensions are zero or negative"));
+    visibility.runVisibilityCheck.mockReturnValueOnce(filterFails("dimensions are zero or negative"));
+    visibility.runVisibilityCheck.mockReturnValue(PASS);
+
+    startVisibilityChecks({ getEnv: () => baseEnv, root: asRoot(browserTree()) });
+    await settle();
+    await settle();
+
+    windowListeners.resize();
+    await vi.advanceTimersByTimeAsync(40);
+    observerCallback?.([{ target: new El({ role: "tab", "aria-selected": "true" }) }]);
+    await settle();
+
+    expect(useFallbackStore.getState().fallbackFiles).toEqual({ [SERVER_LIST]: true });
+  });
+
   it("re-runs on tab, accordion and popup trigger changes only", async () => {
     const onRun = vi.fn();
-    startVisibilityChecks({ getEnv: () => baseEnv, getThemeId: () => "local.test", root: asRoot(browserTree()), onRun });
+    startVisibilityChecks({ getEnv: () => baseEnv, root: asRoot(browserTree()), onRun });
     await settle();
 
     const tab = new El({ role: "tab", "aria-selected": "true" });
@@ -443,7 +510,7 @@ describe("startVisibilityChecks", () => {
 
   it("never runs on list row selection or server data updates", async () => {
     const onRun = vi.fn();
-    startVisibilityChecks({ getEnv: () => baseEnv, getThemeId: () => "local.test", root: asRoot(browserTree()), onRun });
+    startVisibilityChecks({ getEnv: () => baseEnv, root: asRoot(browserTree()), onRun });
     await settle();
 
     const row = new El({ role: "row", "aria-selected": "true" });

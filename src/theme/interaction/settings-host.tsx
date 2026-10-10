@@ -106,7 +106,7 @@ export function SettingsHost({
 
 /** Portals `overlay`/`panel` Settings into their named region; `view` mode
  * replaces an outlet and stays with the caller. The region belongs to a
- * sibling tree, so it is resolved after paint rather than on first render. */
+ * sibling tree, so it is looked up in the DOM and again whenever the DOM changes. */
 export function SettingsRegionPortal(props: SettingsHostProps) {
   const { file, isOpen = true } = props;
   const presentation = file.presentation ?? { mode: "overlay" };
@@ -121,21 +121,18 @@ export function SettingsRegionPortal(props: SettingsHostProps) {
       setRegionNode(null);
       return;
     }
-    let frame = 0;
-    // A region a theme names but never renders must not spin a frame loop forever.
-    let attempts = 0;
-    const find = () => {
-      const el = document.querySelector<HTMLElement>(`[data-region="${regionId}"]`);
-      if (el) {
-        setRegionNode(el);
-      } else if (attempts < 120) {
-        attempts += 1;
-        frame = requestAnimationFrame(find);
-      }
-    };
-    find();
+    const find = () => document.querySelector<HTMLElement>(`[data-region="${regionId}"]`);
+    setRegionNode(find());
+    // Setting the same node again does not re-render.
+    const observer = new MutationObserver(() => setRegionNode(find()));
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["data-region"],
+    });
     return () => {
-      cancelAnimationFrame(frame);
+      observer.disconnect();
       setRegionNode(null);
     };
   }, [active, regionId]);
