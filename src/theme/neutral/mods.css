@@ -69,4 +69,135 @@
   .t-neutral-mods-cluster {
     @apply ml-auto gap-1.5;
   }
+
+  .t-neutral-mods-inspector {
+    @apply z-[8] overflow-hidden border-l border-line bg-surface [box-shadow:var(--t-shadow-drawer)];
+  }
+
+  .t-neutral-mods-inspector-body {
+    @apply min-h-0 flex-1 gap-2 overflow-y-auto p-2.5;
+  }
+
+  .t-neutral-mods-inspector-preview {
+    @apply h-[118px] shrink-0 overflow-hidden [border-radius:var(--t-radius-thumb)] bg-surface2;
+  }
+
+  .t-neutral-mods-inspector-thumb {
+    @apply block size-full;
+  }
+
+  .t-neutral-mods-inspector-badge {
+    @apply block rounded border border-muted bg-black/60 px-1.5 py-0.5 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-wider text-ink;
+  }
+
+  .t-neutral-mods-inspector-name {
+    @apply [font-size:var(--t-type-size-xl)] font-bold leading-snug text-ink;
+  }
+
+  .t-neutral-mods-inspector-status {
+    @apply inline-flex w-fit items-center gap-1.5 rounded-full border px-2 py-[3px];
+  }
+
+  .t-neutral-mods-inspector-status [data-part="dot"] {
+    @apply h-[6px] w-[6px] shrink-0 rounded-full bg-current;
+  }
+
+  .t-neutral-mods-inspector-status [data-part="label"] {
+    @apply truncate [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-wider;
+  }
+
+  .t-neutral-mods-inspector-status [data-part="progress"] {
+    @apply hidden;
+  }
+
+  .t-neutral-mods-inspector-status[data-state~="ready"] {
+    @apply border-success-line bg-success-soft text-success;
+  }
+
+  .t-neutral-mods-inspector-status[data-state~="update"] {
+    @apply border-warn-line bg-warn-soft text-warn;
+  }
+
+  .t-neutral-mods-inspector-status[data-state~="downloading"] {
+    @apply border-accent-line bg-accent-soft text-accent;
+  }
+
+  .t-neutral-mods-inspector-status[data-state~="missing"],
+  .t-neutral-mods-inspector-status[data-state~="notSubscribed"],
+  .t-neutral-mods-inspector-status[data-state~="serverSide"] {
+    @apply border-line bg-muted-soft text-muted2;
+  }
+
+  .t-neutral-mods-inspector-status[data-state~="ready"] [data-part="dot"],
+  .t-neutral-mods-inspector-status[data-state~="update"] [data-part="dot"] {
+    @apply [box-shadow:var(--t-shadow-statusDot)];
+  }
+
+  .t-neutral-mods-inspector-status[data-state~="downloading"] [data-part="dot"] {
+    @apply [box-shadow:var(--t-glow-rest)];
+  }
+
+  .t-neutral-mods-inspector-tags {
+    @apply flex flex-wrap gap-1;
+  }
+
+  .t-neutral-mods-inspector-tags [data-part="chip"] {
+    @apply [border-radius:var(--t-radius-chip)] bg-surface2 px-1.5 py-0.5 [font-size:var(--t-type-micro-size)] text-muted2;
+  }
+
+  .t-neutral-mods-inspector-desc {
+    @apply line-clamp-6 [font-size:var(--t-type-label-size)] leading-relaxed text-muted;
+  }
+
+  .t-neutral-mods-inspector-desc[data-state~="empty"] {
+    @apply hidden;
+  }
+
+  .t-neutral-mods-inspector-details {
+    @apply mt-1 gap-1;
+  }
+
+  .t-neutral-mods-inspector-row {
+    @apply gap-2;
+  }
+
+  .t-neutral-mods-inspector-label {
+    @apply !font-bold !tracking-[0.05em] shrink-0 uppercase text-muted;
+  }
+
+  .t-neutral-mods-inspector-value {
+    @apply min-w-0 truncate text-right [font-family:var(--t-type-family-data)] [font-size:var(--t-type-caption-size)] text-ink;
+  }
+
+  .t-neutral-mods-inspector-actions {
+    @apply mt-0.5 gap-1.5;
+  }
+
+  .t-neutral-mods-inspector-btn {
+    @apply flex flex-1 items-center justify-center gap-1 [border-radius:var(--t-radius-control)] border px-2 py-1.5 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.03em] transition-colors;
+  }
+
+  .t-neutral-mods-inspector-btn [data-part="icon"] {
+    @apply contents;
+  }
+
+  .t-neutral-mods-inspector-update {
+    @apply border-warn-line bg-warn-soft text-warn disabled:opacity-50;
+  }
+
+  .t-neutral-mods-inspector-open {
+    @apply border-line bg-surface2 text-muted2 hover:text-ink;
+  }
+
+  .t-neutral-mods-inspector-folder:disabled {
+    @apply hidden;
+  }
+
+  .t-neutral-mods-inspector-reinstall {
+    @apply border-accent-line bg-accent-soft text-accent [box-shadow:var(--t-glow-rest)] disabled:opacity-50;
+  }
+
+  .t-neutral-mods-inspector-close {
+    @apply flex h-[22px] w-[22px] items-center justify-center [border-radius:var(--t-radius-control)] border border-line [background-color:var(--t-color-scrim)] text-muted2 transition-colors hover:border-accent-line hover:text-ink;
+  }
 }
