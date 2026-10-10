@@ -244,6 +244,7 @@ fn entry(row: ExportRow) -> ServerEntry {
 fn fingerprint(entry: &ServerEntry) -> u64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     entry.name.hash(&mut h);
+    entry.game_port.hash(&mut h);
     entry.map.hash(&mut h);
     entry.players.hash(&mut h);
     entry.max_players.hash(&mut h);
@@ -334,10 +335,15 @@ mod tests {
             mod_ids: Some(vec![2, 1]),
             ..base.clone()
         };
+        let moved_port = ServerEntry {
+            game_port: 2402,
+            ..base.clone()
+        };
 
         assert_eq!(fingerprint(&base), fingerprint(&repinged));
         assert_ne!(fingerprint(&base), fingerprint(&busier));
         assert_ne!(fingerprint(&base), fingerprint(&reordered_mods));
+        assert_ne!(fingerprint(&base), fingerprint(&moved_port));
     }
 
     #[test]
