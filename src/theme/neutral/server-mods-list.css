@@ -1,1 +1,82 @@
 @layer launcher, neutral, theme, guarantees;
+
+@layer neutral {
+  .t-neutral-servermods-row {
+    @apply gap-2 [border-radius:var(--t-radius-readinessRow)] border border-line bg-surface2 px-2.5 py-1.5 [font-size:var(--t-type-body-size)];
+  }
+
+  .t-neutral-servermods-thumb {
+    @apply flex size-7 shrink-0 items-center justify-center overflow-hidden rounded border border-line-weak;
+  }
+
+  .t-neutral-servermods-thumb[data-state~="missing"] {
+    @apply bg-surface text-muted;
+  }
+
+  .t-neutral-servermods-thumb[data-state~="missing"] > [data-part="image"] {
+    @apply size-3.5;
+  }
+
+  .t-neutral-servermods-info {
+    @apply min-w-0 flex-1;
+  }
+
+  .t-neutral-servermods-title {
+    @apply gap-1.5;
+  }
+
+  .t-neutral-servermods-name {
+    @apply truncate font-semibold text-ink;
+  }
+
+  .t-neutral-servermods-detail {
+    @apply mt-0.5 gap-2 [font-size:var(--t-type-data-size)] text-muted;
+  }
+
+  .t-neutral-servermods-size,
+  .t-neutral-servermods-progress {
+    @apply [font-family:var(--t-type-family-data)];
+  }
+
+  .t-neutral-servermods-progress [data-part="bar"] {
+    @apply hidden;
+  }
+
+  .t-neutral-servermods-badge {
+    @apply shrink-0;
+  }
+
+  .t-neutral-servermods-unique,
+  .t-neutral-servermods-state {
+    @apply inline-flex items-center [border-radius:var(--t-radius-badge)] px-1.5 py-px [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-[0.05em] leading-[1.4];
+  }
+
+  .t-neutral-servermods-unique {
+    @apply bg-accent2-soft text-accent2;
+  }
+
+  .t-neutral-servermods-state {
+    @apply bg-muted-soft text-muted2;
+  }
+
+  .t-neutral-servermods-state[data-state~="ready"] {
+    @apply bg-success-soft text-success;
+  }
+
+  .t-neutral-servermods-state[data-state~="needsUpdate"],
+  .t-neutral-servermods-state[data-state~="notInstalled"] {
+    @apply bg-warn-soft text-warn;
+  }
+
+  .t-neutral-servermods-state[data-state~="downloading"] {
+    @apply bg-accent-soft text-accent;
+  }
+
+  .t-neutral-servermods-state[data-state~="notSubscribed"] {
+    @apply bg-danger-soft text-danger;
+  }
+
+  .t-neutral-servermods-state [data-part="label"] {
+    @apply [font-family:inherit] [font-size:inherit] [font-weight:inherit] [line-height:inherit] [color:inherit];
+  }
+}
