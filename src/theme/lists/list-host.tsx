@@ -9,6 +9,7 @@ import {
   type WheelEvent,
 } from "react";
 import { observeElementRect, useVirtualizer, type Virtualizer } from "@tanstack/react-virtual";
+import { Loader2 } from "lucide-react";
 import { ListHeader } from "./list-header";
 import { ListRow } from "./list-row";
 import { handleListKeyDown } from "./keyboard";
@@ -92,6 +93,9 @@ export interface ListHostProps<T = unknown> {
   columns?: ColumnDef[];
   rowNode?: LayoutNode;
   emptyNode?: LayoutNode;
+  emptyText?: string;
+  loading?: boolean;
+  loadingText?: string;
   header?: boolean;
   rowGap?: string;
   selectedItem?: T | null;
@@ -111,6 +115,9 @@ export function ListHost<T = unknown>({
   columns,
   rowNode,
   emptyNode,
+  emptyText,
+  loading = false,
+  loadingText,
   header = true,
   rowGap,
   selectedItem,
@@ -276,9 +283,14 @@ export function ListHost<T = unknown>({
       />
     ) : null;
 
-  const emptyState = (
+  const placeholder = loading ? (
+    <div data-part="loading" className="flex flex-1 items-center justify-center gap-2 p-8 text-muted">
+      <Loader2 className="size-3.5 animate-spin" />
+      {loadingText}
+    </div>
+  ) : (
     <div data-part="empty" className="flex flex-1 items-center justify-center p-8 text-muted">
-      {emptyNode ? <LayoutNodeRenderer node={emptyNode} /> : <span>Nothing here</span>}
+      {emptyNode ? <LayoutNodeRenderer node={emptyNode} /> : emptyText}
     </div>
   );
 
@@ -373,14 +385,14 @@ export function ListHost<T = unknown>({
                 {headerNode}
               </div>
             )}
-            {items.length === 0 ? emptyState : rowList}
+            {items.length === 0 ? placeholder : rowList}
           </div>
         </div>
       ) : (
         <>
           {headerNode}
           {items.length === 0 ? (
-            emptyState
+            placeholder
           ) : (
             <div
               ref={scrollRef}

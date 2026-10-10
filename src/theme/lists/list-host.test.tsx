@@ -388,6 +388,15 @@ describe("ListHost", () => {
     expect(html).toContain("No servers found matching filters");
   });
 
+  it("shows the given empty text when there is no empty node", () => {
+    const html = renderToStaticMarkup(
+      <ListHost listId="list.servers" items={[]} columns={sampleColumns} emptyText="No servers match the current filters." />,
+    );
+
+    expect(html).toContain('data-part="empty"');
+    expect(html).toContain("No servers match the current filters.");
+  });
+
   it("renders non-virtualized lists (list.serverMods)", () => {
     const html = renderToStaticMarkup(
       <ListHost
