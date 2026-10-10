@@ -25,6 +25,7 @@ const { launchGame, verifyServerMods, steamModStates, steamDownloadProgress, ste
   }));
 
 vi.mock("@/lib/tauri", () => ({
+  logClient: vi.fn(),
   launchGame,
   verifyServerMods,
   steamModStates,
@@ -246,6 +247,18 @@ describe("verifyAndJoin", () => {
 
     expect(steamSubscribeMods).not.toHaveBeenCalled();
     expect(launchGame).toHaveBeenCalledOnce();
+  });
+
+  it("turns a program error during the mod check into a plain notice", async () => {
+    verifyServerMods.mockRejectedValue(new TypeError("Cannot read properties of null"));
+    renderActions();
+
+    await verifyAndJoin(server);
+
+    expect(useLaunchStore.getState().notice).toEqual({
+      addr: server.addr,
+      notice: { kind: "plain", text: "Could not check this server's mods. The launcher log has the details." },
+    });
   });
 
   it("records the raw error when the launch itself fails", async () => {

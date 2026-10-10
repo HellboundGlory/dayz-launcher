@@ -206,35 +206,26 @@ describe("ServerRowActions", () => {
     });
   });
 
-  describe("Notice rendering in default and composed paths", () => {
-    it("renders notice in default path", () => {
+  describe("Join notice stays out of the row", () => {
+    it("renders no warning notice text beside the button", () => {
       mockServerActions.notice = { kind: "code", code: "W01" };
       mockServerActions.noticeAddr = baseServer.addr;
-      const html = renderToStaticMarkup(
-        <ServerRowActions server={baseServer} onMoreInfo={() => {}} />,
-      );
-      expect(html).toContain("Mod versions not checked");
-    });
-
-
-    it("renders error code notice with text-danger", () => {
-      mockServerActions.notice = { kind: "code", code: "E01" };
-      mockServerActions.noticeAddr = baseServer.addr;
-      const html = renderToStaticMarkup(
-        <ServerRowActions server={baseServer} onMoreInfo={() => {}} />,
-      );
-      expect(html).toContain("Could not subscribe");
-      expect(html).toContain("text-danger");
-    });
-
-    it("does not render a notice tagged for a different server", () => {
-      mockServerActions.notice = { kind: "code", code: "W01" };
-      mockServerActions.noticeAddr = "10.0.0.1";
       const html = renderToStaticMarkup(
         <ServerRowActions server={baseServer} onMoreInfo={() => {}} />,
       );
       expect(html).not.toContain("Mod versions not checked");
     });
+
+    it("renders no error notice text beside the button", () => {
+      mockServerActions.notice = { kind: "code", code: "E01" };
+      mockServerActions.noticeAddr = baseServer.addr;
+      const html = renderToStaticMarkup(
+        <ServerRowActions server={baseServer} onMoreInfo={() => {}} />,
+      );
+      expect(html).not.toContain("Could not subscribe");
+      expect(html).not.toContain("text-danger");
+    });
+
   });
 
   describe("New menu items registration", () => {

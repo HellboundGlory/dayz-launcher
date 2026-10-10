@@ -22,7 +22,6 @@ import { cn, formatLastPlayed, formatBytes, formatMultiplier, gameTimeParts, reg
 import { useElementContext } from "./context";
 import { useServerActions, phaseLabel } from "@/hooks/use-server-actions";
 import { useSelectionReadiness } from "./use-selection-readiness";
-import { computeReadinessView } from "./readiness-elements";
 import { useServerStore } from "@/stores/server-store";
 import { joinAction } from "@/lib/join-action";
 import {
@@ -381,49 +380,6 @@ export function ServerFavourite({
   );
 }
 
-/** The panel form only. Split out so the readiness hook never runs per list row,
- * where `server.readiness` is banned for the same reason (ELEMENTS.md). */
-function ServerJoinSelection({
-  server,
-  label,
-  busy,
-  onClick,
-  className,
-  style,
-}: {
-  server: Server;
-  label: string;
-  busy: boolean;
-  onClick: (e: MouseEvent) => void;
-  className?: string;
-  style?: CSSProperties;
-}) {
-  const { selectedServer } = useElementContext();
-  const { readiness, loading } = useSelectionReadiness();
-
-  const view = selectedServer?.addr === server.addr ? computeReadinessView(readiness, loading) : null;
-  const sizeText =
-    view && view.sizeBytes !== null
-      ? `${view.sizeIsUpperBound ? "up to " : ""}${formatBytes(view.sizeBytes)} first`
-      : null;
-
-  return (
-    <button
-      type="button"
-      data-el="server.join"
-      data-state={busy ? "busy" : undefined}
-      disabled={busy}
-      onClick={onClick}
-      aria-label="Fix and join"
-      className={className ?? "flex items-center justify-between w-full bg-accent px-4 py-2.5 font-bold text-bg uppercase tracking-wider transition-colors hover:brightness-110 my-1"}
-      style={style}
-    >
-      <span data-part="label">{label}</span>
-      {sizeText && <span data-part="sublabel" className="text-xs font-semibold opacity-90">{sizeText}</span>}
-    </button>
-  );
-}
-
 // verifyAndJoin always joins once downloads finish (the setting went in v2.2.0).
 const AUTO_JOIN_AFTER_DOWNLOAD = true;
 
@@ -477,7 +433,7 @@ function ServerJoinIdleButton({
   );
 }
 
-/** The selection idle-join form only, so `useSelectionReadiness` never runs per row — see the panel-only split above. */
+/** The selection idle-join form only, so `useSelectionReadiness` never runs per row. */
 function ServerJoinIdleSelection({
   server,
   disabled,
@@ -557,16 +513,19 @@ export function ServerJoin({
   };
 
   if (contextName === "selection" && isFixAndJoin) {
-    const labelText = activeOp ? phaseLabel(activeOp) : "FIX AND JOIN";
     return (
-      <ServerJoinSelection
-        server={server}
-        label={labelText}
-        busy={activeOp !== null}
+      <button
+        type="button"
+        data-el="server.join"
+        data-state={activeOp ? "busy" : undefined}
+        disabled={activeOp !== null}
         onClick={handleClick}
-        className={className}
+        aria-label="Fix and join"
+        className={className ?? "flex items-center justify-between w-full bg-accent px-4 py-2.5 font-bold text-bg uppercase tracking-wider transition-colors hover:brightness-110"}
         style={style}
-      />
+      >
+        <span data-part="label">{activeOp ? phaseLabel(activeOp) : "Fix and join"}</span>
+      </button>
     );
   }
 

@@ -153,7 +153,6 @@ export function ServerRowActions({
       {refreshButton()}
       {joinButton()}
       {chevronButton()}
-      {noticeInline()}
       {open && dropdownMenu()}
       {confirmDialog()}
     </div>
@@ -332,28 +331,6 @@ export function ServerRowActions({
           break;
       }
     });
-  }
-
-  function noticeInline(): React.ReactNode {
-    if (!actions.notice || actions.noticeAddr !== server.addr) return null;
-    const isError =
-      actions.notice.kind === "code" &&
-      (actions.notice.code.startsWith("E") || NOTICES[actions.notice.code].text.startsWith("E"));
-    const text =
-      actions.notice.kind === "code" ? NOTICES[actions.notice.code].text : actions.notice.text;
-    return (
-      <span
-        title={
-          actions.notice.kind === "code" ? NOTICES[actions.notice.code].detail : undefined
-        }
-        className={cn(
-          "max-w-[140px] truncate [font-size:var(--t-type-caption-size)] leading-snug",
-          isError ? "text-danger" : "text-warn",
-        )}
-      >
-        {text}
-      </span>
-    );
   }
 
   function noticeBlock(): React.ReactNode {

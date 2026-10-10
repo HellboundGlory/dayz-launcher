@@ -109,19 +109,28 @@ fn surfaces_satisfy_requirements_and_collide_with_explicit_elements() {
 }
 
 #[test]
-fn join_notice_is_required_in_each_row_modal_and_selection_context() {
+fn a_list_row_needs_only_join_but_other_join_contexts_still_need_the_notice() {
+    let mut files = theme();
+    let row = layout(&["server.join"])["root"].take();
+    files.insert(
+        "layout/lists/servers.json".into(),
+        json!({"schemaVersion":2,"row":row}),
+    );
+    assert!(!validate_theme_layouts(&files)
+        .iter()
+        .any(|i| i.rule_id == "REQ-05"));
+
+    files.get_mut("layout/lists/servers.json").unwrap()["row"] = json!({"type":"box"});
+    assert!(validate_theme_layouts(&files)
+        .iter()
+        .any(|i| i.rule_id == "REQ-05" && i.message.contains("server.join")));
+
     for (file, rule) in [
-        ("layout/lists/servers.json", "REQ-05"),
         ("layout/modals/serverInfo.json", "REQ-03"),
         (BROWSER, "REQ-01"),
     ] {
         let mut files = theme();
         let mut root = layout(&["server.join"])["root"].take();
-        let field = if file.contains("/lists/") {
-            "row"
-        } else {
-            "root"
-        };
         if file == BROWSER {
             root["context"] = json!("selection");
         }
@@ -131,8 +140,7 @@ fn join_notice_is_required_in_each_row_modal_and_selection_context() {
                 .unwrap()
                 .push(json!({"element":"modal.close"}));
         }
-        let value = json!({"schemaVersion":2, field:root});
-        files.insert(file.into(), value);
+        files.insert(file.into(), json!({"schemaVersion":2,"root":root}));
         let issues = validate_theme_layouts(&files);
         assert!(
             issues
@@ -140,7 +148,7 @@ fn join_notice_is_required_in_each_row_modal_and_selection_context() {
                 .any(|i| i.rule_id == rule && i.message.contains("server.actionNotice")),
             "{issues:#?}"
         );
-        files.get_mut(file).unwrap()[field]["children"]
+        files.get_mut(file).unwrap()["root"]["children"]
             .as_array_mut()
             .unwrap()
             .push(json!({"element":"server.actionNotice"}));
@@ -271,10 +279,10 @@ fn nested_surfaces_expand_recursively() {
 #[test]
 fn empty_row_content_neither_satisfies_requirements_nor_hides_regions() {
     let file = "layout/lists/servers.json";
-    let mut files = HashMap::from([
+    let files = HashMap::from([
         (
             file.into(),
-            json!({"schemaVersion":2,"row":{"type":"box","children":[{"element":"server.join"}],"empty":{"element":"server.actionNotice"}},"empty":{"type":"box","id":"r-empty"}}),
+            json!({"schemaVersion":2,"row":{"type":"box","id":"r-empty"},"empty":{"element":"server.join"}}),
         ),
         (
             SHELL.into(),
@@ -284,13 +292,8 @@ fn empty_row_content_neither_satisfies_requirements_nor_hides_regions() {
     let issues = validate_theme_layouts(&files);
     assert!(issues
         .iter()
-        .any(|i| i.rule_id == "REQ-05" && i.message.contains("server.actionNotice")));
-    assert!(issues.iter().any(|i| i.rule_id == "LAY-08"));
-    files.get_mut(file).unwrap()["row"] = json!({"type":"box"});
-    files.get_mut(file).unwrap()["empty"] = json!({"element":"server.join"});
-    assert!(validate_theme_layouts(&files)
-        .iter()
         .any(|i| i.rule_id == "REQ-05" && i.message.contains("server.join")));
+    assert!(issues.iter().any(|i| i.rule_id == "LAY-08"));
 }
 
 #[test]
@@ -380,13 +383,13 @@ fn accordion_sections_count_without_enumerating_open_states() {
 
 #[test]
 fn visible_join_cannot_borrow_a_hidden_notice() {
-    let file = "layout/lists/servers.json";
-    let files = HashMap::from([(
-        file.into(),
-        json!({"schemaVersion":2,"row":{
-            "type":"box","children":[{"element":"server.join"},{"element":"server.actionNotice","hidden":true}]
-        }}),
-    )]);
+    let mut files = theme();
+    files.get_mut(BROWSER).unwrap()["root"]["children"] = json!([
+        {"type":"box","context":"selection","children":[
+            {"element":"server.join"},
+            {"element":"server.actionNotice","hidden":true}
+        ]}
+    ]);
     assert!(validate_theme_layouts(&files)
         .iter()
         .any(|issue| issue.rule_id == "REQ-06" && issue.message.contains("server.actionNotice")));

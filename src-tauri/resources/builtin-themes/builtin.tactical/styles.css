@@ -1428,7 +1428,16 @@
   color: var(--danger);
 }
 
+/* The trigger fills the height its row gives the menu, so it lines up with the join button beside it. */
+[data-el="server.menu"] {
+  display: flex;
+}
+
 [data-el="server.menu"] [data-part="trigger"] {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 4px;
   background-color: var(--accent);
   padding: 8px;

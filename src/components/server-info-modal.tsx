@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { launchErrorMessage } from "@/theme/elements/notice-elements";
 import {
   X,
   Play,
@@ -605,7 +606,7 @@ export function ServerInfoModal({ server, onClose, initialReadiness }: ServerInf
             <p className="[font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider text-danger">
               Launch refused
             </p>
-            <p className="mt-1 [font-size:var(--t-type-label-size)] leading-relaxed text-ink">{result.error}</p>
+            <p className="mt-1 [font-size:var(--t-type-label-size)] leading-relaxed text-ink">{launchErrorMessage(result.error)}</p>
           </div>
         )}
       </>
