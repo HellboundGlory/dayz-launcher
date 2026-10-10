@@ -195,7 +195,7 @@ describe("Neutral layouts", () => {
           null,
           createElement(ListRow, {
             rowNode: MOD_FILTER_RESULTS_LIST.row,
-            item: { id: 123456, name: "TraderPlus" },
+            item: { id: "123456", title: "TraderPlus", previewUrl: null, subscribed: false, serverCount: null },
             subjectKind: "workshopMod",
           }),
         ),

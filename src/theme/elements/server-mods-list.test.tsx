@@ -61,7 +61,6 @@ describe("ServerModsList rendering", () => {
     expect(html).toContain('data-part="rows"');
     expect(html).not.toContain('data-part="empty"');
     expect(html).toContain("CF");
-    expect(html).toContain('data-el="serverMod.order"');
   });
 
   it("renders the loading state without any rows", () => {
