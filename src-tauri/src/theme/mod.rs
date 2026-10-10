@@ -187,14 +187,14 @@ pub fn validate_tokens(tokens: &Value) -> Result<(), String> {
     Ok(())
 }
 
-/// A settings schema must be a JSON object carrying a `schemaVersion`, exactly
+/// A settings schema must be a JSON object declaring `schemaVersion` 2, exactly
 /// as a palette must; the field list is the frontend's business.
 pub fn validate_settings_schema(schema: &Value) -> Result<(), String> {
     let Some(object) = schema.as_object() else {
         return Err("settings.schema.json must be a JSON object".to_string());
     };
-    if !object.contains_key("schemaVersion") {
-        return Err("settings.schema.json has no `schemaVersion`".to_string());
+    if object.get("schemaVersion").and_then(Value::as_u64) != Some(2) {
+        return Err("settings.schema.json must declare `schemaVersion` 2".to_string());
     }
     Ok(())
 }
@@ -211,7 +211,7 @@ fn read_manifest(dir: &Path) -> Result<ThemeManifest, String> {
 /// Read one optional JSON file from a theme directory, enforcing `validate`
 /// when it is present. Absent is `Ok(None)`; a present-but-broken file fails
 /// the whole read, exactly as a corrupt `tokens.json` does.
-fn read_optional_json(
+pub(crate) fn read_optional_json(
     dir: &Path,
     name: &str,
     validate: fn(&Value) -> Result<(), String>,
@@ -220,10 +220,9 @@ fn read_optional_json(
     if !path.exists() {
         return Ok(None);
     }
-    let raw = std::fs::read_to_string(&path)
-        .map_err(|e| format!("Could not read {}: {e}", path.display()))?;
-    let value: Value = serde_json::from_str(&raw)
-        .map_err(|e| format!("{} is not valid JSON: {e}", path.display()))?;
+    let raw = std::fs::read_to_string(&path).map_err(|e| format!("Could not read {name}: {e}"))?;
+    let value: Value =
+        serde_json::from_str(&raw).map_err(|e| format!("{name} is not valid JSON: {e}"))?;
     validate(&value)?;
     Ok(Some(value))
 }
@@ -291,12 +290,9 @@ pub fn get(themes_root: &Path, id: &str) -> Result<ThemeFile, String> {
         ));
     }
 
-    let tokens_path = dir.join(TOKENS_FILE);
-    let raw = std::fs::read_to_string(&tokens_path)
-        .map_err(|e| format!("Could not read {}: {e}", tokens_path.display()))?;
-    let tokens: Value = serde_json::from_str(&raw)
-        .map_err(|e| format!("{} is not valid JSON: {e}", tokens_path.display()))?;
-    validate_tokens(&tokens)?;
+    // Only `theme.json` is required; the palette is optional, as the importer treats it.
+    let tokens = read_optional_json(&dir, TOKENS_FILE, validate_tokens)?
+        .unwrap_or_else(|| serde_json::json!({}));
 
     let settings_schema = read_optional_json(&dir, SETTINGS_SCHEMA_FILE, validate_settings_schema)?;
 
@@ -600,7 +596,7 @@ mod tests {
     }
 
     fn settings_schema() -> Value {
-        serde_json::json!({ "schemaVersion": 1, "fields": [{ "key": "bloom", "type": "number" }] })
+        serde_json::json!({ "schemaVersion": 2, "fields": [{ "key": "bloom", "type": "number" }] })
     }
 
     #[test]
@@ -621,6 +617,20 @@ mod tests {
             loaded.settings_schema.is_none(),
             "no settings schema was written"
         );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Only `theme.json` is required: a package with no palette installs, so it
+    /// must load too, with the empty tokens the frontend falls back from.
+    #[test]
+    fn a_package_without_a_palette_still_loads() {
+        let root = scratch("no-tokens");
+        save(&root, &manifest("dev.notokens"), &tokens()).expect("save");
+        std::fs::remove_file(root.join("dev.notokens").join(TOKENS_FILE)).unwrap();
+
+        let loaded = get(&root, "dev.notokens").expect("a theme without tokens.json must load");
+
+        assert_eq!(loaded.tokens, serde_json::json!({}));
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -678,6 +688,24 @@ mod tests {
         std::fs::remove_file(dir.join(SETTINGS_SCHEMA_FILE)).unwrap();
         // With it gone, the theme reads again — the failure was the file, not the theme.
         assert!(get(&root, "dev.bad").is_ok());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// The load-time gate holds the settings schema to the same v2 version the
+    /// deep validator requires, not merely the presence of the key.
+    #[test]
+    fn a_settings_schema_that_is_not_v2_fails_the_read() {
+        let root = scratch("v3schema");
+        let dir = root.join("dev.v3");
+        save(&root, &manifest("dev.v3"), &tokens()).expect("save");
+        std::fs::write(
+            dir.join(SETTINGS_SCHEMA_FILE),
+            serde_json::to_vec_pretty(&serde_json::json!({ "schemaVersion": 3 })).unwrap(),
+        )
+        .unwrap();
+
+        let err = get(&root, "dev.v3").expect_err("a schema version this build cannot read");
+        assert!(err.contains("schemaVersion"), "{err}");
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -1175,7 +1203,7 @@ mod tests {
     #[test]
     fn a_settings_schema_is_held_to_an_object_with_a_schema_version() {
         assert!(validate_settings_schema(&settings_schema()).is_ok());
-        assert!(validate_settings_schema(&serde_json::json!({ "schemaVersion": 1 })).is_ok());
+        assert!(validate_settings_schema(&serde_json::json!({ "schemaVersion": 1 })).is_err());
         assert!(validate_settings_schema(&serde_json::json!({ "fields": [] })).is_err());
         assert!(validate_settings_schema(&serde_json::json!([1, 2])).is_err());
         assert!(validate_settings_schema(&serde_json::json!("a string")).is_err());

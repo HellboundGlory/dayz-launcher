@@ -95,18 +95,27 @@ pub fn stage_for_preview(
     }
 }
 
-/// Move a staged import into place as `themes_root/<id>`. An already-installed
-/// theme with that id is renamed aside first and deleted only once the new
-/// directory is in place, so the live theme is never missing.
-pub fn confirm_theme_install(themes_root: &Path, staging_id: &str) -> Result<String, String> {
-    // The id comes from the frontend and names one directory under `.staging`;
-    // anything else would let it resolve outside the themes root.
-    if !crate::theme::is_usable_id(staging_id) {
+/// `.staging/<id>` for an id the frontend supplied. The id becomes a path
+/// component, and Windows silently strips a trailing dot or space, so a name
+/// made only of them, or ending in one, is refused rather than resolving to a
+/// different directory there.
+fn staging_path(themes_root: &Path, staging_id: &str) -> Result<PathBuf, String> {
+    if !crate::theme::is_usable_id(staging_id)
+        || staging_id.ends_with('.')
+        || staging_id.ends_with(' ')
+    {
         return Err(format!(
             "`{staging_id}` is not a usable staging id — it must be a single directory name"
         ));
     }
-    let staging_dir = themes_root.join(STAGING_DIR).join(staging_id);
+    Ok(themes_root.join(STAGING_DIR).join(staging_id))
+}
+
+/// Move a staged import into place as `themes_root/<id>`. An already-installed
+/// theme with that id is renamed aside first and deleted only once the new
+/// directory is in place, so the live theme is never missing.
+pub fn confirm_theme_install(themes_root: &Path, staging_id: &str) -> Result<String, String> {
+    let staging_dir = staging_path(themes_root, staging_id)?;
     if !staging_dir.is_dir() {
         return Err(format!("No staged theme import `{staging_id}` to confirm."));
     }
@@ -157,6 +166,39 @@ pub fn confirm_theme_install(themes_root: &Path, staging_id: &str) -> Result<Str
     Ok(manifest.id)
 }
 
+/// Remove a stage the user chose not to install. A stage that is already gone is
+/// Ok — the dialog discards on every exit that is not an install.
+pub fn discard_theme_import(themes_root: &Path, staging_id: &str) -> Result<(), String> {
+    let staging_dir = staging_path(themes_root, staging_id)?;
+    match std::fs::remove_dir_all(&staging_dir) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!("Could not remove {}: {e}", staging_dir.display())),
+    }
+}
+
+/// Remove every leftover stage and put back an install a crashed update parked
+/// aside. Called once at startup, before any import can be in flight.
+pub fn prune_staging(themes_root: &Path) {
+    let staging_root = themes_root.join(STAGING_DIR);
+    let Ok(entries) = std::fs::read_dir(&staging_root) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        // `<id>.replaced-<staging>` is the old install of a replace that did not
+        // finish; put it back when nothing else claimed the id.
+        if let Some((id, _)) = name.rsplit_once(".replaced-") {
+            let live = themes_root.join(id);
+            if !live.exists() {
+                let _ = std::fs::rename(entry.path(), &live);
+            }
+            continue;
+        }
+        let _ = std::fs::remove_dir_all(entry.path());
+    }
+}
+
 /// Every failure discards staging; limits and path checks precede extraction.
 fn inspect<R: Read + Seek>(
     archive: &mut zip::ZipArchive<R>,
@@ -177,6 +219,9 @@ fn inspect<R: Read + Seek>(
         .map_err(|e| format!("Could not resolve {}: {e}", staging_dir.display()))?;
 
     let mut extracted = 0usize;
+    // Lowercased relative names already accepted; a repeat would overwrite on a
+    // case-insensitive filesystem and make the extracted set platform-dependent.
+    let mut seen = std::collections::HashSet::new();
     // Bytes actually decompressed, never the archive's own claimed `size()` —
     // a crafted entry can declare small and stream gigabytes.
     let mut total_bytes = 0u64;
@@ -186,6 +231,12 @@ fn inspect<R: Read + Seek>(
             .by_index(index)
             .map_err(|e| format!("Could not read entry {index} of the package: {e}"))?;
         let name = entry.name().to_string();
+
+        if !seen.insert(name.to_lowercase()) {
+            return Err(format!(
+                "PKG-05: This package contains two entries named `{name}` — paths must be unique, ignoring case."
+            ));
+        }
 
         if !entry.is_dir() && extracted >= MAX_FILES {
             return Err(format!(
@@ -239,14 +290,14 @@ fn inspect<R: Read + Seek>(
 
     validate_manifest(&parsed)?;
 
-    let tokens_path = staging_dir.join(TOKENS_FILE);
-    if tokens_path.is_file() {
-        let raw = std::fs::read_to_string(&tokens_path)
-            .map_err(|e| format!("Could not read {TOKENS_FILE}: {e}"))?;
-        let tokens: serde_json::Value = serde_json::from_str(&raw)
-            .map_err(|e| format!("{TOKENS_FILE} is not valid JSON: {e}"))?;
-        crate::theme::validate_tokens(&tokens)?;
-    }
+    // Same optionality and same validators the loader applies, so a package it
+    // could not read is refused here instead of after it is installed.
+    crate::theme::read_optional_json(staging_dir, TOKENS_FILE, crate::theme::validate_tokens)?;
+    crate::theme::read_optional_json(
+        staging_dir,
+        SETTINGS_SCHEMA_FILE,
+        crate::theme::validate_settings_schema,
+    )?;
     validate_package_contents(&parsed, staging_dir)?;
 
     Ok((parsed, extracted))
@@ -1343,7 +1394,7 @@ mod tests {
             &[
                 Entry::file(MANIFEST_FILE, serde_json::to_string(&themed).unwrap()),
                 Entry::file("layout/popups/settingsNav.json", "{}"),
-                Entry::file("settings.schema.json", "{}"),
+                Entry::file("settings.schema.json", r#"{"schemaVersion":2}"#),
             ],
         );
         let staged = stage_for_preview(&root, &package, &[]).unwrap();
@@ -1353,6 +1404,34 @@ mod tests {
         let imported = stage_for_preview(&root, &exported, &[]).unwrap();
         assert_eq!(imported.manifest.capabilities, themed.capabilities);
         assert!(!staging_dir(&root, &imported).join(TOKENS_FILE).exists());
+    }
+
+    /// A settings schema the loader would refuse must be refused at import, not
+    /// left to fail after the theme has been installed.
+    #[test]
+    fn a_settings_schema_the_loader_would_refuse_is_refused_at_import() {
+        let root = scratch("v3-settings");
+        let themed = ThemeManifest {
+            capabilities: vec!["tokens".into(), "settings".into()],
+            ..manifest()
+        };
+        let package = root.join("v3-settings.zip");
+        build_zip(
+            &package,
+            &[
+                Entry::file(MANIFEST_FILE, serde_json::to_string(&themed).unwrap()),
+                Entry::file(TOKENS_FILE, tokens_json()),
+                Entry::file(SETTINGS_SCHEMA_FILE, r#"{"schemaVersion":3}"#),
+            ],
+        );
+
+        let error = stage_for_preview(&root, &package, &[]).unwrap_err();
+
+        assert!(error.contains("schemaVersion"), "message was: {error}");
+        assert!(
+            !root.join(STAGING_DIR).read_dir().unwrap().next().is_some(),
+            "a refused package must leave no staging directory"
+        );
     }
 
     #[test]
@@ -2432,6 +2511,30 @@ mod tests {
         assert!(staged.join("images/LOGO.PNG").is_file());
     }
 
+    /// Two entries whose paths are equal ignoring case would collapse to one
+    /// file on a case-insensitive filesystem, so the package is refused everywhere.
+    #[test]
+    fn entries_that_collide_ignoring_case_are_refused() {
+        let root = scratch("collide");
+        let logo = encode_image(image::ImageFormat::Png, 8, 8);
+        let zip_path = fixture(
+            &root,
+            "collide",
+            &[
+                Entry::bytes("images/logo.png", logo.clone()),
+                Entry::bytes("images/LOGO.PNG", logo.clone()),
+            ],
+        );
+
+        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
+
+        assert!(error.contains("PKG-"), "message was: {error}");
+        assert!(
+            !root.join(STAGING_DIR).read_dir().unwrap().next().is_some(),
+            "a refused package must leave no staging directory"
+        );
+    }
+
     #[test]
     fn a_plain_text_asset_is_staged_without_further_checks() {
         let root = scratch("text");
@@ -2708,6 +2811,69 @@ mod tests {
         let installed = crate::theme::get(&root, &id).expect("the theme must be readable");
         assert_eq!(installed.manifest.id, "aurora.test");
         assert_eq!(installed.manifest.version, "1.0.0");
+    }
+
+    /// A stage the user chose not to install is removed, and a stage already
+    /// gone is not an error.
+    #[test]
+    fn discarding_a_stage_removes_it_and_a_missing_one_is_ok() {
+        let root = scratch("discard");
+        let zip_path = fixture(&root, "discard", &[]);
+        let preview = stage_for_preview(&root, &zip_path, &[]).unwrap();
+        assert!(staging_dir(&root, &preview).is_dir());
+
+        discard_theme_import(&root, &preview.staging_id).unwrap();
+        assert!(!staging_dir(&root, &preview).exists());
+
+        discard_theme_import(&root, &preview.staging_id)
+            .expect("a stage that is already gone is not an error");
+    }
+
+    /// Ids Windows silently rewrites — all dots/spaces, or a trailing dot or
+    /// space — name a different directory there, so they are refused on every
+    /// platform.
+    #[test]
+    fn a_staging_id_windows_would_rewrite_is_refused() {
+        let root = scratch("staging-path");
+        for id in ["...", "   ", "name.", "name ", ". . ."] {
+            assert!(staging_path(&root, id).is_err(), "`{id}` must be refused");
+        }
+        assert_eq!(
+            staging_path(&root, "18dd3a54b1b5fdfb-0-1").unwrap(),
+            root.join(STAGING_DIR).join("18dd3a54b1b5fdfb-0-1")
+        );
+    }
+
+    /// Every leftover stage is cleared once at startup, when nothing can be in
+    /// flight.
+    #[test]
+    fn pruning_staging_removes_every_leftover_stage() {
+        let root = scratch("prune");
+        let staging_root = root.join(STAGING_DIR);
+        std::fs::create_dir_all(staging_root.join("stale-one")).unwrap();
+        std::fs::create_dir_all(staging_root.join("stale-two")).unwrap();
+
+        prune_staging(&root);
+
+        let left: Vec<_> = std::fs::read_dir(&staging_root)
+            .map(|entries| entries.flatten().map(|e| e.file_name()).collect())
+            .unwrap_or_default();
+        assert!(left.is_empty(), "stale stages: {left:?}");
+    }
+
+    /// A replace that died after the old install was renamed aside leaves it
+    /// under `.staging`; with no live theme there, prune puts it back.
+    #[test]
+    fn pruning_restores_a_replaced_install_with_no_live_theme() {
+        let root = scratch("prune-replaced");
+        let aside = root.join(STAGING_DIR).join("aurora.test.replaced-abc");
+        std::fs::create_dir_all(&aside).unwrap();
+        std::fs::write(aside.join(MANIFEST_FILE), "{}").unwrap();
+
+        prune_staging(&root);
+
+        assert!(root.join("aurora.test").join(MANIFEST_FILE).is_file());
+        assert!(!aside.exists());
     }
 
     #[test]

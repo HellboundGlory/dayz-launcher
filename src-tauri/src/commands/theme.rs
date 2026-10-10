@@ -187,6 +187,12 @@ pub fn confirm_theme_install(app: AppHandle, staging_id: String) -> Result<Strin
     Ok(id)
 }
 
+/// Discard a staged import the user did not install, removing its staging directory.
+#[tauri::command]
+pub fn discard_theme_import(app: AppHandle, staging_id: String) -> Result<(), String> {
+    theme::archive::discard_theme_import(&crate::paths::themes_dir(&app), &staging_id)
+}
+
 /// Package an installed theme to `dest_path`, applying the dialog's overrides.
 /// Nothing is written until every check passes.
 #[tauri::command]

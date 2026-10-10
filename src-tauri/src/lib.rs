@@ -189,6 +189,7 @@ pub fn run() {
             commands::theme::migrate_legacy_custom_themes,
             commands::theme::import_theme_preview,
             commands::theme::confirm_theme_install,
+            commands::theme::discard_theme_import,
             commands::theme::export_theme,
             commands::theme::arm_activation,
             commands::theme::confirm_activation,
@@ -208,6 +209,10 @@ pub fn run() {
             // "tetra.db" (see `paths` module for why).
             let data_root = paths::data_root(app.handle());
             let _ = std::fs::create_dir_all(&data_root);
+
+            // Leftover staging from an interrupted import; none can be in
+            // flight before a window exists.
+            theme::archive::prune_staging(&paths::themes_dir(app.handle()));
 
             // The builtin showcase themes install themselves into the real
             // themes directory — never fatal, logged on failure.

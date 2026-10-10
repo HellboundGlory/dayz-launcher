@@ -3,7 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { CheckCircle2, FileArchive, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { confirmThemeInstall, importThemePreview } from "@/lib/tauri";
+import { confirmThemeInstall, discardThemeImport, importThemePreview } from "@/lib/tauri";
 import { resolveThemeAsset } from "@/theme/asset-resolver";
 import type { ThemeImportPreview, ThemeManifest, ThemePreview, ThemeSummary } from "@/types/theme";
 import { capabilityLabel, capabilityLabels } from "./capability-labels";
@@ -59,6 +59,16 @@ function rejectionText(e: unknown): string {
   if (typeof e === "string") return e;
   if (e instanceof Error) return e.message;
   return "The import failed.";
+}
+
+/** Forget a staged import on the backend; a stage that is already gone is not an error. */
+function discardStaging(staging: React.MutableRefObject<string | null>): void {
+  const id = staging.current;
+  if (!id) return;
+  staging.current = null;
+  void discardThemeImport(id).catch((e) => {
+    console.error(`Could not discard staged import "${id}":`, e);
+  });
 }
 
 /** Compact pill, the same language as mods-tab's status pills. */
@@ -118,6 +128,10 @@ export function ImportThemeDialog({
   const busy = phase === "installing";
   // Step 1 (the drop target) is only actually on screen in these phases.
   const acceptsDrop = phase === "idle" || phase === "error";
+  // The staging id lives in a ref so an unmount cleanup can discard it however
+  // the dialog closes, and a resolved import that outlives the dialog too.
+  const stagingRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
     chooseRef.current?.focus();
@@ -127,15 +141,28 @@ export function ImportThemeDialog({
     if (phase === "preview") installRef.current?.focus();
   }, [phase]);
 
-  // The install step consumes the staging directory on the backend; closing
-  // mid-flight would strand the result, so every dismiss path goes through here.
+  // Closing mid-flight would strand the result, so every exit discards whatever
+  // is still staged; the cleanup also covers an unmount that skips `close`.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      discardStaging(stagingRef);
+    };
+  }, []);
+
   function close() {
-    if (!busy) onClose();
+    if (busy) return;
+    discardStaging(stagingRef);
+    onClose();
   }
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape" && !busy) onClose();
+      if (e.key === "Escape" && !busy) {
+        discardStaging(stagingRef);
+        onClose();
+      }
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -162,11 +189,19 @@ export function ImportThemeDialog({
   }
 
   async function loadFile(path: string) {
+    // A second file replaces the first; its staged copy must not be stranded.
+    discardStaging(stagingRef);
     setPreview(null);
     setError(null);
     setPhase("loading");
     try {
       const next = await importThemePreview(path);
+      stagingRef.current = next.stagingId;
+      // Closing while validating still stages the package; discard it now.
+      if (!mountedRef.current) {
+        discardStaging(stagingRef);
+        return;
+      }
       setPreview(next);
       setPhase("preview");
     } catch (e) {
@@ -213,6 +248,7 @@ export function ImportThemeDialog({
     setPhase("installing");
     try {
       const id = await confirmThemeInstall(preview.stagingId);
+      stagingRef.current = null;
       onInstalled(id);
     } catch (e) {
       setError(rejectionText(e));
