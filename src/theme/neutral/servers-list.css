@@ -1,1 +1,207 @@
 @layer launcher, neutral, theme, guarantees;
+
+@layer neutral {
+  .t-neutral-servers-row {
+    @apply flex cursor-pointer items-center gap-3 [border-radius:var(--t-radius-row)] border border-line bg-surface px-3 py-2 transition-[border-color,background,box-shadow] [transition-duration:var(--t-motion-hover-duration)];
+  }
+
+  [data-row]:has(> .t-neutral-servers-row) {
+    @apply hover:bg-transparent;
+  }
+
+  [data-row]:hover > .t-neutral-servers-row {
+    @apply border-accent-line;
+  }
+
+  [data-row][data-state~="selected"] > .t-neutral-servers-row {
+    @apply border-accent-line bg-accent-soft [box-shadow:var(--t-glow-selected)];
+  }
+
+  [data-row][data-state~="offline"] > .t-neutral-servers-row {
+    @apply opacity-50;
+  }
+
+  [data-row]:has(.t-neutral-servers-menu[data-state~="open"]) {
+    @apply relative z-10;
+  }
+
+  .t-neutral-servers-fav [data-part="icon"],
+  .t-neutral-servers-actions [data-part="icon"],
+  .t-neutral-servers-actions [data-part="spinner"] {
+    @apply flex;
+  }
+
+  .t-neutral-servers-fav [data-part="icon"] svg,
+  .t-neutral-servers-actions [data-part="icon"] svg,
+  .t-neutral-servers-actions [data-part="spinner"] svg {
+    @apply size-3.5;
+  }
+
+  .t-neutral-servers-fav {
+    @apply flex shrink-0 items-center justify-center text-muted transition-colors hover:text-muted2;
+  }
+
+  .t-neutral-servers-fav[data-state~="on"] {
+    @apply text-warn;
+  }
+
+  .t-neutral-servers-fav [data-part="icon"] svg {
+    @apply [stroke-width:1.6];
+  }
+
+  .t-neutral-servers-main {
+    @apply min-w-0 flex-1;
+  }
+
+  .t-neutral-servers-nameline {
+    @apply flex items-center gap-1 whitespace-nowrap [font-size:var(--t-type-rowName-size)] font-semibold;
+  }
+
+  .t-neutral-servers-tags {
+    @apply flex shrink-0 gap-1;
+  }
+
+  .t-neutral-servers-tags [data-part="chip"] {
+    @apply inline-block shrink-0 border-0 py-px font-bold uppercase [border-radius:var(--t-radius-chip)] [font-size:var(--t-type-chip-size)] [line-height:var(--t-type-chip-leading)] [letter-spacing:var(--t-type-chip-tracking)];
+  }
+
+  .t-neutral-servers-tags [data-part="chip"][data-state~="official"],
+  .t-neutral-servers-tags [data-part="chip"][data-state~="modUpdate"] {
+    @apply bg-accent-soft text-accent [box-shadow:var(--t-glow-rest)];
+  }
+
+  .t-neutral-servers-tags [data-part="chip"][data-state~="modded"] {
+    @apply bg-accent2-soft text-accent2;
+  }
+
+  .t-neutral-servers-tags [data-part="chip"][data-state~="firstPerson"] {
+    @apply bg-muted-soft text-muted2;
+  }
+
+  .t-neutral-servers-tags [data-part="chip"][data-state~="offline"],
+  .t-neutral-servers-tags [data-part="chip"][data-state~="locked"] {
+    @apply bg-danger-soft text-danger;
+  }
+
+  .t-neutral-servers-name {
+    @apply min-w-0 truncate text-ink;
+  }
+
+  .t-neutral-servers-details {
+    @apply mt-0.5 flex items-center gap-2.5 whitespace-nowrap [font-size:var(--t-type-rowMeta-size)] text-muted;
+  }
+
+  .t-neutral-servers-details > * ~ *::before {
+    content: "·";
+    @apply mr-2.5 [font-family:var(--t-type-family-ui)];
+  }
+
+  .t-neutral-servers-mono {
+    @apply flex [font-family:var(--t-type-family-data)];
+  }
+
+  .t-neutral-servers-plain {
+    @apply [font-family:var(--t-type-family-ui)];
+  }
+
+  .t-neutral-servers-stats {
+    @apply flex shrink-0 items-center gap-3.5;
+  }
+
+  .t-neutral-servers-players,
+  .t-neutral-servers-ping,
+  .t-neutral-servers-mods {
+    @apply block text-right [font-family:var(--t-type-family-data)] [font-size:var(--t-type-statValue-size)] font-bold tabular-nums leading-none;
+  }
+
+  .t-neutral-servers-players {
+    @apply text-accent2;
+  }
+
+  .t-neutral-servers-players[data-state~="full"] {
+    @apply text-warn;
+  }
+
+  .t-neutral-servers-players[data-state~="empty"],
+  .t-neutral-servers-players[data-state~="offline"] {
+    @apply text-muted;
+  }
+
+  .t-neutral-servers-players [data-part="queue"] {
+    @apply [font-size:var(--t-type-data-size)] text-warn;
+  }
+
+  .t-neutral-servers-ping {
+    @apply text-muted;
+  }
+
+  .t-neutral-servers-ping[data-state~="good"] {
+    @apply text-success;
+  }
+
+  .t-neutral-servers-ping[data-state~="fair"] {
+    @apply text-warn;
+  }
+
+  .t-neutral-servers-ping[data-state~="poor"] {
+    @apply text-danger;
+  }
+
+  .t-neutral-servers-mods {
+    @apply text-accent2;
+  }
+
+  .t-neutral-servers-mods[data-state~="none"] {
+    @apply text-muted;
+  }
+
+  .t-neutral-servers-mods[data-state~="unprobed"] {
+    @apply text-warn;
+  }
+
+  .t-neutral-servers-players [data-part="caption"],
+  .t-neutral-servers-ping [data-part="caption"],
+  .t-neutral-servers-mods [data-part="caption"] {
+    @apply block mt-0.5 [font-size:var(--t-type-statCaption-size)] font-bold uppercase [letter-spacing:var(--t-type-statCaption-tracking)] text-muted [font-family:var(--t-type-family-ui)] leading-normal;
+  }
+
+  .t-neutral-servers-actions {
+    @apply flex shrink-0 items-center gap-[5px];
+  }
+
+  .t-neutral-servers-refresh {
+    @apply flex shrink-0 items-center [border-radius:var(--t-radius-control)] border border-line bg-surface2 p-[5px] text-muted2 transition-colors hover:border-accent-line hover:text-accent disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .t-neutral-servers-join {
+    @apply flex shrink-0 items-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-3 py-1.5 [font-size:var(--t-type-button-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:[box-shadow:none] disabled:hover:brightness-100;
+  }
+
+  .t-neutral-servers-join [data-part="spinner"] {
+    @apply shrink-0;
+  }
+
+  .t-neutral-servers-join[data-state~="busy"] [data-part="label"] {
+    @apply max-w-[92px] truncate;
+  }
+
+  .t-neutral-servers-menu {
+    @apply relative flex;
+  }
+
+  .t-neutral-servers-menu [data-part="trigger"] {
+    @apply [border-radius:var(--t-radius-control)] border border-line bg-surface2 p-[5px] text-muted2 transition-colors hover:border-accent-line hover:text-accent;
+  }
+
+  .t-neutral-servers-menu[data-state~="open"] [data-part="trigger"] {
+    @apply border-accent-line text-accent;
+  }
+
+  .t-neutral-servers-menu [data-part="trigger"] [data-part="icon"] svg {
+    @apply transition-transform;
+  }
+
+  .t-neutral-servers-menu[data-state~="open"] [data-part="trigger"] [data-part="icon"] svg {
+    @apply rotate-180;
+  }
+}
