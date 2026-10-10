@@ -4799,7 +4799,8 @@
       "freeLabel": false,
       "parts": [
         "option",
-        "empty"
+        "empty",
+        "box"
       ],
       "states": [
         "selected"
@@ -4819,11 +4820,14 @@
       "options": {},
       "freeLabel": false,
       "parts": [
-        "option"
+        "option",
+        "box",
+        "indicator"
       ],
       "states": [
         "included",
-        "excluded"
+        "excluded",
+        "selected"
       ],
       "since": "2.0",
       "aliases": []
@@ -4840,7 +4844,8 @@
       "options": {},
       "freeLabel": false,
       "parts": [
-        "option"
+        "option",
+        "box"
       ],
       "states": [
         "selected"
@@ -4876,7 +4881,8 @@
       "options": {},
       "freeLabel": false,
       "parts": [
-        "option"
+        "option",
+        "box"
       ],
       "states": [
         "selected",

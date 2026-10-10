@@ -520,10 +520,11 @@
 }
 
 [data-el="filter.map"] [data-part="box"],
+[data-el="filter.tags"] [data-part="box"],
 [data-el="filter.region"] [data-part="box"] {
   width: 12px;
   height: 12px;
-  accent-color: var(--accent);
+  color: var(--accent);
 }
 
 [data-el="filter.tags"] [data-part="indicator"] {
@@ -532,11 +533,11 @@
   color: color-mix(in srgb, var(--border) 70%, var(--muted));
 }
 
-[data-el="filter.tags"] [data-part="indicator"][data-state="include"] {
+[data-el="filter.tags"] [data-part="option"][data-state~="included"] [data-part="indicator"] {
   color: var(--success);
 }
 
-[data-el="filter.tags"] [data-part="indicator"][data-state="exclude"] {
+[data-el="filter.tags"] [data-part="option"][data-state~="excluded"] [data-part="indicator"] {
   color: var(--danger);
 }
 
