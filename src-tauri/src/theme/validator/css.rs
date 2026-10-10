@@ -4,6 +4,29 @@ use cssparser::{ParseError, Parser, Token};
 
 use super::{Severity, ValidationIssue};
 
+const BANNED_CONSTRUCTS: [&str; 6] = [
+    "expression(",
+    "-moz-binding",
+    "behavior:",
+    "javascript:",
+    "vbscript:",
+    "@import",
+];
+
+const MAX_BLOCK_DEPTH: u32 = 32;
+
+fn is_url_function(name: &str) -> bool {
+    [
+        "url",
+        "image-set",
+        "-webkit-image-set",
+        "cross-fade",
+        "image",
+    ]
+    .iter()
+    .any(|candidate| name.eq_ignore_ascii_case(candidate))
+}
+
 /// Validate a CSS stylesheet string according to Theme System SPEC §12.
 pub fn validate_css_stylesheet(
     file_path: &str,
@@ -574,91 +597,22 @@ fn parse_declarations(
                 }
 
                 let mut value_tokens = Vec::new();
+                let mut urls = Vec::new();
                 let mut is_important = false;
+                let mut sink = TokenSink {
+                    tokens: &mut value_tokens,
+                    urls: &mut urls,
+                    issues: &mut *issues,
+                    property: &property_name,
+                    file: file_path,
+                };
 
-                while !parser.is_exhausted() {
-                    let v = match parser.next_including_whitespace_and_comments() {
-                        Ok(t) => t,
-                        Err(_) => break,
-                    };
-                    match v {
-                        Token::Semicolon => break,
-                        Token::Delim('!') => {
-                            is_important = true;
-                        }
-                        Token::Ident(ref id) if id.eq_ignore_ascii_case("important") => {
-                            is_important = true;
-                        }
-                        Token::UnquotedUrl(url) => {
-                            value_tokens.push(Token::UnquotedUrl(url.clone()));
-                        }
-                        Token::BadUrl(s) => {
-                            let raw = s.to_string();
-                            let banned_constructs = [
-                                "expression(",
-                                "-moz-binding",
-                                "behavior:",
-                                "javascript:",
-                                "vbscript:",
-                                "@import",
-                            ];
-                            let mut found_banned = false;
-                            for construct in banned_constructs {
-                                if contains_ignore_case(&raw, construct) {
-                                    issues.push(ValidationIssue {
-                                        rule_id: "CSS-05".into(),
-                                        severity: Severity::Error,
-                                        file: file_path.into(),
-                                        pointer: property_name.clone(),
-                                        message: format!(
-                                            "Value contains banned construct '{construct}'"
-                                        ),
-                                        hint: None,
-                                    });
-                                    found_banned = true;
-                                }
-                            }
-                            if !found_banned {
-                                issues.push(ValidationIssue {
-                                    rule_id: "CSS-07".into(),
-                                    severity: Severity::Error,
-                                    file: file_path.into(),
-                                    pointer: property_name.clone(),
-                                    message: format!("Unreadable url({raw}) in declaration"),
-                                    hint: None,
-                                });
-                            }
-                        }
-                        Token::Function(ref name) if name.eq_ignore_ascii_case("url") => {
-                            let url_str = parser
-                                .parse_nested_block(|nested| {
-                                    let mut buf = String::new();
-                                    while let Ok(t) =
-                                        nested.next_including_whitespace_and_comments()
-                                    {
-                                        match t {
-                                            Token::QuotedString(s) => {
-                                                return Ok::<String, ParseError<()>>(s.to_string())
-                                            }
-                                            Token::WhiteSpace(_) | Token::Comment(_) => continue,
-                                            Token::Ident(s) => buf.push_str(s),
-                                            Token::Delim(c) => buf.push(*c),
-                                            Token::UnquotedUrl(s) => buf.push_str(s),
-                                            _ => {}
-                                        }
-                                    }
-                                    Ok::<String, ParseError<()>>(buf)
-                                })
-                                .unwrap_or_default();
-                            value_tokens.push(Token::QuotedString(url_str.into()));
-                        }
-                        t => value_tokens.push(t.clone()),
-                    }
-                }
+                parse_declaration_value(parser, &mut sink, &mut is_important);
 
                 validate_declaration(
                     &property_name,
                     &value_tokens,
+                    &urls,
                     is_important,
                     file_path,
                     in_font_face,
@@ -670,9 +624,152 @@ fn parse_declarations(
     }
 }
 
+struct TokenSink<'a, 'i> {
+    tokens: &'a mut Vec<Token<'i>>,
+    urls: &'a mut Vec<String>,
+    issues: &'a mut Vec<ValidationIssue>,
+    property: &'a str,
+    file: &'a str,
+}
+
+fn parse_declaration_value<'i>(
+    parser: &mut Parser<'i>,
+    sink: &mut TokenSink<'_, 'i>,
+    is_important: &mut bool,
+) {
+    while !parser.is_exhausted() {
+        let v = match parser.next_including_whitespace_and_comments() {
+            Ok(t) => t,
+            Err(_) => break,
+        };
+        match v {
+            Token::Semicolon => break,
+            Token::Delim('!') => {
+                *is_important = true;
+            }
+            Token::Ident(id) if id.eq_ignore_ascii_case("important") => {
+                *is_important = true;
+            }
+            Token::UnquotedUrl(url) => {
+                sink.urls.push(url.to_string());
+                sink.tokens.push(Token::UnquotedUrl(url.clone()));
+            }
+            Token::BadUrl(s) => scan_bad_url(s, sink),
+            Token::Function(_)
+            | Token::ParenthesisBlock
+            | Token::SquareBracketBlock
+            | Token::CurlyBracketBlock => {
+                let opener = v.clone();
+                collect_block(parser, sink, opener, false, 0);
+            }
+            t => sink.tokens.push(t.clone()),
+        }
+    }
+}
+
+fn collect_nested_tokens<'i>(
+    parser: &mut Parser<'i>,
+    sink: &mut TokenSink<'_, 'i>,
+    url_context: bool,
+    depth: u32,
+) {
+    while !parser.is_exhausted() {
+        let v = match parser.next_including_whitespace_and_comments() {
+            Ok(t) => t,
+            Err(_) => break,
+        };
+        match v {
+            Token::UnquotedUrl(url) => {
+                sink.urls.push(url.to_string());
+                sink.tokens.push(Token::UnquotedUrl(url.clone()));
+            }
+            Token::BadUrl(s) => scan_bad_url(s, sink),
+            Token::Function(_)
+            | Token::ParenthesisBlock
+            | Token::SquareBracketBlock
+            | Token::CurlyBracketBlock => {
+                let opener = v.clone();
+                collect_block(parser, sink, opener, url_context, depth);
+            }
+            Token::QuotedString(s) => {
+                if url_context {
+                    sink.urls.push(s.to_string());
+                }
+                sink.tokens.push(Token::QuotedString(s.clone()));
+            }
+            t => sink.tokens.push(t.clone()),
+        }
+    }
+}
+
+fn collect_block<'i>(
+    parser: &mut Parser<'i>,
+    sink: &mut TokenSink<'_, 'i>,
+    opener: Token<'i>,
+    url_context: bool,
+    depth: u32,
+) {
+    let child_url_context =
+        url_context || matches!(&opener, Token::Function(name) if is_url_function(name));
+    let closer = match &opener {
+        Token::SquareBracketBlock => Token::CloseSquareBracket,
+        Token::CurlyBracketBlock => Token::CloseCurlyBracket,
+        _ => Token::CloseParenthesis,
+    };
+
+    sink.tokens.push(opener);
+
+    if depth >= MAX_BLOCK_DEPTH {
+        sink.issues.push(ValidationIssue {
+            rule_id: "CSS-01".into(),
+            severity: Severity::Error,
+            file: sink.file.into(),
+            pointer: sink.property.to_string(),
+            message: format!("Nesting depth exceeds {MAX_BLOCK_DEPTH}"),
+            hint: None,
+        });
+        let _ = parser.parse_nested_block(|_| Ok::<(), ParseError<()>>(()));
+    } else {
+        let _ = parser.parse_nested_block(|nested| {
+            collect_nested_tokens(nested, sink, child_url_context, depth + 1);
+            Ok::<(), ParseError<()>>(())
+        });
+    }
+
+    sink.tokens.push(closer);
+}
+
+fn scan_bad_url(raw: &str, sink: &mut TokenSink<'_, '_>) {
+    let mut found_banned = false;
+    for construct in BANNED_CONSTRUCTS {
+        if contains_ignore_case(raw, construct) {
+            sink.issues.push(ValidationIssue {
+                rule_id: "CSS-05".into(),
+                severity: Severity::Error,
+                file: sink.file.into(),
+                pointer: sink.property.to_string(),
+                message: format!("Value contains banned construct '{construct}'"),
+                hint: None,
+            });
+            found_banned = true;
+        }
+    }
+    if !found_banned {
+        sink.issues.push(ValidationIssue {
+            rule_id: "CSS-07".into(),
+            severity: Severity::Error,
+            file: sink.file.into(),
+            pointer: sink.property.to_string(),
+            message: format!("Unreadable url({raw}) in declaration"),
+            hint: None,
+        });
+    }
+}
+
 fn validate_declaration(
     prop: &str,
     value_tokens: &[Token<'_>],
+    urls: &[String],
     is_important: bool,
     file_path: &str,
     in_font_face: bool,
@@ -724,15 +821,7 @@ fn validate_declaration(
     let val_str = value_tokens_to_string(value_tokens);
     let decl_str = format!("{prop}: {val_str}");
 
-    let banned_constructs = [
-        "expression(",
-        "-moz-binding",
-        "behavior:",
-        "javascript:",
-        "vbscript:",
-        "@import",
-    ];
-    for construct in banned_constructs {
+    for construct in BANNED_CONSTRUCTS {
         if contains_ignore_case(&decl_str, construct) {
             issues.push(ValidationIssue {
                 rule_id: "CSS-05".into(),
@@ -745,23 +834,18 @@ fn validate_declaration(
         }
     }
 
-    validate_urls_in_declaration(prop, value_tokens, file_path, in_font_face, issues);
+    validate_urls_in_declaration(prop, urls, file_path, in_font_face, issues);
 }
 
 fn validate_urls_in_declaration(
     prop: &str,
-    tokens: &[Token<'_>],
+    urls: &[String],
     file_path: &str,
     in_font_face: bool,
     issues: &mut Vec<ValidationIssue>,
 ) {
-    for token in tokens {
-        match token {
-            Token::UnquotedUrl(url) | Token::QuotedString(url) => {
-                check_url_string(prop, url, file_path, in_font_face, issues);
-            }
-            _ => {}
-        }
+    for url in urls {
+        check_url_string(prop, url, file_path, in_font_face, issues);
     }
 }
 
@@ -865,6 +949,12 @@ fn value_tokens_to_string(tokens: &[Token<'_>]) -> String {
                 buf.push_str(name);
                 buf.push('(');
             }
+            Token::ParenthesisBlock => buf.push('('),
+            Token::SquareBracketBlock => buf.push('['),
+            Token::CurlyBracketBlock => buf.push('{'),
+            Token::CloseParenthesis => buf.push(')'),
+            Token::CloseSquareBracket => buf.push(']'),
+            Token::CloseCurlyBracket => buf.push('}'),
             Token::Delim(c) => buf.push(*c),
             Token::Colon => buf.push(':'),
             Token::Semicolon => buf.push(';'),
@@ -1021,6 +1111,90 @@ mod tests {
         assert!(
             issues.iter().all(|i| i.rule_id == "CSS-07"),
             "Got issues: {issues:#?}"
+        );
+    }
+
+    #[test]
+    fn urls_inside_functions_are_refused() {
+        let values = [
+            r#"background: image-set("https://evil.example/a.png" 1x)"#,
+            "background: -webkit-image-set(url(https://evil.example/a.png) 1x)",
+            "background: var(--x, url(https://evil.example/a.png))",
+            "background: cross-fade(url(//evil.example/a.png), url(b.png), 50%)",
+            r#"background: image-set("../../secret.png" 1x)"#,
+        ];
+        for value in values {
+            let css = format!("[data-el=\"box\"] {{ {value}; }}");
+            let issues = validate_css_stylesheet("styles.css", &css, None);
+            assert!(
+                issues.iter().any(|i| i.rule_id == "CSS-07"),
+                "Expected CSS-07 for `{value}`, got: {issues:#?}"
+            );
+        }
+    }
+
+    #[test]
+    fn banned_construct_inside_function_is_refused() {
+        let css = r#"[data-el="box"] { width: calc(expression(alert(1))); }"#;
+        let issues = validate_css_stylesheet("styles.css", css, None);
+        assert!(
+            issues.iter().any(|i| i.rule_id == "CSS-05"),
+            "Got: {issues:#?}"
+        );
+    }
+
+    #[test]
+    fn functions_without_urls_pass() {
+        let css = r#"
+            [data-el="box"] { background: image-set("images/a.png" 1x, "images/a@2x.png" 2x); }
+            [data-el="box"] { background: linear-gradient(to right, var(--accent), transparent); }
+            [data-el="box"] { color: rgb(0 0 0 / 50%); }
+            [data-el="box"] { background: url(images/a.png); }
+        "#;
+        let issues = validate_css_stylesheet("styles.css", css, None);
+        assert!(issues.is_empty(), "Expected 0 issues, got: {issues:#?}");
+    }
+
+    #[test]
+    fn strings_outside_url_functions_are_not_urls() {
+        let css = r#"
+            @font-face { font-family: "X"; src: url("fonts/x.woff2") format("woff2"); }
+            [data-el="box"] { font-family: local("Inter"), url("fonts/x.woff2"); }
+            [data-el="box"] { --label: var(--x, "note:1"); }
+        "#;
+        let issues = validate_css_stylesheet("styles.css", css, None);
+        assert!(issues.is_empty(), "Expected 0 issues, got: {issues:#?}");
+    }
+
+    #[test]
+    fn important_inside_a_function_is_not_a_declaration_flag() {
+        let css = "[data-el=\"box\"] { color: var(--a, important); }";
+        let issues = validate_css_stylesheet("styles.css", css, None);
+        assert!(
+            issues.iter().all(|i| i.rule_id != "CSS-01"),
+            "Got: {issues:#?}"
+        );
+    }
+
+    #[test]
+    fn a_url_in_a_curly_block_is_refused() {
+        let css = "[data-el=\"box\"] { --x: { url(https://evil.example/p.png) }; }";
+        let issues = validate_css_stylesheet("styles.css", css, None);
+        assert!(
+            issues.iter().any(|i| i.rule_id == "CSS-07"),
+            "Got: {issues:#?}"
+        );
+    }
+
+    #[test]
+    fn deeply_nested_blocks_are_refused() {
+        let open = "(".repeat(200);
+        let close = ")".repeat(200);
+        let css = format!("[data-el=\"box\"] {{ color: {open}a{close}; }}");
+        let issues = validate_css_stylesheet("styles.css", &css, None);
+        assert!(
+            issues.iter().any(|i| i.rule_id == "CSS-01"),
+            "Got: {issues:#?}"
         );
     }
 
