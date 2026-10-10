@@ -65,6 +65,8 @@ import {
   serverListSource,
   getServer,
   toggleFavourite,
+  takePendingConnect,
+  type DzsaConnect,
   type SteamInitError,
   type SteamInitFailure,
   type ModsPendingEntry,
@@ -575,13 +577,9 @@ export function App() {
   // dzsa://connect/... link from the OS protocol handler (src-tauri/src/protocol.rs).
   // Selects the server but never auto-launches — joining still needs the button.
   useEffect(() => {
-    const unlistenConnect = listen<{
-      ip: string;
-      queryPort: number;
-      favourite: boolean;
-    }>("dzsa-connect", (event) => {
-      const { ip, queryPort, favourite } = event.payload;
-      setActiveView("servers");
+    const handleConnect = (request: DzsaConnect) => {
+      const { ip, queryPort, favourite } = request;
+      handleViewChange("servers");
       void getServer(`${ip}:${queryPort}`, queryPort)
         .then((server) => {
           if (!server) {
@@ -609,10 +607,23 @@ export function App() {
           console.error("Failed to resolve dzsa:// link target:", e);
           setError(`Could not look up ${ip}:${queryPort}: ${String(e)}`);
         });
-    });
+    };
+    // The link itself lives in the backend; the event only says one arrived.
+    const pullPending = () => {
+      void takePendingConnect()
+        .then((request) => {
+          if (request) handleConnect(request);
+        })
+        .catch((e) =>
+          console.error("Could not read a pending dzsa:// link:", e),
+        );
+    };
+    const unlistenConnect = listen("dzsa-connect", pullPending);
+    pullPending();
     return () => {
       unlistenConnect.then((fn) => fn());
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Re-probes every server in the current filtered list (distinct from

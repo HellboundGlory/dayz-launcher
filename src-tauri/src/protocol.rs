@@ -1,5 +1,6 @@
 use std::net::Ipv4Addr;
-use tauri::{AppHandle, Emitter};
+use std::sync::Mutex;
+use tauri::{AppHandle, Emitter, Manager};
 
 /// The scheme `register_dzsa_protocol` claims in the OS.
 const SCHEME: &str = "dzsa://";
@@ -17,6 +18,36 @@ pub struct ConnectRequest {
     /// Whether the link asked to favourite the server too, not just select
     /// it — the landing page's "Join & Favourite" option.
     pub favourite: bool,
+}
+
+/// A `dzsa://` link that arrived before the frontend could listen. One slot:
+/// a later link replaces an earlier one.
+#[derive(Default)]
+pub struct PendingConnect(Mutex<Option<ConnectRequest>>);
+
+impl PendingConnect {
+    /// Fills the slot from a process command line; a cold `dzsa://` link only
+    /// ever appears there.
+    pub fn from_argv(argv: &[String]) -> Self {
+        let pending = Self::default();
+        if let Some(request) = request_from_argv(argv) {
+            pending.put(request);
+        }
+        pending
+    }
+
+    /// This process's own command line, read before any window exists.
+    pub fn from_args() -> Self {
+        Self::from_argv(&std::env::args().collect::<Vec<_>>())
+    }
+
+    pub fn put(&self, request: ConnectRequest) {
+        *self.0.lock().unwrap() = Some(request);
+    }
+
+    pub fn take(&self) -> Option<ConnectRequest> {
+        self.0.lock().unwrap().take()
+    }
 }
 
 /// Parse a `dzsa://connect/IP:PORT[?fav=1]` link, `None` if malformed.
@@ -53,17 +84,28 @@ pub fn link_in_argv(argv: &[String]) -> Option<&str> {
         .find(|arg| arg.to_ascii_lowercase().starts_with(SCHEME))
 }
 
-/// Handle a `dzsa://` link on the command line (cold start, or forwarded by
-/// the single-instance plugin). Emits `dzsa-connect`; never launches DayZ.
-pub fn handle_argv(app: &AppHandle, argv: &[String]) {
-    let Some(link) = link_in_argv(argv) else {
-        return;
-    };
-    let Some(request) = parse_connect_link(link) else {
+fn request_from_argv(argv: &[String]) -> Option<ConnectRequest> {
+    let link = link_in_argv(argv)?;
+    let request = parse_connect_link(link);
+    if request.is_none() {
         eprintln!("[protocol] Could not parse dzsa:// link: {link}");
+    }
+    request
+}
+
+/// A `dzsa://` link on a command line: a cold start, or one forwarded by the
+/// single-instance plugin. Stores it for the page and notifies a live one.
+pub fn handle_argv(app: &AppHandle, argv: &[String]) {
+    let Some(request) = request_from_argv(argv) else {
         return;
     };
+    app.state::<PendingConnect>().put(request.clone());
     let _ = app.emit("dzsa-connect", request);
+}
+
+#[tauri::command]
+pub fn take_pending_connect(pending: tauri::State<'_, PendingConnect>) -> Option<ConnectRequest> {
+    pending.take()
 }
 
 #[cfg(test)]
@@ -72,6 +114,14 @@ mod tests {
 
     fn argv(args: &[&str]) -> Vec<String> {
         args.iter().map(|s| s.to_string()).collect()
+    }
+
+    fn request(ip: &str, query_port: u16, favourite: bool) -> ConnectRequest {
+        ConnectRequest {
+            ip: ip.into(),
+            query_port,
+            favourite,
+        }
     }
 
     #[test]
@@ -167,5 +217,36 @@ mod tests {
     #[test]
     fn a_missing_connect_segment_does_not_parse() {
         assert_eq!(parse_connect_link("dzsa://1.2.3.4:2302"), None);
+    }
+
+    #[test]
+    fn a_link_in_argv_fills_the_pending_slot() {
+        let pending = PendingConnect::from_argv(&argv(&[
+            "tetra-launcher.exe",
+            "dzsa://connect/1.2.3.4:2302?fav=1",
+        ]));
+        assert_eq!(pending.take(), Some(request("1.2.3.4", 2302, true)));
+    }
+
+    #[test]
+    fn an_argv_without_a_link_leaves_the_slot_empty() {
+        let pending = PendingConnect::from_argv(&argv(&["tetra-launcher.exe", "--autostart"]));
+        assert_eq!(pending.take(), None);
+    }
+
+    #[test]
+    fn a_pending_link_is_taken_once_then_gone() {
+        let pending = PendingConnect::default();
+        pending.put(request("1.2.3.4", 2302, false));
+        assert_eq!(pending.take(), Some(request("1.2.3.4", 2302, false)));
+        assert_eq!(pending.take(), None);
+    }
+
+    #[test]
+    fn a_later_pending_link_replaces_the_earlier_one() {
+        let pending = PendingConnect::default();
+        pending.put(request("1.2.3.4", 2302, false));
+        pending.put(request("5.6.7.8", 2402, true));
+        assert_eq!(pending.take(), Some(request("5.6.7.8", 2402, true)));
     }
 }
