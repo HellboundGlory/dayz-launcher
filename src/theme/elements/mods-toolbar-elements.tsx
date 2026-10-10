@@ -17,7 +17,7 @@ import { useConfirm } from "@/components/confirm-dialog";
 import { getThemeOwnedLayout, useLayoutSubscription } from "../theme-store";
 import { usePopupTrigger } from "../interaction/use-popup-trigger";
 import type { PopupLayoutFile } from "../renderer/types";
-import { FilterPopup, UniqueServerOptionsList } from "./popup-elements";
+import { FilterPopup, UniqueServerOptionsList, usePopupContext } from "./popup-elements";
 import { OptionIcon } from "./option-icon";
 
 function toolbarDisplayOptions(
@@ -299,6 +299,8 @@ export function ModsUnsubscribe({ options, className, style }: { options?: Recor
 }
 
 export function ModsUnsubscribeSelected({ options, className, style, onDone }: MenuItemProps) {
+  const popupClose = usePopupContext().close;
+  const done = onDone ?? popupClose;
   const { selectedCount, unsubscribeSelected } = useModsStore(
     useShallow((s) => ({ selectedCount: s.selectedIds.size, unsubscribeSelected: s.unsubscribeSelected })),
   );
@@ -309,7 +311,7 @@ export function ModsUnsubscribeSelected({ options, className, style, onDone }: M
 
   function handleClick() {
     if (disabled) return;
-    onDone?.();
+    done();
     askConfirm(
       `Unsubscribe from ${selectedCount} mod${selectedCount === 1 ? "" : "s"}`,
       UNSUBSCRIBE_MESSAGE,
@@ -334,6 +336,8 @@ export function ModsUnsubscribeSelected({ options, className, style, onDone }: M
 }
 
 export function ModsUnsubscribeAll({ options, className, style, onDone }: MenuItemProps) {
+  const popupClose = usePopupContext().close;
+  const done = onDone ?? popupClose;
   const { allCount, unsubscribeAll } = useModsStore(
     useShallow((s) => ({ allCount: visibleRows(s.rows).length, unsubscribeAll: s.unsubscribeAll })),
   );
@@ -344,7 +348,7 @@ export function ModsUnsubscribeAll({ options, className, style, onDone }: MenuIt
 
   function handleClick() {
     if (disabled) return;
-    onDone?.();
+    done();
     askConfirm(
       `Unsubscribe from all ${allCount} mods`,
       "Every subscribed mod will be removed and its files deleted from disk. " +
@@ -371,7 +375,9 @@ export function ModsUnsubscribeAll({ options, className, style, onDone }: MenuIt
 
 export function ModsUnsubscribeMenu({ options, className, style }: { options?: Record<string, unknown>; className?: string; style?: CSSProperties }) {
   const op = useModsStore((s) => s.op);
-  const { open, setOpen, close, ref, popupRef, popupStyle } = usePopupTrigger({ side: "top", align: "end" });
+  useLayoutSubscription();
+  const themedPopup = getThemeOwnedLayout("layout/popups/modsUnsubscribe.json") as PopupLayoutFile | undefined;
+  const { open, setOpen, close, ref, popupRef, popupStyle } = usePopupTrigger({ side: "top", align: "end" }, themedPopup);
   const busy = !!op;
 
   return (
@@ -395,7 +401,7 @@ export function ModsUnsubscribeMenu({ options, className, style }: { options?: R
           <OptionIcon icon={options?.icon} fallback={ChevronDown} className={cn("size-3 transition-transform", open && "rotate-180")} />
         </span>
       </button>
-      {open && (
+      <FilterPopup open={open} popupId="modsUnsubscribe" close={close} themedPopup={themedPopup} triggerRef={ref}>
         <div
           ref={popupRef}
           style={popupStyle}
@@ -406,7 +412,7 @@ export function ModsUnsubscribeMenu({ options, className, style }: { options?: R
           <ModsUnsubscribeSelected onDone={close} />
           <ModsUnsubscribeAll onDone={close} />
         </div>
-      )}
+      </FilterPopup>
     </div>
   );
 }
@@ -455,6 +461,8 @@ export function ModsVerify({ options, className, style }: { options?: Record<str
 }
 
 export function ModsVerifySelected({ options, className, style, onDone }: MenuItemProps) {
+  const popupClose = usePopupContext().close;
+  const done = onDone ?? popupClose;
   const { selectedCount, verifySelected } = useModsStore(
     useShallow((s) => ({ selectedCount: s.selectedIds.size, verifySelected: s.verifySelected })),
   );
@@ -464,7 +472,7 @@ export function ModsVerifySelected({ options, className, style, onDone }: MenuIt
 
   function handleClick() {
     if (disabled) return;
-    onDone?.();
+    done();
     void verifySelected();
   }
 
@@ -485,6 +493,8 @@ export function ModsVerifySelected({ options, className, style, onDone }: MenuIt
 }
 
 export function ModsVerifyAll({ options, className, style, onDone }: MenuItemProps) {
+  const popupClose = usePopupContext().close;
+  const done = onDone ?? popupClose;
   const { allCount, verifyAll } = useModsStore(
     useShallow((s) => ({ allCount: visibleRows(s.rows).length, verifyAll: s.verifyAll })),
   );
@@ -494,7 +504,7 @@ export function ModsVerifyAll({ options, className, style, onDone }: MenuItemPro
 
   function handleClick() {
     if (disabled) return;
-    onDone?.();
+    done();
     void verifyAll();
   }
 
@@ -515,7 +525,9 @@ export function ModsVerifyAll({ options, className, style, onDone }: MenuItemPro
 
 export function ModsVerifyMenu({ options, className, style }: { options?: Record<string, unknown>; className?: string; style?: CSSProperties }) {
   const op = useModsStore((s) => s.op);
-  const { open, setOpen, close, ref, popupRef, popupStyle } = usePopupTrigger({ side: "top", align: "end" });
+  useLayoutSubscription();
+  const themedPopup = getThemeOwnedLayout("layout/popups/modsVerify.json") as PopupLayoutFile | undefined;
+  const { open, setOpen, close, ref, popupRef, popupStyle } = usePopupTrigger({ side: "top", align: "end" }, themedPopup);
   const busy = !!op;
 
   return (
@@ -539,7 +551,7 @@ export function ModsVerifyMenu({ options, className, style }: { options?: Record
           <OptionIcon icon={options?.icon} fallback={ChevronDown} className={cn("size-3 transition-transform", open && "rotate-180")} />
         </span>
       </button>
-      {open && (
+      <FilterPopup open={open} popupId="modsVerify" close={close} themedPopup={themedPopup} triggerRef={ref}>
         <div
           ref={popupRef}
           style={popupStyle}
@@ -550,7 +562,7 @@ export function ModsVerifyMenu({ options, className, style }: { options?: Record
           <ModsVerifySelected onDone={close} />
           <ModsVerifyAll onDone={close} />
         </div>
-      )}
+      </FilterPopup>
     </div>
   );
 }

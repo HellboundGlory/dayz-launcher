@@ -39,6 +39,7 @@ function DropdownTrigger({
   open,
   onClick,
   extra,
+  title,
 }: {
   label: string | null;
   value: string;
@@ -46,12 +47,14 @@ function DropdownTrigger({
   open: boolean;
   onClick: () => void;
   extra?: ReactNode;
+  title?: string;
 }) {
   return (
     <button
       type="button"
       data-part="trigger"
       onClick={onClick}
+      title={title}
       aria-haspopup="listbox"
       aria-expanded={open}
       className="flex items-center gap-1.5 border-0 bg-transparent p-0 [font:inherit] [color:inherit]"
@@ -142,6 +145,7 @@ export function FilterSearch({
         data-part="input"
         type="text"
         placeholder="Search name or description"
+        aria-label="Search servers"
         value={text}
         onChange={(e) => setText(e.target.value)}
         className="bg-transparent outline-none text-ink placeholder:text-muted min-w-[180px] text-xs"
@@ -283,6 +287,7 @@ export function FilterRegion({
         active={active}
         open={open}
         onClick={() => setOpen(!open)}
+        title="Approximate — based on the server's IP block, not its actual location"
       />
       <FilterPopup
         open={open}
@@ -358,6 +363,7 @@ export function FilterMaxPing({
           max={PING_MAX}
           step={10}
           value={sliderValue}
+          aria-label="Maximum ping"
           onChange={(e) => setFilter({ max_ping: nextPingFilter(Number(e.target.value)) })}
           className="w-20 accent-accent cursor-pointer h-1.5 bg-surface rounded-none"
         />
@@ -375,6 +381,7 @@ function HideToggle({
   el,
   defaultLabel,
   field,
+  title,
   options,
   className,
   style,
@@ -382,6 +389,7 @@ function HideToggle({
   el: string;
   defaultLabel: string;
   field: "hide_empty" | "hide_full" | "hide_locked" | "hide_offline";
+  title: string;
   options?: Record<string, unknown>;
   className?: string;
   style?: CSSProperties;
@@ -406,6 +414,7 @@ function HideToggle({
     "data-state": on ? "on" : undefined,
     className: className ?? defaultClass,
     style,
+    title,
     onClick: toggle,
   };
 
@@ -446,19 +455,19 @@ function HideToggle({
 }
 
 export function FilterHideEmpty(props: { options?: Record<string, unknown>; className?: string; style?: CSSProperties }) {
-  return <HideToggle el="filter.hideEmpty" defaultLabel="Hide empty" field="hide_empty" {...props} />;
+  return <HideToggle el="filter.hideEmpty" defaultLabel="Hide empty" field="hide_empty" title="Hide empty servers (0 players)" {...props} />;
 }
 
 export function FilterHideFull(props: { options?: Record<string, unknown>; className?: string; style?: CSSProperties }) {
-  return <HideToggle el="filter.hideFull" defaultLabel="Hide full" field="hide_full" {...props} />;
+  return <HideToggle el="filter.hideFull" defaultLabel="Hide full" field="hide_full" title="Hide full servers" {...props} />;
 }
 
 export function FilterHideLocked(props: { options?: Record<string, unknown>; className?: string; style?: CSSProperties }) {
-  return <HideToggle el="filter.hideLocked" defaultLabel="Hide locked" field="hide_locked" {...props} />;
+  return <HideToggle el="filter.hideLocked" defaultLabel="Hide locked" field="hide_locked" title="Hide password-protected servers" {...props} />;
 }
 
 export function FilterHideOffline(props: { options?: Record<string, unknown>; className?: string; style?: CSSProperties }) {
-  return <HideToggle el="filter.hideOffline" defaultLabel="Hide offline" field="hide_offline" {...props} />;
+  return <HideToggle el="filter.hideOffline" defaultLabel="Hide offline" field="hide_offline" title="Hide unreachable or offline servers" {...props} />;
 }
 
 export function ServersRefresh({
@@ -482,6 +491,7 @@ export function ServersRefresh({
       onClick={onRefresh}
       disabled={refreshing}
       aria-label="Refresh server list"
+      title="Re-probe the servers currently on screen — ping, lock, mods, online status"
       className={className ?? "flex items-center gap-1.5 p-1.5 border border-line bg-surface2 hover:border-accent text-muted hover:text-ink transition-colors disabled:opacity-60 disabled:cursor-not-allowed"}
       style={style}
     >
@@ -580,9 +590,12 @@ export function FilterSort({
         open={open}
         onClick={() => setOpen(!open)}
         extra={
-          <span data-part="direction" className="text-[10px] text-muted">
-            {sortDir === "asc" ? "↑" : "↓"}
-          </span>
+          <>
+            {" "}
+            <span data-part="direction" className="text-[10px] text-muted">
+              {sortDir === "asc" ? "↑" : "↓"}
+            </span>
+          </>
         }
       />
       <FilterPopup
@@ -624,6 +637,7 @@ export function FilterReset({
       data-el="filter.reset"
       onClick={() => resetFilter()}
       aria-label="Reset filters"
+      title="Reset all filters to defaults"
       className={className ?? "flex items-center gap-1 px-2 py-1 text-xs border border-line bg-surface2 hover:border-accent text-muted hover:text-ink transition-colors"}
       style={style}
     >

@@ -98,16 +98,21 @@ export function StatusListSource({
 }) {
   const { steamConnected, listSource } = useElementContext();
   if (!steamConnected || !listSource) return null;
-  const label = (options?.label as string | undefined) ?? (listSource === "index" ? "Indexed" : "Steam Direct");
+  const label = (options?.label as string | undefined) ?? (listSource === "index" ? "index" : "Steam");
+  const title =
+    listSource === "index"
+      ? "Served by Tetra's server index in one request"
+      : "Asked Steam directly — the index was off, unreachable or stale";
 
   return (
     <span
       data-el="status.listSource"
       data-state={listSource}
+      title={title}
       className={className}
       style={style}
     >
-      <span data-part="label">{label}</span>
+      via <span data-part="label">{label}</span>
     </span>
   );
 }

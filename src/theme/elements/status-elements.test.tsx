@@ -76,11 +76,22 @@ describe("count and source labels", () => {
   it.each([
     { name: "status.serverTotal", node: (o?: Record<string, unknown>) => <StatusServerTotal options={o} />, fallback: " servers" },
     { name: "status.populated", node: (o?: Record<string, unknown>) => <StatusPopulated options={o} />, fallback: " populated" },
-    { name: "status.listSource", node: (o?: Record<string, unknown>) => <StatusListSource options={o} />, fallback: "Indexed" },
+    { name: "status.listSource", node: (o?: Record<string, unknown>) => <StatusListSource options={o} />, fallback: ">index<" },
   ])("$name reads its label option, else its launcher wording", ({ node, fallback }) => {
     expect(render(node(), counted)).toContain(fallback);
     expect(render(node({ label: "X" }), counted)).toContain("X</span>");
     expect(render(node({ label: "X" }), counted)).not.toContain(fallback);
+  });
+});
+
+describe("StatusListSource", () => {
+  it.each([
+    { source: "index" as const, word: "index", title: "Served by Tetra&#x27;s server index in one request" },
+    { source: "steam" as const, word: "Steam", title: "Asked Steam directly — the index was off, unreachable or stale" },
+  ])("says via $word with its title", ({ source, word, title }) => {
+    const html = render(<StatusListSource />, { steamConnected: true, listSource: source });
+    expect(html).toContain(`title="${title}"`);
+    expect(html).toContain(`via <span data-part="label">${word}</span>`);
   });
 });
 

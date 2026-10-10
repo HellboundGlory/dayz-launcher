@@ -155,6 +155,7 @@ export function AppCollapseToggle({
   const regionId = typeof options?.region === "string" ? options.region : "sidebar";
   const label = typeof options?.label === "string" ? options.label : "sidebar";
   const collapsed = isCollapsed(regionId);
+  const name = collapsed ? `Expand ${label}` : `Collapse ${label}`;
 
   return (
     <button
@@ -163,7 +164,8 @@ export function AppCollapseToggle({
       data-state={collapsed ? "collapsed" : undefined}
       aria-expanded={!collapsed}
       aria-controls={regionId}
-      aria-label={collapsed ? `Expand ${label}` : `Collapse ${label}`}
+      aria-label={name}
+      title={name}
       onClick={() => toggleCollapsed(regionId)}
       className={className}
       style={style}
@@ -202,7 +204,12 @@ export function AppUiScale({
   const pct = Math.round(uiScale * 100);
 
   return (
-    <div data-el="app.uiScale" className={className ?? "flex items-center gap-[var(--t-space-inlineGap)]"} style={style}>
+    <div
+      data-el="app.uiScale"
+      title="Size of everything in the launcher"
+      className={className ?? "flex items-center gap-[var(--t-space-inlineGap)]"}
+      style={style}
+    >
       {showLabel && (
         <span data-part="label" className="[font-size:var(--t-type-caption-size)] text-muted">
           {label}
@@ -216,7 +223,7 @@ export function AppUiScale({
           step={UI_SCALE_STEP}
           value={uiScale}
           onChange={(e) => changeScale(Number(e.target.value))}
-          aria-label={label}
+          aria-label="Interface scale"
           data-part="knob"
           className="h-1 cursor-pointer accent-accent"
         />
@@ -244,7 +251,7 @@ export function AppSchemeToggle({ options, className, style }: OptionsProps) {
       data-el="app.schemeToggle"
       data-state={scheme}
       onClick={toggle}
-      title={scheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+      title={scheme === "dark" ? "Lighten the launcher theme" : "Darken the launcher theme"}
       aria-label={scheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
       className={className}
       style={style}

@@ -32,10 +32,24 @@ vi.mock("@/components/confirm-dialog", () => ({
   },
 }));
 
+const ownedLayouts: Record<string, unknown> = {};
 vi.mock("../theme-store", () => ({
   useLayoutSubscription: () => {},
-  getThemeOwnedLayout: () => undefined,
+  getThemeOwnedLayout: (path: string) => ownedLayouts[path],
 }));
+
+// The menus only open on click, so a static render needs the trigger forced open.
+const popupState = { forceOpen: false };
+vi.mock("../interaction/use-popup-trigger", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../interaction/use-popup-trigger")>();
+  return {
+    ...actual,
+    usePopupTrigger: (...args: Parameters<typeof actual.usePopupTrigger>) => {
+      const trigger = actual.usePopupTrigger(...args);
+      return popupState.forceOpen ? { ...trigger, open: true } : trigger;
+    },
+  };
+});
 
 const makeMod = (id: string, overrides: Partial<SubscribedMod> = {}): SubscribedMod => ({
   workshop_id: id,
@@ -210,6 +224,49 @@ describe("ModsRefresh", () => {
       renderToStaticMarkup(<ModsRefresh options={{ label: "Reload" }} />),
     );
     expect(labelled).toContain(">Reload<");
+  });
+});
+
+describe("ModsVerifyMenu", () => {
+  it("renders the open menu through the theme's popup file", async () => {
+    const { ModsVerifyMenu } = await import("./mods-toolbar-elements");
+    ownedLayouts["layout/popups/modsVerify.json"] = { schemaVersion: 1, root: { type: "stack", children: [] } };
+    popupState.forceOpen = true;
+    try {
+      const html = renderToStaticMarkup(<ModsVerifyMenu />);
+      expect(html).toContain('data-popup-host=""');
+      expect(html).not.toContain('data-el="mods.verifyAll"');
+    } finally {
+      popupState.forceOpen = false;
+      delete ownedLayouts["layout/popups/modsVerify.json"];
+    }
+  });
+});
+
+describe("mods menu items in a theme's popup", () => {
+  it.each([
+    { name: "ModsVerifySelected", el: "mods.verifySelected" },
+    { name: "ModsVerifyAll", el: "mods.verifyAll" },
+    { name: "ModsUnsubscribeSelected", el: "mods.unsubscribeSelected" },
+    { name: "ModsUnsubscribeAll", el: "mods.unsubscribeAll" },
+  ] as const)("$el closes the popup it sits in", async ({ name, el }) => {
+    const elements = await import("./mods-toolbar-elements");
+    const { PopupContextProvider } = await import("./popup-elements");
+    const Item = elements[name];
+    const close = vi.fn();
+    delete captured[el];
+    await withStore(
+      { rows: [makeMod("1")], selectedIds: new Set(["1"]), verifyAll: vi.fn(), verifySelected: vi.fn() },
+      () => {
+        renderToStaticMarkup(
+          <PopupContextProvider popupId="modsVerify" close={close}>
+            <Item />
+          </PopupContextProvider>,
+        );
+        (captured[el]?.onClick as () => void)();
+      },
+    );
+    expect(close).toHaveBeenCalledOnce();
   });
 });
 

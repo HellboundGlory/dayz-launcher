@@ -160,7 +160,7 @@ describe("ElementHost & Elements", () => {
       });
       expect(html).toContain('data-el="status.listSource"');
       expect(html).toContain('data-state="index"');
-      expect(html).toContain("Indexed");
+      expect(html).toContain('data-part="label">index<');
     });
   });
 
