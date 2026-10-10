@@ -1,5 +1,21 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
+
+/// Serialises every read and read-modify-write of the settings file.
+static SETTINGS_LOCK: Mutex<()> = Mutex::new(());
+
+/// The sequence of the newest save already written to disk.
+static LAST_WRITTEN_SEQ: AtomicU64 = AtomicU64::new(0);
+
+/// Hands out a strictly increasing sequence to each settings save.
+static NEXT_SAVE_SEQ: AtomicU64 = AtomicU64::new(1);
+
+/// Take the settings lock, recovering a poisoned guard.
+fn lock_settings() -> std::sync::MutexGuard<'static, ()> {
+    SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+}
 
 /// What the launcher does with itself once DayZ is starting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
@@ -164,33 +180,83 @@ fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir.join(FILENAME))
 }
 
-/// Read and parse the settings file, falling back to defaults on a missing
-/// or corrupt file (non-fatal; the next save overwrites it).
-fn read_from_disk(path: &std::path::Path) -> AppSettings {
+/// Read the settings file, moving a corrupt one aside and falling back to defaults.
+fn read_from_disk(path: &Path) -> Result<AppSettings, String> {
     let mut settings = match std::fs::read_to_string(path) {
-        Err(_) => AppSettings::default(),
-        Ok(raw) => serde_json::from_str::<AppSettings>(&raw).unwrap_or_else(|e| {
-            eprintln!(
-                "[settings] {} is unreadable ({e}); using defaults",
-                path.display()
-            );
-            AppSettings::default()
-        }),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => AppSettings::default(),
+        Err(e) if e.kind() == std::io::ErrorKind::InvalidData => {
+            move_corrupt_aside(path, &e.to_string())?
+        }
+        Err(e) => return Err(format!("Could not read {}: {e}", path.display())),
+        Ok(raw) => match serde_json::from_str::<AppSettings>(&raw) {
+            Ok(settings) => settings,
+            Err(e) => move_corrupt_aside(path, &e.to_string())?,
+        },
     };
     settings.migrate();
-    settings
+    Ok(settings)
+}
+
+/// Rename a corrupt settings file so the next save cannot overwrite its bytes.
+/// If it cannot be moved, the caller must not write over it either.
+fn move_corrupt_aside(path: &Path, reason: &str) -> Result<AppSettings, String> {
+    let corrupt = path.with_file_name("settings.corrupt.json");
+    std::fs::rename(path, &corrupt).map_err(|err| {
+        format!(
+            "{} is unreadable ({reason}) and could not be moved to {} ({err})",
+            path.display(),
+            corrupt.display()
+        )
+    })?;
+    eprintln!(
+        "[settings] {} is unreadable ({reason}); moved to {}; using defaults",
+        path.display(),
+        corrupt.display()
+    );
+    Ok(AppSettings::default())
+}
+
+/// Read the on-disk settings under the lock, for a caller that only reads.
+fn read_locked(path: &Path) -> Result<AppSettings, String> {
+    let _guard = lock_settings();
+    read_from_disk(path)
+}
+
+/// Lock, read, apply `change`, and save only when it reports a change.
+fn update_on_disk(
+    path: &Path,
+    seq: Option<u64>,
+    change: impl FnOnce(&mut AppSettings) -> bool,
+) -> Result<(), String> {
+    let _guard = lock_settings();
+    if let Some(seq) = seq {
+        if seq <= LAST_WRITTEN_SEQ.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+    }
+    let mut settings = read_from_disk(path)?;
+    if !change(&mut settings) {
+        return Ok(());
+    }
+    let json = serde_json::to_string_pretty(&settings)
+        .map_err(|e| format!("Could not serialise settings: {e}"))?;
+    crate::atomic_write::write_atomically(path, json.as_bytes())
+        .map_err(|e| format!("Could not save {}: {e}", path.display()))?;
+    if let Some(seq) = seq {
+        LAST_WRITTEN_SEQ.store(seq, Ordering::Relaxed);
+    }
+    Ok(())
 }
 
 /// The current on-disk settings, or defaults — for a caller that needs one
 /// field without going through the frontend.
 pub fn current(app: &AppHandle) -> AppSettings {
-    match settings_path(app) {
-        Ok(path) => read_from_disk(&path),
-        Err(e) => {
+    settings_path(app)
+        .and_then(|path| read_locked(&path))
+        .unwrap_or_else(|e| {
             eprintln!("[settings] {e}; using defaults");
             AppSettings::default()
-        }
-    }
+        })
 }
 
 /// Read-modify-write `active_theme_id`, like [`persist_window_state`]. Not
@@ -198,16 +264,13 @@ pub fn current(app: &AppHandle) -> AppSettings {
 /// running app must not make the selection unwritable.
 pub fn set_active_theme_id(app: &AppHandle, id: Option<String>) -> Result<(), String> {
     let path = settings_path(app)?;
-    let mut settings = read_from_disk(&path);
-    if settings.active_theme_id == id {
-        return Ok(());
-    }
-    settings.active_theme_id = id;
-
-    let json = serde_json::to_string_pretty(&settings)
-        .map_err(|e| format!("Could not serialise settings: {e}"))?;
-    crate::atomic_write::write_atomically(&path, json.as_bytes())
-        .map_err(|e| format!("Could not save {}: {e}", path.display()))
+    update_on_disk(&path, None, |settings| {
+        if settings.active_theme_id == id {
+            return false;
+        }
+        settings.active_theme_id = id;
+        true
+    })
 }
 
 /// Make the OS startup entry match `start_with_windows`. Reconciled on every
@@ -320,13 +383,7 @@ pub fn set_ui_scale(app: AppHandle, scale: f64) {
 /// exists). Transport settings are consumed exactly once here to size the
 /// process-wide prober, and deliberately not re-read on save.
 pub fn load_at_startup(app: &AppHandle) -> AppSettings {
-    let mut settings = match settings_path(app) {
-        Ok(path) => read_from_disk(&path),
-        Err(e) => {
-            eprintln!("[settings] {e}; using defaults");
-            AppSettings::default()
-        }
-    };
+    let mut settings = current(app);
 
     // One-time upgrade: geometry from the retired window-state plugin's own
     // file, folded in and the file deleted. Guarded on `None` so it never
@@ -348,16 +405,13 @@ pub fn persist_window_state(app: &AppHandle) {
         return;
     };
 
-    let mut settings = read_from_disk(&path);
-    if settings.window == Some(state) {
-        return;
-    }
-    settings.window = Some(state);
-
-    let Ok(json) = serde_json::to_string_pretty(&settings) else {
-        return;
-    };
-    if let Err(e) = crate::atomic_write::write_atomically(&path, json.as_bytes()) {
+    if let Err(e) = update_on_disk(&path, None, |settings| {
+        if settings.window == Some(state) {
+            return false;
+        }
+        settings.window = Some(state);
+        true
+    }) {
         eprintln!("[settings] Could not save the window geometry: {e}");
     }
 }
@@ -389,31 +443,24 @@ pub fn data_folder_path(app: AppHandle) -> String {
 #[tauri::command]
 pub async fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
     let path = settings_path(&app)?;
-    tokio::task::spawn_blocking(move || read_from_disk(&path))
+    tokio::task::spawn_blocking(move || read_locked(&path))
         .await
-        .map_err(|e| format!("Task join error: {e}"))
+        .map_err(|e| format!("Task join error: {e}"))?
 }
 
 /// Write settings to disk, atomically (temp file + rename).
 #[tauri::command]
 pub async fn save_settings(app: AppHandle, mut settings: AppSettings) -> Result<(), String> {
     let path = settings_path(&app)?;
+    let seq = NEXT_SAVE_SEQ.fetch_add(1, Ordering::Relaxed);
 
     // Window geometry is not the frontend's to send — its payload always
     // omits `window`, which would otherwise erase the remembered geometry on every save.
     settings.window = crate::window_state::cached(&app).or(settings.window);
 
-    // Same hazard for activeThemeId, until the Themes page sends it.
-    let on_disk = read_from_disk(&path);
-    settings.absorb_unsent_theme_selection(&on_disk);
-
-    let json = serde_json::to_string_pretty(&settings)
-        .map_err(|e| format!("Could not serialise settings: {e}"))?;
-
     // Re-published before the write so a toggle takes effect on the very
     // next close even if the disk write is slow.
     if let Some(state) = app.try_state::<crate::state::AppState>() {
-        use std::sync::atomic::Ordering;
         state
             .close_to_tray
             .store(settings.closes_to_tray(), Ordering::Relaxed);
@@ -433,8 +480,12 @@ pub async fn save_settings(app: AppHandle, mut settings: AppSettings) -> Result<
     apply_ui_scale(&app, settings.scale());
 
     tokio::task::spawn_blocking(move || {
-        crate::atomic_write::write_atomically(&path, json.as_bytes())
-            .map_err(|e| format!("Could not save {}: {e}", path.display()))
+        update_on_disk(&path, Some(seq), move |on_disk| {
+            // Same hazard for activeThemeId, until the Themes page sends it.
+            settings.absorb_unsent_theme_selection(on_disk);
+            *on_disk = settings;
+            true
+        })
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
@@ -442,13 +493,119 @@ pub async fn save_settings(app: AppHandle, mut settings: AppSettings) -> Result<
 
 #[cfg(test)]
 mod tests {
-    use super::{AppSettings, DEFAULT_UI_SCALE, MAX_UI_SCALE};
+    use super::{read_from_disk, update_on_disk, AppSettings, DEFAULT_UI_SCALE, MAX_UI_SCALE};
+    use crate::atomic_write::test_support::ScratchDir;
+    use std::fs;
 
     /// Parse the way `read_from_disk` does — migration is part of reading a file.
     fn load(raw: &str) -> AppSettings {
         let mut settings: AppSettings = serde_json::from_str(raw).expect("should parse");
         settings.migrate();
         settings
+    }
+
+    #[test]
+    fn a_wrong_typed_field_moves_the_file_aside_and_reads_defaults() {
+        let dir = ScratchDir::new();
+        let path = dir.join("settings.json");
+        let raw = br#"{ "uiScale": "big" }"#;
+        fs::write(&path, raw).unwrap();
+
+        let settings = read_from_disk(&path).unwrap();
+
+        assert_eq!(settings.scale(), DEFAULT_UI_SCALE);
+        assert_eq!(fs::read(dir.join("settings.corrupt.json")).unwrap(), raw);
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn a_missing_file_reads_defaults_and_creates_no_corrupt_copy() {
+        let dir = ScratchDir::new();
+        let path = dir.join("settings.json");
+
+        let settings = read_from_disk(&path).unwrap();
+
+        assert_eq!(settings.profile_name, "");
+        assert!(!dir.join("settings.corrupt.json").exists());
+    }
+
+    #[test]
+    fn a_file_that_is_not_utf8_is_moved_aside_like_a_parse_error() {
+        let dir = ScratchDir::new();
+        let path = dir.join("settings.json");
+        let raw = [0xff, 0xfe, 0x00, 0x01];
+        fs::write(&path, raw).unwrap();
+
+        let settings = read_from_disk(&path).unwrap();
+
+        assert_eq!(settings.profile_name, "");
+        assert_eq!(fs::read(dir.join("settings.corrupt.json")).unwrap(), raw);
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn update_on_disk_keeps_fields_it_did_not_touch() {
+        let dir = ScratchDir::new();
+        let path = dir.join("settings.json");
+        fs::write(&path, r#"{ "profileName": "James" }"#).unwrap();
+
+        update_on_disk(&path, None, |settings| {
+            settings.active_theme_id = Some("local.ember".into());
+            true
+        })
+        .unwrap();
+
+        let read = read_from_disk(&path).unwrap();
+        assert_eq!(read.profile_name, "James");
+        assert_eq!(read.active_theme_id.as_deref(), Some("local.ember"));
+    }
+
+    #[test]
+    fn update_on_disk_writes_nothing_when_the_change_is_a_no_op() {
+        let dir = ScratchDir::new();
+        let path = dir.join("settings.json");
+        fs::write(&path, r#"{ "profileName": "James" }"#).unwrap();
+        let before = fs::read(&path).unwrap();
+
+        update_on_disk(&path, None, |_| false).unwrap();
+
+        assert_eq!(fs::read(&path).unwrap(), before);
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_read_is_never_written_over() {
+        let dir = ScratchDir::new();
+        // A directory where the file should be stands in for a file another
+        // process holds open: the read fails with something other than "missing".
+        let path = dir.join("settings.json");
+        fs::create_dir(&path).unwrap();
+
+        let result = update_on_disk(&path, None, |settings| {
+            settings.profile_name = "Overwritten".into();
+            true
+        });
+
+        assert!(result.is_err());
+        assert!(path.is_dir());
+    }
+
+    #[test]
+    fn an_older_save_landing_after_a_newer_one_does_not_overwrite_it() {
+        let dir = ScratchDir::new();
+        let path = dir.join("settings.json");
+
+        update_on_disk(&path, Some(2), |settings| {
+            settings.profile_name = "second".into();
+            true
+        })
+        .unwrap();
+        update_on_disk(&path, Some(1), |settings| {
+            settings.profile_name = "first".into();
+            true
+        })
+        .unwrap();
+
+        assert_eq!(read_from_disk(&path).unwrap().profile_name, "second");
     }
 
     #[test]
