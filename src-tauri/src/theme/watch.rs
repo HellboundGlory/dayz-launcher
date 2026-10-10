@@ -6,7 +6,7 @@
 
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use serde_json::json;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
@@ -134,7 +134,8 @@ fn start(
         .name("tetra-theme-watch".to_string())
         .spawn({
             let stopped = Arc::clone(&stopped);
-            move || debounce(rx, stopped, sink)
+            let watched = dir.clone();
+            move || debounce(rx, stopped, watched, sink)
         })
         .map_err(|e| format!("Could not start the theme watcher: {e}"))?;
 
@@ -186,22 +187,32 @@ fn start(
 /// window, each further one in that window extends it, and only a full window of
 /// quiet means the burst is over — so the frontend is woken once per save, not
 /// once per file the save touched.
-fn debounce(rx: Receiver<WatchSignal>, stopped: Arc<AtomicBool>, sink: impl Fn(WatchSignal)) {
+fn debounce(
+    rx: Receiver<WatchSignal>,
+    stopped: Arc<AtomicBool>,
+    watched: PathBuf,
+    sink: impl Fn(WatchSignal),
+) {
     let mut pending = false;
     loop {
-        let next = if pending {
-            rx.recv_timeout(DEBOUNCE)
-        } else {
-            rx.recv().map_err(|_| RecvTimeoutError::Disconnected)
-        };
-
-        match next {
+        match rx.recv_timeout(DEBOUNCE) {
             Ok(WatchSignal::Changed) => pending = true,
             // A watcher error is not part of the burst: report it as it arrives.
             Ok(WatchSignal::Failed(message)) => sink(WatchSignal::Failed(message)),
             Err(RecvTimeoutError::Timeout) => {
                 if !stopped.load(Ordering::Relaxed) {
-                    sink(WatchSignal::Changed);
+                    // notify can drop the watch without reporting anything —
+                    // Windows unwatches silently — so liveness is checked here.
+                    if !watched.is_dir() {
+                        sink(WatchSignal::Failed(format!(
+                            "the watched directory {} is gone",
+                            watched.display()
+                        )));
+                        break;
+                    }
+                    if pending {
+                        sink(WatchSignal::Changed);
+                    }
                 }
                 pending = false;
             }
@@ -313,7 +324,7 @@ mod tests {
         let (out_tx, out_rx) = std::sync::mpsc::channel();
         let stopped = Arc::new(AtomicBool::new(false));
         let worker = std::thread::spawn(move || {
-            debounce(rx, stopped, move |signal| {
+            debounce(rx, stopped, scratch("burst"), move |signal| {
                 let _ = out_tx.send(signal);
             })
         });
@@ -392,6 +403,37 @@ mod tests {
             signals.recv_timeout(QUIET).is_err(),
             "a stopped watch must not fire"
         );
+    }
+
+    /// A directory can vanish without notify reporting an event — Windows
+    /// unwatches silently — so the debounce thread notices it is gone. `Failed`
+    /// is only logged; it does not wake the frontend.
+    #[test]
+    fn a_vanished_watched_directory_is_reported_without_an_event() {
+        let root = scratch("vanished");
+        let missing = root.join("dev.gone");
+        let (tx, rx) = mpsc::channel();
+        let (out_tx, out_rx) = mpsc::channel();
+        let stopped = Arc::new(AtomicBool::new(false));
+        let worker = std::thread::spawn({
+            let stopped = Arc::clone(&stopped);
+            move || {
+                debounce(rx, stopped, missing, move |signal| {
+                    let _ = out_tx.send(signal);
+                })
+            }
+        });
+
+        let signal = out_rx
+            .recv_timeout(WAIT)
+            .expect("a vanished directory must be reported");
+        assert!(
+            matches!(signal, WatchSignal::Failed(_)),
+            "a directory that is gone must be reported as a failure"
+        );
+
+        drop(tx);
+        worker.join().expect("debounce thread");
     }
 
     /// Nothing watched is not an error to stop: a stray call after the watch

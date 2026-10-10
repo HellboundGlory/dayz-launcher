@@ -755,6 +755,11 @@ export async function confirmThemeInstall(stagingId: string): Promise<string> {
   return invoke<string>("confirm_theme_install", { stagingId });
 }
 
+/** Delete a staged import the user did not install. A stage that is already gone is not an error. */
+export async function discardThemeImport(stagingId: string): Promise<void> {
+  return invoke<void>("discard_theme_import", { stagingId });
+}
+
 /** Package an installed theme to `destPath`, applying the export dialog's manifest overrides. */
 export async function exportTheme(
   id: string,
