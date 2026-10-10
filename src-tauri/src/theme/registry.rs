@@ -110,8 +110,6 @@ pub struct ElementDef {
     pub states: Vec<String>,
     pub since: String,
     pub aliases: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub fallback_placement: Option<BTreeMap<String, String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

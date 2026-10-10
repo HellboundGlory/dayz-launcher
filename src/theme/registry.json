@@ -1154,11 +1154,7 @@
         "offline"
       ],
       "since": "2.0",
-      "aliases": [],
-      "fallbackPlacement": {
-        "list:servers/row": "append",
-        "modal:serverInfo": "append"
-      }
+      "aliases": []
     },
     "server.actionNotice": {
       "kind": "notice",
@@ -1185,12 +1181,7 @@
         "offline"
       ],
       "since": "2.0",
-      "aliases": [],
-      "fallbackPlacement": {
-        "list:servers/row": "afterElement:server.join",
-        "modal:serverInfo": "afterElement:server.join",
-        "withJoin": "afterElement:server.join"
-      }
+      "aliases": []
     },
     "server.cancel": {
       "kind": "action",

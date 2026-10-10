@@ -48,7 +48,7 @@ import {
 } from "./theme/theme-store";
 import { FallbackNotice } from "./theme/fallback/fallback-notice";
 import { NoticeLaunch } from "./theme/elements/notice-elements";
-import { isElementInLayout } from "./theme/fallback/auto-placement";
+import { isElementInLayout } from "./theme/layout-query";
 import { IncompatibleThemeNotice } from "./theme/fallback/incompatible-theme-notice";
 import { useVisibilityCheck } from "./theme/fallback/use-visibility-check";
 import { ElementContextProvider, SubjectContextProvider, useElementContext } from "./theme/elements/context";

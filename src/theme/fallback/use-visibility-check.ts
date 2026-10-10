@@ -5,7 +5,7 @@ import { useDevStore } from "../dev/dev-store";
 import { REGISTRY } from "../registry";
 import type { LayoutFile, PopupLayoutFile } from "../renderer/types";
 import { getThemeOwnedLayout, useThemeStore } from "../theme-store";
-import { isElementInLayout } from "./auto-placement";
+import { isElementInLayout } from "../layout-query";
 import { isFileFallenBack, markFileFallback } from "./store";
 import { MISSING_ELEMENT_REASON, runVisibilityCheck } from "./visibility";
 
