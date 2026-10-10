@@ -219,12 +219,16 @@ fn queue_download(
     high_priority: bool,
 ) -> bool {
     let ugc = client.ugc();
-    if active.is_empty() {
+    // Only a call that lifted the block owns re-arming it if it queues nothing.
+    let lifted = active.is_empty();
+    if lifted {
         ugc.suspend_downloads(false);
     }
     let queued = ugc.download_item(steamworks::PublishedFileId(id), high_priority);
     if queued {
         active.insert(id, Instant::now());
+    } else if lifted {
+        ugc.suspend_downloads(true);
     }
     queued
 }
@@ -381,6 +385,14 @@ fn detail(e: &SteamAPIInitError) -> String {
     }
 }
 
+/// Releases every in-flight server-list request — the native handle outlives
+/// the client otherwise.
+fn release_lists(lists: &mut Vec<ListJob>) {
+    for job in lists.drain(..) {
+        release(&job.request);
+    }
+}
+
 pub(crate) fn run(
     rx: Receiver<Command>,
     ready: Sender<Result<(), SteamError>>,
@@ -468,16 +480,16 @@ pub(crate) fn run(
                 )));
             }
             Ok(Command::Shutdown(ack)) => {
-                // Native requests outlive the client otherwise.
-                for job in lists.drain(..) {
-                    release(&job.request);
-                }
+                release_lists(&mut lists);
                 drop(client);
                 let _ = ack.send(());
                 return;
             }
             Err(RecvTimeoutError::Timeout) => continue,
-            Err(RecvTimeoutError::Disconnected) => return,
+            Err(RecvTimeoutError::Disconnected) => {
+                release_lists(&mut lists);
+                return;
+            }
         }
     }
 }
@@ -1061,8 +1073,8 @@ fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>, active: &mut Ac
                 if !answered && !expired {
                     return true;
                 }
-                // A timed-out id reads as `updated_at == 0`, which `is_stale`
-                // treats as "leave it alone".
+                // A timed-out id reads as `updated_at == 0`, which
+                // `is_outdated` treats as "leave it alone".
                 let updated = issued
                     .updated
                     .lock()
@@ -1073,8 +1085,7 @@ fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>, active: &mut Ac
                 for &id in &issued.ids {
                     let installed_at = issued.installed.get(&id).copied().unwrap_or(0);
                     let updated_at = updated.get(&id).copied().unwrap_or(0);
-                    let outdated =
-                        updated_at != 0 && (installed_at == 0 || updated_at > installed_at);
+                    let outdated = crate::workshop::is_outdated(installed_at, updated_at);
                     if !outdated {
                         continue;
                     }
@@ -1108,11 +1119,7 @@ fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>, active: &mut Ac
                     let installed_at = issued.installed.get(&id).copied().unwrap_or(0);
                     let known = updated.contains_key(&id);
                     let updated_at = updated.get(&id).copied().unwrap_or(0);
-                    // Deliberately wider than the gate's `is_stale`: a
-                    // subscribed-but-not-on-disk mod is exactly what VERIFY
-                    // should bring down.
-                    let outdated =
-                        updated_at != 0 && (installed_at == 0 || updated_at > installed_at);
+                    let outdated = crate::workshop::is_outdated(installed_at, updated_at);
                     let queued = outdated && queue_download(client, active, id, true);
                     outcomes.push(StaleOutcome {
                         workshop_id: id.to_string(),
@@ -1170,8 +1177,7 @@ fn poll_checks(client: &Client, pending: &mut Vec<PendingCheck>, active: &mut Ac
                     // Upgrade a stale cached `Ready` to `NeedsUpdate`, but never
                     // overwrite a more specific state.
                     if info.state == crate::workshop::ModState::Ready
-                        && d.time_updated != 0
-                        && (info.install_timestamp == 0 || d.time_updated > info.install_timestamp)
+                        && crate::workshop::is_outdated(info.install_timestamp, d.time_updated)
                     {
                         info.state = crate::workshop::ModState::NeedsUpdate;
                     }

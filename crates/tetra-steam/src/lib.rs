@@ -19,7 +19,7 @@ pub use actor::{
     WorkshopSearchRow, DAYZ_APP_ID,
 };
 pub use error::{InitFailure, SteamError};
-pub use handle::{workshop_details_cached, SteamHandle, LIST_REQUEST_BUDGET};
+pub use handle::{SteamHandle, LIST_REQUEST_BUDGET};
 pub use plan::{Shard, LIST_CAP};
 pub use rows::{to_server_row, GameServerRow};
 pub use source::Filters;

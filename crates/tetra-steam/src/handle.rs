@@ -421,15 +421,6 @@ impl SteamHandle {
     }
 }
 
-pub fn workshop_details_cached(
-    handle: &SteamHandle,
-    ids: &[u64],
-    reader: &tetra_registry::Reader,
-    writer: &tetra_registry::Writer,
-) -> Result<Vec<tetra_registry::rows::WorkshopCacheRow>, SteamError> {
-    handle.workshop_details_cached(ids, reader, writer)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
