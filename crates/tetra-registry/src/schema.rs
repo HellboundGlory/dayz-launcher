@@ -213,6 +213,12 @@ pub fn prune_stale(conn: &Connection) -> Result<usize, RegistryError> {
     let cutoff_secs = PRUNE_AFTER_DAYS * 86_400;
 
     let tx = conn.unchecked_transaction()?;
+    // Mods whose server row is already gone; nothing else would ever remove them.
+    tx.execute(
+        "DELETE FROM server_mods WHERE NOT EXISTS \
+         (SELECT 1 FROM servers s WHERE s.ip = server_mods.ip AND s.query_port = server_mods.query_port)",
+        [],
+    )?;
     tx.execute(
         &format!(
             "DELETE FROM server_mods WHERE (ip, query_port) IN \
@@ -276,6 +282,22 @@ mod tests {
             rusqlite::params![ip, port, now() - age_days * 86_400],
         )
         .unwrap();
+    }
+
+    #[test]
+    fn mods_without_a_server_row_are_swept() {
+        let conn = fresh_conn();
+        conn.execute(
+            "INSERT INTO server_mods (ip, query_port, ordinal, workshop_id, name)
+             VALUES ('9.9.9.9', 2302, 0, 1559212036, 'Orphan')",
+            [],
+        )
+        .unwrap();
+        prune_stale(&conn).unwrap();
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM server_mods", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
     }
 
     #[test]

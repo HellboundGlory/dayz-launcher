@@ -43,6 +43,4 @@ pub enum CoreError {
     Parse(#[from] ParseError),
     #[error(transparent)]
     Packed(#[from] PackedError),
-    #[error("network: {0}")]
-    Io(#[from] std::io::Error),
 }

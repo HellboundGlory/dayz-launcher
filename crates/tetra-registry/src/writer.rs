@@ -3,7 +3,7 @@ use crate::rows::{ServerKey, ServerRow, WorkshopCacheRow};
 use rusqlite::{params, Connection};
 use tetra_core::a2s::dayz::ServerMod;
 use tetra_core::classify::fake::is_fake_listing;
-use tetra_core::classify::geoip::country_code as geo_country_code;
+use tetra_core::classify::geoip::region_code;
 use tetra_core::classify::keywords::parse_keywords;
 use tetra_core::classify::maps::normalise_map;
 use tokio::sync::{mpsc, oneshot};
@@ -234,21 +234,35 @@ ON CONFLICT(ip, query_port) DO UPDATE SET
     country_code   = COALESCE(excluded.country_code,   servers.country_code)
 "#;
 
-/// Removes a row (and, by foreign key, its mods) that turned out to be a
-/// spoofed listing.
+/// Removes a server's mod rows. The schema declares no foreign key, so deleting
+/// a `servers` row does not cascade.
+const DELETE_SERVER_MODS: &str = "DELETE FROM server_mods WHERE ip = ?1 AND query_port = ?2";
+
+/// Removes a row that turned out to be a spoofed listing.
 const DELETE_SERVER: &str = "DELETE FROM servers WHERE ip = ?1 AND query_port = ?2";
+
+const SERVER_EXISTS: &str = "SELECT 1 FROM servers WHERE ip = ?1 AND query_port = ?2";
+
+const INSERT_SERVER_MOD: &str =
+    "INSERT INTO server_mods (ip, query_port, ordinal, workshop_id, name)
+     VALUES (?1, ?2, ?3, ?4, ?5)";
+
+const SET_MOD_COUNT: &str = "UPDATE servers SET mod_count = ?3, mods_updated_at = unixepoch()
+     WHERE ip = ?1 AND query_port = ?2";
 
 fn upsert_servers(conn: &Connection, rows: &[ServerRow]) -> Result<usize, RegistryError> {
     let tx = conn.unchecked_transaction()?;
     let mut n = 0;
     {
         let mut stmt = tx.prepare_cached(UPSERT_SERVER)?;
+        let mut drop_mods = tx.prepare_cached(DELETE_SERVER_MODS)?;
         let mut drop_fake = tx.prepare_cached(DELETE_SERVER)?;
         for row in rows {
             // Spoofed listings are dropped at the boundary, so no read path
             // has to know about them. A row that starts lying after it was
             // stored honestly is deleted rather than left behind.
             if is_fake_listing(&row.name, row.players, row.max_players, row.bots) {
+                drop_mods.execute(params![row.key.ip.to_string(), row.key.query_port])?;
                 drop_fake.execute(params![row.key.ip.to_string(), row.key.query_port])?;
                 continue;
             }
@@ -266,7 +280,7 @@ fn upsert_servers(conn: &Connection, rows: &[ServerRow]) -> Result<usize, Regist
             let cc = row
                 .country_code
                 .as_deref()
-                .or_else(|| geo_country_code(row.key.ip))
+                .or_else(|| region_code(row.key.ip))
                 .map(|s| s.to_string());
 
             n += stmt.execute(params![
@@ -311,35 +325,7 @@ fn upsert_server_mods(
     key: ServerKey,
     mods: &[ServerMod],
 ) -> Result<(), RegistryError> {
-    let tx = conn.unchecked_transaction()?;
-    let ip = key.ip.to_string();
-
-    tx.execute(
-        "DELETE FROM server_mods WHERE ip = ?1 AND query_port = ?2",
-        params![ip, key.query_port],
-    )?;
-    {
-        let mut stmt = tx.prepare_cached(
-            "INSERT INTO server_mods (ip, query_port, ordinal, workshop_id, name)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-        )?;
-        for (ordinal, m) in mods.iter().enumerate() {
-            stmt.execute(params![
-                ip,
-                key.query_port,
-                ordinal as i64,
-                m.workshop_id as i64,
-                m.name
-            ])?;
-        }
-    }
-    tx.execute(
-        "UPDATE servers SET mod_count = ?3, mods_updated_at = unixepoch()
-         WHERE ip = ?1 AND query_port = ?2",
-        params![ip, key.query_port, mods.len() as i64],
-    )?;
-    tx.commit()?;
-    Ok(())
+    upsert_server_mods_bulk(conn, &[(key, mods.to_vec())])
 }
 
 /// [`upsert_server_mods`] for many servers under one commit. Same semantics
@@ -350,19 +336,18 @@ fn upsert_server_mods_bulk(
 ) -> Result<(), RegistryError> {
     let tx = conn.unchecked_transaction()?;
     {
-        let mut clear =
-            tx.prepare_cached("DELETE FROM server_mods WHERE ip = ?1 AND query_port = ?2")?;
-        let mut insert = tx.prepare_cached(
-            "INSERT INTO server_mods (ip, query_port, ordinal, workshop_id, name)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-        )?;
-        let mut count = tx.prepare_cached(
-            "UPDATE servers SET mod_count = ?3, mods_updated_at = unixepoch()
-             WHERE ip = ?1 AND query_port = ?2",
-        )?;
+        let mut clear = tx.prepare_cached(DELETE_SERVER_MODS)?;
+        let mut exists = tx.prepare_cached(SERVER_EXISTS)?;
+        let mut insert = tx.prepare_cached(INSERT_SERVER_MOD)?;
+        let mut count = tx.prepare_cached(SET_MOD_COUNT)?;
         for (key, mods) in batch {
             let ip = key.ip.to_string();
             clear.execute(params![ip, key.query_port])?;
+            // A spoofed listing is deleted before its rules probe lands; its
+            // mods must not come back without a server row to hang off.
+            if !exists.exists(params![ip, key.query_port])? {
+                continue;
+            }
             for (ordinal, m) in mods.iter().enumerate() {
                 insert.execute(params![
                     ip,
