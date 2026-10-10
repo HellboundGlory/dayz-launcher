@@ -1,4 +1,5 @@
 import { useMemo, useRef, type CSSProperties } from "react";
+import { Loader2 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useServerStore } from "@/stores/server-store";
 import { useModsStore, type ModSortKey } from "@/stores/mods-store";
@@ -44,14 +45,20 @@ export function ServerListHost({
   const sortKey = useServerStore((s) => s.sortKey);
   const sortDir = useServerStore((s) => s.sortDir);
   const setSort = useServerStore((s) => s.setSort);
+  const hasLoadedOnce = useServerStore((s) => s.hasLoadedOnce);
 
   useLayoutSubscription();
   const listLayout = (getActiveLayout("layout/lists/servers.json") ?? SERVERS_LIST) as LayoutFile;
   return (
-    <div data-el="list.servers" className={className ?? "flex-1 min-h-0 w-full"} style={style}>
+    <div data-el="list.servers" data-state={servers.length === 0 ? "empty" : undefined} className={className ?? "flex-1 min-h-0 w-full"} style={style}>
       <ListHost<Server>
         listId="list.servers"
         items={servers}
+        emptyText={
+          hasLoadedOnce
+            ? "No servers match the current filters."
+            : "No servers yet — the list fills in once Steam connects."
+        }
         {...listHostOptions(options)}
         columns={listLayout?.columns}
         rowNode={listLayout?.row}
@@ -102,6 +109,7 @@ export async function loadServerMods(
 export function ServerModsList({
   state,
   mods,
+  modded,
   header = true,
   listLayout,
   className,
@@ -109,6 +117,7 @@ export function ServerModsList({
 }: {
   state: ServerModsListState;
   mods: ModReadinessEntry[];
+  modded: boolean;
   header?: boolean;
   listLayout?: LayoutFile;
   className?: string;
@@ -131,9 +140,14 @@ export function ServerModsList({
 
       <div data-part="scroller" className="flex-1 overflow-y-auto min-h-0">
         {state === "loading" ? (
-          <div data-part="loading" className="p-4 text-xs text-muted">Loading…</div>
+          <div data-part="loading" className="flex items-center justify-center gap-1.5 p-4 text-xs text-muted">
+            <Loader2 className="size-3.5 animate-spin" />
+            Checking mod readiness…
+          </div>
         ) : mods.length === 0 ? (
-          <div data-part="empty" className="p-4 text-xs text-muted">This server declares no mods.</div>
+          <div data-part="empty" className="p-4 text-xs text-muted">
+            {modded ? "No mods found or not probed yet." : "No mods required."}
+          </div>
         ) : (
           <div data-part="rows">
             {mods.map((mod, index) => (
@@ -201,6 +215,7 @@ export function ServerModsListHost({
     <ServerModsList
       state={state}
       mods={mods}
+      modded={!!server?.modded}
       header={listHostOptions(options).header}
       listLayout={listLayout}
       className={className}
@@ -269,7 +284,7 @@ export function ModsListHost({
   style?: CSSProperties;
   options?: Record<string, unknown>;
 }) {
-  const { rows, search, statusFilter, sortKey, sortDir, states, selectedModId, selectedIds, openMod, setSort } =
+  const { rows, search, statusFilter, sortKey, sortDir, states, selectedModId, selectedIds, openMod, setSort, loading } =
     useModsStore(
       useShallow((s) => ({
         rows: s.rows,
@@ -282,6 +297,7 @@ export function ModsListHost({
         selectedIds: s.selectedIds,
         openMod: s.openMod,
         setSort: s.setSort,
+        loading: s.loading,
       })),
     );
 
@@ -293,12 +309,17 @@ export function ModsListHost({
   const selectedMod = mods.find((m) => m.workshop_id === selectedModId) ?? null;
   useLayoutSubscription();
   const listLayout = (getActiveLayout("layout/lists/mods.json") ?? MODS_LIST) as LayoutFile;
+  const filtered = !!search || statusFilter !== "all";
+  const listState = mods.length === 0 ? (loading ? "loading" : filtered ? "empty filtered" : "empty") : undefined;
 
   return (
-    <div data-el="list.mods" className={className ?? "flex-1 min-h-0 w-full"} style={style}>
+    <div data-el="list.mods" data-state={listState} className={className ?? "flex-1 min-h-0 w-full"} style={style}>
       <ListHost<SubscribedMod>
         listId="list.mods"
         items={mods}
+        loading={loading}
+        loadingText="Loading subscribed mods…"
+        emptyText={filtered ? "No mods match the current filter." : "You have no subscribed DayZ Workshop mods."}
         {...listHostOptions(options)}
         columns={listLayout?.columns}
         rowNode={listLayout?.row}

@@ -308,7 +308,7 @@ describe("ServerPlayers", () => {
       { subjectContext: { kind: "server", data: full } },
     );
     expect(html).toContain('data-state="full queued"');
-    expect(html).toContain('data-part="queue" title="4 waiting in the join queue"> +4</span>');
+    expect(html).toContain('data-part="queue" title="4 waiting in the join queue">+4</span>');
   });
 
   it("marks the empty state for zero players and offline on an offline server", async () => {
@@ -461,13 +461,13 @@ describe("ServerTags", () => {
     useServerStore.setState({ modPending: {} });
   });
 
-  it("renders chips in order offline, official, 1PP, modded, locked, BattlEye, mod update, with registry state names", async () => {
+  it("renders chips in order offline, official, modded, 1PP, BattlEye, locked, mod update, with registry state names", async () => {
     useServerStore.setState({ modPending: { [server.addr]: true } });
     const all: Server = { ...offlineServer, official: true, first_person: true, modded: true, locked: true, battleye: true };
     const html = renderNode(<ServerTags options={{ showBattleye: true }} />, {
       subjectContext: { kind: "server", data: all },
     });
-    const order = ["offline", "official", "firstPerson", "modded", "locked", "battleye", "modUpdate"];
+    const order = ["offline", "official", "modded", "firstPerson", "battleye", "locked", "modUpdate"];
     let lastIndex = -1;
     for (const state of order) {
       const idx = html.indexOf(`data-state="${state}"`);
@@ -1082,7 +1082,7 @@ describe("ServerUnsubscribeUnique", () => {
 
     expect(unsubscribeUniqueMods).toHaveBeenCalledWith(server.addr, server.query_port);
     expect(mockServerActions.setNotice).toHaveBeenCalledWith(
-      { kind: "plain", text: `Unsubscribed 2 mods (${formatBytes(unsubscribeOutcome.total_size_bytes, 1)})` },
+      { kind: "plain", text: `Unsubscribed 2 unique mods (${formatBytes(unsubscribeOutcome.total_size_bytes, 1)})` },
       server.addr,
     );
   });
@@ -1136,7 +1136,7 @@ describe("ServerCopyAddress", () => {
     expect(copyServerAddress).toHaveBeenCalledWith(server);
   });
 
-  it("schedules the copied-state reset 1.5s after a successful copy", async () => {
+  it("schedules the copied-state reset 2s after a successful copy", async () => {
     const { copyServerAddress } = await import("@/lib/tauri");
     vi.useFakeTimers();
     try {
@@ -1147,7 +1147,7 @@ describe("ServerCopyAddress", () => {
 
       await vi.advanceTimersByTimeAsync(0);
       expect(copyServerAddress).toHaveBeenCalledWith(server);
-      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 1500);
+      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 2000);
     } finally {
       vi.useRealTimers();
     }

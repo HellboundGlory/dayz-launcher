@@ -81,7 +81,7 @@ export function ConfirmDialog() {
             onClick={() => resolve(true)}
             className="[border-radius:var(--t-radius-control)] bg-danger px-3 py-1.5 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onDanger)] transition-colors hover:brightness-110"
           >
-            Confirm
+            {request.confirmLabel}
           </button>
         </div>
       </div>

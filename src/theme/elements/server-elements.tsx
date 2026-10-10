@@ -114,7 +114,7 @@ export function ServerPlayers({
         </>
       )}
       {showQueue && queue > 0 && (
-        <span data-part="queue" title={`${queue} waiting in the join queue`}> +{queue}</span>
+        <span data-part="queue" title={`${queue} waiting in the join queue`}>+{queue}</span>
       )}
     </>
   );
@@ -301,17 +301,17 @@ export function ServerTags({
           {officialWording === "official" ? "OFFICIAL" : "VANILLA"}
         </span>
       )}
-      {showFirstPerson && server.first_person && (
-        <span data-part="chip" data-state="firstPerson" className={cn(chipClass, "text-muted border-line")}>1PP</span>
-      )}
       {showModded && server.modded && (
         <span data-part="chip" data-state="modded" className={cn(chipClass, "text-accent2 border-accent2-line")}>MODDED</span>
       )}
-      {showLocked && server.locked && (
-        <span data-part="chip" data-state="locked" className={cn(chipClass, "text-danger border-danger-line")}>LOCKED</span>
+      {showFirstPerson && server.first_person && (
+        <span data-part="chip" data-state="firstPerson" className={cn(chipClass, "text-muted border-line")}>1PP</span>
       )}
       {showBattleye && server.battleye && (
         <span data-part="chip" data-state="battleye" className={cn(chipClass, "text-accent border-accent-line")}>BATTLEYE</span>
+      )}
+      {showLocked && server.locked && (
+        <span data-part="chip" data-state="locked" className={cn(chipClass, "text-danger border-danger-line")}>LOCKED</span>
       )}
       {showModUpdate && hasModUpdate && (
         <span
@@ -429,7 +429,7 @@ function ServerJoinIdleButton({
           <OptionIcon
             icon={optionIcon}
             fallback={icon === "download" ? Download : Play}
-            className={icon === "download" ? "size-3" : "size-3 fill-current"}
+            className="size-3"
           />
         </span>
       )}
@@ -1174,13 +1174,13 @@ export function ServerSubscribeAll({
   style?: CSSProperties;
 }) {
   const server = useServerSubject();
-  const { op, dayzUp, subscribeOnly } = useServerActions();
+  const { op, subscribeOnly } = useServerActions();
   const { close } = usePopupContext();
   if (!server) return null;
 
   const { label, showIcon, showLabel } = displayOption(options, "Download mods", "label");
   const busy = op?.addr === server.addr;
-  const disabled = op !== null || dayzUp;
+  const disabled = op !== null;
 
   const handleClick = (e: MouseEvent) => {
     e.stopPropagation();
@@ -1240,7 +1240,7 @@ export function ServerUnsubscribeUnique({
       setNotice(
         {
           kind: "plain",
-          text: `Unsubscribed ${outcome.count} mod${outcome.count === 1 ? "" : "s"} (${formatBytes(outcome.total_size_bytes, 1)})`,
+          text: `Unsubscribed ${outcome.count} unique mod${outcome.count === 1 ? "" : "s"} (${formatBytes(outcome.total_size_bytes, 1)})`,
         },
         server.addr,
       );
@@ -1262,6 +1262,7 @@ export function ServerUnsubscribeUnique({
         "Unsubscribe unique mods",
         `Unsubscribe ${summary.count} unique mod${summary.count === 1 ? "" : "s"} (${formatBytes(summary.total_size_bytes, 1)}) only used by this server?`,
         () => void performUnsubscribe(),
+        "Unsubscribe",
       );
     } catch (err) {
       setNotice({ kind: "plain", text: String(err) }, server.addr);
@@ -1322,7 +1323,7 @@ export function ServerDeselect({
   );
 }
 
-const COPY_ADDRESS_RESET_MS = 1500;
+const COPY_ADDRESS_RESET_MS = 2000;
 
 export function ServerCopyAddress({
   options,
@@ -1340,7 +1341,7 @@ export function ServerCopyAddress({
   if (!server) return null;
 
   const display = (options?.display as string | undefined) ?? "iconLabel";
-  const label = (options?.label as string | undefined) ?? (copied ? "Copied" : "Copy address");
+  const label = (options?.label as string | undefined) ?? (copied ? "Address copied" : "Copy address");
   const showIcon = display === "iconLabel" || display === "icon";
   const showLabel = display === "iconLabel" || display === "label";
 

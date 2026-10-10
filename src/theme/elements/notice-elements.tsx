@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { TriangleAlert } from "lucide-react";
 import { playerMessage } from "@/lib/player-message";
 import { useShallow } from "zustand/react/shallow";
 import { cn } from "@/lib/utils";
@@ -230,7 +231,8 @@ export function NoticeModsOutdated({ className, style }: { className?: string; s
       className={className ?? "flex items-center gap-2 border-b border-warn-line bg-warn-soft px-3 py-1.5 [font-size:var(--t-type-compactBody-size)] font-semibold text-warn"}
       style={style}
     >
-      <span data-part="message">
+      <span data-part="message" className="flex items-center gap-2">
+        <TriangleAlert className="size-3 shrink-0" />
         {outdatedCount} mod{outdatedCount === 1 ? "" : "s"} need{outdatedCount === 1 ? "s" : ""} updating
       </span>
       <button

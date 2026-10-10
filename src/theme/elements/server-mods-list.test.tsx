@@ -33,14 +33,17 @@ const oneMod: ModReadinessEntry = {
 
 describe("ServerModsList rendering", () => {
   it("omits the header when the list is configured without one", () => {
-    const html = renderToStaticMarkup(<ServerModsList header={false} state={undefined} mods={[oneMod]} />);
+    const html = renderToStaticMarkup(<ServerModsList header={false} state={undefined} mods={[oneMod]} modded />);
     expect(html).not.toContain('data-part="header"');
     expect(html).toContain('data-part="rows"');
   });
 
-  it("renders the empty state text for a server with no mods, never invented rows", () => {
-    const html = renderToStaticMarkup(<ServerModsList state="empty" mods={[]} />);
-    expect(html).toContain("This server declares no mods.");
+  it.each([
+    { modded: true, text: "No mods found or not probed yet." },
+    { modded: false, text: "No mods required." },
+  ])("renders the empty text for a modded=$modded server with no mods, never invented rows", ({ modded, text }) => {
+    const html = renderToStaticMarkup(<ServerModsList state="empty" mods={[]} modded={modded} />);
+    expect(html).toContain(text);
     expect(html).not.toContain("CF");
     expect(html).not.toContain("Community Online Tools");
     expect(html).not.toContain("DayZ-Expansion-Bundle");
@@ -51,18 +54,20 @@ describe("ServerModsList rendering", () => {
       <ServerModsList
         state={undefined}
         mods={[oneMod]}
+        modded
         listLayout={getNeutralLayout("layout/lists/serverMods.json")}
       />,
     );
     expect(html).toContain('data-part="rows"');
-    expect(html).not.toContain("This server declares no mods.");
+    expect(html).not.toContain('data-part="empty"');
     expect(html).toContain("CF");
     expect(html).toContain('data-el="serverMod.order"');
   });
 
   it("renders the loading state without any rows", () => {
-    const html = renderToStaticMarkup(<ServerModsList state="loading" mods={[]} />);
+    const html = renderToStaticMarkup(<ServerModsList state="loading" mods={[]} modded />);
     expect(html).toContain('data-part="loading"');
+    expect(html).toContain("Checking mod readiness…");
     expect(html).not.toContain('data-part="rows"');
   });
 });
