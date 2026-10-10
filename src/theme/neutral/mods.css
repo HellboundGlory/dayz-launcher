@@ -1,1 +1,72 @@
 @layer launcher, neutral, theme, guarantees;
+
+@layer neutral {
+  .t-neutral-mods-root {
+    @apply min-h-0 min-w-0 flex-1;
+  }
+
+  .t-neutral-mods-toolbar {
+    @apply shrink-0 gap-1.5 border-b border-line bg-surface px-2.5 py-2;
+  }
+
+  .t-neutral-mods-status {
+    @apply flex items-center gap-0.5;
+  }
+
+  .t-neutral-mods-status [data-part="option"][data-state~="selected"] {
+    @apply [box-shadow:var(--t-glow-selected)];
+  }
+
+  .t-neutral-mods-body {
+    @apply relative min-h-0 flex-1 overflow-hidden;
+  }
+
+  .t-neutral-mods-list {
+    @apply min-h-0 min-w-0 flex-1;
+  }
+
+  .t-neutral-mods-list [data-part="scroller"] {
+    @apply p-2 transition-[padding-right] [transition-duration:var(--t-motion-expand-duration)];
+  }
+
+  .t-neutral-mods-body:has(> .t-neutral-mods-inspector) .t-neutral-mods-list [data-part="scroller"] {
+    @apply pr-[340px];
+  }
+
+  .t-neutral-mods-list [data-part="empty"] {
+    @apply px-6 py-2 text-center [font-size:var(--t-type-body-size)];
+  }
+
+  .t-neutral-mods-list [data-part="loading"] {
+    @apply p-2 [font-size:var(--t-type-body-size)];
+  }
+
+  .t-neutral-mods-body:has(> .t-neutral-mods-inspector) .t-neutral-mods-list [data-part="empty"] {
+    @apply pr-[356px];
+  }
+
+  .t-neutral-mods-actionbar {
+    @apply relative shrink-0 border-t border-line bg-surface;
+  }
+
+  .t-neutral-mods-actionbar [data-el="notice.modsResult"] [data-part="message"] {
+    @apply flex items-center gap-2;
+  }
+
+  .t-neutral-mods-actions {
+    @apply gap-2 px-2.5 py-[7px];
+  }
+
+  .t-neutral-mods-select-all,
+  .t-neutral-mods-clear {
+    @apply shrink-0 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.06em] text-muted transition-colors hover:text-ink;
+  }
+
+  .t-neutral-mods-clear:disabled {
+    @apply hidden;
+  }
+
+  .t-neutral-mods-cluster {
+    @apply ml-auto gap-1.5;
+  }
+}
