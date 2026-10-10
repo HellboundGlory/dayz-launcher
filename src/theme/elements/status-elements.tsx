@@ -54,11 +54,12 @@ export function StatusServerTotal({
   if (!steamConnected) return null;
 
   const showLabel = options?.showLabel !== false;
+  const label = (options?.label as string | undefined) ?? "servers";
 
   return (
     <span data-el="status.serverTotal" className={className} style={style}>
       <span data-part="value">{serverCounts.total.toLocaleString()}</span>
-      {showLabel && <span data-part="label"> servers</span>}
+      {showLabel && <span data-part="label">{" " + label}</span>}
     </span>
   );
 }
@@ -76,24 +77,28 @@ export function StatusPopulated({
   if (!steamConnected) return null;
 
   const showLabel = options?.showLabel !== false;
+  const label = (options?.label as string | undefined) ?? "populated";
 
   return (
     <span data-el="status.populated" className={className} style={style}>
       <span data-part="value">{serverCounts.populated.toLocaleString()}</span>
-      {showLabel && <span data-part="label"> populated</span>}
+      {showLabel && <span data-part="label">{" " + label}</span>}
     </span>
   );
 }
 
 export function StatusListSource({
+  options,
   className,
   style,
 }: {
+  options?: Record<string, unknown>;
   className?: string;
   style?: CSSProperties;
 }) {
   const { steamConnected, listSource } = useElementContext();
   if (!steamConnected || !listSource) return null;
+  const label = (options?.label as string | undefined) ?? (listSource === "index" ? "Indexed" : "Steam Direct");
 
   return (
     <span
@@ -102,7 +107,7 @@ export function StatusListSource({
       className={className}
       style={style}
     >
-      <span data-part="label">{listSource === "index" ? "Indexed" : "Steam Direct"}</span>
+      <span data-part="label">{label}</span>
     </span>
   );
 }

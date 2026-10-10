@@ -234,11 +234,25 @@ describe("ServerJoin", () => {
     expect(html).toContain("Quit the game before joining another server");
   });
 
-  it("row context keeps the Join label regardless of selection readiness", async () => {
-    await setReadiness(readiness([mod({ state: "not_subscribed" })]), false);
-    const html = await render({ subjectContext: { kind: "server", data: server }, selectedServer: server });
-    expect(html).toContain(">Join<");
-    expect(html).not.toContain("needsMods");
+  const idleJoinCases = [
+    { wording: "fixAndJoin", modded: true, pending: true, label: "Fix and join", icon: "lucide-download", needsMods: true },
+    { wording: "fixAndJoin", modded: true, pending: false, label: "Join", icon: "lucide-download", needsMods: false },
+    { wording: "join", modded: true, pending: true, label: "Join", icon: "lucide-download", needsMods: true },
+    { wording: "join", modded: false, pending: false, label: "Join", icon: "lucide-play", needsMods: false },
+  ];
+
+  it.each(
+    idleJoinCases.flatMap((c) => (["row", "modal"] as const).map((contextName) => ({ ...c, contextName }))),
+  )("$contextName idle join: $wording, modded $modded, pending $pending", async (c) => {
+    await setReadiness(null, false);
+    useServerStore.setState({ modPending: c.pending ? { [server.addr]: true } : {} });
+    const html = await render(
+      { subjectContext: { kind: "server", data: { ...server, modded: c.modded } }, contextName: c.contextName },
+      { wording: c.wording },
+    );
+    expect(html).toContain(`>${c.label}</span>`);
+    expect(html).toContain(c.icon);
+    expect(html.includes("needsMods")).toBe(c.needsMods);
   });
 
   it("selection idle label switches via joinAction based on the selected server's readiness", async () => {
@@ -319,6 +333,15 @@ describe("ServerPlayers", () => {
 
 describe("ServerPing", () => {
   const withPing = (ping: number | null, online = true): Server => ({ ...server, ping, online });
+
+  it.each([
+    { el: "server.players", node: (options: Record<string, unknown>) => <ServerPlayers options={options} />, caption: " players" },
+    { el: "server.ping", node: (options: Record<string, unknown>) => <ServerPing options={options} />, caption: " ping" },
+  ])("$el shows its caption unless showCaption is false", ({ node, caption }) => {
+    const subjectContext = { kind: "server" as const, data: server };
+    expect(renderNode(node({}), { subjectContext })).toContain(`data-part="caption">${caption}</span>`);
+    expect(renderNode(node({ showCaption: false }), { subjectContext })).not.toContain('data-part="caption"');
+  });
 
   it.each([
     [80, "good"],
@@ -508,6 +531,23 @@ describe("ServerLastPlayed", () => {
       subjectContext: { kind: "server", data: played },
     });
     expect(withoutLabel).not.toContain('data-part="label"');
+  });
+
+  it("with recentOnly renders only inside the Recent view", () => {
+    const played: Server = { ...server, last_played: Math.floor(Date.now() / 1000) - 120 };
+    const subjectContext = { kind: "server" as const, data: played };
+    expect(renderNode(<ServerLastPlayed options={{ recentOnly: true }} />, { subjectContext, activeView: "servers" })).toBe("");
+    expect(renderNode(<ServerLastPlayed options={{ recentOnly: true }} />, { subjectContext, activeView: "recent" })).toContain(
+      'data-part="value"',
+    );
+  });
+
+  it("format date renders the locale date", () => {
+    const ts = 1_700_000_000;
+    const html = renderNode(<ServerLastPlayed options={{ format: "date" }} />, {
+      subjectContext: { kind: "server", data: { ...server, last_played: ts } },
+    });
+    expect(html).toContain(`data-part="value">${new Date(ts * 1000).toLocaleDateString()}</span>`);
   });
 });
 

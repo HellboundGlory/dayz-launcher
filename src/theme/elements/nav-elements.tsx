@@ -77,7 +77,6 @@ function NavItem({
       type="button"
       data-el={id}
       data-state={state}
-      aria-selected={!isSettings && isActive ? "true" : undefined}
       aria-current={!isSettings && isActive ? "page" : undefined}
       aria-pressed={isSettings ? isActive : undefined}
       onClick={handleClick}

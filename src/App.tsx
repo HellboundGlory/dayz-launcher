@@ -933,6 +933,7 @@ export function App() {
       openModFilter,
       modFilterOpen,
       closeModal,
+      themeId: activeId,
     }),
     [
       activeView,
@@ -961,6 +962,7 @@ export function App() {
       openModFilter,
       modFilterOpen,
       closeModal,
+      activeId,
     ],
   );
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from "react";
 import {
   Star,
   Play,
@@ -18,7 +18,7 @@ import {
   Home,
 } from "lucide-react";
 import type { Server } from "@/types/server";
-import { cn, formatLastPlayed, formatBytes, formatMultiplier, gameTimeParts, regionName } from "@/lib/utils";
+import { cn, formatBytes, formatMultiplier, gameTimeParts, regionName } from "@/lib/utils";
 import { useElementContext } from "./context";
 import { useServerActions, phaseLabel } from "@/hooks/use-server-actions";
 import { useSelectionReadiness } from "./use-selection-readiness";
@@ -35,6 +35,8 @@ import {
 import { useRowProbeStore, probeRow, rowProbeState } from "./row-probe-store";
 import { useConfirm } from "@/components/confirm-dialog";
 import { OptionIcon } from "./option-icon";
+import { useAnchoredPopup } from "../interaction/use-anchored-popup";
+import { displayOption, formatElementTime } from "./element-utils";
 
 export function useServerSubject(): Server | null {
   const { subjectContext, selectedServer } = useElementContext();
@@ -53,22 +55,6 @@ function serverStates(offline: boolean, ...states: (string | false | null | unde
 /** Interleaves rendered parts with a single space, so joined text content matches the plain-string format. */
 function joinParts(nodes: ReactNode[]): ReactNode[] {
   return nodes.flatMap((node, i) => (i === 0 ? [node] : [" ", node]));
-}
-
-/** `display`/`label` resolution shared by the option-honouring action elements below.
- * `fallbackDisplay` reproduces each element's markup from before its options were wired up. */
-function serverDisplayOptions(
-  options: Record<string, unknown> | undefined,
-  fallbackLabel: string,
-  fallbackDisplay: "iconLabel" | "label" | "icon",
-) {
-  const display = (options?.display as string | undefined) ?? fallbackDisplay;
-  const label = (options?.label as string | undefined) ?? fallbackLabel;
-  return {
-    label,
-    showIcon: display === "iconLabel" || display === "icon",
-    showLabel: display === "iconLabel" || display === "label",
-  };
 }
 
 export function ServerName({ className, style }: { className?: string; style?: CSSProperties }) {
@@ -143,7 +129,7 @@ export function ServerPlayers({
   return (
     <span data-el="server.players" data-state={states} className={className} style={style}>
       {countNode}
-      {showCaption && options?.caption ? <span data-part="caption"> {String(options.caption)}</span> : null}
+      {showCaption && <span data-part="caption"> players</span>}
     </span>
   );
 }
@@ -169,6 +155,7 @@ export function ServerPing({
     pingState === "unknown" ? "text-muted" : pingState === "poor" ? "text-danger" : pingState === "fair" ? "text-warn" : "text-success";
   const text = unknown ? "—" : String(server.ping);
   const showUnit = (options?.showUnit as boolean | undefined) ?? contextName === "selection";
+  const showCaption = options?.showCaption !== false;
 
   if (contextName === "selection") {
     return (
@@ -188,6 +175,7 @@ export function ServerPing({
     <span data-el="server.ping" data-state={states} className={className ?? pingClass} style={style}>
       <span data-part="value">{text}</span>
       {showUnit && !unknown && <span data-part="unit"> ms</span>}
+      {showCaption && <span data-part="caption"> ping</span>}
     </span>
   );
 }
@@ -497,6 +485,7 @@ export function ServerJoin({
   const { contextName } = useElementContext();
   const server = useServerSubject();
   const { op, dayzUp, verifyAndJoin } = useServerActions();
+  const pending = useServerStore((s) => !!server && !!s.modPending[server.addr]);
   if (!server) return null;
 
   const wording = (options?.wording as string) ?? "join";
@@ -591,13 +580,14 @@ export function ServerJoin({
     );
   }
 
+  const needsMods = server.modded && pending;
   return (
     <ServerJoinIdleButton
       server={server}
-      label="Join"
-      icon="play"
+      label={isFixAndJoin && needsMods ? "Fix and join" : "Join"}
+      icon={server.modded ? "download" : "play"}
       optionIcon={options?.icon}
-      needsMods={false}
+      needsMods={needsMods}
       disabled={disabled}
       showIcon={showIcon}
       showLabel={showLabel}
@@ -621,7 +611,7 @@ export function ServerInfo({
   const { openServerInfo } = useElementContext();
   if (!server) return null;
 
-  const { label, showIcon, showLabel } = serverDisplayOptions(options, "Server information", "icon");
+  const { label, showIcon, showLabel } = displayOption(options, "Server information", "icon");
 
   const handleClick = (e: MouseEvent) => {
     e.stopPropagation();
@@ -652,15 +642,21 @@ export function ServerInfo({
 export function ServerLoadMenuPopup({
   open,
   onLoad,
+  popupRef,
+  style,
 }: {
   open: boolean;
   onLoad: (e: MouseEvent) => void;
+  popupRef?: RefObject<HTMLDivElement>;
+  style?: CSSProperties;
 }) {
   if (!open) return null;
   return (
     <div
+      ref={popupRef}
       data-part="popup"
       role="menu"
+      style={style}
       className="absolute right-0 top-full mt-1 min-w-[140px] rounded border border-line bg-surface py-1 shadow-xl"
     >
       <button
@@ -689,6 +685,8 @@ export function ServerMenu({
   const { op, dayzUp, verifyAndJoin } = useServerActions();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const popupStyle = useAnchoredPopup(open, rootRef, popupRef, { side: "bottom", align: "end", offset: 4 });
 
   useEffect(() => {
     if (!open) return;
@@ -767,7 +765,7 @@ export function ServerMenu({
           <OptionIcon icon={options?.icon} fallback={ChevronDown} className="size-3.5" />
         </span>
       </button>
-      <ServerLoadMenuPopup open={open} onLoad={handleLoad} />
+      <ServerLoadMenuPopup open={open} onLoad={handleLoad} popupRef={popupRef} style={popupStyle} />
     </div>
   );
 }
@@ -926,7 +924,7 @@ export function ServerRefresh({
   if (!server) return null;
 
   const { busy, disabled } = rowProbeState(probe, server.addr, server.query_port);
-  const { showIcon, showLabel } = serverDisplayOptions(options, "Refresh", "icon");
+  const { showIcon, showLabel } = displayOption(options, "Refresh", "icon");
 
   return (
     <button
@@ -999,14 +997,17 @@ export function ServerLastPlayed({
   style?: CSSProperties;
 }) {
   const server = useServerSubject();
+  const { activeView } = useElementContext();
   if (!server) return null;
 
   const showNever = options?.showNever === true;
+  const recentOnly = options?.recentOnly === true;
   const label = options?.label !== undefined ? String(options.label) : "played";
-  const neverPlayed = !server.last_played;
-  if (neverPlayed && !showNever) return null;
+  const lastPlayed = server.last_played;
+  if (!lastPlayed && !showNever) return null;
+  if (recentOnly && activeView !== "recent") return null;
 
-  const value = neverPlayed ? "—" : formatLastPlayed(server.last_played);
+  const value = lastPlayed ? formatElementTime(lastPlayed, options?.format) : "—";
   const nodes: ReactNode[] = [];
   if (label) nodes.push(<span key="label" data-part="label">{label}</span>);
   nodes.push(<span key="value" data-part="value">{value}</span>);
@@ -1126,7 +1127,7 @@ export function ServerCheckMods({
   const [busy, setBusy] = useState(false);
   if (!server) return null;
 
-  const { label, showIcon, showLabel } = serverDisplayOptions(options, "Check mods", "label");
+  const { label, showIcon, showLabel } = displayOption(options, "Check mods", "label");
   const disabled = busy || op !== null;
 
   const handleClick = async (e: MouseEvent) => {
@@ -1181,7 +1182,7 @@ export function ServerSubscribeAll({
   const { op, dayzUp, subscribeOnly } = useServerActions();
   if (!server) return null;
 
-  const { label, showIcon, showLabel } = serverDisplayOptions(options, "Download mods", "label");
+  const { label, showIcon, showLabel } = displayOption(options, "Download mods", "label");
   const busy = op?.addr === server.addr;
   const disabled = op !== null || dayzUp;
 
@@ -1230,7 +1231,7 @@ export function ServerUnsubscribeUnique({
   if (!subject) return null;
   const server = subject;
 
-  const { label, showIcon, showLabel } = serverDisplayOptions(options, "Unsubscribe unique mods", "label");
+  const { label, showIcon, showLabel } = displayOption(options, "Unsubscribe unique mods", "label");
   const disabled = busy || op !== null;
 
   async function performUnsubscribe() {
