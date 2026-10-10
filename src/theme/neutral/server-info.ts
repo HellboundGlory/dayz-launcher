@@ -70,6 +70,7 @@ export const SERVER_INFO_MODAL: ModalLayoutFile = {
                   stat({ element: "server.gameTime", class: "t-neutral-serverinfo-time" }, "Time"),
                 ],
               },
+              { element: "server.readiness", class: "t-neutral-serverinfo-readiness", options: { basis: "declared" } },
               {
                 type: "stack",
                 direction: "column",
@@ -81,17 +82,58 @@ export const SERVER_INFO_MODAL: ModalLayoutFile = {
                   prop("Mods", { element: "server.modCount", options: { showCaption: false } }),
                 ],
               },
+              {
+                type: "stack",
+                direction: "column",
+                class: "t-neutral-serverinfo-mods-section",
+                children: [
+                  {
+                    type: "stack",
+                    direction: "row",
+                    class: "t-neutral-serverinfo-tools",
+                    children: [
+                      { element: "server.checkMods", class: "t-neutral-serverinfo-tool", options: { display: "iconLabel" } },
+                      { element: "server.subscribeAll", class: "t-neutral-serverinfo-tool", options: { display: "iconLabel" } },
+                      {
+                        element: "server.unsubscribeUnique",
+                        class: "t-neutral-serverinfo-tool t-neutral-serverinfo-tool-danger",
+                        options: { display: "iconLabel", label: "Unsubscribe unique" },
+                      },
+                      { element: "server.copyAddress", class: "t-neutral-serverinfo-tool", options: { display: "iconLabel" } },
+                    ],
+                  },
+                  { element: "server.downloadSize", class: "t-neutral-serverinfo-download" },
+                  { element: "list.serverMods", class: "t-neutral-serverinfo-mods", options: { header: false } },
+                ],
+              },
             ],
           },
         ],
       },
-      { element: "list.serverMods" },
       {
         type: "stack",
-        direction: "row",
+        direction: "column",
+        class: "t-neutral-serverinfo-actions",
         children: [
-          { element: "server.join" },
-          { element: "server.actionNotice" },
+          { element: "server.actionNotice", class: "t-neutral-serverinfo-notice" },
+          {
+            type: "stack",
+            direction: "row",
+            class: "t-neutral-serverinfo-join-row",
+            children: [
+              { element: "server.join", class: "t-neutral-serverinfo-join", options: { wording: "fixAndJoin" } },
+              { element: "server.cancel", class: "t-neutral-serverinfo-cancel" },
+              {
+                element: "server.menu",
+                class: "t-neutral-serverinfo-menu",
+                options: {
+                  menu: "serverLoad",
+                  icon: "chevronDown",
+                  label: "Load this server's mods to the main menu",
+                },
+              },
+            ],
+          },
         ],
       },
     ],

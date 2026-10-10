@@ -133,4 +133,155 @@
   .t-neutral-serverinfo-prop-value {
     @apply min-w-0 truncate [font-family:var(--t-type-family-data)] [font-size:var(--t-type-data-size)] text-ink;
   }
+
+  .t-neutral-serverinfo-readiness {
+    @apply flex items-center gap-1.5 border-b border-line px-3.5 py-2 [font-size:var(--t-type-label-size)] text-muted;
+  }
+
+  .t-neutral-serverinfo-readiness [data-part="dot"] {
+    @apply inline-block h-[7px] w-[7px] rounded-full bg-success [box-shadow:var(--t-shadow-readinessSuccess)];
+  }
+
+  .t-neutral-serverinfo-readiness[data-state~="needsUpdate"] [data-part="dot"],
+  .t-neutral-serverinfo-readiness[data-state~="unchecked"] [data-part="dot"] {
+    @apply bg-warn [box-shadow:var(--t-shadow-readinessWarning)];
+  }
+
+  .t-neutral-serverinfo-mods-section {
+    @apply border-b border-line px-3.5 py-2.5;
+  }
+
+  .t-neutral-serverinfo-tools {
+    @apply flex flex-wrap items-center gap-1.5 pb-2;
+  }
+
+  .t-neutral-serverinfo-tool {
+    @apply inline-flex items-center gap-1.5 [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface2 px-2.5 py-1 [font-size:var(--t-type-button-size)] font-semibold text-ink transition-colors hover:bg-accent-soft hover:text-accent disabled:opacity-40;
+  }
+
+  .t-neutral-serverinfo-tool-danger:hover {
+    @apply bg-danger-soft text-danger;
+  }
+
+  .t-neutral-serverinfo-tool[data-state~="copied"] [data-part="icon"] {
+    @apply text-success;
+  }
+
+  .t-neutral-serverinfo-download {
+    @apply flex items-center justify-between gap-2 pb-2 [font-size:var(--t-type-label-size)];
+  }
+
+  .t-neutral-serverinfo-download [data-part="count"] {
+    @apply font-semibold text-muted;
+  }
+
+  .t-neutral-serverinfo-download [data-part="value"] {
+    @apply [font-family:var(--t-type-family-data)] font-semibold text-ink;
+  }
+
+  .t-neutral-serverinfo-mods {
+    @apply flex flex-col;
+  }
+
+  .t-neutral-serverinfo-mods [data-part="scroller"] {
+    @apply max-h-[220px] pr-1;
+  }
+
+  .t-neutral-serverinfo-mods [data-part="rows"] {
+    @apply flex flex-col gap-1.5;
+  }
+
+  .t-neutral-serverinfo-mods [data-part="loading"],
+  .t-neutral-serverinfo-mods [data-part="empty"] {
+    @apply px-0 [font-size:var(--t-type-label-size)] [line-height:inherit];
+  }
+
+  .t-neutral-serverinfo-mods [data-part="empty"] {
+    @apply py-2 text-center;
+  }
+
+  .t-neutral-serverinfo-actions {
+    @apply shrink-0 border-t border-line px-3.5 pb-3.5 pt-2.5;
+  }
+
+  .t-neutral-serverinfo-notice {
+    @apply mt-0 mb-2 border-0 p-0 text-center cursor-help [font-size:var(--t-type-label-size)];
+  }
+
+  .t-neutral-serverinfo-notice [data-part="message"] {
+    @apply text-warn [font-size:var(--t-type-label-size)] [line-height:inherit];
+  }
+
+  .t-neutral-serverinfo-notice[data-state~="error"] [data-part="message"] {
+    @apply text-danger;
+  }
+
+  .t-neutral-serverinfo-notice[data-state~="success"] [data-part="message"] {
+    @apply text-success;
+  }
+
+  .t-neutral-serverinfo-join-row {
+    @apply relative flex w-full gap-1;
+  }
+
+  .t-neutral-serverinfo-join-row:has([data-state~="busy"]) {
+    @apply gap-1.5;
+  }
+
+  .t-neutral-serverinfo-join {
+    @apply flex min-w-0 flex-1 items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-4 py-2 [font-size:var(--t-type-button-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 disabled:hover:brightness-100;
+  }
+
+  .t-neutral-serverinfo-join [data-part="icon"] svg,
+  .t-neutral-serverinfo-join [data-part="spinner"] svg {
+    @apply size-3.5;
+  }
+
+  .t-neutral-serverinfo-join[data-state~="busy"] {
+    @apply bg-surface2 text-accent ring-1 ring-accent-line;
+  }
+
+  .t-neutral-serverinfo-join[data-state~="busy"] [data-part="label"] {
+    @apply truncate;
+  }
+
+  .t-neutral-serverinfo-join[data-state~="playing"] {
+    @apply bg-success [color:var(--t-color-onSuccess)] [box-shadow:none];
+  }
+
+  .t-neutral-serverinfo-join[data-state~="disabled"] {
+    @apply cursor-not-allowed opacity-40 [box-shadow:none];
+  }
+
+  .t-neutral-serverinfo-cancel {
+    @apply shrink-0 [border-radius:var(--t-radius-control)] bg-surface2 px-3 py-2 [font-size:var(--t-type-button-size)] font-semibold uppercase tracking-wider text-muted2 ring-1 ring-line transition-colors hover:text-danger;
+  }
+
+  .t-neutral-serverinfo-menu {
+    @apply relative flex shrink-0;
+  }
+
+  .t-neutral-serverinfo-menu[data-state~="disabled"] {
+    @apply hidden;
+  }
+
+  .t-neutral-serverinfo-menu [data-part="trigger"] {
+    @apply flex items-center justify-center [border-radius:var(--t-radius-control)] bg-accent px-2 [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110;
+  }
+
+  .t-neutral-serverinfo-menu [data-part="trigger"] [data-part="icon"] svg {
+    @apply transition-transform;
+  }
+
+  .t-neutral-serverinfo-menu[data-state~="open"] [data-part="trigger"] [data-part="icon"] svg {
+    @apply rotate-180;
+  }
+
+  .t-neutral-serverinfo-menu [data-part="popup"] {
+    @apply z-[6] w-56 min-w-0 [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)];
+  }
+
+  .t-neutral-serverinfo-menu [data-part="item"] {
+    @apply flex w-full items-center gap-2 [border-radius:var(--t-radius-popupItem)] px-3 py-2 text-left [font-size:var(--t-type-body-size)] font-bold uppercase tracking-wider text-ink transition-colors hover:bg-accent-soft hover:text-accent;
+  }
 }
