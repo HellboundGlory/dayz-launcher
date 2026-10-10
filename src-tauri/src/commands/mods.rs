@@ -60,6 +60,12 @@ fn live_steam(state: &AppState) -> Option<Arc<tetra_steam::SteamHandle>> {
     guard.as_ref().map(Arc::clone)
 }
 
+/// Whether Steam's answer proves the snapshot still matches the live set. A
+/// check that could not run proves nothing, so the caller re-enumerates.
+fn snapshot_current(checked: Option<HashSet<u64>>, cached: HashSet<u64>) -> bool {
+    checked.is_some_and(|ids| ids == cached)
+}
+
 /// Result of loading the Mods tab's list. `from_cache` tells the frontend
 /// whether anything was live — an offline open still shows the last snapshot,
 /// but the status strip should say so instead of pretending Steam answered.
@@ -91,21 +97,17 @@ pub async fn get_subscribed_mods(
     // Cheap check that the subscribed set hasn't drifted before trusting the snapshot.
     if !force_details && now() - cached.fetched_at < CACHE_STALE_AFTER_SECS {
         let steam_ids = Arc::clone(&steam);
-        let unchanged = tokio::task::spawn_blocking(move || steam_ids.subscribed_ids())
+        let checked = tokio::task::spawn_blocking(move || steam_ids.subscribed_ids())
             .await
             .ok()
             .and_then(Result::ok)
-            .map(|ids| {
-                let live: HashSet<u64> = ids.into_iter().collect();
-                let known: HashSet<u64> = cached
-                    .rows
-                    .iter()
-                    .filter_map(|r| r.workshop_id.parse().ok())
-                    .collect();
-                live == known
-            })
-            .unwrap_or(true);
-        if unchanged {
+            .map(|ids| ids.into_iter().collect());
+        let known: HashSet<u64> = cached
+            .rows
+            .iter()
+            .filter_map(|r| r.workshop_id.parse().ok())
+            .collect();
+        if snapshot_current(checked, known) {
             return Ok(ModsListOutcome {
                 rows: cached.rows,
                 from_cache: false,
@@ -157,7 +159,7 @@ pub async fn verify_subscribed_mods(
         .ok_or("Steam is not connected. Start Steam and restart the launcher.")?;
     let ids: Vec<u64> = workshop_ids
         .iter()
-        .filter_map(|id| id.parse().ok())
+        .filter_map(|id| crate::commands::steam::parse_workshop_id(id).ok())
         .collect();
     let outcomes = tokio::task::spawn_blocking(move || steam.verify_mods(&ids))
         .await
@@ -382,12 +384,7 @@ pub async fn reinstall_subscribed_mod(
 ) -> Result<(), String> {
     let steam = live_steam(&state)
         .ok_or("Steam is not connected. Start Steam and restart the launcher.")?;
-    let Some(id) = workshop_id.parse::<u64>().ok() else {
-        return Ok(());
-    };
-    if !tetra_steam::ModState::is_workshop_id(id) {
-        return Ok(());
-    }
+    let id = crate::commands::steam::parse_workshop_id(&workshop_id)?;
     tokio::task::spawn_blocking(move || {
         let folder = steam.mod_folder(id).map_err(|e| e.to_string())?;
         if let Some(folder) = folder {
@@ -419,9 +416,8 @@ pub async fn update_subscribed_mods(
         .ok_or("Steam is not connected. Start Steam and restart the launcher.")?;
     let ids: Vec<u64> = workshop_ids
         .iter()
-        .filter_map(|s| s.parse::<u64>().ok())
-        .filter(|id| tetra_steam::ModState::is_workshop_id(*id))
-        .collect();
+        .map(|raw| crate::commands::steam::parse_workshop_id(raw))
+        .collect::<Result<_, _>>()?;
     if ids.is_empty() {
         return Ok(());
     }
@@ -467,4 +463,18 @@ pub fn open_mod_folder(folder: String) -> Result<(), String> {
         .spawn()
         .map(|_| ())
         .map_err(|e| format!("Could not open {}: {e}", target.display()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_drift_check_that_could_not_run_leaves_the_snapshot_untrusted() {
+        let cached: HashSet<u64> = [100, 200].into_iter().collect();
+
+        assert!(!snapshot_current(None, cached.clone()));
+        assert!(snapshot_current(Some(cached.clone()), cached.clone()));
+        assert!(!snapshot_current(Some([100].into_iter().collect()), cached));
+    }
 }

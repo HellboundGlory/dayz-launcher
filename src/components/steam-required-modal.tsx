@@ -46,6 +46,12 @@ const COPY: Record<SteamInitFailure, Copy> = {
     body:
       "The connection to Steam was lost while the launcher was running. Mod and download status may be out of date. Restart the launcher to reconnect — Retry won't help here, since the existing connection is still reported as open.",
   },
+  already_initialising: {
+    title: "Still connecting",
+    body:
+      "A connection attempt is already under way. This clears on its own in a moment — no need to do anything.",
+    patient: true,
+  },
 };
 
 // Once auto-retries run out, "still not ready" reads more like a licence

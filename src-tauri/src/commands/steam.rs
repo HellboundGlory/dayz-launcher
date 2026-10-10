@@ -145,7 +145,10 @@ pub async fn steam_download_progress(
         }
     };
 
-    let ids = parse_ids(&workshop_ids);
+    let ids: Vec<u64> = workshop_ids
+        .iter()
+        .filter_map(|id| parse_workshop_id(id).ok())
+        .collect();
     if ids.is_empty() {
         return Ok(Vec::new());
     }
@@ -173,8 +176,13 @@ pub struct MutationOutcome {
     pub failures: Vec<(String, String)>,
 }
 
-fn to_outcome(results: Vec<tetra_steam::MutationResult>) -> MutationOutcome {
-    let failures: Vec<(String, String)> = results
+/// Outcome of a batched subscribe/unsubscribe. Ids in `dropped` never reached
+/// Steam, so they count as failures like any rejected id.
+fn to_outcome(
+    results: Vec<tetra_steam::MutationResult>,
+    dropped: Vec<(String, String)>,
+) -> MutationOutcome {
+    let rejected: Vec<(String, String)> = results
         .iter()
         .filter_map(|r| {
             r.error
@@ -182,14 +190,35 @@ fn to_outcome(results: Vec<tetra_steam::MutationResult>) -> MutationOutcome {
                 .map(|e| (r.workshop_id.to_string(), e.clone()))
         })
         .collect();
+    let succeeded = results.len() - rejected.len();
+    let mut failures = dropped;
+    failures.extend(rejected);
     MutationOutcome {
-        succeeded: results.len() - failures.len(),
+        succeeded,
         failures,
     }
 }
 
-fn parse_ids(workshop_ids: &[String]) -> Vec<u64> {
-    workshop_ids.iter().filter_map(|s| s.parse().ok()).collect()
+/// Parse one Workshop id, with the reason to report when Steam can't use it.
+pub(crate) fn parse_workshop_id(raw: &str) -> Result<u64, String> {
+    raw.parse::<u64>()
+        .ok()
+        .filter(|id| tetra_steam::ModState::is_workshop_id(*id))
+        .ok_or_else(|| format!("\"{raw}\" is not a Workshop id"))
+}
+
+/// Split the given ids into the ones Steam can act on and a reason for each
+/// one it can't, so a bad id is answered instead of dropped.
+fn parse_ids(workshop_ids: &[String]) -> (Vec<u64>, Vec<(String, String)>) {
+    let mut ids = Vec::new();
+    let mut dropped = Vec::new();
+    for raw in workshop_ids {
+        match parse_workshop_id(raw) {
+            Ok(id) => ids.push(id),
+            Err(reason) => dropped.push((raw.clone(), reason)),
+        }
+    }
+    (ids, dropped)
 }
 
 async fn run_mutation(
@@ -206,11 +235,11 @@ async fn run_mutation(
         )
     };
 
-    let ids = parse_ids(&workshop_ids);
+    let (ids, dropped) = parse_ids(&workshop_ids);
     if ids.is_empty() {
         return Ok(MutationOutcome {
             succeeded: 0,
-            failures: Vec::new(),
+            failures: dropped,
         });
     }
 
@@ -228,7 +257,7 @@ async fn run_mutation(
     .map_err(|e| format!("Task join error: {e}"))?
     .map_err(|e| format!("Steam request failed: {e}"))?;
 
-    Ok(to_outcome(results))
+    Ok(to_outcome(results, dropped))
 }
 
 /// Subscribe to the given workshop items and queue their downloads.
@@ -292,4 +321,57 @@ pub async fn steam_mod_states(
             state,
         })
         .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tetra_steam::MutationResult;
+
+    #[test]
+    fn an_id_steam_cannot_use_is_rejected_by_name() {
+        assert!(parse_workshop_id("abc").unwrap_err().contains("abc"));
+        assert!(parse_workshop_id("0").unwrap_err().contains("0"));
+        assert_eq!(parse_workshop_id("221100").unwrap(), 221100);
+    }
+
+    #[test]
+    fn ids_that_never_reach_steam_are_reported_individually() {
+        let ids: Vec<String> = ["abc", "221100", "0"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let (parsed, dropped) = parse_ids(&ids);
+
+        assert_eq!(parsed, vec![221100]);
+        assert_eq!(dropped.len(), 2);
+        assert!(dropped[0].0 == "abc" && dropped[0].1.contains("abc"));
+        assert!(dropped[1].0 == "0" && dropped[1].1.contains("0"));
+    }
+
+    #[test]
+    fn dropped_ids_count_as_failures_not_successes() {
+        let results = vec![
+            MutationResult {
+                workshop_id: 221100,
+                error: None,
+            },
+            MutationResult {
+                workshop_id: 221200,
+                error: Some("Steam said no".into()),
+            },
+        ];
+        let dropped = vec![("abc".to_string(), "not a Workshop id".to_string())];
+
+        let outcome = to_outcome(results, dropped);
+
+        assert_eq!(outcome.succeeded, 1);
+        assert_eq!(
+            outcome.failures,
+            vec![
+                ("abc".to_string(), "not a Workshop id".to_string()),
+                ("221200".to_string(), "Steam said no".to_string()),
+            ]
+        );
+    }
 }

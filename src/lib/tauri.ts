@@ -155,7 +155,9 @@ export type SteamInitFailure =
   /** Our own Steam thread failed. Nothing the user can act on. */
   | "internal"
   /** Connection lost after a successful init; never auto-retries since polling would just re-report the stale session. */
-  | "disconnected";
+  | "disconnected"
+  /** Another connect attempt is already in flight; it settles on its own, so this keeps retrying. */
+  | "already_initialising";
 
 export interface SteamInitError {
   kind: SteamInitFailure;
