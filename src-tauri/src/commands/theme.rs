@@ -131,8 +131,9 @@ pub fn update_theme_tokens(
     Ok(())
 }
 
-/// Delete an installed theme. Refuses the active theme (switch away first) and
-/// any id with no directory — built-in presets are not deletable this way.
+/// Delete an installed theme. Refuses the active theme (switch away first),
+/// any `builtin.*` id, and any id with no directory — built-in presets are not
+/// deletable this way.
 #[tauri::command]
 pub fn delete_theme(app: AppHandle, id: String) -> Result<(), String> {
     let active = crate::commands::settings::current(&app).active_theme_id;
@@ -251,8 +252,8 @@ pub fn migrate_legacy_custom_themes(app: AppHandle, legacy: Vec<LegacyTheme>) ->
 // permanent even if the new palette makes the app unusable. `arm_activation`
 // shows a theme-independent guard window and remembers the outgoing theme in
 // memory, writing nothing; only `confirm_activation` touches `settings.json`.
-// `revert_activation` (explicit or automatic on timeout) throws the switch
-// away and tells `main` to restore the old theme.
+// `revert_activation` (explicit, or the backend timer on expiry) throws the
+// switch away and tells `main` to restore the old theme.
 
 /// Long enough to read the window and click; short enough that a wedged
 /// frontend can't strand the app on an unusable palette.
@@ -301,13 +302,13 @@ fn is_live(pending: &PendingActivation, now: Instant) -> bool {
 
 /// `Some` whenever something is armed, expired or not — an expired one reports
 /// `remainingMs: 0` rather than disappearing, so the frontend can tell
-/// "counting down" from "expired". Read-only: the frontend decides the outcome.
+/// "counting down" from "expired". Read-only: the caller decides the outcome.
 fn read(pending: &Option<PendingActivation>, now: Instant) -> Option<ActivationStatus> {
     pending.as_ref().map(|p| ActivationStatus::of(p, now))
 }
 
 /// For [`confirm_activation`] only: refuses an expired activation, which would
-/// otherwise race the automatic revert the frontend fires on `remainingMs: 0`.
+/// otherwise race the timer's revert.
 fn take_if_live(
     subject: &mut Option<PendingActivation>,
     now: Instant,
@@ -318,8 +319,20 @@ fn take_if_live(
     }
 }
 
-/// For [`revert_activation`], which must succeed on an expired activation too
-/// — that's exactly what the automatic revert on timeout calls this with.
+/// For the expiry timer: takes only an expired activation. A re-armed one has
+/// a later deadline, so the timer for the displaced one finds it live and does nothing.
+fn take_if_expired(
+    subject: &mut Option<PendingActivation>,
+    now: Instant,
+) -> Option<PendingActivation> {
+    match subject.as_ref() {
+        Some(pending) if !is_live(pending, now) => subject.take(),
+        _ => None,
+    }
+}
+
+/// For [`revert_activation`], which must succeed on an expired activation too,
+/// since the frontend's revert at zero can arrive after the timer's.
 fn take_any(subject: &mut Option<PendingActivation>) -> Option<PendingActivation> {
     subject.take()
 }
@@ -340,6 +353,38 @@ fn arm(
         delete_on_revert,
         deadline: at + ACTIVATION_WINDOW,
     })
+}
+
+/// Throw away a taken activation: tell `main` to restore the old theme, log it,
+/// and clean up an orphaned duplicate.
+fn finish_revert(app: &AppHandle, pending: &PendingActivation) {
+    let _ = app.emit("theme-activation-reverted", reverted_payload(pending));
+    crate::log::log_line(
+        app,
+        "theme",
+        &format!("Reverted theme activation to {:?}", pending.previous_id),
+    );
+    delete_orphaned_duplicate(app, pending);
+}
+
+/// Revert at the deadline even when the guard window never showed or has
+/// crashed. A stale timer finds nothing expired and does nothing.
+fn spawn_expiry(app: &AppHandle, deadline: Instant) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep_until(tokio::time::Instant::from_std(deadline)).await;
+        let expired = {
+            let state = app.state::<crate::state::AppState>();
+            let Ok(mut slot) = state.pending_theme.lock() else {
+                return;
+            };
+            take_if_expired(&mut slot, Instant::now())
+        };
+        if let Some(pending) = expired {
+            finish_revert(&app, &pending);
+            hide_guard_window(&app);
+        }
+    });
 }
 
 /// Best-effort: never fails the caller — losing the cleanup is better than
@@ -438,19 +483,14 @@ pub fn arm_activation(
     delete_on_revert: bool,
 ) -> Result<(), String> {
     let previous_id = crate::commands::settings::current(&app).active_theme_id;
+    let at = Instant::now();
     let displaced = {
         let state = app.state::<crate::state::AppState>();
         let mut slot = state
             .pending_theme
             .lock()
             .map_err(|_| "The pending theme activation lock is poisoned".to_string())?;
-        arm(
-            &mut slot,
-            previous_id,
-            new_id.clone(),
-            delete_on_revert,
-            Instant::now(),
-        )
+        arm(&mut slot, previous_id, new_id.clone(), delete_on_revert, at)
     };
     // A re-arm before the previous one was confirmed or reverted abandons it
     // exactly like a revert would — clean it up the same way.
@@ -458,6 +498,7 @@ pub fn arm_activation(
         delete_orphaned_duplicate(&app, &displaced);
     }
 
+    spawn_expiry(&app, at + ACTIVATION_WINDOW);
     show_guard_window(&app)
 }
 
@@ -486,19 +527,34 @@ pub fn confirm_activation(app: AppHandle) -> Result<(), String> {
         take_if_live(&mut slot, Instant::now())
     };
 
-    if let Some(pending) = armed {
-        let message = format!("Confirmed theme {:?}", pending.new_id);
-        crate::commands::settings::set_active_theme_id(&app, pending.new_id)?;
-        crate::log::log_line(&app, "theme", &message);
+    let Some(pending) = armed else {
+        hide_guard_window(&app);
+        return Ok(());
+    };
+    let saved = crate::commands::settings::set_active_theme_id(&app, pending.new_id.clone());
+    match &saved {
+        Ok(()) => crate::log::log_line(
+            &app,
+            "theme",
+            &format!("Confirmed theme {:?}", pending.new_id),
+        ),
+        Err(err) => {
+            crate::log::log_line(
+                &app,
+                "theme",
+                &format!("Could not save theme {:?}; reverted: {err}", pending.new_id),
+            );
+            finish_revert(&app, &pending);
+        }
     }
 
     hide_guard_window(&app);
-    Ok(())
+    saved
 }
 
 /// Abandon the previewed theme, write nothing, and tell `main` to re-apply
-/// `previousId`. Uses [`take_any`], not [`take_if_live`]: this is also what
-/// the automatic revert calls on timeout, so it must work on an expired activation.
+/// `previousId`. Uses [`take_any`], not [`take_if_live`]: the frontend calls
+/// this at zero, which can arrive after the backend timer has already reverted.
 #[tauri::command]
 pub fn revert_activation(app: AppHandle) -> Result<(), String> {
     let armed = {
@@ -511,13 +567,7 @@ pub fn revert_activation(app: AppHandle) -> Result<(), String> {
     };
 
     if let Some(pending) = armed {
-        let _ = app.emit("theme-activation-reverted", reverted_payload(&pending));
-        crate::log::log_line(
-            &app,
-            "theme",
-            &format!("Reverted theme activation to {:?}", pending.previous_id),
-        );
-        delete_orphaned_duplicate(&app, &pending);
+        finish_revert(&app, &pending);
     }
 
     hide_guard_window(&app);
@@ -920,8 +970,8 @@ struct SeedProvenance {
 }
 
 /// A stable hash over every file under `dir` (relative path + bytes), the
-/// provenance file itself excluded. Sorted so file-system iteration order
-/// never changes the result.
+/// provenance file and the user's tuning excluded. Sorted so file-system
+/// iteration order never changes the result.
 fn fingerprint_theme_dir(dir: &Path) -> Result<String, String> {
     let mut files: Vec<(PathBuf, Vec<u8>)> = Vec::new();
     let mut stack = vec![(dir.to_path_buf(), PathBuf::new())];
@@ -935,7 +985,9 @@ fn fingerprint_theme_dir(dir: &Path) -> Result<String, String> {
                 stack.push((path, at));
                 continue;
             }
-            if at == Path::new(SEED_PROVENANCE_FILE) {
+            if at == Path::new(SEED_PROVENANCE_FILE)
+                || at == Path::new(crate::theme::settings_values::SETTINGS_VALUES_FILE)
+            {
                 continue;
             }
             let bytes = std::fs::read(&path)
@@ -1024,14 +1076,36 @@ fn install_builtin_theme(
         write_seed_provenance(&target, &manifest.version)
     });
 
-    match install {
-        Ok(()) => Ok(id.to_string()),
-        Err(e) => {
-            // A half-copied theme would list as one that can't load.
-            let _ = std::fs::remove_dir_all(&target);
-            Err(e)
-        }
+    if let Err(e) = install {
+        // A half-copied theme would list as one that can't load.
+        let _ = std::fs::remove_dir_all(&target);
+        return Err(e);
     }
+    restore_tuning(themes_root, id, &target)?;
+    Ok(id.to_string())
+}
+
+/// Where a refresh parks the user's tuning while the builtin folder is replaced.
+fn tuning_backup(themes_root: &Path, id: &str) -> PathBuf {
+    themes_root.join(format!(".{id}.tuning.bak"))
+}
+
+/// Puts back tuning a refresh parked, including one a failed refresh left behind.
+fn restore_tuning(themes_root: &Path, id: &str, target: &Path) -> Result<(), String> {
+    let backup = tuning_backup(themes_root, id);
+    if !backup.is_file() {
+        return Ok(());
+    }
+    let tuning_path = target.join(crate::theme::settings_values::SETTINGS_VALUES_FILE);
+    std::fs::copy(&backup, &tuning_path).map_err(|e| {
+        format!(
+            "Could not restore {} (the tuning is kept at {}): {e}",
+            tuning_path.display(),
+            backup.display()
+        )
+    })?;
+    let _ = std::fs::remove_file(&backup);
+    Ok(())
 }
 
 /// Outcome of checking one already-installed builtin against the bundled copy.
@@ -1068,6 +1142,14 @@ fn refresh_builtin_theme(
         .map_err(|e| format!("Could not parse the bundled manifest for `{id}`: {e}"))?;
     if !bundled_version_is_newer(&bundled.version, &provenance.version) {
         return Ok(None);
+    }
+
+    // The backup outlives a failed refresh, so the tuning is never only in memory.
+    let tuning_path = target.join(crate::theme::settings_values::SETTINGS_VALUES_FILE);
+    match std::fs::copy(&tuning_path, tuning_backup(themes_root, id)) {
+        Ok(_) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => return Err(format!("Could not back up {}: {e}", tuning_path.display())),
     }
 
     std::fs::remove_dir_all(&target)
@@ -1234,21 +1316,23 @@ mod tests {
         assert!(take_if_live(&mut slot, started + Duration::from_secs(2)).is_none());
     }
 
-    /// The automatic-expiry path is a revert call arriving after the deadline,
-    /// so revert (`take_any`) must succeed where confirm (`take_if_live`) refuses.
+    /// The backend timer takes only an expired activation; a live one stays
+    /// armed, and confirm refuses the expired one.
     #[test]
-    fn an_expired_activation_cannot_be_confirmed_but_can_still_be_reverted() {
+    fn expiry_takes_only_an_expired_activation_and_confirm_refuses_it() {
         let started = Instant::now();
         let mut slot = armed_at(started);
 
-        let expired_at = started + ACTIVATION_WINDOW + Duration::from_millis(1);
+        assert!(take_if_expired(&mut slot, started + Duration::from_secs(1)).is_none());
+        assert!(slot.is_some(), "a live activation must stay armed");
 
+        let expired_at = started + ACTIVATION_WINDOW + Duration::from_millis(1);
         assert!(take_if_live(&mut slot, expired_at).is_none());
         assert!(slot.is_some(), "confirm must not have consumed it");
 
-        let taken = take_any(&mut slot).expect("revert must still take an expired activation");
+        let taken = take_if_expired(&mut slot, expired_at).expect("expired activation is taken");
         assert_eq!(taken.new_id.as_deref(), Some("local.ember"));
-        assert!(slot.is_none(), "revert leaves nothing pending behind");
+        assert!(slot.is_none(), "expiry leaves nothing pending behind");
     }
 
     /// Trying a second theme before answering replaces the pending one and restarts the clock.
@@ -2364,6 +2448,25 @@ mod builtin_themes {
     /// A pristine installed copy with an older recorded version is replaced
     /// by the bundled copy.
     #[test]
+    fn a_tuning_backup_left_by_a_failed_refresh_is_restored_on_the_next_install() {
+        let source_root = shipped();
+        let themes_root = scratch("leftover-tuning");
+        std::fs::create_dir_all(&themes_root).unwrap();
+        let tuning = br#"{"space.gap": 4}"#.to_vec();
+        let backup = themes_root.join(".builtin.tactical.tuning.bak");
+        std::fs::write(&backup, &tuning).unwrap();
+
+        let seeded = seed_from(&source_root, &themes_root, |_| {});
+
+        assert!(seeded.iter().all(Result::is_ok), "{seeded:?}");
+        let sidecar = themes_root
+            .join("builtin.tactical")
+            .join(crate::theme::settings_values::SETTINGS_VALUES_FILE);
+        assert_eq!(std::fs::read(&sidecar).unwrap(), tuning);
+        assert!(!backup.exists());
+    }
+
+    #[test]
     fn a_pristine_installed_builtin_with_an_older_recorded_version_is_replaced() {
         let source_root = shipped();
         let themes_root = scratch("older-version");
@@ -2389,6 +2492,13 @@ mod builtin_themes {
         )
         .unwrap();
 
+        // Tuning the user made in the installed copy: not an edit, and kept.
+        let tuning = br#"{"space.gap": 4}"#.to_vec();
+        let sidecar = themes_root
+            .join("builtin.tactical")
+            .join(crate::theme::settings_values::SETTINGS_VALUES_FILE);
+        std::fs::write(&sidecar, &tuning).unwrap();
+
         let mut logs = Vec::new();
         let second = seed_from(&source_root, &themes_root, |line| {
             logs.push(line.to_string())
@@ -2402,6 +2512,7 @@ mod builtin_themes {
             vec![Ok("builtin.tactical")],
             "the stale copy is replaced: {second:?}"
         );
+        assert_eq!(std::fs::read(&sidecar).unwrap(), tuning);
         assert!(
             logs.iter()
                 .any(|l| l.contains("0.1.0") && l.contains(&bundled_version)),
