@@ -99,7 +99,8 @@ vi.mock("@/hooks/use-server-actions", () => ({
   phaseLabel: (op: { note: string | null }) => op.note ?? "DOWNLOADING…",
 }));
 
-vi.mock("./use-selection-readiness", () => ({
+vi.mock("./use-selection-readiness", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./use-selection-readiness")>()),
   useSelectionReadiness: vi.fn(),
 }));
 
@@ -288,6 +289,25 @@ describe("ServerJoin", () => {
     expect(html).not.toContain('data-part="sublabel"');
     expect(html).not.toContain(formatBytes(2_000_000));
     expect(html).not.toContain("first");
+  });
+
+  it.each([
+    ["a modal", "modal", ""],
+    ["a popup opened from a row", "row", "serverActions"],
+  ] as const)("fix-and-join in %s reads Fix and join when fetched readiness lists an outstanding mod", async (_, contextName, popupId) => {
+    await setReadiness(readiness([mod({ state: "needs_update" })]), false);
+    useServerStore.setState({ modPending: {} });
+    const { ServerJoin } = await import("./server-elements");
+    const { PopupContextProvider } = await import("./popup-elements");
+    const html = renderToStaticMarkup(
+      <ElementContextProvider value={{ subjectContext: { kind: "server", data: server }, contextName }}>
+        <PopupContextProvider popupId={popupId} close={() => {}}>
+          <ServerJoin options={{ wording: "fixAndJoin" }} />
+        </PopupContextProvider>
+      </ElementContextProvider>,
+    );
+    expect(html).toContain(">Fix and join</span>");
+    expect(html).toContain("needsMods");
   });
 });
 

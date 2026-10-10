@@ -20,7 +20,7 @@ import type { Server } from "@/types/server";
 import { cn, formatBytes, formatMultiplier, gameTimeParts, regionName } from "@/lib/utils";
 import { useElementContext } from "./context";
 import { useServerActions, phaseLabel } from "@/hooks/use-server-actions";
-import { useSelectionReadiness } from "./use-selection-readiness";
+import { isOutstandingMod, useFetchesReadiness, useSelectionReadiness } from "./use-selection-readiness";
 import { useServerStore } from "@/stores/server-store";
 import { invalidateReadiness, setCachedReadiness } from "@/stores/readiness-store";
 import { joinAction } from "@/lib/join-action";
@@ -438,6 +438,49 @@ function ServerJoinIdleButton({
   );
 }
 
+/** Fetched readiness can turn Join into Fix and join wherever readiness is fetched. */
+function ServerJoinIdleFetched({
+  server,
+  pending,
+  disabled,
+  showIcon,
+  showLabel,
+  optionIcon,
+  onClick,
+  className,
+  style,
+}: {
+  server: Server;
+  pending: boolean;
+  disabled: boolean;
+  showIcon: boolean;
+  showLabel: boolean;
+  optionIcon: unknown;
+  onClick: (e: MouseEvent) => void;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const { readiness } = useSelectionReadiness(server);
+  const outstanding = readiness?.mods.some(isOutstandingMod) ?? false;
+  const needsMods = server.modded && (pending || outstanding);
+
+  return (
+    <ServerJoinIdleButton
+      server={server}
+      label={needsMods ? "Fix and join" : "Join"}
+      icon={server.modded ? "download" : "play"}
+      optionIcon={optionIcon}
+      needsMods={needsMods}
+      disabled={disabled}
+      showIcon={showIcon}
+      showLabel={showLabel}
+      onClick={onClick}
+      className={className}
+      style={style}
+    />
+  );
+}
+
 /** The selection idle-join form only, so `useSelectionReadiness` never runs per row. */
 function ServerJoinIdleSelection({
   server,
@@ -499,6 +542,7 @@ export function ServerJoin({
   style?: CSSProperties;
 }) {
   const { contextName } = useElementContext();
+  const fetchesReadiness = useFetchesReadiness();
   const server = useServerSubject();
   const { op, dayzUp, verifyAndJoin } = useServerActions();
   const pending = useServerStore((s) => !!server && !!s.modPending[server.addr]);
@@ -580,6 +624,22 @@ export function ServerJoin({
   }
 
   const disabled = op !== null || dayzUp;
+
+  if (isFixAndJoin && fetchesReadiness) {
+    return (
+      <ServerJoinIdleFetched
+        server={server}
+        pending={pending}
+        disabled={disabled}
+        showIcon={showIcon}
+        showLabel={showLabel}
+        optionIcon={options?.icon}
+        onClick={handleClick}
+        className={className}
+        style={style}
+      />
+    );
+  }
 
   if (isSelectionJoin) {
     return (

@@ -1,9 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ModReadinessEntry, ServerModReadiness, Server } from "@/types/server";
-import { formatBytes } from "@/lib/utils";
+import { useServerStore } from "@/stores/server-store";
 import { computeReadinessView } from "./readiness-elements";
 import { ElementContextProvider } from "./context";
+
+// SSR takes zustand's initial-state snapshot, so route the hook through the live state.
+function liveHook<T extends { getState: () => S }, S>(store: T) {
+  return Object.assign(<R,>(sel: (s: S) => R) => sel(store.getState()), store);
+}
+
+vi.mock("@/stores/server-store", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/stores/server-store")>();
+  return { ...actual, useServerStore: liveHook(actual.useServerStore) };
+});
 
 const mod = (overrides: Partial<ModReadinessEntry>): ModReadinessEntry => ({
   workshop_id: "1",
@@ -120,7 +130,8 @@ describe("computeReadinessView", () => {
   });
 });
 
-vi.mock("./use-selection-readiness", () => ({
+vi.mock("./use-selection-readiness", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./use-selection-readiness")>()),
   useSelectionReadiness: vi.fn(),
 }));
 
@@ -209,39 +220,60 @@ describe("ServerReadiness", () => {
   });
 });
 
+describe("ServerReadiness declared basis", () => {
+  const declaredServer = { addr: "192.168.1.1", online: true, modded: true, mod_count: 3 } as Server;
+
+  it.each([
+    { case: "pending update", pending: true, modded: true, modCount: 3, state: "needsUpdate", label: "Mod update pending — verify before join" },
+    { case: "unchecked modded", pending: false, modded: true, modCount: null, state: "unchecked", label: "Mods not checked — verify before join" },
+    { case: "declared none", pending: false, modded: true, modCount: 0, state: "noMods", label: "No mods declared" },
+    { case: "unprobed non-modded", pending: false, modded: false, modCount: null, state: "noMods", label: "No mods declared" },
+    { case: "declared count", pending: false, modded: true, modCount: 3, state: "ready", label: "3 mods declared" },
+  ])("$case reads $label with state $state and no size", async (c) => {
+    useServerStore.setState({ modPending: c.pending ? { [declaredServer.addr]: true } : {} });
+    const { useSelectionReadiness } = await import("./use-selection-readiness");
+    vi.mocked(useSelectionReadiness).mockReturnValue({ readiness: null, loading: false });
+    const { ServerReadiness } = await import("./readiness-elements");
+    const html = renderToStaticMarkup(
+      <ElementContextProvider value={{ subjectContext: { kind: "server", data: { ...declaredServer, modded: c.modded, mod_count: c.modCount } as Server } }}>
+        <ServerReadiness options={{ basis: "declared" }} />
+      </ElementContextProvider>,
+    );
+    expect(html).toContain(`data-state="${c.state}"`);
+    expect(html).toContain(c.label);
+    expect(html).toContain('data-part="dot"');
+    expect(html).not.toContain('data-part="size"');
+  });
+});
+
 describe("ServerDownloadSize", () => {
+  const moddedServer = { addr: "192.168.1.1", online: true, modded: true, mod_count: 4 } as Server;
+
   async function renderWith(readinessValue: ServerModReadiness | null, loading: boolean) {
     const { useSelectionReadiness } = await import("./use-selection-readiness");
     vi.mocked(useSelectionReadiness).mockReturnValue({ readiness: readinessValue, loading });
     const { ServerDownloadSize } = await import("./readiness-elements");
-    return renderToStaticMarkup(<ServerDownloadSize />);
+    return renderToStaticMarkup(
+      <ElementContextProvider value={{ subjectContext: { kind: "server", data: moddedServer } }}>
+        <ServerDownloadSize />
+      </ElementContextProvider>,
+    );
   }
 
-  it("renders checking with no qualifier while the fetch is in flight", async () => {
-    const html = await renderWith(null, true);
-    expect(html).toContain('data-el="server.downloadSize"');
-    expect(html).toContain('data-state="checking"');
-    expect(html).not.toContain('data-part="qualifier"');
-    expect(html).toContain('data-part="value"');
-    expect(html).toContain("Checking…");
-  });
-
-  it("renders none with no qualifier when there is nothing outstanding", async () => {
-    const html = await renderWith(readiness([mod({ state: "ready" })]), false);
-    expect(html).toContain('data-state="none"');
-    expect(html).not.toContain('data-part="qualifier"');
-    expect(html).toContain("Nothing to download");
-  });
-
-  it("renders upperBound with a qualifier when any outstanding size is an estimate", async () => {
+  it("renders the count and an upper-bound download size line", async () => {
     const html = await renderWith(
-      readiness([mod({ state: "needs_update", size_bytes: 5000, size_is_upper_bound: true })]),
+      readiness([
+        mod({ state: "needs_update", size_bytes: 5000, size_is_upper_bound: true }),
+        mod({ state: "ready" }),
+        mod({ state: "ready" }),
+        mod({ state: "ready" }),
+      ]),
       false,
     );
+    expect(html).toContain('data-part="count">4 mods<');
     expect(html).toContain('data-state="upperBound"');
-    expect(html).toContain('data-part="qualifier"');
-    expect(html).toContain("up to");
-    expect(html).toContain(formatBytes(5000));
+    expect(html).toContain('data-part="qualifier">up to </span>');
+    expect(html.replace(/<[^>]+>/g, "")).toContain("Download size: up to 4.9 KB");
   });
 
   it("renders an exact size with no data-state attribute and no qualifier", async () => {
@@ -251,7 +283,14 @@ describe("ServerDownloadSize", () => {
     );
     expect(html).not.toContain("data-state=");
     expect(html).not.toContain('data-part="qualifier"');
-    expect(html).toContain(formatBytes(3000));
+    expect(html).toContain("Download size: 2.9 KB");
+  });
+
+  it("renders a zero download size when nothing is outstanding", async () => {
+    const html = await renderWith(readiness([mod({ state: "ready" })]), false);
+    expect(html).toContain('data-state="none"');
+    expect(html).toContain('data-part="count">1 mod<');
+    expect(html).toContain("Download size: 0 bytes");
   });
 
   it("adds offline to data-state while the selected server is offline", async () => {
@@ -262,7 +301,7 @@ describe("ServerDownloadSize", () => {
     });
     const { ServerDownloadSize } = await import("./readiness-elements");
     const html = renderToStaticMarkup(
-      <ElementContextProvider value={{ selectedServer: { online: false } as Server }}>
+      <ElementContextProvider value={{ selectedServer: { online: false, modded: true, mod_count: 1 } as Server }}>
         <ServerDownloadSize />
       </ElementContextProvider>,
     );
