@@ -8,6 +8,8 @@ name: Release
 # all three needing to move together), commit, tag as vX.Y.Z, then push the
 # tag. That push is this workflow's only trigger — nothing here runs on an
 # ordinary commit.
+# This workflow creates the release as a draft and publishes it once the
+# builds finish, so nothing has to be created by hand.
 # Runs for the same tag never overlap.
 concurrency:
   group: release-${{ github.ref }}
@@ -22,7 +24,25 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
+    outputs:
+      id: ${{ steps.create.outputs.id }}
     steps:
+      # If this is refused, create the draft by hand (gh release create <tag> --draft --verify-tag) and rerun.
+      - name: Create the draft release
+        id: create
+        shell: bash
+        env:
+          GH_REPO: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ github.ref_name }}"
+          if ! id=$(gh release view "$TAG" --json databaseId --jq .databaseId 2>/dev/null); then
+            id=$(gh api -X POST "repos/$GH_REPO/releases" \
+              -f tag_name="$TAG" -f name="Tetra Launcher $TAG" -F draft=true --jq .id)
+          fi
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v4
 
       - name: Install Rust
@@ -67,10 +87,9 @@ jobs:
       - name: Build frontend
         run: npm run build
 
-      # Builds, signs the updater artifacts (TAURI_SIGNING_PRIVATE_KEY*), and
-      # creates+publishes the GitHub release with the NSIS installer,
-      # signatures, and latest.json attached.
-      - name: Build and publish release
+      # Builds and signs the updater artifacts (TAURI_SIGNING_PRIVATE_KEY*),
+      # then uploads them plus latest.json to the draft release created at the start of this job.
+      - name: Build and upload release
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -81,15 +100,12 @@ jobs:
           # release is Steam-only, no index.
           TETRA_INDEX_URL: ${{ vars.TETRA_INDEX_URL }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Tetra Launcher ${{ github.ref_name }}"
-          releaseDraft: false
-          prerelease: false
+          releaseId: ${{ steps.create.outputs.id }}
 
       # tauri-action only uploads the NSIS installer bundle — the portable
       # distribution (raw exe + steam_api64.dll, which tauri build already
       # places side by side in target/release) is packaged separately and
-      # uploaded onto the same release the step above just published.
+      # uploaded onto the same release.
       - name: Package portable build
         shell: pwsh
         run: |
@@ -116,11 +132,11 @@ jobs:
 
   # Linux (AppImage) half of the release. Full parity with Windows: builds,
   # signs with the SAME cross-platform key (TAURI_SIGNING_PRIVATE_KEY*), and
-  # publishes the AppImage + updater artifacts onto the same release that the
-  # Windows job created. `needs: release` serialises it AFTER the Windows job so
-  # the GitHub release and its Windows latest.json already exist, letting
-  # tauri-action merge this platform's entry into latest.json instead of the two
-  # jobs racing to clobber each other's file.
+  # uploads the AppImage + updater artifacts onto the same draft release.
+  # `needs: release` serialises it AFTER the Windows job so its Windows
+  # latest.json already exists, letting tauri-action merge this platform's
+  # entry into latest.json instead of the two jobs racing to clobber each
+  # other's file.
   release-linux:
     runs-on: ubuntu-latest
     permissions:
@@ -225,10 +241,7 @@ jobs:
           LD_LIBRARY_PATH: ${{ github.workspace }}/target/steamlib
           TETRA_INDEX_URL: ${{ vars.TETRA_INDEX_URL }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Tetra Launcher ${{ github.ref_name }}"
-          releaseDraft: false
-          prerelease: false
+          releaseId: ${{ needs.release.outputs.id }}
           args: --bundles appimage,deb,rpm
 
       # The in-app changelog reads `notes` from latest.json, tauri-action only
@@ -282,3 +295,9 @@ jobs:
           PY
           gh release upload "$VERSION" latest.json --clobber
           gh release edit "$VERSION" --notes-file release-notes.md
+
+      # If this is refused by the integration, run the same command by hand.
+      - name: Publish the release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${{ github.ref_name }}" --draft=false --prerelease=false --latest
