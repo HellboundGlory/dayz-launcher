@@ -143,12 +143,12 @@ export async function startServer({ mode = "dev", port } = {}) {
       emptyOutDir: true,
       // The app's own target is WebKit-for-Tauri; the harness page uses top-level await.
       target: "es2022",
-      minify: "esbuild",
+      minify: true,
       sourcemap: false,
-      // The repo root stays the build root, so Tailwind's content globs and the
-      // public dir behave exactly as they do for `npm run build`; the entry
-      // lands under tools/harness/ in the out dir, preserving the dev URL.
-      rollupOptions: { input: path.join(ROOT, ENTRY) },
+      // The repo root stays the build root, so the public dir behaves as it does
+      // for `npm run build`; the entry lands under tools/harness/ in the out dir,
+      // preserving the dev URL.
+      rolldownOptions: { input: path.join(ROOT, ENTRY) },
     },
   });
   // main.tsx fetches theme packages from an absolute path the app's asset
