@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2, X } from "lucide-react";
+import { LoaderCircle, X } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { cn } from "@/lib/utils";
 import { exportTheme, getTheme } from "@/lib/tauri";
@@ -233,7 +233,7 @@ export function ExportThemeDialog({
         <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-4">
           {!loaded && !error && (
             <div className="flex items-center justify-center gap-1.5 py-8 [font-size:var(--t-type-body-size)] text-muted">
-              <Loader2 className="size-3.5 animate-spin" />
+              <LoaderCircle className="size-3.5 animate-spin" />
               <span>Reading the theme…</span>
             </div>
           )}
@@ -367,7 +367,7 @@ export function ExportThemeDialog({
             disabled={!loaded || busy}
             className="flex items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-4 py-2 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none disabled:hover:brightness-100"
           >
-            {busy && <Loader2 className="size-3.5 animate-spin" />}
+            {busy && <LoaderCircle className="size-3.5 animate-spin" />}
             <span>Export ZIP…</span>
           </button>
         </div>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Copy, FileOutput, MoreHorizontal, Trash2, type LucideIcon } from "lucide-react";
+import { Copy, Ellipsis, FileOutput, Trash, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ThemeCardProps {
@@ -142,7 +142,7 @@ export function ThemeCard({
             aria-label={`${name} options`}
             className="inline-flex h-[22px] w-[26px] shrink-0 items-center justify-center [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface2 text-muted2 transition-colors hover:text-ink"
           >
-            <MoreHorizontal className="size-3.5" />
+            <Ellipsis className="size-3.5" />
           </button>
 
           {/* Opens upward: inside a settings panel there's rarely room below. */}
@@ -174,7 +174,7 @@ export function ThemeCard({
               )}
               {onRequestDelete && (
                 <MenuItem
-                  icon={Trash2}
+                  icon={Trash}
                   destructive
                   label="Delete"
                   onClick={() => {

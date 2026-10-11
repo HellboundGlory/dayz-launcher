@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { CheckCircle2, FileArchive, Loader2, X } from "lucide-react";
+import { CircleCheck, FileArchive, LoaderCircle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { confirmThemeInstall, discardThemeImport, importThemePreview } from "@/lib/tauri";
 import { resolveThemeAsset } from "@/theme/asset-resolver";
@@ -330,7 +330,7 @@ export function ImportThemeDialog({
                   className="flex items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface px-3 py-2 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-ink transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:border-accent-line hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {phase === "loading" ? (
-                    <Loader2 className="size-3.5 animate-spin" />
+                    <LoaderCircle className="size-3.5 animate-spin" />
                   ) : (
                     <FileArchive className="size-3.5" />
                   )}
@@ -342,7 +342,7 @@ export function ImportThemeDialog({
 
           {phase === "loading" && (
             <div className="flex items-center justify-center gap-1.5 [border-radius:var(--t-radius-card)] border border-line bg-surface2 px-3 py-4 [font-size:var(--t-type-compactBody-size)] text-accent">
-              <Loader2 className="size-3.5 shrink-0 animate-spin" />
+              <LoaderCircle className="size-3.5 shrink-0 animate-spin" />
               <span>Validating package…</span>
             </div>
           )}
@@ -396,13 +396,13 @@ export function ImportThemeDialog({
                   </h4>
                   <ul className="mt-1.5 flex flex-col gap-1">
                     <li className="flex items-center gap-1.5 [font-size:var(--t-type-compactBody-size)] text-muted2">
-                      <CheckCircle2 className="size-3.5 shrink-0 text-success" />
+                      <CircleCheck className="size-3.5 shrink-0 text-success" />
                       <span>
                         Theme API <span className="font-mono-data">{manifest.themeApi}</span>
                       </span>
                     </li>
                     <li className="flex items-center gap-1.5 [font-size:var(--t-type-compactBody-size)] text-muted2">
-                      <CheckCircle2 className="size-3.5 shrink-0 text-success" />
+                      <CircleCheck className="size-3.5 shrink-0 text-success" />
                       <span>
                         Requires Tetra Launcher ≥{" "}
                         <span className="font-mono-data">{manifest.minimumLauncherVersion}</span>
@@ -448,7 +448,7 @@ export function ImportThemeDialog({
                       "disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:brightness-100",
                     )}
                   >
-                    {busy && <Loader2 className="size-3.5 animate-spin" />}
+                    {busy && <LoaderCircle className="size-3.5 animate-spin" />}
                     <span>{busy ? "Installing…" : copy.action}</span>
                   </button>
                 </div>

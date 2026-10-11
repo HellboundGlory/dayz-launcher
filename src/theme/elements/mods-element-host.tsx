@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import { CheckSquare } from "lucide-react";
+import { SquareCheckBig } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useModsStore, visibleRows } from "@/stores/mods-store";
 import type { ElementNode } from "../renderer/types";
@@ -89,7 +89,7 @@ function ModsSelectAll({
       >
         <span data-part="icon" className="flex">
           {allSelected ? (
-            <CheckSquare className="size-3.5" />
+            <SquareCheckBig className="size-3.5" />
           ) : (
             <span className="size-3.5 [border-radius:var(--t-radius-badge)] border border-line" />
           )}
@@ -117,7 +117,7 @@ function ModsSelectAll({
     >
       {showIcon && (
         <span data-part="icon" className="flex">
-          <OptionIcon icon={options?.icon} fallback={CheckSquare} className="size-3.5" />
+          <OptionIcon icon={options?.icon} fallback={SquareCheckBig} className="size-3.5" />
         </span>
       )}
       {showLabel && <span data-part="label">{label}</span>}

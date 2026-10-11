@@ -9,7 +9,7 @@ import {
   type WheelEvent,
 } from "react";
 import { observeElementRect, useVirtualizer, type Virtualizer } from "@tanstack/react-virtual";
-import { Loader2 } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 import { ListHeader } from "./list-header";
 import { ListRow } from "./list-row";
 import { handleListKeyDown } from "./keyboard";
@@ -285,7 +285,7 @@ export function ListHost<T = unknown>({
 
   const placeholder = loading ? (
     <div data-part="loading" className="flex flex-1 items-center justify-center gap-2 p-8 text-muted">
-      <Loader2 className="size-3.5 animate-spin" />
+      <LoaderCircle className="size-3.5 animate-spin" />
       {loadingText}
     </div>
   ) : (
