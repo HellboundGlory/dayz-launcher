@@ -266,44 +266,67 @@ mod tests {
     /// does exist, at the themes root) is never reached.
     #[test]
     fn a_parent_segment_is_refused() {
-        let root = installed("parent");
+        let installed_root = installed("parent");
+        let staged_root = staged("staged-parent", "pkg-123");
 
-        for escape in [
-            "../settings.json",
-            "../../settings.json",
-            "preview/../../settings.json",
-            "preview/dark/../../../settings.json",
+        for (root, host, escape) in [
+            (&installed_root, "aurora.theme", "../settings.json"),
+            (&installed_root, "aurora.theme", "../../settings.json"),
+            (
+                &installed_root,
+                "aurora.theme",
+                "preview/../../settings.json",
+            ),
+            (
+                &installed_root,
+                "aurora.theme",
+                "preview/dark/../../../settings.json",
+            ),
+            (&staged_root, ".staging/pkg-123", "../../settings.json"),
         ] {
-            let reason = resolve_asset(&root, "aurora.theme", escape).expect_err("must refuse");
-            assert!(reason.contains(".."), "{escape}: {reason}");
+            let reason = resolve_asset(root, host, escape).expect_err("must refuse");
+            assert!(reason.contains(".."), "{host} {escape}: {reason}");
         }
-        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&installed_root);
+        let _ = std::fs::remove_dir_all(&staged_root);
     }
 
     #[test]
     fn an_absolute_path_is_refused() {
-        let root = installed("absolute");
-        let outside = root.join("settings.json");
+        let installed_root = installed("absolute");
+        let staged_root = staged("staged-absolute", "pkg-123");
+        let outside = installed_root
+            .join("settings.json")
+            .to_string_lossy()
+            .into_owned();
 
-        for absolute in [
-            outside.to_string_lossy().into_owned(),
-            // A leading separator survives `Path::new` as a root component, so
-            // it is refused by the same check as the platform's own absolute form.
-            "\\..\\settings.json".to_string(),
+        for (root, host) in [
+            (&installed_root, "aurora.theme"),
+            (&staged_root, ".staging/pkg-123"),
         ] {
-            let reason = resolve_asset(&root, "aurora.theme", &absolute).expect_err("must refuse");
-            assert!(reason.contains("absolute"), "{absolute}: {reason}");
+            for absolute in [
+                outside.clone(),
+                // A leading separator survives `Path::new` as a root component,
+                // so it is refused by the same check as the platform's absolute form.
+                "\\..\\settings.json".to_string(),
+            ] {
+                let reason = resolve_asset(root, host, &absolute).expect_err("must refuse");
+                assert!(reason.contains("absolute"), "{host} {absolute}: {reason}");
+            }
         }
-        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&installed_root);
+        let _ = std::fs::remove_dir_all(&staged_root);
     }
 
     #[test]
     fn a_theme_that_is_not_installed_is_refused() {
-        let root = installed("unknown");
+        // A staging directory's name is not an installed theme id.
+        let root = staged("unknown", "pkg-123");
 
-        let reason = resolve_asset(&root, "not.installed", "main.css").expect_err("must refuse");
-
-        assert!(reason.contains("No installed theme"), "{reason}");
+        for id in ["not.installed", "pkg-123"] {
+            let reason = resolve_asset(&root, id, "main.css").expect_err("must refuse");
+            assert!(reason.contains("No installed theme"), "{id}: {reason}");
+        }
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -332,38 +355,6 @@ mod tests {
             resolved,
             package.join("previews/shot.png").canonicalize().unwrap()
         );
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn a_normal_theme_id_cannot_resolve_into_staging() {
-        let root = staged("staged-not-installed", "pkg-123");
-
-        let reason = resolve_asset(&root, "pkg-123", "previews/shot.png").expect_err("must refuse");
-
-        assert!(reason.contains("No installed theme"), "{reason}");
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn a_parent_segment_is_refused_for_a_staged_host() {
-        let root = staged("staged-parent", "pkg-123");
-
-        let reason = resolve_asset(&root, ".staging/pkg-123", "../../settings.json")
-            .expect_err("must refuse");
-
-        assert!(reason.contains(".."), "{reason}");
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn an_absolute_path_is_refused_for_a_staged_host() {
-        let root = staged("staged-absolute", "pkg-123");
-        let outside = root.join("settings.json").to_string_lossy().into_owned();
-
-        let reason = resolve_asset(&root, ".staging/pkg-123", &outside).expect_err("must refuse");
-
-        assert!(reason.contains("absolute"), "{reason}");
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -404,7 +395,8 @@ mod tests {
     }
 
     /// A link earlier in the path is a directory to `symlink_metadata` on the
-    /// final path; the canonicalised prefix check is what refuses it.
+    /// final path; the canonicalised prefix check is what refuses it, however
+    /// many hops the chain of links takes.
     #[cfg(unix)]
     #[test]
     fn a_symlinked_directory_cannot_smuggle_a_path_out_of_the_theme() {
@@ -414,31 +406,14 @@ mod tests {
         std::fs::create_dir_all(&outside).unwrap();
         std::fs::write(outside.join("stolen.css"), b"body{}").unwrap();
         std::os::unix::fs::symlink(&outside, theme.join("linked")).unwrap();
-
-        let reason =
-            resolve_asset(&root, "aurora.theme", "linked/stolen.css").expect_err("must refuse");
-
-        assert!(reason.contains("outside theme"), "{reason}");
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    /// A chain of two links (one to another link, the last to a file outside
-    /// the theme) must not resolve any further than a single hop does.
-    #[cfg(unix)]
-    #[test]
-    fn a_chained_symlink_cannot_smuggle_a_path_out_of_the_theme() {
-        let root = installed("symlink-chain");
-        let theme = root.join("aurora.theme");
-        let outside = root.join("outside");
-        std::fs::create_dir_all(&outside).unwrap();
-        std::fs::write(outside.join("stolen.css"), b"body{}").unwrap();
         std::os::unix::fs::symlink(&outside, root.join("hop1")).unwrap();
         std::os::unix::fs::symlink(root.join("hop1"), theme.join("hop2")).unwrap();
 
-        let reason =
-            resolve_asset(&root, "aurora.theme", "hop2/stolen.css").expect_err("must refuse");
+        for escape in ["linked/stolen.css", "hop2/stolen.css"] {
+            let reason = resolve_asset(&root, "aurora.theme", escape).expect_err("must refuse");
 
-        assert!(reason.contains("outside theme"), "{reason}");
+            assert!(reason.contains("outside theme"), "{escape}: {reason}");
+        }
         let _ = std::fs::remove_dir_all(&root);
     }
 

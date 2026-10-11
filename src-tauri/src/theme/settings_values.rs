@@ -93,26 +93,18 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    /// Each set keeps the fields already on disk, and every value reads back as
+    /// the type it was written.
     #[test]
-    fn a_set_value_reads_back_typed_and_verbatim() {
+    fn a_set_value_reads_back_typed_and_keeps_every_other_field() {
         let root = installed("roundtrip");
         set_value(&root, "dev.values", "accentHue", &json!(210)).unwrap();
         set_value(&root, "dev.values", "compactRows", &json!(true)).unwrap();
-
-        let values = get_values(&root, "dev.values").unwrap();
-        assert_eq!(values, json!({ "accentHue": 210, "compactRows": true }));
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn setting_one_field_keeps_every_other_field_already_on_disk() {
-        let root = installed("merge");
-        set_value(&root, "dev.values", "accentHue", &json!(210)).unwrap();
         set_value(&root, "dev.values", "rowGap", &json!(0.5)).unwrap();
 
         assert_eq!(
             get_values(&root, "dev.values").unwrap(),
-            json!({ "accentHue": 210, "rowGap": 0.5 })
+            json!({ "accentHue": 210, "compactRows": true, "rowGap": 0.5 })
         );
         let _ = std::fs::remove_dir_all(&root);
     }

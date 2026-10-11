@@ -1275,6 +1275,8 @@ mod tests {
             ("id", serde_json::json!("Abc"), "MAN-02"),
             ("id", serde_json::json!("ab"), "MAN-02"),
             ("id", serde_json::json!("a".repeat(65)), "MAN-02"),
+            // The id becomes a path component, so a traversing one is refused too.
+            ("id", serde_json::json!("../../evil"), "MAN-02"),
             ("name", serde_json::json!(""), "name"),
             ("author", serde_json::json!("a".repeat(49)), "author"),
             (
@@ -1431,43 +1433,6 @@ mod tests {
         assert!(
             !root.join(STAGING_DIR).read_dir().unwrap().next().is_some(),
             "a refused package must leave no staging directory"
-        );
-    }
-
-    #[test]
-    fn sixty_four_files_are_accepted() {
-        let root = scratch("file-boundary");
-        let extras: Vec<Entry> = (0..62)
-            .map(|n| Entry::file(format!("images/{n}.svg"), "<svg/>"))
-            .collect();
-        let package = fixture(&root, "boundary", &extras);
-        assert_eq!(
-            stage_for_preview(&root, &package, &[]).unwrap().file_count,
-            64
-        );
-    }
-
-    #[test]
-    fn exactly_eight_mebibytes_are_accepted() {
-        let root = scratch("byte-boundary");
-        let manifest_json = serde_json::to_string(&manifest()).unwrap();
-        let tokens = tokens_json();
-        let remaining = MAX_TOTAL_UNCOMPRESSED_BYTES as usize - manifest_json.len() - tokens.len();
-        let package = root.join("boundary.zip");
-        build_zip(
-            &package,
-            &[
-                Entry::file(MANIFEST_FILE, manifest_json),
-                Entry::file(TOKENS_FILE, tokens),
-                Entry::file("README.md", "a".repeat(remaining)),
-            ],
-        );
-        let preview = stage_for_preview(&root, &package, &[]).unwrap();
-        assert_eq!(
-            std::fs::metadata(staging_dir(&root, &preview).join("README.md"))
-                .unwrap()
-                .len(),
-            remaining as u64
         );
     }
 
@@ -1980,14 +1945,23 @@ mod tests {
         assert!(error.contains("symbolic link"), "message was: {error}");
     }
 
+    /// The file-count ceiling is a limit, not a suggestion: 64 entries stage, a
+    /// 65th is refused.
     #[test]
-    fn too_many_files_is_refused() {
+    fn the_file_count_ceiling_is_inclusive() {
         let root = scratch("count");
-        // One over the limit: the ceiling is a limit, not a suggestion.
-        let extras: Vec<Entry> = (0..63)
-            .map(|n| Entry::file(format!("images/extra-{n}.svg"), "<svg/>"))
+        let extras: Vec<Entry> = (0..62)
+            .map(|n| Entry::file(format!("images/{n}.svg"), "<svg/>"))
             .collect();
-        let zip_path = fixture(&root, "count", &extras);
+        let package = fixture(&root, "count", &extras);
+        assert_eq!(
+            stage_for_preview(&root, &package, &[]).unwrap().file_count,
+            64
+        );
+
+        let mut extras = extras;
+        extras.push(Entry::file("images/extra.svg", "<svg/>"));
+        let zip_path = fixture(&root, "count-over", &extras);
 
         let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
 
@@ -1995,10 +1969,30 @@ mod tests {
     }
 
     #[test]
-    fn a_package_over_the_uncompressed_ceiling_is_refused_despite_a_small_compressed_size() {
-        let root = scratch("bomb");
-        // Highly compressible: the archive is tiny, the content is not. The
-        // limit must follow the decompressed bytes, not the file size.
+    fn the_uncompressed_size_ceiling_counts_decompressed_bytes() {
+        let root = scratch("byte-boundary");
+        let manifest_json = serde_json::to_string(&manifest()).unwrap();
+        let tokens = tokens_json();
+        let remaining = MAX_TOTAL_UNCOMPRESSED_BYTES as usize - manifest_json.len() - tokens.len();
+        let package = root.join("boundary.zip");
+        build_zip(
+            &package,
+            &[
+                Entry::file(MANIFEST_FILE, manifest_json),
+                Entry::file(TOKENS_FILE, tokens),
+                Entry::file("README.md", "a".repeat(remaining)),
+            ],
+        );
+        let preview = stage_for_preview(&root, &package, &[]).unwrap();
+        assert_eq!(
+            std::fs::metadata(staging_dir(&root, &preview).join("README.md"))
+                .unwrap()
+                .len(),
+            remaining as u64
+        );
+
+        // Highly compressible: the archive stays tiny, the content does not, so
+        // only a limit on the decompressed bytes can refuse it.
         let bomb = "a".repeat(MAX_TOTAL_UNCOMPRESSED_BYTES as usize + 1);
         let zip_path = fixture(&root, "bomb", &[Entry::file("README.md", bomb)]);
         let compressed = std::fs::metadata(&zip_path).unwrap().len();
@@ -2132,42 +2126,6 @@ mod tests {
         assert!(error.contains("images/logo.jpg"), "message was: {error}");
     }
 
-    #[test]
-    fn an_image_over_the_dimension_cap_is_refused_before_it_is_decoded() {
-        let root = scratch("oversize-image");
-        // The header claims an oversized image, and the IDAT that follows is
-        // not decodable at all. Decoding first would fail as corrupt; only a
-        // cap read from the header can report it as too large.
-        let mut ihdr = Vec::new();
-        ihdr.extend_from_slice(&MAX_IMAGE_DIMENSION.to_be_bytes());
-        ihdr.extend_from_slice(&(MAX_IMAGE_DIMENSION + 1).to_be_bytes());
-        ihdr.extend_from_slice(&[8, 2, 0, 0, 0]);
-        let idat = b"not a zlib stream".to_vec();
-
-        let mut png = vec![0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
-        for (kind, data) in [(&b"IHDR"[..], &ihdr[..]), (&b"IDAT"[..], &idat[..])] {
-            png.extend_from_slice(&(data.len() as u32).to_be_bytes());
-            png.extend_from_slice(kind);
-            png.extend_from_slice(data);
-            png.extend_from_slice(&crc32(kind, data).to_be_bytes());
-        }
-        png.extend_from_slice(&0u32.to_be_bytes());
-        png.extend_from_slice(b"IEND");
-        png.extend_from_slice(&crc32(b"IEND", &[]).to_be_bytes());
-        let zip_path = fixture(
-            &root,
-            "oversize-image",
-            &[Entry::bytes("images/big.png", png)],
-        );
-
-        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-
-        assert!(
-            error.contains("larger than the 4096x4096"),
-            "message was: {error}"
-        );
-    }
-
     /// A baseline JPEG whose headers declare `width`x`height` but which carries
     /// no entropy-coded data, so it has readable dimensions and cannot decode.
     fn jpeg_without_scan_data(width: u16, height: u16) -> Vec<u8> {
@@ -2202,11 +2160,29 @@ mod tests {
     /// so only a header-first cap can call it oversized rather than corrupt.
     #[test]
     fn an_oversized_image_of_every_raster_format_is_refused_before_decoding() {
+        let mut ihdr = Vec::new();
+        ihdr.extend_from_slice(&MAX_IMAGE_DIMENSION.to_be_bytes());
+        ihdr.extend_from_slice(&(MAX_IMAGE_DIMENSION + 1).to_be_bytes());
+        ihdr.extend_from_slice(&[8, 2, 0, 0, 0]);
+        let mut png = vec![0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
+        for (kind, data) in [
+            (&b"IHDR"[..], &ihdr[..]),
+            (&b"IDAT"[..], &b"not a zlib stream"[..]),
+        ] {
+            png.extend_from_slice(&(data.len() as u32).to_be_bytes());
+            png.extend_from_slice(kind);
+            png.extend_from_slice(data);
+            png.extend_from_slice(&crc32(kind, data).to_be_bytes());
+        }
+        png.extend_from_slice(&0u32.to_be_bytes());
+        png.extend_from_slice(b"IEND");
+        png.extend_from_slice(&crc32(b"IEND", &[]).to_be_bytes());
         // A real oversized WebP, truncated after the header that states its size.
         let mut oversized_webp = encode_image(image::ImageFormat::WebP, 5000, 8);
         oversized_webp.truncate(40);
 
         for (extension, body) in [
+            ("png", png),
             (
                 "jpg",
                 jpeg_without_scan_data(MAX_IMAGE_DIMENSION as u16 + 1, 8),
@@ -2743,18 +2719,6 @@ mod tests {
     }
 
     #[test]
-    fn a_manifest_id_that_cannot_name_a_directory_is_refused() {
-        let root = scratch("badid");
-        let mut traversal = manifest();
-        traversal.id = "../../evil".to_string();
-        let zip_path = fixture_with_manifest(&root, "badid", &traversal);
-
-        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-
-        assert!(error.contains("MAN-02"), "message was: {error}");
-    }
-
-    #[test]
     fn staging_does_not_disturb_the_installed_themes_scan() {
         let root = scratch("scansafe");
         // `.staging` lives inside the themes root, so `theme::scan` walks into
@@ -3014,7 +2978,7 @@ mod tests {
     }
 
     #[test]
-    fn exporting_the_same_theme_twice_writes_identical_bytes() {
+    fn an_export_is_byte_identical_with_a_fixed_order_and_timestamp() {
         let root = scratch("export-deterministic");
         install(&root, &manifest(), &tokens_json());
         let first = root.join("first.zip");
@@ -3035,30 +2999,13 @@ mod tests {
             std::fs::read(&first).unwrap(),
             std::fs::read(&second).unwrap()
         );
-    }
 
-    #[test]
-    fn an_exported_package_holds_both_files_in_a_fixed_order_and_timestamp() {
-        let root = scratch("export-shape");
-        install(&root, &manifest(), &tokens_json());
-        let dest = root.join("shape.zip");
-        export(
-            &root,
-            "aurora.test",
-            &ManifestOverrides::default(),
-            &root,
-            &dest,
-        )
-        .unwrap();
-
-        let mut archive = zip::ZipArchive::new(std::fs::File::open(&dest).unwrap()).unwrap();
+        // The fixed order and the DOS epoch, not a live clock, are what keep the bytes equal.
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(&first).unwrap()).unwrap();
         let names: Vec<String> = (0..archive.len())
             .map(|i| archive.by_index(i).unwrap().name().to_string())
             .collect();
         assert_eq!(names, vec![MANIFEST_FILE, TOKENS_FILE]);
-
-        // The DOS epoch, not the moment of export — a live clock here is what
-        // would make two exports of an unchanged theme differ.
         for index in 0..archive.len() {
             assert_eq!(
                 archive.by_index(index).unwrap().last_modified(),
@@ -3271,18 +3218,22 @@ mod tests {
         assert_eq!(preview.manifest.minimum_launcher_version, "1.0.0");
     }
 
+    /// An export must never ship this machine's data folder, whichever half of
+    /// the package names it.
     #[test]
-    fn an_export_is_refused_when_the_palette_names_this_machines_data_folder() {
-        let root = scratch("export-leak-tokens");
+    fn an_export_is_refused_when_the_package_names_this_machines_data_folder() {
+        let root = scratch("export-leak");
+        let dest = root.join("leaky.zip");
+        install(&root, &manifest(), &tokens_json());
+        let palette = root.join("aurora.test").join(TOKENS_FILE);
+
         let leaker = serde_json::json!({
             "schemaVersion": manifest::SCHEMA_VERSION,
             "dark": { "bg": root.to_string_lossy() },
             "light": { "bg": "#f5f5f7" },
         })
         .to_string();
-        install(&root, &manifest(), &leaker);
-        let dest = root.join("leaky.zip");
-
+        std::fs::write(&palette, &leaker).unwrap();
         let error = export(
             &root,
             "aurora.test",
@@ -3291,27 +3242,19 @@ mod tests {
             &dest,
         )
         .unwrap_err();
-
         assert!(error.contains(TOKENS_FILE), "message was: {error}");
         assert!(
             error.contains(&root.to_string_lossy().to_string()),
             "message was: {error}"
         );
         assert!(!dest.exists(), "a refused export must write no package");
-    }
 
-    #[test]
-    fn an_export_is_refused_when_the_manifest_names_this_machines_data_folder() {
-        let root = scratch("export-leak-manifest");
-        install(&root, &manifest(), &tokens_json());
-        let dest = root.join("leaky-manifest.zip");
-
+        std::fs::write(&palette, tokens_json()).unwrap();
         let overrides = ManifestOverrides {
             description: Some(format!("built in {}", root.display())),
             ..ManifestOverrides::default()
         };
         let error = export(&root, "aurora.test", &overrides, &root, &dest).unwrap_err();
-
         assert!(error.contains(MANIFEST_FILE), "message was: {error}");
         assert!(!dest.exists(), "a refused export must write no package");
     }
@@ -3446,8 +3389,11 @@ mod tests {
         bytes
     }
 
+    /// Real bytes from an actual font toolchain, accepted under their own
+    /// container and refused under another: the hand-built fixtures above cannot
+    /// exercise a WOFF2 whose `glyf` really is transformed.
     #[test]
-    fn fonts_from_a_real_toolchain_are_accepted_in_every_container() {
+    fn real_toolchain_fonts_follow_their_container_not_their_extension() {
         for (extension, fixture) in [
             ("ttf", REAL_TTF),
             ("woff", REAL_WOFF),
@@ -3459,15 +3405,8 @@ mod tests {
             sniff_asset(&name, extension, &bytes)
                 .unwrap_or_else(|e| panic!("a real {extension} font must be accepted: {e}"));
         }
-    }
 
-    /// The same real bytes, renamed: the container is read from the content, so
-    /// a `.ttf` holding WOFF2 still fails.
-    #[test]
-    fn a_real_font_under_the_wrong_extension_is_still_refused() {
-        let bytes = decode_base64(REAL_WOFF2);
-
-        let error = sniff_asset("fonts/icon.ttf", "ttf", &bytes).unwrap_err();
+        let error = sniff_asset("fonts/icon.ttf", "ttf", &decode_base64(REAL_WOFF2)).unwrap_err();
 
         assert!(
             error.contains("not a readable font"),

@@ -1296,14 +1296,6 @@ mod tests {
     }
 
     #[test]
-    fn test_css_01_unrelated_pseudo_element_still_refused() {
-        let css = "::selection { color: red; }";
-        let issues = validate_css_stylesheet("styles.css", css, None);
-        assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].rule_id, "CSS-01");
-    }
-
-    #[test]
     fn test_css_02_undeclared_theme_class() {
         let css = ".t-unknown-class { color: red; }";
         let known = HashSet::new();
@@ -1421,6 +1413,7 @@ mod tests {
     fn strings_outside_url_functions_are_not_urls() {
         let css = r#"
             @font-face { font-family: "X"; src: url("fonts/x.woff2") format("woff2"); }
+            @font-face { font-family: "Inter"; src: local("Inter"), url("fonts/x.woff2") format("woff2"); }
             [data-el="box"] { font-family: local("Inter"), url("fonts/x.woff2"); }
             [data-el="box"] { --label: var(--x, "note:1"); }
         "#;
@@ -1536,13 +1529,6 @@ mod tests {
     }
 
     #[test]
-    fn a_font_face_src_with_local_then_url_passes() {
-        let css = r#"@font-face { font-family: "Inter"; src: local("Inter"), url("fonts/x.woff2") format("woff2"); }"#;
-        let issues = validate_css_stylesheet("styles.css", css, None);
-        assert!(issues.is_empty(), "Expected 0 issues, got: {issues:#?}");
-    }
-
-    #[test]
     fn a_media_rule_inside_a_style_rule_still_checks_its_declarations() {
         let cases = [
             (
@@ -1655,6 +1641,7 @@ mod tests {
                 "CSS-01",
                 "pseudo-element",
             ),
+            ("::selection { color: red; }", "CSS-01", "pseudo-element"),
             (
                 "@media (not (hover)) { [data-el=\"b\"] { color: red } }",
                 "CSS-06",

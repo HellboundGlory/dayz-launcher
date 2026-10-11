@@ -159,21 +159,6 @@ fn a_list_row_needs_only_join_but_other_join_contexts_still_need_the_notice() {
 }
 
 #[test]
-fn another_selection_cannot_supply_join_notice() {
-    let mut files = theme();
-    let children = files.get_mut(BROWSER).unwrap()["root"]["children"]
-        .as_array_mut()
-        .unwrap();
-    children.extend([
-        json!({"type":"box","context":"selection","children":[{"element":"server.join"}]}),
-        json!({"type":"box","context":"selection","children":[{"element":"server.actionNotice"}]}),
-    ]);
-    assert!(validate_theme_layouts(&files)
-        .iter()
-        .any(|i| i.rule_id == "REQ-01" && i.message.contains("server.actionNotice")));
-}
-
-#[test]
 fn popup_close_depends_on_placement_mode() {
     let file = "layout/popups/mapFilter.json";
     let mut files = HashMap::from([(file.into(), layout(&["popup.mapOptions"]))]);
@@ -348,7 +333,7 @@ fn hidden_rejects_malformed_or_non_discrete_references() {
 }
 
 #[test]
-fn collapsible_requires_both_subtrees_and_any_tab_places_required_content() {
+fn collapsible_requires_both_subtrees_and_a_tab_or_accordion_body_counts_as_content() {
     let mut files = theme();
     let content = files[BROWSER]["root"].clone();
     files.get_mut(BROWSER).unwrap()["root"]["collapsible"] =
@@ -369,10 +354,8 @@ fn collapsible_requires_both_subtrees_and_any_tab_places_required_content() {
     assert!(!validate_theme_layouts(&files)
         .iter()
         .any(|i| i.rule_id.starts_with("REQ-")));
-}
 
-#[test]
-fn accordion_sections_count_without_enumerating_open_states() {
+    // An accordion section's body counts the same way, without enumerating open states.
     let mut files = theme();
     let content = files[BROWSER]["root"].clone();
     files.get_mut(BROWSER).unwrap()["root"] = json!({"type":"accordion","mode":"single","initial":"none","sections":[
@@ -382,7 +365,7 @@ fn accordion_sections_count_without_enumerating_open_states() {
 }
 
 #[test]
-fn visible_join_cannot_borrow_a_hidden_notice() {
+fn a_join_cannot_borrow_a_notice_from_another_context_or_a_hidden_one() {
     let mut files = theme();
     files.get_mut(BROWSER).unwrap()["root"]["children"] = json!([
         {"type":"box","context":"selection","children":[
@@ -393,6 +376,19 @@ fn visible_join_cannot_borrow_a_hidden_notice() {
     assert!(validate_theme_layouts(&files)
         .iter()
         .any(|issue| issue.rule_id == "REQ-06" && issue.message.contains("server.actionNotice")));
+
+    // Nor a notice that lives in a different selection context.
+    let mut files = theme();
+    files.get_mut(BROWSER).unwrap()["root"]["children"]
+        .as_array_mut()
+        .unwrap()
+        .extend([
+            json!({"type":"box","context":"selection","children":[{"element":"server.join"}]}),
+            json!({"type":"box","context":"selection","children":[{"element":"server.actionNotice"}]}),
+        ]);
+    assert!(validate_theme_layouts(&files)
+        .iter()
+        .any(|i| i.rule_id == "REQ-01" && i.message.contains("server.actionNotice")));
 }
 
 #[test]
