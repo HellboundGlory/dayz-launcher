@@ -67,6 +67,19 @@ impl NodeKind {
     }
 }
 
+pub const TEXT_ROLES: [&str; 10] = [
+    "display",
+    "heading",
+    "subheading",
+    "body",
+    "label",
+    "caption",
+    "micro",
+    "button",
+    "chip",
+    "data",
+];
+
 pub const COMMON_PROPS: &[&str] = &[
     "type",
     "id",

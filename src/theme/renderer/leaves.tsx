@@ -118,7 +118,12 @@ const TEXT_TAGS: Record<TextRole, "h1" | "h2" | "h3" | "p" | "span"> = {
 };
 
 export function TextLeaf({ node, attrs }: { node: TextNode; attrs: RenderedAttrs }) {
-  const role = node.role ?? "body";
+  // A role is not checked at the type boundary: theme JSON reaches here as-is,
+  // and a name without a tag would render as an invalid component.
+  const role: TextRole =
+    node.role !== undefined && Object.prototype.hasOwnProperty.call(TEXT_TAGS, node.role)
+      ? node.role
+      : "body";
   const Tag = TEXT_TAGS[role];
   const style: CSSProperties = {
     fontFamily: `var(--t-type-${role}-family)`,

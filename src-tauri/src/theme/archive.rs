@@ -20,9 +20,20 @@ pub const SUPPORTED_THEME_API_RANGE: &str = "2.0";
 
 const MAX_FILES: usize = 64;
 const MAX_TOTAL_UNCOMPRESSED_BYTES: u64 = 8 * 1024 * 1024;
-const MAX_PATH_DEPTH: usize = 3;
 const ALLOWED_EXTENSIONS: [&str; 12] = [
     "json", "css", "png", "webp", "jpg", "jpeg", "svg", "woff2", "woff", "ttf", "otf", "md",
+];
+/// The folders a package's directory entries may name; `package_extension`
+/// holds files to the same folders. The list bounds depth by construction.
+const PACKAGE_FOLDERS: [&str; 8] = [
+    "layout",
+    "layout/views",
+    "layout/modals",
+    "layout/lists",
+    "layout/popups",
+    "fonts",
+    "images",
+    "previews",
 ];
 const FONT_EXTENSIONS: [&str; 4] = ["woff2", "woff", "ttf", "otf"];
 const IMAGE_EXTENSIONS: [&str; 5] = ["png", "webp", "jpg", "jpeg", "svg"];
@@ -243,12 +254,6 @@ fn inspect<R: Read + Seek>(
                 "PKG-03: This package holds more than {MAX_FILES} files."
             ));
         }
-        let depth = name.matches('/').count();
-        if depth > MAX_PATH_DEPTH {
-            return Err(format!(
-                "`{name}` is nested {depth} levels deep; a theme package may nest at most {MAX_PATH_DEPTH}."
-            ));
-        }
         // A cheap early hint only — the streaming sum below is what actually enforces the limit.
         if let Some(claimed) = entry.size().checked_add(total_bytes) {
             if claimed > MAX_TOTAL_UNCOMPRESSED_BYTES {
@@ -261,16 +266,26 @@ fn inspect<R: Read + Seek>(
             return Err("This package's declared size overflows — refusing it.".to_string());
         }
 
-        // Checked for every entry including directories, before the directory
-        // skip below — a `../` directory must not exist for a later entry to write into.
+        // Path checks come before anything touches disk. A directory entry
+        // carries no extension, so it is held to the folder list instead.
+        let extension = if entry.is_dir() {
+            let folder = name.strip_suffix('/').unwrap_or(&name);
+            if !PACKAGE_FOLDERS.contains(&folder) {
+                return Err(format!(
+                    "`{name}` is outside the package path allowlist; refusing it."
+                ));
+            }
+            None
+        } else {
+            Some(package_extension(&name)?)
+        };
+
+        // Checked for every entry including directories — a `../` directory
+        // must not exist for a later entry to write into.
         let output = safe_output_path(&staging_root, &name, &entry)?;
-
-        // No extension to check, and a legitimate `preview/` dir is fine — already path-checked above.
-        if entry.is_dir() {
+        let Some(extension) = extension else {
             continue;
-        }
-
-        let extension = package_extension(&name)?;
+        };
 
         // Read into memory rather than straight to disk: an asset has to be
         // sniffed before it is staged, and a theme asset is bounded by the
@@ -510,10 +525,10 @@ fn sniff_css(name: &str, bytes: &[u8]) -> Result<(), String> {
 }
 
 /// SVG is XML that can carry script, so it is parsed rather than pattern-matched.
-/// Accepts one well-formed `<svg>` root with no `<script>` element and no `on*`
-/// attribute. Only real elements and attributes are inspected — text, CDATA and
-/// entity content are never expanded into markup, so escaped angle brackets
-/// cannot fake either check.
+/// Accepts one well-formed `<svg>` root with no `<script>`, `<foreignObject>` or
+/// `on*` attribute, and no link pointing outside the file. Only real elements and
+/// attributes are inspected — text, CDATA and entity content are never expanded
+/// into markup, so escaped angle brackets cannot fake any check.
 fn sniff_svg(name: &str, bytes: &[u8]) -> Result<(), String> {
     let malformed = |detail: &str| format!("`{name}` is not a well-formed SVG document: {detail}");
     let text = std::str::from_utf8(bytes).map_err(|e| malformed(&e.to_string()))?;
@@ -538,6 +553,9 @@ fn sniff_svg(name: &str, bytes: &[u8]) -> Result<(), String> {
                 depth = depth.saturating_sub(1);
                 continue;
             }
+            Event::PI(pi) if pi.target().eq_ignore_ascii_case(b"xml-stylesheet") => {
+                return Err(outside_link(name, "an xml-stylesheet"));
+            }
             _ => continue,
         };
         if depth == 0 {
@@ -557,6 +575,19 @@ fn sniff_svg(name: &str, bytes: &[u8]) -> Result<(), String> {
                 "`{name}` contains a `<script>` element; an SVG a theme ships must not carry script."
             ));
         }
+        if element
+            .local_name()
+            .as_ref()
+            .eq_ignore_ascii_case(b"foreignObject")
+        {
+            return Err(format!(
+                "`{name}` contains a `<foreignObject>` element; an SVG a theme ships must not embed web content."
+            ));
+        }
+        // `<set>` and `<animate>` can rewrite a link after load.
+        let animates = [b"set".as_slice(), b"animate"]
+            .iter()
+            .any(|tag| element.local_name().as_ref().eq_ignore_ascii_case(tag));
         for attribute in element.attributes() {
             let attribute = attribute.map_err(|e| malformed(&e.to_string()))?;
             let key = attribute.key.local_name();
@@ -571,6 +602,26 @@ fn sniff_svg(name: &str, bytes: &[u8]) -> Result<(), String> {
                     String::from_utf8_lossy(key)
                 ));
             }
+            // `href` and `xlink:href` alike: a theme SVG may only point at itself.
+            if key.eq_ignore_ascii_case(b"href") {
+                let value = attribute
+                    .normalized_value(quick_xml::XmlVersion::Implicit1_0)
+                    .map_err(|e| malformed(&e.to_string()))?;
+                // URL parsing strips only ASCII whitespace and controls.
+                let value =
+                    value.trim_matches(|c: char| c.is_ascii_whitespace() || c.is_ascii_control());
+                if !svg_link_stays_inside(value) {
+                    let shown: String = value.chars().take(40).collect();
+                    return Err(outside_link(name, &format!("`{shown}`")));
+                }
+            }
+            if animates && key.eq_ignore_ascii_case(b"attributeName") {
+                let target = attribute.value;
+                let local = target.rsplit(|&b| b == b':').next().unwrap_or(&target);
+                if local.eq_ignore_ascii_case(b"href") {
+                    return Err(outside_link(name, "an animated link"));
+                }
+            }
         }
         depth += usize::from(opens);
     }
@@ -581,6 +632,32 @@ fn sniff_svg(name: &str, bytes: &[u8]) -> Result<(), String> {
         return Err(malformed("it does not hold exactly one root element"));
     }
     Ok(())
+}
+
+fn outside_link(name: &str, what: &str) -> String {
+    format!("`{name}` links to {what}; an SVG a theme ships may only link inside itself.")
+}
+
+/// A link that stays inside the file: a fragment, or image data carried in the
+/// document itself. The sniff never decodes that data — the image is shown as
+/// an image either way.
+fn svg_link_stays_inside(value: &str) -> bool {
+    if value.starts_with('#') {
+        return true;
+    }
+    [
+        "data:image/png",
+        "data:image/jpeg",
+        "data:image/webp",
+        "data:image/gif",
+    ]
+    .iter()
+    .any(|prefix| {
+        value
+            .get(..prefix.len())
+            .is_some_and(|head| head.eq_ignore_ascii_case(prefix))
+            && matches!(value.as_bytes().get(prefix.len()), Some(b';' | b','))
+    })
 }
 
 /// Parse the font's real tables. `ttf-parser` reads sfnt only, so the two
@@ -1142,12 +1219,6 @@ fn append_assets(theme_dir: &Path, files: &mut Vec<(String, Vec<u8>)>) -> Result
                 continue;
             }
             let extension = package_extension(&relative)?;
-            let depth = relative.matches('/').count();
-            if depth > MAX_PATH_DEPTH {
-                return Err(format!(
-                    "`{relative}` is nested {depth} levels deep; a theme package may nest at most {MAX_PATH_DEPTH}."
-                ));
-            }
             if files.len() >= MAX_FILES {
                 return Err(format!(
                     "PKG-03: This theme holds more than {MAX_FILES} packageable files."
@@ -1474,11 +1545,12 @@ mod tests {
         .to_string()
     }
 
-    /// One entry for the writer below; a symlink needs `add_symlink`, and a
-    /// real asset needs bytes, so each is its own case.
+    /// One entry for the writer below; a symlink needs `add_symlink`, a folder
+    /// its own entry kind, and a real asset bytes, so each is its own case.
     enum Entry {
         File(String, Vec<u8>),
         Symlink(String, String),
+        Dir(String),
     }
 
     impl Entry {
@@ -1493,6 +1565,11 @@ mod tests {
 
         fn symlink(name: impl Into<String>, target: impl Into<String>) -> Self {
             Self::Symlink(name.into(), target.into())
+        }
+
+        /// The folder entry a zip tool writes before a folder's files.
+        fn dir(name: impl Into<String>) -> Self {
+            Self::Dir(name.into())
         }
     }
 
@@ -1515,6 +1592,11 @@ mod tests {
                         .add_symlink(name, target, options)
                         .expect("could not add symlink");
                 }
+                Entry::Dir(name) => {
+                    writer
+                        .add_directory(name, options)
+                        .expect("could not add directory");
+                }
             }
         }
         writer.finish().expect("could not finish fixture zip");
@@ -1532,7 +1614,7 @@ mod tests {
                         || (capability == "css" && name == "styles.css")
                         || (capability == "settings" && name == "settings.schema.json")
                 }
-                Entry::Symlink(_, _) => false,
+                Entry::Symlink(_, _) | Entry::Dir(_) => false,
             }) {
                 themed.capabilities.push(capability.to_string());
             }
@@ -1548,6 +1630,7 @@ mod tests {
                     // Already bytes; the `Entry::file` helper would re-encode them as text.
                     Entry::File(name, body) => Entry::bytes(name.clone(), body.clone()),
                     Entry::Symlink(name, target) => Entry::symlink(name.clone(), target.clone()),
+                    Entry::Dir(name) => Entry::dir(name.clone()),
                 })
                 .collect::<Vec<_>>(),
         );
@@ -1937,7 +2020,7 @@ mod tests {
         let zip_path = fixture(
             &root,
             "symlink",
-            &[Entry::symlink("link.json", "/etc/passwd")],
+            &[Entry::symlink("images/link.png", "/etc/passwd")],
         );
 
         let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
@@ -2006,17 +2089,37 @@ mod tests {
         assert!(error.contains("PKG-04"), "message was: {error}");
     }
 
+    /// The path allowlist bounds depth on its own, so a directory entry is held
+    /// to the same list as a file.
     #[test]
-    fn a_package_nested_deeper_than_the_limit_is_refused() {
-        let root = scratch("depth");
-        let zip_path = fixture(&root, "depth", &[Entry::file("a/b/c/d/deep.json", "{}")]);
+    fn package_entries_outside_the_path_allowlist_are_refused() {
+        for entry in [
+            Entry::file("a/b/c/d/deep.json", "{}"),
+            Entry::dir("a/b/c/d/"),
+        ] {
+            let root = scratch("depth");
+            let zip_path = fixture(&root, "depth", &[entry]);
 
-        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
+            let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
 
-        assert!(
-            error.contains("nested 4 levels deep"),
-            "message was: {error}"
+            assert!(
+                error.contains("outside the package path allowlist"),
+                "message was: {error}"
+            );
+        }
+
+        // Zip tools write a folder entry before its files; the allowlisted ones must stage.
+        let root = scratch("folders");
+        let zip_path = fixture(
+            &root,
+            "folders",
+            &PACKAGE_FOLDERS
+                .iter()
+                .map(|folder| Entry::dir(format!("{folder}/")))
+                .collect::<Vec<_>>(),
         );
+
+        stage_for_preview(&root, &zip_path, &[]).expect("allowlisted folder entries must stage");
     }
 
     #[test]
@@ -2339,6 +2442,70 @@ mod tests {
                 "message was: {error}"
             );
         }
+    }
+
+    /// An SVG may only reference itself: embedded web content and links to
+    /// other files are refused, whatever attribute carries the link.
+    #[test]
+    fn an_svg_with_embedded_content_or_an_outside_link_is_refused() {
+        for (body, expected) in [
+            (
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><foreignObject width="4" height="4"/></svg>"#,
+                "foreignObject",
+            ),
+            (
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><a href="https://example.com/x"><rect width="4" height="4"/></a></svg>"#,
+                "may only link inside itself",
+            ),
+            (
+                r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><use xlink:href="other.svg#a"/></svg>"#,
+                "may only link inside itself",
+            ),
+            (
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><image href="data:text/html,hi"/></svg>"#,
+                "may only link inside itself",
+            ),
+            (
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><image href="javascript:alert(1)"/></svg>"#,
+                "may only link inside itself",
+            ),
+            (
+                r##"<svg xmlns="http://www.w3.org/2000/svg"><a href="#a"><set attributeName="href" to="https://example.com/x"/></a></svg>"##,
+                "may only link inside itself",
+            ),
+            (
+                r#"<?xml-stylesheet href="https://example.com/x.css"?><svg xmlns="http://www.w3.org/2000/svg"/>"#,
+                "may only link inside itself",
+            ),
+            (
+                "<svg xmlns=\"http://www.w3.org/2000/svg\"><use href=\"\u{00A0}#a\"/></svg>",
+                "may only link inside itself",
+            ),
+        ] {
+            let root = scratch("svg-link");
+            let zip_path = fixture(&root, "svg-link", &[Entry::file("images/evil.svg", body)]);
+
+            let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
+
+            assert!(error.contains(expected), "message was: {error}");
+        }
+    }
+
+    /// A fragment link, an inline stylesheet and embedded PNG data are all
+    /// in-package and must keep staging.
+    #[test]
+    fn an_svg_with_self_links_and_embedded_image_data_is_staged() {
+        let root = scratch("svg-self-links");
+        let zip_path = fixture(
+            &root,
+            "svg-self-links",
+            &[Entry::file(
+                "images/logo.svg",
+                r##"<svg xmlns="http://www.w3.org/2000/svg"><style>.a{fill:red}</style><use href="#a"/><image href="data:image/png;base64,iVBORw0KGgo="/></svg>"##,
+            )],
+        );
+
+        stage_for_preview(&root, &zip_path, &[]).expect("self links and image data must stage");
     }
 
     /// Escaped text is text, not markup: XML-encoding a `<script>` mention is
