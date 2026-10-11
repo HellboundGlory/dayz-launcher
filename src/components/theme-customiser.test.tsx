@@ -123,29 +123,25 @@ describe("ThemeCustomiser", () => {
     expect(useThemeStore.getState().customExtras).toEqual({ radius: {}, family: {} });
   });
 
-  it("offers an in-place save plus a save-as-new on a user theme", () => {
+  it("offers in-place save plus save-as-new on a user theme, and one save control otherwise", () => {
     useThemeStore.setState({
       activeId: "local.mine",
       installedThemes: [{ ...SUMMARY, id: "local.mine", name: "Mine" }],
     });
 
-    const html = renderToStaticMarkup(<ThemeCustomiser />);
+    const userTheme = renderToStaticMarkup(<ThemeCustomiser />);
+    expect(userTheme).toContain("Save changes");
+    expect(userTheme).toContain("Save as new");
+    expect(userTheme).not.toContain("Save theme");
 
-    expect(html).toContain("Save changes");
-    expect(html).toContain("Save as new");
-    expect(html).not.toContain("Save theme");
-  });
-
-  it("keeps the single save control on a theme that cannot be rewritten", () => {
     useThemeStore.setState({
       activeId: "builtin.tactical",
       installedThemes: [{ ...SUMMARY, id: "builtin.tactical", name: "Tactical" }],
     });
 
-    const html = renderToStaticMarkup(<ThemeCustomiser />);
-
-    expect(html).toContain("Save theme");
-    expect(html).not.toContain("Save changes");
-    expect(html).not.toContain("Save as new");
+    const builtin = renderToStaticMarkup(<ThemeCustomiser />);
+    expect(builtin).toContain("Save theme");
+    expect(builtin).not.toContain("Save changes");
+    expect(builtin).not.toContain("Save as new");
   });
 });

@@ -20,25 +20,25 @@ const renderCard = (overrides: Partial<Parameters<typeof ThemeCard>[0]> = {}) =>
   );
 
 describe("ThemeCard incompatible state", () => {
-  it("renders the Incompatible marker and its reason", () => {
+  it.each([
+    {
+      case: "the backend's reason",
+      reason: "Built for theme API 1.0, which v2 no longer runs.",
+      want: "Built for theme API 1.0, which v2 no longer runs.",
+    },
+    { case: "the default sentence when none is sent", reason: undefined, want: "This theme uses a format v2 no longer supports." },
+  ])("renders the Incompatible marker with $case", ({ reason, want }) => {
     const html = renderCard({
       incompatible: true,
-      incompatibleReason: "Built for theme API 1.0, which v2 no longer runs.",
+      incompatibleReason: reason,
       onActivate: undefined,
       onDuplicate: undefined,
       onRequestDelete: () => {},
     });
 
     expect(html).toContain("Incompatible");
-    expect(html).toContain("Built for theme API 1.0, which v2 no longer runs.");
+    expect(html).toContain(want);
     expect(html).not.toContain(">Activate<");
-  });
-
-  it("falls back to a default sentence when the backend sent no reason", () => {
-    const html = renderCard({ incompatible: true, onActivate: undefined, onDuplicate: undefined });
-
-    expect(html).toContain("Incompatible");
-    expect(html).toContain("This theme uses a format v2 no longer supports.");
   });
 
   it("does not render the marker or reason text for a compatible card", () => {

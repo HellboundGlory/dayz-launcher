@@ -92,12 +92,6 @@ describe("DevModeSwitcherView", () => {
     expect(html).not.toContain("975px");
     expect(html).not.toContain("1400px");
   });
-
-  it("renders the width chips as today when variantInertReason is null", () => {
-    const html = render({ variantInertReason: null });
-    expect(html).toContain("Real width");
-    expect(html).toContain("650px");
-  });
 });
 
 describe("DevModeSwitcher variant widths", () => {

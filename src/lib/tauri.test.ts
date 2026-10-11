@@ -26,32 +26,22 @@ describe("copyAddress and copyServerAddress", () => {
     });
   });
 
-  it("writes host and game port to clipboard", async () => {
-    await copyAddress("192.168.1.50", 2302);
-    expect(writtenText).toBe("192.168.1.50:2302");
+  it.each([
+    { host: "192.168.1.50", gamePort: 2302, want: "192.168.1.50:2302" },
+    { host: "192.168.1.50:27016", gamePort: 2302, want: "192.168.1.50:2302" },
+    { host: "2001:db8::1:27016", gamePort: 2302, want: "2001:db8::1:2302" },
+  ])("copyAddress writes $host as $want", async ({ host, gamePort, want }) => {
+    await copyAddress(host, gamePort);
+    expect(writtenText).toBe(want);
   });
 
-  it("strips embedded query port before appending game port", async () => {
-    await copyAddress("192.168.1.50:27016", 2302);
-    expect(writtenText).toBe("192.168.1.50:2302");
-  });
-
-  it("keeps an IPv6 host intact", async () => {
-    await copyAddress("2001:db8::1:27016", 2302);
-    expect(writtenText).toBe("2001:db8::1:2302");
-  });
-
-  it("copyServerAddress calls copyAddress with server properties", async () => {
+  it("copyServerAddress copies the server's address with its game port", async () => {
     await copyServerAddress({ addr: "10.0.0.1:27016", game_port: 2303 });
     expect(writtenText).toBe("10.0.0.1:2303");
   });
 });
 
 describe("server mods tauri command wrappers", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it("checkServerMods invokes check_server_mods with addr and queryPort", async () => {
     vi.mocked(invoke).mockResolvedValueOnce({ stale: false, mods: [] });
     const res = await checkServerMods("127.0.0.1", 27016);

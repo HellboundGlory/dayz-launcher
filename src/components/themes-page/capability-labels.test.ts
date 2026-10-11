@@ -36,16 +36,13 @@ describe("capabilityLabels", () => {
     expect(capabilityLabels(capabilities)).toHaveLength(capabilities.length);
   });
 
-  it("drops capabilities that aren't present rather than placeholdering them", () => {
+  it("drops capabilities and unknown strings the label table has no entry for", () => {
     expect(capabilityLabels(["tokens"])).toEqual(["Tokens"]);
+    expect(capabilityLabels(["tokens", "wat"])).toEqual(["Tokens"]);
   });
 
   it("returns nothing for the empty array every pre-Advanced theme carries", () => {
     expect(capabilityLabels([])).toEqual([]);
-  });
-
-  it("ignores a string the label table has no entry for", () => {
-    expect(capabilityLabels(["tokens", "wat"])).toEqual(["Tokens"]);
   });
 
   it("lists in a fixed order whatever order the manifest uses", () => {
