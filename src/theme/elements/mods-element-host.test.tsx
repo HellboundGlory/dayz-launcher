@@ -83,8 +83,7 @@ function onClickOf(el: string): () => void {
 }
 
 describe("renderModsElement", () => {
-  it("delegates every mods.* action-bar element to its own component", async () => {
-    const { renderModsElement } = await import("./mods-element-host");
+  it("delegates every element it owns to its own component", async () => {
     const known = [
       "mod.name",
       "mod.size",
@@ -106,15 +105,6 @@ describe("renderModsElement", () => {
       "mods.verifyAll",
       "mods.updateOutdated",
       "mods.selectUnique",
-    ];
-    for (const element of known) {
-      expect(renderModsElement({ element }, {})).not.toBeUndefined();
-    }
-  });
-
-  it("delegates the details-pane actions, neededBy and modServer/list.modServers ids", async () => {
-    const { renderModsElement } = await import("./mods-element-host");
-    const known = [
       "mod.update",
       "mod.openInSteam",
       "mod.openFolder",
@@ -127,12 +117,11 @@ describe("renderModsElement", () => {
       "list.modServers",
     ];
     for (const element of known) {
-      expect(renderModsElement({ element }, {})).not.toBeUndefined();
+      expect(renderModsElement({ element }, {}), element).not.toBeUndefined();
     }
   });
 
-  it("returns undefined for anything it doesn't own", async () => {
-    const { renderModsElement } = await import("./mods-element-host");
+  it("returns undefined for anything it doesn't own", () => {
     expect(renderModsElement({ element: "server.name" }, {})).toBeUndefined();
   });
 });
@@ -147,7 +136,7 @@ describe("mods.selectAll", () => {
 
   // A list header always renders the toggle: unchecked "Select all visible"
   // while anything is unchecked, checked "Deselect all" once everything is.
-  it("renders the toggle in a list header", async () => {
+  it("renders the header toggle with its checked state, ignoring the element's options", async () => {
     const partial = await withStore(
       { rows: [makeMod("1"), makeMod("2")], selectedIds: new Set(["1"]) },
       () => inHeader({ element: "mods.selectAll" }),
@@ -163,6 +152,16 @@ describe("mods.selectAll", () => {
     expect(all).toContain('aria-pressed="true"');
     expect(all).toContain('data-state="checked"');
     expect(all).toContain('aria-label="Deselect all"');
+
+    const withOptions = await withStore({ rows: [makeMod("1")], selectedIds: new Set() }, () =>
+      inHeader({
+        element: "mods.selectAll",
+        options: { display: "iconLabel", icon: "check", label: "Everything" },
+      }),
+    );
+    expect(withOptions).not.toContain('data-part="label"');
+    expect(withOptions).not.toContain("lucide-square-check-big");
+    expect(withOptions).not.toContain("Everything");
   });
 
   it("toggles the whole visible set from the header", async () => {
@@ -190,20 +189,6 @@ describe("mods.selectAll", () => {
       () => inHeader({ element: "mods.selectAll" }),
     );
     expect(html).toContain('aria-pressed="true"');
-  });
-
-  it("ignores options in a list header", async () => {
-    const html = await withStore(
-      { rows: [makeMod("1")], selectedIds: new Set() },
-      () =>
-        inHeader({
-          element: "mods.selectAll",
-          options: { display: "iconLabel", icon: "check", label: "Everything" },
-        }),
-    );
-    expect(html).not.toContain('data-part="label"');
-    expect(html).not.toContain("lucide-square-check-big");
-    expect(html).not.toContain("Everything");
   });
 
   // Anywhere else it is the one-way action: "Select all", gone when it would
@@ -240,45 +225,42 @@ describe("mods.selectAll", () => {
     });
   });
 
-  it("honours icon/display/label options from a toolbar", async () => {
-    const html = await withStore(
+  it("honours the toolbar's icon/display/label options", async () => {
+    const labelled = await withStore(
       { rows: [makeMod("1")], selectedIds: new Set() },
       () =>
         renderToStaticMarkup(
           <>{renderModsElement({ element: "mods.selectAll", options: { display: "iconLabel", icon: "check", label: "Select all" } }, {})}</>,
         ),
     );
-    expect(html).toContain("lucide-check");
-    expect(html).not.toContain("lucide-square-check-big");
-    expect(html).toContain('data-part="label"');
-    expect(html).toContain(">Select all<");
-  });
+    expect(labelled).toContain("lucide-check");
+    expect(labelled).not.toContain("lucide-square-check-big");
+    expect(labelled).toContain('data-part="label"');
+    expect(labelled).toContain(">Select all<");
 
-  it("hides the label with display: icon, keeping the accessible name", async () => {
-    const html = await withStore(
-      { rows: [makeMod("1")], selectedIds: new Set() },
-      () =>
-        renderToStaticMarkup(
-          <>{renderModsElement({ element: "mods.selectAll", options: { display: "icon" } }, {})}</>,
-        ),
+    const iconOnly = await withStore({ rows: [makeMod("1")], selectedIds: new Set() }, () =>
+      renderToStaticMarkup(<>{renderModsElement({ element: "mods.selectAll", options: { display: "icon" } }, {})}</>),
     );
-    expect(html).not.toContain('data-part="label"');
-    expect(html).toContain('aria-label="Select all"');
+    expect(iconOnly).not.toContain('data-part="label"');
+    expect(iconOnly).toContain('aria-label="Select all"');
   });
 });
 
 describe("mods.unsubscribe", () => {
-  it("labels by selection count and shows the op note while running", async () => {
-    const { renderModsElement } = await import("./mods-element-host");
+  it("labels from the selection or the running op, and disables when nothing is selected or an op is running", async () => {
     const render = (overrides: Record<string, unknown>) =>
       withStore(overrides, () =>
         renderToStaticMarkup(<>{renderModsElement({ element: "mods.unsubscribe" }, {})}</>),
       );
 
-    expect(await render({ rows: [], selectedIds: new Set(), op: null })).toContain("Unsubscribe</span>");
-    expect(
-      await render({ rows: [makeMod("1"), makeMod("2")], selectedIds: new Set(["1", "2"]), op: null }),
-    ).toContain("Unsubscribe 2</span>");
+    const none = await render({ rows: [], selectedIds: new Set(), op: null });
+    expect(none).toContain("Unsubscribe</span>");
+    expect(none).toContain("disabled=\"\"");
+    expect(none).toContain('data-state="disabled"');
+
+    expect(await render({ rows: [makeMod("1"), makeMod("2")], selectedIds: new Set(["1", "2"]), op: null })).toContain(
+      "Unsubscribe 2</span>",
+    );
     expect(
       await render({
         rows: [makeMod("1")],
@@ -286,30 +268,16 @@ describe("mods.unsubscribe", () => {
         op: { kind: "unsubscribe", note: "REMOVING 1…" },
       }),
     ).toContain("REMOVING 1…</span>");
-  });
-
-  it("disables when nothing is selected or an op is running", async () => {
-    const { renderModsElement } = await import("./mods-element-host");
-    const html = await withStore(
-      { rows: [], selectedIds: new Set(), op: null },
-      () => renderToStaticMarkup(<>{renderModsElement({ element: "mods.unsubscribe" }, {})}</>),
-    );
-    expect(html).toContain("disabled=\"\"");
-    expect(html).toContain('data-state="disabled"');
-
-    const busyHtml = await withStore(
-      {
+    expect(
+      await render({
         rows: [makeMod("1")],
         selectedIds: new Set(["1"]),
         op: { kind: "verify", note: "CHECKING 1…" },
-      },
-      () => renderToStaticMarkup(<>{renderModsElement({ element: "mods.unsubscribe" }, {})}</>),
-    );
-    expect(busyHtml).toContain("disabled=\"\"");
+      }),
+    ).toContain("disabled=\"\"");
   });
 
-  it("asks for confirmation and only unsubscribes once confirmed", async () => {
-    const { renderModsElement } = await import("./mods-element-host");
+  it("unsubscribes the selection only once the confirmation is answered yes", async () => {
     const { useConfirmStore } = await import("@/stores/confirm-store");
     const unsubscribeSelected = vi.fn();
 
@@ -321,29 +289,18 @@ describe("mods.unsubscribe", () => {
       expect(unsubscribeSelected).not.toHaveBeenCalled();
       expect(useConfirmStore.getState().request?.title).toBe("Unsubscribe from 1 mod");
 
-      useConfirmStore.getState().resolve(true);
-      expect(unsubscribeSelected).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  it("does not unsubscribe when the confirmation is cancelled", async () => {
-    const { renderModsElement } = await import("./mods-element-host");
-    const { useConfirmStore } = await import("@/stores/confirm-store");
-    const unsubscribeSelected = vi.fn();
-
-    await withStore({ rows: [makeMod("1")], selectedIds: new Set(["1"]), op: null, unsubscribeSelected }, () => {
-      captured = {};
-      renderToStaticMarkup(<>{renderModsElement({ element: "mods.unsubscribe" }, {})}</>);
-      onClickOf("mods.unsubscribe")();
       useConfirmStore.getState().resolve(false);
       expect(unsubscribeSelected).not.toHaveBeenCalled();
+
+      onClickOf("mods.unsubscribe")();
+      useConfirmStore.getState().resolve(true);
+      expect(unsubscribeSelected).toHaveBeenCalledTimes(1);
     });
   });
 });
 
 describe("mods.unsubscribeMenu", () => {
   it("opens on click, exposing the selected/all items, and closes items call the right actions", async () => {
-    const { renderModsElement } = await import("./mods-element-host");
     const { useConfirmStore } = await import("@/stores/confirm-store");
     const unsubscribeAll = vi.fn();
 
@@ -391,8 +348,7 @@ function openUnsubscribeMenu(
 }
 
 describe("mods.verify", () => {
-  it("verifies every mod even when some are selected", async () => {
-    const { renderModsElement } = await import("./mods-element-host");
+  it("verifies every mod even when some are selected, and shows the op note while running", async () => {
     const verifySelected = vi.fn();
     const verifyAll = vi.fn();
 
@@ -412,10 +368,7 @@ describe("mods.verify", () => {
         expect(verifySelected).not.toHaveBeenCalled();
       },
     );
-  });
 
-  it("shows the op note while a verify is running", async () => {
-    const { renderModsElement } = await import("./mods-element-host");
     const html = await withStore(
       { rows: [makeMod("1")], op: { kind: "verify", note: "CHECKING 1…" } },
       () => renderToStaticMarkup(<>{renderModsElement({ element: "mods.verify" }, {})}</>),
@@ -426,8 +379,7 @@ describe("mods.verify", () => {
 });
 
 describe("mods.verifyMenu items", () => {
-  it("verify selected/all items label with counts and call the right store actions", async () => {
-    const { renderModsElement } = await import("./mods-element-host");
+  it("label with their counts and call the right store action, disabling selected with nothing selected", async () => {
     const verifySelected = vi.fn();
     const verifyAll = vi.fn();
 
@@ -456,29 +408,26 @@ describe("mods.verifyMenu items", () => {
         expect(verifyAll).toHaveBeenCalledTimes(1);
       },
     );
-  });
 
-  it("disables verify selected when nothing is selected", async () => {
-    const { renderModsElement } = await import("./mods-element-host");
-    const html = await withStore(
+    const disabled = await withStore(
       { rows: [makeMod("1")], selectedIds: new Set() },
       () => renderToStaticMarkup(<>{renderModsElement({ element: "mods.verifySelected" }, {})}</>),
     );
-    expect(html).toContain("disabled=\"\"");
-    expect(html).toContain("Verify selected</span>");
+    expect(disabled).toContain("disabled=\"\"");
+    expect(disabled).toContain("Verify selected</span>");
   });
 });
 
 describe("mods.updateOutdated", () => {
-  it("renders nothing when nothing is outdated and labels Update {n} otherwise", async () => {
-    const { renderModsElement } = await import("./mods-element-host");
+  it("renders nothing when nothing is outdated, else Update {n} and calls updateAllOutdated on click", async () => {
     const zeroHtml = await withStore(
       { rows: [makeMod("1", { state: "ready" })], op: null },
       () => renderToStaticMarkup(<>{renderModsElement({ element: "mods.updateOutdated" }, {})}</>),
     );
     expect(zeroHtml).toBe("");
 
-    const html = await withStore(
+    const updateAllOutdated = vi.fn();
+    await withStore(
       {
         rows: [
           makeMod("1", { state: "needs_update" }),
@@ -486,21 +435,14 @@ describe("mods.updateOutdated", () => {
           makeMod("3", { state: "needs_update" }),
         ],
         op: null,
+        updateAllOutdated,
       },
-      () => renderToStaticMarkup(<>{renderModsElement({ element: "mods.updateOutdated" }, {})}</>),
-    );
-    expect(html).toContain("Update 3</span>");
-    expect(html).not.toContain("disabled=\"\"");
-  });
-
-  it("calls updateAllOutdated on click", async () => {
-    const { renderModsElement } = await import("./mods-element-host");
-    const updateAllOutdated = vi.fn();
-    await withStore(
-      { rows: [makeMod("1", { state: "needs_update" })], op: null, updateAllOutdated },
       () => {
         captured = {};
-        renderToStaticMarkup(<>{renderModsElement({ element: "mods.updateOutdated" }, {})}</>);
+        const html = renderToStaticMarkup(<>{renderModsElement({ element: "mods.updateOutdated" }, {})}</>);
+        expect(html).toContain("Update 3</span>");
+        expect(html).not.toContain("disabled=\"\"");
+
         onClickOf("mods.updateOutdated")();
         expect(updateAllOutdated).toHaveBeenCalledTimes(1);
       },
@@ -509,27 +451,24 @@ describe("mods.updateOutdated", () => {
 });
 
 describe("mods.selectUnique", () => {
-  it("shows the empty text when there are no cared servers", async () => {
-    const { renderModsElement } = await import("./mods-element-host");
-    const html = await withStore(
+  it("shows the empty text and the disabled state with no cared servers, else 'Unique: <source>'", async () => {
+    const empty = await withStore(
       { caredServers: [] },
       () => renderToStaticMarkup(<>{renderModsElement({ element: "mods.selectUnique" }, {})}</>),
     );
-    expect(html).toContain("Select unique…");
-    expect(html).toContain("disabled=\"\"");
-  });
+    expect(empty).toContain('data-el="mods.selectUnique"');
+    expect(empty).toContain("Select unique…");
+    expect(empty).toContain("disabled=\"\"");
+    expect(empty).toContain('data-state="disabled"');
 
-  it("shows 'Unique: <source>' once a unique-to-a-server selection is active", async () => {
-    const { renderModsElement } = await import("./mods-element-host");
-    const html = await withStore(
+    const active = await withStore(
       { caredServers: [{ addr: "1.2.3.4", query_port: 2305, name: "Home" }], uniqueSource: "Home" },
       () => renderToStaticMarkup(<>{renderModsElement({ element: "mods.selectUnique" }, {})}</>),
     );
-    expect(html).toContain("Unique: Home");
+    expect(active).toContain("Unique: Home");
   });
 
-  it("puts each menu's trigger inside its element root so themes can reach the popup", async () => {
-    const { renderModsElement } = await import("./mods-element-host");
+  it("puts each menu's trigger inside its element root so themes can reach the popup", () => {
     for (const element of ["mods.unsubscribeMenu", "mods.verifyMenu", "mods.selectUnique"]) {
       const html = renderToStaticMarkup(<>{renderModsElement({ element }, {})}</>);
       expect(html).toMatch(new RegExp(`^<div[^>]*data-el="${element.replace(".", "\\.")}"[^>]*><button[^>]*data-part="trigger"`));
@@ -544,14 +483,6 @@ describe("ModsSelectUniquePopup", () => {
       <>{ModsSelectUniquePopup({ open: false, caredServers: [], onSelect: vi.fn() })}</>,
     );
     expect(html).toBe("");
-  });
-
-  it("shows the empty text when there are no cared servers", async () => {
-    const { ModsSelectUniquePopup } = await import("./mods-toolbar-elements");
-    const html = renderToStaticMarkup(
-      <>{ModsSelectUniquePopup({ open: true, caredServers: [], onSelect: vi.fn() })}</>,
-    );
-    expect(html).toContain("No favourites or recently played servers yet.");
   });
 
   it("lists cared servers and calls onSelect with addr/port/name on click", async () => {

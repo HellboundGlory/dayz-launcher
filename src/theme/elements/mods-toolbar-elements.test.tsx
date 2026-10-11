@@ -104,7 +104,7 @@ describe("ModsStatusFilter", () => {
 });
 
 describe("ModsCount", () => {
-  it("shows the total when nothing is selected", async () => {
+  it("shows the total when nothing is selected, else N of M selected", async () => {
     const { ModsCount } = await import("./mods-toolbar-elements");
     const html = await withStore(
       { rows: [makeMod("1"), makeMod("2")], selectedIds: new Set() },
@@ -113,67 +113,55 @@ describe("ModsCount", () => {
     expect(html).not.toContain('data-state="selecting"');
     expect(html).toContain("2");
     expect(html).toContain("mods");
-  });
 
-  it("shows N of M selected once something is checked", async () => {
-    const { ModsCount } = await import("./mods-toolbar-elements");
-    const html = await withStore(
+    const selecting = await withStore(
       { rows: [makeMod("1"), makeMod("2")], selectedIds: new Set(["1"]) },
       () => renderToStaticMarkup(<ModsCount />),
     );
-    expect(html).toContain('data-state="selecting"');
-    expect(html).toContain("of 2 selected");
+    expect(selecting).toContain('data-state="selecting"');
+    expect(selecting).toContain("of 2 selected");
   });
 });
 
 describe("ModsClearSelection", () => {
-  it("is disabled when nothing is selected", async () => {
+  it("is disabled until something is selected", async () => {
     const { ModsClearSelection } = await import("./mods-toolbar-elements");
-    const html = await withStore({ selectedIds: new Set() }, () =>
+    const disabled = await withStore({ selectedIds: new Set() }, () =>
       renderToStaticMarkup(<ModsClearSelection />),
     );
-    expect(html).toContain(" disabled=");
-  });
+    expect(disabled).toContain(" disabled=");
 
-  it("is enabled once something is selected", async () => {
-    const { ModsClearSelection } = await import("./mods-toolbar-elements");
-    const html = await withStore({ selectedIds: new Set(["1"]) }, () =>
+    const enabled = await withStore({ selectedIds: new Set(["1"]) }, () =>
       renderToStaticMarkup(<ModsClearSelection />),
     );
-    expect(html).not.toContain(" disabled=");
+    expect(enabled).not.toContain(" disabled=");
   });
 
-  it("shows no icon by default, matching today's markup", async () => {
+  it("shows no icon by default, and honours the icon and label options", async () => {
     const { ModsClearSelection } = await import("./mods-toolbar-elements");
     const html = await withStore({ selectedIds: new Set() }, () =>
       renderToStaticMarkup(<ModsClearSelection />),
     );
     expect(html).not.toContain('data-part="icon"');
     expect(html).toContain(">Clear<");
-  });
 
-  it("honours the icon and label options", async () => {
-    const { ModsClearSelection } = await import("./mods-toolbar-elements");
-    const html = await withStore({ selectedIds: new Set() }, () =>
+    const withOptions = await withStore({ selectedIds: new Set() }, () =>
       renderToStaticMarkup(<ModsClearSelection options={{ display: "iconLabel", icon: "check", label: "Reset" }} />),
     );
-    expect(html).toContain('data-part="icon"');
-    expect(html).toContain("lucide-check");
-    expect(html).toContain(">Reset<");
+    expect(withOptions).toContain('data-part="icon"');
+    expect(withOptions).toContain("lucide-check");
+    expect(withOptions).toContain(">Reset<");
   });
 });
 
 describe("ModsCleanupRemoved", () => {
-  it("renders nothing when there are no removed rows", async () => {
+  it("renders nothing when there are no removed rows, else asks for confirmation before cleaning up", async () => {
     const { ModsCleanupRemoved } = await import("./mods-toolbar-elements");
-    const html = await withStore({ rows: [makeMod("1")] }, () =>
+    const noneHtml = await withStore({ rows: [makeMod("1")] }, () =>
       renderToStaticMarkup(<ModsCleanupRemoved />),
     );
-    expect(html).toBe("");
-  });
+    expect(noneHtml).toBe("");
 
-  it("renders and asks for confirmation before cleaning up", async () => {
-    const { ModsCleanupRemoved } = await import("./mods-toolbar-elements");
     askConfirmCalls.length = 0;
     delete captured["mods.cleanupRemoved"];
     const html = await withStore(
@@ -205,15 +193,12 @@ describe("ModsCleanupRemoved", () => {
 });
 
 describe("ModsRefresh", () => {
-  it("renders icon and label by default, matching today's markup", async () => {
+  it("renders icon and label by default, and honours the icon, display and label options", async () => {
     const { ModsRefresh } = await import("./mods-toolbar-elements");
     const html = await withStore({}, () => renderToStaticMarkup(<ModsRefresh />));
     expect(html).toContain("lucide-refresh-cw");
     expect(html).toContain(">Refresh<");
-  });
 
-  it("honours the icon, display and label options", async () => {
-    const { ModsRefresh } = await import("./mods-toolbar-elements");
     const iconOnly = await withStore({}, () =>
       renderToStaticMarkup(<ModsRefresh options={{ display: "icon", icon: "check" }} />),
     );
@@ -267,23 +252,5 @@ describe("mods menu items in a theme's popup", () => {
       },
     );
     expect(close).toHaveBeenCalledOnce();
-  });
-});
-
-describe("ModsSelectUnique", () => {
-  it("is disabled with no cared servers", async () => {
-    const { ModsSelectUnique } = await import("./mods-toolbar-elements");
-    const html = await withStore({ caredServers: [] }, () => renderToStaticMarkup(<ModsSelectUnique />));
-    expect(html).toContain('data-el="mods.selectUnique"');
-    expect(html).toContain('data-state="disabled"');
-  });
-
-  it("shows the active unique source once selected", async () => {
-    const { ModsSelectUnique } = await import("./mods-toolbar-elements");
-    const html = await withStore(
-      { caredServers: [{ addr: "1.2.3.4", query_port: 2303, name: "Some Server" }], uniqueSource: "Some Server" },
-      () => renderToStaticMarkup(<ModsSelectUnique />),
-    );
-    expect(html).toContain("Unique: Some Server");
   });
 });

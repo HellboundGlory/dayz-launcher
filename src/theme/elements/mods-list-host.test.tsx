@@ -99,8 +99,9 @@ describe("ModsListHost", () => {
     expect(html).not.toContain("Bravo");
   });
 
-  it("sorts visible rows through the store's sort key/direction", async () => {
+  it("sorts visible rows through the store's sort key/direction, and maps header clicks onto setSort", async () => {
     const { ModsListHost } = await import("./list-elements");
+    const { useModsStore } = await import("@/stores/mods-store");
     const html = await withStore(
       {
         rows: [makeMod("1", { title: "Zebra" }), makeMod("2", { title: "Alpha" })],
@@ -110,6 +111,12 @@ describe("ModsListHost", () => {
       () => renderToStaticMarkup(<ModsListHost />),
     );
     expect(html.indexOf("Alpha")).toBeLessThan(html.indexOf("Zebra"));
+
+    await withStore({ rows: [makeMod("1")], sortKey: "name", sortDir: "asc" }, () => {
+      renderToStaticMarkup(<ModsListHost />);
+      lastProps?.onSortChange?.("size");
+      expect(useModsStore.getState().sortKey).toBe("size");
+    });
   });
 
   it("passes the selected row, checked ids and status-state name through computeRowStates", async () => {
@@ -125,16 +132,6 @@ describe("ModsListHost", () => {
     );
     expect(lastProps?.selectedItem).toEqual(alpha);
     expect(lastProps?.computeRowStates?.(alpha, true)).toEqual(["selected", "checked", "update"]);
-  });
-
-  it("maps sort header clicks straight onto the store's setSort", async () => {
-    const { ModsListHost } = await import("./list-elements");
-    const { useModsStore } = await import("@/stores/mods-store");
-    await withStore({ rows: [makeMod("1")], sortKey: "name", sortDir: "asc" }, () => {
-      renderToStaticMarkup(<ModsListHost />);
-      lastProps?.onSortChange?.("size");
-      expect(useModsStore.getState().sortKey).toBe("size");
-    });
   });
 
   it("toggles openMod on re-click of the already-open row, opens on click of another", async () => {

@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { SubscribedMod } from "@/lib/tauri";
 import { formatBytes } from "@/lib/utils";
-import { ElementContextProvider, type ElementContextValue } from "./context";
+import { ElementContextProvider } from "./context";
+import type { ServerModData } from "./mod-elements";
 
 // SSR takes zustand's initial-state snapshot, so route the hook through the live state.
 function liveHook<T extends { getState: () => S }, S>(store: T) {
@@ -86,16 +87,32 @@ async function withStore<T>(overrides: Record<string, unknown>, fn: () => T): Pr
   }
 }
 
-function renderWithMod(node: React.ReactNode, mod: SubscribedMod, value?: Partial<ElementContextValue>): string {
+function renderWithMod(node: React.ReactNode, mod: SubscribedMod): string {
   return renderToStaticMarkup(
-    <ElementContextProvider value={{ subjectContext: { kind: "mod", data: mod }, ...value }}>
+    <ElementContextProvider value={{ subjectContext: { kind: "mod", data: mod } }}>
+      {node}
+    </ElementContextProvider>,
+  );
+}
+
+function renderWithServer(node: React.ReactNode, srv: unknown): string {
+  return renderToStaticMarkup(
+    <ElementContextProvider value={{ subjectContext: { kind: "modServer", data: srv } }}>
+      {node}
+    </ElementContextProvider>,
+  );
+}
+
+function renderWithServerMod(node: React.ReactNode, mod: ServerModData): string {
+  return renderToStaticMarkup(
+    <ElementContextProvider value={{ subjectContext: { kind: "serverMod", data: mod } }}>
       {node}
     </ElementContextProvider>,
   );
 }
 
 describe("ModSelect", () => {
-  it("renders unchecked, toggles selection on click and stops propagation, without opening the row", async () => {
+  it("renders the checked and disabled states, toggles the selection on click and stops propagation", async () => {
     const { ModSelect } = await import("./mod-elements");
     const mod = makeMod("1");
     await withStore({ selectedIds: new Set() }, async () => {
@@ -110,171 +127,119 @@ describe("ModSelect", () => {
       onClick({ stopPropagation });
       expect(stopPropagation).toHaveBeenCalled();
       expect(useModsStore.getState().selectedIds.has("1")).toBe(true);
-    });
-  });
 
-  it("renders checked when selected, and marks disabled state for a locally-disabled mod", async () => {
-    const { ModSelect } = await import("./mod-elements");
-    const mod = makeMod("1", { locally_disabled: true });
-    await withStore({ selectedIds: new Set(["1"]) }, () => {
-      const html = renderWithMod(<ModSelect />, mod);
-      expect(html).toContain('aria-pressed="true"');
-      expect(html).toContain("disabled");
-      expect(html).toContain("checked");
+      useModsStore.setState({ selectedIds: new Set(["1"]) });
+      const checked = renderWithMod(<ModSelect />, makeMod("1", { locally_disabled: true }));
+      expect(checked).toContain('aria-pressed="true"');
+      expect(checked).toContain("disabled");
+      expect(checked).toContain("checked");
     });
   });
 });
 
 describe("ModStatus", () => {
-  it("labels each registry state", async () => {
+  it.each<[SubscribedMod["state"], string]>([
+    ["ready", "Ready"],
+    ["needs_update", "Update"],
+    ["downloading", "Downloading"],
+    ["not_installed", "Missing"],
+    ["not_subscribed", "Not subscribed"],
+    ["not_on_workshop", "Server-side"],
+  ])("labels %s as %s", async (state, label) => {
     const { ModStatus } = await import("./mod-elements");
-    const cases: [SubscribedMod["state"], string][] = [
-      ["ready", "Ready"],
-      ["needs_update", "Update"],
-      ["downloading", "Downloading"],
-      ["not_installed", "Missing"],
-      ["not_subscribed", "Not subscribed"],
-      ["not_on_workshop", "Server-side"],
-    ];
-    for (const [state, label] of cases) {
-      const mod = makeMod("1", { state });
-      const html = renderWithMod(<ModStatus />, mod);
-      expect(html).toContain(`>${label}<`);
-    }
+    expect(renderWithMod(<ModStatus />, makeMod("1", { state }))).toContain(`>${label}<`);
   });
 
-  it("shows a width-styled progress part while downloading with a known total", async () => {
+  it("shows a width-styled progress part only while downloading with a known total", async () => {
     const { ModStatus } = await import("./mod-elements");
     const mod = makeMod("1", { state: "downloading" });
     await withStore({ progress: { "1": { downloaded: "500000", total: "1000000" } } }, () => {
-      const html = renderWithMod(<ModStatus />, mod);
-      expect(html).toContain(">Downloading<");
-      expect(html).toContain('data-part="progress"');
-      expect(html).toContain("width:50%");
+      const known = renderWithMod(<ModStatus />, mod);
+      expect(known).toContain(">Downloading<");
+      expect(known).toContain('data-part="progress"');
+      expect(known).toContain("width:50%");
     });
+    const unknown = renderWithMod(<ModStatus />, mod);
+    expect(unknown).toContain("Downloading");
+    expect(unknown).not.toContain('data-part="progress"');
   });
 
-  it("omits the progress part while downloading with no known total", async () => {
+  it("lets a live state override the row state, but never downgrades a needs_update row to ready", async () => {
     const { ModStatus } = await import("./mod-elements");
-    const mod = makeMod("1", { state: "downloading" });
-    const html = renderWithMod(<ModStatus />, mod);
-    expect(html).toContain("Downloading");
-    expect(html).not.toContain('data-part="progress"');
-  });
-
-  it("never lets a live 'ready' poll downgrade an authoritative needs_update row", async () => {
-    const { ModStatus } = await import("./mod-elements");
-    const mod = makeMod("1", { state: "needs_update" });
     await withStore({ states: { "1": "ready" } }, () => {
-      const html = renderWithMod(<ModStatus />, mod);
+      const html = renderWithMod(<ModStatus />, makeMod("1", { state: "needs_update" }));
       expect(html).toContain(">Update<");
       expect(html).toContain("update");
     });
-  });
-
-  it("lets a live downloading state override the row state", async () => {
-    const { ModStatus } = await import("./mod-elements");
-    const mod = makeMod("1", { state: "ready" });
     await withStore({ states: { "1": "downloading" } }, () => {
-      const html = renderWithMod(<ModStatus />, mod);
-      expect(html).toContain("Downloading");
+      expect(renderWithMod(<ModStatus />, makeMod("1", { state: "ready" }))).toContain("Downloading");
     });
   });
 });
 
 describe("ModThumbnail", () => {
-  it("renders the preview image part when present", async () => {
+  it("renders the preview image, or the placeholder part and missing state without one", async () => {
     const { ModThumbnail } = await import("./mod-elements");
-    const mod = makeMod("1", { preview_url: "https://example.com/a.png" });
-    const html = renderWithMod(<ModThumbnail />, mod);
-    expect(html).toContain('data-part="image"');
-    expect(html).not.toContain("missing");
-  });
+    const withPreview = renderWithMod(<ModThumbnail />, makeMod("1", { preview_url: "https://example.com/a.png" }));
+    expect(withPreview).toContain('data-part="image"');
+    expect(withPreview).not.toContain("missing");
 
-  it("renders the placeholder part and 'missing' state without a preview", async () => {
-    const { ModThumbnail } = await import("./mod-elements");
-    const mod = makeMod("1", { preview_url: null });
-    const html = renderWithMod(<ModThumbnail />, mod);
-    expect(html).toContain('data-part="placeholder"');
-    expect(html).toContain("missing");
+    const withoutPreview = renderWithMod(<ModThumbnail />, makeMod("1", { preview_url: null }));
+    expect(withoutPreview).toContain('data-part="placeholder"');
+    expect(withoutPreview).toContain("missing");
   });
 });
 
 describe("ModName", () => {
   it("falls back to the workshop id when there's no title", async () => {
     const { ModName } = await import("./mod-elements");
-    const mod = makeMod("1", { title: null });
-    const html = renderWithMod(<ModName />, mod);
-    expect(html).toContain("1");
+    expect(renderWithMod(<ModName />, makeMod("1", { title: null }))).toContain("1");
   });
 });
 
 describe("ModDisabledBadge", () => {
   it("renders only for a locally-disabled mod, honouring a custom label", async () => {
     const { ModDisabledBadge } = await import("./mod-elements");
-    const enabled = makeMod("1", { locally_disabled: false });
-    const disabled = makeMod("2", { locally_disabled: true });
-    expect(renderWithMod(<ModDisabledBadge />, enabled)).toBe("");
-    const html = renderWithMod(<ModDisabledBadge options={{ label: "Off" }} />, disabled);
+    expect(renderWithMod(<ModDisabledBadge />, makeMod("1", { locally_disabled: false }))).toBe("");
+    const html = renderWithMod(<ModDisabledBadge options={{ label: "Off" }} />, makeMod("2", { locally_disabled: true }));
     expect(html).toContain("Off");
   });
 });
 
 describe("ModTags", () => {
-  it("joins tags as text by default, limited to 3", async () => {
+  it("joins up to three tags as text, falls back to the workshop id, and renders chips for limit: all", async () => {
     const { ModTags } = await import("./mod-elements");
-    const mod = makeMod("1", { tags: ["alpha", "bravo", "charlie", "delta"] });
-    const html = renderWithMod(<ModTags />, mod);
-    expect(html).toContain("alpha · bravo · charlie");
-    expect(html).not.toContain("delta");
-  });
+    const tags = makeMod("1", { tags: ["alpha", "bravo", "charlie", "delta"] });
+    const text = renderWithMod(<ModTags />, tags);
+    expect(text).toContain("alpha · bravo · charlie");
+    expect(text).not.toContain("delta");
 
-  it("falls back to the workshop id when there are no tags", async () => {
-    const { ModTags } = await import("./mod-elements");
-    const mod = makeMod("42", { tags: [] });
-    const html = renderWithMod(<ModTags />, mod);
-    expect(html).toContain("42");
-  });
+    expect(renderWithMod(<ModTags />, makeMod("42", { tags: [] }))).toContain("42");
 
-  it("renders chip parts and honours limit: all", async () => {
-    const { ModTags } = await import("./mod-elements");
-    const mod = makeMod("1", { tags: ["a", "b", "c", "d"] });
-    const html = renderWithMod(<ModTags options={{ style: "chips", limit: "all" }} />, mod);
-    expect(html.match(/data-part="chip"/g)?.length).toBe(4);
+    const chips = renderWithMod(<ModTags options={{ style: "chips", limit: "all" }} />, tags);
+    expect(chips.match(/data-part="chip"/g)?.length).toBe(4);
   });
 });
 
 describe("ModSize", () => {
-  it("shows the em-dash and unknown state without a size", async () => {
+  it("formats the disk size to one decimal place, or shows an em-dash with the unknown state", async () => {
     const { ModSize } = await import("./mod-elements");
-    const mod = makeMod("1", { size_on_disk: "0" });
-    const html = renderWithMod(<ModSize />, mod);
-    expect(html).toContain("—");
-    expect(html).toContain("unknown");
-  });
+    const missing = renderWithMod(<ModSize />, makeMod("1", { size_on_disk: "0" }));
+    expect(missing).toContain("—");
+    expect(missing).toContain("unknown");
 
-  it("formats bytes to one decimal place", async () => {
-    const { ModSize } = await import("./mod-elements");
-    const mod = makeMod("1", { size_on_disk: "123456" });
-    const html = renderWithMod(<ModSize />, mod);
-    expect(html).toContain(formatBytes(123456, 1));
+    expect(renderWithMod(<ModSize />, makeMod("1", { size_on_disk: "123456" }))).toContain(formatBytes(123456, 1));
   });
 });
 
 describe("ModPublishedSize", () => {
-  it("shows the em-dash and unknown state without a published size", async () => {
+  it("formats the published Workshop size, or shows an em-dash with the unknown state", async () => {
     const { ModPublishedSize } = await import("./mod-elements");
-    const mod = makeMod("1", { file_size: 0 });
-    const html = renderWithMod(<ModPublishedSize />, mod);
-    expect(html).toContain("—");
-    expect(html).toContain("unknown");
-  });
+    const missing = renderWithMod(<ModPublishedSize />, makeMod("1", { file_size: 0 }));
+    expect(missing).toContain("—");
+    expect(missing).toContain("unknown");
 
-  it("formats the published Workshop download size", async () => {
-    const { ModPublishedSize } = await import("./mod-elements");
-    const mod = makeMod("1", { file_size: 654321 });
-    const html = renderWithMod(<ModPublishedSize />, mod);
-    expect(html).toContain(formatBytes(654321, 1));
+    expect(renderWithMod(<ModPublishedSize />, makeMod("1", { file_size: 654321 }))).toContain(formatBytes(654321, 1));
   });
 });
 
@@ -292,50 +257,37 @@ describe("ModUpdated / ModSubscribed / ModCreated", () => {
   it("mod.subscribed falls back to install_timestamp when never added to the user list", async () => {
     const { ModSubscribed } = await import("./mod-elements");
     const mod = makeMod("1", { time_added_to_user_list: 0, install_timestamp: 500 });
-    const html = renderWithMod(<ModSubscribed />, mod);
-    expect(html).not.toContain("unknown");
+    expect(renderWithMod(<ModSubscribed />, mod)).not.toContain("unknown");
   });
 
   it("mod.created defaults to date formatting, mod.updated to relative", async () => {
     const { ModCreated, ModUpdated } = await import("./mod-elements");
     const ts = Math.floor(Date.now() / 1000) - 120;
     const mod = makeMod("1", { time_created: ts, time_updated: ts });
-    const created = renderWithMod(<ModCreated />, mod);
-    const updated = renderWithMod(<ModUpdated />, mod);
-    expect(created).toContain(new Date(ts * 1000).toLocaleDateString());
-    expect(updated).toContain("ago");
+    expect(renderWithMod(<ModCreated />, mod)).toContain(new Date(ts * 1000).toLocaleDateString());
+    expect(renderWithMod(<ModUpdated />, mod)).toContain("ago");
   });
 });
 
 describe("ModSubscribers", () => {
-  it("shows the em-dash and unknown state without a subscriber count", async () => {
+  it("localises the count, or shows an em-dash with the unknown state without one", async () => {
     const { ModSubscribers } = await import("./mod-elements");
-    const mod = makeMod("1", { num_subscriptions: "0" });
-    const html = renderWithMod(<ModSubscribers />, mod);
-    expect(html).toContain("—");
-    expect(html).toContain("unknown");
-  });
+    const missing = renderWithMod(<ModSubscribers />, makeMod("1", { num_subscriptions: "0" }));
+    expect(missing).toContain("—");
+    expect(missing).toContain("unknown");
 
-  it("localises the subscriber count", async () => {
-    const { ModSubscribers } = await import("./mod-elements");
-    const mod = makeMod("1", { num_subscriptions: "1234" });
-    const html = renderWithMod(<ModSubscribers />, mod);
-    expect(html).toContain((1234).toLocaleString());
+    expect(renderWithMod(<ModSubscribers />, makeMod("1", { num_subscriptions: "1234" }))).toContain(
+      (1234).toLocaleString(),
+    );
   });
 });
 
 describe("ModRating", () => {
-  it("shows an em-dash when there are no votes", async () => {
+  it("renders an em-dash with no votes, else the up/down parts", async () => {
     const { ModRating } = await import("./mod-elements");
-    const mod = makeMod("1", { num_upvotes: 0, num_downvotes: 0 });
-    const html = renderWithMod(<ModRating />, mod);
-    expect(html).toContain("—");
-  });
+    expect(renderWithMod(<ModRating />, makeMod("1"))).toContain("—");
 
-  it("renders up/down parts", async () => {
-    const { ModRating } = await import("./mod-elements");
-    const mod = makeMod("1", { num_upvotes: 12, num_downvotes: 3 });
-    const html = renderWithMod(<ModRating />, mod);
+    const html = renderWithMod(<ModRating />, makeMod("1", { num_upvotes: 12, num_downvotes: 3 }));
     expect(html).toContain('data-part="up"');
     expect(html).toContain("12▲");
     expect(html).toContain('data-part="down"');
@@ -346,67 +298,41 @@ describe("ModRating", () => {
 describe("ModWorkshopId", () => {
   it("renders the workshop id as text", async () => {
     const { ModWorkshopId } = await import("./mod-elements");
-    const mod = makeMod("123456789");
-    const html = renderWithMod(<ModWorkshopId />, mod);
-    expect(html).toContain("123456789");
+    expect(renderWithMod(<ModWorkshopId />, makeMod("123456789"))).toContain("123456789");
   });
 });
 
 describe("ModFolder", () => {
-  it("shows the em-dash and unknown state without a folder", async () => {
+  it("renders the folder name, or an em-dash with the unknown state without one", async () => {
     const { ModFolder } = await import("./mod-elements");
-    const mod = makeMod("1", { folder: null });
-    const html = renderWithMod(<ModFolder />, mod);
-    expect(html).toContain("—");
-    expect(html).toContain("unknown");
-  });
+    const missing = renderWithMod(<ModFolder />, makeMod("1", { folder: null }));
+    expect(missing).toContain("—");
+    expect(missing).toContain("unknown");
 
-  it("renders the folder name", async () => {
-    const { ModFolder } = await import("./mod-elements");
-    const mod = makeMod("1", { folder: "@MyMod" });
-    const html = renderWithMod(<ModFolder />, mod);
-    expect(html).toContain("@MyMod");
+    expect(renderWithMod(<ModFolder />, makeMod("1", { folder: "@MyMod" }))).toContain("@MyMod");
   });
 });
 
 describe("ModDescription", () => {
-  it("marks the empty state without a description", async () => {
+  it("clamps to 6 lines by default, marks the empty state and drops the clamp variable for clamp: none", async () => {
     const { ModDescription } = await import("./mod-elements");
-    const mod = makeMod("1", { description: "" });
-    const html = renderWithMod(<ModDescription />, mod);
-    expect(html).toContain("empty");
-  });
+    expect(renderWithMod(<ModDescription />, makeMod("1", { description: "" }))).toContain("empty");
 
-  it("clamps to 6 lines by default via a style variable", async () => {
-    const { ModDescription } = await import("./mod-elements");
-    const mod = makeMod("1", { description: "Some text" });
-    const html = renderWithMod(<ModDescription />, mod);
-    expect(html).toContain("--t-line-clamp:6");
-  });
-
-  it("omits the clamp variable when clamp is none", async () => {
-    const { ModDescription } = await import("./mod-elements");
-    const mod = makeMod("1", { description: "Some text" });
-    const html = renderWithMod(<ModDescription options={{ clamp: "none" }} />, mod);
-    expect(html).not.toContain("--t-line-clamp");
+    const text = makeMod("1", { description: "Some text" });
+    expect(renderWithMod(<ModDescription />, text)).toContain("--t-line-clamp:6");
+    expect(renderWithMod(<ModDescription options={{ clamp: "none" }} />, text)).not.toContain("--t-line-clamp");
   });
 });
 
 describe("ModUpdate", () => {
-  it("renders nothing when the mod doesn't need an update", async () => {
+  it("renders nothing unless the mod needs an update, then calls updateMods for it on click", async () => {
     const { ModUpdate } = await import("./mod-elements");
-    const mod = makeMod("1", { state: "ready" });
-    expect(renderWithMod(<ModUpdate />, mod)).toBe("");
-  });
+    expect(renderWithMod(<ModUpdate />, makeMod("1", { state: "ready" }))).toBe("");
 
-  it("renders and calls store.updateMods with the mod id when clicked", async () => {
-    const { ModUpdate } = await import("./mod-elements");
-    const mod = makeMod("1", { state: "needs_update" });
     const updateMods = vi.fn();
-
     await withStore({ updateMods }, () => {
       resetCaptured();
-      const html = renderWithMod(<ModUpdate />, mod);
+      const html = renderWithMod(<ModUpdate />, makeMod("1", { state: "needs_update" }));
       expect(html).toContain("Update");
       const onClick = captured["mod.update"].onClick as (e: { stopPropagation: () => void }) => void;
       const stopPropagation = vi.fn();
@@ -418,9 +344,8 @@ describe("ModUpdate", () => {
 
   it("shows the busy and disabled state while an update is in flight", async () => {
     const { ModUpdate } = await import("./mod-elements");
-    const mod = makeMod("1", { state: "needs_update" });
     await withStore({ op: { kind: "update", note: null } }, () => {
-      const html = renderWithMod(<ModUpdate />, mod);
+      const html = renderWithMod(<ModUpdate />, makeMod("1", { state: "needs_update" }));
       expect(html).toContain("busy");
       expect(html).toContain("disabled");
     });
@@ -429,11 +354,10 @@ describe("ModUpdate", () => {
 
 describe("ModOpenInSteam", () => {
   it("calls openWorkshopInSteam with the workshop id and stops propagation", async () => {
-    const mod = makeMod("42");
     await withStore({}, async () => {
       const { ModOpenInSteam } = await import("./mod-elements");
       resetCaptured();
-      renderWithMod(<ModOpenInSteam />, mod);
+      renderWithMod(<ModOpenInSteam />, makeMod("42"));
       const onClick = captured["mod.openInSteam"].onClick as (e: { stopPropagation: () => void }) => void;
       const stopPropagation = vi.fn();
       onClick({ stopPropagation });
@@ -444,25 +368,18 @@ describe("ModOpenInSteam", () => {
 });
 
 describe("ModOpenFolder", () => {
-  it("is disabled without a folder and never calls openModFolder", async () => {
+  it("is disabled without a folder, and opens the mod's folder when present", async () => {
     const { ModOpenFolder } = await import("./mod-elements");
-    const mod = makeMod("1", { folder: null });
     resetCaptured();
-    const html = renderWithMod(<ModOpenFolder />, mod);
-    expect(html).toContain("disabled");
-    const onClick = captured["mod.openFolder"].onClick as (e: { stopPropagation: () => void }) => void;
-    onClick({ stopPropagation: vi.fn() });
+    const missing = renderWithMod(<ModOpenFolder />, makeMod("1", { folder: null }));
+    expect(missing).toContain("disabled");
+    (captured["mod.openFolder"].onClick as (e: { stopPropagation: () => void }) => void)({ stopPropagation: vi.fn() });
     expect(tauriMocks.openModFolder).not.toHaveBeenCalled();
-  });
 
-  it("calls openModFolder with the mod's folder when present", async () => {
-    const { ModOpenFolder } = await import("./mod-elements");
-    const mod = makeMod("1", { folder: "@MyMod" });
     resetCaptured();
-    const html = renderWithMod(<ModOpenFolder />, mod);
-    expect(html).not.toContain("disabled");
-    const onClick = captured["mod.openFolder"].onClick as (e: { stopPropagation: () => void }) => void;
-    onClick({ stopPropagation: vi.fn() });
+    const present = renderWithMod(<ModOpenFolder />, makeMod("1", { folder: "@MyMod" }));
+    expect(present).not.toContain("disabled");
+    (captured["mod.openFolder"].onClick as (e: { stopPropagation: () => void }) => void)({ stopPropagation: vi.fn() });
     expect(tauriMocks.openModFolder).toHaveBeenCalledWith("@MyMod");
   });
 });
@@ -470,10 +387,9 @@ describe("ModOpenFolder", () => {
 describe("ModReinstall", () => {
   it("calls reinstallSubscribedMod with the workshop id and stops propagation", async () => {
     const { ModReinstall } = await import("./mod-elements");
-    const mod = makeMod("7");
     resetCaptured();
-    const html = renderWithMod(<ModReinstall />, mod);
-    expect(html).not.toContain("busy");
+    expect(renderWithMod(<ModReinstall />, makeMod("7"))).not.toContain("busy");
+
     const onClick = captured["mod.reinstall"].onClick as (e: { stopPropagation: () => void }) => void;
     const stopPropagation = vi.fn();
     onClick({ stopPropagation });
@@ -486,10 +402,9 @@ describe("ModDeselect", () => {
   it("clears the open mod on click and stops propagation", async () => {
     const { ModDeselect } = await import("./mod-elements");
     const { useModsStore } = await import("@/stores/mods-store");
-    const mod = makeMod("1");
     await withStore({ selectedModId: "1" }, () => {
       resetCaptured();
-      renderWithMod(<ModDeselect />, mod);
+      renderWithMod(<ModDeselect />, makeMod("1"));
       const onClick = captured["mod.deselect"].onClick as (e: { stopPropagation: () => void }) => void;
       const stopPropagation = vi.fn();
       onClick({ stopPropagation });
@@ -500,17 +415,11 @@ describe("ModDeselect", () => {
 });
 
 describe("ModNeededBy", () => {
-  it("renders nothing when no server needs the mod", async () => {
+  it("renders nothing when no server needs the mod, else the label and count", async () => {
     const { ModNeededBy } = await import("./mod-elements");
-    const mod = makeMod("1");
     await withStore({ needing: [] }, () => {
-      expect(renderWithMod(<ModNeededBy />, mod)).toBe("");
+      expect(renderWithMod(<ModNeededBy />, makeMod("1"))).toBe("");
     });
-  });
-
-  it("shows the label and the count when servers need the mod", async () => {
-    const { ModNeededBy } = await import("./mod-elements");
-    const mod = makeMod("1");
     await withStore(
       {
         needing: [
@@ -519,7 +428,7 @@ describe("ModNeededBy", () => {
         ],
       },
       () => {
-        const html = renderWithMod(<ModNeededBy />, mod);
+        const html = renderWithMod(<ModNeededBy />, makeMod("1"));
         expect(html).toContain("Needed by");
         expect(html).toContain(">2<");
       },
@@ -528,133 +437,92 @@ describe("ModNeededBy", () => {
 });
 
 describe("ModServer displays", () => {
-  function renderWithServer(node: React.ReactNode, srv: unknown): string {
-    return renderToStaticMarkup(
-      <ElementContextProvider value={{ subjectContext: { kind: "modServer", data: srv } }}>
-        {node}
-      </ElementContextProvider>,
-    );
-  }
-
-  it("modServer.name falls back to addr:port without a name", async () => {
-    const { ModServerName } = await import("./mod-elements");
-    const html = renderWithServer(<ModServerName />, { addr: "1.2.3.4", query_port: 2305, name: "", last_played: null });
-    expect(html).toContain("1.2.3.4:2305");
+  it("modServer.name falls back to addr:port without a name, and address always renders it", async () => {
+    const { ModServerName, ModServerAddress } = await import("./mod-elements");
+    const unnamed = { addr: "1.2.3.4", query_port: 2305, name: "", last_played: null };
+    expect(renderWithServer(<ModServerName />, unnamed)).toContain("1.2.3.4:2305");
+    const named = { ...unnamed, name: "Server A" };
+    expect(renderWithServer(<ModServerAddress />, named)).toContain("1.2.3.4:2305");
   });
 
-  it("modServer.address always renders addr:port", async () => {
-    const { ModServerAddress } = await import("./mod-elements");
-    const html = renderWithServer(<ModServerAddress />, { addr: "1.2.3.4", query_port: 2305, name: "Server A", last_played: null });
-    expect(html).toContain("1.2.3.4:2305");
-  });
-
-  it("modServer.lastPlayed shows 'never' and the never state without a timestamp", async () => {
+  it("modServer.lastPlayed reads never without a timestamp, and a relative time otherwise", async () => {
     const { ModServerLastPlayed } = await import("./mod-elements");
-    const html = renderWithServer(<ModServerLastPlayed />, { addr: "1.2.3.4", query_port: 2305, name: "Server A", last_played: null });
-    expect(html).toContain("never");
-    expect(html).toContain('data-state="never"');
-  });
+    const never = renderWithServer(<ModServerLastPlayed />, {
+      addr: "1.2.3.4",
+      query_port: 2305,
+      name: "Server A",
+      last_played: null,
+    });
+    expect(never).toContain("never");
+    expect(never).toContain('data-state="never"');
 
-  it("modServer.lastPlayed formats a known timestamp relatively by default", async () => {
-    const { ModServerLastPlayed } = await import("./mod-elements");
-    const ts = Math.floor(Date.now() / 1000) - 120;
-    const html = renderWithServer(<ModServerLastPlayed />, { addr: "1.2.3.4", query_port: 2305, name: "Server A", last_played: ts });
-    expect(html).toContain("ago");
-    expect(html).not.toContain('data-state="never"');
+    const played = renderWithServer(<ModServerLastPlayed />, {
+      addr: "1.2.3.4",
+      query_port: 2305,
+      name: "Server A",
+      last_played: Math.floor(Date.now() / 1000) - 120,
+    });
+    expect(played).toContain("ago");
+    expect(played).not.toContain('data-state="never"');
   });
 });
 
 describe("serverMod elements", () => {
-
-  function renderWithServerMod(
-    node: React.ReactNode,
-    mod: import("./mod-elements").ServerModData,
-    value?: Partial<ElementContextValue>,
-  ): string {
-    return renderToStaticMarkup(
-      <ElementContextProvider value={{ subjectContext: { kind: "serverMod", data: mod }, ...value }}>
-        {node}
-      </ElementContextProvider>,
-    );
-  }
-
   describe("ServerModOrder", () => {
-    it("renders the mod's 1-based position in the server's list", async () => {
+    it("renders the mod's 1-based position in the server's list, or an em-dash without one", async () => {
       const { ServerModOrder } = await import("./mod-elements");
-      const html = renderWithServerMod(<ServerModOrder />, { workshop_id: "2", order: 2 });
-      expect(html).toContain('data-part="value">2<');
-    });
-
-    it("renders — without a position", async () => {
-      const { ServerModOrder } = await import("./mod-elements");
-      const html = renderWithServerMod(<ServerModOrder />, { workshop_id: "2" });
-      expect(html).toContain('data-part="value">—<');
+      expect(renderWithServerMod(<ServerModOrder />, { workshop_id: "2", order: 2 })).toContain('data-part="value">2<');
+      expect(renderWithServerMod(<ServerModOrder />, { workshop_id: "2" })).toContain('data-part="value">—<');
     });
   });
 
   describe("ServerModThumbnail", () => {
-    it("renders the preview image when present", async () => {
+    it("renders the preview image, or the missing state without a preview url", async () => {
       const { ServerModThumbnail } = await import("./mod-elements");
-      const html = renderWithServerMod(<ServerModThumbnail />, { preview_url: "https://example.com/x.jpg" });
-      expect(html).toContain("https://example.com/x.jpg");
-      expect(html).not.toContain('data-state="missing"');
-    });
+      const present = renderWithServerMod(<ServerModThumbnail />, { preview_url: "https://example.com/x.jpg" });
+      expect(present).toContain("https://example.com/x.jpg");
+      expect(present).not.toContain('data-state="missing"');
 
-    it("renders the missing state and placeholder without a preview url", async () => {
-      const { ServerModThumbnail } = await import("./mod-elements");
-      const html = renderWithServerMod(<ServerModThumbnail />, { preview_url: null });
-      expect(html).toContain('data-state="missing"');
-      expect(html).not.toContain("<img");
+      const missing = renderWithServerMod(<ServerModThumbnail />, { preview_url: null });
+      expect(missing).toContain('data-state="missing"');
+      expect(missing).not.toContain("<img");
     });
   });
 
   describe("ServerModProgress", () => {
     it("renders nothing while not downloading", async () => {
       const { ServerModProgress } = await import("./mod-elements");
-      const html = renderWithServerMod(<ServerModProgress />, { state: "ready" });
-      expect(html).toBe("");
+      expect(renderWithServerMod(<ServerModProgress />, { state: "ready" })).toBe("");
     });
 
-    it("is indeterminate until Steam reports a total", async () => {
+    it("is indeterminate until Steam reports a total, then shows the bar width and the sizes", async () => {
       const { ServerModProgress } = await import("./mod-elements");
-      const html = renderWithServerMod(<ServerModProgress />, {
+      const indeterminate = renderWithServerMod(<ServerModProgress />, {
         state: "downloading",
         downloaded_bytes: 1024,
         total_bytes: null,
       });
-      expect(html).toContain('data-state="indeterminate"');
-    });
+      expect(indeterminate).toContain('data-state="indeterminate"');
 
-    it("renders the bar width and '{got} / {total}' value once a total is known", async () => {
-      const { ServerModProgress } = await import("./mod-elements");
-      const html = renderWithServerMod(<ServerModProgress />, {
+      const known = renderWithServerMod(<ServerModProgress />, {
         state: "downloading",
         downloaded_bytes: 50 * 1024 * 1024,
         total_bytes: 100 * 1024 * 1024,
       });
-      expect(html).not.toContain('data-state="indeterminate"');
-      expect(html).toContain("width:50%");
-      expect(html).toContain(`${formatBytes(50 * 1024 * 1024, 1)} / ${formatBytes(100 * 1024 * 1024, 1)}`);
+      expect(known).not.toContain('data-state="indeterminate"');
+      expect(known).toContain("width:50%");
+      expect(known).toContain(`${formatBytes(50 * 1024 * 1024, 1)} / ${formatBytes(100 * 1024 * 1024, 1)}`);
     });
   });
 
   describe("ServerModUnique", () => {
-    it("renders nothing when the mod isn't unique", async () => {
+    it("renders nothing unless the mod is unique, else the default or given label", async () => {
       const { ServerModUnique } = await import("./mod-elements");
-      const html = renderWithServerMod(<ServerModUnique />, { is_unique: false });
-      expect(html).toBe("");
-    });
-
-    it("reads 'Only this server' by default", async () => {
-      const { ServerModUnique } = await import("./mod-elements");
-      const html = renderWithServerMod(<ServerModUnique />, { is_unique: true });
-      expect(html).toContain("Only this server");
-    });
-
-    it("honours the label option", async () => {
-      const { ServerModUnique } = await import("./mod-elements");
-      const html = renderWithServerMod(<ServerModUnique options={{ label: "Unique" }} />, { is_unique: true });
-      expect(html).toContain(">Unique<");
+      expect(renderWithServerMod(<ServerModUnique />, { is_unique: false })).toBe("");
+      expect(renderWithServerMod(<ServerModUnique />, { is_unique: true })).toContain("Only this server");
+      expect(renderWithServerMod(<ServerModUnique options={{ label: "Unique" }} />, { is_unique: true })).toContain(
+        ">Unique<",
+      );
     });
   });
 
@@ -673,122 +541,87 @@ describe("serverMod elements", () => {
     it("is disabled for server-side mods and never calls openWorkshopInSteam", async () => {
       const { ServerModOpenInSteam } = await import("./mod-elements");
       resetCaptured();
-      tauriMocks.openWorkshopInSteam.mockClear();
       const html = renderWithServerMod(<ServerModOpenInSteam />, { workshop_id: "77", state: "not_on_workshop" });
       expect(html).toContain("disabled");
-      const onClick = captured["serverMod.openInSteam"].onClick as (e: { stopPropagation: () => void }) => void;
-      onClick({ stopPropagation: vi.fn() });
+      (captured["serverMod.openInSteam"].onClick as (e: { stopPropagation: () => void }) => void)({
+        stopPropagation: vi.fn(),
+      });
       expect(tauriMocks.openWorkshopInSteam).not.toHaveBeenCalled();
     });
   });
 
   describe("ServerModState", () => {
-    const cases: [string, string, string][] = [
-      ["ready", "Ready", "ready"],
-      ["needs_update", "Needs update", "needsUpdate"],
-      ["downloading", "Downloading", "downloading"],
-      ["not_installed", "Not installed", "notInstalled"],
-      ["not_subscribed", "Not subscribed", "notSubscribed"],
-      ["not_on_workshop", "Unlisted", "serverSide"],
-      ["checking", "Checking…", "checking"],
+    const cases: { state?: string; wording: string; name: string }[] = [
+      { state: "ready", wording: "Ready", name: "ready" },
+      { state: "needs_update", wording: "Needs update", name: "needsUpdate" },
+      { state: "downloading", wording: "Downloading", name: "downloading" },
+      { state: "not_installed", wording: "Not installed", name: "notInstalled" },
+      { state: "not_subscribed", wording: "Not subscribed", name: "notSubscribed" },
+      { state: "not_on_workshop", wording: "Unlisted", name: "serverSide" },
+      { wording: "Checking…", name: "checking" },
     ];
 
-    it("renders the dot and the wording, with the state name, for every state", async () => {
+    it.each(cases)("renders the dot and the wording for $name", async ({ state, wording, name }) => {
       const { ServerModState } = await import("./mod-elements");
-      for (const [state, wording, name] of cases) {
-        const html = renderWithServerMod(<ServerModState />, { state });
-        expect(html).toContain(`data-state="${name}"`);
-        expect(html).toContain('data-part="dot"');
-        expect(html).toContain('data-part="label"');
-        expect(html).toContain(wording);
-      }
-    });
-
-    it("renders only the dot, with the wording as its role=img label, for display dot", async () => {
-      const { ServerModState } = await import("./mod-elements");
-      const html = renderWithServerMod(<ServerModState options={{ display: "dot" }} />, { state: "ready" });
-      expect(html).toContain('data-state="ready"');
+      const html = renderWithServerMod(<ServerModState />, { state });
+      expect(html).toContain(`data-state="${name}"`);
       expect(html).toContain('data-part="dot"');
-      expect(html).not.toContain('data-part="label"');
-      expect(html).toContain('role="img"');
-      expect(html).toContain('aria-label="Ready"');
-    });
-
-    it("renders only the label for display label", async () => {
-      const { ServerModState } = await import("./mod-elements");
-      const html = renderWithServerMod(<ServerModState options={{ display: "label" }} />, { state: "ready" });
-      expect(html).not.toContain('data-part="dot"');
       expect(html).toContain('data-part="label"');
+      expect(html).toContain(wording);
     });
 
-    it("uses the label option as the wording", async () => {
+    it("renders dot-only with the wording as its role=img label, label-only, or a custom label", async () => {
       const { ServerModState } = await import("./mod-elements");
-      const html = renderWithServerMod(<ServerModState options={{ label: "Ready to go" }} />, { state: "ready" });
-      expect(html).toContain("Ready to go");
-    });
+      const dot = renderWithServerMod(<ServerModState options={{ display: "dot" }} />, { state: "ready" });
+      expect(dot).toContain('data-state="ready"');
+      expect(dot).toContain('data-part="dot"');
+      expect(dot).not.toContain('data-part="label"');
+      expect(dot).toContain('role="img"');
+      expect(dot).toContain('aria-label="Ready"');
 
-    it("maps a missing state to checking", async () => {
-      const { ServerModState } = await import("./mod-elements");
-      const html = renderWithServerMod(<ServerModState />, {});
-      expect(html).toContain('data-state="checking"');
-      expect(html).toContain("Checking…");
+      const labelOnly = renderWithServerMod(<ServerModState options={{ display: "label" }} />, { state: "ready" });
+      expect(labelOnly).not.toContain('data-part="dot"');
+      expect(labelOnly).toContain('data-part="label"');
+
+      const custom = renderWithServerMod(<ServerModState options={{ label: "Ready to go" }} />, { state: "ready" });
+      expect(custom).toContain("Ready to go");
     });
   });
 
   describe("ServerModSize", () => {
     const text = (html: string) => html.replace(/<[^>]*>/g, "");
+    const cases: { name: string; mod: ServerModData; wording: string; state?: string; qualifier?: boolean }[] = [
+      { name: "missing", mod: { state: "not_installed", size_bytes: 1024, size_is_upper_bound: false }, wording: "1 KB" },
+      {
+        name: "unsubscribed",
+        mod: { state: "not_subscribed", size_bytes: 1024, size_is_upper_bound: false },
+        wording: "1 KB",
+      },
+      {
+        name: "upper bound",
+        mod: { state: "not_installed", size_bytes: 1280, size_is_upper_bound: true },
+        wording: `up to ${formatBytes(1280, 1)}`,
+        state: "upperBound",
+        qualifier: true,
+      },
+      { name: "unlisted", mod: { state: "not_on_workshop", size_bytes: 1280 }, wording: formatBytes(1280, 1) },
+      {
+        name: "needs update",
+        mod: { state: "needs_update", size_bytes: 4096, size_is_upper_bound: false },
+        wording: "4 KB",
+      },
+      { name: "ready", mod: { state: "ready", size_bytes: null }, wording: "" },
+      { name: "unknown size", mod: { state: "not_installed", size_bytes: null }, wording: "—", state: "unknown" },
+    ];
 
-    it("shows the full size for a missing or unsubscribed mod", async () => {
+    it.each(cases)("shows the size text, state and qualifier for $name", async (c) => {
       const { ServerModSize } = await import("./mod-elements");
-      for (const state of ["not_installed", "not_subscribed"]) {
-        const html = renderWithServerMod(<ServerModSize />, { state, size_bytes: 1024, size_is_upper_bound: false });
-        expect(text(html)).toBe("1 KB");
-        expect(html).not.toContain('data-part="qualifier"');
-        expect(html).not.toContain("data-state=");
-      }
-    });
-
-    it("shows 'up to' the size with the upperBound state when the backend flags an upper bound", async () => {
-      const { ServerModSize } = await import("./mod-elements");
-      const html = renderWithServerMod(<ServerModSize />, {
-        state: "not_installed",
-        size_bytes: 1024,
-        size_is_upper_bound: true,
-      });
-      expect(html).toContain('data-state="upperBound"');
-      expect(html).toContain('data-part="qualifier"');
-      expect(text(html)).toBe("up to 1 KB");
-    });
-
-    it("shows no upper bound for a needs_update mod the backend did not flag", async () => {
-      const { ServerModSize } = await import("./mod-elements");
-      const html = renderWithServerMod(<ServerModSize />, {
-        state: "needs_update",
-        size_bytes: 4096,
-        size_is_upper_bound: false,
-      });
-      expect(html).not.toContain('data-part="qualifier"');
-      expect(html).not.toContain("data-state=");
-      expect(text(html)).toBe("4 KB");
-    });
-
-    it("is empty for ready mods, reads 'up to' for an upper bound and the size for unlisted mods", async () => {
-      const { ServerModSize } = await import("./mod-elements");
-      const cases: [import("./mod-elements").ServerModData, string][] = [
-        [{ state: "ready", size_bytes: null }, ""],
-        [{ state: "not_installed", size_bytes: 1280, size_is_upper_bound: true }, `up to ${formatBytes(1280, 1)}`],
-        [{ state: "not_on_workshop", size_bytes: 1280 }, formatBytes(1280, 1)],
-      ];
-      for (const [mod, wording] of cases) {
-        expect(text(renderWithServerMod(<ServerModSize />, mod))).toBe(wording);
-      }
-    });
-
-    it("shows — with the unknown state when the size is missing", async () => {
-      const { ServerModSize } = await import("./mod-elements");
-      const html = renderWithServerMod(<ServerModSize />, { state: "not_installed", size_bytes: null });
-      expect(html).toContain('data-state="unknown"');
-      expect(html).toContain('data-part="value">—<');
+      const html = renderWithServerMod(<ServerModSize />, c.mod);
+      expect(text(html)).toBe(c.wording);
+      if (c.wording) expect(html).toContain(`data-part="value">${c.wording.replace(/^up to /, "")}<`);
+      expect(html.includes('data-part="qualifier"')).toBe(!!c.qualifier);
+      if (c.state) expect(html).toContain(`data-state="${c.state}"`);
+      else expect(html).not.toContain("data-state=");
     });
   });
 });
