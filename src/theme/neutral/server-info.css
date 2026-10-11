@@ -172,7 +172,7 @@
   }
 
   .t-neutral-serverinfo-tool {
-    @apply inline-flex items-center gap-1.5 [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface2 px-2.5 py-1 [font-size:var(--t-type-button-size)] font-semibold text-ink transition-colors hover:bg-accent-soft hover:text-accent disabled:opacity-40;
+    @apply inline-flex items-center gap-1.5 [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-button-size)] font-semibold text-ink transition-colors hover:bg-accent-soft hover:text-accent disabled:opacity-40;
   }
 
   .t-neutral-serverinfo-tool-danger:hover {
@@ -245,7 +245,7 @@
   }
 
   .t-neutral-serverinfo-join {
-    @apply flex min-w-0 flex-1 items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-4 py-2 [font-size:var(--t-type-button-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 disabled:hover:brightness-100;
+    @apply flex min-w-0 flex-1 items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-button-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 disabled:hover:brightness-100;
   }
 
   .t-neutral-serverinfo-join [data-part="icon"] svg,
@@ -270,7 +270,7 @@
   }
 
   .t-neutral-serverinfo-cancel {
-    @apply shrink-0 [border-radius:var(--t-radius-control)] bg-surface2 px-3 py-2 [font-size:var(--t-type-button-size)] font-semibold uppercase tracking-wider text-muted2 ring-1 ring-line transition-colors hover:text-danger;
+    @apply shrink-0 [border-radius:var(--t-radius-control)] bg-surface2 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-button-size)] font-semibold uppercase tracking-wider text-muted2 ring-1 ring-line transition-colors hover:text-danger;
   }
 
   .t-neutral-serverinfo-menu {
@@ -298,6 +298,6 @@
   }
 
   .t-neutral-serverinfo-menu [data-part="item"] {
-    @apply flex w-full items-center gap-2 [border-radius:var(--t-radius-popupItem)] px-3 py-2 text-left [font-size:var(--t-type-body-size)] [line-height:inherit] font-bold uppercase tracking-wider text-ink transition-colors hover:bg-accent-soft hover:text-accent;
+    @apply flex w-full items-center gap-2 [border-radius:var(--t-radius-popupItem)] px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] text-left [font-size:var(--t-type-body-size)] [line-height:inherit] font-bold uppercase tracking-wider text-ink transition-colors hover:bg-accent-soft hover:text-accent;
   }
 }

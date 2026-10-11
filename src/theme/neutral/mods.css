@@ -180,7 +180,7 @@
   }
 
   .t-neutral-mods-inspector-btn {
-    @apply flex flex-1 items-center justify-center gap-1 [border-radius:var(--t-radius-control)] border px-2 py-1.5 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.03em] transition-colors;
+    @apply flex flex-1 items-center justify-center gap-1 [border-radius:var(--t-radius-control)] border px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-[0.03em] transition-colors;
   }
 
   .t-neutral-mods-inspector-btn [data-part="icon"] {

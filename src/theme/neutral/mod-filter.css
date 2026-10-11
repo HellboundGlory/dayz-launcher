@@ -48,7 +48,7 @@
   }
 
   .t-neutral-modfilter-search {
-    @apply mx-4 mt-2.5 flex shrink-0 items-center gap-1.5 [border-radius:var(--t-radius-popup)] border border-line bg-surface2 px-2.5 py-[7px];
+    @apply mx-4 mt-2.5 flex shrink-0 items-center gap-1.5 [border-radius:var(--t-radius-popup)] border border-line bg-surface2 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)];
   }
 
   .t-neutral-modfilter-search [data-part="icon"] {
@@ -197,7 +197,7 @@
 
   .t-neutral-modfilter-preview-include,
   .t-neutral-modfilter-preview-exclude {
-    @apply flex flex-1 items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line px-3 py-2 [font-size:var(--t-type-compactBody-size)] font-bold text-muted hover:text-ink;
+    @apply flex flex-1 items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-compactBody-size)] font-bold text-muted hover:text-ink;
   }
 
   .t-neutral-modfilter-preview-include[data-state~="on"] {
@@ -279,7 +279,7 @@
   }
 
   .t-neutral-modfilter-match [data-part="option"] {
-    @apply px-2.5 py-[5px] [font-size:var(--t-type-compactCaption-size)] font-bold text-muted;
+    @apply px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-compactCaption-size)] font-bold text-muted;
   }
 
   .t-neutral-modfilter-match [data-part="option"][data-state~="selected"] {
@@ -287,10 +287,10 @@
   }
 
   .t-neutral-modfilter-cancel {
-    @apply [border-radius:var(--t-radius-control)] border border-line px-3.5 py-[7px] [font-size:var(--t-type-compactBody-size)] font-bold text-muted transition-colors hover:text-ink;
+    @apply [border-radius:var(--t-radius-control)] border border-line px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-compactBody-size)] font-bold text-muted transition-colors hover:text-ink;
   }
 
   .t-neutral-modfilter-apply {
-    @apply [border-radius:var(--t-radius-control)] border border-accent-line bg-accent-soft px-3.5 py-[7px] [font-size:var(--t-type-compactBody-size)] font-bold text-accent [box-shadow:var(--t-glow-rest)] transition-[filter] hover:brightness-110;
+    @apply [border-radius:var(--t-radius-control)] border border-accent-line bg-accent-soft px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-compactBody-size)] font-bold text-accent [box-shadow:var(--t-glow-rest)] transition-[filter] hover:brightness-110;
   }
 }
