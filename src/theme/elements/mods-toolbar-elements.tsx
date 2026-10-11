@@ -71,7 +71,7 @@ export function ModsSearch({ className, style }: { className?: string; style?: C
         onChange={(e) => setSearch(e.target.value)}
         placeholder="Search mods by name, tag or id…"
         aria-label="Search mods"
-        className="min-w-0 flex-1 bg-transparent py-0.5 [font-size:var(--t-type-body-size)] text-ink outline-none placeholder:text-muted"
+        className="min-w-0 flex-1 bg-transparent py-0.5 [font-size:var(--t-type-body-size)] text-ink outline-hidden placeholder:text-muted"
       />
     </div>
   );

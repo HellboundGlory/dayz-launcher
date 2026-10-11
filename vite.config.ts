@@ -2,6 +2,7 @@
 import path from "path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
 // The triple-slash reference above lets Vitest type-check the `test` block
 // below, so `palette.test.ts` runs through the same config as the rest of the build.
@@ -14,7 +15,7 @@ export default defineConfig({
     strictPort: true,
   },
   build: {
-    target: process.env.TAURI_ENV_PLATFORM === "windows" ? "chrome105" : "safari13",
+    target: process.env.TAURI_ENV_PLATFORM === "windows" ? "chrome111" : "safari16.4",
     minify: !process.env.TAURI_ENV_DEBUG,
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
     // Each separate window (splash, theme-guard) gets its own entry alongside index.html.
@@ -31,5 +32,5 @@ export default defineConfig({
       "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
 });

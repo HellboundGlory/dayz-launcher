@@ -98,7 +98,7 @@ export function SteamRequiredModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xs">
       <div
         className="w-[440px] rounded-lg border border-line bg-surface shadow-2xl"
       >
@@ -121,7 +121,7 @@ export function SteamRequiredModal({
         </div>
 
         {error.message && (
-          <p className="mx-5 mt-4 truncate rounded bg-bg px-2 py-1.5 font-mono text-[10px] text-muted">
+          <p className="mx-5 mt-4 truncate rounded-sm bg-bg px-2 py-1.5 font-mono text-[10px] text-muted">
             {error.message}
           </p>
         )}
@@ -133,7 +133,7 @@ export function SteamRequiredModal({
             <button
               data-tetra-el="startSteamAction"
               onClick={handleStartSteam}
-              className="flex items-center gap-1.5 rounded bg-surface2 px-3 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-line hover:bg-line"
+              className="flex items-center gap-1.5 rounded-sm bg-surface2 px-3 py-1.5 text-[11px] font-semibold text-ink ring-1 ring-line hover:bg-line"
             >
               <ExternalLink className="size-3" />
               Start Steam
@@ -155,7 +155,7 @@ export function SteamRequiredModal({
               data-tetra-el="retryAction"
               onClick={onRetry}
               disabled={checking}
-              className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-[11px] font-semibold text-bg hover:brightness-110 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-sm bg-accent px-3 py-1.5 text-[11px] font-semibold text-bg hover:brightness-110 disabled:opacity-50"
             >
               {checking ? (
                 <LoaderCircle className="size-3 animate-spin" />

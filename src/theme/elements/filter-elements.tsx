@@ -153,7 +153,7 @@ export function FilterSearch({
         aria-label="Search servers"
         value={text}
         onChange={(e) => setText(e.target.value)}
-        className="bg-transparent outline-none text-ink placeholder:text-muted min-w-[180px] text-xs"
+        className="bg-transparent outline-hidden text-ink placeholder:text-muted min-w-[180px] text-xs"
       />
     </div>
   );

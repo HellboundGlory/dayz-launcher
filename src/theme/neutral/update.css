@@ -1,3 +1,5 @@
+@reference "../../main.css";
+
 @layer launcher, neutral, theme, guarantees;
 
 @layer neutral {
@@ -18,7 +20,7 @@
   }
 
   .t-neutral-update-close {
-    @apply [border-radius:var(--t-radius-control)] p-1 text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:bg-surface2 hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent;
+    @apply [border-radius:var(--t-radius-control)] p-1 text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:bg-surface2 hover:text-ink focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-accent;
   }
 
   .t-neutral-update-close svg {

@@ -1,14 +1,14 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
-// @ts-expect-error tailwind.config.js is plain JS, so it carries no types.
-import tailwindConfig from "../../tailwind.config.js";
 
 const SRC = join(process.cwd(), "src");
 
-// Tailwind colours are var() strings, so an opacity modifier generates no rule,
-// and a class naming a colour key that does not exist generates nothing either.
-const colorKeys = Object.keys(tailwindConfig.theme.extend.colors);
+// A colour is a var() string, so an opacity modifier compiles to a different
+// colour than the derived alpha token, and a class naming a key that does not
+// exist generates nothing either.
+const themeBlock = /@theme inline \{([^}]*)\}/.exec(readFileSync(join(SRC, "main.css"), "utf8"))?.[1] ?? "";
+const colorKeys = [...themeBlock.matchAll(/--color-([a-z0-9-]+):/g)].map((match) => match[1]);
 const opacityModifier = new RegExp(`-(${colorKeys.join("|")})/(\\d|\\[)`);
 const BANNED = ["border-border", "text-text", "bg-background", "text-foreground", "ring-ring", "hsl(var("];
 
@@ -27,6 +27,7 @@ function isOffending(text: string): boolean {
 
 describe("token utility guard", () => {
   it("has no class that Tailwind would drop", () => {
+    expect(colorKeys.length).toBeGreaterThan(0);
     const offenders: string[] = [];
     for (const file of [...sourceFiles(SRC), join(process.cwd(), "index.html")]) {
       const text = readFileSync(file, "utf8");

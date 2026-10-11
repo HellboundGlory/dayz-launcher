@@ -34,7 +34,7 @@ const FAMILY_ROWS: { key: FontFamilyRole; label: string }[] = [
 
 /** Raw CSS length/font-family value, same posture as the colour hex readout. */
 const EXTRAS_INPUT_CLASS =
-  "min-w-0 flex-1 [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface px-1.5 py-[3px] text-right font-mono-data [font-size:var(--t-type-caption-size)] text-ink outline-none transition-colors focus:border-accent-line";
+  "min-w-0 flex-1 [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface px-1.5 py-[3px] text-right font-mono-data [font-size:var(--t-type-caption-size)] text-ink outline-hidden transition-colors focus:border-accent-line";
 
 /** The accent save control, shared by "Save changes" and "Save theme". */
 const SAVE_BUTTON_CLASS =
@@ -396,7 +396,7 @@ export function ThemeCustomiser() {
             if (e.key !== "Enter") return;
             saveNewName();
           }}
-          className="min-w-0 flex-1 [border-radius:var(--t-radius-control)] border border-line bg-bg px-2.5 py-[7px] [font-size:var(--t-type-body-size)] text-ink placeholder-muted outline-none transition-colors focus:border-accent-line"
+          className="min-w-0 flex-1 [border-radius:var(--t-radius-control)] border border-line bg-bg px-2.5 py-[7px] [font-size:var(--t-type-body-size)] text-ink placeholder-muted outline-hidden transition-colors focus:border-accent-line"
         />
         {userTheme ? (
           <button

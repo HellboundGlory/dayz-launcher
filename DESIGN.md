@@ -139,8 +139,8 @@ in the customiser.
 - **Primary component/primitive source:** Custom. No shadcn/Radix/MUI — the
   board vocabulary (`.l2-row`, `.fdrop`, `.sec`, `.mx-row`, `.footer-v2`, …) is
   implemented as Tailwind utilities with the board class names kept as semantic
-  hooks. One primitive engine: Tailwind v3 + the token classes in
-  `tailwind.config.js`.
+  hooks. One primitive engine: Tailwind v4 + the token colours in the
+  `@theme inline` block of `src/main.css`.
 
 ## 14. Data Visualization
 

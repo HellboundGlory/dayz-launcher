@@ -60,7 +60,7 @@ export function FallbackNotice({
         type="button"
         data-part="dismiss"
         onClick={handleDismiss}
-        className="rounded px-2 py-1 text-xs font-semibold uppercase hover:bg-surface2"
+        className="rounded-sm px-2 py-1 text-xs font-semibold uppercase hover:bg-surface2"
       >
         Dismiss
       </button>

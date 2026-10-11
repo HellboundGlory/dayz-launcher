@@ -1,3 +1,5 @@
+@reference "../../main.css";
+
 @layer launcher, neutral, theme, guarantees;
 
 @layer neutral {
@@ -62,7 +64,7 @@
   }
 
   .t-neutral-modfilter-search [data-part="input"] {
-    @apply min-w-0 flex-1 bg-transparent [font-size:var(--t-type-body-size)] text-ink outline-none;
+    @apply min-w-0 flex-1 bg-transparent [font-size:var(--t-type-body-size)] text-ink outline-hidden;
   }
 
   .t-neutral-modfilter-search [data-part="input"]::placeholder {

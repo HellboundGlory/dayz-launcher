@@ -1,3 +1,5 @@
+@reference "../../main.css";
+
 @layer launcher, neutral, theme, guarantees;
 
 @layer neutral {
@@ -87,7 +89,7 @@
   }
 
   .t-neutral-mods-inspector-badge {
-    @apply block rounded border border-muted bg-black/60 px-1.5 py-0.5 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-wider text-ink;
+    @apply block rounded-sm border border-muted bg-black/60 px-1.5 py-0.5 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-wider text-ink;
   }
 
   .t-neutral-mods-inspector-name {
