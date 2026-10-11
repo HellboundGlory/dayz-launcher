@@ -10,7 +10,7 @@ pub(crate) mod discovery;
 pub(crate) mod mod_readiness;
 pub(crate) mod probe;
 
-pub(crate) use mod_readiness::{resolve_workshop_cache, ModEntry};
+pub(crate) use mod_readiness::resolve_workshop_cache;
 
 /// How many rules-probe tasks may be in flight at once during phase 2,
 /// independent of how many candidates phase 1 handed over. Sized off the

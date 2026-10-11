@@ -137,7 +137,6 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   get_server_counts: () => ({ total: servers.length, populated: servers.filter((s) => s.players > 0).length }),
   server_list_source: () => "steam",
   server_mod_readiness: () => readiness,
-  get_server_mods: () => readiness.mods.map((m) => ({ workshop_id: m.workshop_id, name: m.name })),
   steam_mod_states: () => [],
   steam_download_progress: () => [],
   dayz_running: () => dayzRunning,
