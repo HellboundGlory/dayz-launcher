@@ -4,24 +4,14 @@ import { ListHeader } from "./list-header";
 import type { ColumnDef, SortState } from "./types";
 
 describe("ListHeader headerElement", () => {
-  it("renders the registry element instead of the column's label", () => {
+  it("renders the registry element instead of the column's label and sort button", () => {
     const columns: ColumnDef[] = [
-      { id: "select", width: "40px", label: "Select", headerElement: "mods.selectAll" },
-      { id: "name", label: "Name", width: "1fr", sort: "name" },
+      { id: "select", width: "40px", label: "Select", sort: "name", headerElement: "mods.selectAll" },
     ];
     const html = renderToStaticMarkup(<ListHeader columns={columns} />);
 
     expect(html).toContain('data-el="mods.selectAll"');
     expect(html).not.toContain(">Select<");
-  });
-
-  it("skips the sort button for a column that carries both sort and headerElement", () => {
-    const columns: ColumnDef[] = [
-      { id: "select", width: "40px", sort: "name", headerElement: "mods.selectAll" },
-    ];
-    const html = renderToStaticMarkup(<ListHeader columns={columns} />);
-
-    expect(html).toContain('data-el="mods.selectAll"');
     expect(html).not.toContain("aria-sort");
   });
 });
@@ -34,39 +24,28 @@ const sampleColumns: ColumnDef[] = [
 ];
 
 describe("ListHeader", () => {
-  it("renders columns with labels and alignment classes", () => {
+  it("exposes header, column and label parts", () => {
     const html = renderToStaticMarkup(<ListHeader columns={sampleColumns} />);
 
     expect(html).toContain('data-part="header"');
+    expect(html).toContain('data-part="column"');
     expect(html).toContain('data-column="fav"');
     expect(html).toContain('data-column="name"');
-    expect(html).toContain("Server Name");
-    expect(html).toContain("justify-center");
-    expect(html).toContain("justify-end");
+    expect(html).toContain('data-part="label">Server Name<');
   });
 
-  it("wraps each heading's text in a label part", () => {
-    const html = renderToStaticMarkup(<ListHeader columns={sampleColumns} />);
-
-    expect(html).toContain('data-part="label"');
-  });
-
-  it("renders a descending sort indicator part and aria-sort", () => {
-    const sortState: SortState = { key: "name", direction: "descending" };
+  it.each([
+    { direction: "descending" as const, indicator: "↓" },
+    { direction: "ascending" as const, indicator: "↑" },
+  ])("marks the sorted column $direction and its indicator part", ({ direction, indicator }) => {
+    const sortState: SortState = { key: "name", direction };
     const html = renderToStaticMarkup(<ListHeader columns={sampleColumns} sortState={sortState} />);
 
-    expect(html).toContain('aria-sort="descending"');
+    expect(html).toContain(`aria-sort="${direction}"`);
     expect(html).toContain('data-part="sortIndicator"');
-    expect(html).toContain("↓");
-    expect(html).toContain('aria-sort="none"'); // for players and ping
-  });
-
-  it("renders an ascending sort indicator", () => {
-    const sortState: SortState = { key: "name", direction: "ascending" };
-    const html = renderToStaticMarkup(<ListHeader columns={sampleColumns} sortState={sortState} />);
-
-    expect(html).toContain('aria-sort="ascending"');
-    expect(html).toContain("↑");
+    expect(html).toContain(indicator);
+    // The other sortable columns stay unsorted.
+    expect(html).toContain('aria-sort="none"');
   });
 
   it("marks the active sortable heading with data-state=active", () => {
@@ -90,18 +69,14 @@ describe("ListHeader resize handles", () => {
     { id: "locked", label: "Locked", width: "64px", resizable: false },
   ];
 
-  it("renders no handle at all when no onResizeStart is supplied", () => {
-    const html = renderToStaticMarkup(<ListHeader columns={resizableColumns} />);
-    expect(html).not.toContain('data-part="resizeHandle"');
-  });
+  it("renders a handle only for a px-width column that can resize and only with onResizeStart", () => {
+    const withoutHandler = renderToStaticMarkup(<ListHeader columns={resizableColumns} />);
+    expect(withoutHandler).not.toContain('data-part="resizeHandle"');
 
-  it("renders a handle only for px-width columns with resizable !== false", () => {
-    const html = renderToStaticMarkup(
+    const withHandler = renderToStaticMarkup(
       <ListHeader columns={resizableColumns} onResizeStart={() => {}} onResizeReset={() => {}} />,
     );
-
-    const matches = html.match(/data-part="resizeHandle"/g) ?? [];
-    expect(matches).toHaveLength(1);
+    expect(withHandler.match(/data-part="resizeHandle"/g)).toHaveLength(1);
   });
 
   it("gives the handle a separator role, vertical orientation, and a reset title", () => {

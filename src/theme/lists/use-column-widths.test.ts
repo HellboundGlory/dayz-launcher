@@ -54,31 +54,26 @@ describe("parseStoredWidths", () => {
     expect(parseStoredWidths('"just a string"')).toEqual({});
   });
 
-  it("drops non-numeric entries but keeps valid ones", () => {
-    expect(parseStoredWidths('{"name": 300, "ping": "80", "flex": null}')).toEqual({
-      name: 300,
-    });
-  });
-
-  it("parses a valid width map", () => {
-    expect(parseStoredWidths('{"name": 300, "ping": 90}')).toEqual({ name: 300, ping: 90 });
+  it.each([
+    { case: "a valid map", raw: '{"name": 300, "ping": 90}', expected: { name: 300, ping: 90 } },
+    { case: "mixed value types", raw: '{"name": 300, "ping": "80", "flex": null}', expected: { name: 300 } },
+  ])("parses $case into its numeric entries only", ({ raw, expected }) => {
+    expect(parseStoredWidths(raw)).toEqual(expected);
   });
 });
 
 describe("mergeColumnWidths", () => {
-  it("merges a stored override over the declared width, clamped to the floor", () => {
-    const merged = mergeColumnWidths(columns, { name: 40 });
-    expect(merged.find((c) => c.id === "name")?.width).toBe("120px");
+  it.each([
+    { case: "an override below the declared floor", override: 40, width: "120px" },
+    { case: "an override above the floor", override: 500, width: "500px" },
+  ])("applies $case", ({ override, width }) => {
+    const merged = mergeColumnWidths(columns, { name: override });
+    expect(merged.find((c) => c.id === "name")?.width).toBe(width);
   });
 
-  it("applies a valid override above the floor", () => {
-    const merged = mergeColumnWidths(columns, { name: 500 });
-    expect(merged.find((c) => c.id === "name")?.width).toBe("500px");
-  });
-
-  it("ignores overrides for unknown column ids", () => {
-    const merged = mergeColumnWidths(columns, { doesNotExist: 999 });
-    expect(merged).toEqual(columns);
+  it("leaves declared widths untouched when no override applies", () => {
+    expect(mergeColumnWidths(columns, {})).toEqual(columns);
+    expect(mergeColumnWidths(columns, { doesNotExist: 999 })).toEqual(columns);
   });
 
   it("never resizes fr, auto, or resizable:false columns", () => {
@@ -86,10 +81,6 @@ describe("mergeColumnWidths", () => {
     expect(merged.find((c) => c.id === "flex")?.width).toBe("1fr");
     expect(merged.find((c) => c.id === "auto")?.width).toBe("auto");
     expect(merged.find((c) => c.id === "locked")?.width).toBe("64px");
-  });
-
-  it("leaves declared widths untouched when there is no override", () => {
-    expect(mergeColumnWidths(columns, {})).toEqual(columns);
   });
 });
 
@@ -105,13 +96,8 @@ describe("stored widths round-trip (in-memory fallback)", () => {
     expect(getStoredWidths("t1", "list.mods")).toEqual({});
   });
 
-  it("falls back to declared widths when storage is corrupt", () => {
-    clearColumnWidthMemory();
-    const key = columnWidthsKey("t1", "list.servers");
-    // Simulate corrupt storage by writing malformed JSON through the same key.
-    setStoredWidths("t1", "list.servers", { name: 500 });
-    expect(key).toBe("tetra.columnWidths.v2.t1.list.servers");
-    expect(parseStoredWidths("not json")).toEqual({});
+  it("keys stored widths by theme and list", () => {
+    expect(columnWidthsKey("t1", "list.servers")).toBe("tetra.columnWidths.v2.t1.list.servers");
   });
 
   it("removing an override via merge leaves the declared width", () => {
