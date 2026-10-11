@@ -249,6 +249,7 @@ describe("mods.selectAll", () => {
         ),
     );
     expect(html).toContain("lucide-check");
+    expect(html).not.toContain("lucide-square-check-big");
     expect(html).toContain('data-part="label"');
     expect(html).toContain(">Select all<");
   });

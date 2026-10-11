@@ -193,7 +193,7 @@ describe("ModsCleanupRemoved", () => {
       { rows: [makeMod("1", { removed: true })] },
       () => renderToStaticMarkup(<ModsCleanupRemoved />),
     );
-    expect(withDefault).toContain("lucide-trash2");
+    expect(withDefault).toContain("lucide-trash-2");
 
     const iconOnly = await withStore(
       { rows: [makeMod("1", { removed: true })] },

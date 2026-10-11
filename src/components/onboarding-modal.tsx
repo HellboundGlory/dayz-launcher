@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import {
   ArrowRight,
-  CheckCircle2,
+  CircleCheck,
   Folder,
   FolderOpen,
-  Loader2,
+  LoaderCircle,
   TriangleAlert,
 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -131,7 +131,7 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
 
           {phase === "scanning" && (
             <div className="flex items-center gap-1.5 rounded-[7px] bg-accent-soft px-2.5 py-2 text-[10.5px] leading-relaxed text-accent">
-              <Loader2 className="size-3.5 shrink-0 animate-spin" />
+              <LoaderCircle className="size-3.5 shrink-0 animate-spin" />
               <span>Scanning your Steam library for DayZ…</span>
             </div>
           )}
@@ -141,7 +141,7 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
               <label className="mb-1.5 flex items-center gap-1.5 text-[9.5px] font-bold uppercase tracking-wider text-muted2">
                 DayZ install path
                 <span className="inline-flex items-center gap-0.5 rounded-[4px] bg-[rgba(77,154,117,0.16)] px-1.5 py-px text-[8px] font-bold uppercase tracking-wide text-success">
-                  <CheckCircle2 className="size-2.5" /> Auto-detected
+                  <CircleCheck className="size-2.5" /> Auto-detected
                 </span>
               </label>
               <div className="flex items-center justify-between gap-2 rounded-[6px] border border-line-weak bg-bg px-2.5 py-2">
@@ -172,7 +172,7 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
                 )}
               >
                 {pathValid ? (
-                  <CheckCircle2 className="size-3.5 shrink-0" />
+                  <CircleCheck className="size-3.5 shrink-0" />
                 ) : (
                   <TriangleAlert className="size-3.5 shrink-0" />
                 )}

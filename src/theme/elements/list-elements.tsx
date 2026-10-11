@@ -1,5 +1,5 @@
 import { useMemo, useRef, type CSSProperties } from "react";
-import { Loader2 } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useServerStore } from "@/stores/server-store";
 import { useModsStore, effectiveModState, filterAndSortMods, type ModSortKey } from "@/stores/mods-store";
@@ -140,7 +140,7 @@ export function ServerModsList({
       <div data-part="scroller" className="flex-1 overflow-y-auto min-h-0">
         {state === "loading" ? (
           <div data-part="loading" className="flex items-center justify-center gap-1.5 p-4 text-xs text-muted">
-            <Loader2 className="size-3.5 animate-spin" />
+            <LoaderCircle className="size-3.5 animate-spin" />
             Checking mod readiness…
           </div>
         ) : mods.length === 0 ? (

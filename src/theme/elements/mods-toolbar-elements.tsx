@@ -3,11 +3,11 @@ import {
   ChevronDown,
   Download,
   Globe,
-  Loader2,
+  LoaderCircle,
   RefreshCw,
   Search,
   Star,
-  Trash2,
+  Trash,
   X,
 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
@@ -224,7 +224,7 @@ export function ModsCleanupRemoved({ options, className, style }: { options?: Re
     >
       {showIcon && (
         <span data-part="icon" className="flex">
-          <OptionIcon icon={options?.icon} fallback={Trash2} className="size-3" />
+          <OptionIcon icon={options?.icon} fallback={Trash} className="size-3" />
         </span>
       )}
       {showLabel && <span data-part="label">{baseLabel} {removedCount}</span>}
@@ -288,7 +288,7 @@ export function ModsUnsubscribe({ options, className, style }: { options?: Recor
     >
       {showIcon && (
         <span data-part="icon" className="flex">
-          {busy ? <Loader2 className="size-3 animate-spin" /> : <OptionIcon icon={options?.icon} fallback={Trash2} className="size-3" />}
+          {busy ? <LoaderCircle className="size-3 animate-spin" /> : <OptionIcon icon={options?.icon} fallback={Trash} className="size-3" />}
         </span>
       )}
       {showLabel && <span data-part="label">{labelText}</span>}
@@ -450,7 +450,7 @@ export function ModsVerify({ options, className, style }: { options?: Record<str
     >
       {showIcon && (
         <span data-part="icon" className="flex">
-          {busy ? <Loader2 className="size-3 animate-spin" /> : <OptionIcon icon={options?.icon} fallback={Globe} className="size-3" />}
+          {busy ? <LoaderCircle className="size-3 animate-spin" /> : <OptionIcon icon={options?.icon} fallback={Globe} className="size-3" />}
         </span>
       )}
       {showLabel && <span data-part="label">{labelText}</span>}
@@ -601,7 +601,7 @@ export function ModsUpdateOutdated({ options, className, style }: { options?: Re
     >
       {showIcon && (
         <span data-part="icon" className="flex">
-          {busy ? <Loader2 className="size-3 animate-spin" /> : <OptionIcon icon={options?.icon} fallback={Download} className="size-3" />}
+          {busy ? <LoaderCircle className="size-3 animate-spin" /> : <OptionIcon icon={options?.icon} fallback={Download} className="size-3" />}
         </span>
       )}
       {showLabel && <span data-part="label">{labelText}</span>}

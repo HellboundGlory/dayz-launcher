@@ -20,5 +20,5 @@ export function OptionIcon({
     return <img src={resolveThemeAsset(themeId, icon)} alt="" aria-hidden className={className} />;
   }
   const Icon = (typeof icon === "string" && ICONS[icon]) || Fallback;
-  return <Icon className={className} aria-hidden />;
+  return <Icon className={className} />;
 }

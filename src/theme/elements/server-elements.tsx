@@ -3,18 +3,18 @@ import {
   Star,
   Play,
   Info,
-  Loader2,
+  LoaderCircle,
   Check,
   Copy,
   Download,
   ChevronDown,
   ExternalLink,
   RefreshCw,
-  Trash2,
+  Trash,
   Sun,
   Moon,
   X,
-  Home,
+  House,
 } from "lucide-react";
 import type { Server } from "@/types/server";
 import { cn, formatBytes, formatMultiplier, gameTimeParts, regionName } from "@/lib/utils";
@@ -466,7 +466,7 @@ export function ServerJoin({
       >
         {showIcon && (
           <span data-part="spinner">
-            <Loader2 className="size-3 animate-spin" />
+            <LoaderCircle className="size-3 animate-spin" />
           </span>
         )}
         {showLabel && <span data-part="label">{phaseLabel(activeOp)}</span>}
@@ -719,7 +719,7 @@ export function ServerLoadToMenu({
     >
       {showIcon && (
         <span data-part="icon">
-          <OptionIcon icon={options?.icon} fallback={Home} className="size-3.5" />
+          <OptionIcon icon={options?.icon} fallback={House} className="size-3.5" />
         </span>
       )}
       {showLabel && <span data-part="label">{label}</span>}
@@ -1044,7 +1044,7 @@ export function ServerCheckMods({
     >
       {showIcon && (
         <span data-part="icon">
-          {busy ? <Loader2 className="size-3 animate-spin" /> : <OptionIcon icon={options?.icon} fallback={RefreshCw} className="size-3" />}
+          {busy ? <LoaderCircle className="size-3 animate-spin" /> : <OptionIcon icon={options?.icon} fallback={RefreshCw} className="size-3" />}
         </span>
       )}
       {showLabel && <span data-part="label">{label}</span>}
@@ -1091,7 +1091,7 @@ export function ServerSubscribeAll({
     >
       {showIcon && (
         <span data-part="icon">
-          {busy ? <Loader2 className="size-3 animate-spin" /> : <OptionIcon icon={options?.icon} fallback={Download} className="size-3" />}
+          {busy ? <LoaderCircle className="size-3 animate-spin" /> : <OptionIcon icon={options?.icon} fallback={Download} className="size-3" />}
         </span>
       )}
       {showLabel && <span data-part="label">{label}</span>}
@@ -1171,7 +1171,7 @@ export function ServerUnsubscribeUnique({
     >
       {showIcon && (
         <span data-part="icon">
-          {busy ? <Loader2 className="size-3 animate-spin" /> : <OptionIcon icon={options?.icon} fallback={Trash2} className="size-3" />}
+          {busy ? <LoaderCircle className="size-3 animate-spin" /> : <OptionIcon icon={options?.icon} fallback={Trash} className="size-3" />}
         </span>
       )}
       {showLabel && <span data-part="label">{label}</span>}

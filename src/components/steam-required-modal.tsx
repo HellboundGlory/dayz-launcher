@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertTriangle, ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { ExternalLink, LoaderCircle, RefreshCw, TriangleAlert } from "lucide-react";
 import { openSteam, type SteamInitError, type SteamInitFailure } from "@/lib/tauri";
 
 interface SteamRequiredModalProps {
@@ -109,9 +109,9 @@ export function SteamRequiredModal({
             }`}
           >
             {copy.patient ? (
-              <Loader2 className="size-4 animate-spin text-accent" />
+              <LoaderCircle className="size-4 animate-spin text-accent" />
             ) : (
-              <AlertTriangle className="size-4 text-warn" />
+              <TriangleAlert className="size-4 text-warn" />
             )}
           </div>
           <div data-tetra-el="errorCopy">
@@ -158,7 +158,7 @@ export function SteamRequiredModal({
               className="flex items-center gap-1.5 rounded bg-accent px-3 py-1.5 text-[11px] font-semibold text-bg hover:brightness-110 disabled:opacity-50"
             >
               {checking ? (
-                <Loader2 className="size-3 animate-spin" />
+                <LoaderCircle className="size-3 animate-spin" />
               ) : (
                 <RefreshCw className="size-3" />
               )}
