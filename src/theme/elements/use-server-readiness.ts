@@ -4,7 +4,7 @@ import type { ModReadinessEntry, Server, ServerModReadiness } from "@/types/serv
 import { useElementContext } from "./context";
 import { usePopupContext } from "./popup-elements";
 
-export interface SelectionReadiness {
+export interface ServerReadinessState {
   readiness: ServerModReadiness | null;
   loading: boolean;
 }
@@ -15,7 +15,7 @@ export interface SelectionReadiness {
  * popup opened from a row does. `loading` tells an in-flight fetch from a
  * resolved empty/error result.
  */
-export function useSelectionReadiness(server: Server | null): SelectionReadiness {
+export function useServerReadiness(server: Server | null): ServerReadinessState {
   const target = useFetchesReadiness() ? server : null;
   const addr = target?.addr ?? null;
   const queryPort = target?.query_port ?? null;

@@ -15,7 +15,7 @@ import { ListRow } from "../lists/list-row";
 import { getActiveLayout, useLayoutSubscription } from "../theme-store";
 import { SERVERS_LIST, MODS_LIST, MOD_SERVERS_LIST, MOD_FILTER_RESULTS_LIST, SERVER_MODS_LIST } from "../neutral";
 import { serverModReadiness, type ModState, type SubscribedMod } from "@/lib/tauri";
-import { useSelectionReadiness } from "./use-selection-readiness";
+import { useServerReadiness } from "./use-server-readiness";
 import { readinessKey } from "@/stores/readiness-store";
 import { useServerSubject } from "./server-elements";
 import type { Server, ModReadinessEntry, ServerModReadiness } from "@/types/server";
@@ -196,7 +196,7 @@ export function ServerModsListHost({
   options?: Record<string, unknown>;
 }) {
   const server = useServerSubject();
-  const { readiness, loading } = useSelectionReadiness(server);
+  const { readiness, loading } = useServerReadiness(server);
   const lastRef = useRef<{ key: string | null; mods: ModReadinessEntry[] }>({ key: null, mods: [] });
   const key = server ? readinessKey(server.addr, server.query_port) : null;
 

@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import type { ModReadinessEntry, Server, ServerModReadiness } from "@/types/server";
 import { formatBytes } from "@/lib/utils";
 import { useServerStore } from "@/stores/server-store";
-import { isOutstandingMod, useSelectionReadiness } from "./use-selection-readiness";
+import { isOutstandingMod, useServerReadiness } from "./use-server-readiness";
 import { useServerSubject } from "./server-elements";
 import { states } from "./element-utils";
 
@@ -127,7 +127,7 @@ function DeclaredReadiness({ options, className, style }: ReadinessProps) {
 
 function FetchedReadiness({ options, className, style }: ReadinessProps) {
   const server = useServerSubject();
-  const { readiness, loading } = useSelectionReadiness(server);
+  const { readiness, loading } = useServerReadiness(server);
   const view = computeReadinessView(readiness, loading);
 
   const sizeText =
@@ -183,7 +183,7 @@ export function ServerDownloadSize({
   style?: CSSProperties;
 }) {
   const server = useServerSubject();
-  const { readiness } = useSelectionReadiness(server);
+  const { readiness } = useServerReadiness(server);
   if (!server?.modded || !readiness) return null;
 
   const outstanding = readiness.mods.filter(isOutstandingMod);

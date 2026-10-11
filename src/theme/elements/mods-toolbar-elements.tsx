@@ -14,9 +14,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useModsStore, visibleRows, type ModStatusFilter } from "@/stores/mods-store";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/confirm-dialog";
-import { getThemeOwnedLayout, useLayoutSubscription } from "../theme-store";
-import { usePopupTrigger } from "../interaction/use-popup-trigger";
-import type { PopupLayoutFile } from "../renderer/types";
+import { useThemedPopupTrigger } from "./use-themed-popup-trigger";
 import { FilterPopup, UniqueServerOptionsList, usePopupContext } from "./popup-elements";
 import { OptionIcon } from "./option-icon";
 
@@ -371,19 +369,46 @@ export function ModsUnsubscribeAll({ options, className, style, onDone }: MenuIt
   );
 }
 
-export function ModsUnsubscribeMenu({ options, className, style }: { options?: Record<string, unknown>; className?: string; style?: CSSProperties }) {
+const MODS_ACTION_MENUS = {
+  unsubscribe: {
+    el: "mods.unsubscribeMenu",
+    popupId: "modsUnsubscribe",
+    defaultClass:
+      "flex items-center justify-center [border-top-right-radius:var(--t-radius-control)] [border-bottom-right-radius:var(--t-radius-control)] border border-l-0 border-danger-line bg-danger-soft px-1.5 text-danger transition-colors hover:brightness-110 data-[state~=disabled]:opacity-40",
+    items: [ModsUnsubscribeSelected, ModsUnsubscribeAll],
+  },
+  verify: {
+    el: "mods.verifyMenu",
+    popupId: "modsVerify",
+    defaultClass:
+      "flex items-center justify-center [border-top-right-radius:var(--t-radius-control)] [border-bottom-right-radius:var(--t-radius-control)] bg-accent px-1.5 [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 data-[state~=disabled]:opacity-50",
+    items: [ModsVerifySelected, ModsVerifyAll],
+  },
+} as const;
+
+export function ModsActionMenu({
+  kind,
+  options,
+  className,
+  style,
+}: {
+  kind: keyof typeof MODS_ACTION_MENUS;
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
   const op = useModsStore((s) => s.op);
-  useLayoutSubscription();
-  const themedPopup = getThemeOwnedLayout("layout/popups/modsUnsubscribe.json") as PopupLayoutFile | undefined;
-  const { open, setOpen, close, ref, popupRef, popupStyle } = usePopupTrigger({ side: "top", align: "end" }, themedPopup);
+  const menu = MODS_ACTION_MENUS[kind];
+  const [SelectedItem, AllItem] = menu.items;
+  const { themedPopup, open, setOpen, close, ref, popupRef, popupStyle } = useThemedPopupTrigger(menu.popupId, { side: "top", align: "end" });
   const busy = !!op;
 
   return (
     <div
       ref={ref}
-      data-el="mods.unsubscribeMenu"
+      data-el={menu.el}
       data-state={statesAttr(open && "open", busy && "disabled")}
-      className={cn("relative", className ?? "flex items-center justify-center [border-top-right-radius:var(--t-radius-control)] [border-bottom-right-radius:var(--t-radius-control)] border border-l-0 border-danger-line bg-danger-soft px-1.5 text-danger transition-colors hover:brightness-110 data-[state~=disabled]:opacity-40")}
+      className={cn("relative", className ?? menu.defaultClass)}
       style={style}
     >
       <button
@@ -399,7 +424,7 @@ export function ModsUnsubscribeMenu({ options, className, style }: { options?: R
           <OptionIcon icon={options?.icon} fallback={ChevronDown} className={cn("size-3 transition-transform", open && "rotate-180")} />
         </span>
       </button>
-      <FilterPopup open={open} popupId="modsUnsubscribe" close={close} themedPopup={themedPopup} triggerRef={ref}>
+      <FilterPopup open={open} popupId={menu.popupId} close={close} themedPopup={themedPopup} triggerRef={ref}>
         <div
           ref={popupRef}
           style={popupStyle}
@@ -407,8 +432,8 @@ export function ModsUnsubscribeMenu({ options, className, style }: { options?: R
           role="menu"
           className="absolute bottom-full right-0 mb-1 w-56 overflow-y-auto [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)]"
         >
-          <ModsUnsubscribeSelected onDone={close} />
-          <ModsUnsubscribeAll onDone={close} />
+          <SelectedItem onDone={close} />
+          <AllItem onDone={close} />
         </div>
       </FilterPopup>
     </div>
@@ -521,50 +546,6 @@ export function ModsVerifyAll({ options, className, style, onDone }: MenuItemPro
   );
 }
 
-export function ModsVerifyMenu({ options, className, style }: { options?: Record<string, unknown>; className?: string; style?: CSSProperties }) {
-  const op = useModsStore((s) => s.op);
-  useLayoutSubscription();
-  const themedPopup = getThemeOwnedLayout("layout/popups/modsVerify.json") as PopupLayoutFile | undefined;
-  const { open, setOpen, close, ref, popupRef, popupStyle } = usePopupTrigger({ side: "top", align: "end" }, themedPopup);
-  const busy = !!op;
-
-  return (
-    <div
-      ref={ref}
-      data-el="mods.verifyMenu"
-      data-state={statesAttr(open && "open", busy && "disabled")}
-      className={cn("relative", className ?? "flex items-center justify-center [border-top-right-radius:var(--t-radius-control)] [border-bottom-right-radius:var(--t-radius-control)] bg-accent px-1.5 [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 data-[state~=disabled]:opacity-50")}
-      style={style}
-    >
-      <button
-        type="button"
-        data-part="trigger"
-        onClick={() => setOpen(!open)}
-        disabled={busy}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className="flex h-full w-full items-center justify-center gap-1 border-0 bg-transparent p-0 [font:inherit] [text-transform:inherit] [color:inherit] disabled:cursor-not-allowed"
-      >
-        <span data-part="icon" className="flex">
-          <OptionIcon icon={options?.icon} fallback={ChevronDown} className={cn("size-3 transition-transform", open && "rotate-180")} />
-        </span>
-      </button>
-      <FilterPopup open={open} popupId="modsVerify" close={close} themedPopup={themedPopup} triggerRef={ref}>
-        <div
-          ref={popupRef}
-          style={popupStyle}
-          data-part="popup"
-          role="menu"
-          className="absolute bottom-full right-0 mb-1 w-56 overflow-y-auto [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)]"
-        >
-          <ModsVerifySelected onDone={close} />
-          <ModsVerifyAll onDone={close} />
-        </div>
-      </FilterPopup>
-    </div>
-  );
-}
-
 export function ModsUpdateOutdated({ options, className, style }: { options?: Record<string, unknown>; className?: string; style?: CSSProperties }) {
   const { outdatedCount, op, updateAllOutdated } = useModsStore(
     useShallow((s) => ({
@@ -643,9 +624,7 @@ export function ModsSelectUnique({ options, className, style }: { options?: Reco
   );
   const baseLabel = (options?.label as string) ?? "Select unique…";
   const disabled = caredServers.length === 0;
-  useLayoutSubscription();
-  const themedPopup = getThemeOwnedLayout("layout/popups/modsUnique.json") as PopupLayoutFile | undefined;
-  const { open, setOpen, close, ref, popupRef, popupStyle } = usePopupTrigger({ side: "top", align: "start" }, themedPopup);
+  const { themedPopup, open, setOpen, close, ref, popupRef, popupStyle } = useThemedPopupTrigger("modsUnique", { side: "top", align: "start" });
 
   return (
     <div
