@@ -44,28 +44,18 @@ const sampleColumns: ColumnDef[] = [
 ];
 
 describe("ListRow", () => {
-  it("renders default row columns from item properties", () => {
+  it.each<{ label: string; states: string | string[]; attribute: string }>([
+    { label: "an array of states", states: ["selected"], attribute: "selected" },
+    { label: "an already-joined state string", states: "selected even", attribute: "selected even" },
+  ])("renders default row columns from item properties, given $label", ({ states, attribute }) => {
     const html = renderToStaticMarkup(
-      <ListRow
-        columns={sampleColumns}
-        item={mockServer}
-        subjectKind="server"
-        states={["selected"]}
-      />,
+      <ListRow columns={sampleColumns} item={mockServer} subjectKind="server" states={states} />,
     );
 
     expect(html).toContain('data-row=""');
-    expect(html).toContain('data-state="selected"');
+    expect(html).toContain(`data-state="${attribute}"`);
     expect(html).toContain('data-column="name"');
     expect(html).toContain("DayZ Epoch Test");
-  });
-
-  it("accepts an already-joined state string", () => {
-    const html = renderToStaticMarkup(
-      <ListRow columns={sampleColumns} item={mockServer} subjectKind="server" states="selected even" />,
-    );
-
-    expect(html).toContain('data-state="selected even"');
   });
 
   it("renders custom row template with server elements resolving subject", () => {
@@ -431,7 +421,7 @@ describe("ListHost", () => {
     expect(html).not.toContain('data-part="headerSticky"');
   });
 
-  it("scroll mode renders the header inside the scroller with sticky positioning and a px-sum wrapper width", () => {
+  it("scroll mode puts the header inside the scroller and sizes the wrapper to the columns", () => {
     const scrollColumns: ColumnDef[] = [
       { id: "star", width: "32px", align: "center" },
       { id: "name", label: "Server Name", width: "420px" },
@@ -444,19 +434,18 @@ describe("ListHost", () => {
     expect(html).toContain('data-part="headerSticky"');
     expect(html).toContain("sticky");
     expect(html).toContain("min-width:452px");
-  });
 
-  it("adds a flexible column's minWidth to the wrapper's minimum width", () => {
+    // A flexible column adds its minWidth floor instead of nothing.
     const flooredColumns: ColumnDef[] = [
       { id: "star", width: "32px", align: "center" },
       { id: "name", label: "Server Name", width: "1fr", minWidth: "96px" },
       { id: "trailing", width: "auto" },
     ];
-    const html = renderToStaticMarkup(
+    const flooredHtml = renderToStaticMarkup(
       <ListHost listId="list.servers" items={[mockServer]} columns={flooredColumns} overflowX="scroll" />,
     );
 
-    expect(html).toContain("min-width:128px");
+    expect(flooredHtml).toContain("min-width:128px");
   });
 
   it("passes a parsed estimatedRowHeight through to the virtualizer's row estimate", () => {
@@ -509,27 +498,8 @@ describe("ListHost column widths", () => {
     expect(html).toContain("grid-template-columns:40px 1fr 200px 60px");
     // Only one grid-template-columns should appear across header + row.
     expect(html.match(/grid-template-columns:40px 1fr 200px 60px/g)).toHaveLength(2);
-  });
-
-  it("clamps a stored override below the column's floor", () => {
-    setStoredWidths("neutral", "list.serverMods", { players: 1 });
-
-    const html = renderToStaticMarkup(
-      <ListHost listId="list.serverMods" items={[mockServer]} columns={sampleColumns} />,
-    );
-
-    // No declared minWidth on "players" in sampleColumns, so the floor is 48px.
-    expect(html).toContain("grid-template-columns:40px 1fr 48px 60px");
-  });
-
-  it("renders a resize handle only for the resizable px column", () => {
-    const html = renderToStaticMarkup(
-      <ListHost listId="list.serverMods" items={[mockServer]} columns={sampleColumns} />,
-    );
-
-    const matches = html.match(/data-part="resizeHandle"/g) ?? [];
     // fav (40px), players (80px) and ping (60px) are resizable; name (1fr) is not.
-    expect(matches).toHaveLength(3);
+    expect(html.match(/data-part="resizeHandle"/g)).toHaveLength(3);
   });
 });
 

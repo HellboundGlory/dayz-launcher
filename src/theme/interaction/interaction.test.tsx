@@ -38,7 +38,7 @@ const renderLayout = (
   );
 };
 
-describe("Theme Interaction & Presentation (Package 4.4)", () => {
+describe("theme interaction and presentation", () => {
   beforeEach(() => {
     clearInteractionMemory();
   });
@@ -134,38 +134,33 @@ describe("Theme Interaction & Presentation (Package 4.4)", () => {
       expect(html).toContain('aria-labelledby="r-detail-tab-info"');
       expect(html).toContain("Server Info Content");
       expect(html).not.toContain("Mods Content");
-    });
 
-    it("publishes data-context from a context container", () => {
       const selectedServer = { addr: "1.2.3.4:2303", name: "x" } as unknown as ElementContextValue["selectedServer"];
-      const html = renderLayout({ ...tabsNode, context: "selection" }, {
-        themeId: "theme-a",
-        elementCtx: { selectedServer },
-      });
-      expect(html).toContain('data-context="selection"');
+      const verticalHtml = renderLayout(
+        { ...tabsNode, orientation: "vertical", context: "selection" },
+        { themeId: "theme-a", elementCtx: { selectedServer } },
+      );
+      expect(verticalHtml).toContain('aria-orientation="vertical"');
+      expect(verticalHtml).toContain('data-context="selection"');
     });
 
-    it("defaults to horizontal orientation and moves with Left/Right and Home/End", () => {
-      expect(nextTabIndex({ key: "ArrowRight", currentIndex: 0, count: 3, vertical: false })).toBe(1);
-      expect(nextTabIndex({ key: "ArrowLeft", currentIndex: 0, count: 3, vertical: false })).toBe(2);
-      expect(nextTabIndex({ key: "Home", currentIndex: 2, count: 3, vertical: false })).toBe(0);
-      expect(nextTabIndex({ key: "End", currentIndex: 0, count: 3, vertical: false })).toBe(2);
-      expect(nextTabIndex({ key: "ArrowUp", currentIndex: 0, count: 3, vertical: false })).toBeNull();
-      expect(nextTabIndex({ key: "ArrowDown", currentIndex: 0, count: 3, vertical: false })).toBeNull();
-    });
-
-    it("vertical orientation moves with Up/Down, not Left/Right", () => {
-      expect(nextTabIndex({ key: "ArrowDown", currentIndex: 0, count: 3, vertical: true })).toBe(1);
-      expect(nextTabIndex({ key: "ArrowUp", currentIndex: 0, count: 3, vertical: true })).toBe(2);
-      expect(nextTabIndex({ key: "Home", currentIndex: 2, count: 3, vertical: true })).toBe(0);
-      expect(nextTabIndex({ key: "End", currentIndex: 0, count: 3, vertical: true })).toBe(2);
-      expect(nextTabIndex({ key: "ArrowLeft", currentIndex: 0, count: 3, vertical: true })).toBeNull();
-      expect(nextTabIndex({ key: "ArrowRight", currentIndex: 0, count: 3, vertical: true })).toBeNull();
-    });
-
-    it("renders aria-orientation=vertical and a vertical tablist", () => {
-      const html = renderLayout({ ...tabsNode, orientation: "vertical" }, { themeId: "theme-a" });
-      expect(html).toContain('aria-orientation="vertical"');
+    it.each<{
+      orientation: "horizontal" | "vertical";
+      forward: string;
+      backward: string;
+      others: string[];
+    }>([
+      { orientation: "horizontal", forward: "ArrowRight", backward: "ArrowLeft", others: ["ArrowUp", "ArrowDown"] },
+      { orientation: "vertical", forward: "ArrowDown", backward: "ArrowUp", others: ["ArrowLeft", "ArrowRight"] },
+    ])("moves a $orientation tablist with its own arrows and Home/End", ({ orientation, forward, backward, others }) => {
+      const vertical = orientation === "vertical";
+      expect(nextTabIndex({ key: forward, currentIndex: 0, count: 3, vertical })).toBe(1);
+      expect(nextTabIndex({ key: backward, currentIndex: 0, count: 3, vertical })).toBe(2);
+      expect(nextTabIndex({ key: "Home", currentIndex: 2, count: 3, vertical })).toBe(0);
+      expect(nextTabIndex({ key: "End", currentIndex: 0, count: 3, vertical })).toBe(2);
+      for (const key of others) {
+        expect(nextTabIndex({ key, currentIndex: 0, count: 3, vertical })).toBeNull();
+      }
     });
 
     it("respects persisted active tab", () => {
@@ -320,10 +315,8 @@ describe("Theme Interaction & Presentation (Package 4.4)", () => {
       expect(html).toContain('aria-valuemin="160"');
       expect(html).toContain('aria-valuemax="400"');
       expect(html).toContain('aria-label="Resize r-sidebar"');
-    });
 
-    it("applies horizontal orientation for top and bottom edges", () => {
-      const html = renderToStaticMarkup(
+      const horizontalHtml = renderToStaticMarkup(
         <ResizableHandle
           node={{
             id: "bottom-panel",
@@ -335,9 +328,9 @@ describe("Theme Interaction & Presentation (Package 4.4)", () => {
         />,
       );
 
-      expect(html).toContain('data-edge="bottom"');
-      expect(html).toContain('aria-orientation="horizontal"');
-      expect(html).toContain('aria-valuenow="150"');
+      expect(horizontalHtml).toContain('data-edge="bottom"');
+      expect(horizontalHtml).toContain('aria-orientation="horizontal"');
+      expect(horizontalHtml).toContain('aria-valuenow="150"');
     });
 
     it("calculates 8px keyboard steps and clamps to limits", () => {
@@ -417,8 +410,6 @@ describe("Theme Interaction & Presentation (Package 4.4)", () => {
         <ModalHost
           file={{
             schemaVersion: 2,
-            backdrop: "dim",
-            placement: { mode: "center" },
             root: { type: "text", value: "Modal Dialog Body" },
           }}
           onClose={() => {}}
@@ -628,28 +619,18 @@ describe("Theme Interaction & Presentation (Package 4.4)", () => {
   describe("SettingsRegionPortal", () => {
     // No DOM is available to resolve a target region in these tests (they run
     // under react-dom/server, which never fires effects), so every case here
-    // exercises the exact path SPEC §9.4 requires: an overlay/panel whose
-    // region can't be found renders nothing instead of covering the window.
-    it("renders nothing for overlay presentation until its region resolves", () => {
+    // exercises the required path: an overlay/panel whose region can't be
+    // found renders nothing instead of covering the window.
+    it.each([
+      { mode: "overlay" as const, region: "r-main" },
+      { mode: "panel" as const, region: "r-side" },
+    ])("renders nothing for $mode presentation until its region resolves", ({ mode, region }) => {
       const html = renderToStaticMarkup(
         <SettingsRegionPortal
           file={{
             schemaVersion: 2,
-            presentation: { mode: "overlay", region: "r-main" },
-            root: { type: "text", value: "Overlay Settings" },
-          }}
-        />,
-      );
-      expect(html).toBe("");
-    });
-
-    it("renders nothing for panel presentation until its region resolves", () => {
-      const html = renderToStaticMarkup(
-        <SettingsRegionPortal
-          file={{
-            schemaVersion: 2,
-            presentation: { mode: "panel", region: "r-side" },
-            root: { type: "text", value: "Panel Settings" },
+            presentation: { mode, region },
+            root: { type: "text", value: "Settings" },
           }}
         />,
       );

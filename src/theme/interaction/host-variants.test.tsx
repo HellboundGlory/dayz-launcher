@@ -1,5 +1,5 @@
-// SPEC §5.2: a file may declare `variants` instead of `root`, and every host
-// that draws a layout file must pick the variant for the width it renders at.
+// A file may declare `variants` instead of `root`, and every host that draws a
+// layout file must pick the variant for the width it renders at.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { LayoutVariant, ModalLayoutFile, PopupLayoutFile, SettingsLayoutFile } from "../renderer/types";
