@@ -517,6 +517,7 @@
               <tr><td><code>color.onSuccess</code></td><td><code>#10131a</code></td><td><code>--t-color-onSuccess</code></td></tr>
               <tr><td><code>color.focusRing</code></td><td><code>var(--accent-line)</code></td><td><code>--t-color-focusRing</code></td></tr>
               <tr><td><code>color.scrim</code></td><td><code>rgba(5,8,13,0.7)</code></td><td><code>--t-color-scrim</code></td></tr>
+              <tr><td><code>color.scrimBlocking</code></td><td><code>rgba(0,0,0,0.9)</code></td><td><code>--t-color-scrimBlocking</code></td></tr>
               <tr><td><code>color.rowHover</code></td><td><code>var(--row-hover)</code></td><td><code>--t-color-rowHover</code></td></tr>
               <tr><td><code>color.rowSelected</code></td><td><code>var(--row-selected)</code></td><td><code>--t-color-rowSelected</code></td></tr>
             </tbody>
@@ -862,8 +863,9 @@
         </p>
         <h3>Properties, values and at-rules</h3>
         <p>
-          Every property is allowed except <code>z-index</code>, because the launcher
-          owns stacking, and <code>content</code> with anything but <code>""</code>.
+          Every property is allowed except <code>z-index</code> and the launcher's
+          <code>--z-*</code> stacking variables, because the launcher owns stacking.
+          <code>content</code> is allowed only as <code>""</code>.
         </p>
         <p>
           Values may not contain <code>expression(</code>, <code>-moz-binding</code>,
@@ -1031,7 +1033,7 @@
               <tr><td><code>CSS-01</code></td><td>A refused selector or declaration: a type selector, an id selector, the universal selector, a class that is not your own <code>t-</code> name, an attribute, pseudo-class or pseudo-element that is not allowed, or <code>!important</code></td></tr>
               <tr><td><code>CSS-02</code></td><td>A theme class used in CSS that the theme never declares</td></tr>
               <tr><td><code>CSS-03</code></td><td>A malformed theme class name — in particular one that is not <code>t-</code> followed by lowercase letters, digits and hyphens</td></tr>
-              <tr><td><code>CSS-04</code></td><td><code>z-index</code> is refused</td></tr>
+              <tr><td><code>CSS-04</code></td><td><code>z-index</code> and <code>--z-*</code> are refused</td></tr>
               <tr><td><code>CSS-05</code></td><td>A refused value: one of the banned constructs, or <code>content</code> with anything other than <code>""</code></td></tr>
               <tr><td><code>CSS-06</code></td><td>An at-rule other than <code>@media</code>, <code>@keyframes</code> or <code>@font-face</code>, or a media query feature that is not allowed</td></tr>
               <tr><td><code>CSS-07</code></td><td>A refused URL: one that uses a scheme, a scheme-relative one, one with <code>..</code> in its path, an unreadable one, or a <code>@font-face</code> source that is not under <code>fonts/</code></td></tr>

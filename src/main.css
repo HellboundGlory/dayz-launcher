@@ -240,7 +240,7 @@
   }
 
   [data-modal-host][data-backdrop="dim"] {
-    background-color: rgba(0, 0, 0, 0.65);
+    background-color: var(--t-color-scrim);
   }
 }
 
@@ -264,10 +264,24 @@
     }
   }
 
+  /* Overlay stacking order; launcher-internal, not theme tokens. */
+  :root {
+    --z-settings: 30;
+    --z-popup: 40;
+    --z-modal: 50;
+    --z-window-edge: 50;
+    --z-dialog: 60;
+    --z-onboarding: 90;
+    --z-splash: 100;
+    --z-blocking: 200;
+    --z-dev-panel: 390;
+    --z-dev-inspector: 400;
+  }
+
   /* Modal backdrop and core overlay/accessibility guarantees */
   [data-modal-host] {
     position: fixed;
     inset: 0;
-    z-index: 50;
+    z-index: var(--z-modal);
   }
 }

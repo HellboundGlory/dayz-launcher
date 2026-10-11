@@ -274,7 +274,7 @@ export function ImportThemeDialog({
 
   return (
     <div
-      className="absolute inset-0 z-[60] flex items-center justify-center bg-[rgba(5,8,13,0.7)]"
+      className="absolute inset-0 z-[var(--z-dialog)] flex items-center justify-center [background-color:var(--t-color-scrim)]"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) close();
       }}

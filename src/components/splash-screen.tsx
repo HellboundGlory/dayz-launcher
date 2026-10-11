@@ -31,7 +31,7 @@ export function SplashScreen({ status, detail, pct }: SplashScreenProps) {
   const litTicks = Math.round((pct / 100) * TICK_COUNT);
 
   return (
-    <div className="fixed inset-0 z-[100] select-none overflow-hidden">
+    <div className="fixed inset-0 z-[var(--z-splash)] select-none overflow-hidden">
       <div
         className="absolute inset-0"
         style={{

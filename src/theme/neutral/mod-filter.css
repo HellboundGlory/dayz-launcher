@@ -7,10 +7,6 @@
     @apply relative h-[540px] w-full overflow-hidden [border-radius:var(--t-radius-modalLarge)] border border-line bg-surface [box-shadow:var(--t-shadow-xl)];
   }
 
-  [data-modal-host]:has(.t-neutral-modfilter) {
-    @apply [background-color:var(--t-color-scrim)];
-  }
-
   [data-part="modal-dialog"]:has(> .t-neutral-modfilter) {
     @apply w-[min(700px,calc(100%-40px))];
   }

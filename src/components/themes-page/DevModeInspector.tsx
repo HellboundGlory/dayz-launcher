@@ -410,7 +410,7 @@ export function DevModeInspector() {
   const { top, left } = rect ? placeOverlay(rect, badge) : { top: 0, left: BADGE_GAP };
 
   return createPortal(
-    <div data-dev-inspector className="pointer-events-none fixed inset-0 z-[400]">
+    <div data-dev-inspector className="pointer-events-none fixed inset-0 z-[var(--z-dev-inspector)]">
       {active && rect && (
         <>
           <div

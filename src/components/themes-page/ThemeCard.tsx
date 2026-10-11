@@ -150,7 +150,7 @@ export function ThemeCard({
             <div
               ref={menuRef}
               role="menu"
-              className="absolute bottom-full right-0 z-20 mb-1 w-44 [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)]"
+              className="absolute bottom-full right-0 z-[var(--z-popup)] mb-1 w-44 [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)]"
             >
               {onDuplicate && (
                 <MenuItem

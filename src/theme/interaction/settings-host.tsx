@@ -70,7 +70,7 @@ export function SettingsHost({
     style = {
       position: "absolute",
       inset: 0,
-      zIndex: 30,
+      zIndex: "var(--z-settings)",
       width: "100%",
       height: "100%",
     };

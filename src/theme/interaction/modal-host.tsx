@@ -115,7 +115,7 @@ export function ModalHost({
   const backdropStyle: CSSProperties = {
     position: "fixed",
     inset: 0,
-    zIndex: 50,
+    zIndex: "var(--z-modal)",
     display: "flex",
     ...(placement.mode === "center" && {
       alignItems: "center",

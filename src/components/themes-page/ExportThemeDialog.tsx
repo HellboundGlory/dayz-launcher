@@ -179,7 +179,7 @@ export function ExportThemeDialog({
 
   return (
     <div
-      className="ovl absolute inset-0 z-[60] flex items-center justify-center bg-[rgba(5,8,13,0.7)]"
+      className="ovl absolute inset-0 z-[var(--z-dialog)] flex items-center justify-center [background-color:var(--t-color-scrim)]"
       onMouseDown={closeIfOutside}
     >
       <div
