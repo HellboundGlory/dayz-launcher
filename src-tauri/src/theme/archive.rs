@@ -988,20 +988,7 @@ fn validate_manifest(parsed: &ThemeManifest) -> Result<(), String> {
     if !parsed.theme_api.starts_with("2.") || parsed.schema_version != 2 {
         return Err(format!("MAN-05: theme API {} is unsupported; theme system {SUPPORTED_THEME_API_RANGE} is required.", parsed.theme_api));
     }
-    if super::is_builtin_id(&parsed.id) {
-        return Err("Theme ID starts with reserved prefix 'builtin.'".to_string());
-    }
-    let id = parsed.id.as_bytes();
-    if !(3..=64).contains(&id.len())
-        || !id
-            .first()
-            .is_some_and(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
-        || !id
-            .iter()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || b"._-".contains(c))
-    {
-        return Err("MAN-02: theme id must match ^[a-z0-9][a-z0-9._-]{2,63}$.".to_string());
-    }
+    super::validate_new_theme_id(&parsed.id)?;
     for (field, value) in [("name", &parsed.name), ("author", &parsed.author)] {
         if !(1..=48).contains(&value.chars().count()) {
             return Err(format!("{field} must contain 1–48 characters."));

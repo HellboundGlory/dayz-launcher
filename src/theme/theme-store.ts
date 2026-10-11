@@ -152,14 +152,37 @@ function markIncompatibleNoticeShown(id: string): void {
   }
 }
 
-/** Lowercase, runs of non-alphanumerics collapsed to one `-`, ends trimmed — mirrors Rust `theme::slugify`. Exported so the theme grid derives ids the same way `duplicateTheme` does. */
-export function slugify(name: string): string {
+/** Lowercase ASCII letters and digits, every other run collapsed to one `-`, ends trimmed — mirrors Rust `theme::slugify`. */
+function slugify(name: string): string {
   let slug = "";
   for (const c of name) {
-    if (/[\p{L}\p{N}]/u.test(c)) slug += c.toLowerCase();
+    if (/^[A-Za-z0-9]$/.test(c)) slug += c.toLowerCase();
     else if (slug !== "" && !slug.endsWith("-")) slug += "-";
   }
   return slug.replace(/^-+|-+$/g, "");
+}
+
+/** `local.` plus a slug plus `-999` has to fit the 64-byte id limit; mirrors Rust `MAX_ID_BASE`. */
+const MAX_ID_SLUG = 54;
+
+/** The id a copy of `name` gets: `local.<slug>`, or `local.theme` when the name
+ * has no ASCII letters or digits. The first id with no installed theme is used;
+ * an id taken by a theme of the same name (trimmed, case-insensitive) is reported
+ * as a clash, so a replace is only ever offered for the theme the user named. */
+export function newThemeId(
+  name: string,
+  installedThemes: ThemeSummary[],
+): { id: string; clash: boolean } {
+  const wanted = name.trim().toLowerCase();
+  // By name, so a theme kept under an older id or a later suffix is still the one replaced.
+  const same = installedThemes.find((t) => t.id.startsWith("local.") && t.name.trim().toLowerCase() === wanted);
+  if (same) return { id: same.id, clash: true };
+  const slug = slugify(name) || "theme";
+  const base = slug.slice(0, MAX_ID_SLUG).replace(/-+$/, "");
+  for (let n = 1; ; n++) {
+    const id = n === 1 ? `local.${base}` : `local.${base}-${n}`;
+    if (activeInstalled(id, installedThemes) === undefined) return { id, clash: false };
+  }
 }
 
 /** The delete confirmation both the theme grid and the customiser show. */
@@ -523,15 +546,16 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     // One-time import of the skins the pre-file-backed build kept in the
     // frontend's localStorage, keyed by name so a stored `custom:<name>`
     // selection can be remapped onto the id the backend created for it.
-    const migratedIds: Record<string, string> = {};
+    const migratedIds: Record<string, string> = Object.create(null);
     const legacy = localStorage.getItem(STORE_KEY) === null ? null : loadLegacyThemes();
     if (legacy !== null && legacy.length > 0) {
       try {
-        const created = new Set(await migrateLegacyCustomThemes(legacy));
-        for (const theme of legacy) {
-          const id = `local.${slugify(theme.name)}`;
-          if (created.has(id)) migratedIds[theme.name] = id;
-        }
+        const ids = await migrateLegacyCustomThemes(legacy);
+        legacy.forEach((theme, i) => {
+          const id = ids[i];
+          // Two legacy themes can share a name; the first keeps the selection.
+          if (typeof id === "string" && !(theme.name in migratedIds)) migratedIds[theme.name] = id;
+        });
       } catch (e) {
         console.error("Could not migrate saved themes:", e);
       }
@@ -782,8 +806,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   duplicateTheme: async (sourceId, name, { overwrite = false } = {}) => {
     const { activeId, custom, customExtras, themeFiles, bloom } = get();
 
-    const id = `local.${slugify(name)}`;
-    const clash = activeInstalled(id, get().installedThemes) !== undefined;
+    const { id, clash } = newThemeId(name, get().installedThemes);
     if (clash && !overwrite) return "exists";
     const manifest: ThemeManifest = {
       schemaVersion: 2,

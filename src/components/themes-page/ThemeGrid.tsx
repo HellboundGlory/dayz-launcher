@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { PRESETS } from "@/theme/palette";
 import { resolveThemeAsset } from "@/theme/asset-resolver";
-import { deleteThemeMessage, resolvedPair, slugify } from "@/theme/theme-store";
+import { deleteThemeMessage, resolvedPair } from "@/theme/theme-store";
 import { useConfirm } from "@/components/confirm-dialog";
 import type { ThemeFile, ThemeSummary } from "@/types/theme";
 import { ThemeCard } from "./ThemeCard";
@@ -80,15 +80,15 @@ export function buildGridEntries(installedThemes: ThemeSummary[]): GridEntry[] {
 
 /**
  * `${baseName} copy`, then `… copy 2`, `… copy 3`, … — the first candidate
- * whose id is free. Two names can differ as text and still derive the same
- * `local.<slug>` id, so the comparison is on the slug. Also used by the
- * Settings "New theme" flow, so it's exported.
+ * whose name is not taken, compared trimmed and case-insensitively as
+ * `newThemeId` compares them. Also used by the Settings "New theme" flow, so
+ * it's exported.
  */
 export function nextDuplicateName(baseName: string, existingNames: string[]): string {
-  const taken = new Set(existingNames.map(slugify));
+  const taken = new Set(existingNames.map((name) => name.trim().toLowerCase()));
   let candidate = `${baseName} copy`;
   let n = 2;
-  while (taken.has(slugify(candidate))) candidate = `${baseName} copy ${n++}`;
+  while (taken.has(candidate.trim().toLowerCase())) candidate = `${baseName} copy ${n++}`;
   return candidate;
 }
 
@@ -137,7 +137,7 @@ export function ThemeGrid({
                         entry.id,
                         nextDuplicateName(
                           entry.name,
-                          entries.flatMap((e) => [e.name, e.id.replace(/^local\./, "")]),
+                          entries.map((e) => e.name),
                         ),
                       )
               }

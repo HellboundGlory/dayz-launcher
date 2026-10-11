@@ -11,8 +11,8 @@ import {
   effective,
   effectiveRoleValues,
   isUserTheme,
+  newThemeId,
   resolvedPair,
-  slugify,
 } from "@/theme/theme-store";
 import {
   GROUP_DEF,
@@ -129,7 +129,8 @@ export function ThemeCustomiser() {
   }
 
   function isActiveName(target: string): boolean {
-    return `local.${slugify(target)}` === useThemeStore.getState().activeId;
+    const { activeId, installedThemes } = useThemeStore.getState();
+    return newThemeId(target, installedThemes).id === activeId;
   }
 
   return (

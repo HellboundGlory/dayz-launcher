@@ -131,11 +131,12 @@ pub struct Scan {
     pub skipped: Vec<String>,
 }
 
-/// `migrated` is ids that now exist on disk — a caller remapping its
-/// selection can't be pointed at a theme that failed to write.
+/// `migrated` is one entry per legacy theme, in input order: the id it now has
+/// on disk, or `None` when it was not written. A caller remapping its selection
+/// by position can tell those apart.
 #[derive(Debug, Default)]
 pub struct Migration {
-    pub migrated: Vec<String>,
+    pub migrated: Vec<Option<String>>,
     pub skipped: Vec<String>,
 }
 
@@ -354,6 +355,7 @@ pub fn save(
     tokens: &Value,
 ) -> Result<String, String> {
     let dir = theme_dir(themes_root, &manifest.id)?;
+    validate_new_theme_id(&manifest.id)?;
     validate_tokens(tokens)?;
 
     // Serialised before anything is created, so a manifest that can't be
@@ -395,7 +397,7 @@ pub fn save(
 /// `local.*` id qualifies: an imported package or a bundled built-in is never
 /// rewritten, and a `local.*` install must still exist and be current-format.
 pub fn update_tokens(themes_root: &Path, id: &str, tokens: &Value) -> Result<(), String> {
-    if !id.starts_with("local.") {
+    if !is_user_theme_id(id) {
         return Err(format!(
             "`{id}` is not a user theme — only `local.` themes can be edited in place"
         ));
@@ -430,6 +432,33 @@ pub fn is_builtin_id(id: &str) -> bool {
         .is_some_and(|prefix| prefix.eq_ignore_ascii_case(BUILTIN_ID_PREFIX))
 }
 
+/// The rule for an id this launcher creates: outside the reserved namespace,
+/// and in the package format every import has to match. Installed ids are never
+/// re-checked, so a theme from an older build keeps loading and editing.
+pub fn validate_new_theme_id(id: &str) -> Result<(), String> {
+    if is_builtin_id(id) {
+        return Err("Theme ID starts with reserved prefix 'builtin.'".to_string());
+    }
+    let bytes = id.as_bytes();
+    if !(3..=MAX_ID_LEN).contains(&bytes.len())
+        || !bytes
+            .first()
+            .is_some_and(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+        || !bytes
+            .iter()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || b"._-".contains(c))
+    {
+        return Err("MAN-02: theme id must match ^[a-z0-9][a-z0-9._-]{2,63}$.".to_string());
+    }
+    Ok(())
+}
+
+/// Whether `id` is in the namespace this launcher writes for the user. Not the
+/// format rule: a theme installed under an id that rule would refuse still edits.
+pub fn is_user_theme_id(id: &str) -> bool {
+    id.starts_with("local.")
+}
+
 /// Delete an installed theme. Refuses a `builtin.*` id, an id with no directory
 /// (a built-in preset, checked first so the error isn't misleading) and `active`,
 /// which would otherwise leave the selection pointing at nothing.
@@ -453,18 +482,45 @@ pub fn delete(themes_root: &Path, id: &str, active: Option<&str>) -> Result<(), 
     std::fs::remove_dir_all(&dir).map_err(|e| format!("Could not delete {}: {e}", dir.display()))
 }
 
-/// Lowercase, with every run of non-alphanumeric characters collapsed to a
-/// single `-` and the ends trimmed. `"Blaze Orange!"` -> `"blaze-orange"`.
+/// Lowercase ASCII letters and digits, every run of anything else collapsed to
+/// a single `-`, ends trimmed. `"Blaze Orange!"` -> `"blaze-orange"`. ASCII so
+/// the id is a package id: a name in another script slugs to empty.
 pub fn slugify(name: &str) -> String {
     let mut slug = String::with_capacity(name.len());
     for c in name.chars() {
-        if c.is_alphanumeric() {
-            slug.extend(c.to_lowercase());
+        if c.is_ascii_alphanumeric() {
+            slug.push(c.to_ascii_lowercase());
         } else if !slug.is_empty() && !slug.ends_with('-') {
             slug.push('-');
         }
     }
     slug.trim_matches('-').to_string()
+}
+
+const MAX_ID_LEN: usize = 64;
+
+/// Room for `local.` and a `-999` suffix. `MAX_ID_SLUG` in `src/theme/theme-store.ts` mirrors it.
+const MAX_ID_BASE: usize = MAX_ID_LEN - "local.".len() - "-999".len();
+
+/// A free `local.` id for an installed theme named `name`: its slug, or `theme`
+/// when the name has none, cut to the id length limit and suffixed until no
+/// directory of that name exists.
+fn new_user_theme_id(themes_root: &Path, name: &str) -> String {
+    let slug = slugify(name);
+    let slug = if slug.is_empty() {
+        "theme".to_string()
+    } else {
+        slug
+    };
+    // The slug is ASCII, so this cut is always at a char boundary.
+    let base = slug[..slug.len().min(MAX_ID_BASE)].trim_end_matches('-');
+    let mut id = format!("local.{base}");
+    let mut n = 2;
+    while themes_root.join(&id).exists() {
+        id = format!("local.{base}-{n}");
+        n += 1;
+    }
+    id
 }
 
 /// One scheme's colours out of a legacy blob: the twelve v1 palette keys copied
@@ -486,57 +542,54 @@ fn legacy_scheme(defaults: &Value, legacy: &Value) -> Value {
     colors
 }
 
+/// Write one legacy entry as a directory, or say why it stays unmigrated.
+fn migrate_one(themes_root: &Path, theme: &LegacyTheme) -> Result<String, String> {
+    // A saved palette is a pair of token-map objects; anything else is corrupt.
+    if !theme.dark.is_object() || !theme.light.is_object() {
+        return Err("dark/light are not token objects; not migrated".to_string());
+    }
+
+    let id = new_user_theme_id(themes_root, &theme.name);
+    let mut tokens = serde_json::to_value(tokens::TokensV2::default())
+        .map_err(|e| format!("could not build the palette: {e}"))?;
+    tokens["colors"]["dark"] = {
+        let defaults = &tokens["colors"]["dark"];
+        legacy_scheme(defaults, &theme.dark)
+    };
+    tokens["colors"]["light"] = {
+        let defaults = &tokens["colors"]["light"];
+        legacy_scheme(defaults, &theme.light)
+    };
+
+    let manifest = ThemeManifest {
+        id: id.clone(),
+        // The package format caps a name at 48 characters.
+        name: theme.name.chars().take(48).collect(),
+        author: "local".to_string(),
+        version: "1.0.0".to_string(),
+        theme_api: archive::SUPPORTED_THEME_API_RANGE.to_string(),
+        // This build wrote it, so this build is the floor it can rely on.
+        minimum_launcher_version: env!("CARGO_PKG_VERSION").to_string(),
+        tier: "basic".to_string(),
+        description: "Migrated from a saved custom theme.".to_string(),
+        capabilities: vec!["tokens".to_string()],
+        ..ThemeManifest::default()
+    };
+
+    save(themes_root, &manifest, &tokens)
+}
+
 /// Bring themes saved in the frontend's `localStorage` into file-backed
 /// storage, one directory each. Best-effort: a bad entry is reported and the rest still migrate.
 pub fn migrate(themes_root: &Path, legacy: &[LegacyTheme]) -> Migration {
     let mut migration = Migration::default();
     for theme in legacy {
-        let fallback = || format!("{:?}", theme.name);
-        // A saved palette is a pair of token-map objects; anything else is corrupt.
-        if !theme.dark.is_object() || !theme.light.is_object() {
-            migration.skipped.push(format!(
-                "{}: dark/light are not token objects; not migrated",
-                fallback()
-            ));
-            continue;
-        }
-
-        let id = format!("local.{}", slugify(&theme.name));
-        let mut tokens = match serde_json::to_value(tokens::TokensV2::default()) {
-            Ok(tokens) => tokens,
+        match migrate_one(themes_root, theme) {
+            Ok(id) => migration.migrated.push(Some(id)),
             Err(e) => {
-                migration
-                    .skipped
-                    .push(format!("{}: could not build the palette: {e}", fallback()));
-                continue;
+                migration.skipped.push(format!("{:?}: {e}", theme.name));
+                migration.migrated.push(None);
             }
-        };
-        tokens["colors"]["dark"] = {
-            let defaults = &tokens["colors"]["dark"];
-            legacy_scheme(defaults, &theme.dark)
-        };
-        tokens["colors"]["light"] = {
-            let defaults = &tokens["colors"]["light"];
-            legacy_scheme(defaults, &theme.light)
-        };
-
-        let manifest = ThemeManifest {
-            id: id.clone(),
-            name: theme.name.clone(),
-            author: "local".to_string(),
-            version: "1.0.0".to_string(),
-            theme_api: archive::SUPPORTED_THEME_API_RANGE.to_string(),
-            // This build wrote it, so this build is the floor it can rely on.
-            minimum_launcher_version: env!("CARGO_PKG_VERSION").to_string(),
-            tier: "basic".to_string(),
-            description: "Migrated from a saved custom theme.".to_string(),
-            capabilities: vec!["tokens".to_string()],
-            ..ThemeManifest::default()
-        };
-
-        match save(themes_root, &manifest, &tokens) {
-            Ok(id) => migration.migrated.push(id),
-            Err(e) => migration.skipped.push(format!("{}: {e}", fallback())),
         }
     }
     migration
@@ -846,6 +899,24 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    /// An id the launcher creates must be a package id: lowercase ASCII in the
+    /// documented shape, and never inside the reserved namespace.
+    #[test]
+    fn saving_a_reserved_or_malformed_id_is_refused() {
+        let root = scratch("new-id");
+        for (id, expected) in [
+            ("builtin.copy", "reserved prefix 'builtin.'"),
+            ("BUILTIN.copy", "reserved prefix 'builtin.'"),
+            ("local.ёлка", "MAN-02"),
+            ("Local.Upper", "MAN-02"),
+        ] {
+            let err = save(&root, &manifest(id), &tokens()).expect_err("must refuse");
+            assert!(err.contains(expected), "{id}: {err}");
+            assert!(!root.join(id).exists(), "{id} must create no directory");
+        }
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     #[test]
     fn deleting_the_active_theme_is_refused() {
         let root = scratch("active");
@@ -945,7 +1016,10 @@ mod tests {
 
         assert_eq!(
             migration.migrated,
-            vec!["local.my-cool-theme", "local.second-one"]
+            vec![
+                Some("local.my-cool-theme".to_string()),
+                Some("local.second-one".to_string())
+            ]
         );
         assert!(migration.skipped.is_empty(), "{:?}", migration.skipped);
         for (id, bg) in [
@@ -985,6 +1059,57 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    /// A name with no ASCII letters, or one too long for an id, still migrates.
+    #[test]
+    fn unsluggable_and_overlong_legacy_names_still_migrate() {
+        let root = scratch("migrate-ids");
+        let long = "a".repeat(70);
+        let palette = || serde_json::json!({ "bg": "#111111" });
+        let legacy = vec![
+            LegacyTheme {
+                name: "Ёлка".to_string(),
+                dark: palette(),
+                light: serde_json::json!({}),
+                ..LegacyTheme::default()
+            },
+            LegacyTheme {
+                name: "Звезда".to_string(),
+                dark: palette(),
+                light: serde_json::json!({}),
+                ..LegacyTheme::default()
+            },
+            LegacyTheme {
+                name: long.clone(),
+                dark: palette(),
+                light: serde_json::json!({}),
+                ..LegacyTheme::default()
+            },
+        ];
+
+        let migration = migrate(&root, &legacy);
+
+        assert_eq!(migration.migrated.len(), 3, "{:?}", migration.migrated);
+        assert_eq!(migration.migrated[0].as_deref(), Some("local.theme"));
+        assert_eq!(migration.migrated[1].as_deref(), Some("local.theme-2"));
+        let long_id = migration.migrated[2]
+            .as_deref()
+            .expect("the long name still migrates");
+        assert!(long_id.len() <= 64, "{long_id}");
+        assert!(long_id.starts_with("local.aaaa"), "{long_id}");
+        assert!(migration.skipped.is_empty(), "{:?}", migration.skipped);
+        for (index, name) in ["Ёлка", "Звезда", &long[..48]].iter().enumerate() {
+            let id = migration.migrated[index]
+                .as_deref()
+                .expect("every entry migrated");
+            let loaded = get(&root, id).expect("each migrated theme should load");
+            assert_eq!(
+                loaded.manifest.name, *name,
+                "the display name is kept, up to 48 characters"
+            );
+        }
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     /// A partial/corrupt `localStorage` entry must not become a broken install.
     #[test]
     fn a_legacy_entry_without_palettes_is_reported_and_skipped() {
@@ -999,7 +1124,7 @@ mod tests {
 
         let migration = migrate(&root, &legacy);
 
-        assert!(migration.migrated.is_empty());
+        assert_eq!(migration.migrated, vec![None::<String>]);
         assert_eq!(migration.skipped.len(), 1, "{:?}", migration.skipped);
         assert!(
             migration.skipped[0].contains("Half Saved"),
@@ -1016,6 +1141,9 @@ mod tests {
         assert_eq!(slugify("  --My__Theme!!  "), "my-theme");
         assert_eq!(slugify("Already-slugged"), "already-slugged");
         assert_eq!(slugify("!!!"), "");
+        // Only ASCII survives, so a name in another script slugs to empty.
+        assert_eq!(slugify("Ёлка"), "");
+        assert_eq!(slugify("Café Noir"), "caf-noir");
     }
 
     #[test]
@@ -1152,14 +1280,41 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    /// An installed id the new-id rule would refuse still updates in place.
+    #[test]
+    fn an_installed_non_ascii_id_still_updates_in_place() {
+        let root = scratch("update-non-ascii");
+        let dir = root.join("local.ёлка");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join(MANIFEST_FILE),
+            serde_json::to_vec_pretty(&manifest("local.ёлка")).unwrap(),
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join(TOKENS_FILE),
+            serde_json::to_vec_pretty(&tokens()).unwrap(),
+        )
+        .unwrap();
+
+        let updated = serde_json::json!({
+            "schemaVersion": 2,
+            "colors": { "dark": { "bg": "#123456" } },
+        });
+        update_tokens(&root, "local.ёлка", &updated).expect("update");
+
+        assert_eq!(get(&root, "local.ёлка").expect("loads").tokens, updated);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     /// Only `local.*` ids name a theme the launcher may rewrite: an imported
     /// package, a built-in preset, a missing directory and a path all refuse.
     #[test]
     fn updating_tokens_refuses_anything_but_an_installed_user_theme() {
         let root = scratch("update-refused");
-        save(&root, &manifest("starter.styled"), &tokens()).expect("save an import");
+        save(&root, &manifest("shared.styled"), &tokens()).expect("save an import");
 
-        for id in ["starter.styled", "builtin.tactical"] {
+        for id in ["shared.styled", "builtin.tactical"] {
             let err = update_tokens(&root, id, &tokens()).expect_err("must refuse");
             assert!(err.contains("not a user theme"), "{id}: {err}");
         }
