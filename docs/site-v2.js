@@ -77,12 +77,12 @@ if (carousel) {
   start();
 }
 
-// Server-count tick — counts up once on load so the "live" figure feels
-// alive without lying about precision. Reduced-motion users get the final
-// number instantly.
+// Server-count tick — counts up once on load so the figure catches the eye
+// without pretending to be live. Reduced-motion users get the final number
+// instantly.
 const serverCount = document.getElementById("server-count");
 if (serverCount) {
-  const TARGET = 9000;
+  const TARGET = 25000;
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
     serverCount.textContent = TARGET.toLocaleString();
   } else {
