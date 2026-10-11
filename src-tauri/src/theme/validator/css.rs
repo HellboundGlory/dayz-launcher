@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use cssparser::{ParseError, Parser, Token};
 
 use super::{Severity, ValidationIssue};
@@ -36,11 +34,7 @@ fn is_render_time_function(name: &str) -> bool {
 }
 
 /// Validate a CSS stylesheet string according to Theme System SPEC §12.
-pub fn validate_css_stylesheet(
-    file_path: &str,
-    source: &str,
-    known_classes: Option<&HashSet<String>>,
-) -> Vec<ValidationIssue> {
+pub fn validate_css_stylesheet(file_path: &str, source: &str) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
 
     // CSS-08: Enforce max file size of 256 KB (262,144 bytes)
@@ -58,7 +52,7 @@ pub fn validate_css_stylesheet(
 
     let mut parser = Parser::new(source);
 
-    parse_rules(&mut parser, file_path, known_classes, &mut issues, 0);
+    parse_rules(&mut parser, file_path, &mut issues, 0);
 
     issues
 }
@@ -66,7 +60,6 @@ pub fn validate_css_stylesheet(
 fn parse_rules(
     parser: &mut Parser<'_>,
     file_path: &str,
-    known_classes: Option<&HashSet<String>>,
     issues: &mut Vec<ValidationIssue>,
     depth: u32,
 ) {
@@ -81,19 +74,11 @@ fn parse_rules(
             Token::WhiteSpace(_) | Token::Comment(_) => continue,
             Token::AtKeyword(name) => {
                 let at_name = name.to_ascii_lowercase();
-                validate_at_rule(
-                    parser,
-                    &at_name,
-                    file_path,
-                    known_classes,
-                    issues,
-                    depth,
-                    false,
-                );
+                validate_at_rule(parser, &at_name, file_path, issues, depth, false);
             }
             _ => {
                 parser.reset(&state);
-                parse_qualified_rule(parser, file_path, known_classes, issues, depth);
+                parse_qualified_rule(parser, file_path, issues, depth, false);
             }
         }
     }
@@ -103,7 +88,6 @@ fn validate_at_rule(
     parser: &mut Parser<'_>,
     at_name: &str,
     file_path: &str,
-    known_classes: Option<&HashSet<String>>,
     issues: &mut Vec<ValidationIssue>,
     depth: u32,
     inside_style_rule: bool,
@@ -126,16 +110,9 @@ fn validate_at_rule(
                         validate_media_prelude_parser(parser, file_path, &prelude_tokens, issues);
                         let _ = parser.parse_nested_block(|nested| {
                             if inside_style_rule {
-                                parse_declarations(
-                                    nested,
-                                    file_path,
-                                    known_classes,
-                                    false,
-                                    issues,
-                                    depth + 1,
-                                );
+                                parse_declarations(nested, file_path, false, issues, depth + 1);
                             } else {
-                                parse_rules(nested, file_path, known_classes, issues, depth + 1);
+                                parse_rules(nested, file_path, issues, depth + 1);
                             }
                             Ok::<(), ParseError<()>>(())
                         });
@@ -182,13 +159,7 @@ fn validate_at_rule(
                             issues,
                             depth,
                             |nested, issues, child_depth| {
-                                parse_keyframes_block(
-                                    nested,
-                                    file_path,
-                                    known_classes,
-                                    issues,
-                                    child_depth,
-                                );
+                                parse_keyframes_block(nested, file_path, issues, child_depth);
                             },
                         );
                         break;
@@ -213,14 +184,7 @@ fn validate_at_rule(
                             issues,
                             depth,
                             |nested, issues, child_depth| {
-                                parse_declarations(
-                                    nested,
-                                    file_path,
-                                    known_classes,
-                                    true,
-                                    issues,
-                                    child_depth,
-                                );
+                                parse_declarations(nested, file_path, true, issues, child_depth);
                             },
                         );
                         break;
@@ -359,7 +323,6 @@ fn collect_media_features<'i>(
 fn parse_keyframes_block(
     parser: &mut Parser<'_>,
     file_path: &str,
-    known_classes: Option<&HashSet<String>>,
     issues: &mut Vec<ValidationIssue>,
     depth: u32,
 ) {
@@ -377,14 +340,7 @@ fn parse_keyframes_block(
                     issues,
                     depth,
                     |nested, issues, child_depth| {
-                        parse_declarations(
-                            nested,
-                            file_path,
-                            known_classes,
-                            false,
-                            issues,
-                            child_depth,
-                        );
+                        parse_declarations(nested, file_path, false, issues, child_depth);
                     },
                 );
             }
@@ -408,11 +364,12 @@ fn nesting_too_deep(file_path: &str, pointer: &str) -> ValidationIssue {
 fn parse_qualified_rule(
     parser: &mut Parser<'_>,
     file_path: &str,
-    known_classes: Option<&HashSet<String>>,
     issues: &mut Vec<ValidationIssue>,
     depth: u32,
+    nested: bool,
 ) {
-    parse_selector_and_validate(parser, file_path, known_classes, issues);
+    // A nested selector without `&` starts after an implied descendant space.
+    parse_selector_and_validate(parser, file_path, issues, nested);
 
     let state = parser.state();
     match parser.next_including_whitespace_and_comments() {
@@ -424,14 +381,7 @@ fn parse_qualified_rule(
                 issues,
                 depth,
                 |nested, issues, child_depth| {
-                    parse_declarations(
-                        nested,
-                        file_path,
-                        known_classes,
-                        false,
-                        issues,
-                        child_depth,
-                    );
+                    parse_declarations(nested, file_path, false, issues, child_depth);
                 },
             );
         }
@@ -440,13 +390,30 @@ fn parse_qualified_rule(
     }
 }
 
+fn ungrounded_pseudo_class(file_path: &str, name: &str) -> ValidationIssue {
+    ValidationIssue {
+        rule_id: "CSS-01".into(),
+        severity: Severity::Error,
+        file: file_path.into(),
+        pointer: format!(":{name}"),
+        message: format!(
+            "Pseudo-class ':{name}' needs an element, part, attribute or class before it after a space"
+        ),
+        hint: None,
+    }
+}
+
 fn parse_selector_and_validate(
     parser: &mut Parser<'_>,
     file_path: &str,
-    known_classes: Option<&HashSet<String>>,
     issues: &mut Vec<ValidationIssue>,
+    needs_anchor: bool,
 ) {
     let mut expect_ident_is_type = true;
+    // A compound that follows a descendant space — or that starts a nested
+    // :is()/:where() after one — must open with something that pins it down.
+    let mut after_descendant = needs_anchor;
+    let mut seen_simple = false;
 
     while !parser.is_exhausted() {
         let state = parser.state();
@@ -455,41 +422,34 @@ fn parse_selector_and_validate(
             Err(_) => break,
         };
 
-        match token {
+        let simple = match token {
             Token::CurlyBracketBlock => {
                 parser.reset(&state);
                 break;
             }
             Token::Semicolon => break,
             Token::Comma => {
-                expect_ident_is_type = true;
+                after_descendant = needs_anchor;
+                seen_simple = false;
+                false
             }
-            Token::WhiteSpace(_) | Token::Comment(_) | Token::CDO | Token::CDC => {
-                expect_ident_is_type = true;
+            Token::WhiteSpace(_) => {
+                after_descendant |= seen_simple;
+                false
             }
+            Token::Comment(_) | Token::CDO | Token::CDC => false,
             Token::Delim('>') | Token::Delim('+') | Token::Delim('~') => {
-                expect_ident_is_type = true;
+                after_descendant = false;
+                seen_simple = false;
+                false
             }
             Token::Delim('.') => {
                 if let Ok(Token::Ident(class_name)) =
                     parser.next_including_whitespace_and_comments()
                 {
                     let name = class_name.to_string();
-                    if name.starts_with("t-") || name == "t-" {
-                        if is_valid_theme_class(&name) {
-                            if let Some(known) = known_classes {
-                                if !known.contains(&name) {
-                                    issues.push(ValidationIssue {
-                                        rule_id: "CSS-02".into(),
-                                        severity: Severity::Error,
-                                        file: file_path.into(),
-                                        pointer: format!(".{name}"),
-                                        message: format!("Undeclared theme class '.{name}'"),
-                                        hint: None,
-                                    });
-                                }
-                            }
-                        } else {
+                    if name.starts_with("t-") {
+                        if !is_valid_theme_class(&name) {
                             issues.push(ValidationIssue {
                                 rule_id: "CSS-03".into(),
                                 severity: Severity::Error,
@@ -510,7 +470,7 @@ fn parse_selector_and_validate(
                         });
                     }
                 }
-                expect_ident_is_type = false;
+                true
             }
             Token::Hash(ref name) | Token::IDHash(ref name) => {
                 issues.push(ValidationIssue {
@@ -521,7 +481,7 @@ fn parse_selector_and_validate(
                     message: format!("ID selector '#{name}' is not allowed"),
                     hint: None,
                 });
-                expect_ident_is_type = false;
+                true
             }
             Token::Delim('*') => {
                 issues.push(ValidationIssue {
@@ -532,7 +492,7 @@ fn parse_selector_and_validate(
                     message: "Universal selector '*' is not allowed".into(),
                     hint: None,
                 });
-                expect_ident_is_type = false;
+                true
             }
             Token::Ident(ref name) => {
                 if expect_ident_is_type {
@@ -545,7 +505,7 @@ fn parse_selector_and_validate(
                         hint: None,
                     });
                 }
-                expect_ident_is_type = false;
+                true
             }
             Token::SquareBracketBlock => {
                 let attr_name = parser
@@ -575,7 +535,7 @@ fn parse_selector_and_validate(
                         hint: None,
                     });
                 }
-                expect_ident_is_type = false;
+                true
             }
             Token::Colon => {
                 let state2 = parser.state();
@@ -614,7 +574,11 @@ fn parse_selector_and_validate(
                     }
                     Ok(Token::Ident(pseudo_cls)) => {
                         let lower = pseudo_cls.to_ascii_lowercase();
-                        if !is_allowed_pseudo_class(&lower) {
+                        if is_allowed_pseudo_class(&lower) {
+                            if after_descendant {
+                                issues.push(ungrounded_pseudo_class(file_path, pseudo_cls));
+                            }
+                        } else {
                             issues.push(ValidationIssue {
                                 rule_id: "CSS-01".into(),
                                 severity: Severity::Error,
@@ -627,18 +591,32 @@ fn parse_selector_and_validate(
                     }
                     Ok(Token::Function(func_name)) => {
                         let lower = func_name.to_ascii_lowercase();
+                        if after_descendant && matches!(lower.as_str(), "not" | "nth-child") {
+                            issues.push(ungrounded_pseudo_class(file_path, func_name));
+                        }
                         if matches!(lower.as_str(), "not" | "is" | "where") {
+                            let anchor = after_descendant && lower != "not";
                             let _ = parser.parse_nested_block(|nested| {
-                                parse_selector_and_validate(
-                                    nested,
-                                    file_path,
-                                    known_classes,
-                                    issues,
-                                );
+                                parse_selector_and_validate(nested, file_path, issues, anchor);
                                 Ok::<(), ParseError<()>>(())
                             });
                         } else if lower == "nth-child" {
-                            let _ = parser.parse_nested_block(|_| Ok::<(), ParseError<()>>(()));
+                            let _ = parser.parse_nested_block(|args| {
+                                if cssparser::parse_nth(args)
+                                    .and_then(|_| args.expect_exhausted())
+                                    .is_err()
+                                {
+                                    issues.push(ValidationIssue {
+                                        rule_id: "CSS-01".into(),
+                                        severity: Severity::Error,
+                                        file: file_path.into(),
+                                        pointer: ":nth-child(...)".into(),
+                                        message: "':nth-child()' takes An+B, odd or even".into(),
+                                        hint: None,
+                                    });
+                                }
+                                Ok::<(), ParseError<()>>(())
+                            });
                         } else {
                             issues.push(ValidationIssue {
                                 rule_id: "CSS-01".into(),
@@ -657,11 +635,14 @@ fn parse_selector_and_validate(
                         parser.reset(&state2);
                     }
                 }
-                expect_ident_is_type = false;
+                true
             }
-            _ => {
-                expect_ident_is_type = false;
-            }
+            _ => true,
+        };
+        expect_ident_is_type = !simple;
+        if simple {
+            after_descendant = false;
+            seen_simple = true;
         }
     }
 }
@@ -726,7 +707,6 @@ fn is_allowed_pseudo_element(pseudo: &str) -> bool {
 fn parse_declarations(
     parser: &mut Parser<'_>,
     file_path: &str,
-    known_classes: Option<&HashSet<String>>,
     in_font_face: bool,
     issues: &mut Vec<ValidationIssue>,
     depth: u32,
@@ -742,15 +722,7 @@ fn parse_declarations(
             Token::WhiteSpace(_) | Token::Comment(_) | Token::Semicolon => continue,
             Token::AtKeyword(name) => {
                 let at_name = name.to_ascii_lowercase();
-                validate_at_rule(
-                    parser,
-                    &at_name,
-                    file_path,
-                    known_classes,
-                    issues,
-                    depth,
-                    true,
-                );
+                validate_at_rule(parser, &at_name, file_path, issues, depth, true);
             }
             Token::CurlyBracketBlock => {
                 issues.push(ValidationIssue {
@@ -793,7 +765,7 @@ fn parse_declarations(
                 if !declaration {
                     if has_block {
                         parser.reset(&statement);
-                        parse_qualified_rule(parser, file_path, known_classes, issues, depth);
+                        parse_qualified_rule(parser, file_path, issues, depth, true);
                     } else {
                         issues.push(ValidationIssue {
                             rule_id: "CSS-01".into(),
@@ -833,7 +805,7 @@ fn parse_declarations(
             }
             _ => {
                 parser.reset(&statement);
-                parse_qualified_rule(parser, file_path, known_classes, issues, depth);
+                parse_qualified_rule(parser, file_path, issues, depth, true);
             }
         }
     }
@@ -1255,10 +1227,13 @@ mod tests {
             [data-el="button"]:hover, [data-el="button"]:focus-visible, [data-el="button"]:active { outline: none; }
             [data-el="button"]:not([data-state~="disabled"]):is([data-context="selection"]) { cursor: pointer; }
             [data-el="card"]::before, [data-el="card"]::after { content: ""; }
+            [data-el="a"] > :not([data-part="b"]) { color: var(--accent); }
+            [data-el="a"] + [data-el="b"], [data-el="a"] ~ [data-el="b"] { color: var(--accent); }
+            [data-el="a"] :is([data-part="b"]) { color: var(--accent); }
+            [data-el="a"]:nth-child(2n+1), [data-el="a"]:nth-child(odd) { color: var(--accent); }
+            [data-el="a"] { &:hover { color: red; } > :hover { color: red; } [data-part="b"]:hover { color: red; } }
         "#;
-        let mut known = HashSet::new();
-        known.insert("t-detail-rail".to_string());
-        let issues = validate_css_stylesheet("styles.css", css, Some(&known));
+        let issues = validate_css_stylesheet("styles.css", css);
         assert!(issues.is_empty(), "Expected 0 issues, got: {issues:#?}");
     }
 
@@ -1273,8 +1248,38 @@ mod tests {
             ::-webkit-slider-runnable-track { background: var(--border); }
             [data-list="servers"] ::-webkit-scrollbar { width: 10px; }
         "#;
-        let issues = validate_css_stylesheet("styles.css", css, None);
+        let issues = validate_css_stylesheet("styles.css", css);
         assert!(issues.is_empty(), "Expected 0 issues, got: {issues:#?}");
+    }
+
+    #[test]
+    fn a_pseudo_class_after_a_space_or_a_bad_nth_child_is_refused() {
+        for (selector, pointer) in [
+            ("[data-el=\"a\"] :not([data-part=\"b\"])", ":not"),
+            ("[data-el=\"a\"] :hover", ":hover"),
+            ("[data-el=\"a\"] :first-child", ":first-child"),
+            ("[data-el=\"a\"] :nth-child(2)", ":nth-child"),
+            ("[data-el=\"a\"] :is(:hover)", ":hover"),
+            ("[data-el=\"a\"] :is([data-part=\"b\"], :hover)", ":hover"),
+            (
+                "[data-el=\"a\"]:nth-child(2n+1 of [data-part=\"b\"])",
+                ":nth-child(...)",
+            ),
+            ("[data-el=\"a\"]:nth-child(foo)", ":nth-child(...)"),
+        ] {
+            let css = format!("{selector} {{ color: red; }}");
+            let issues = validate_css_stylesheet("styles.css", &css);
+            assert_eq!(issues.len(), 1, "{selector}: {issues:#?}");
+            assert_eq!(issues[0].rule_id, "CSS-01", "{selector}");
+            assert_eq!(issues[0].pointer, pointer, "{selector}");
+        }
+        // A nested selector with no `&` is relative to its parent through a space.
+        for nested in [":hover", "& :hover", ":not([data-part=\"b\"])"] {
+            let css = format!("[data-el=\"a\"] {{ {nested} {{ color: red; }} }}");
+            let issues = validate_css_stylesheet("styles.css", &css);
+            assert_eq!(issues.len(), 1, "{nested}: {issues:#?}");
+            assert_eq!(issues[0].rule_id, "CSS-01", "{nested}");
+        }
     }
 
     #[test]
@@ -1288,7 +1293,7 @@ mod tests {
             [data-el="button"]:focus { outline: none; }
             [data-el="button"]::placeholder { color: gray; }
         "#;
-        let issues = validate_css_stylesheet("styles.css", css, None);
+        let issues = validate_css_stylesheet("styles.css", css);
         let rules: Vec<&str> = issues.iter().map(|i| i.rule_id.as_str()).collect();
         assert!(
             rules.iter().all(|r| *r == "CSS-01"),
@@ -1297,18 +1302,9 @@ mod tests {
     }
 
     #[test]
-    fn test_css_02_undeclared_theme_class() {
-        let css = ".t-unknown-class { color: red; }";
-        let known = HashSet::new();
-        let issues = validate_css_stylesheet("styles.css", css, Some(&known));
-        assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].rule_id, "CSS-02");
-    }
-
-    #[test]
     fn test_css_03_malformed_theme_class() {
         let css = ".t-FooClass { color: red; } .t-foo_bar { color: blue; } .t- { color: green; }";
-        let issues = validate_css_stylesheet("styles.css", css, None);
+        let issues = validate_css_stylesheet("styles.css", css);
         assert_eq!(issues.len(), 3);
         assert!(issues.iter().all(|i| i.rule_id == "CSS-03"));
     }
@@ -1317,7 +1313,7 @@ mod tests {
     fn test_css_04_stacking_refused() {
         for decl in ["z-index: 100", "--z-popup: 999"] {
             let css = format!("[data-el=\"box\"] {{ {decl}; }}");
-            let issues = validate_css_stylesheet("styles.css", &css, None);
+            let issues = validate_css_stylesheet("styles.css", &css);
             assert_eq!(issues.len(), 1, "{decl}");
             assert_eq!(issues[0].rule_id, "CSS-04", "{decl}");
         }
@@ -1333,7 +1329,7 @@ mod tests {
             [data-el="box"] { background: url(javascript:alert(1)); }
             [data-el="box"] { background: url(vbscript:msgbox(1)); }
         "#;
-        let issues = validate_css_stylesheet("styles.css", css, None);
+        let issues = validate_css_stylesheet("styles.css", css);
         assert!(
             issues.iter().all(|i| i.rule_id == "CSS-05"),
             "Got issues: {issues:#?}"
@@ -1349,7 +1345,7 @@ mod tests {
             @layer theme { [data-el="box"] { color: red; } }
             @media (min-height: 500px) { [data-el="box"] { color: red; } }
         "#;
-        let issues = validate_css_stylesheet("styles.css", css, None);
+        let issues = validate_css_stylesheet("styles.css", css);
         assert_eq!(issues.len(), 5);
         assert!(issues.iter().all(|i| i.rule_id == "CSS-06"));
     }
@@ -1363,7 +1359,7 @@ mod tests {
             [data-el="box"] { background: url("../secret.png"); }
             @font-face { font-family: "Foo"; src: url("myfont.woff2"); }
         "#;
-        let issues = validate_css_stylesheet("styles.css", css, None);
+        let issues = validate_css_stylesheet("styles.css", css);
         assert_eq!(issues.len(), 5);
         assert!(
             issues.iter().all(|i| i.rule_id == "CSS-07"),
@@ -1382,7 +1378,7 @@ mod tests {
         ];
         for value in values {
             let css = format!("[data-el=\"box\"] {{ {value}; }}");
-            let issues = validate_css_stylesheet("styles.css", &css, None);
+            let issues = validate_css_stylesheet("styles.css", &css);
             assert!(
                 issues.iter().any(|i| i.rule_id == "CSS-07"),
                 "Expected CSS-07 for `{value}`, got: {issues:#?}"
@@ -1393,7 +1389,7 @@ mod tests {
     #[test]
     fn banned_construct_inside_function_is_refused() {
         let css = r#"[data-el="box"] { width: calc(expression(alert(1))); }"#;
-        let issues = validate_css_stylesheet("styles.css", css, None);
+        let issues = validate_css_stylesheet("styles.css", css);
         assert!(
             issues.iter().any(|i| i.rule_id == "CSS-05"),
             "Got: {issues:#?}"
@@ -1408,7 +1404,7 @@ mod tests {
             [data-el="box"] { color: rgb(0 0 0 / 50%); }
             [data-el="box"] { background: url(images/a.png); }
         "#;
-        let issues = validate_css_stylesheet("styles.css", css, None);
+        let issues = validate_css_stylesheet("styles.css", css);
         assert!(issues.is_empty(), "Expected 0 issues, got: {issues:#?}");
     }
 
@@ -1420,14 +1416,14 @@ mod tests {
             [data-el="box"] { font-family: local("Inter"), url("fonts/x.woff2"); }
             [data-el="box"] { --label: var(--x, "note:1"); }
         "#;
-        let issues = validate_css_stylesheet("styles.css", css, None);
+        let issues = validate_css_stylesheet("styles.css", css);
         assert!(issues.is_empty(), "Expected 0 issues, got: {issues:#?}");
     }
 
     #[test]
     fn important_inside_a_function_is_not_a_declaration_flag() {
         let css = "[data-el=\"box\"] { color: var(--a, important); }";
-        let issues = validate_css_stylesheet("styles.css", css, None);
+        let issues = validate_css_stylesheet("styles.css", css);
         assert!(
             issues.iter().all(|i| i.rule_id != "CSS-01"),
             "Got: {issues:#?}"
@@ -1437,7 +1433,7 @@ mod tests {
     #[test]
     fn a_url_in_a_curly_block_is_refused() {
         let css = "[data-el=\"box\"] { --x: { url(https://evil.example/p.png) }; }";
-        let issues = validate_css_stylesheet("styles.css", css, None);
+        let issues = validate_css_stylesheet("styles.css", css);
         assert!(
             issues.iter().any(|i| i.rule_id == "CSS-07"),
             "Got: {issues:#?}"
@@ -1449,7 +1445,7 @@ mod tests {
         let open = "(".repeat(200);
         let close = ")".repeat(200);
         let css = format!("[data-el=\"box\"] {{ color: {open}a{close}; }}");
-        let issues = validate_css_stylesheet("styles.css", &css, None);
+        let issues = validate_css_stylesheet("styles.css", &css);
         assert!(
             issues.iter().any(|i| i.rule_id == "CSS-01"),
             "Got: {issues:#?}"
@@ -1459,7 +1455,7 @@ mod tests {
     #[test]
     fn test_css_08_file_size_exceeded() {
         let large_css = "a".repeat(262_145);
-        let issues = validate_css_stylesheet("styles.css", &large_css, None);
+        let issues = validate_css_stylesheet("styles.css", &large_css);
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].rule_id, "CSS-08");
     }
@@ -1477,11 +1473,11 @@ mod tests {
             ),
         ];
         for (nested, flat) in pairs {
-            let nested_ids: Vec<String> = validate_css_stylesheet("styles.css", nested, None)
+            let nested_ids: Vec<String> = validate_css_stylesheet("styles.css", nested)
                 .iter()
                 .map(|i| i.rule_id.clone())
                 .collect();
-            let flat_ids: Vec<String> = validate_css_stylesheet("styles.css", flat, None)
+            let flat_ids: Vec<String> = validate_css_stylesheet("styles.css", flat)
                 .iter()
                 .map(|i| i.rule_id.clone())
                 .collect();
@@ -1497,7 +1493,7 @@ mod tests {
     fn a_url_inside_nested_rules_is_refused() {
         let css =
             r#"[data-el="b"] { [data-el="c"] { .x { background: url(https://evil/p.png) } } }"#;
-        let issues = validate_css_stylesheet("styles.css", css, None);
+        let issues = validate_css_stylesheet("styles.css", css);
         assert!(
             issues.iter().any(|i| i.rule_id == "CSS-07"),
             "Got: {issues:#?}"
@@ -1507,14 +1503,14 @@ mod tests {
     #[test]
     fn a_legitimate_nested_rule_passes() {
         let css = r#"[data-el="x"] { &:hover { color: var(--accent); } }"#;
-        let issues = validate_css_stylesheet("styles.css", css, None);
+        let issues = validate_css_stylesheet("styles.css", css);
         assert!(issues.is_empty(), "Expected 0 issues, got: {issues:#?}");
     }
 
     #[test]
     fn nested_rules_deeper_than_the_limit_are_refused() {
         let css = format!("{}{}", "[data-el=\"b\"] {".repeat(40), "}".repeat(40));
-        let issues = validate_css_stylesheet("styles.css", &css, None);
+        let issues = validate_css_stylesheet("styles.css", &css);
         assert!(
             issues.iter().any(|i| i.rule_id == "CSS-01"),
             "Got: {issues:#?}"
@@ -1524,7 +1520,7 @@ mod tests {
     #[test]
     fn a_nested_block_without_a_selector_is_refused() {
         let css = r#"[data-el="b"] { { color: red; } }"#;
-        let issues = validate_css_stylesheet("styles.css", css, None);
+        let issues = validate_css_stylesheet("styles.css", css);
         assert!(
             issues.iter().any(|i| i.rule_id == "CSS-01"),
             "Got: {issues:#?}"
@@ -1548,7 +1544,7 @@ mod tests {
             ),
         ];
         for (css, expected) in cases {
-            let issues = validate_css_stylesheet("styles.css", css, None);
+            let issues = validate_css_stylesheet("styles.css", css);
             assert!(
                 issues.iter().any(|i| i.rule_id == expected),
                 "Expected {expected} for `{css}`, got: {issues:#?}"
@@ -1559,14 +1555,14 @@ mod tests {
     #[test]
     fn declarations_in_a_media_rule_inside_a_style_rule_pass() {
         let css = r#"[data-el="x"] { @media (max-width: 600px) { color: var(--accent); } }"#;
-        let issues = validate_css_stylesheet("styles.css", css, None);
+        let issues = validate_css_stylesheet("styles.css", css);
         assert!(issues.is_empty(), "Expected 0 issues, got: {issues:#?}");
     }
 
     #[test]
     fn a_statement_without_a_colon_is_a_bad_declaration() {
         let css = r#"[data-el="b"] { color red; }"#;
-        let issues = validate_css_stylesheet("styles.css", css, None);
+        let issues = validate_css_stylesheet("styles.css", css);
         assert_eq!(issues.len(), 1, "Got: {issues:#?}");
         assert_eq!(issues[0].rule_id, "CSS-01");
         assert!(
@@ -1584,7 +1580,7 @@ mod tests {
         }
         css.push_str(&" } }".repeat(20));
         css.push('}');
-        let issues = validate_css_stylesheet("styles.css", &css, None);
+        let issues = validate_css_stylesheet("styles.css", &css);
         let depth: Vec<&ValidationIssue> = issues
             .iter()
             .filter(|i| i.message.contains("Nesting depth"))
@@ -1678,7 +1674,7 @@ mod tests {
         let missing: Vec<&str> = cases
             .into_iter()
             .filter(|(css, rule_id, fragment)| {
-                validate_css_stylesheet("styles.css", css, None)
+                validate_css_stylesheet("styles.css", css)
                     .iter()
                     .filter(|i| i.rule_id == *rule_id && i.message.contains(fragment))
                     .count()
