@@ -5,7 +5,7 @@ import { openWorkshopInSteam } from "@/lib/tauri";
 import { useModFilterStore, type ModFilterEntry } from "@/stores/mod-filter-store";
 import { useElementContext } from "./context";
 import { OptionIcon } from "./option-icon";
-import { hashHue, initials } from "./mod-thumbnail";
+import { GeneratedThumbnail } from "./mod-thumbnail";
 import { formatElementTime } from "./element-utils";
 import type { ElementNode } from "../renderer/types";
 
@@ -65,18 +65,7 @@ function WorkshopModThumbnail({ className, style }: { className?: string; style?
       {entry.previewUrl ? (
         <img data-part="image" src={entry.previewUrl} alt="" loading="lazy" draggable={false} className="h-full w-full object-cover" />
       ) : (
-        (() => {
-          const hue = hashHue(entry.id);
-          return (
-            <span
-              data-part="initials"
-              className="flex h-full w-full items-center justify-center font-extrabold text-white/85"
-              style={{ background: `linear-gradient(135deg, hsl(${hue} 42% 32%), hsl(${(hue + 42) % 360} 48% 20%))` }}
-            >
-              {initials(entry.title)}
-            </span>
-          );
-        })()
+        <GeneratedThumbnail id={entry.id} title={entry.title} data-part="initials" />
       )}
     </span>
   );
