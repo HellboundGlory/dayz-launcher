@@ -92,7 +92,7 @@ try {
 
 ## Perf
 
-`npm run perf` measures the SPEC §24 budgets in a prod harness build at
+`npm run harness:perf` measures the SPEC §24 budgets in a prod harness build at
 1400×800: servers-list scroll at 27,000 rows (Tactical and Neutral), theme
 activation apply-to-first-paint, the fallback visibility check, and the
 Tactical-vs-Neutral JS heap. It prints a pass/fail table, writes
@@ -111,8 +111,8 @@ with the list already rendered.
 
 ## Visual baselines
 
-`npm run visual` records the scenario matrix into `tools/harness/baselines/`.
-`npm run visual:check` shoots the same matrix into `tools/harness/.out/visual`,
+`npm run harness:visual` records the scenario matrix into `tools/harness/baselines/`.
+`npm run harness:visual:check` shoots the same matrix into `tools/harness/.out/visual`,
 compares each shot with pixelmatch (`threshold: 0.1`, `includeAA: false`), writes
 `<shot>.diff.png` next to every mismatch, prints the table of results and
 exits 1 on any differing pixel or missing baseline. Both are local only —

@@ -296,7 +296,12 @@ async function settle(quietMs = 100, cap = 3000) {
   await waitUntil(() => performance.now() - last >= quietMs, "a DOM that stops changing", cap, 20);
   observer.disconnect();
   await Promise.all([...document.images].map((img) => img.decode().catch(() => {})));
-  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  await nextPaint();
+}
+
+/** Resolves on the frame after the next repaint. */
+function nextPaint(): Promise<void> {
+  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 }
 
 async function runScenario() {
@@ -392,9 +397,7 @@ harness.missing = missing;
 // frame after the repaint, so the perf harness can time apply-to-first-paint.
 harness.activate = async (id: string) => {
   await useThemeStore.getState().pickTheme(id);
-  const painted = Promise.withResolvers<void>();
-  requestAnimationFrame(() => requestAnimationFrame(() => painted.resolve()));
-  await painted.promise;
+  await nextPaint();
 };
 
 // Why each screen fell back, keyed by layout file.

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// `npm run perf` — the SPEC §24 performance budgets, measured in the headless
+// `npm run harness:perf` — the SPEC §24 performance budgets, measured in the headless
 // harness (see README.md). Headless Chromium is not the WebKitGTK build the
 // launcher ships, so these numbers are indicative, not release figures.
 import { mkdir, writeFile } from "node:fs/promises";
