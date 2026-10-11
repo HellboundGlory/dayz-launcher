@@ -212,13 +212,13 @@ describe("ModsRefresh", () => {
   });
 });
 
-describe("ModsVerifyMenu", () => {
+describe("ModsActionMenu", () => {
   it("renders the open menu through the theme's popup file", async () => {
-    const { ModsVerifyMenu } = await import("./mods-toolbar-elements");
+    const { ModsActionMenu } = await import("./mods-toolbar-elements");
     ownedLayouts["layout/popups/modsVerify.json"] = { schemaVersion: 1, root: { type: "stack", children: [] } };
     popupState.forceOpen = true;
     try {
-      const html = renderToStaticMarkup(<ModsVerifyMenu />);
+      const html = renderToStaticMarkup(<ModsActionMenu kind="verify" />);
       expect(html).toContain('data-popup-host=""');
       expect(html).not.toContain('data-el="mods.verifyAll"');
     } finally {

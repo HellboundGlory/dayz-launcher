@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ModReadinessEntry, ServerModReadiness, Server } from "@/types/server";
 import { useServerStore } from "@/stores/server-store";
 import { computeReadinessView, ServerDownloadSize, ServerReadiness } from "./readiness-elements";
-import { useSelectionReadiness } from "./use-selection-readiness";
+import { useServerReadiness } from "./use-server-readiness";
 import { ElementContextProvider } from "./context";
 
 // SSR takes zustand's initial-state snapshot, so route the hook through the live state.
@@ -16,9 +16,9 @@ vi.mock("@/stores/server-store", async (importOriginal) => {
   return { ...actual, useServerStore: liveHook(actual.useServerStore) };
 });
 
-vi.mock("./use-selection-readiness", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./use-selection-readiness")>()),
-  useSelectionReadiness: vi.fn(),
+vi.mock("./use-server-readiness", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./use-server-readiness")>()),
+  useServerReadiness: vi.fn(),
 }));
 
 const mod = (overrides: Partial<ModReadinessEntry>): ModReadinessEntry => ({
@@ -37,7 +37,7 @@ const mod = (overrides: Partial<ModReadinessEntry>): ModReadinessEntry => ({
 const readiness = (mods: ModReadinessEntry[], stale = false): ServerModReadiness => ({ stale, mods });
 
 function setReadiness(value: ServerModReadiness | null, loading: boolean) {
-  vi.mocked(useSelectionReadiness).mockReturnValue({ readiness: value, loading });
+  vi.mocked(useServerReadiness).mockReturnValue({ readiness: value, loading });
 }
 
 describe("computeReadinessView", () => {

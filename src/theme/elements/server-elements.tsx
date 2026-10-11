@@ -20,8 +20,9 @@ import type { Server } from "@/types/server";
 import { cn, formatBytes, formatMultiplier, gameTimeParts, regionName } from "@/lib/utils";
 import { useElementContext } from "./context";
 import { useServerActions, phaseLabel } from "@/hooks/use-server-actions";
-import { isOutstandingMod, useFetchesReadiness, useSelectionReadiness } from "./use-selection-readiness";
+import { isOutstandingMod, useFetchesReadiness, useServerReadiness } from "./use-server-readiness";
 import { useServerStore } from "@/stores/server-store";
+import { useLaunchStore } from "@/stores/launch-store";
 import { invalidateReadiness, setCachedReadiness } from "@/stores/readiness-store";
 import {
   toggleFavourite as toggleFavouriteRemote,
@@ -403,7 +404,7 @@ function ServerJoinIdleFetched({
   className?: string;
   style?: CSSProperties;
 }) {
-  const { readiness } = useSelectionReadiness(server);
+  const { readiness } = useServerReadiness(server);
   const outstanding = readiness?.mods.some(isOutstandingMod) ?? false;
   const needsMods = server.modded && (pending || outstanding);
 
@@ -784,7 +785,7 @@ export function ServerManageMods({
 }) {
   const { onViewChange } = useElementContext();
   const server = useServerSubject();
-  const { readiness, loading } = useSelectionReadiness(server);
+  const { readiness, loading } = useServerReadiness(server);
   if (!server) return null;
 
   const display = (options?.display as string) ?? "iconLabel";
@@ -1225,7 +1226,7 @@ export function ServerCopyAddress({
   const server = useServerSubject();
   const [copied, setCopied] = useState(false);
   const { popupId, close } = usePopupContext();
-  const { setNotice } = useServerActions();
+  const setNotice = useLaunchStore((s) => s.setNotice);
   if (!server) return null;
 
   const display = (options?.display as string | undefined) ?? "iconLabel";
@@ -1241,9 +1242,9 @@ export function ServerCopyAddress({
         setCopied(true);
         setTimeout(() => setCopied(false), COPY_ADDRESS_RESET_MS);
         // The popup is gone, so its copied state can't show; say it in the server's notice.
-        if (popupId) setNotice({ kind: "plain", text: "Address copied" }, server.addr);
+        if (popupId) setNotice(server.addr, { kind: "plain", text: "Address copied" });
       })
-      .catch((err) => setNotice({ kind: "plain", text: String(err) }, server.addr));
+      .catch((err) => setNotice(server.addr, { kind: "plain", text: String(err) }));
   };
 
   return (

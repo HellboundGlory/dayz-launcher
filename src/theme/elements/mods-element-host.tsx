@@ -34,6 +34,7 @@ import {
 } from "./mod-elements";
 import { ModsListHost, ModServersListHost } from "./list-elements";
 import {
+  ModsActionMenu,
   ModsCleanupRemoved,
   ModsClearSelection,
   ModsCount,
@@ -43,12 +44,10 @@ import {
   ModsStatusFilter,
   ModsUnsubscribe,
   ModsUnsubscribeAll,
-  ModsUnsubscribeMenu,
   ModsUnsubscribeSelected,
   ModsUpdateOutdated,
   ModsVerify,
   ModsVerifyAll,
-  ModsVerifyMenu,
   ModsVerifySelected,
 } from "./mods-toolbar-elements";
 
@@ -202,7 +201,7 @@ export function renderModsElement(
     case "mods.unsubscribe":
       return <ModsUnsubscribe options={node.options} className={className} style={style} />;
     case "mods.unsubscribeMenu":
-      return <ModsUnsubscribeMenu options={node.options} className={className} style={style} />;
+      return <ModsActionMenu kind="unsubscribe" options={node.options} className={className} style={style} />;
     case "mods.unsubscribeSelected":
       return <ModsUnsubscribeSelected options={node.options} className={className} style={style} />;
     case "mods.unsubscribeAll":
@@ -210,7 +209,7 @@ export function renderModsElement(
     case "mods.verify":
       return <ModsVerify options={node.options} className={className} style={style} />;
     case "mods.verifyMenu":
-      return <ModsVerifyMenu options={node.options} className={className} style={style} />;
+      return <ModsActionMenu kind="verify" options={node.options} className={className} style={style} />;
     case "mods.verifySelected":
       return <ModsVerifySelected options={node.options} className={className} style={style} />;
     case "mods.verifyAll":

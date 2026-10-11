@@ -5,6 +5,7 @@ import type { Server } from "@/types/server";
 import type { ModReadinessEntry, ServerModReadiness } from "@/types/server";
 import { formatBytes, formatGameTime } from "@/lib/utils";
 import { useServerStore } from "@/stores/server-store";
+import { useLaunchStore } from "@/stores/launch-store";
 import { useRowProbeStore } from "./row-probe-store";
 import { useThemeStore } from "../theme-store";
 import type { ThemeFile } from "@/types/theme";
@@ -101,9 +102,9 @@ vi.mock("@/hooks/use-server-actions", () => ({
   phaseLabel: (op: { note: string | null }) => op.note ?? "DOWNLOADING…",
 }));
 
-vi.mock("./use-selection-readiness", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./use-selection-readiness")>()),
-  useSelectionReadiness: vi.fn(),
+vi.mock("./use-server-readiness", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./use-server-readiness")>()),
+  useServerReadiness: vi.fn(),
 }));
 
 const askConfirmCalls: { title: string; message: string; action: () => void }[] = [];
@@ -165,8 +166,8 @@ const mod = (overrides: Partial<ModReadinessEntry>): ModReadinessEntry => ({
 const readiness = (mods: ModReadinessEntry[], stale = false): ServerModReadiness => ({ stale, mods });
 
 async function setReadiness(value: ServerModReadiness | null, loading: boolean) {
-  const { useSelectionReadiness } = await import("./use-selection-readiness");
-  vi.mocked(useSelectionReadiness).mockReturnValue({ readiness: value, loading });
+  const { useServerReadiness } = await import("./use-server-readiness");
+  vi.mocked(useServerReadiness).mockReturnValue({ readiness: value, loading });
 }
 
 function render(node: ReactNode, value?: Partial<ElementContextValue>): string {
@@ -855,6 +856,7 @@ describe("ServerCopyAddress", () => {
   beforeEach(async () => {
     const { copyServerAddress } = await import("@/lib/tauri");
     vi.mocked(copyServerAddress).mockResolvedValue(undefined);
+    useLaunchStore.setState({ notice: null });
   });
 
   it("reads 'Copy address' by default, and the label option when given", () => {
@@ -898,10 +900,10 @@ describe("ServerCopyAddress", () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(mockServerActions.setNotice).toHaveBeenCalledWith(
-      { kind: "plain", text: "Error: clipboard denied" },
-      server.addr,
-    );
+    expect(useLaunchStore.getState().notice).toEqual({
+      addr: server.addr,
+      notice: { kind: "plain", text: "Error: clipboard denied" },
+    });
   });
 });
 
