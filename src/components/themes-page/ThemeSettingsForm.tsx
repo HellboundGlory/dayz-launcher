@@ -133,7 +133,7 @@ export function ThemeSettingsForm({ id, fields }: { id: string; fields: Settings
                 id={`theme-setting-${field.id}`}
                 value={current(field) as string}
                 onChange={(e) => void setSettingsValue(id, field.id, e.target.value)}
-                className="flex-1 rounded-sm border border-line bg-surface px-2 py-1 [font-size:var(--t-type-body-size)] text-ink accent-accent"
+                className="flex-1 [border-radius:var(--t-radius-controlSmall)] border border-line bg-surface px-2 py-1 [font-size:var(--t-type-body-size)] text-ink accent-accent"
               >
                 {field.options.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -172,7 +172,7 @@ export function ThemeSettingsForm({ id, fields }: { id: string; fields: Settings
                       void setSettingsValue(id, field.id, next);
                     });
                   }}
-                  className="size-6 cursor-pointer rounded-sm border-0 bg-transparent p-0"
+                  className="size-6 cursor-pointer [border-radius:var(--t-radius-controlSmall)] border-0 bg-transparent p-0"
                 />
                 <input
                   type="text"
@@ -188,7 +188,7 @@ export function ThemeSettingsForm({ id, fields }: { id: string; fields: Settings
                   onBlur={() => {
                     if (timers.current[field.id] === undefined) clearDraft(field.id);
                   }}
-                  className="w-24 rounded-sm border border-line bg-surface px-2 py-1 font-mono-data [font-size:var(--t-type-caption-size)] text-ink"
+                  className="w-24 [border-radius:var(--t-radius-controlSmall)] border border-line bg-surface px-2 py-1 font-mono-data [font-size:var(--t-type-caption-size)] text-ink"
                 />
               </div>
             </div>

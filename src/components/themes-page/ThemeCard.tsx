@@ -103,7 +103,7 @@ export function ThemeCard({
           {active && (
             <span
               aria-hidden
-              className="size-1.5 shrink-0 rounded-full bg-success ring-2 ring-success-soft"
+              className="size-1.5 shrink-0 [border-radius:var(--t-radius-pill)] bg-success ring-2 ring-success-soft"
             />
           )}
           <p className="truncate [font-size:var(--t-type-body-size)] font-bold text-ink" title={name}>
