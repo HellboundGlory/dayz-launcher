@@ -197,7 +197,10 @@ pub(super) fn validate(
         .and_then(|schema| super::settings::extract_settings_combinations(schema).ok())
         .unwrap_or_else(|| vec![HashMap::new()]);
     // Every combination holds every boolean and choice id.
-    let discrete: HashSet<&str> = combinations[0].keys().map(String::as_str).collect();
+    let discrete: HashSet<&str> = combinations
+        .first()
+        .map(|values| values.keys().map(String::as_str).collect())
+        .unwrap_or_default();
     for (file, layout) in &layouts {
         for root in &layout.roots {
             if let Some(value) = root.value {

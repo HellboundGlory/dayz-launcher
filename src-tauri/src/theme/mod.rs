@@ -263,8 +263,8 @@ pub(crate) fn read_and_validate_layouts(
 }
 
 /// `parsed` split into the layouts that render and the ones that fall back: an
-/// `Error` issue is kept as a fallback reason and removes the file it names
-/// when that file is in the map. Warnings remove nothing and are dropped.
+/// `Error` issue naming a layout file is kept as a fallback reason and removes
+/// that file when it is in the map. Warnings remove nothing and are dropped.
 fn fall_back_broken_layouts(
     parsed: HashMap<String, Value>,
     issues: Vec<ValidationIssue>,
@@ -272,7 +272,7 @@ fn fall_back_broken_layouts(
     let mut fallbacks = Vec::new();
     let mut broken = HashSet::new();
     for issue in issues {
-        if issue.severity == Severity::Error {
+        if issue.severity == Severity::Error && issue.file.starts_with("layout/") {
             broken.insert(issue.file.clone());
             fallbacks.push(issue);
         }
