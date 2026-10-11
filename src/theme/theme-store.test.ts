@@ -24,7 +24,7 @@ import type { ThemeFile, ThemeSettings, ThemeSummary, ValidationIssue } from "@/
 import { NEUTRAL_TOKENS, parseTokens } from "./tokens";
 import { getNeutralLayout } from "./neutral";
 import type { LayoutFile } from "./renderer/types";
-import { nextDuplicateName } from "@/components/themes-page/ThemeGrid";
+import { nextDuplicateName } from "@/components/themes-page/theme-grid";
 
 const backend = vi.hoisted(() => ({
   /** What `migrate_legacy_custom_themes` reports back, one entry per input theme. */

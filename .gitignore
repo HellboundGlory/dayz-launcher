@@ -16,13 +16,10 @@ tetra.db-wal
 *.log
 
 
-# UI overhaul screenshots — not committed
-screenshots/
-
 # Harness scratch output (prod build, server logs) — regenerable
 /tools/harness/.out/
 
-# Visual baselines — regenerable with `npm run visual`
+# Visual baselines — regenerable with `npm run harness:visual`
 /tools/harness/baselines/
 
 # Backend deployment secrets — holds the Steam Web API key

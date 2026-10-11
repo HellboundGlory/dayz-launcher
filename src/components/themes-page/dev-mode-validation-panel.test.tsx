@@ -4,7 +4,7 @@ import {
   clampPanelPosition,
   DevModeValidationPanelView,
   type DevModeValidationPanelViewProps,
-} from "./DevModeValidationPanel";
+} from "./dev-mode-validation-panel";
 import type { ValidationIssue } from "@/types/theme";
 
 const BASE_PROPS: DevModeValidationPanelViewProps = {

@@ -15,7 +15,7 @@ import { parseTokens, resolveTokens } from "@/theme/tokens";
 import { useDevStore } from "@/theme/dev/dev-store";
 import { useFallbackStore } from "@/theme/fallback/store";
 import type { ValidationIssue } from "@/types/theme";
-import { DevModeSwitcher } from "./DevModeSwitcher";
+import { DevModeSwitcher } from "./dev-mode-switcher";
 
 type CopyState = { key: string; status: "copied" | "failed" } | null;
 

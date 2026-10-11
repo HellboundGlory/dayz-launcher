@@ -7,7 +7,7 @@ import { resolveThemeAsset } from "@/theme/asset-resolver";
 import { resolvedPair } from "@/theme/theme-store";
 import type { ManifestOverrides, ThemeFile } from "@/types/theme";
 import { capabilityLabels, type Capability } from "./capability-labels";
-import { CapabilityBadge } from "./ImportThemeDialog";
+import { CapabilityBadge } from "./import-theme-dialog";
 
 interface ExportThemeDialogProps {
   id: string;

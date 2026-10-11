@@ -6,7 +6,7 @@
  * for, so these are exercised directly. */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isHexColor } from "@/theme/settings-schema";
-import { scheduleCommit, stepFor, type CommitTimers } from "./ThemeSettingsForm";
+import { scheduleCommit, stepFor, type CommitTimers } from "./theme-settings-form";
 
 describe("isHexColor", () => {
   it.each(["#ff0000", "#AbCdEf"])("accepts the complete hex %j", (value) => {

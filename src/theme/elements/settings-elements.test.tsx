@@ -53,7 +53,7 @@ vi.mock("@/lib/tauri", () => ({
   openDataFolder: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock("@/components/themes-page/ThemesSection", () => ({
+vi.mock("@/components/themes-page/themes-section", () => ({
   ThemesSection: ({ devMode }: { devMode: boolean }) => (
     <div data-mock="ThemesSection" data-dev-mode={String(devMode)} />
   ),

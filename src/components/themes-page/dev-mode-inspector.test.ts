@@ -1,7 +1,7 @@
 /** The hover-target walk: from a pointer target up to the nearest element the
  * theming system has tagged, which is what the inspector outlines. */
 import { describe, expect, it } from "vitest";
-import { findTetraNode, selectorFor, type TetraNode } from "./DevModeInspector";
+import { findTetraNode, selectorFor, type TetraNode } from "./dev-mode-inspector";
 
 /** Only the attribute/parent surface the walk touches, so these stay in the
  * default node environment. */

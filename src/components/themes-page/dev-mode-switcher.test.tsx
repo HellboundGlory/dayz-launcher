@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { DevModeSwitcher, DevModeSwitcherView, type DevModeSwitcherViewProps } from "./DevModeSwitcher";
+import { DevModeSwitcher, DevModeSwitcherView, type DevModeSwitcherViewProps } from "./dev-mode-switcher";
 import type { ThemeFile } from "@/types/theme";
 import type { LayoutFile } from "@/theme/renderer/types";
 

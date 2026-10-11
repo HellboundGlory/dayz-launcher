@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ThemeCard } from "./ThemeCard";
+import { ThemeCard } from "./theme-card";
 
 const SWATCHES: [string, string, string, string] = ["#000", "#111", "#222", "#333"];
 
