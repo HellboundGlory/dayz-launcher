@@ -13,21 +13,12 @@ export default defineConfig({
   server: {
     strictPort: true,
   },
-  envPrefix: [
-    "VITE_",
-    "TAURI_PLATFORM",
-    "TAURI_ARCH",
-    "TAURI_FAMILY",
-    "TAURI_PLATFORM_VERSION",
-    "TAURI_PLATFORM_TYPE",
-    "TAURI_DEBUG",
-  ],
   build: {
-    target: process.env.TAURI_PLATFORM == "windows" ? "chrome105" : "safari13",
-    minify: !process.env.TAURI_DEBUG ? "esbuild" : false,
-    sourcemap: !!process.env.TAURI_DEBUG,
+    target: process.env.TAURI_ENV_PLATFORM === "windows" ? "chrome105" : "safari13",
+    minify: !process.env.TAURI_ENV_DEBUG,
+    sourcemap: !!process.env.TAURI_ENV_DEBUG,
     // Each separate window (splash, theme-guard) gets its own entry alongside index.html.
-    rollupOptions: {
+    rolldownOptions: {
       input: {
         main: path.resolve(import.meta.dirname, "index.html"),
         splash: path.resolve(import.meta.dirname, "splash.html"),
