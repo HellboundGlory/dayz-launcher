@@ -53,16 +53,16 @@
     --surface: #12151b;
     --surface2: #1a1e26;
     --border: #262b34;
-    --border-weak: #1f232c;
+    --border-weak: rgba(231, 235, 240, 0.1);
     --text: #e7ebf0;
     --muted: #7a8494;
     --muted2: #98a2b2;
     --muted-soft: rgba(152, 162, 178, 0.12);
     --accent: #8fa3bd;
-    --accent-soft: rgba(143, 163, 189, 0.14);
+    --accent-soft: rgba(143, 163, 189, 0.16);
     --accent-line: rgba(143, 163, 189, 0.4);
     --accent2: #b0976a;
-    --accent2-soft: rgba(176, 151, 106, 0.14);
+    --accent2-soft: rgba(176, 151, 106, 0.16);
     --accent2-line: rgba(176, 151, 106, 0.4);
     --success: #4d9a75;
     --success-soft: rgba(77, 154, 117, 0.14);
@@ -73,7 +73,7 @@
     --danger: #b3564d;
     --danger-soft: rgba(179, 86, 77, 0.15);
     --danger-line: rgba(179, 86, 77, 0.4);
-    --row-hover: rgba(152, 162, 178, 0.06);
+    --row-hover: rgba(231, 235, 240, 0.06);
     --row-selected: rgba(143, 163, 189, 0.11);
     /* Static fallback at the default bloom (0.9) — literal px because the
        `calc(var(--bloom) * Npx)` multiplication isn't supported on every engine
