@@ -71,7 +71,7 @@ pub struct AppSettings {
     /// Interface scale, applied as a webview zoom factor. Defaults to 1.25
     /// (100% was too small to read comfortably). Adjustable from the status bar slider.
     pub ui_scale: f64,
-    /// Seconds between automatic refreshes of the visible rows. `0` is off.
+    /// Seconds between automatic refreshes of the first 5,000 servers in the list. `0` is off.
     pub auto_refresh_interval_secs: u64,
     /// Register the launcher to start when Windows does. Applied by
     /// `apply_autostart`; the OS registry is the authority, this is the intent.

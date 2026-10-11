@@ -19,7 +19,7 @@ export interface AppSettings {
   minimiseToTray: boolean;
   /** Interface scale, applied as a webview zoom factor (keeps layout/scroll coordinates in one space). */
   uiScale: number;
-  /** Seconds between automatic refreshes of the visible rows. `0` is off. */
+  /** Seconds between automatic refreshes of the first 5,000 servers in the list. `0` is off. */
   autoRefreshIntervalSecs: number;
   /** Register the launcher to start with Windows. No-op in debug builds — test against a release build. */
   startWithWindows: boolean;
@@ -55,7 +55,7 @@ const defaults: AppSettings = {
   // `load()` returns — the file is the authority.
   uiScale: 1.25,
   // 60 s — matches the Rust default. Pings are per-user (the index carries
-  // none), so a minute after load the rows on screen have numbers.
+  // none), so a minute after load the top rows have numbers.
   autoRefreshIntervalSecs: 60,
   startWithWindows: false,
   startMinimised: false,

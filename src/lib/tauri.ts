@@ -271,7 +271,7 @@ export interface AppSettingsDto {
   minimiseToTray: boolean;
   /** Interface scale, as a webview zoom factor. 1.0–1.5. */
   uiScale: number;
-  /** Seconds between automatic refreshes of the visible rows. `0` is off. */
+  /** Seconds between automatic refreshes of the first 5,000 servers in the list. `0` is off. */
   autoRefreshIntervalSecs: number;
   /** Register the launcher to start with Windows. No-op in debug builds. */
   startWithWindows: boolean;
