@@ -278,10 +278,28 @@
     --z-dev-inspector: 400;
   }
 
+  /* An open popup is placed against the window, so no ancestor may become its containing block. Important
+     because theme CSS is unlayered. transform sits apart from the rule below: the minifier folds it with
+     translate/rotate/scale into a real transform when they share a block or sit next to each other. */
+  [data-popup-ancestor] {
+    transform: none !important;
+  }
+
   /* Modal backdrop and core overlay/accessibility guarantees */
   [data-modal-host] {
     position: fixed;
     inset: 0;
     z-index: var(--z-modal);
+  }
+
+  [data-popup-ancestor] {
+    filter: none !important;
+    backdrop-filter: none !important;
+    translate: none !important;
+    rotate: none !important;
+    scale: none !important;
+    perspective: none !important;
+    will-change: auto !important;
+    contain: none !important;
   }
 }
