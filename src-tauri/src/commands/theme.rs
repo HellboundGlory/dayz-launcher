@@ -101,7 +101,6 @@ fn validate_theme_styles(dir: &Path) -> Result<Vec<ValidationIssue>, String> {
     Ok(validator::validate_css_stylesheet(
         theme::STYLES_FILE,
         &source,
-        None,
     ))
 }
 

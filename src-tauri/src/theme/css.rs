@@ -4,7 +4,7 @@ use crate::theme::validator::css::validate_css_stylesheet;
 
 /// Refuse `source` unless it is a valid stylesheet a theme may serve.
 pub fn validate_css(source: &str) -> Result<(), String> {
-    let issues = validate_css_stylesheet("styles.css", source, None);
+    let issues = validate_css_stylesheet("styles.css", source);
     if let Some(first) = issues.first() {
         Err(format!("[{}] {}", first.rule_id, first.message))
     } else {

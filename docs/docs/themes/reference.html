@@ -836,7 +836,7 @@
               <tr><td>A region or a surface</td><td><code>[data-region="r-detail"]</code>, <code>[data-surface="surface.filterBar"]</code></td></tr>
               <tr><td>A class of your own</td><td><code>.t-detail-rail</code></td></tr>
               <tr><td>Interaction</td><td><code>:hover</code>, <code>:focus</code>, <code>:focus-visible</code>, <code>:active</code>, <code>:disabled</code>, <code>:checked</code></td></tr>
-              <tr><td>Structure</td><td><code>:not()</code>, <code>:is()</code>, <code>:where()</code>, <code>:nth-child()</code>, <code>:first-child</code>, <code>:last-child</code></td></tr>
+              <tr><td>Structure</td><td><code>:not()</code>, <code>:is()</code>, <code>:where()</code>, <code>:nth-child(An+B)</code> (or <code>odd</code> / <code>even</code>), <code>:first-child</code>, <code>:last-child</code></td></tr>
               <tr><td>Generated boxes</td><td><code>::before</code> and <code>::after</code>, with <code>content: ""</code> only</td></tr>
               <tr><td>Combinators</td><td>Descendant, <code>&gt;</code>, <code>+</code>, <code>~</code></td></tr>
               <tr><td>Scrollbars and sliders</td><td><code>::-webkit-scrollbar</code>, <code>::-webkit-scrollbar-thumb</code>, <code>::-webkit-scrollbar-track</code>, <code>::-webkit-scrollbar-corner</code>, <code>::-webkit-slider-thumb</code>, <code>::-webkit-slider-runnable-track</code></td></tr>
@@ -859,7 +859,13 @@
           Refused: a type selector (<code>div</code>), an id selector, the universal
           selector, any class that is not one of your own <code>t-[a-z0-9-]+</code>
           names, any other attribute, any other pseudo-class or pseudo-element, and
-          <code>!important</code>.
+          <code>!important</code>. After a space, a pseudo-class such as
+          <code>:hover</code> or <code>:not()</code> must follow something specific
+          (<code>[data-el="x"] [data-part="y"]:hover</code>, not
+          <code>[data-el="x"] :hover</code>); <code>&gt;</code>, <code>+</code> and
+          <code>~</code> are fine. <code>:is()</code> and <code>:where()</code> may follow a
+          space when every selector inside them starts with something specific. A nested rule without
+          <code>&amp;</code> counts as following a space.
         </p>
         <h3>Properties, values and at-rules</h3>
         <p>
@@ -1030,8 +1036,7 @@
               <tr><td><code>SET-03</code></td><td>A number field's bounds are wrong: a bound or default that is not a finite number, a minimum above the maximum, a default outside the bounds, or a step that is not a positive number</td></tr>
               <tr><td><code>SET-04</code></td><td>A boolean, choice or colour field is wrong: a default that is not a boolean, fewer than two options, a missing, duplicated or malformed option value, an option label over 40 characters, a default that matches no option, or a colour default that is not <code>#rrggbb</code></td></tr>
               <tr><td><code>SET-05</code></td><td>The fields expand to more than 64 combinations</td></tr>
-              <tr><td><code>CSS-01</code></td><td>A refused selector or declaration: a type selector, an id selector, the universal selector, a class that is not your own <code>t-</code> name, an attribute, pseudo-class or pseudo-element that is not allowed, or <code>!important</code></td></tr>
-              <tr><td><code>CSS-02</code></td><td>A theme class used in CSS that the theme never declares</td></tr>
+              <tr><td><code>CSS-01</code></td><td>A refused selector or declaration: a type selector, an id selector, the universal selector, a class that is not your own <code>t-</code> name, an attribute, pseudo-class or pseudo-element that is not allowed, a pseudo-class right after a space, an <code>:nth-child()</code> argument that is not An+B, or <code>!important</code></td></tr>
               <tr><td><code>CSS-03</code></td><td>A malformed theme class name — in particular one that is not <code>t-</code> followed by lowercase letters, digits and hyphens</td></tr>
               <tr><td><code>CSS-04</code></td><td><code>z-index</code> and <code>--z-*</code> are refused</td></tr>
               <tr><td><code>CSS-05</code></td><td>A refused value: one of the banned constructs, or <code>content</code> with anything other than <code>""</code></td></tr>
