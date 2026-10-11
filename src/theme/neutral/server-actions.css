@@ -12,7 +12,7 @@
   }
 
   .t-neutral-servers-menu-item {
-    @apply flex w-full items-center gap-2 [border-radius:var(--t-radius-popupItem)] px-2.5 py-[7px] text-left [font-size:var(--t-type-body-size)] font-semibold text-ink transition-colors hover:bg-accent-soft hover:text-accent disabled:cursor-not-allowed disabled:opacity-40;
+    @apply flex w-full items-center gap-2 [border-radius:var(--t-radius-popupItem)] px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] text-left [font-size:var(--t-type-body-size)] font-semibold text-ink transition-colors hover:bg-accent-soft hover:text-accent disabled:cursor-not-allowed disabled:opacity-40;
   }
 
   .t-neutral-servers-menu-item [data-part="icon"] {

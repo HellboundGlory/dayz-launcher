@@ -12,7 +12,7 @@
   }
 
   .t-neutral-browser-search {
-    @apply flex min-w-[var(--t-space-searchMinWidth)] flex-1 items-center gap-[var(--t-space-inlineGap)] [border-radius:var(--t-radius-input)] border border-line bg-surface2 px-[var(--t-space-controlSmallX)] py-[var(--t-space-controlCompactY)];
+    @apply flex min-w-[var(--t-space-searchMinWidth)] flex-1 items-center gap-[var(--t-space-inlineGap)] [border-radius:var(--t-radius-input)] border border-line bg-surface2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)];
   }
 
   .t-neutral-browser-search [data-part="icon"],

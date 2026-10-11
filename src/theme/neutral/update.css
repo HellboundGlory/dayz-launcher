@@ -20,7 +20,7 @@
   }
 
   .t-neutral-update-close {
-    @apply [border-radius:var(--t-radius-control)] p-1 text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:bg-surface2 hover:text-ink focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-accent;
+    @apply [border-radius:var(--t-radius-control)] px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:bg-surface2 hover:text-ink focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-accent;
   }
 
   .t-neutral-update-close svg {
@@ -170,7 +170,7 @@
 
   .t-neutral-update-later,
   .t-neutral-update-view-release {
-    @apply [border-radius:var(--t-radius-control)] bg-surface2 px-4 py-1.5 [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider text-muted2 ring-1 ring-line transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:text-ink;
+    @apply [border-radius:var(--t-radius-control)] bg-surface2 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider text-muted2 ring-1 ring-line transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:text-ink;
   }
 
   .t-neutral-update-later {
@@ -178,7 +178,7 @@
   }
 
   .t-neutral-update-install {
-    @apply flex items-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-4 py-1.5 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-bg transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:brightness-110 disabled:opacity-50;
+    @apply flex items-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-bg transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:brightness-110 disabled:opacity-50;
   }
 
   .t-neutral-update-view-release {
