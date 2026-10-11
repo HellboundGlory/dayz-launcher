@@ -7,17 +7,22 @@ use super::{Severity, ValidationIssue};
 
 const COMBINATION_CAP: usize = 64;
 
+fn issue(rule: &str, pointer: String, message: &str) -> ValidationIssue {
+    ValidationIssue {
+        rule_id: rule.into(),
+        severity: Severity::Error,
+        file: "settings.schema.json".into(),
+        pointer,
+        message: message.into(),
+        hint: None,
+    }
+}
+
+/// SET-01 to SET-04 per field; SET-05 comes from the resolver, over the fields that pass.
 pub fn validate_settings_schema(value: &Value) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
     let mut report = |rule: &str, pointer: String, message: &str| {
-        issues.push(ValidationIssue {
-            rule_id: rule.into(),
-            severity: Severity::Error,
-            file: "settings.schema.json".into(),
-            pointer,
-            message: message.into(),
-            hint: None,
-        });
+        issues.push(issue(rule, pointer, message));
     };
     if !value.is_object() || value.get("schemaVersion").and_then(Value::as_u64) != Some(2) {
         report(
@@ -31,7 +36,6 @@ pub fn validate_settings_schema(value: &Value) -> Vec<ValidationIssue> {
         return issues;
     };
     let mut ids = HashSet::new();
-    let mut count = 1usize;
     for (index, field) in fields.iter().enumerate() {
         let path = format!("/fields/{index}");
         if !field.is_object() {
@@ -68,7 +72,6 @@ pub fn validate_settings_schema(value: &Value) -> Vec<ValidationIssue> {
         }
         match field.get("type").and_then(Value::as_str) {
             Some("boolean") => {
-                count = count.saturating_mul(2);
                 if !field.get("default").is_some_and(Value::is_boolean) {
                     report(
                         "SET-04",
@@ -80,7 +83,6 @@ pub fn validate_settings_schema(value: &Value) -> Vec<ValidationIssue> {
             Some("choice") => {
                 let mut values = HashSet::new();
                 if let Some(options) = field.get("options").and_then(Value::as_array) {
-                    count = count.saturating_mul(options.len());
                     if options.len() < 2 {
                         report(
                             "SET-04",
@@ -195,13 +197,6 @@ pub fn validate_settings_schema(value: &Value) -> Vec<ValidationIssue> {
             _ => report("SET-01", format!("{path}/type"), "Unknown setting type"),
         }
     }
-    if count > COMBINATION_CAP {
-        report(
-            "SET-05",
-            "/fields".into(),
-            "Settings exceed 64 discrete combinations",
-        );
-    }
     issues
 }
 
@@ -248,6 +243,31 @@ pub struct SettingsOption {
     pub label: String,
 }
 
+impl SettingsField {
+    pub fn id(&self) -> &str {
+        match self {
+            SettingsField::Number { id, .. }
+            | SettingsField::Boolean { id, .. }
+            | SettingsField::Choice { id, .. }
+            | SettingsField::Color { id, .. } => id,
+        }
+    }
+
+    /// The values a `hidden` condition can test, for the fields that are discrete.
+    pub fn discrete_values(&self) -> Option<Vec<Value>> {
+        match self {
+            SettingsField::Boolean { .. } => Some(vec![Value::Bool(false), Value::Bool(true)]),
+            SettingsField::Choice { options, .. } => Some(
+                options
+                    .iter()
+                    .map(|option| Value::String(option.value.clone()))
+                    .collect(),
+            ),
+            SettingsField::Number { .. } | SettingsField::Color { .. } => None,
+        }
+    }
+}
+
 /// One entry of the switcher: every field's value, and the label naming the discrete picks.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct SettingsCombination {
@@ -260,6 +280,8 @@ pub struct ResolvedSettings {
     pub fields: Vec<SettingsField>,
     pub combinations: Vec<SettingsCombination>,
     pub capped: bool,
+    #[serde(skip)]
+    pub dropped: Vec<(String, String)>,
 }
 
 /// The fields a schema declares that pass validation, and the combinations they offer.
@@ -269,32 +291,46 @@ pub fn resolve_settings(schema: &Value) -> ResolvedSettings {
 
 /// [`resolve_settings`] plus the issues the schema check found, for Dev Mode.
 pub fn resolve_settings_with_issues(schema: &Value) -> (ResolvedSettings, Vec<ValidationIssue>) {
-    let issues = validate_settings_schema(schema);
+    let mut issues = validate_settings_schema(schema);
     // Only a field-level issue drops a field; `/schemaVersion` and `/fields` issues leave them alone.
-    let dropped = |index: usize| {
-        let prefix = format!("/fields/{index}");
-        let nested = format!("{prefix}/");
-        issues
-            .iter()
-            .any(|issue| issue.pointer == prefix || issue.pointer.starts_with(&nested))
-    };
-    let fields: Vec<SettingsField> = schema
+    let mut fields = Vec::new();
+    let mut dropped = Vec::new();
+    let raw = schema
         .get("fields")
         .and_then(Value::as_array)
-        .map(|raw| {
-            raw.iter()
-                .enumerate()
-                .filter(|(index, _)| !dropped(*index))
-                .map(|(_, field)| settings_field(field))
-                .collect()
-        })
+        .map(Vec::as_slice)
         .unwrap_or_default();
+    for (index, field) in raw.iter().enumerate() {
+        let prefix = format!("/fields/{index}");
+        let nested = format!("{prefix}/");
+        match issues
+            .iter()
+            .find(|issue| issue.pointer == prefix || issue.pointer.starts_with(&nested))
+        {
+            Some(issue) => {
+                if let Some(id) = field.get("id").and_then(Value::as_str) {
+                    dropped.push((id.to_string(), issue.rule_id.clone()));
+                }
+            }
+            None => fields.push(settings_field(field)),
+        }
+    }
+    // A duplicate id is refused only at its later field; the kept one still works.
+    dropped.retain(|(id, _)| !fields.iter().any(|field| field.id() == id));
     let (combinations, capped) = combinations(&fields);
+    if capped {
+        issues.push(issue(
+            "SET-05",
+            "/fields".into(),
+            "Settings exceed 64 discrete combinations",
+        ));
+    }
     (
         ResolvedSettings {
             fields,
             combinations,
             capped,
+            dropped,
         },
         issues,
     )
@@ -345,35 +381,16 @@ fn combinations(fields: &[SettingsField]) -> (Vec<SettingsCombination>, bool) {
     let mut defaults = serde_json::Map::new();
     let mut discrete: Vec<(&str, Vec<Value>)> = Vec::new();
     for field in fields {
-        let (id, default, values) = match field {
-            SettingsField::Number { id, default, .. } => (id.as_str(), Value::from(*default), None),
-            SettingsField::Boolean { id, default, .. } => (
-                id.as_str(),
-                Value::Bool(*default),
-                Some(vec![Value::Bool(false), Value::Bool(true)]),
-            ),
-            SettingsField::Choice {
-                id,
-                options,
-                default,
-                ..
-            } => (
-                id.as_str(),
-                Value::String(default.clone()),
-                Some(
-                    options
-                        .iter()
-                        .map(|option| Value::String(option.value.clone()))
-                        .collect(),
-                ),
-            ),
-            SettingsField::Color { id, default, .. } => {
-                (id.as_str(), Value::String(default.clone()), None)
+        let default = match field {
+            SettingsField::Number { default, .. } => Value::from(*default),
+            SettingsField::Boolean { default, .. } => Value::Bool(*default),
+            SettingsField::Choice { default, .. } | SettingsField::Color { default, .. } => {
+                Value::String(default.clone())
             }
         };
-        defaults.insert(id.to_string(), default);
-        if let Some(values) = values {
-            discrete.push((id, values));
+        defaults.insert(field.id().to_string(), default);
+        if let Some(values) = field.discrete_values() {
+            discrete.push((field.id(), values));
         }
     }
     let total = discrete.iter().fold(1usize, |total, (_, values)| {
