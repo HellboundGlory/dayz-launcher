@@ -164,7 +164,11 @@
   }
 
   .t-neutral-shell-counts {
-    @apply min-w-0 flex-1 gap-[var(--t-space-inlineGapWide)] [font-family:var(--t-type-family-data)] [font-size:var(--t-type-label-size)] text-muted;
+    @apply min-w-0 flex-1 overflow-hidden gap-[var(--t-space-inlineGapWide)] [font-family:var(--t-type-family-data)] [font-size:var(--t-type-label-size)] text-muted;
+  }
+
+  .t-neutral-shell-count {
+    @apply shrink-0 whitespace-nowrap;
   }
 
   .t-neutral-shell-count:not(:first-child)::before {
