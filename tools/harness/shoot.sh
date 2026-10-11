@@ -11,11 +11,11 @@ HEIGHT=${4:-744}
 SCALE=${HARNESS_SCALE:-1.25}
 PORT=${HARNESS_PORT:-1431}
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-BROWSER=${HARNESS_BROWSER:-$(ls -d "$HOME"/.cache/ms-playwright/chromium_headless_shell-*/chrome-linux/headless_shell 2>/dev/null | tail -1 || true)}
-if [ -z "$BROWSER" ]; then
-  echo "No headless Chromium: run  npx -y playwright install chromium-headless-shell" >&2
-  exit 1
-fi
+BROWSER=$(node -e '
+  import(process.argv[1])
+    .then((m) => m.headlessShellPath())
+    .then(console.log, (e) => { console.error(e.message); process.exit(1); });
+' "$ROOT/tools/harness/driver.mjs") || exit 1
 
 if ! curl -sf "http://localhost:$PORT/tools/harness/index.html" >/dev/null; then
   (cd "$ROOT" && setsid npx vite --port "$PORT" --strictPort >"${TMPDIR:-/tmp}/tetra-harness-vite.log" 2>&1 &)

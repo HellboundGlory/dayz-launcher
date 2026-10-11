@@ -110,3 +110,9 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Install headless Chromium
+        run: npx playwright-core install --with-deps chromium-headless-shell
+
+      - name: UI harness smoke
+        run: npm run harness:smoke
