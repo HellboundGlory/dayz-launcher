@@ -47,7 +47,7 @@ export function ThemeCard({
   onRequestDelete,
   incompatible,
   incompatibleReason,
-}: ThemeCardProps): JSX.Element {
+}: ThemeCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   // A preview that fails (missing/stale file) falls back to the swatch strip,
   // which is why `swatches` stays required either way. Keyed by URL so a later

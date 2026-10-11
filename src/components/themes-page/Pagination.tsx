@@ -18,7 +18,7 @@ export function Pagination({
   totalCount,
   onPrev,
   onNext,
-}: PaginationProps): JSX.Element {
+}: PaginationProps) {
   const pageLabel = String(page + 1).padStart(2, "0");
   const totalLabel = String(totalPages).padStart(2, "0");
 

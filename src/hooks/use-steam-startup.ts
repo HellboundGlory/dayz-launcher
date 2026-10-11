@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { emit, listen } from "@tauri-apps/api/event";
 // Static import: window-resize-handles already pulls this in statically anyway.
 import { getCurrentWindow, getAllWindows } from "@tauri-apps/api/window";
@@ -38,7 +38,7 @@ export function useSteamStartup({
   registryReadyHandled,
   setRefreshedAt,
 }: {
-  registryReadyHandled: MutableRefObject<boolean>;
+  registryReadyHandled: RefObject<boolean>;
   setRefreshedAt: (value: string) => void;
 }) {
   const triggerReload = useServerStore((s) => s.triggerReload);

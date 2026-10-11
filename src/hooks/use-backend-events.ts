@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useServerStore } from "@/stores/server-store";
 import {
@@ -35,9 +35,9 @@ export function useBackendEvents({
   handleViewChange,
 }: {
   discovering: boolean;
-  revealDone: MutableRefObject<boolean>;
+  revealDone: RefObject<boolean>;
   onDiscoveryProgress: (found: number) => void;
-  registryReadyHandled: MutableRefObject<boolean>;
+  registryReadyHandled: RefObject<boolean>;
   setError: (value: string | null) => void;
   setRefreshing: (value: boolean) => void;
   setRefreshedAt: (value: string) => void;

@@ -47,7 +47,7 @@ export function ExportThemeDialog({
   id,
   onExported,
   onClose,
-}: ExportThemeDialogProps): JSX.Element {
+}: ExportThemeDialogProps) {
   const [theme, setTheme] = useState<ThemeFile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

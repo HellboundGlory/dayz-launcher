@@ -62,7 +62,7 @@ function rejectionText(e: unknown): string {
 }
 
 /** Forget a staged import on the backend; a stage that is already gone is not an error. */
-function discardStaging(staging: React.MutableRefObject<string | null>): void {
+function discardStaging(staging: React.RefObject<string | null>): void {
   const id = staging.current;
   if (!id) return;
   staging.current = null;
@@ -116,7 +116,7 @@ export function ImportThemeDialog({
   installedThemes,
   onInstalled,
   onClose,
-}: ImportThemeDialogProps): JSX.Element {
+}: ImportThemeDialogProps) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [preview, setPreview] = useState<ThemeImportPreview | null>(null);
   const [error, setError] = useState<string | null>(null);

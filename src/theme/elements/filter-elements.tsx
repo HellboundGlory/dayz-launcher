@@ -90,7 +90,7 @@ function DropdownRoot({
   states: string[];
   className?: string;
   style?: CSSProperties;
-  innerRef: RefObject<HTMLDivElement>;
+  innerRef: RefObject<HTMLDivElement | null>;
   children: ReactNode;
 }) {
   return (

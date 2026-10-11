@@ -90,7 +90,7 @@ function el(element: string, options?: Record<string, unknown>): ElementNode {
 function renderEl(element: string, entry: ModFilterEntry | null, options?: Record<string, unknown>) {
   return renderToStaticMarkup(
     <ElementContextProvider value={entry ? { subjectContext: { kind: "workshopMod", data: entry } } : {}}>
-      {renderWorkshopModElement(el(element, options), {}) as React.ReactElement}
+      {renderWorkshopModElement(el(element, options), {})}
     </ElementContextProvider>,
   );
 }
@@ -98,7 +98,7 @@ function renderEl(element: string, entry: ModFilterEntry | null, options?: Recor
 function renderPreview(element: string, previewMod: ModFilterEntry | null, options?: Record<string, unknown>) {
   return renderToStaticMarkup(
     <ElementContextProvider value={{ previewMod }}>
-      {renderWorkshopModElement(el(element, options), {}) as React.ReactElement}
+      {renderWorkshopModElement(el(element, options), {})}
     </ElementContextProvider>,
   );
 }

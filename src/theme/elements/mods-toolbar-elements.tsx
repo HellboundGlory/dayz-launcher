@@ -620,7 +620,7 @@ export function ModsSelectUniquePopup({
   open: boolean;
   caredServers: { addr: string; query_port: number; name: string }[];
   onSelect: (addr: string, queryPort: number, name: string) => void;
-  popupRef?: RefObject<HTMLDivElement>;
+  popupRef?: RefObject<HTMLDivElement | null>;
   style?: CSSProperties;
 }) {
   if (!open) return null;

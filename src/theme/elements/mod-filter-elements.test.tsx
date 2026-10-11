@@ -71,7 +71,7 @@ function el(element: string, options?: Record<string, unknown>): ElementNode {
 function renderEl(element: string, options?: Record<string, unknown>, ctx?: Record<string, unknown>) {
   return renderToStaticMarkup(
     <ElementContextProvider value={ctx}>
-      {renderModFilterElement(el(element, options), {}) as React.ReactElement}
+      {renderModFilterElement(el(element, options), {})}
     </ElementContextProvider>,
   );
 }
