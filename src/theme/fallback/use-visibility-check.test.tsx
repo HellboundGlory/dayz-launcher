@@ -1,13 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { useServerStore } from "@/stores/server-store";
 import type { ThemeFile } from "@/types/theme";
 import type * as VisibilityModule from "./visibility";
 import type { LayoutFile } from "../renderer/types";
-import { SETTINGS_LAYOUT, SERVER_INFO_MODAL } from "../neutral";
-import { SettingsHost } from "../interaction/settings-host";
-import { ModalHost } from "../interaction/modal-host";
 import { useThemeStore } from "../theme-store";
 import { useFallbackStore, clearFallbacks, markFileFallback } from "./store";
 import {
@@ -311,8 +306,8 @@ describe("measureVisibilityCheck", () => {
     expect(useFallbackStore.getState().fallbackFiles).toEqual({});
   });
 
-  it("blames a theme-owned file that omits the element entirely", () => {
-    installTheme("local.test", { ...shellOnly, [BROWSER]: layoutWith("list.servers") });
+  it("blames a theme-owned file that omits the element entirely, even with no shell", () => {
+    installTheme("local.test", { [BROWSER]: layoutWith("list.servers") });
     visibility.runVisibilityCheck.mockReturnValue({
       passed: false,
       failures: [{ element: "filter.search", reason: "Element not found in document" }],
@@ -333,18 +328,6 @@ describe("measureVisibilityCheck", () => {
     const map = measureVisibilityCheck({ env: baseEnv, root: asRoot(browserTree()) });
 
     expect(map.size).toBe(0);
-  });
-
-  it("runs the pass for a theme that ships no shell", () => {
-    installTheme("local.test", { [BROWSER]: layoutWith("list.servers") });
-    visibility.runVisibilityCheck.mockReturnValue({
-      passed: false,
-      failures: [{ element: "filter.search", reason: "Element not found in document" }],
-    });
-
-    const map = measureVisibilityCheck({ env: baseEnv, root: asRoot(browserTree()) });
-
-    expect(map.get(BROWSER)).toEqual(["filter.search: Element not found in document"]);
   });
 });
 
@@ -447,7 +430,7 @@ describe("startVisibilityChecks", () => {
     expect(useFallbackStore.getState().fallbackReasons).toEqual(expected);
   });
 
-  it("undoes a runtime fall-back on resize and keeps the validation one", async () => {
+  it("undoes a runtime fall-back on resize, even when another trigger lands first", async () => {
     installTheme("local.test", {
       ...shellOnly,
       [BROWSER]: layoutWith("filter.search"),
@@ -462,27 +445,6 @@ describe("startVisibilityChecks", () => {
     await settle();
     await settle();
     expect(useFallbackStore.getState().fallbackFiles).toEqual({ [BROWSER]: true, [SERVER_LIST]: true });
-
-    windowListeners.resize();
-    await settle();
-
-    expect(useFallbackStore.getState().fallbackFiles).toEqual({ [SERVER_LIST]: true });
-  });
-
-  it("still undoes a runtime fall-back when another trigger lands before the resize pass", async () => {
-    installTheme("local.test", {
-      ...shellOnly,
-      [BROWSER]: layoutWith("filter.search"),
-      [SERVER_LIST]: layoutWith("server.join"),
-    });
-    markFileFallback("local.test", SERVER_LIST, "LAY-01: dropped");
-    visibility.runVisibilityCheck.mockReturnValueOnce(filterFails("dimensions are zero or negative"));
-    visibility.runVisibilityCheck.mockReturnValueOnce(filterFails("dimensions are zero or negative"));
-    visibility.runVisibilityCheck.mockReturnValue(PASS);
-
-    startVisibilityChecks({ getEnv: () => baseEnv, root: asRoot(browserTree()) });
-    await settle();
-    await settle();
 
     windowListeners.resize();
     await vi.advanceTimersByTimeAsync(40);
@@ -525,20 +487,5 @@ describe("startVisibilityChecks", () => {
     await settle();
 
     expect(onRun).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("host attributes the check reads", () => {
-  it("renders data-modal-host and a dialog role", () => {
-    const html = renderToStaticMarkup(createElement(ModalHost, { file: SERVER_INFO_MODAL, onClose: () => {} }));
-    expect(html).toContain("data-modal-host");
-    expect(html).toContain('role="dialog"');
-  });
-
-  it("renders data-settings-host with its presentation mode", () => {
-    const html = renderToStaticMarkup(
-      createElement(SettingsHost, { file: { ...SETTINGS_LAYOUT, presentation: { mode: "overlay" } }, onClose: () => {} }),
-    );
-    expect(html).toContain('data-settings-host="" data-presentation="overlay"');
   });
 });

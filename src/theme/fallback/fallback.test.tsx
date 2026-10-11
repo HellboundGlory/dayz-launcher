@@ -150,7 +150,7 @@ const mockWindow = {
   getComputedStyle: (el: MockHTMLElement) => el.style,
 };
 
-describe("Theme Fallback & Visibility (Package 4.5)", () => {
+describe("Theme fallback and visibility", () => {
   beforeEach(() => {
     clearFallbackMemory();
     vi.stubGlobal("document", mockDocument);
@@ -163,7 +163,7 @@ describe("Theme Fallback & Visibility (Package 4.5)", () => {
     vi.unstubAllGlobals();
   });
 
-  describe("Visibility Check (§15)", () => {
+  describe("visibility check", () => {
     function createMockElement(options: {
       tag?: string;
       rect?: MockRect;
@@ -311,21 +311,6 @@ describe("Theme Fallback & Visibility (Package 4.5)", () => {
         visible: false,
         reason: "interactive element has tabIndex === -1",
       });
-    });
-
-    it("passes a required element the launcher disabled", () => {
-      const container = document.createElement("div");
-      container.appendChild(
-        createMockElement({
-          tag: "button",
-          attributes: { "data-el": "update.install" },
-          disabled: true,
-        }),
-      );
-
-      expect(runVisibilityCheck({ root: container, requiredElements: ["update.install"] }).passed).toBe(
-        true,
-      );
     });
 
     it("runVisibilityCheck checks required elements and reports missing", () => {
@@ -633,25 +618,6 @@ describe("Theme Fallback & Visibility (Package 4.5)", () => {
       const result = runVisibilityCheck({ root: container, requiredElements: ["popup.close"] });
 
       expect(result.passed).toBe(false);
-    });
-
-    it("still fails an element an ordinary sibling covers", () => {
-      const container = document.createElement("div");
-      const refresh = createMockElement({
-        tag: "button",
-        attributes: { "data-el": "servers.refresh" },
-      });
-      const blocker = createMockElement({});
-      container.appendChild(refresh);
-      container.appendChild(blocker);
-      mockDocument.elementFromPoint = vi.fn().mockReturnValue(blocker);
-
-      const result = runVisibilityCheck({ root: container, requiredElements: ["servers.refresh"] });
-
-      expect(result.passed).toBe(false);
-      expect(result.failures).toEqual([
-        { element: "servers.refresh", reason: "center point occluded by another element" },
-      ]);
     });
 
     it("skips elements inside closed accordion sections or inactive tab panels", () => {

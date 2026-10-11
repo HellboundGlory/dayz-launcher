@@ -1,4 +1,4 @@
-/** SPEC §16.3's one-time notice: names the switched-off theme and dismisses through the store. */
+/** The one-time notice: names the switched-off theme and dismisses through the store. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { IncompatibleThemeNotice } from "./incompatible-theme-notice";
