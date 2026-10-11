@@ -340,6 +340,16 @@ Areas particularly valuable to test include:
 
 Not every UI adjustment requires an automated test, but behaviour-critical logic should be tested where feasible.
 
+### UI harness
+
+The harness (Linux only for now) renders the real app in headless Chromium against a faked backend, so a theme or layout regression shows up without launching the desktop app. Install the browser once:
+
+```bash
+npx playwright-core install chromium-headless-shell
+```
+
+`npm run harness:smoke` renders a couple of themes and fails if either falls back; CI runs it. `npm run visual` records PNG baselines of the full scenario matrix and `npm run visual:check` compares against them, but both are local only: the baselines are machine-specific and not committed. `tools/harness/README.md` covers the scenarios and the per-shot options.
+
 ## Reporting Bugs
 
 Before opening a bug report:

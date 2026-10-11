@@ -7,7 +7,7 @@ without the desktop window. Theme packages load straight from
 
 One-time setup (downloads a headless Chromium into `~/.cache/ms-playwright`):
 
-    npx -y playwright install chromium-headless-shell
+    npx playwright-core install chromium-headless-shell
 
 Shoot a scenario (starts Vite on port 1431 if it isn't running):
 

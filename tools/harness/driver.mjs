@@ -20,7 +20,13 @@ const PROD_OUT = path.join(OUT, "prod");
 // Distinct defaults so a dev server and a prod preview can run side by side.
 const DEFAULT_PORT = { dev: 1431, prod: 1432 };
 
-/** The cached headless shell, newest revision first, `HARNESS_BROWSER` overriding — found as shoot.sh finds it. */
+// Recent Playwright puts the shell in the first layout, older revisions in the second.
+const SHELL_LAYOUTS = [
+  "chrome-headless-shell-linux64/chrome-headless-shell",
+  "chrome-linux/headless_shell",
+];
+
+/** The cached headless shell, newest revision first, `HARNESS_BROWSER` overriding; shoot.sh asks this too. */
 export async function headlessShellPath() {
   if (process.env.HARNESS_BROWSER) return process.env.HARNESS_BROWSER;
   const cache = path.join(os.homedir(), ".cache/ms-playwright");
@@ -28,11 +34,13 @@ export async function headlessShellPath() {
     .filter((name) => name.startsWith("chromium_headless_shell-"))
     .sort((a, b) => Number(a.split("-").pop()) - Number(b.split("-").pop()));
   for (const revision of revisions.reverse()) {
-    const exe = path.join(cache, revision, "chrome-linux", "headless_shell");
-    if (await stat(exe).then(() => true, () => false)) return exe;
+    for (const layout of SHELL_LAYOUTS) {
+      const exe = path.join(cache, revision, layout);
+      if (await stat(exe).then(() => true, () => false)) return exe;
+    }
   }
   throw new Error(
-    `No headless Chromium under ${cache}: run  npx -y playwright install chromium-headless-shell`,
+    `No headless Chromium under ${cache}: run  npx playwright-core install chromium-headless-shell`,
   );
 }
 
