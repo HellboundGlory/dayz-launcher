@@ -948,6 +948,12 @@
   text-overflow: ellipsis;
 }
 
+.t-row [data-el="server.map"],
+.t-row [data-el="server.region"] {
+  display: block;
+  white-space: nowrap;
+}
+
 .t-row [data-el="server.players"] {
   font-family: var(--t-type-family-data);
   font-size: 11px;
