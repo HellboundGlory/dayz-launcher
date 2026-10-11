@@ -2,7 +2,7 @@ use std::collections::{BTreeSet, HashSet};
 
 use serde_json::{Map, Value};
 
-use super::ast::{LayoutFile, Node, NodeKind};
+use super::ast::{LayoutFile, Node, NodeKind, TEXT_ROLES};
 use super::{Severity, ValidationIssue};
 use crate::theme::registry::{EnumValue, Multiplicity, OptionDef, Registry, Subject};
 
@@ -489,6 +489,18 @@ impl Validator<'_> {
                         "glow must be \"always\", \"selected\" or \"never\"",
                     );
                 }
+            }
+            if key == "role"
+                && node.kind == NodeKind::Text
+                && !value
+                    .as_str()
+                    .is_some_and(|role| TEXT_ROLES.contains(&role))
+            {
+                self.issue(
+                    "LAY-03",
+                    &path,
+                    format!("role must be one of {}", TEXT_ROLES.join(", ")),
+                );
             }
             if key == "column" && context.column_depth != Some(depth) {
                 self.issue(

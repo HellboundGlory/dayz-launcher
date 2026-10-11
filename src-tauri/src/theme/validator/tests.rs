@@ -169,6 +169,11 @@ fn layout_rules_report_exact_pointers() {
             "LAY-03",
             "/root/glow",
         ),
+        (
+            layout(json!({"type":"text","value":"hi","role":"statCaption"})),
+            "LAY-03",
+            "/root/role",
+        ),
     ] {
         check(SHELL, value, rule, pointer);
     }

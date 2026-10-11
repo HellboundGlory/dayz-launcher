@@ -225,7 +225,10 @@
           A file must be what its extension claims: an image is decoded as the format
           it names, a font must carry a real font header, and a stylesheet must be
           valid UTF-8 and pass the <a href="#css">CSS checks</a>. An SVG is rendered
-          as an image and never inlined, so a script inside one cannot run.
+          as an image and never inlined. It must not carry script, event handlers,
+          embedded web content (<code>foreignObject</code>) or links to other files;
+          links inside the SVG (<code>#id</code>) and embedded PNG, JPEG, WebP or GIF
+          data are fine.
         </p>
         <div class="table-wrap">
           <table>
@@ -996,7 +999,7 @@
             <tbody>
               <tr><td><code>LAY-01</code></td><td>The file's outer shape is wrong: not a JSON object, a version other than 2, both <code>root</code> and <code>variants</code> or neither, a list template that carries a <code>root</code>, a malformed column entry, a bad overflow setting, or a bad tabs orientation</td></tr>
               <tr><td><code>LAY-02</code></td><td>A node's type is not a container or leaf the launcher knows</td></tr>
-              <tr><td><code>LAY-03</code></td><td>A property is not allowed on that node, or its value has the wrong shape — including <code>glow</code> on a node that is not an element, and a <code>hidden</code> condition naming a setting that is not a boolean or choice field</td></tr>
+              <tr><td><code>LAY-03</code></td><td>A property is not allowed on that node, or its value has the wrong shape — including <code>glow</code> on a node that is not an element, and a <code>hidden</code> condition naming a setting that is not a boolean or choice field, or a text <code>role</code> that is not one of the text roles</td></tr>
               <tr><td><code>LAY-04</code></td><td>A size is wrong: a width, height or basis that is not a length, a keyword or a space token; a bad grid track; an estimated row height that is not a pixel length; a resize bound that is not a size, or a <code>collapseBelow</code> that is not a positive pixel length</td></tr>
               <tr><td><code>LAY-05</code></td><td>Spacing is wrong: a margin was used, or a padding or gap is not a space token or space role</td></tr>
               <tr><td><code>LAY-06</code></td><td>Positioning is wrong: <code>position</code> is not an object, the anchor is unknown, or an offset is not a length or space token</td></tr>
