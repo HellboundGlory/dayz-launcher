@@ -177,9 +177,8 @@ WHERE bots > 0
 "#;
 
 /// When a server's mod list was last read from A2S_RULES, so a rules sweep can
-/// rotate oldest-first instead of re-asking servers it just asked. `last_seen`
-/// gets an index because the index backend selects changed rows by it on every
-/// delta request.
+/// rotate oldest-first instead of re-asking servers it just asked. The
+/// `last_seen` index serves the newest-first address walk.
 const V6: &str = r#"
 ALTER TABLE servers ADD COLUMN mods_updated_at INTEGER;
 CREATE INDEX idx_servers_last_seen ON servers(last_seen);

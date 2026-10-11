@@ -1,5 +1,5 @@
-//! The index replication boundary: the rows `export`/`export_one` hand the
-//! indexer, and what `upsert_server_mods_bulk` writes back.
+//! The index replication boundary: the rows `export` hands the indexer, and
+//! what `upsert_server_mods_bulk` writes back.
 
 use std::net::Ipv4Addr;
 use tetra_core::a2s::dayz::ServerMod;
@@ -55,7 +55,7 @@ async fn export_separates_never_probed_from_no_mods_and_interns_names() {
         .expect("mods");
 
     let reader = registry.reader().expect("reader");
-    let export = reader.export(0).expect("export");
+    let export = reader.export().expect("export");
     let find = |k| {
         export
             .rows
@@ -76,14 +76,6 @@ async fn export_separates_never_probed_from_no_mods_and_interns_names() {
         export.mod_names.get(&MOD_B).map(String::as_str),
         Some("Mod B")
     );
-
-    // export_one must agree with the bulk row for each key.
-    for k in [probed, unprobed] {
-        let one = reader.export_one(k).expect("export_one").expect("row");
-        assert_eq!(one.key, find(k).key);
-        assert_eq!(one.name, find(k).name);
-        assert_eq!(one.mod_ids, find(k).mod_ids);
-    }
 }
 
 #[tokio::test]
@@ -103,7 +95,7 @@ async fn a_bulk_write_replaces_mods_and_an_empty_list_records_zero() {
         .expect("bulk");
 
     let reader = registry.reader().expect("reader");
-    let export = reader.export(0).expect("export");
+    let export = reader.export().expect("export");
     let exported = export.rows.iter().find(|r| r.key == k).expect("row");
     assert_eq!(
         exported.mod_ids,

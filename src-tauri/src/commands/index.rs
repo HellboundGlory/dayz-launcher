@@ -11,7 +11,7 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 use tauri::{Emitter, State};
 use tetra_core::a2s::dayz::ServerMod;
-use tetra_index::{Fetch, Health, IndexClient, ServerEntry, Snapshot, HEALTH_BACKOFF_SECS};
+use tetra_index::{Health, IndexClient, ServerEntry, Snapshot, HEALTH_BACKOFF_SECS};
 use tetra_registry::{ServerKey, ServerRow, Writer};
 
 /// How stale the backend's snapshot may be and still be preferred over asking
@@ -35,15 +35,10 @@ pub enum ListSource {
     Steam,
 }
 
-/// Per-session index state. All in memory: a cold start paying for the full
-/// snapshot costs seconds, and persisting an `ETag` across runs would risk a
-/// 304 against a registry that has since been deleted.
+/// Per-session index state. All in memory: nothing here is worth persisting
+/// across runs.
 #[derive(Default)]
 pub struct IndexSession {
-    /// `ETag` of the last full snapshot, for a conditional re-fetch.
-    pub etag: Option<String>,
-    /// Cursor of the last ingested body; `Some` switches this session to deltas.
-    pub cursor: Option<i64>,
     /// Consecutive failures, indexing [`HEALTH_BACKOFF_SECS`].
     pub failures: usize,
     /// Earliest instant the backend may be contacted again.
@@ -116,29 +111,11 @@ pub async fn try_index(
         return decline(app, state, &stale_reason(&health));
     }
 
-    // A session that has already ingested one body asks for the delta; the
-    // backend answers with a full snapshot anyway when the cursor is too old.
-    let (etag, cursor) = match state.index.lock() {
-        Ok(s) => (s.etag.clone(), s.cursor),
-        Err(e) => return decline(app, state, &format!("index state poisoned: {e}")),
-    };
-    let was_full_snapshot = cursor.is_none();
-    let fetched = match cursor {
-        Some(cursor) => client.delta(cursor).await,
-        None => client.snapshot(etag.as_deref()).await,
-    };
-
-    let (etag, snapshot) = match fetched {
-        Ok(Fetch::NotModified) => {
-            succeed(state, window, 0, started.elapsed().as_millis());
-            crate::log::log_line(app, "index", "try_index: snapshot unchanged");
-            return Some(0);
-        }
-        Ok(Fetch::Fresh { etag, body }) => (etag, body),
+    let snapshot = match client.snapshot().await {
+        Ok(snapshot) => snapshot,
         Err(e) => return decline(app, state, &format!("fetch failed: {e}")),
     };
 
-    let cursor = snapshot.cursor;
     let listed = snapshot.servers.len();
     let ingested = match ingest(
         writer,
@@ -156,14 +133,6 @@ pub async fn try_index(
         Ok(n) => n,
         Err(e) => return decline(app, state, &format!("ingest failed: {e}")),
     };
-
-    if let Ok(mut session) = state.index.lock() {
-        // The `ETag` belongs to the full snapshot endpoint only.
-        if was_full_snapshot {
-            session.etag = etag;
-        }
-        session.cursor = Some(cursor);
-    }
 
     let ms = started.elapsed().as_millis();
     succeed(state, window, ingested.servers, ms);
@@ -259,10 +228,7 @@ where
     C: Fn() -> bool,
 {
     let Snapshot {
-        mod_names,
-        servers,
-        removed,
-        ..
+        mod_names, servers, ..
     } = snapshot;
 
     let mut out = Ingested::default();
@@ -294,17 +260,6 @@ where
 
     out.servers += flush_rows(writer, &mut rows).await?;
     out.with_mods += flush_mods(writer, &mut mods).await?;
-
-    // Addresses the backend has dropped as spoofed or long dead. Marked
-    // offline rather than deleted: this client may still be able to reach one,
-    // and its favourite/recent history is the user's, not the backend's.
-    let gone: Vec<ServerKey> = removed.iter().filter_map(|a| parse_key(a)).collect();
-    if !gone.is_empty() {
-        writer
-            .set_online(gone, false)
-            .await
-            .map_err(|e| e.to_string())?;
-    }
 
     progress(out.servers);
     Ok(out)
@@ -425,10 +380,8 @@ mod tests {
             format_version: tetra_index::FORMAT_VERSION,
             generated_at: 1_700_000_000,
             cursor: 1_700_000_000,
-            partial: false,
             mod_names,
             servers,
-            removed: Vec::new(),
         }
     }
 

@@ -85,9 +85,8 @@ Endpoints:
 | Path | Purpose |
 |---|---|
 | `/v1/health` | liveness + index freshness |
-| `/v1/servers/snapshot` | whole index; supports `ETag` / `If-None-Match` |
-| `/v1/servers/delta?since=<unix>` | rows changed since a cursor |
-| `/v1/servers/<ip:queryport>` | one server plus its mod list |
+| `/v1/servers/snapshot` | whole index |
+| `/v1/servers/delta?since=<unix>` | kept for launchers up to 2.7.0; answers with the whole index |
 
 ## Pointing a launcher at it
 

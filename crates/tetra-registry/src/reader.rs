@@ -220,23 +220,17 @@ impl Reader {
         Ok(rows)
     }
 
-    /// Every server last seen at or after `since`, with its declared mods.
-    /// `since = 0` exports the whole table; a later value is how the index
-    /// backend builds a delta.
+    /// Every server in the table, with its declared mods.
     ///
     /// Two statements rather than a join: a join would repeat every server
     /// column once per mod row, and the live index has over a million mod
     /// rows against a quarter-million servers.
-    pub fn export(&self, since: i64) -> Result<Export, RegistryError> {
+    pub fn export(&self) -> Result<Export, RegistryError> {
         let mut stmt = self.conn.prepare_cached(&format!(
             "SELECT {EXPORT_COLUMNS} FROM servers
-             WHERE last_seen >= ?1
              ORDER BY ip, query_port"
         ))?;
-        let rows = collect_skipping_bad_rows(
-            stmt.query_map(params![since], Self::map_export_row)?,
-            "export",
-        )?;
+        let rows = collect_skipping_bad_rows(stmt.query_map([], Self::map_export_row)?, "export")?;
 
         let mut by_key: std::collections::HashMap<ServerKey, usize> =
             std::collections::HashMap::with_capacity(rows.len());
@@ -251,10 +245,9 @@ impl Reader {
             "SELECT sm.ip, sm.query_port, sm.workshop_id, sm.name
              FROM server_mods sm
              JOIN servers s ON s.ip = sm.ip AND s.query_port = sm.query_port
-             WHERE s.last_seen >= ?1
              ORDER BY sm.ip, sm.query_port, sm.ordinal",
         )?;
-        let mut cursor = stmt.query(params![since])?;
+        let mut cursor = stmt.query([])?;
         while let Some(r) = cursor.next()? {
             let ip: String = r.get(0)?;
             let Ok(ip) = Ipv4Addr::from_str(&ip) else {
@@ -277,36 +270,10 @@ impl Reader {
         Ok(Export { rows, mod_names })
     }
 
-    /// One server in [`ExportRow`] shape, mods included. The index backend's
-    /// per-server endpoint uses this rather than [`Self::export`], which
-    /// scans the table.
-    pub fn export_one(&self, key: ServerKey) -> Result<Option<ExportRow>, RegistryError> {
-        let mut stmt = self.conn.prepare_cached(&format!(
-            "SELECT {EXPORT_COLUMNS} FROM servers WHERE ip = ?1 AND query_port = ?2"
-        ))?;
-        let row = stmt
-            .query_map(
-                params![key.ip.to_string(), key.query_port],
-                Self::map_export_row,
-            )?
-            .next()
-            .transpose()?
-            .flatten();
-        let Some(mut row) = row else {
-            return Ok(None);
-        };
-
-        if row.mod_ids.is_some() {
-            let mods = self.mods_for(key)?;
-            row.mod_ids = Some(mods.iter().map(|m| m.workshop_id).collect());
-        }
-        Ok(Some(row))
-    }
-
-    /// Shared mapping for [`Self::export`] and [`Self::export_one`].
-    /// `mod_ids` comes back empty here and is filled by the caller's mod
-    /// query; `Some(vec![])` vs `None` is decided by `mod_count`, which is
-    /// the record of whether A2S_RULES ever answered.
+    /// Row mapping for [`Self::export`]. `mod_ids` comes back empty here and
+    /// is filled by the caller's mod query; `Some(vec![])` vs `None` is
+    /// decided by `mod_count`, which is the record of whether A2S_RULES ever
+    /// answered.
     fn map_export_row(r: &rusqlite::Row) -> rusqlite::Result<Option<ExportRow>> {
         let ip: String = r.get(0)?;
         let Ok(ip) = Ipv4Addr::from_str(&ip) else {

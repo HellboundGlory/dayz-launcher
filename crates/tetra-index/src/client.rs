@@ -5,7 +5,7 @@
 //! outcomes, not exceptions, because the launcher's own Steam pass is always
 //! there to fall back to.
 
-use crate::{paths, Health, ServerDetail, Snapshot, FORMAT_VERSION};
+use crate::{paths, Health, Snapshot, FORMAT_VERSION};
 use std::time::Duration;
 
 /// Ceiling on a decompressed snapshot. The live index is ~270k addresses at
@@ -13,15 +13,15 @@ use std::time::Duration;
 /// refusing to buffer an unbounded body into memory.
 pub const MAX_SNAPSHOT_BYTES: usize = 256 * 1024 * 1024;
 
-/// Cap for the small endpoints (`health`, one server). Their real bodies are a
-/// few KB, so this is generous while still refusing a hostile origin.
+/// Cap for `health`. Its real body is a few KB, so this is generous while
+/// still refusing a hostile origin.
 const MAX_SMALL_BYTES: usize = 1024 * 1024;
 
 /// Whole-request budget for the bulk snapshot. Generous: it is one large body
 /// on a cold start, and giving up early just means a 17-minute Steam pass.
 const SNAPSHOT_TIMEOUT: Duration = Duration::from_secs(180);
 
-/// Whole-request budget for the small endpoints, where a slow answer is worse
+/// Whole-request budget for `health`, where a slow answer is worse
 /// than no answer — the launcher is deciding whether to trust this backend.
 const SMALL_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -41,17 +41,6 @@ pub enum IndexError {
     Decode(#[from] serde_json::Error),
     #[error("invalid index url: {0}")]
     Url(String),
-}
-
-/// A conditional GET's two outcomes.
-#[derive(Debug)]
-pub enum Fetch<T> {
-    /// The `ETag` we sent still matches; nothing was transferred.
-    NotModified,
-    Fresh {
-        etag: Option<String>,
-        body: T,
-    },
 }
 
 #[derive(Clone)]
@@ -100,70 +89,19 @@ impl IndexClient {
         Ok(health)
     }
 
-    /// The whole list. `etag` is the one from a previous [`Fetch::Fresh`];
-    /// passing it turns an unchanged snapshot into a 304 with no body.
-    pub async fn snapshot(&self, etag: Option<&str>) -> Result<Fetch<Snapshot>, IndexError> {
-        self.fetch_snapshot(format!("{}{}", self.base, paths::SNAPSHOT), etag)
-            .await
-    }
-
-    /// Only what changed since `since` (a previous [`Snapshot::cursor`]). The
-    /// backend answers with a full snapshot instead when `since` is older than
-    /// the window it keeps, so callers must honour [`Snapshot::partial`]
-    /// rather than assuming this returns a delta.
-    pub async fn delta(&self, since: i64) -> Result<Fetch<Snapshot>, IndexError> {
-        self.fetch_snapshot(format!("{}{}?since={since}", self.base, paths::DELTA), None)
-            .await
-    }
-
-    /// One server, with its mod names resolved. `Ok(None)` is a 404 — the
-    /// index has never seen that address.
-    pub async fn server(&self, addr: &str) -> Result<Option<ServerDetail>, IndexError> {
+    /// The whole list.
+    pub async fn snapshot(&self) -> Result<Snapshot, IndexError> {
         let res = self
             .http
-            .get(format!("{}{}{addr}", self.base, paths::SERVER))
-            .timeout(SMALL_TIMEOUT)
+            .get(format!("{}{}", self.base, paths::SNAPSHOT))
+            .timeout(SNAPSHOT_TIMEOUT)
             .send()
             .await?;
-        if res.status() == reqwest::StatusCode::NOT_FOUND {
-            return Ok(None);
-        }
         let res = check_status(res)?;
-        let cap = small_capacity(&res);
-        let buf = read_capped(res, MAX_SMALL_BYTES, cap).await?;
-        let detail: ServerDetail = serde_json::from_slice(&buf)?;
-        check_format(detail.format_version)?;
-        Ok(Some(detail))
-    }
-
-    async fn fetch_snapshot(
-        &self,
-        url: String,
-        etag: Option<&str>,
-    ) -> Result<Fetch<Snapshot>, IndexError> {
-        let mut req = self.http.get(url).timeout(SNAPSHOT_TIMEOUT);
-        if let Some(etag) = etag {
-            req = req.header(reqwest::header::IF_NONE_MATCH, etag);
-        }
-        let res = req.send().await?;
-        if res.status() == reqwest::StatusCode::NOT_MODIFIED {
-            return Ok(Fetch::NotModified);
-        }
-        let res = check_status(res)?;
-        let etag = res
-            .headers()
-            .get(reqwest::header::ETAG)
-            .and_then(|v| v.to_str().ok())
-            .map(str::to_owned);
-
         let buf = read_capped(res, MAX_SNAPSHOT_BYTES, 8 * 1024 * 1024).await?;
-
         let snapshot: Snapshot = serde_json::from_slice(&buf)?;
         check_format(snapshot.format_version)?;
-        Ok(Fetch::Fresh {
-            etag,
-            body: snapshot,
-        })
+        Ok(snapshot)
     }
 }
 
