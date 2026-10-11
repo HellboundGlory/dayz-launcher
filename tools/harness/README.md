@@ -128,6 +128,20 @@ matches that path and `--theme <id>` narrows to one theme. The server ports are
 picked free at runtime (`HARNESS_PORT` still overrides the prod one), so a
 `shoot.sh` Vite left on 1431 does not collide with a run.
 
+Popups also get a small-size pass, the smallest window a player is likely to
+use: 650×413 CSS px at device scale 1.5 (a 975×620 window at UI scale 1.5), dark
+scheme only. It covers the filter popups, the server row ⋯ menu on the last
+fully visible row, the Mods view's Unsubscribe and Verify menus, the server info
+Load menu, and the Settings theme card menu and customiser dropdown. Those rows
+set their own `sizes`, `schemes` and `scale`, and a `themes` list keeps a row to
+the themes that have that element. A `click=` value is a CSS selector,
+`text:<button label>` (first button with that text) or `last-visible:<selector>`
+(the last match whose row is fully on screen). A disabled target counts as
+missing, and after the last click the real pointer rests on its centre so hover
+styles show in the shot. Files are `baselines/<theme>/dark-650x413-<scenario>.png`;
+a new shot has no baseline until it is recorded with `record`, so `check`
+reports it as `no baseline`.
+
 Shots run in parallel (`HARNESS_JOBS`, default one per core up to 12), and each
 page is shot once its DOM has stopped changing and its images have decoded, so
 the full check takes about 25 s.
