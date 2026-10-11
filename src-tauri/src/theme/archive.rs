@@ -232,9 +232,14 @@ fn inspect<R: Read + Seek>(
             serde_json::from_slice(&bytes)
                 .map_err(|e| format!("{MANIFEST_FILE} is not a valid manifest: {e}"))?
         }
-        Err(_) => {
+        Err(zip::result::ZipError::FileNotFound) => {
             return Err(format!(
                 "This package has no {MANIFEST_FILE} — it is not a Tetra theme."
+            ))
+        }
+        Err(e) => {
+            return Err(format!(
+                "Could not read `{MANIFEST_FILE}` from the package: {e}"
             ))
         }
     };
