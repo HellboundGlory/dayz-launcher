@@ -11,6 +11,7 @@ export interface AnchoredPopupOptions {
   align: Align;
   offset: number;
   maxHeight?: string;
+  matchTriggerWidth?: boolean;
 }
 
 /** A CSS length (px, rem, vh, %) in pixels, as the browser resolves it for a fixed box. */
@@ -106,7 +107,7 @@ export function useAnchoredPopup(
         },
         // Content height plus borders: scrollHeight leaves the borders out, and offsetHeight is squeezed by the last cap.
         popup: {
-          width: popup.offsetWidth,
+          width: opts.matchTriggerWidth ? rect.width : popup.offsetWidth,
           height: popup.scrollHeight + popup.offsetHeight - popup.clientHeight,
         },
         viewport: { width: window.innerWidth, height: window.innerHeight },
@@ -124,6 +125,7 @@ export function useAnchoredPopup(
         bottom: "auto",
         // The measured gap already includes the theme's margin.
         margin: 0,
+        width: opts.matchTriggerWidth ? rect.width : undefined,
         maxHeight:
           themeMax === "none"
             ? `${placement.maxHeight}px`
@@ -132,6 +134,7 @@ export function useAnchoredPopup(
       setStyle((prev) =>
         prev.top === next.top &&
         prev.left === next.left &&
+        prev.width === next.width &&
         prev.maxHeight === next.maxHeight
           ? prev
           : next,
@@ -151,6 +154,7 @@ export function useAnchoredPopup(
         ? null
         : new ResizeObserver(measure);
     resized?.observe(popup);
+    resized?.observe(trigger);
     return () => {
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", onScroll, true);
@@ -165,6 +169,7 @@ export function useAnchoredPopup(
     opts.align,
     opts.offset,
     opts.maxHeight,
+    opts.matchTriggerWidth,
   ]);
 
   return style;

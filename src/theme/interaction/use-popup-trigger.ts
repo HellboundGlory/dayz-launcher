@@ -19,7 +19,7 @@ function recoverFocus(root: HTMLElement) {
 }
 
 export function usePopupTrigger(
-  placement: { side: Side; align: Align },
+  placement: { side: Side; align: Align; matchTriggerWidth?: boolean },
   themedPopup?: PopupLayoutFile,
 ) {
   const [open, setOpen] = useState(false);

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState, type RefObject } from "react";
+import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePopupTrigger } from "@/theme/interaction/use-popup-trigger";
@@ -77,8 +77,7 @@ export function ThemeCustomiser() {
     ref: dropRef,
     popupRef: dropMenuRef,
     popupStyle: dropMenuStyle,
-  } = usePopupTrigger({ side: "bottom", align: "start" });
-  const dropWidth = useElementWidth(dropRef);
+  } = usePopupTrigger({ side: "bottom", align: "start", matchTriggerWidth: true });
   const confirm = useConfirm();
 
   const pair = resolvedPair(activeId, themeFiles);
@@ -173,7 +172,7 @@ export function ThemeCustomiser() {
       </div>
 
       {/* Theme dropdown */}
-      <div className="theme-drop relative" ref={dropRef}>
+      <div className="theme-drop" ref={dropRef}>
         <button
           type="button"
           onClick={() => setDropOpen((o) => !o)}
@@ -200,7 +199,7 @@ export function ThemeCustomiser() {
           <div
             ref={dropMenuRef}
             data-part="popup"
-            style={{ ...dropMenuStyle, width: dropWidth }}
+            style={dropMenuStyle}
             className="theme-menu max-h-[280px] overflow-auto [border-radius:var(--t-radius-card)] border border-line bg-surface2 [box-shadow:var(--t-shadow-popupFilter)]"
           >
             <div className="theme-group px-2.5 pb-1 pt-[7px] [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-[0.05em] text-muted">
@@ -482,19 +481,4 @@ function ExtrasCard<K extends string>({
       ))}
     </div>
   );
-}
-
-// The popup hook re-renders only when the popup moves, so a resize needs its own observer.
-function useElementWidth(ref: RefObject<HTMLElement | null>): number {
-  const [width, setWidth] = useState(0);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const measure = () => setWidth(el.offsetWidth);
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [ref]);
-  return width;
 }

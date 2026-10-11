@@ -44,6 +44,7 @@ export function ThemeCard({
   // which is why `swatches` stays required either way. Keyed by URL so a later
   // preview for the same card gets its own chance to load.
   const [failedPreview, setFailedPreview] = useState<string | null>(null);
+  // Opens upward by preference: inside a settings panel there's rarely room below.
   const {
     open: menuOpen,
     setOpen: setMenuOpen,
@@ -120,12 +121,11 @@ export function ThemeCard({
               aria-haspopup="menu"
               aria-expanded={menuOpen}
               aria-label={`${name} options`}
-              className="inline-flex h-[22px] w-[26px] shrink-0 items-center justify-center [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface2 text-muted2 transition-colors hover:text-ink"
+              className="inline-flex h-[22px] w-[26px] items-center justify-center [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface2 text-muted2 transition-colors hover:text-ink"
             >
               <Ellipsis className="size-3.5" />
             </button>
 
-            {/* Opens upward: inside a settings panel there's rarely room below. */}
             {menuOpen && (
               <div
                 ref={menuRef}
