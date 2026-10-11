@@ -16,10 +16,10 @@ import tetraLogo from "@/assets/tetra-logo.png";
 type ScanPhase = "scanning" | "found" | "not-found";
 
 const INPUT_BASE_CLASS =
-  "w-full [border-radius:var(--t-radius-control)] border border-line bg-bg px-2.5 py-2 text-ink placeholder-muted outline-hidden transition-colors duration-150 hover:border-line-weak focus:border-accent-line";
+  "w-full [border-radius:var(--t-radius-control)] border border-line bg-bg px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] text-ink placeholder-muted outline-hidden transition-colors duration-150 hover:border-line-weak focus:border-accent-line";
 
 const GHOST_BUTTON_CLASS =
-  "flex shrink-0 items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 [font-size:var(--t-type-compactCaption-size)] font-bold uppercase tracking-wider text-muted2 transition-colors duration-150 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50";
+  "flex shrink-0 items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-compactCaption-size)] font-bold uppercase tracking-wider text-muted2 transition-colors duration-150 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50";
 
 // Fires once, on the very first launch: who the player is, and where DayZ
 // lives. Runs the same registry scan the Settings "Detect" button does.
@@ -195,7 +195,7 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
                   onClick={browseForFolder}
                   disabled={browsing}
                   title="Browse for your DayZ install folder"
-                  className={cn(GHOST_BUTTON_CLASS, "py-2")}
+                  className={GHOST_BUTTON_CLASS}
                 >
                   <FolderOpen className="size-3" />
                   Browse
@@ -203,7 +203,7 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
                 <button
                   onClick={() => void scan()}
                   title="Scan the Steam registry again"
-                  className={cn(GHOST_BUTTON_CLASS, "py-2")}
+                  className={GHOST_BUTTON_CLASS}
                 >
                   <Folder className="size-3" />
                   Retry
@@ -222,7 +222,7 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
             data-tetra-el="primaryAction"
             onClick={finish}
             disabled={!canContinue}
-            className="flex w-full items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent py-2 [font-size:var(--t-type-compactBody-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none disabled:hover:brightness-100"
+            className="flex w-full items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent py-[var(--t-space-controlY)] [font-size:var(--t-type-compactBody-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none disabled:hover:brightness-100"
           >
             <span>Continue</span>
             {canContinue && <ArrowRight className="size-3" />}
