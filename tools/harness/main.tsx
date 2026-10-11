@@ -35,8 +35,6 @@ if (params.get("static") === "1") {
   document.head.append(style);
 }
 const THEME_ROOT = "/src-tauri/resources/builtin-themes";
-const STARTER_ROOT = "/src-tauri/resources/starter-themes";
-const rootFor = (id: string) => (id.startsWith("starter.") ? STARTER_ROOT : THEME_ROOT);
 const LAYOUTS = [
   "layout/shell.json",
   "layout/settings.json",
@@ -60,22 +58,22 @@ async function readJson(path: string): Promise<unknown> {
 }
 
 async function themeSummary(id: string) {
-  const manifest = (await readJson(`${rootFor(id)}/${id}/theme.json`)) as Record<string, unknown>;
+  const manifest = (await readJson(`${THEME_ROOT}/${id}/theme.json`)) as Record<string, unknown>;
   return { tier: "expert", preview: null, previews: [], ...manifest };
 }
 
 async function themeFile(id: string) {
-  const manifest = (await readJson(`${rootFor(id)}/${id}/theme.json`)) as Record<string, unknown>;
+  const manifest = (await readJson(`${THEME_ROOT}/${id}/theme.json`)) as Record<string, unknown>;
   const layouts: Record<string, unknown> = {};
   for (const path of LAYOUTS) {
-    const layout = await readJson(`${rootFor(id)}/${id}/${path}`);
+    const layout = await readJson(`${THEME_ROOT}/${id}/${path}`);
     if (layout) layouts[path] = layout;
   }
   return {
     ...manifest,
-    tokens: await readJson(`${rootFor(id)}/${id}/tokens.json`),
+    tokens: await readJson(`${THEME_ROOT}/${id}/tokens.json`),
     layout: null,
-    settingsSchema: await readJson(`${rootFor(id)}/${id}/settings.schema.json`),
+    settingsSchema: await readJson(`${THEME_ROOT}/${id}/settings.schema.json`),
     components: {},
     layouts,
   };
@@ -146,7 +144,6 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   get_theme: async (args) => themeFile(String(args.id)),
   get_theme_settings_values: () => ({}),
   get_activation_status: () => null,
-  list_starter_templates: () => [],
   validate_theme: () => [],
   data_folder_path: () => "/home/user/.local/share/com.tetra.launcher",
   get_subscribed_mods: () => ({ rows: makeMods(), from_cache: false }),
@@ -192,7 +189,7 @@ const rewrite = (el: Element) => {
     const value = el.getAttribute(attr);
     if (value?.startsWith("tetra-theme://")) {
       const [, id, ...rest] = value.replace("tetra-theme://localhost/", "/").split("/");
-      el.setAttribute(attr, `${rootFor(decodeURIComponent(id))}/${decodeURIComponent(id)}/${rest.join("/")}`);
+      el.setAttribute(attr, `${THEME_ROOT}/${decodeURIComponent(id)}/${rest.join("/")}`);
     }
   }
 };

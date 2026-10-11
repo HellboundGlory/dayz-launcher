@@ -769,26 +769,6 @@ export async function exportTheme(
   return invoke<void>("export_theme", { id, manifestOverrides, destPath });
 }
 
-/** The theme packages this build ships as worked examples of each tier, for the
-    "New theme" picker. Read from the app's own resources — never the installed
-    themes on disk, so an installed theme cannot appear among them. */
-export async function listStarterTemplates(): Promise<ThemeSummary[]> {
-  return invoke<ThemeSummary[]>("list_starter_templates");
-}
-
-/**
- * Create a new theme as a copy of the bundled `templateId`, with its manifest's
- * id and name rewritten. Create-only, like {@link saveTheme}: an id that already
- * exists is an error, never an overwrite.
- */
-export async function scaffoldThemeFromTemplate(
-  templateId: string,
-  newId: string,
-  name: string,
-): Promise<string> {
-  return invoke<string>("scaffold_theme_from_template", { templateId, newId, name });
-}
-
 /** Watch one theme's directory for changes (Dev Mode), replacing whatever was watched before. An id with nothing on disk is a no-op, not an error. */
 export async function watchActiveTheme(id: string): Promise<void> {
   return invoke<void>("watch_active_theme", { id });

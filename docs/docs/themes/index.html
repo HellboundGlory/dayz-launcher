@@ -74,40 +74,30 @@
 
         <h2 id="overview">What a theme can change</h2>
         <p>
-          Themes come in three levels. Each one is a working theme on its own, so start
-          with the smallest one that does what you want.
+          Themes come in three levels, from a new palette alone to a custom layout. A copy
+          of Neutral starts at colours only. To go further, add a <code>styles.css</code>
+          (and a <code>settings.schema.json</code> for settings) and list <code>"css"</code>
+          (and <code>"settings"</code>) under <code>capabilities</code> in
+          <code>theme.json</code>; until they are listed, the launcher ignores the CSS and
+          won't export the theme. A copy of Tactical has all three levels to edit.
         </p>
 
         <div class="ladder">
           <div class="rung">
             <h3>Colours only</h3>
-            <span class="id">starter.colours</span>
             <p>A new palette for dark and light mode. Nothing else to learn.</p>
             <div class="caps"><span class="cap new">tokens</span></div>
           </div>
           <div class="rung">
             <h3>Styled</h3>
-            <span class="id">starter.styled</span>
             <p>Your own CSS for any element, plus settings users can tune.</p>
             <div class="caps"><span class="cap">tokens</span><span class="cap new">css</span><span class="cap new">settings</span></div>
           </div>
           <div class="rung">
             <h3>Custom layout</h3>
-            <span class="id">starter.layout</span>
             <p>Move things around: panels, columns, navigation, window controls.</p>
             <div class="caps"><span class="cap">tokens</span><span class="cap">css</span><span class="cap">settings</span><span class="cap new">layout</span></div>
           </div>
-        </div>
-
-        <div class="pair">
-          <figure class="shot">
-            <img src="../../assets/themes/colours-crop.webp" alt="The Colours only starter: Neutral's sidebar and server rows in an amber palette" loading="lazy" />
-            <figcaption><strong>Colours only</strong>: Neutral's layout in an amber palette</figcaption>
-          </figure>
-          <figure class="shot">
-            <img src="../../assets/themes/styled-crop.webp" alt="The Styled starter: an indigo palette with CSS adjusting the server rows" loading="lazy" />
-            <figcaption><strong>Styled</strong>: a palette plus CSS, with a row-indent setting</figcaption>
-          </figure>
         </div>
 
         <h2 id="recolour">Recolour without code</h2>
@@ -116,7 +106,7 @@
           Neutral, Tactical or any theme you've installed:
         </p>
         <ol>
-          <li>Open <strong>Settings → Themes</strong> and activate the theme you want to recolour.</li>
+          <li>Open <strong>Settings → Theme</strong> and activate the theme you want to recolour.</li>
           <li>Press <strong>Customize tokens</strong>. Pick colours for dark and light mode, and adjust glow, corner roundness and fonts if you like.</li>
           <li>Type a name and press <strong>Save theme</strong>.</li>
         </ol>
@@ -129,24 +119,25 @@
         <h2 id="first-theme">Your first theme</h2>
         <ol>
           <li>
-            Open <strong>Settings → Themes</strong> and press <strong>New theme</strong>.
-            Pick the starter closest to what you want. The launcher copies it into a new
-            theme of your own and switches to it.
+            Open <strong>Settings → Theme</strong> and press <strong>New theme</strong>,
+            then <strong>Copy Neutral</strong> or <strong>Copy Tactical</strong>. The launcher
+            makes a copy of your own and switches to it. You can also open a theme card's
+            ⋯ menu and pick <strong>Duplicate as new theme</strong>.
           </li>
           <li>
-            Open <strong>Settings → Launcher → Open data folder</strong>. Your theme is in
+            In <strong>Settings → Launcher</strong>, press <strong>Open</strong> next to Data folder. Your theme is in
             <code>themes/&lt;your-theme-id&gt;/</code>.
           </li>
           <li>
-            Turn on <strong>Dev Mode</strong> in Settings → Themes. It reloads your theme
+            Turn on <strong>Dev Mode</strong> in Settings → Theme. It reloads your theme
             every time you save a file and lists anything the launcher rejected.
           </li>
           <li>Edit, save, look. When you're happy, use <strong>Export</strong> to share it.</li>
         </ol>
 
         <figure class="shot">
-          <img src="../../assets/themes/settings-themes.webp" alt="Settings, Themes page: installed themes, New theme and Import buttons, and the active theme's Customize tokens, Theme settings and Dev Mode buttons" loading="lazy" />
-          <figcaption>Settings → Themes. New theme, Import and Dev Mode all live here.</figcaption>
+          <img src="../../assets/themes/settings-themes.webp" alt="Settings, Theme tab: installed themes, New theme and Import buttons, and the active theme's Customize tokens, Theme settings and Dev Mode buttons" loading="lazy" />
+          <figcaption>Settings → Theme. New theme, Import and Dev Mode all live here.</figcaption>
         </figure>
 
         <h2 id="package">The package</h2>

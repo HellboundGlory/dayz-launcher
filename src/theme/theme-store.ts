@@ -152,7 +152,7 @@ function markIncompatibleNoticeShown(id: string): void {
   }
 }
 
-/** Lowercase, runs of non-alphanumerics collapsed to one `-`, ends trimmed — mirrors Rust `theme::slugify`. Exported so the "New theme" picker derives a scaffolded theme's id the same way `duplicateTheme` derives a duplicate's. */
+/** Lowercase, runs of non-alphanumerics collapsed to one `-`, ends trimmed — mirrors Rust `theme::slugify`. Exported so the theme grid derives ids the same way `duplicateTheme` does. */
 export function slugify(name: string): string {
   let slug = "";
   for (const c of name) {

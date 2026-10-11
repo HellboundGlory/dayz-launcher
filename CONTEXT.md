@@ -40,12 +40,8 @@ A theme that ships inside the launcher and can't be deleted. Neutral is the buil
 _Avoid_: preset
 
 **User theme**:
-An installed theme this launcher created — a scaffold, a duplicate or a customiser save — with a `local.*` id. Only a user theme is written in place; imported and bundled themes are saved as a new one (SPEC §4.6).
+An installed theme this launcher created — a duplicate (New theme copies Neutral or Tactical) or a customiser save — with a `local.*` id. Only a user theme is written in place; imported and bundled themes are saved as a new one (SPEC §4.6).
 _Avoid_: custom theme, personal theme
-
-**Starter**:
-A bundled theme package meant to be copied as the beginning of a new theme.
-_Avoid_: template (for packages)
 
 **Capability**:
 A kind of customisation a theme package declares it uses: tokens, CSS, fonts, images, layout or theme settings.
