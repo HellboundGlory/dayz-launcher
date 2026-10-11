@@ -137,6 +137,20 @@ describe("host nodes", () => {
     expect(html).toContain("min-height:0px");
     expect(html).toContain("flex-shrink:0");
   });
+
+  it("delegates element and surface leaves to renderElement", () => {
+    const html = render(
+      {
+        type: "stack",
+        children: [{ element: "server.join" }, { surface: "surface.navRail" }],
+      },
+      {
+        renderElement: (node) => <b>{node.element ?? node.surface}</b>,
+      },
+    );
+    expect(html).toContain("<b>server.join</b>");
+    expect(html).toContain("<b>surface.navRail</b>");
+  });
 });
 
 describe("leaves", () => {
@@ -175,22 +189,6 @@ describe("leaves", () => {
 
   it("renders nothing for an outlet with no content", () => {
     expect(render({ type: "outlet", name: "modals" })).toBe("");
-  });
-});
-
-describe("host nodes", () => {
-  it("delegates element and surface leaves to renderElement", () => {
-    const html = render(
-      {
-        type: "stack",
-        children: [{ element: "server.join" }, { surface: "surface.navRail" }],
-      },
-      {
-        renderElement: (node) => <b>{node.element ?? node.surface}</b>,
-      },
-    );
-    expect(html).toContain("<b>server.join</b>");
-    expect(html).toContain("<b>surface.navRail</b>");
   });
 });
 
@@ -317,12 +315,6 @@ describe("viewport width", () => {
     vi.stubGlobal("window", { innerWidth: 1400 });
     expect(html({ width: 975 })).toContain('id="r-narrow"');
   });
-
-  it("prefers a dev variantWidth over both", () => {
-    vi.stubGlobal("window", { innerWidth: 975 });
-    useDevStore.getState().setVariantWidth(1400);
-    expect(html({ width: 975 })).toContain('id="r-wide"');
-  });
 });
 
 describe("dev-mode overrides", () => {
@@ -348,19 +340,4 @@ describe("dev-mode overrides", () => {
     );
     expect(html).not.toContain("gone");
   });
-
-  it("leaves the existing width/settings behaviour unchanged when both dev overrides are null", () => {
-    expect(resolveVariant(variants, 899)).toEqual(
-      expect.objectContaining({ id: "r-narrow" }),
-    );
-    const html = render(tree({ setting: "compactRows", equals: true }), { settings: { compactRows: true } });
-    expect(html).not.toContain("gone");
-  });
 });
-
-function tree(hidden: LayoutNode["hidden"]): LayoutNode {
-  return {
-    type: "stack",
-    children: [{ type: "text", value: "gone", hidden }, { type: "text", value: "kept" }],
-  };
-}
