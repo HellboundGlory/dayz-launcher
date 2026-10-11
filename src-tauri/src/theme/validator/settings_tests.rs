@@ -1,9 +1,6 @@
 use serde_json::{json, Value};
 
-use super::settings::{
-    extract_settings_combinations, resolve_settings, validate_settings_schema, SettingsField,
-    SettingsOption,
-};
+use super::settings::{resolve_settings, validate_settings_schema, SettingsField, SettingsOption};
 
 fn schema(field: Value) -> Value {
     json!({"schemaVersion":2,"fields":[field]})
@@ -35,7 +32,6 @@ fn malformed_schemas_report_field_locations() {
         assert!(validate_settings_schema(&value)
             .iter()
             .any(|issue| issue.rule_id == "SET-01" && issue.pointer == pointer));
-        assert!(extract_settings_combinations(&value).is_err());
     }
 }
 
@@ -120,49 +116,6 @@ fn discrete_and_color_defaults_and_options_are_validated() {
         json!({"id":"foo","type":"color","label":"Foo","default":"#aB09fF"})
     ))
     .is_empty());
-}
-
-#[test]
-fn combinations_expand_discrete_fields_only_and_enforce_the_cap() {
-    let fields: Vec<_> = (0..7)
-        .map(|i| json!({"id":format!("f{i}"),"type":"boolean","label":"Flag","default":false}))
-        .collect();
-    let mut value = json!({"schemaVersion":2,"fields":fields});
-    let errors = extract_settings_combinations(&value).unwrap_err();
-    assert!(errors
-        .iter()
-        .any(|issue| issue.rule_id == "SET-05" && issue.pointer == "/fields"));
-    value["fields"].as_array_mut().unwrap().pop();
-    let combinations = extract_settings_combinations(&value).unwrap();
-    assert_eq!(combinations.len(), 64);
-    let unique: std::collections::HashSet<_> = combinations
-        .iter()
-        .map(|settings| {
-            (0..6)
-                .map(|i| settings[&format!("f{i}")].as_bool().unwrap())
-                .collect::<Vec<_>>()
-        })
-        .collect();
-    assert_eq!(unique.len(), 64);
-    let value = json!({"schemaVersion":2,"fields":[
-        {"id":"flag","type":"boolean","label":"Flag","default":true},
-        {"id":"mode","type":"choice","label":"Mode","default":"a","options":[{"value":"a","label":"A"},{"value":"b","label":"B"},{"value":"c","label":"C"}]},
-        {"id":"size","type":"number","label":"Size","min":0,"max":1,"default":0},
-        {"id":"tint","type":"color","label":"Tint","default":"#abcdef"}
-    ]});
-    let combinations = extract_settings_combinations(&value).unwrap();
-    assert_eq!(combinations.len(), 6);
-    for flag in [false, true] {
-        for mode in ["a", "b", "c"] {
-            assert!(combinations
-                .iter()
-                .any(|s| s.len() == 2 && s["flag"] == flag && s["mode"] == mode));
-        }
-    }
-    assert_eq!(
-        extract_settings_combinations(&json!({"schemaVersion":2,"fields":[]})).unwrap(),
-        vec![std::collections::HashMap::new()]
-    );
 }
 
 #[test]
@@ -284,31 +237,33 @@ fn combinations_expand_discrete_fields_and_pin_defaults() {
         .combinations
         .iter()
         .all(|combination| combination.values.len() == 4));
-}
 
-#[test]
-fn a_schema_without_discrete_fields_offers_only_the_defaults() {
     let value = json!({"schemaVersion":2,"fields":[
         {"id":"size","type":"number","label":"Size","min":0,"max":10,"default":4},
         {"id":"tint","type":"color","label":"Tint","default":"#abcdef"}
     ]});
     let resolved = resolve_settings(&value);
-    assert!(!resolved.capped);
     assert_eq!(resolved.combinations.len(), 1);
     assert_eq!(resolved.combinations[0].label, "Defaults");
     assert_eq!(
         serde_json::to_value(&resolved.combinations[0].values).unwrap(),
         json!({"size":4.0,"tint":"#abcdef"})
     );
-}
 
-#[test]
-fn combinations_are_capped_at_64_without_dropping_fields() {
     let value = json!({"schemaVersion":2,"fields":(0..7)
         .map(|i| json!({"id":format!("f{i}"),"type":"boolean","label":"Flag","default":false}))
         .collect::<Vec<_>>()});
+    assert!(validate_settings_schema(&value)
+        .iter()
+        .any(|issue| issue.rule_id == "SET-05" && issue.pointer == "/fields"));
     let resolved = resolve_settings(&value);
     assert_eq!(resolved.fields.len(), 7);
     assert_eq!(resolved.combinations.len(), 64);
     assert!(resolved.capped);
+    let distinct: std::collections::HashSet<String> = resolved
+        .combinations
+        .iter()
+        .map(|c| serde_json::to_string(&c.values).unwrap())
+        .collect();
+    assert_eq!(distinct.len(), 64);
 }

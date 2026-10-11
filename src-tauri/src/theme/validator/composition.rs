@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
+use super::settings::{ResolvedSettings, SettingsField};
 use serde_json::Value;
 
 use super::ast::{Node, NodeKind};
@@ -8,11 +9,14 @@ use crate::theme::registry::{Multiplicity, Registry};
 
 const SHELL: &str = "layout/shell.json";
 
-fn setting_description(settings: &HashMap<String, Value>) -> String {
-    serde_json::to_string(&settings.iter().collect::<BTreeMap<_, _>>()).unwrap()
+/// One combination of setting values, keyed by field id.
+type Settings = serde_json::Map<String, Value>;
+
+fn setting_description(settings: &Settings) -> String {
+    serde_json::to_string(settings).unwrap()
 }
 
-fn is_hidden(value: &Value, settings: &HashMap<String, Value>) -> bool {
+fn is_hidden(value: &Value, settings: &Settings) -> bool {
     value.get("hidden").is_some_and(|hidden| {
         hidden.as_bool().unwrap_or_else(|| {
             hidden
@@ -61,7 +65,7 @@ fn validate_hidden(
 
 fn visibility<'a>(
     root: &Root<'a>,
-    settings: &HashMap<String, Value>,
+    settings: &Settings,
     required: &[&str],
     registry: &'a Registry,
     file: &str,
@@ -81,7 +85,7 @@ fn visibility<'a>(
 }
 
 struct Visibility<'a, 'b> {
-    settings: &'b HashMap<String, Value>,
+    settings: &'b Settings,
     required: &'b [&'b str],
     registry: &'a Registry,
     file: &'b str,
@@ -183,7 +187,7 @@ struct Layout<'a> {
 
 pub(super) fn validate(
     files: &HashMap<String, Value>,
-    settings_schema: Option<&Value>,
+    settings: Option<&ResolvedSettings>,
     registry: &Registry,
 ) -> Vec<ValidationIssue> {
     let layouts: BTreeMap<_, _> = files
@@ -192,15 +196,34 @@ pub(super) fn validate(
         .map(|(file, value)| (file.as_str(), collect(value, registry)))
         .collect();
     let mut issues = Vec::new();
-    // A schema the settings check refuses counts as absent here; that check reports it.
-    let combinations = settings_schema
-        .and_then(|schema| super::settings::extract_settings_combinations(schema).ok())
-        .unwrap_or_else(|| vec![HashMap::new()]);
-    // Every combination holds every boolean and choice id.
-    let discrete: HashSet<&str> = combinations
-        .first()
-        .map(|values| values.keys().map(String::as_str).collect())
-        .unwrap_or_default();
+    // Capped settings (SET-05) offer only a prefix of their combinations, which
+    // cannot prove a required element stays visible, so their conditions are refused.
+    let settings = settings.filter(|settings| !settings.capped);
+    let discrete: HashSet<&str> = settings
+        .into_iter()
+        .flat_map(|settings| settings.fields.iter())
+        .filter_map(|field| match field {
+            SettingsField::Boolean { id, .. } | SettingsField::Choice { id, .. } => {
+                Some(id.as_str())
+            }
+            _ => None,
+        })
+        .collect();
+    // Only the discrete values decide visibility; the rest would just clutter messages.
+    let combinations: Vec<Settings> = match settings {
+        Some(settings) => settings
+            .combinations
+            .iter()
+            .map(|c| {
+                c.values
+                    .iter()
+                    .filter(|(id, _)| discrete.contains(id.as_str()))
+                    .map(|(id, value)| (id.clone(), value.clone()))
+                    .collect()
+            })
+            .collect(),
+        None => vec![Settings::new()],
+    };
     for (file, layout) in &layouts {
         for root in &layout.roots {
             if let Some(value) = root.value {
