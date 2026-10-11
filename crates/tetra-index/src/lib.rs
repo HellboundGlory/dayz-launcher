@@ -17,35 +17,27 @@ use std::collections::HashMap;
 #[cfg(feature = "client")]
 mod client;
 #[cfg(feature = "client")]
-pub use client::{Fetch, IndexClient, IndexError, HEALTH_BACKOFF_SECS, MAX_SNAPSHOT_BYTES};
+pub use client::{IndexClient, IndexError, HEALTH_BACKOFF_SECS, MAX_SNAPSHOT_BYTES};
 
 /// Incremented whenever a field changes meaning or disappears. A client that
 /// reads a different number discards the body untouched — mismatched schemas
 /// are what turn a helpful index into a source of wrong player counts.
 pub const FORMAT_VERSION: u32 = 1;
 
-/// The whole known server list, or (for a delta) just what changed.
+/// The whole known server list.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
     pub format_version: u32,
     /// When the backend built this body.
     pub generated_at: i64,
-    /// Pass back as `?since=` to get only what changed after this snapshot.
+    /// Launchers up to 2.7.0 require it and send it back to the delta address.
     pub cursor: i64,
-    /// `true` when this body is a delta, so a client knows not to treat
-    /// absent servers as gone.
-    #[serde(default)]
-    pub partial: bool,
     /// Workshop id to display name, deduplicated across every server: the
     /// same ~40 mods dominate tens of thousands of servers, so inlining names
     /// per server would multiply the payload for no information.
     pub mod_names: HashMap<u64, String>,
     pub servers: Vec<ServerEntry>,
-    /// Addresses the backend has dropped (spoofed, or pruned as long dead).
-    /// Only populated on a delta.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub removed: Vec<String>,
 }
 
 /// One server, carrying every field the browser renders. Ping is absent by
@@ -95,23 +87,6 @@ impl ServerEntry {
     }
 }
 
-/// One server plus its resolved mod list, for the details panel and
-/// `dzsa://` deep links where fetching the whole snapshot is absurd.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ServerDetail {
-    pub format_version: u32,
-    pub server: ServerEntry,
-    pub mods: Vec<ModEntry>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ModEntry {
-    pub workshop_id: u64,
-    pub name: String,
-}
-
 /// Crawler freshness. A client gates on this rather than on HTTP 200: a
 /// backend that is up but hasn't crawled in an hour is worse than no backend,
 /// because its player counts are confidently wrong.
@@ -157,8 +132,6 @@ pub mod paths {
     pub const HEALTH: &str = "/v1/health";
     pub const SNAPSHOT: &str = "/v1/servers/snapshot";
     pub const DELTA: &str = "/v1/servers/delta";
-    /// `/v1/servers/{ip}:{query_port}`
-    pub const SERVER: &str = "/v1/servers/";
 }
 
 #[cfg(test)]
@@ -182,6 +155,36 @@ mod tests {
             mod_ids: Some(vec![1559212036]),
             last_responded: Some(1_757_000_000),
         }
+    }
+
+    // Installed 2.7.0 launchers fail to parse a body without `cursor`.
+    #[test]
+    fn the_snapshot_keeps_the_fields_older_launchers_require() {
+        let body = serde_json::to_value(Snapshot {
+            format_version: FORMAT_VERSION,
+            generated_at: 1,
+            cursor: 1,
+            mod_names: HashMap::new(),
+            servers: vec![entry()],
+        })
+        .expect("serialise");
+        let mut keys: Vec<&str> = body
+            .as_object()
+            .expect("object")
+            .keys()
+            .map(String::as_str)
+            .collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            [
+                "cursor",
+                "formatVersion",
+                "generatedAt",
+                "modNames",
+                "servers"
+            ]
+        );
     }
 
     #[test]

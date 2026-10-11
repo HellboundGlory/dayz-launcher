@@ -3,40 +3,17 @@
 
 use crate::ratelimit::RateLimiter;
 use axum::body::Bytes;
-use std::collections::HashSet;
-use std::net::SocketAddrV4;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, RwLock};
 use tetra_index::{Health, FORMAT_VERSION};
 use tetra_registry::Registry;
 use tokio::sync::Notify;
 
-/// A response body, compressed once when it was built.
-pub struct GzBody {
-    pub bytes: Bytes,
-    /// Strong validator over the compressed bytes, quoted.
-    pub etag: String,
-}
-
-/// One generation of pre-built bodies. Requests never serialise anything.
+/// The snapshot every client is served from, built once and never per request.
 pub struct Bodies {
     pub generated_at: i64,
-    /// Monotonic build counter; the snapshot's `cursor` value. A client's
-    /// `?since=` lands on the generation it describes only when the counter
-    /// is the source of truth, which is why this is not a clock.
-    pub generation: i64,
-    pub snapshot: GzBody,
-    /// Absent on the first generation, and whenever nearly everything
-    /// changed and a delta would be no smaller than the snapshot.
-    pub delta: Option<GzBody>,
-    /// The `since` this generation's delta is valid from.
-    pub delta_from: i64,
-    /// Addresses in this generation, kept to diff the next one — the registry
-    /// has no tombstones, so a disappearance is only visible as an absence.
-    pub keys: HashSet<SocketAddrV4>,
-    /// Per-address content fingerprints, compared against the next
-    /// generation to decide what a delta must carry.
-    pub fingerprints: std::collections::HashMap<String, u64>,
+    /// Compressed once when it was built.
+    pub snapshot: Bytes,
     pub servers: usize,
     pub responsive: usize,
     pub with_mods: usize,
