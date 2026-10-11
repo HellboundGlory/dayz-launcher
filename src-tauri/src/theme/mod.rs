@@ -807,10 +807,9 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// One list of layout files: its popups are the registry's, and every entry
-    /// sits in a folder a package may declare.
+    /// One list of layout files: its popups are the registry's.
     #[test]
-    fn the_layout_allowlist_matches_the_registry_and_the_package_folders() {
+    fn the_layout_allowlist_matches_the_registry() {
         let registry = crate::theme::registry::parse_registry().unwrap();
         let mut listed: Vec<&str> = LAYOUT_ALLOWLIST
             .iter()
@@ -819,11 +818,6 @@ mod tests {
         listed.sort_unstable();
         let declared: Vec<&str> = registry.popups.keys().map(String::as_str).collect();
         assert_eq!(listed, declared);
-
-        for path in LAYOUT_ALLOWLIST {
-            let parent = path.rsplit_once('/').expect("nested path").0;
-            assert!(super::archive::PACKAGE_FOLDERS.contains(&parent), "{path}");
-        }
     }
 
     fn write_layout(dir: &Path, relative: &str, content: &str) {

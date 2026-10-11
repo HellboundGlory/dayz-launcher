@@ -180,6 +180,13 @@ fn layout_rules_report_exact_pointers() {
 }
 
 #[test]
+fn the_text_roles_match_the_shared_list() {
+    let roles: Vec<String> =
+        serde_json::from_str(include_str!("../../../../src/theme/text-roles.json")).unwrap();
+    assert_eq!(super::ast::TEXT_ROLES.to_vec(), roles);
+}
+
+#[test]
 fn glow_is_accepted_on_element_nodes_in_every_mode() {
     for mode in ["always", "selected", "never"] {
         assert_eq!(
