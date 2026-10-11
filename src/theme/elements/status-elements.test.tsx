@@ -10,64 +10,31 @@ const render = (node: React.ReactNode, value: Partial<ElementContextValue> = {})
   );
 
 describe("StatusActivity", () => {
-  it("shows the discovering state and message", () => {
-    const html = render(<StatusActivity />, { discovering: true, refreshing: false });
-    expect(html).toContain('data-state="discovering"');
+  it.each([
+    { name: "discovering", context: { discovering: true, refreshing: false }, state: "discovering", label: "Discovering servers from Steam…" },
+    { name: "refreshing", context: { discovering: false, refreshing: true }, state: "refreshing", label: "Probing server details…" },
+    { name: "live with the refreshed time", context: { discovering: false, refreshing: false, refreshedAt: "09:32" }, state: "live", label: "Live · 09:32" },
+    { name: "live with no refresh yet", context: { discovering: false, refreshing: false, refreshedAt: null }, state: "live", label: "Live · waiting" },
+    { name: "disconnected from Steam", context: { steamConnected: false }, state: "live", label: "Live · waiting" },
+  ])("shows $label while $name", ({ context, state, label }) => {
+    const html = render(<StatusActivity />, context);
+    expect(html).toContain(`data-state="${state}"`);
     expect(html).toContain('data-part="dot"');
     expect(html).toContain('data-part="label"');
-    expect(html).toContain("Discovering servers from Steam…");
-  });
-
-  it("shows the refreshing state and message", () => {
-    const html = render(<StatusActivity />, { discovering: false, refreshing: true });
-    expect(html).toContain('data-state="refreshing"');
-    expect(html).toContain("Probing server details…");
-  });
-
-  it("shows live with the refreshed time", () => {
-    const html = render(<StatusActivity />, {
-      discovering: false,
-      refreshing: false,
-      refreshedAt: "09:32",
-    });
-    expect(html).toContain('data-state="live"');
-    expect(html).toContain("Live · 09:32");
-  });
-
-  it("shows live · waiting with no refreshedAt", () => {
-    const html = render(<StatusActivity />, {
-      discovering: false,
-      refreshing: false,
-      refreshedAt: null,
-    });
-    expect(html).toContain('data-state="live"');
-    expect(html).toContain("Live · waiting");
-  });
-
-  it("renders regardless of Steam connection state", () => {
-    const html = render(<StatusActivity />, { steamConnected: false });
-    expect(html).toContain('data-el="status.activity"');
+    expect(html).toContain(label);
   });
 });
 
 describe("StatusLastRefreshed", () => {
-  it("honours a custom label option", () => {
-    const html = render(<StatusLastRefreshed options={{ label: "Refreshed" }} />, {
-      steamConnected: true,
-      refreshedAt: "09:32",
-    });
-    expect(html).toContain('data-part="label"');
-    expect(html).toContain("Refreshed");
-    expect(html).toContain('data-part="value"');
-    expect(html).toContain("09:32");
-  });
+  it("honours a custom label option, defaulting it to Updated", () => {
+    const value = { steamConnected: true, refreshedAt: "09:32" };
+    const plain = render(<StatusLastRefreshed />, value);
+    expect(plain).toContain('data-part="label">Updated </span>');
+    expect(plain).toContain('data-part="value">09:32</span>');
 
-  it("defaults the label to Updated", () => {
-    const html = render(<StatusLastRefreshed />, {
-      steamConnected: true,
-      refreshedAt: "09:32",
-    });
-    expect(html).toContain("Updated");
+    expect(render(<StatusLastRefreshed options={{ label: "Refreshed" }} />, value)).toContain(
+      'data-part="label">Refreshed </span>',
+    );
   });
 });
 

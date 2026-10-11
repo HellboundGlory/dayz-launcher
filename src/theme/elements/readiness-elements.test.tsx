@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ModReadinessEntry, ServerModReadiness, Server } from "@/types/server";
 import { useServerStore } from "@/stores/server-store";
-import { computeReadinessView } from "./readiness-elements";
+import { computeReadinessView, ServerDownloadSize, ServerReadiness } from "./readiness-elements";
+import { useSelectionReadiness } from "./use-selection-readiness";
 import { ElementContextProvider } from "./context";
 
 // SSR takes zustand's initial-state snapshot, so route the hook through the live state.
@@ -14,6 +15,11 @@ vi.mock("@/stores/server-store", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/stores/server-store")>();
   return { ...actual, useServerStore: liveHook(actual.useServerStore) };
 });
+
+vi.mock("./use-selection-readiness", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./use-selection-readiness")>()),
+  useSelectionReadiness: vi.fn(),
+}));
 
 const mod = (overrides: Partial<ModReadinessEntry>): ModReadinessEntry => ({
   workshop_id: "1",
@@ -30,121 +36,91 @@ const mod = (overrides: Partial<ModReadinessEntry>): ModReadinessEntry => ({
 
 const readiness = (mods: ModReadinessEntry[], stale = false): ServerModReadiness => ({ stale, mods });
 
+function setReadiness(value: ServerModReadiness | null, loading: boolean) {
+  vi.mocked(useSelectionReadiness).mockReturnValue({ readiness: value, loading });
+}
+
 describe("computeReadinessView", () => {
-  it("reports checking while the fetch is in flight, regardless of any stale data", () => {
-    const view = computeReadinessView(readiness([mod({ state: "ready" })], true), true);
-    expect(view.dataState).toBe("checking");
-    expect(view.label).toBe("Checking mods…");
-    expect(view.sizeBytes).toBeNull();
-  });
-
-  it("reports unchecked when no data has resolved", () => {
-    const view = computeReadinessView(null, false);
-    expect(view.dataState).toBe("unchecked");
-    expect(view.label).toBe("Mods not checked");
-  });
-
-  it("reports noMods for an empty declared list", () => {
-    const view = computeReadinessView(readiness([]), false);
-    expect(view.dataState).toBe("noMods");
-    expect(view.label).toBe("No mods declared");
-  });
-
-  it("reports ready when every mod is ready or not on the workshop", () => {
-    const view = computeReadinessView(
-      readiness([mod({ state: "ready" }), mod({ state: "not_on_workshop" })]),
-      false,
-    );
-    expect(view.dataState).toBe("ready");
-    expect(view.label).toBe("All mods ready");
-    expect(view.sizeBytes).toBeNull();
-  });
-
-  it("counts mods needing download and sums their full size", () => {
-    const view = computeReadinessView(
-      readiness([
+  it.each([
+    {
+      case: "reports checking while the fetch is in flight, regardless of any stale data",
+      readiness: readiness([mod({ state: "ready" })], true),
+      loading: true,
+      expected: { dataState: "checking", label: "Checking mods…", sizeBytes: null, sizeIsUpperBound: false },
+    },
+    {
+      case: "reports unchecked when no data has resolved",
+      readiness: null,
+      loading: false,
+      expected: { dataState: "unchecked", label: "Mods not checked", sizeBytes: null, sizeIsUpperBound: false },
+    },
+    {
+      case: "reports noMods for an empty declared list",
+      readiness: readiness([]),
+      loading: false,
+      expected: { dataState: "noMods", label: "No mods declared", sizeBytes: null, sizeIsUpperBound: false },
+    },
+    {
+      case: "reports ready when every mod is ready or not on the workshop",
+      readiness: readiness([mod({ state: "ready" }), mod({ state: "not_on_workshop" })]),
+      loading: false,
+      expected: { dataState: "ready", label: "All mods ready", sizeBytes: null, sizeIsUpperBound: false },
+    },
+    {
+      case: "counts mods needing download and sums their full size",
+      readiness: readiness([
         mod({ state: "not_installed", size_bytes: 1000 }),
         mod({ state: "not_subscribed", size_bytes: 2000 }),
         mod({ state: "ready" }),
       ]),
-      false,
-    );
-    expect(view.dataState).toBe("needsDownload");
-    expect(view.label).toBe("2 to download");
-    expect(view.sizeBytes).toBe(3000);
-    expect(view.sizeIsUpperBound).toBe(false);
-  });
-
-  it("counts mods needing an update and marks the size an upper bound", () => {
-    const view = computeReadinessView(
-      readiness([mod({ state: "needs_update", size_bytes: 5000, size_is_upper_bound: true })]),
-      false,
-    );
-    expect(view.dataState).toBe("needsUpdate");
-    expect(view.label).toBe("1 to update");
-    expect(view.sizeBytes).toBe(5000);
-    expect(view.sizeIsUpperBound).toBe(true);
-  });
-
-  it("prefixes the mixed total 'up to' when any outstanding item is an update", () => {
-    const view = computeReadinessView(
-      readiness([
+      loading: false,
+      expected: { dataState: "needsDownload", label: "2 to download", sizeBytes: 3000, sizeIsUpperBound: false },
+    },
+    {
+      case: "counts mods needing an update and marks the size an upper bound",
+      readiness: readiness([mod({ state: "needs_update", size_bytes: 5000, size_is_upper_bound: true })]),
+      loading: false,
+      expected: { dataState: "needsUpdate", label: "1 to update", sizeBytes: 5000, sizeIsUpperBound: true },
+    },
+    {
+      case: "prefixes the mixed total 'up to' when any outstanding item is an update",
+      readiness: readiness([
         mod({ state: "not_installed", size_bytes: 1000, size_is_upper_bound: false }),
         mod({ state: "needs_update", size_bytes: 4000, size_is_upper_bound: true }),
       ]),
-      false,
-    );
-    expect(view.sizeBytes).toBe(5000);
-    expect(view.sizeIsUpperBound).toBe(true);
-  });
-
-  it("reports live download progress and replaces the size estimate", () => {
-    const view = computeReadinessView(
-      readiness([
+      loading: false,
+      expected: { dataState: "needsDownload", label: "1 to download", sizeBytes: 5000, sizeIsUpperBound: true },
+    },
+    {
+      case: "reports live download progress and replaces the size estimate",
+      readiness: readiness([
         mod({ state: "downloading", downloaded_bytes: 512, total_bytes: 2048 }),
         mod({ state: "not_installed", size_bytes: 1000 }),
       ]),
-      false,
-    );
-    expect(view.dataState).toBe("downloading");
-    expect(view.label).toBe("Downloading 512 bytes of 2 KB");
-    expect(view.sizeBytes).toBe(3048);
-  });
-
-  it("takes the first of downloading, needsDownload, needsUpdate, unchecked, noMods, ready", () => {
-    const view = computeReadinessView(
-      readiness([
-        mod({ state: "needs_update" }),
-        mod({ state: "not_installed" }),
-        mod({ state: "downloading" }),
-      ]),
-      false,
-    );
-    expect(view.dataState).toBe("downloading");
-  });
-
-  it("carries stale through, overriding the content state on data-state", () => {
-    const view = computeReadinessView(readiness([mod({ state: "needs_update", size_bytes: 10 })], true), false);
-    expect(view.dataState).toBe("stale");
-    expect(view.label).toBe("1 to update");
+      loading: false,
+      expected: { dataState: "downloading", label: "Downloading 512 bytes of 2 KB", sizeBytes: 3048, sizeIsUpperBound: false },
+    },
+    {
+      case: "takes the first of downloading, needsDownload, needsUpdate, unchecked, noMods, ready",
+      readiness: readiness([mod({ state: "needs_update" }), mod({ state: "not_installed" }), mod({ state: "downloading" })]),
+      loading: false,
+      expected: { dataState: "downloading", label: "Downloading 0 bytes of 0 bytes", sizeBytes: 0, sizeIsUpperBound: false },
+    },
+    {
+      case: "carries stale through, overriding the content state on data-state",
+      readiness: readiness([mod({ state: "needs_update", size_bytes: 10 })], true),
+      loading: false,
+      expected: { dataState: "stale", label: "1 to update", sizeBytes: 10, sizeIsUpperBound: false },
+    },
+  ])("$case", ({ readiness, loading, expected }) => {
+    expect(computeReadinessView(readiness, loading)).toEqual(expected);
   });
 });
 
-vi.mock("./use-selection-readiness", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./use-selection-readiness")>()),
-  useSelectionReadiness: vi.fn(),
-}));
-
 describe("ServerReadiness", () => {
-  async function renderWith(readinessValue: ServerModReadiness | null, loading: boolean) {
-    const { useSelectionReadiness } = await import("./use-selection-readiness");
-    vi.mocked(useSelectionReadiness).mockReturnValue({ readiness: readinessValue, loading });
-    const { ServerReadiness } = await import("./readiness-elements");
-    return renderToStaticMarkup(<ServerReadiness />);
-  }
-
-  it("renders dot, label and size parts by default", async () => {
-    const html = await renderWith(readiness([mod({ state: "not_installed", size_bytes: 1024 })]), false);
+  it("renders dot, label and size parts by default", () => {
+    setReadiness(readiness([mod({ state: "not_installed", size_bytes: 1024 })]), false);
+    const html = renderToStaticMarkup(<ServerReadiness />);
     expect(html).toContain('data-el="server.readiness"');
     expect(html).toContain('data-state="needsDownload"');
     expect(html).toContain('data-part="dot"');
@@ -154,69 +130,42 @@ describe("ServerReadiness", () => {
     expect(html).toContain("1 KB");
   });
 
-  it("omits the dot part when showDot is false", async () => {
-    const { useSelectionReadiness } = await import("./use-selection-readiness");
-    vi.mocked(useSelectionReadiness).mockReturnValue({ readiness: readiness([]), loading: false });
-    const { ServerReadiness } = await import("./readiness-elements");
-    const html = renderToStaticMarkup(<ServerReadiness options={{ showDot: false }} />);
-    expect(html).not.toContain('data-part="dot"');
+  it.each([
+    { case: "dot", options: { showDot: false }, part: 'data-part="dot"' },
+    { case: "size", options: { showSize: false }, part: 'data-part="size"' },
+  ])("omits the $case part when its option is false", ({ options, part }) => {
+    setReadiness(readiness([mod({ state: "not_installed", size_bytes: 1024 })]), false);
+    expect(renderToStaticMarkup(<ServerReadiness options={options} />)).not.toContain(part);
   });
 
-  it("prefixes the rendered size with 'up to' when an update is outstanding", async () => {
-    const { useSelectionReadiness } = await import("./use-selection-readiness");
-    vi.mocked(useSelectionReadiness).mockReturnValue({
-      readiness: readiness([mod({ state: "needs_update", size_bytes: 1024, size_is_upper_bound: true })]),
-      loading: false,
-    });
-    const { ServerReadiness } = await import("./readiness-elements");
-    const html = renderToStaticMarkup(<ServerReadiness />);
-    expect(html).toContain("up to 1 KB");
+  it("prefixes the rendered size with 'up to' when an update is outstanding", () => {
+    setReadiness(readiness([mod({ state: "needs_update", size_bytes: 1024, size_is_upper_bound: true })]), false);
+    expect(renderToStaticMarkup(<ServerReadiness />)).toContain("up to 1 KB");
   });
 
-  it("omits the size part when showSize is false", async () => {
-    const { useSelectionReadiness } = await import("./use-selection-readiness");
-    vi.mocked(useSelectionReadiness).mockReturnValue({
-      readiness: readiness([mod({ state: "not_installed", size_bytes: 1024 })]),
-      loading: false,
-    });
-    const { ServerReadiness } = await import("./readiness-elements");
-    const html = renderToStaticMarkup(<ServerReadiness options={{ showSize: false }} />);
-    expect(html).not.toContain('data-part="size"');
-  });
+  it("takes offline from its own subject, else the selection", () => {
+    setReadiness(readiness([mod({ state: "not_installed", size_bytes: 1024 })]), false);
+    expect(
+      renderToStaticMarkup(
+        <ElementContextProvider value={{ selectedServer: { online: false } as Server }}>
+          <ServerReadiness />
+        </ElementContextProvider>,
+      ),
+    ).toContain('data-state="needsDownload offline"');
 
-  it("adds offline to data-state while the selected server is offline", async () => {
-    const { useSelectionReadiness } = await import("./use-selection-readiness");
-    vi.mocked(useSelectionReadiness).mockReturnValue({
-      readiness: readiness([mod({ state: "not_installed", size_bytes: 1024 })]),
-      loading: false,
-    });
-    const { ServerReadiness } = await import("./readiness-elements");
-    const html = renderToStaticMarkup(
-      <ElementContextProvider value={{ selectedServer: { online: false } as Server }}>
-        <ServerReadiness />
-      </ElementContextProvider>,
-    );
-    expect(html).toContain('data-state="needsDownload offline"');
-  });
-
-  it("reads offline from its own server subject, not the selection", async () => {
-    const { useSelectionReadiness } = await import("./use-selection-readiness");
-    vi.mocked(useSelectionReadiness).mockReturnValue({
-      readiness: readiness([mod({ state: "ready" })]),
-      loading: false,
-    });
-    const { ServerReadiness } = await import("./readiness-elements");
-    const html = renderToStaticMarkup(
-      <ElementContextProvider
-        value={{
-          subjectContext: { kind: "server", data: { online: false } as Server },
-          selectedServer: { online: true } as Server,
-        }}
-      >
-        <ServerReadiness />
-      </ElementContextProvider>,
-    );
-    expect(html).toContain('data-state="ready offline"');
+    setReadiness(readiness([mod({ state: "ready" })]), false);
+    expect(
+      renderToStaticMarkup(
+        <ElementContextProvider
+          value={{
+            subjectContext: { kind: "server", data: { online: false } as Server },
+            selectedServer: { online: true } as Server,
+          }}
+        >
+          <ServerReadiness />
+        </ElementContextProvider>,
+      ),
+    ).toContain('data-state="ready offline"');
   });
 });
 
@@ -229,18 +178,18 @@ describe("ServerReadiness declared basis", () => {
     { case: "declared none", pending: false, modded: true, modCount: 0, state: "noMods", label: "No mods declared" },
     { case: "unprobed non-modded", pending: false, modded: false, modCount: null, state: "noMods", label: "No mods declared" },
     { case: "declared count", pending: false, modded: true, modCount: 3, state: "ready", label: "3 mods declared" },
-  ])("$case reads $label with state $state and no size", async (c) => {
-    useServerStore.setState({ modPending: c.pending ? { [declaredServer.addr]: true } : {} });
-    const { useSelectionReadiness } = await import("./use-selection-readiness");
-    vi.mocked(useSelectionReadiness).mockReturnValue({ readiness: null, loading: false });
-    const { ServerReadiness } = await import("./readiness-elements");
+  ])("$case reads $label with state $state and no size", ({ pending, modded, modCount, state, label }) => {
+    useServerStore.setState({ modPending: pending ? { [declaredServer.addr]: true } : {} });
+    setReadiness(null, false);
     const html = renderToStaticMarkup(
-      <ElementContextProvider value={{ subjectContext: { kind: "server", data: { ...declaredServer, modded: c.modded, mod_count: c.modCount } as Server } }}>
+      <ElementContextProvider
+        value={{ subjectContext: { kind: "server", data: { ...declaredServer, modded, mod_count: modCount } as Server } }}
+      >
         <ServerReadiness options={{ basis: "declared" }} />
       </ElementContextProvider>,
     );
-    expect(html).toContain(`data-state="${c.state}"`);
-    expect(html).toContain(c.label);
+    expect(html).toContain(`data-state="${state}"`);
+    expect(html).toContain(label);
     expect(html).toContain('data-part="dot"');
     expect(html).not.toContain('data-part="size"');
   });
@@ -249,10 +198,8 @@ describe("ServerReadiness declared basis", () => {
 describe("ServerDownloadSize", () => {
   const moddedServer = { addr: "192.168.1.1", online: true, modded: true, mod_count: 4 } as Server;
 
-  async function renderWith(readinessValue: ServerModReadiness | null, loading: boolean) {
-    const { useSelectionReadiness } = await import("./use-selection-readiness");
-    vi.mocked(useSelectionReadiness).mockReturnValue({ readiness: readinessValue, loading });
-    const { ServerDownloadSize } = await import("./readiness-elements");
+  function renderDownloadSize(value: ServerModReadiness | null): string {
+    setReadiness(value, false);
     return renderToStaticMarkup(
       <ElementContextProvider value={{ subjectContext: { kind: "server", data: moddedServer } }}>
         <ServerDownloadSize />
@@ -260,46 +207,43 @@ describe("ServerDownloadSize", () => {
     );
   }
 
-  it("renders the count and an upper-bound download size line", async () => {
-    const html = await renderWith(
-      readiness([
-        mod({ state: "needs_update", size_bytes: 5000, size_is_upper_bound: true }),
-        mod({ state: "ready" }),
-        mod({ state: "ready" }),
-        mod({ state: "ready" }),
-      ]),
-      false,
-    );
-    expect(html).toContain('data-part="count">4 mods<');
-    expect(html).toContain('data-state="upperBound"');
-    expect(html).toContain('data-part="qualifier">up to </span>');
-    expect(html.replace(/<[^>]+>/g, "")).toContain("Download size: up to 4.9 KB");
+  it.each([
+    {
+      case: "an upper-bound estimate",
+      mods: [mod({ state: "needs_update", size_bytes: 5000, size_is_upper_bound: true }), mod({ state: "ready" }), mod({ state: "ready" }), mod({ state: "ready" })],
+      state: "upperBound",
+      count: "4 mods",
+      size: "up to 4.9 KB",
+      qualifier: 'data-part="qualifier">up to </span>',
+    },
+    {
+      case: "an exact size",
+      mods: [mod({ state: "not_installed", size_bytes: 3000, size_is_upper_bound: false })],
+      state: undefined,
+      count: "1 mod",
+      size: "2.9 KB",
+      qualifier: undefined,
+    },
+    {
+      case: "a zero download size when nothing is outstanding",
+      mods: [mod({ state: "ready" })],
+      state: "none",
+      count: "1 mod",
+      size: "0 bytes",
+      qualifier: undefined,
+    },
+  ])("renders the count and $case", ({ mods, state, count, size, qualifier }) => {
+    const html = renderDownloadSize(readiness(mods));
+    expect(html).toContain(`data-part="count">${count}<`);
+    expect(html.replace(/<[^>]+>/g, "")).toContain(`Download size: ${size}`);
+    if (qualifier) expect(html).toContain(qualifier);
+    else expect(html).not.toContain('data-part="qualifier"');
+    if (state) expect(html).toContain(`data-state="${state}"`);
+    else expect(html).not.toContain("data-state=");
   });
 
-  it("renders an exact size with no data-state attribute and no qualifier", async () => {
-    const html = await renderWith(
-      readiness([mod({ state: "not_installed", size_bytes: 3000, size_is_upper_bound: false })]),
-      false,
-    );
-    expect(html).not.toContain("data-state=");
-    expect(html).not.toContain('data-part="qualifier"');
-    expect(html).toContain("Download size: 2.9 KB");
-  });
-
-  it("renders a zero download size when nothing is outstanding", async () => {
-    const html = await renderWith(readiness([mod({ state: "ready" })]), false);
-    expect(html).toContain('data-state="none"');
-    expect(html).toContain('data-part="count">1 mod<');
-    expect(html).toContain("Download size: 0 bytes");
-  });
-
-  it("adds offline to data-state while the selected server is offline", async () => {
-    const { useSelectionReadiness } = await import("./use-selection-readiness");
-    vi.mocked(useSelectionReadiness).mockReturnValue({
-      readiness: readiness([mod({ state: "ready" })]),
-      loading: false,
-    });
-    const { ServerDownloadSize } = await import("./readiness-elements");
+  it("adds offline to data-state while the selected server is offline", () => {
+    setReadiness(readiness([mod({ state: "ready" })]), false);
     const html = renderToStaticMarkup(
       <ElementContextProvider value={{ selectedServer: { online: false, modded: true, mod_count: 1 } as Server }}>
         <ServerDownloadSize />
