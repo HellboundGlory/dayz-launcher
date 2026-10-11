@@ -1706,8 +1706,7 @@
       "parts": [
         "icon",
         "time",
-        "multiplier",
-        "label"
+        "multiplier"
       ],
       "states": [
         "day",
@@ -1749,8 +1748,7 @@
         "value",
         "max",
         "queue",
-        "caption",
-        "label"
+        "caption"
       ],
       "states": [
         "empty",
@@ -1783,8 +1781,7 @@
       "parts": [
         "value",
         "unit",
-        "caption",
-        "label"
+        "caption"
       ],
       "states": [
         "good",
@@ -1813,8 +1810,7 @@
       "freeLabel": false,
       "parts": [
         "value",
-        "caption",
-        "label"
+        "caption"
       ],
       "states": [
         "none",

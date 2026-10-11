@@ -157,19 +157,77 @@
                         "direction": "row",
                         "children": [
                           {
-                            "element": "server.players"
+                            "type": "stack",
+                            "direction": "column",
+                            "class": "t-stat",
+                            "children": [
+                              {
+                                "element": "server.players",
+                                "options": {
+                                  "showCaption": false
+                                }
+                              },
+                              {
+                                "type": "text",
+                                "role": "label",
+                                "value": "Players",
+                                "class": "t-stat-label"
+                              }
+                            ]
                           },
                           {
-                            "element": "server.ping",
-                            "options": {
-                              "showUnit": true
-                            }
+                            "type": "stack",
+                            "direction": "column",
+                            "class": "t-stat",
+                            "children": [
+                              {
+                                "element": "server.ping",
+                                "options": {
+                                  "showCaption": false
+                                }
+                              },
+                              {
+                                "type": "text",
+                                "role": "label",
+                                "value": "Ping ms",
+                                "class": "t-stat-label"
+                              }
+                            ]
                           },
                           {
-                            "element": "server.gameTime"
+                            "type": "stack",
+                            "direction": "column",
+                            "class": "t-stat",
+                            "children": [
+                              {
+                                "element": "server.gameTime"
+                              },
+                              {
+                                "type": "text",
+                                "role": "label",
+                                "value": "Time",
+                                "class": "t-stat-label"
+                              }
+                            ]
                           },
                           {
-                            "element": "server.modCount"
+                            "type": "stack",
+                            "direction": "column",
+                            "class": "t-stat",
+                            "children": [
+                              {
+                                "element": "server.modCount",
+                                "options": {
+                                  "showCaption": false
+                                }
+                              },
+                              {
+                                "type": "text",
+                                "role": "label",
+                                "value": "Mods",
+                                "class": "t-stat-label"
+                              }
+                            ]
                           }
                         ]
                       },
@@ -447,19 +505,77 @@
                     "direction": "row",
                     "children": [
                       {
-                        "element": "server.players"
+                        "type": "stack",
+                        "direction": "column",
+                        "class": "t-stat",
+                        "children": [
+                          {
+                            "element": "server.players",
+                            "options": {
+                              "showCaption": false
+                            }
+                          },
+                          {
+                            "type": "text",
+                            "role": "label",
+                            "value": "Players",
+                            "class": "t-stat-label"
+                          }
+                        ]
                       },
                       {
-                        "element": "server.ping",
-                        "options": {
-                          "showUnit": true
-                        }
+                        "type": "stack",
+                        "direction": "column",
+                        "class": "t-stat",
+                        "children": [
+                          {
+                            "element": "server.ping",
+                            "options": {
+                              "showCaption": false
+                            }
+                          },
+                          {
+                            "type": "text",
+                            "role": "label",
+                            "value": "Ping ms",
+                            "class": "t-stat-label"
+                          }
+                        ]
                       },
                       {
-                        "element": "server.gameTime"
+                        "type": "stack",
+                        "direction": "column",
+                        "class": "t-stat",
+                        "children": [
+                          {
+                            "element": "server.gameTime"
+                          },
+                          {
+                            "type": "text",
+                            "role": "label",
+                            "value": "Time",
+                            "class": "t-stat-label"
+                          }
+                        ]
                       },
                       {
-                        "element": "server.modCount"
+                        "type": "stack",
+                        "direction": "column",
+                        "class": "t-stat",
+                        "children": [
+                          {
+                            "element": "server.modCount",
+                            "options": {
+                              "showCaption": false
+                            }
+                          },
+                          {
+                            "type": "text",
+                            "role": "label",
+                            "value": "Mods",
+                            "class": "t-stat-label"
+                          }
+                        ]
                       }
                     ]
                   },

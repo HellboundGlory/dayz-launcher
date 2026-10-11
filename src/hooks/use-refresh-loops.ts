@@ -84,7 +84,7 @@ export function useRefreshLoops({
   // change until rows exist. The interval effect above owns every later sweep.
   const sweptOnce = useRef(false);
   useEffect(() => {
-    if (autoRefreshSecs <= 0 || !steamConnected) return;
+    if (!settingsLoaded || autoRefreshSecs <= 0 || !steamConnected) return;
     const trySweep = () => {
       if (sweptOnce.current) return;
       const { hasLoadedOnce, servers } = useServerStore.getState();
@@ -94,7 +94,7 @@ export function useRefreshLoops({
     };
     trySweep();
     return useServerStore.subscribe(trySweep);
-  }, [autoRefreshSecs, steamConnected, handleRefresh]);
+  }, [settingsLoaded, autoRefreshSecs, steamConnected, handleRefresh]);
 
   // Periodic master re-pull. Discovery was launch-only, so servers still
   // propagating to Steam at startup stayed absent for the whole session —

@@ -1174,6 +1174,7 @@
 }
 
 [data-region="r-identity"] [data-el="server.address"] {
+  display: flex;
   margin: 4px 0 0;
   flex-wrap: wrap;
   gap: 2px 8px;
@@ -1205,7 +1206,7 @@
   padding: 0;
 }
 
-[data-region="r-stats"] > [data-el] {
+[data-region="r-stats"] > .t-stat {
   flex: 1 1 0;
   background-color: var(--surface);
   padding: 8px;
@@ -1214,17 +1215,7 @@
   border-radius: 0;
 }
 
-[data-region="r-stats"] [data-part="label"] {
-  font-size: 9px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-  margin: 0;
-}
-
-[data-region="r-stats"] [data-part="label"] + :not([data-part]),
-[data-region="r-stats"] [data-part="label"] + [data-part="value"] {
+[data-region="r-stats"] .t-stat > [data-el] {
   font-family: var(--t-type-family-data);
   font-size: 14px;
   line-height: 20px;
@@ -1234,39 +1225,44 @@
   white-space: normal;
 }
 
+[data-region="r-stats"] .t-stat-label {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin: 0;
+}
+
 [data-region="r-stats"] [data-part="unit"] {
   font-size: inherit;
   font-weight: inherit;
   color: inherit;
 }
 
-[data-region="r-stats"] [data-el="server.players"][data-state~="empty"] [data-part="label"] + :not([data-part]),
-[data-region="r-stats"] [data-el="server.players"][data-state~="offline"] [data-part="label"] + :not([data-part]) {
+[data-region="r-stats"] [data-el="server.players"][data-state~="empty"],
+[data-region="r-stats"] [data-el="server.players"][data-state~="offline"],
+[data-region="r-stats"] [data-el="server.ping"][data-state~="unknown"],
+[data-region="r-stats"] [data-el="server.ping"][data-state~="offline"] {
   color: var(--muted);
 }
 
-[data-region="r-stats"] [data-el="server.players"][data-state~="full"] [data-part="label"] + :not([data-part]) {
+[data-region="r-stats"] [data-el="server.players"][data-state~="full"] {
   color: var(--warn);
 }
 
-[data-region="r-stats"] [data-el="server.ping"][data-state~="good"] [data-part="label"] + :not([data-part]) {
+[data-region="r-stats"] [data-el="server.ping"][data-state~="good"] {
   color: var(--success);
 }
 
-[data-region="r-stats"] [data-el="server.ping"][data-state~="fair"] [data-part="label"] + :not([data-part]) {
+[data-region="r-stats"] [data-el="server.ping"][data-state~="fair"] {
   color: var(--warn);
 }
 
-[data-region="r-stats"] [data-el="server.ping"][data-state~="poor"] [data-part="label"] + :not([data-part]) {
+[data-region="r-stats"] [data-el="server.ping"][data-state~="poor"] {
   color: var(--danger);
 }
 
-[data-region="r-stats"] [data-el="server.ping"][data-state~="unknown"] [data-part="label"] + :not([data-part]),
-[data-region="r-stats"] [data-el="server.ping"][data-state~="offline"] [data-part="label"] + :not([data-part]) {
-  color: var(--muted);
-}
-
-[data-region="r-stats"] [data-el="server.modCount"][data-state~="unprobed"] [data-part="label"] + [data-part="value"] {
+[data-region="r-stats"] [data-el="server.modCount"][data-state~="unprobed"] {
   color: var(--warn);
 }
 
