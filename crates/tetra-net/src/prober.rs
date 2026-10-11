@@ -41,33 +41,30 @@ impl Prober {
     pub fn refresh(&self, addrs: Vec<SocketAddr>) -> mpsc::Receiver<ProbeOutcome> {
         let (tx, rx) = mpsc::channel(64);
 
-        for addr in addrs {
-            let permits = Arc::clone(&self.permits);
-            let config = self.config.clone();
-            let tx = tx.clone();
-            tokio::spawn(async move {
-                let permit = match permits.acquire_owned().await {
-                    Ok(p) => p,
-                    Err(_) => return,
+        let permits = Arc::clone(&self.permits);
+        let config = self.config.clone();
+        // Spawn a probe only once it has a permit, so a rules query never
+        // queues behind every address of a large refresh.
+        tokio::spawn(async move {
+            for addr in addrs {
+                // A dropped receiver also gives up the place in the permit queue.
+                let permit = tokio::select! {
+                    biased;
+                    _ = tx.closed() => return,
+                    permit = Arc::clone(&permits).acquire_owned() => match permit {
+                        Ok(permit) => permit,
+                        Err(_) => return,
+                    },
                 };
-                if tx.is_closed() {
-                    return;
-                }
-                let result = with_retries(addr, &config, || async {
-                    let started = Instant::now();
-                    query_info(addr, config.timeout)
-                        .await
-                        .map(|info| (info, started.elapsed()))
-                })
-                .await;
-                let (result, rtt) = match result {
-                    Ok((info, rtt)) => (Ok(info), Some(rtt)),
-                    Err(e) => (Err(e), None),
-                };
-                drop(permit);
-                let _ = tx.send(ProbeOutcome { addr, result, rtt }).await;
-            });
-        }
+                let tx = tx.clone();
+                let config = config.clone();
+                tokio::spawn(async move {
+                    let outcome = probe_info(addr, config).await;
+                    drop(permit);
+                    let _ = tx.send(outcome).await;
+                });
+            }
+        });
 
         rx
     }
@@ -129,6 +126,22 @@ impl Prober {
             }),
         }
     }
+}
+
+/// One A2S_INFO probe. The caller holds a permit for its duration.
+async fn probe_info(addr: SocketAddr, config: ProbeConfig) -> ProbeOutcome {
+    let result = with_retries(addr, &config, || async {
+        let started = Instant::now();
+        query_info(addr, config.timeout)
+            .await
+            .map(|info| (info, started.elapsed()))
+    })
+    .await;
+    let (result, rtt) = match result {
+        Ok((info, rtt)) => (Ok(info), Some(rtt)),
+        Err(e) => (Err(e), None),
+    };
+    ProbeOutcome { addr, result, rtt }
 }
 
 #[cfg(test)]
@@ -298,5 +311,61 @@ mod tests {
         );
 
         responder.abort();
+    }
+
+    /// A rules query asked for mid-refresh must reach the permit queue ahead of
+    /// the refresh's remaining addresses, not behind all of them.
+    #[tokio::test]
+    async fn a_rules_query_does_not_queue_behind_a_large_refresh() {
+        let prober = Prober::new(impatient(1));
+        let held = Arc::clone(&prober.permits)
+            .acquire_owned()
+            .await
+            .expect("semaphore open");
+
+        let mut rx = prober.refresh((0..20).map(|_| dead_addr()).collect());
+
+        // Let the refresh side park on the permit before the query queues behind it.
+        for _ in 0..4 {
+            tokio::task::yield_now().await;
+        }
+
+        let rules_prober = prober.clone();
+        let mut rules = tokio::spawn(async move { rules_prober.rules(dead_addr()).await });
+        tokio::task::yield_now().await;
+
+        drop(held);
+
+        let mut received = 0usize;
+        let rules_result = loop {
+            tokio::select! {
+                biased;
+                done = &mut rules => break done.expect("the rules task should not panic"),
+                outcome = rx.recv() => match outcome {
+                    Some(_) => received += 1,
+                    None => break rules.await.expect("the rules task should not panic"),
+                },
+            }
+        };
+
+        assert!(
+            rules_result.is_err(),
+            "a dead address cannot answer a rules query"
+        );
+
+        // `len()` counts outcomes that arrived but have not been read yet.
+        let arrived = received + rx.len();
+        assert!(
+            arrived < 3,
+            "{arrived} refresh outcomes beat the rules query to the permit"
+        );
+
+        while rx.recv().await.is_some() {
+            received += 1;
+        }
+        assert_eq!(
+            received, 20,
+            "one outcome per address, then the channel closes"
+        );
     }
 }
