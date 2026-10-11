@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use serde_json::{json, Value};
 
+use super::settings::resolve_settings;
 use super::{validate_theme_layouts, REGISTRY};
 
 const SHELL: &str = "layout/shell.json";
@@ -288,21 +289,22 @@ fn empty_row_content_neither_satisfies_requirements_nor_hides_regions() {
 fn hidden_conditions_expand_settings_and_inherit_container_visibility() {
     let mut files = theme();
     let schema = json!({"schemaVersion":2,"fields":[{"id":"foo","type":"boolean","label":"Foo","default":false}]});
+    let settings = resolve_settings(&schema);
     files.get_mut(BROWSER).unwrap()["root"]["hidden"] = json!({"setting":"foo","equals":true});
-    let issues = validate_theme_layouts(&files, Some(&schema));
+    let issues = validate_theme_layouts(&files, Some(&settings));
     assert!(issues.iter().any(|i| i.rule_id == "REQ-06"
         && i.file == BROWSER
         && i.pointer == "/root"
         && i.message.contains("\"foo\":true")));
     assert!(!issues.iter().any(|i| i.rule_id == "REQ-01"));
     files.get_mut(BROWSER).unwrap()["root"]["hidden"] = json!({"setting":"foo","not":false});
-    assert!(validate_theme_layouts(&files, Some(&schema))
+    assert!(validate_theme_layouts(&files, Some(&settings))
         .iter()
         .any(|i| i.rule_id == "REQ-06" && i.message.contains("\"foo\":true")));
     files.get_mut(BROWSER).unwrap()["root"]["hidden"] = json!(false);
-    assert_eq!(validate_theme_layouts(&files, Some(&schema)), vec![]);
+    assert_eq!(validate_theme_layouts(&files, Some(&settings)), vec![]);
     files.get_mut(SHELL).unwrap()["root"]["hidden"] = json!(true);
-    assert!(validate_theme_layouts(&files, Some(&schema))
+    assert!(validate_theme_layouts(&files, Some(&settings))
         .iter()
         .any(|i| i.rule_id == "REQ-06" && i.file == BROWSER));
 }
@@ -311,6 +313,7 @@ fn hidden_conditions_expand_settings_and_inherit_container_visibility() {
 fn hidden_rejects_malformed_or_non_discrete_references() {
     let mut files = theme();
     let schema = json!({"schemaVersion":2,"fields":[{"id":"size","type":"number","label":"Size","min":0,"max":1,"default":0},{"id":"foo","type":"boolean","label":"Foo","default":false}]});
+    let settings = resolve_settings(&schema);
     for hidden in [
         json!(1),
         json!({}),
@@ -322,7 +325,7 @@ fn hidden_rejects_malformed_or_non_discrete_references() {
         json!({"setting":"foo","equals":true,"extra":true}),
     ] {
         files.get_mut(BROWSER).unwrap()["root"]["hidden"] = hidden;
-        assert!(validate_theme_layouts(&files, Some(&schema))
+        assert!(validate_theme_layouts(&files, Some(&settings))
             .iter()
             .any(|i| i.rule_id == "LAY-03" && i.pointer == "/root/hidden"));
     }
@@ -330,8 +333,11 @@ fn hidden_rejects_malformed_or_non_discrete_references() {
     assert!(validate_theme_layouts(&files, None)
         .iter()
         .any(|i| i.rule_id == "LAY-03"));
-    let refused = json!({"schemaVersion":2,"fields":[{"id":"foo","type":"boolean","label":"Foo","default":false},{"id":"foo","type":"boolean","label":"Foo","default":false}]});
-    assert!(validate_theme_layouts(&files, Some(&refused))
+    // A field the settings check drops is gone for conditions too.
+    let dropped = resolve_settings(
+        &json!({"schemaVersion":2,"fields":[{"id":"foo","type":"boolean","label":"","default":false}]}),
+    );
+    assert!(validate_theme_layouts(&files, Some(&dropped))
         .iter()
         .any(|i| i.rule_id == "LAY-03" && i.pointer == "/root/hidden"));
 }
@@ -402,6 +408,7 @@ fn all_four_variants_are_checked_at_sixty_four_combinations() {
         .map(|i| json!({"id":format!("f{i}"),"type":"boolean","label":"Flag","default":false}))
         .collect();
     let schema = json!({"schemaVersion":2,"fields":fields});
+    let settings = resolve_settings(&schema);
     let root = files[BROWSER]["root"].clone();
     files.insert(
         BROWSER.into(),
@@ -410,10 +417,10 @@ fn all_four_variants_are_checked_at_sixty_four_combinations() {
             {"minWidth":1000,"root":root}, {"minWidth":1200,"root":root}
         ]}),
     );
-    assert_eq!(validate_theme_layouts(&files, Some(&schema)), vec![]);
+    assert_eq!(validate_theme_layouts(&files, Some(&settings)), vec![]);
     files.get_mut(BROWSER).unwrap()["variants"][3]["root"]["hidden"] =
         json!({"setting":"f5","equals":true});
-    let issues = validate_theme_layouts(&files, Some(&schema));
+    let issues = validate_theme_layouts(&files, Some(&settings));
     assert!(issues.iter().any(|issue| issue.rule_id == "REQ-06"
         && issue.pointer == "/variants/3/root"
         && issue

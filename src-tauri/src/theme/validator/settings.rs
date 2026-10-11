@@ -1,9 +1,11 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use serde::Serialize;
 use serde_json::Value;
 
 use super::{Severity, ValidationIssue};
+
+const COMBINATION_CAP: usize = 64;
 
 pub fn validate_settings_schema(value: &Value) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
@@ -193,7 +195,7 @@ pub fn validate_settings_schema(value: &Value) -> Vec<ValidationIssue> {
             _ => report("SET-01", format!("{path}/type"), "Unknown setting type"),
         }
     }
-    if count > 64 {
+    if count > COMBINATION_CAP {
         report(
             "SET-05",
             "/fields".into(),
@@ -207,39 +209,6 @@ fn label(value: Option<&Value>) -> bool {
     value
         .and_then(Value::as_str)
         .is_some_and(|s| (1..=40).contains(&s.chars().count()))
-}
-
-pub fn extract_settings_combinations(
-    schema: &Value,
-) -> Result<Vec<HashMap<String, Value>>, Vec<ValidationIssue>> {
-    let issues = validate_settings_schema(schema);
-    if !issues.is_empty() {
-        return Err(issues);
-    }
-    let mut combinations = vec![HashMap::new()];
-    for field in schema["fields"].as_array().unwrap() {
-        let values = match field["type"].as_str().unwrap() {
-            "boolean" => vec![Value::Bool(false), Value::Bool(true)],
-            "choice" => field["options"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|option| option["value"].clone())
-                .collect(),
-            _ => continue,
-        };
-        let id = field["id"].as_str().unwrap();
-        let mut expanded = Vec::with_capacity(combinations.len() * values.len());
-        for combination in combinations {
-            for value in &values {
-                let mut next = combination.clone();
-                next.insert(id.into(), value.clone());
-                expanded.push(next);
-            }
-        }
-        combinations = expanded;
-    }
-    Ok(combinations)
 }
 
 /// One field of a resolved schema, as the app renders it.
@@ -293,10 +262,13 @@ pub struct ResolvedSettings {
     pub capped: bool,
 }
 
-const COMBINATION_CAP: usize = 64;
-
 /// The fields a schema declares that pass validation, and the combinations they offer.
 pub fn resolve_settings(schema: &Value) -> ResolvedSettings {
+    resolve_settings_with_issues(schema).0
+}
+
+/// [`resolve_settings`] plus the issues the schema check found, for Dev Mode.
+pub fn resolve_settings_with_issues(schema: &Value) -> (ResolvedSettings, Vec<ValidationIssue>) {
     let issues = validate_settings_schema(schema);
     // Only a field-level issue drops a field; `/schemaVersion` and `/fields` issues leave them alone.
     let dropped = |index: usize| {
@@ -318,11 +290,14 @@ pub fn resolve_settings(schema: &Value) -> ResolvedSettings {
         })
         .unwrap_or_default();
     let (combinations, capped) = combinations(&fields);
-    ResolvedSettings {
-        fields,
-        combinations,
-        capped,
-    }
+    (
+        ResolvedSettings {
+            fields,
+            combinations,
+            capped,
+        },
+        issues,
+    )
 }
 
 /// Validation already checked every property read here, so the unwraps cannot fire.
@@ -401,16 +376,6 @@ fn combinations(fields: &[SettingsField]) -> (Vec<SettingsCombination>, bool) {
             discrete.push((id, values));
         }
     }
-    if discrete.is_empty() {
-        return (
-            vec![SettingsCombination {
-                values: defaults,
-                label: "Defaults".into(),
-            }],
-            false,
-        );
-    }
-
     let total = discrete.iter().fold(1usize, |total, (_, values)| {
         total.saturating_mul(values.len())
     });
@@ -429,10 +394,12 @@ fn combinations(fields: &[SettingsField]) -> (Vec<SettingsCombination>, bool) {
             values.insert((*id).to_string(), value);
         }
         parts.reverse();
-        combinations.push(SettingsCombination {
-            values,
-            label: parts.join(" · "),
-        });
+        let label = if parts.is_empty() {
+            "Defaults".into()
+        } else {
+            parts.join(" · ")
+        };
+        combinations.push(SettingsCombination { values, label });
     }
     (combinations, capped)
 }

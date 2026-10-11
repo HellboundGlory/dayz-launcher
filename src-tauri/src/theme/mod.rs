@@ -108,7 +108,7 @@ pub const LAYOUT_ALLOWLIST: &[&str] = &[
     "layout/popups/serverLoad.json",
 ];
 
-/// One theme, fully: its manifest flattened with its raw optional content —
+/// One theme, fully: its manifest flattened with its optional content —
 /// `tokens.json` and whatever else the theme ships.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ThemeFile {
@@ -188,7 +188,7 @@ pub fn validate_tokens(tokens: &Value) -> Result<(), String> {
 }
 
 /// A settings schema must be a JSON object declaring `schemaVersion` 2, exactly
-/// as a palette must; the field list is the frontend's business.
+/// as a palette must; the fields are checked when they are resolved.
 pub fn validate_settings_schema(schema: &Value) -> Result<(), String> {
     let Some(object) = schema.as_object() else {
         return Err("settings.schema.json must be a JSON object".to_string());
@@ -250,14 +250,14 @@ fn read_layout_files(dir: &Path) -> Result<(HashMap<String, Value>, Vec<Validati
 }
 
 /// The theme's layouts and every issue they carry: parse issues first, then the
-/// cross-file pass with the settings schema, so a setting condition resolves the
-/// same way at load and in Dev Mode.
+/// cross-file pass with the resolved settings, so a setting condition resolves
+/// the same way at load and in Dev Mode.
 pub(crate) fn read_and_validate_layouts(
     dir: &Path,
-    settings_schema: Option<&Value>,
+    settings: Option<&validator::settings::ResolvedSettings>,
 ) -> Result<(HashMap<String, Value>, Vec<ValidationIssue>), String> {
     let (parsed, mut issues) = read_layout_files(dir)?;
-    issues.extend(validator::validate_theme_layouts(&parsed, settings_schema));
+    issues.extend(validator::validate_theme_layouts(&parsed, settings));
     Ok((parsed, issues))
 }
 
@@ -304,17 +304,17 @@ pub fn get(themes_root: &Path, id: &str) -> Result<ThemeFile, String> {
     let tokens = read_optional_json(&dir, TOKENS_FILE, validate_tokens)?
         .unwrap_or_else(|| serde_json::json!({}));
 
-    let settings_schema = read_optional_json(&dir, SETTINGS_SCHEMA_FILE, validate_settings_schema)?;
+    let settings = read_optional_json(&dir, SETTINGS_SCHEMA_FILE, validate_settings_schema)?
+        .as_ref()
+        .map(validator::settings::resolve_settings);
 
-    let (parsed, issues) = read_and_validate_layouts(&dir, settings_schema.as_ref())?;
+    let (parsed, issues) = read_and_validate_layouts(&dir, settings.as_ref())?;
     let (layouts, fallbacks) = fall_back_broken_layouts(parsed, issues);
 
     Ok(ThemeFile {
         manifest,
         tokens,
-        settings: settings_schema
-            .as_ref()
-            .map(validator::settings::resolve_settings),
+        settings,
         layouts,
         fallbacks,
     })

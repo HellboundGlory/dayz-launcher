@@ -58,12 +58,18 @@ fn validate_theme_at(themes_root: &Path, id: &str) -> Result<Vec<ValidationIssue
     Ok(issues)
 }
 
-/// `settings.schema.json` as parsed, when the theme ships one, with its issues.
+/// `settings.schema.json` as resolved, when the theme ships one, with its issues.
 /// A parse failure is reported as a SET-01 issue rather than failing the whole
 /// command, matching how a malformed layout file is handled.
 fn validate_theme_settings(
     dir: &Path,
-) -> Result<(Option<serde_json::Value>, Vec<ValidationIssue>), String> {
+) -> Result<
+    (
+        Option<validator::settings::ResolvedSettings>,
+        Vec<ValidationIssue>,
+    ),
+    String,
+> {
     let path = dir.join(theme::SETTINGS_SCHEMA_FILE);
     if !path.is_file() {
         return Ok((None, Vec::new()));
@@ -72,8 +78,8 @@ fn validate_theme_settings(
         .map_err(|e| format!("Could not read {}: {e}", path.display()))?;
     match serde_json::from_str::<serde_json::Value>(&content) {
         Ok(value) => {
-            let issues = validator::settings::validate_settings_schema(&value);
-            Ok((Some(value), issues))
+            let (settings, issues) = validator::settings::resolve_settings_with_issues(&value);
+            Ok((Some(settings), issues))
         }
         Err(error) => Ok((
             None,

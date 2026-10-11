@@ -35,9 +35,9 @@ pub fn validate_layout_file(file_path: &str, content: &str) -> Vec<ValidationIss
 
 pub fn validate_theme_layouts(
     files: &std::collections::HashMap<String, Value>,
-    settings_schema: Option<&Value>,
+    settings: Option<&settings::ResolvedSettings>,
 ) -> Vec<ValidationIssue> {
-    composition::validate(files, settings_schema, &REGISTRY)
+    composition::validate(files, settings, &REGISTRY)
 }
 
 pub fn validate_layout_value(file_path: &str, value: &Value) -> Vec<ValidationIssue> {
