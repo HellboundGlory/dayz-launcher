@@ -1,15 +1,26 @@
 import type { ElementNode, LayoutNode, ModalLayoutFile } from "../renderer/types";
 import "./server-info.css";
 
-const stat = (value: ElementNode & { class: string }, label: string): LayoutNode => ({
-  type: "stack",
-  direction: "column",
-  class: "t-neutral-serverinfo-stat",
-  children: [
-    { ...value, class: `t-neutral-serverinfo-stat-value ${value.class}` },
-    { type: "text", role: "micro", value: label, class: "t-neutral-serverinfo-stat-label" },
-  ],
-});
+const stat = (value: ElementNode & { class: string }, label: string, suffix?: Omit<ElementNode, "class">): LayoutNode => {
+  const caption: LayoutNode = { type: "text", role: "micro", value: label, class: "t-neutral-serverinfo-stat-label" };
+  return {
+    type: "stack",
+    direction: "column",
+    class: "t-neutral-serverinfo-stat",
+    children: [
+      { ...value, class: `t-neutral-serverinfo-stat-value ${value.class}` },
+      suffix
+        ? {
+            type: "stack",
+            direction: "row",
+            align: "baseline",
+            justify: "center",
+            children: [caption, { ...suffix, class: "t-neutral-serverinfo-stat-suffix" }],
+          }
+        : caption,
+    ],
+  };
+};
 
 const prop = (label: string, value: ElementNode): LayoutNode => ({
   type: "stack",
@@ -67,7 +78,11 @@ export const SERVER_INFO_MODAL: ModalLayoutFile = {
                 children: [
                   stat({ element: "server.players", options: { showCaption: false, showQueue: false }, class: "t-neutral-serverinfo-players" }, "Players"),
                   stat({ element: "server.ping", options: { showCaption: false }, class: "t-neutral-serverinfo-ping" }, "Ping ms"),
-                  stat({ element: "server.gameTime", class: "t-neutral-serverinfo-time" }, "Time"),
+                  stat(
+                    { element: "server.gameTime", options: { showMultiplier: false }, class: "t-neutral-serverinfo-time" },
+                    "Time",
+                    { element: "server.gameTime", options: { showIcon: false } },
+                  ),
                 ],
               },
               { element: "server.readiness", class: "t-neutral-serverinfo-readiness", options: { basis: "declared" } },

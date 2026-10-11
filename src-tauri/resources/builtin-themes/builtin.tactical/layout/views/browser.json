@@ -201,13 +201,31 @@
                             "class": "t-stat",
                             "children": [
                               {
-                                "element": "server.gameTime"
+                                "element": "server.gameTime",
+                                "options": {
+                                  "showMultiplier": false
+                                }
                               },
                               {
-                                "type": "text",
-                                "value": "Time",
-                                "role": "label",
-                                "class": "t-stat-label"
+                                "type": "stack",
+                                "direction": "row",
+                                "align": "baseline",
+                                "justify": "center",
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "value": "Time",
+                                    "role": "label",
+                                    "class": "t-stat-label"
+                                  },
+                                  {
+                                    "element": "server.gameTime",
+                                    "options": {
+                                      "showIcon": false
+                                    },
+                                    "class": "t-stat-suffix"
+                                  }
+                                ]
                               }
                             ]
                           }
@@ -562,13 +580,31 @@
                         "class": "t-stat",
                         "children": [
                           {
-                            "element": "server.gameTime"
+                            "element": "server.gameTime",
+                            "options": {
+                              "showMultiplier": false
+                            }
                           },
                           {
-                            "type": "text",
-                            "value": "Time",
-                            "role": "label",
-                            "class": "t-stat-label"
+                            "type": "stack",
+                            "direction": "row",
+                            "align": "baseline",
+                            "justify": "center",
+                            "children": [
+                              {
+                                "type": "text",
+                                "value": "Time",
+                                "role": "label",
+                                "class": "t-stat-label"
+                              },
+                              {
+                                "element": "server.gameTime",
+                                "options": {
+                                  "showIcon": false
+                                },
+                                "class": "t-stat-suffix"
+                              }
+                            ]
                           }
                         ]
                       }
