@@ -470,10 +470,14 @@ describe("ServerVersion", () => {
 });
 
 describe("server.region", () => {
-  it("shows the full region name on hover in both formats", () => {
-    for (const format of ["name", "code"]) {
-      expect(render(<ServerRegion options={{ format }} />, serverContext({ ...server, country_code: "NA" }))).toContain('title="North America"');
-    }
+  it.each([
+    ["name", "NA", "North America"],
+    ["code", "NA", "North America"],
+    ["code", null, null],
+  ])("hover title for format %s, country %s", (format, code, title) => {
+    const html = render(<ServerRegion options={{ format }} />, serverContext({ ...server, country_code: code }));
+    if (title) expect(html).toContain(`title="${title}"`);
+    else expect(html).not.toContain("title=");
   });
 });
 
