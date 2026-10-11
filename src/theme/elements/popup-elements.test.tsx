@@ -135,13 +135,15 @@ describe("PopupMapOptions", () => {
 });
 
 describe("PopupTagOptions", () => {
-  it("marks included and excluded tags", async () => {
+  it("marks included and excluded tags in the check column", async () => {
     const html = await withServerStore(
       { filter: { official: true, modded: false } },
       () => renderToStaticMarkup(<PopupTagOptions />),
     );
     expect(html).toContain('data-state="selected included"');
     expect(html).toContain('data-state="excluded"');
+    expect(html.match(/data-part="box"[^>]*><span data-part="indicator"/g)).toHaveLength(3);
+    expect(html).not.toContain("<svg");
   });
 
   it("labels the tags as the filter bar does", async () => {
