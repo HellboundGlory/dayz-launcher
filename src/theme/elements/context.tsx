@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import type { Server } from "@/types/server";
 import type { ListSource } from "@/lib/tauri";
 import { getPersistedCollapsed, setPersistedCollapsed } from "../interaction/store";
@@ -17,8 +17,10 @@ export interface ElementContextValue {
   subjectContext: SubjectContext | null;
   contextName?: ContextName;
   collapsedRegions: Record<string, boolean>;
+  collapseRules: CollapseRules;
+  registerCollapseRules: (rules: CollapseRules) => () => void;
   toggleCollapsed: (regionId: string) => void;
-  isCollapsed: (regionId: string) => boolean;
+  isCollapsed: (regionId: string, defaultCollapsed?: boolean) => boolean;
   activeView: ViewId;
   onViewChange: (view: ViewId) => void;
   settingsOpen: boolean;
@@ -53,6 +55,8 @@ const ElementContext = createContext<ElementContextValue>({
   themeId: "",
   subjectContext: null,
   collapsedRegions: {},
+  collapseRules: {},
+  registerCollapseRules: () => () => {},
   toggleCollapsed: () => {},
   isCollapsed: () => false,
   activeView: "servers",
@@ -89,6 +93,36 @@ export const useElementContext = () => useContext(ElementContext);
 
 const NO_COLLAPSED: Record<string, boolean> = {};
 
+export interface CollapseRule {
+  defaultCollapsed: boolean;
+  collapseBelow?: number;
+}
+
+export type CollapseRules = Record<string, CollapseRule>;
+
+/** A toggle made while narrow wins; a narrow window collapses; otherwise the saved choice. */
+export function drawnCollapsed(override: boolean | undefined, narrow: boolean, saved: boolean): boolean {
+  return override ?? (narrow || saved);
+}
+
+const narrowQuery = (collapseBelow: number) => `(width < ${collapseBelow}px)`;
+
+function isNarrow(rule: CollapseRule | undefined): boolean {
+  if (rule?.collapseBelow === undefined || typeof window === "undefined" || !window.matchMedia) return false;
+  return window.matchMedia(narrowQuery(rule.collapseBelow)).matches;
+}
+
+interface CollapseState {
+  themeId: string;
+  overrides: Record<string, boolean>;
+}
+
+/** Registers a layout's collapsible regions while it is mounted. */
+export function useCollapseRules(rules: CollapseRules) {
+  const { registerCollapseRules } = useElementContext();
+  useLayoutEffect(() => registerCollapseRules(rules), [registerCollapseRules, rules]);
+}
+
 export function ElementContextProvider({
   children,
   value,
@@ -97,26 +131,61 @@ export function ElementContextProvider({
   value?: Partial<ElementContextValue>;
 }) {
   const themeId = value?.themeId ?? "";
-  const [collapsed, setCollapsed] = useState<{ themeId: string; regions: Record<string, boolean> }>(() => ({
+  const [registrations, setRegistrations] = useState<{ rules: CollapseRules }[]>(() =>
+    value?.collapseRules ? [{ rules: value.collapseRules }] : [],
+  );
+  const collapseRules = useMemo(() => {
+    const all: CollapseRules = {};
+    for (const { rules } of registrations) Object.assign(all, rules);
+    return all;
+  }, [registrations]);
+  const registerCollapseRules = useCallback((rules: CollapseRules) => {
+    const entry = { rules };
+    setRegistrations((prev) => [...prev, entry]);
+    return () => setRegistrations((prev) => prev.filter((other) => other !== entry));
+  }, []);
+
+  const [state, setState] = useState<CollapseState>(() => ({
     themeId,
-    regions: value?.collapsedRegions ?? {},
+    overrides: value?.collapsedRegions ?? NO_COLLAPSED,
   }));
-  const collapsedRegions = collapsed.themeId === themeId ? collapsed.regions : NO_COLLAPSED;
+  const overrides = state.themeId === themeId ? state.overrides : NO_COLLAPSED;
 
-  const toggleCollapsed = (regionId: string) => {
-    const current = collapsedRegions[regionId] ?? getPersistedCollapsed(themeId, regionId, false);
-    const next = !current;
-    setPersistedCollapsed(themeId, regionId, next);
-    setCollapsed({ themeId, regions: { ...collapsedRegions, [regionId]: next } });
-  };
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const cleanups = Object.entries(collapseRules).flatMap(([regionId, rule]) => {
+      if (rule.collapseBelow === undefined) return [];
+      const media = window.matchMedia(narrowQuery(rule.collapseBelow));
+      const onChange = () =>
+        setState((prev) => ({
+          themeId: prev.themeId,
+          overrides: Object.fromEntries(Object.entries(prev.overrides).filter(([id]) => id !== regionId)),
+        }));
+      media.addEventListener("change", onChange);
+      return [() => media.removeEventListener("change", onChange)];
+    });
+    return () => cleanups.forEach((cleanup) => cleanup());
+  }, [collapseRules]);
 
-  const isCollapsed = (regionId: string) => {
-    if (collapsedRegions[regionId] !== undefined) {
-      return !!collapsedRegions[regionId];
-    }
-    return getPersistedCollapsed(themeId, regionId, false);
-  };
+  const collapse = useMemo(() => {
+    const isCollapsed = (regionId: string, defaultCollapsed = false) =>
+      drawnCollapsed(
+        overrides[regionId],
+        isNarrow(collapseRules[regionId]),
+        getPersistedCollapsed(themeId, regionId, collapseRules[regionId]?.defaultCollapsed ?? defaultCollapsed),
+      );
 
+    const toggleCollapsed = (regionId: string) => {
+      const next = !isCollapsed(regionId);
+      if (!isNarrow(collapseRules[regionId])) setPersistedCollapsed(themeId, regionId, next);
+      setState((prev) => ({
+        themeId,
+        overrides: { ...(prev.themeId === themeId ? prev.overrides : NO_COLLAPSED), [regionId]: next },
+      }));
+    };
+
+    return { collapsedRegions: overrides, isCollapsed, toggleCollapsed };
+  }, [collapseRules, overrides, themeId]);
 
   const merged = useMemo<ElementContextValue>(() => ({
     themeId: "",
@@ -150,11 +219,12 @@ export function ElementContextProvider({
     modFilterOpen: false,
     closeModal: () => {},
     ...value,
-    collapsedRegions: value?.collapsedRegions ?? collapsedRegions,
-    toggleCollapsed: value?.toggleCollapsed ?? toggleCollapsed,
-    isCollapsed: value?.isCollapsed ?? isCollapsed,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [value, collapsedRegions, themeId]);
+    collapsedRegions: value?.collapsedRegions ?? collapse.collapsedRegions,
+    collapseRules: value?.collapseRules ?? collapseRules,
+    registerCollapseRules: value?.registerCollapseRules ?? registerCollapseRules,
+    toggleCollapsed: value?.toggleCollapsed ?? collapse.toggleCollapsed,
+    isCollapsed: value?.isCollapsed ?? collapse.isCollapsed,
+  }), [value, collapse, collapseRules, registerCollapseRules]);
 
   return <ElementContext.Provider value={merged}>{children}</ElementContext.Provider>;
 }

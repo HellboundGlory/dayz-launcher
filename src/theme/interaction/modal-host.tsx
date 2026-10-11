@@ -2,6 +2,7 @@ import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import type { HostNode, ModalLayoutFile } from "../renderer/types";
 import { positionStyle, type SettingsValues } from "../renderer/props";
 import { LayoutNodeRenderer, RenderContextProvider } from "../renderer/node-renderer";
+import { useLayoutCollapseRules } from "../renderer/layout-renderer";
 import { useResolvedRoot } from "../renderer/use-resolved-root";
 
 const FOCUSABLE =
@@ -44,6 +45,7 @@ export function ModalHost({
   const placement = file.placement ?? { mode: "center" };
   const backdrop = file.backdrop ?? "dim";
   const root = useResolvedRoot(file);
+  useLayoutCollapseRules(root);
 
   useEffect(() => {
     onCloseRef.current = onClose;

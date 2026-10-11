@@ -468,6 +468,17 @@ impl Validator<'_> {
                     }
                 }
             }
+            if key == "collapsible" {
+                if let Some(below) = value.get("collapseBelow") {
+                    if !below.as_str().is_some_and(positive_px) {
+                        self.issue(
+                            "LAY-04",
+                            &child(&path, "collapseBelow"),
+                            "collapseBelow must be a positive pixel length",
+                        );
+                    }
+                }
+            }
             if key == "glow" {
                 if node.kind != NodeKind::Element {
                     self.issue("LAY-03", &path, "glow is only allowed on element nodes");
@@ -962,6 +973,12 @@ fn length(value: &str, signed: bool) -> bool {
         .strip_suffix("px")
         .or_else(|| value.strip_suffix('%'))
         .is_some_and(|n| number(n, signed))
+}
+
+fn positive_px(value: &str) -> bool {
+    value
+        .strip_suffix("px")
+        .is_some_and(|n| number(n, false) && n.parse::<f64>().is_ok_and(|number| number > 0.0))
 }
 
 fn sizing(value: &Value, tracks: bool) -> bool {

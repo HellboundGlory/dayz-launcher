@@ -47,6 +47,7 @@ const RAIL: LayoutNode = {
       grow: 1,
       class: "t-neutral-shell-rail-body",
       collapsible: {
+        collapseBelow: "720px",
         collapsed: {
           type: "stack",
           direction: "column",

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import type { HostNode, SettingsLayoutFile } from "../renderer/types";
 import { type SettingsValues } from "../renderer/props";
 import { LayoutNodeRenderer, RenderContextProvider } from "../renderer/node-renderer";
+import { useLayoutCollapseRules } from "../renderer/layout-renderer";
 import { useResolvedRoot } from "../renderer/use-resolved-root";
 
 /** A mousedown closes the overlay only when it targets the overlay's own
@@ -34,6 +35,7 @@ export function SettingsHost({
   const presentation = file.presentation ?? { mode: "overlay" };
   const mode = presentation.mode;
   const root = useResolvedRoot(file);
+  useLayoutCollapseRules(root);
 
   useEffect(() => {
     if (!isOpen || mode !== "overlay" || !onClose || typeof window === "undefined") return;

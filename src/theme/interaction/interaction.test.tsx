@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { LayoutRenderer } from "../renderer/layout-renderer";
+import { collectCollapseRules, LayoutRenderer } from "../renderer/layout-renderer";
 import type { LayoutFile, LayoutNode } from "../renderer/types";
 import { ElementContextProvider, type ElementContextValue } from "../elements/context";
 import {
@@ -32,7 +32,7 @@ const renderLayout = (
   } = {},
 ) => {
   return renderToStaticMarkup(
-    <ElementContextProvider value={options.elementCtx}>
+    <ElementContextProvider value={{ themeId: options.themeId ?? "test-theme", ...options.elementCtx }}>
       <LayoutRenderer file={file(root)} themeId={options.themeId ?? "test-theme"} />
     </ElementContextProvider>,
   );
@@ -285,6 +285,68 @@ describe("theme interaction and presentation", () => {
       expect(html).toContain('data-state="collapsed"');
       expect(html).toContain("Mini Rail");
       expect(html).not.toContain("Full Rail Content");
+    });
+
+    describe("collapseBelow", () => {
+      const region = (defaultCollapsed = false): LayoutNode => ({
+        type: "stack",
+        id: "r-sidebar",
+        collapsible: {
+          default: defaultCollapsed ? "collapsed" : "expanded",
+          collapseBelow: "720px",
+          collapsed: { type: "box", children: [{ type: "text", value: "Mini Rail" }] },
+        },
+        children: [{ type: "text", value: "Full Rail Content" }],
+      });
+      const toggleOnly: LayoutNode = { element: "app.collapseToggle", options: { region: "r-sidebar" } };
+      const rail = (defaultCollapsed = false): LayoutNode => ({
+        type: "stack",
+        direction: "row",
+        children: [region(defaultCollapsed), toggleOnly],
+      });
+      const drawn = (html: string) => ({
+        region: /id="r-sidebar"[^>]*data-state="(\w+)"/.exec(html)?.[1],
+        expanded: /aria-expanded="(\w+)"/.exec(html)?.[1],
+      });
+
+      afterEach(() => {
+        vi.unstubAllGlobals();
+      });
+
+      it.each([
+        { name: "narrow window collapses over a saved expanded choice", width: 650, saved: false, collapsed: true },
+        { name: "wide window shows the saved expanded choice", width: 1400, saved: false, collapsed: false },
+        { name: "wide window shows the saved collapsed choice", width: 1400, saved: true, collapsed: true },
+      ])("$name, and the toggle shows the same state", ({ width, saved, collapsed }) => {
+        vi.stubGlobal("window", {
+          matchMedia: () => ({ matches: width < 720, addEventListener() {}, removeEventListener() {} }),
+        });
+        setPersistedCollapsed("col-theme", "r-sidebar", saved);
+        const html = renderLayout(rail(), {
+          themeId: "col-theme",
+          elementCtx: { collapseRules: collectCollapseRules(rail()) },
+        });
+
+        expect(drawn(html)).toEqual({ region: collapsed ? "collapsed" : "expanded", expanded: String(!collapsed) });
+      });
+
+      it.each([
+        { name: "narrow window", width: 650, defaultCollapsed: false },
+        { name: "wide window with a layout default of collapsed", width: 1400, defaultCollapsed: true },
+      ])("a toggle in another layout than its region shows the region's state, $name", ({ width, defaultCollapsed }) => {
+        vi.stubGlobal("window", {
+          matchMedia: () => ({ matches: width < 720, addEventListener() {}, removeEventListener() {} }),
+        });
+        const html = renderToStaticMarkup(
+          <ElementContextProvider value={{ themeId: "col-theme", collapseRules: collectCollapseRules(region(defaultCollapsed)) }}>
+            <LayoutRenderer file={file(region(defaultCollapsed))} themeId="col-theme" />
+            <LayoutRenderer file={file(toggleOnly)} themeId="col-theme" />
+          </ElementContextProvider>,
+        );
+
+        const collapsed = width < 720 || defaultCollapsed;
+        expect(drawn(html)).toEqual({ region: collapsed ? "collapsed" : "expanded", expanded: String(!collapsed) });
+      });
     });
   });
 

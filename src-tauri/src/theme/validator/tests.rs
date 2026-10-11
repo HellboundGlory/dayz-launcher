@@ -557,6 +557,20 @@ fn tabs_accordion_and_collapsed_subtrees_are_traversed() {
 }
 
 #[test]
+fn collapse_below_must_be_a_positive_pixel_length() {
+    for bad in ["0px", "-4px", "720", "50%", "wide"] {
+        check(
+            SHELL,
+            layout(
+                json!({"type":"box","collapsible":{"collapseBelow":bad,"collapsed":{"type":"box"}}}),
+            ),
+            "LAY-04",
+            "/root/collapsible/collapseBelow",
+        );
+    }
+}
+
+#[test]
 fn malformed_json_and_issue_wire_format_are_stable() {
     let issues = validate_layout_file(SHELL, "{invalid");
     assert_eq!(issues[0].rule_id, "LAY-01");

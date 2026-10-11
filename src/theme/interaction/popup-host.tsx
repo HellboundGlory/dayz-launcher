@@ -8,6 +8,7 @@ import {
 import type { HostNode, PopupLayoutFile } from "../renderer/types";
 import { type SettingsValues } from "../renderer/props";
 import { LayoutNodeRenderer, RenderContextProvider } from "../renderer/node-renderer";
+import { useLayoutCollapseRules } from "../renderer/layout-renderer";
 import { useResolvedRoot } from "../renderer/use-resolved-root";
 import { parseLengthPx } from "./resizable";
 import { useAnchoredPopup } from "./use-anchored-popup";
@@ -41,6 +42,7 @@ export function PopupHost({
   const align = placement.align ?? "start";
   const offsetPx = parseLengthPx(placement.offset, 4);
   const root = useResolvedRoot(file);
+  useLayoutCollapseRules(root);
   const anchoredStyle = useAnchoredPopup(isOpen && mode === "anchored", triggerRef, popupRef, {
     side,
     align,
