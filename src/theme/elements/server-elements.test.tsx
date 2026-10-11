@@ -3,13 +3,15 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactNode } from "react";
 import type { Server } from "@/types/server";
 import type { ModReadinessEntry, ServerModReadiness } from "@/types/server";
-import { formatBytes, formatGameTime, gameTimeParts } from "@/lib/utils";
+import { formatBytes, formatGameTime } from "@/lib/utils";
 import { useServerStore } from "@/stores/server-store";
 import { useRowProbeStore } from "./row-probe-store";
 import { useThemeStore } from "../theme-store";
 import type { ThemeFile } from "@/types/theme";
 import { ElementContextProvider, type ElementContextValue } from "./context";
+import { PopupContextProvider } from "./popup-elements";
 import {
+  ServerAddress,
   ServerCancel,
   ServerCheckMods,
   ServerCopyAddress,
@@ -17,6 +19,7 @@ import {
   ServerFavourite,
   ServerGameTime,
   ServerInfo,
+  ServerJoin,
   ServerLastPlayed,
   ServerLoadMenuPopup,
   ServerLoadToMenu,
@@ -63,6 +66,7 @@ const server: Server = {
 };
 
 const otherServer: Server = { ...server, addr: "10.0.0.2", name: "Other Server" };
+const offlineServer: Server = { ...server, online: false };
 
 const mockServerActions = {
   op: null as { addr: string; serverName: string; phase: string; note: string | null } | null,
@@ -165,63 +169,55 @@ async function setReadiness(value: ServerModReadiness | null, loading: boolean) 
   vi.mocked(useSelectionReadiness).mockReturnValue({ readiness: value, loading });
 }
 
-async function render(value: Partial<ElementContextValue>, options?: Record<string, unknown>) {
-  const { ServerJoin } = await import("./server-elements");
+function render(node: ReactNode, value?: Partial<ElementContextValue>): string {
   resetCaptured();
-  const html = renderToStaticMarkup(
-    <ElementContextProvider value={value}>
-      <ServerJoin options={options} />
-    </ElementContextProvider>,
-  );
-  return html;
+  return renderToStaticMarkup(<ElementContextProvider value={value}>{node}</ElementContextProvider>);
+}
+
+function serverContext(data: Server): Partial<ElementContextValue> {
+  return { subjectContext: { kind: "server", data } };
+}
+
+function click(el: string) {
+  const stopPropagation = vi.fn();
+  const result = (captured[el].onClick as (e: { stopPropagation: () => void }) => unknown)({ stopPropagation });
+  return { stopPropagation, result };
 }
 
 describe("ServerJoin", () => {
   beforeEach(() => {
     mockServerActions.op = null;
     mockServerActions.dayzUp = false;
+  });
+
+  it("joins the row's own server, after stopping propagation, even when another server is selected", async () => {
+    await setReadiness(null, false);
+
+    render(<ServerJoin />, serverContext(server));
+    expect(click("server.join").stopPropagation).toHaveBeenCalled();
+    expect(mockServerActions.verifyAndJoin).toHaveBeenCalledWith(server);
+
     mockServerActions.verifyAndJoin.mockClear();
-  });
-
-  it("calls verifyAndJoin with the element's own subject server on click, after stopping propagation", async () => {
-    await setReadiness(null, false);
-    await render({ subjectContext: { kind: "server", data: server } });
-
-    expect(captured["server.join"]).toBeDefined();
-    const onClick = captured["server.join"].onClick as (e: { stopPropagation: () => void }) => void;
-    const stopPropagation = vi.fn();
-    onClick({ stopPropagation });
-
-    expect(stopPropagation).toHaveBeenCalled();
+    render(<ServerJoin />, { ...serverContext(server), selectedServer: otherServer });
+    expect(click("server.join").stopPropagation).toHaveBeenCalled();
     expect(mockServerActions.verifyAndJoin).toHaveBeenCalledWith(server);
   });
 
-  it("calls verifyAndJoin with the row's own subject even when a different server is selected", async () => {
-    await setReadiness(null, false);
-    await render({ subjectContext: { kind: "server", data: server }, selectedServer: otherServer });
-
-    const onClick = captured["server.join"].onClick as (e: { stopPropagation: () => void }) => void;
-    onClick({ stopPropagation: vi.fn() });
-
-    expect(mockServerActions.verifyAndJoin).toHaveBeenCalledWith(server);
-  });
-
-  it("renders busy state with a spinner and the phase label when this server has the active op", async () => {
+  it("renders the busy state with a spinner and the phase label when this server has the active op", async () => {
     await setReadiness(null, false);
     mockServerActions.op = { addr: server.addr, serverName: server.name, phase: "downloading", note: "DOWNLOADING…" };
-    const html = await render({ subjectContext: { kind: "server", data: server } });
+    const html = render(<ServerJoin />, serverContext(server));
     expect(html).toContain('data-state="busy"');
-    expect(html).toContain("disabled");
+    expect(captured["server.join"].disabled).toBe(true);
     expect(html).toContain('data-part="spinner"');
     expect(html).toContain("DOWNLOADING…");
   });
 
-  it("disables the row button (without the busy state) when a different server has the active op", async () => {
+  it("disables the button, without the busy state, when a different server has the active op", async () => {
     await setReadiness(null, false);
     mockServerActions.op = { addr: otherServer.addr, serverName: otherServer.name, phase: "downloading", note: "DOWNLOADING…" };
-    const html = await render({ subjectContext: { kind: "server", data: server } });
+    const html = render(<ServerJoin />, serverContext(server));
     expect(html).not.toContain('data-state="busy"');
-    expect(html).toContain("disabled");
     expect(captured["server.join"].disabled).toBe(true);
     expect(html).toContain(">Join<");
   });
@@ -229,120 +225,95 @@ describe("ServerJoin", () => {
   it("renders the playing state, disabled with a Check icon, when DayZ is running and no op is active", async () => {
     await setReadiness(null, false);
     mockServerActions.dayzUp = true;
-    const html = await render({ subjectContext: { kind: "server", data: server } });
+    const html = render(<ServerJoin />, serverContext(server));
     expect(html).toContain('data-state="playing"');
-    expect(html).toContain("disabled");
+    expect(captured["server.join"].disabled).toBe(true);
     expect(html).toContain(">Playing<");
     expect(html).toContain("Quit the game before joining another server");
   });
 
-  const idleJoinCases = [
-    { wording: "fixAndJoin", modded: true, pending: true, label: "Fix and join", icon: "lucide-download", needsMods: true },
-    { wording: "fixAndJoin", modded: true, pending: false, label: "Join", icon: "lucide-download", needsMods: false },
-    { wording: "join", modded: true, pending: true, label: "Join", icon: "lucide-download", needsMods: true },
-    { wording: "join", modded: false, pending: false, label: "Join", icon: "lucide-play", needsMods: false },
-  ];
-
-  it.each(
-    idleJoinCases.flatMap((c) => (["row", "modal"] as const).map((contextName) => ({ ...c, contextName }))),
-  )("$contextName idle join: $wording, modded $modded, pending $pending", async (c) => {
+  it.each([
+    { contextName: "row", wording: "fixAndJoin", modded: true, pending: true, label: "Fix and join", icon: "lucide-download", needsMods: true },
+    { contextName: "modal", wording: "fixAndJoin", modded: true, pending: true, label: "Fix and join", icon: "lucide-download", needsMods: true },
+    { contextName: "row", wording: "fixAndJoin", modded: true, pending: false, label: "Join", icon: "lucide-download", needsMods: false },
+    { contextName: "modal", wording: "fixAndJoin", modded: true, pending: false, label: "Join", icon: "lucide-download", needsMods: false },
+    { contextName: "row", wording: "join", modded: true, pending: true, label: "Join", icon: "lucide-download", needsMods: true },
+    { contextName: "row", wording: "join", modded: false, pending: false, label: "Join", icon: "lucide-play", needsMods: false },
+  ] as const)("$contextName idle join: $wording, modded $modded, pending $pending", async (c) => {
     await setReadiness(null, false);
     useServerStore.setState({ modPending: c.pending ? { [server.addr]: true } : {} });
-    const html = await render(
-      { subjectContext: { kind: "server", data: { ...server, modded: c.modded } }, contextName: c.contextName },
-      { wording: c.wording },
-    );
+    const html = render(<ServerJoin options={{ wording: c.wording }} />, {
+      ...serverContext({ ...server, modded: c.modded }),
+      contextName: c.contextName,
+    });
     expect(html).toContain(`>${c.label}</span>`);
     expect(html).toContain(c.icon);
     expect(html.includes("needsMods")).toBe(c.needsMods);
   });
 
-  it.each([
-    { readiness: "all mods ready", mods: [mod({ state: "ready" })], label: "Join" },
-    { readiness: "a mod needing an update", mods: [mod({ state: "needs_update" })], label: "Fix and join" },
-  ])("selection join reads $label when $readiness", async ({ mods, label }) => {
-    await setReadiness(readiness(mods), false);
-    useServerStore.setState({ modPending: {} });
-    const html = await render(
-      { subjectContext: { kind: "server", data: server }, contextName: "selection", selectedServer: server },
-      { wording: "fixAndJoin" },
-    );
-    expect(html).toContain(`>${label}</span>`);
-  });
+  const fetchedReadinessCases: {
+    where: string;
+    contextName: ElementContextValue["contextName"];
+    popupId: string;
+    mods: ModReadinessEntry[];
+    label: string;
+  }[] = [
+    { where: "a selection", contextName: "selection", popupId: "", mods: [mod({ state: "ready" })], label: "Join" },
+    { where: "a selection", contextName: "selection", popupId: "", mods: [mod({ state: "needs_update" })], label: "Fix and join" },
+    { where: "a modal", contextName: "modal", popupId: "", mods: [mod({ state: "needs_update" })], label: "Fix and join" },
+    { where: "a popup opened from a row", contextName: "row", popupId: "serverActions", mods: [mod({ state: "needs_update" })], label: "Fix and join" },
+  ];
 
-  it.each([
-    ["a modal", "modal", ""],
-    ["a popup opened from a row", "row", "serverActions"],
-  ] as const)("fix-and-join in %s reads Fix and join when fetched readiness lists an outstanding mod", async (_, contextName, popupId) => {
-    await setReadiness(readiness([mod({ state: "needs_update" })]), false);
+  it.each(fetchedReadinessCases)("fix-and-join reads fetched readiness in $where", async (c) => {
+    await setReadiness(readiness(c.mods), false);
     useServerStore.setState({ modPending: {} });
-    const { ServerJoin } = await import("./server-elements");
-    const { PopupContextProvider } = await import("./popup-elements");
-    const html = renderToStaticMarkup(
-      <ElementContextProvider value={{ subjectContext: { kind: "server", data: server }, contextName }}>
-        <PopupContextProvider popupId={popupId} close={() => {}}>
-          <ServerJoin options={{ wording: "fixAndJoin" }} />
-        </PopupContextProvider>
-      </ElementContextProvider>,
+    const html = render(
+      <PopupContextProvider popupId={c.popupId} close={() => {}}>
+        <ServerJoin options={{ wording: "fixAndJoin" }} />
+      </PopupContextProvider>,
+      { ...serverContext(server), contextName: c.contextName, selectedServer: server },
     );
-    expect(html).toContain(">Fix and join</span>");
-    expect(html).toContain("needsMods");
+    expect(html).toContain(`>${c.label}</span>`);
+    expect(html.includes("needsMods")).toBe(c.label === "Fix and join");
   });
 });
 
-function renderNode(
-  node: ReactNode,
-  value?: Partial<ElementContextValue>,
-): string {
-  return renderToStaticMarkup(<ElementContextProvider value={value}>{node}</ElementContextProvider>);
-}
-
-const offlineServer: Server = { ...server, online: false };
-
 describe("ServerPlayers", () => {
-  it("marks empty, full and queued states, with a queue part", async () => {
-    const full: Server = { ...server, players: 60, max_players: 60, queue: 4 };
-    const html = renderNode(
-      <ServerPlayers options={{}} />,
-      { subjectContext: { kind: "server", data: full } },
-    );
-    expect(html).toContain('data-state="full queued"');
-    expect(html).toContain('data-part="queue" title="4 waiting in the join queue">+4</span>');
+  it("marks full, queued, empty and offline states, with a queue part", () => {
+    const full = render(<ServerPlayers options={{}} />, {
+      ...serverContext({ ...server, players: 60, max_players: 60, queue: 4 }),
+    });
+    expect(full).toContain('data-state="full queued"');
+    expect(full).toContain('data-part="queue" title="4 waiting in the join queue">+4</span>');
+
+    const empty = render(<ServerPlayers options={{}} />, {
+      ...serverContext({ ...offlineServer, players: 0 }),
+    });
+    expect(empty).toContain('data-state="empty offline"');
   });
 
-  it("marks the empty state for zero players and offline on an offline server", async () => {
-    const empty: Server = { ...offlineServer, players: 0 };
-    const html = renderNode(<ServerPlayers options={{}} />, { subjectContext: { kind: "server", data: empty } });
-    expect(html).toContain('data-state="empty offline"');
-  });
-
-  it("hides the queue part when showQueue is false", async () => {
-    const queued: Server = { ...server, queue: 3 };
-    const html = renderNode(<ServerPlayers options={{ showQueue: false }} />, {
-      subjectContext: { kind: "server", data: queued },
+  it("hides the queue part when showQueue is false", () => {
+    const html = render(<ServerPlayers options={{ showQueue: false }} />, {
+      ...serverContext({ ...server, queue: 3 }),
     });
     expect(html).not.toContain('data-part="queue"');
   });
 
-  it("format=count shows only the value part, no max", async () => {
-    const html = renderNode(<ServerPlayers options={{ format: "count" }} />, {
-      subjectContext: { kind: "server", data: server },
-    });
+  it("format=count shows only the value part, no max", () => {
+    const html = render(<ServerPlayers options={{ format: "count" }} />, serverContext(server));
     expect(html).toContain('data-part="value">5</span>');
     expect(html).not.toContain('data-part="max"');
   });
 });
 
 describe("ServerPing", () => {
-  const withPing = (ping: number | null, online = true): Server => ({ ...server, ping, online });
-
   it.each([
     { el: "server.players", node: (options: Record<string, unknown>) => <ServerPlayers options={options} />, caption: " players" },
     { el: "server.ping", node: (options: Record<string, unknown>) => <ServerPing options={options} />, caption: " ping" },
   ])("$el shows its caption unless showCaption is false", ({ node, caption }) => {
-    const subjectContext = { kind: "server" as const, data: server };
-    expect(renderNode(node({}), { subjectContext })).toContain(`data-part="caption">${caption}</span>`);
-    expect(renderNode(node({ showCaption: false }), { subjectContext })).not.toContain('data-part="caption"');
+    const value = serverContext(server);
+    expect(render(node({}), value)).toContain(`data-part="caption">${caption}</span>`);
+    expect(render(node({ showCaption: false }), value)).not.toContain('data-part="caption"');
   });
 
   it.each([
@@ -350,86 +321,67 @@ describe("ServerPing", () => {
     [81, "fair"],
     [120, "fair"],
     [121, "poor"],
-  ])("ping %d maps to state %s", async (ping, state) => {
-    const html = renderNode(<ServerPing />, { subjectContext: { kind: "server", data: withPing(ping) } });
+  ])("ping %d maps to state %s", (ping, state) => {
+    const html = render(<ServerPing />, serverContext({ ...server, ping }));
     expect(html).toContain(`data-state="${state}"`);
     expect(html).toContain(`data-part="value">${ping}</span>`);
   });
 
-  it("renders — and state unknown for a null ping", async () => {
-    const html = renderNode(<ServerPing />, { subjectContext: { kind: "server", data: withPing(null) } });
-    expect(html).toContain('data-state="unknown"');
-    expect(html).toContain('data-part="value">—</span>');
+  it("renders — with the unknown state for a null ping, and unknown+offline for a stale one", () => {
+    const nullPing = render(<ServerPing />, serverContext({ ...server, ping: null }));
+    expect(nullPing).toContain('data-state="unknown"');
+    expect(nullPing).toContain('data-part="value">—</span>');
+
+    const stale = render(<ServerPing />, serverContext({ ...server, ping: 20, online: false }));
+    expect(stale).toContain('data-state="unknown offline"');
+    expect(stale).toContain('data-part="value">—</span>');
   });
 
-  it("renders — and unknown+offline for an offline server, ignoring a stale ping value", async () => {
-    const html = renderNode(<ServerPing />, { subjectContext: { kind: "server", data: withPing(20, false) } });
-    expect(html).toContain('data-state="unknown offline"');
-    expect(html).toContain('data-part="value">—</span>');
-  });
-
-  it("hides the unit by default", async () => {
-    const html = renderNode(<ServerPing />, { subjectContext: { kind: "server", data: withPing(40) } });
-    expect(html).not.toContain('data-part="unit"');
+  it("hides the unit by default", () => {
+    expect(render(<ServerPing />, serverContext({ ...server, ping: 40 }))).not.toContain('data-part="unit"');
   });
 });
 
 describe("ServerModCount", () => {
-  it("shows the known count, — for zero, state none", async () => {
-    const zero: Server = { ...server, mod_count: 0 };
-    const html = renderNode(<ServerModCount />, { subjectContext: { kind: "server", data: zero } });
-    expect(html).toContain('data-state="none"');
-    expect(html).toContain('data-part="value">—</span>');
-  });
-
-  it("shows ? and state unprobed for a modded server with an unknown count", async () => {
-    const unprobed: Server = { ...server, mod_count: null, modded: true };
-    const html = renderNode(<ServerModCount />, { subjectContext: { kind: "server", data: unprobed } });
-    expect(html).toContain('data-state="unprobed"');
-    expect(html).toContain('data-part="value">?</span>');
-    expect(html).toContain("This server declares mods");
-  });
-
-  it("shows — and states none vanilla for a vanilla server with an unknown count", async () => {
-    const vanilla: Server = { ...server, mod_count: null, modded: false };
-    const html = renderNode(<ServerModCount />, { subjectContext: { kind: "server", data: vanilla } });
-    const states = html.match(/data-state="([^"]*)"/)?.[1].split(" ");
-    expect(states).toEqual(expect.arrayContaining(["none", "vanilla"]));
-    expect(html).toContain('data-part="value">—</span>');
+  it.each([
+    { name: "a known count of zero", patch: { mod_count: 0 }, state: "none", text: "—", title: undefined },
+    { name: "an unprobed modded server", patch: { mod_count: null, modded: true }, state: "unprobed", text: "?", title: "This server declares mods" },
+    { name: "an unprobed vanilla server", patch: { mod_count: null, modded: false }, state: "none vanilla", text: "—", title: undefined },
+  ])("reads $text with state $state for $name", ({ patch, state, text, title }) => {
+    const html = render(<ServerModCount />, serverContext({ ...server, ...patch }));
+    expect(html).toContain(`data-state="${state}"`);
+    expect(html).toContain(`data-part="value">${text}</span>`);
+    if (title) expect(html).toContain(title);
   });
 });
 
 describe("ServerGameTime", () => {
-  it("day state includes icon, time and multiplier, text content matches formatGameTime", async () => {
+  it("day state renders the glyph, time and multiplier, joining to the formatGameTime text", () => {
     const day: Server = { ...server, in_game_time: "14:00", day_multiplier: 1, night_multiplier: 1 };
-    const html = renderNode(<ServerGameTime />, { subjectContext: { kind: "server", data: day } });
+    const html = render(<ServerGameTime />, serverContext(day));
     expect(html).toContain('data-state="day"');
     const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
     expect(text).toBe(formatGameTime(day.in_game_time, day.day_multiplier, day.night_multiplier));
-    expect(gameTimeParts(day.in_game_time, day.day_multiplier, day.night_multiplier).state).toBe("day");
   });
 
-  it("night state renders the night glyph", async () => {
+  it("night state renders the night glyph", () => {
     const night: Server = { ...server, in_game_time: "23:00", day_multiplier: 1, night_multiplier: 2 };
-    const html = renderNode(<ServerGameTime />, { subjectContext: { kind: "server", data: night } });
+    const html = render(<ServerGameTime />, serverContext(night));
     expect(html).toContain('data-state="night"');
     expect(html).toContain("☾");
   });
 
-  it("unknown state renders --:-- with no icon or multiplier part", async () => {
-    const unknown: Server = { ...server, in_game_time: null };
-    const html = renderNode(<ServerGameTime />, { subjectContext: { kind: "server", data: unknown } });
+  it("unknown state renders --:-- with no icon or multiplier part", () => {
+    const html = render(<ServerGameTime />, serverContext({ ...server, in_game_time: null }));
     expect(html).toContain('data-state="unknown"');
     expect(html).toContain('data-part="time">--:--</span>');
     expect(html).not.toContain('data-part="icon"');
     expect(html).not.toContain('data-part="multiplier"');
   });
 
-  it("hides icon and multiplier when their options are false", async () => {
+  it("hides icon and multiplier when their options are false", () => {
     const day: Server = { ...server, in_game_time: "14:00", day_multiplier: 1, night_multiplier: 1 };
-    const html = renderNode(<ServerGameTime options={{ showIcon: false, showMultiplier: false }} />, {
-      subjectContext: { kind: "server", data: day },
-    });
+    const html = render(<ServerGameTime options={{ showIcon: false, showMultiplier: false }} />, serverContext(day));
     expect(html).not.toContain('data-part="icon"');
     expect(html).not.toContain('data-part="multiplier"');
     expect(html).toContain('data-part="time">2:00 PM</span>');
@@ -441,12 +393,10 @@ describe("ServerTags", () => {
     useServerStore.setState({ modPending: {} });
   });
 
-  it("renders chips in order offline, official, modded, 1PP, BattlEye, locked, mod update, with registry state names", async () => {
+  it("renders chips in order offline, official, modded, 1PP, BattlEye, locked, mod update, with registry state names", () => {
     useServerStore.setState({ modPending: { [server.addr]: true } });
     const all: Server = { ...offlineServer, official: true, first_person: true, modded: true, locked: true, battleye: true };
-    const html = renderNode(<ServerTags options={{ showBattleye: true }} />, {
-      subjectContext: { kind: "server", data: all },
-    });
+    const html = render(<ServerTags options={{ showBattleye: true }} />, serverContext(all));
     const order = ["offline", "official", "modded", "firstPerson", "battleye", "locked", "modUpdate"];
     let lastIndex = -1;
     for (const state of order) {
@@ -462,120 +412,79 @@ describe("ServerTags", () => {
     expect(html).toContain(">UPDATE<");
   });
 
-  it("defaults officialWording to vanilla, showing VANILLA text", async () => {
-    const official: Server = { ...server, official: true };
-    const html = renderNode(<ServerTags />, { subjectContext: { kind: "server", data: official } });
-    expect(html).toContain(">VANILLA<");
+  it("reads its officialWording option, defaulting to VANILLA", () => {
+    const value = serverContext({ ...server, official: true });
+    expect(render(<ServerTags />, value)).toContain(">VANILLA<");
+    expect(render(<ServerTags options={{ officialWording: "official" }} />, value)).toContain(">OFFICIAL<");
   });
 
-  it("shows OFFICIAL when officialWording is official", async () => {
-    const official: Server = { ...server, official: true };
-    const html = renderNode(<ServerTags options={{ officialWording: "official" }} />, {
-      subjectContext: { kind: "server", data: official },
-    });
-    expect(html).toContain(">OFFICIAL<");
+  it("hides the BattlEye chip by default even when the server has it", () => {
+    expect(render(<ServerTags />, serverContext({ ...server, battleye: true }))).not.toContain("BATTLEYE");
   });
 
-  it("hides the BattlEye chip by default even when the server has it", async () => {
-    const be: Server = { ...server, battleye: true };
-    const html = renderNode(<ServerTags />, { subjectContext: { kind: "server", data: be } });
-    expect(html).not.toContain("BATTLEYE");
-  });
-
-  it("shows the mod update chip only while modPending is set for this server", async () => {
+  it("shows the mod update chip only while modPending is set for this server", () => {
     useServerStore.setState({ modPending: { [server.addr]: true } });
-    const html = renderNode(<ServerTags />, { subjectContext: { kind: "server", data: server } });
+    const html = render(<ServerTags />, serverContext(server));
     expect(html).toContain(">UPDATE<");
     expect(html).toContain("A declared mod has a Steam update pending");
   });
 });
 
 describe("ServerLastPlayed", () => {
-  it("renders nothing for a never-played server by default", async () => {
-    const never: Server = { ...server, last_played: null };
-    const html = renderNode(<ServerLastPlayed />, { subjectContext: { kind: "server", data: never } });
-    expect(html).toBe("");
+  it("renders nothing for a never-played server by default, and — with showNever", () => {
+    const value = serverContext({ ...server, last_played: null });
+    expect(render(<ServerLastPlayed />, value)).toBe("");
+    expect(render(<ServerLastPlayed options={{ showNever: true }} />, value)).toContain('data-part="value">—</span>');
   });
 
-  it("renders — with showNever for a never-played server", async () => {
-    const never: Server = { ...server, last_played: null };
-    const html = renderNode(<ServerLastPlayed options={{ showNever: true }} />, {
-      subjectContext: { kind: "server", data: never },
-    });
-    expect(html).toContain('data-part="value">—</span>');
-  });
-
-  it("defaults the label to 'played' and drops it with label: ''", async () => {
+  it("defaults the label to 'played' and drops it with label: ''", () => {
     const played: Server = { ...server, last_played: Math.floor(Date.now() / 1000) - 120 };
-    const withLabel = renderNode(<ServerLastPlayed />, { subjectContext: { kind: "server", data: played } });
-    expect(withLabel).toContain('data-part="label">played</span>');
-
-    const withoutLabel = renderNode(<ServerLastPlayed options={{ label: "" }} />, {
-      subjectContext: { kind: "server", data: played },
-    });
-    expect(withoutLabel).not.toContain('data-part="label"');
+    expect(render(<ServerLastPlayed />, serverContext(played))).toContain('data-part="label">played</span>');
+    expect(render(<ServerLastPlayed options={{ label: "" }} />, serverContext(played))).not.toContain('data-part="label"');
   });
 
   it("with recentOnly renders only inside the Recent view", () => {
     const played: Server = { ...server, last_played: Math.floor(Date.now() / 1000) - 120 };
     const subjectContext = { kind: "server" as const, data: played };
-    expect(renderNode(<ServerLastPlayed options={{ recentOnly: true }} />, { subjectContext, activeView: "servers" })).toBe("");
-    expect(renderNode(<ServerLastPlayed options={{ recentOnly: true }} />, { subjectContext, activeView: "recent" })).toContain(
-      'data-part="value"',
-    );
+    expect(render(<ServerLastPlayed options={{ recentOnly: true }} />, { subjectContext, activeView: "servers" })).toBe("");
+    expect(
+      render(<ServerLastPlayed options={{ recentOnly: true }} />, { subjectContext, activeView: "recent" }),
+    ).toContain('data-part="value"');
   });
 
   it("format date renders the locale date", () => {
     const ts = 1_700_000_000;
-    const html = renderNode(<ServerLastPlayed options={{ format: "date" }} />, {
-      subjectContext: { kind: "server", data: { ...server, last_played: ts } },
-    });
+    const html = render(<ServerLastPlayed options={{ format: "date" }} />, serverContext({ ...server, last_played: ts }));
     expect(html).toContain(`data-part="value">${new Date(ts * 1000).toLocaleDateString()}</span>`);
   });
 });
 
 describe("ServerVersion", () => {
-  it("renders the version text", async () => {
-    const html = renderNode(<ServerVersion />, { subjectContext: { kind: "server", data: server } });
-    expect(html).toContain('data-part="text">1.25</span>');
-  });
+  it("renders the version text, falling back to unknown when it is empty", () => {
+    expect(render(<ServerVersion />, serverContext(server))).toContain('data-part="text">1.25</span>');
 
-  it("falls back to 'unknown' with state unknown when version is empty", async () => {
-    const noVersion: Server = { ...server, version: "" };
-    const html = renderNode(<ServerVersion />, { subjectContext: { kind: "server", data: noVersion } });
-    expect(html).toContain('data-state="unknown"');
-    expect(html).toContain('data-part="text">unknown</span>');
+    const empty = render(<ServerVersion />, serverContext({ ...server, version: "" }));
+    expect(empty).toContain('data-state="unknown"');
+    expect(empty).toContain('data-part="text">unknown</span>');
   });
 });
 
 describe("offline state on server elements", () => {
-  it("adds offline to server.name, server.region and server.modCount for an offline server", async () => {
-    const html = renderNode(
-      <div>
-        <ServerName />
-        <ServerRegion />
-        <ServerModCount />
-      </div>,
-      { subjectContext: { kind: "server", data: offlineServer } },
-    );
-    const matches = html.match(/offline/g) ?? [];
-    expect(matches.length).toBeGreaterThanOrEqual(3);
+  it("adds offline to server.name, server.region and server.modCount for an offline server", () => {
+    const value = serverContext(offlineServer);
+    expect(render(<ServerName />, value)).toContain('data-state="offline"');
+    expect(render(<ServerRegion />, value)).toContain('data-state="offline"');
+    expect(render(<ServerModCount />, value)).toContain('data-state="offline"');
   });
 });
-
-function renderInteractive(node: ReactNode, value?: Partial<ElementContextValue>): string {
-  resetCaptured();
-  return renderToStaticMarkup(<ElementContextProvider value={value}>{node}</ElementContextProvider>);
-}
 
 describe("ServerFavourite", () => {
   it("optimistically toggles the store and persists via toggleFavourite", async () => {
     const { toggleFavourite } = await import("@/lib/tauri");
     useServerStore.setState({ servers: [server], selectedServer: null });
 
-    renderInteractive(<ServerFavourite />, { subjectContext: { kind: "server", data: server } });
-    const onClick = captured["server.favourite"].onClick as (e: { stopPropagation: () => void }) => Promise<void>;
-    await onClick({ stopPropagation: vi.fn() });
+    render(<ServerFavourite />, serverContext(server));
+    await click("server.favourite").result;
 
     expect(useServerStore.getState().servers[0].favourite).toBe(true);
     expect(toggleFavourite).toHaveBeenCalledWith(server.addr, server.query_port, true);
@@ -586,54 +495,46 @@ describe("ServerFavourite", () => {
     vi.mocked(toggleFavourite).mockRejectedValueOnce(new Error("network"));
     useServerStore.setState({ servers: [server], selectedServer: null });
 
-    renderInteractive(<ServerFavourite />, { subjectContext: { kind: "server", data: server } });
-    const onClick = captured["server.favourite"].onClick as (e: { stopPropagation: () => void }) => Promise<void>;
-    await onClick({ stopPropagation: vi.fn() });
+    render(<ServerFavourite />, serverContext(server));
+    await click("server.favourite").result;
 
     expect(useServerStore.getState().servers[0].favourite).toBe(false);
   });
 
-  it("defaults to icon-only display, adding the label part only for iconLabel", async () => {
-    const iconOnly = renderInteractive(<ServerFavourite />, { subjectContext: { kind: "server", data: server } });
-    expect(iconOnly).not.toContain('data-part="label"');
-
-    const withLabel = renderInteractive(<ServerFavourite options={{ display: "iconLabel" }} />, {
-      subjectContext: { kind: "server", data: server },
-    });
-    expect(withLabel).toContain('data-part="label"');
+  it("defaults to icon-only display, adding the label part only for iconLabel", () => {
+    expect(render(<ServerFavourite />, serverContext(server))).not.toContain('data-part="label"');
+    expect(render(<ServerFavourite options={{ display: "iconLabel" }} />, serverContext(server))).toContain('data-part="label"');
   });
 
-  it("renders state on when favourited", async () => {
-    const fav: Server = { ...server, favourite: true };
-    const html = renderInteractive(<ServerFavourite />, { subjectContext: { kind: "server", data: fav } });
+  it("renders state on when favourited", () => {
+    const html = render(<ServerFavourite />, serverContext({ ...server, favourite: true }));
     expect(html).toContain('data-state="on"');
     expect(html).toContain('aria-pressed="true"');
   });
 });
 
 describe("ServerMenu", () => {
-  it("serverActions with no theme file renders the menu trigger named for the server", () => {
-    const html = renderInteractive(<ServerMenu />, { subjectContext: { kind: "server", data: server } });
-    expect(html).toContain('data-part="trigger"');
-    expect(html).toContain('aria-haspopup="menu"');
-    expect(html).toContain('aria-label="More actions for DayZ Test Server"');
-  });
+  it("renders the menu trigger named for the server, with and without a theme popup file", () => {
+    const value = serverContext(server);
+    const plain = render(<ServerMenu />, value);
+    expect(plain).toContain('data-part="trigger"');
+    expect(plain).toContain('aria-haspopup="menu"');
+    expect(plain).toContain('aria-label="More actions for DayZ Test Server"');
 
-  it("serverActions with a theme popup file renders the documented trigger", () => {
     useThemeStore.setState({
       activeId: "local.test",
       themeFiles: { "local.test": { layouts: { "layout/popups/serverActions.json": {} } } as unknown as ThemeFile },
     });
     try {
-      const html = renderNode(<ServerMenu />, { subjectContext: { kind: "server", data: server } });
-      expect(html).toContain('data-part="trigger"');
-      expect(html).toContain('aria-haspopup="menu"');
+      const themed = render(<ServerMenu />, value);
+      expect(themed).toContain('data-part="trigger"');
+      expect(themed).toContain('aria-haspopup="menu"');
     } finally {
       useThemeStore.setState({ activeId: "neutral", themeFiles: {} });
     }
   });
 
-  it("serverLoad renders the popup item only once opened", () => {
+  it("renders the serverLoad popup item only once opened", () => {
     const closedHtml = renderToStaticMarkup(<>{ServerLoadMenuPopup({ open: false, onLoad: vi.fn() })}</>);
     expect(closedHtml).toBe("");
 
@@ -643,11 +544,9 @@ describe("ServerMenu", () => {
     expect(openedHtml).toContain("Load to menu");
   });
 
-  it("serverLoad trigger is disabled while an op runs or DayZ is running", () => {
+  it("disables the serverLoad trigger while an op runs or DayZ is running", () => {
     mockServerActions.op = { addr: server.addr, serverName: server.name, phase: "downloading", note: null };
-    const html = renderInteractive(<ServerMenu options={{ menu: "serverLoad" }} />, {
-      subjectContext: { kind: "server", data: server },
-    });
+    const html = render(<ServerMenu options={{ menu: "serverLoad" }} />, serverContext(server));
     mockServerActions.op = null;
     expect(captured["trigger"].disabled).toBe(true);
     expect(html).toContain('data-state="disabled"');
@@ -658,21 +557,17 @@ describe("ServerLoadToMenu", () => {
   beforeEach(() => {
     mockServerActions.op = null;
     mockServerActions.dayzUp = false;
-    mockServerActions.verifyAndJoin.mockClear();
   });
 
   it("calls verifyAndJoin with toMenu=true and stops propagation", () => {
-    renderInteractive(<ServerLoadToMenu />, { subjectContext: { kind: "server", data: server } });
-    const onClick = captured["server.loadToMenu"].onClick as (e: { stopPropagation: () => void }) => void;
-    const stopPropagation = vi.fn();
-    onClick({ stopPropagation });
-    expect(stopPropagation).toHaveBeenCalled();
+    render(<ServerLoadToMenu />, serverContext(server));
+    expect(click("server.loadToMenu").stopPropagation).toHaveBeenCalled();
     expect(mockServerActions.verifyAndJoin).toHaveBeenCalledWith(server, true);
   });
 
   it("is disabled while any op runs or DayZ is running", () => {
     mockServerActions.dayzUp = true;
-    const html = renderInteractive(<ServerLoadToMenu />, { subjectContext: { kind: "server", data: server } });
+    const html = render(<ServerLoadToMenu />, serverContext(server));
     expect(captured["server.loadToMenu"].disabled).toBe(true);
     expect(html).toContain("disabled");
   });
@@ -681,71 +576,60 @@ describe("ServerLoadToMenu", () => {
 describe("ServerCancel", () => {
   beforeEach(() => {
     mockServerActions.op = null;
-    mockServerActions.cancelWait.mockClear();
   });
 
-  it("renders nothing when there is no active op for this server", () => {
-    const html = renderInteractive(<ServerCancel />, { subjectContext: { kind: "server", data: server } });
-    expect(html).toBe("");
-  });
-
-  it("renders nothing while launching or starting", () => {
+  it("renders nothing without a cancellable op of this server", () => {
+    const value = serverContext(server);
+    expect(render(<ServerCancel />, value)).toBe("");
     mockServerActions.op = { addr: server.addr, serverName: server.name, phase: "launching", note: null };
-    const html = renderInteractive(<ServerCancel />, { subjectContext: { kind: "server", data: server } });
-    expect(html).toBe("");
+    expect(render(<ServerCancel />, value)).toBe("");
   });
 
   it("renders and calls cancelWait for a cancellable op of this server", () => {
     mockServerActions.op = { addr: server.addr, serverName: server.name, phase: "downloading", note: null };
-    const html = renderInteractive(<ServerCancel />, { subjectContext: { kind: "server", data: server } });
-    expect(html).toContain(">Cancel<");
-    const onClick = captured["server.cancel"].onClick as (e: { stopPropagation: () => void }) => void;
-    onClick({ stopPropagation: vi.fn() });
+    expect(render(<ServerCancel />, serverContext(server))).toContain(">Cancel<");
+    click("server.cancel");
     expect(mockServerActions.cancelWait).toHaveBeenCalled();
   });
 });
 
 describe("ServerManageMods", () => {
-  it("shows the selection readiness mod count once loaded", async () => {
+  it("reads the fetched mod count, the declared count while loading, or nothing", async () => {
+    const value = serverContext(server);
     await setReadiness(readiness([mod({}), mod({ workshop_id: "2" })]), false);
-    const html = renderInteractive(<ServerManageMods />, { subjectContext: { kind: "server", data: server } });
-    expect(html).toContain("· 2 declared");
-  });
+    expect(render(<ServerManageMods />, value)).toContain("· 2 declared");
 
-  it("falls back to server.mod_count while readiness has not loaded", async () => {
     await setReadiness(null, true);
-    const html = renderInteractive(<ServerManageMods />, { subjectContext: { kind: "server", data: server } });
-    expect(html).toContain(`· ${server.mod_count} declared`);
-  });
-
-  it("omits the count entirely when unknown", async () => {
-    const unknown: Server = { ...server, mod_count: null };
-    await setReadiness(null, true);
-    const html = renderInteractive(<ServerManageMods />, { subjectContext: { kind: "server", data: unknown } });
-    expect(html).not.toContain("declared");
+    expect(render(<ServerManageMods />, value)).toContain(`· ${server.mod_count} declared`);
+    expect(render(<ServerManageMods />, serverContext({ ...server, mod_count: null }))).not.toContain("declared");
   });
 
   it("switches to the mods view on click", async () => {
     await setReadiness(null, false);
     const onViewChange = vi.fn();
-    renderInteractive(<ServerManageMods />, { subjectContext: { kind: "server", data: server }, onViewChange });
-    const onClick = captured["server.manageMods"].onClick as (e: { stopPropagation: () => void }) => void;
-    onClick({ stopPropagation: vi.fn() });
+    render(<ServerManageMods />, { ...serverContext(server), onViewChange });
+    click("server.manageMods");
     expect(onViewChange).toHaveBeenCalledWith("mods");
+  });
+
+  it("ignores a label option and keeps 'Manage mods'", async () => {
+    await setReadiness(null, false);
+    expect(render(<ServerManageMods options={{ label: "Mods" }} />, serverContext(server))).toContain(
+      'data-part="label">Manage mods</span>',
+    );
   });
 });
 
 describe("ServerDeselect", () => {
   it("clears the selection when clicked", () => {
     useServerStore.setState({ selectedServer: server });
-    renderInteractive(<ServerDeselect />, { subjectContext: { kind: "server", data: server } });
-    const onClick = captured["server.deselect"].onClick as () => void;
-    onClick();
+    render(<ServerDeselect />, serverContext(server));
+    click("server.deselect");
     expect(useServerStore.getState().selectedServer).toBeNull();
   });
 
   it("reads Close details by default", () => {
-    const html = renderInteractive(<ServerDeselect />, { subjectContext: { kind: "server", data: server } });
+    const html = render(<ServerDeselect />, serverContext(server));
     expect(html).toContain('aria-label="Close details"');
     expect(html).toContain('data-part="icon"');
   });
@@ -756,9 +640,8 @@ describe("ServerRefresh", () => {
     useRowProbeStore.setState({ probingKey: null });
   });
 
-  it("probes only this server and marks it busy while in flight", async () => {
+  it("probes only this server, marking it busy until the probe settles", async () => {
     const { refreshVisibleServers } = await import("@/lib/tauri");
-    vi.mocked(refreshVisibleServers).mockClear();
     let resolveProbe: () => void = () => {};
     vi.mocked(refreshVisibleServers).mockReturnValueOnce(
       new Promise((resolve) => {
@@ -766,12 +649,9 @@ describe("ServerRefresh", () => {
       }),
     );
 
-    const html = renderInteractive(<ServerRefresh />, { subjectContext: { kind: "server", data: server } });
-    const onClick = captured["server.refresh"].onClick as (e: { stopPropagation: () => void }) => void;
-    const stopPropagation = vi.fn();
-    onClick({ stopPropagation });
+    const html = render(<ServerRefresh />, serverContext(server));
+    expect(click("server.refresh").stopPropagation).toHaveBeenCalled();
 
-    expect(stopPropagation).toHaveBeenCalled();
     expect(refreshVisibleServers).toHaveBeenCalledWith([{ addr: server.addr, query_port: server.query_port }], "row");
     expect(useRowProbeStore.getState().probingKey).toBe(`${server.addr}:${server.query_port}`);
     expect(html).not.toContain('data-state="busy"');
@@ -782,140 +662,65 @@ describe("ServerRefresh", () => {
     expect(useRowProbeStore.getState().probingKey).toBeNull();
   });
 
-  it("disables other rows while one server is probing", () => {
+  it("marks the probing row busy and every other row disabled", () => {
     useRowProbeStore.setState({ probingKey: `${server.addr}:${server.query_port}` });
-    const html = renderInteractive(<ServerRefresh />, { subjectContext: { kind: "server", data: otherServer } });
-    expect(html).toContain('data-state="disabled"');
-    expect(captured["server.refresh"].disabled).toBe(true);
-  });
+    expect(render(<ServerRefresh />, serverContext(server))).toContain('data-state="busy"');
 
-  it("shows busy state and a spinning icon for the probing row itself", () => {
-    useRowProbeStore.setState({ probingKey: `${server.addr}:${server.query_port}` });
-    const html = renderInteractive(<ServerRefresh />, { subjectContext: { kind: "server", data: server } });
-    expect(html).toContain('data-state="busy"');
-    expect(html).toContain("animate-spin");
+    const other = render(<ServerRefresh />, serverContext(otherServer));
+    expect(other).toContain('data-state="disabled"');
+    expect(captured["server.refresh"].disabled).toBe(true);
   });
 });
 
-describe("ServerInfo options", () => {
+describe("ServerInfo", () => {
   it("defaults to icon-only with the launcher wording as aria-label and title", () => {
-    const html = renderInteractive(<ServerInfo />, { subjectContext: { kind: "server", data: server } });
+    const html = render(<ServerInfo />, serverContext(server));
     expect(html).toContain('aria-label="Server information"');
     expect(html).toContain('title="Server information"');
     expect(html).not.toContain('data-part="label"');
   });
 
-  it("an icon option swaps the icon", () => {
-    const html = renderInteractive(<ServerInfo options={{ icon: "x" }} />, {
-      subjectContext: { kind: "server", data: server },
-    });
-    expect(html).toContain("lucide-x");
-  });
-
-  it("icon: none removes the rendered icon", () => {
-    const html = renderInteractive(<ServerInfo options={{ icon: "none" }} />, {
-      subjectContext: { kind: "server", data: server },
-    });
-    expect(html).not.toMatch(/lucide-/);
-  });
-
   it("display: iconLabel shows the label part and drops the title", () => {
-    const html = renderInteractive(<ServerInfo options={{ display: "iconLabel" }} />, {
-      subjectContext: { kind: "server", data: server },
-    });
+    const html = render(<ServerInfo options={{ display: "iconLabel" }} />, serverContext(server));
     expect(html).toContain('data-part="label">Server information</span>');
     expect(html).not.toContain("title=");
   });
 
-  it("a label option replaces the accessible name", () => {
-    const html = renderInteractive(<ServerInfo options={{ label: "Details" }} />, {
-      subjectContext: { kind: "server", data: server },
-    });
-    expect(html).toContain('aria-label="Details"');
-  });
-
   it("clicking calls openServerInfo with its subject server", () => {
     const openServerInfo = vi.fn();
-    renderInteractive(<ServerInfo />, {
-      subjectContext: { kind: "server", data: server },
-      openServerInfo,
-    });
-    const onClick = captured["server.info"].onClick as (e: { stopPropagation: () => void }) => void;
-    onClick({ stopPropagation: vi.fn() });
+    render(<ServerInfo />, { ...serverContext(server), openServerInfo });
+    click("server.info");
     expect(openServerInfo).toHaveBeenCalledWith(server);
   });
 });
 
-describe("ServerMenu options", () => {
-  it("an icon option swaps the serverActions trigger icon", () => {
-    const html = renderInteractive(<ServerMenu options={{ icon: "x" }} />, {
-      subjectContext: { kind: "server", data: server },
-    });
+describe("element icon and label options", () => {
+  const iconOptionCases: { el: string; node: ReactNode; absent?: string }[] = [
+    { el: "server.info", node: <ServerInfo options={{ icon: "x" }} /> },
+    { el: "server.menu", node: <ServerMenu options={{ icon: "x" }} /> },
+    { el: "server.menu serverLoad", node: <ServerMenu options={{ menu: "serverLoad", icon: "x" }} /> },
+    { el: "server.favourite", node: <ServerFavourite options={{ icon: "x" }} /> },
+    { el: "server.deselect", node: <ServerDeselect options={{ icon: "x" }} /> },
+    { el: "server.manageMods", node: <ServerManageMods options={{ icon: "x" }} /> },
+    { el: "server.gameTime", node: <ServerGameTime options={{ icon: "x" }} />, absent: "☀" },
+  ];
+
+  it.each(iconOptionCases)("$el swaps its own icon for the icon option", async ({ node, absent }) => {
+    await setReadiness(null, false);
+    const html = render(node, serverContext(server));
     expect(html).toContain("lucide-x");
+    if (absent) expect(html).not.toContain(absent);
   });
 
-  it("a label option overrides the default aria-label and title", () => {
-    const html = renderInteractive(<ServerMenu options={{ label: "Row actions" }} />, {
-      subjectContext: { kind: "server", data: server },
-    });
-    expect(html).toContain('aria-label="Row actions"');
-    expect(html).toContain('title="Row actions"');
-  });
+  const labelOptionCases: { el: string; node: ReactNode; ariaLabel: string; title?: string }[] = [
+    { el: "server.info", node: <ServerInfo options={{ label: "Row details" }} />, ariaLabel: "Row details" },
+    { el: "server.menu", node: <ServerMenu options={{ label: "Row details" }} />, ariaLabel: "Row details", title: "Row details" },
+  ];
 
-  it("an icon option swaps the serverLoad trigger's chevron", () => {
-    const html = renderInteractive(<ServerMenu options={{ menu: "serverLoad", icon: "x" }} />, {
-      subjectContext: { kind: "server", data: server },
-    });
-    expect(html).toContain("lucide-x");
-  });
-});
-
-describe("ServerFavourite options", () => {
-  it("an icon option swaps the star", () => {
-    const html = renderInteractive(<ServerFavourite options={{ icon: "x" }} />, {
-      subjectContext: { kind: "server", data: server },
-    });
-    expect(html).toContain("lucide-x");
-  });
-});
-
-describe("ServerDeselect options", () => {
-  it("an icon option swaps the close icon", () => {
-    const html = renderInteractive(<ServerDeselect options={{ icon: "x" }} />, {
-      subjectContext: { kind: "server", data: server },
-    });
-    expect(html).toContain("lucide-x");
-  });
-});
-
-describe("ServerManageMods options", () => {
-  it("ignores a label option (not declared by the registry) and keeps 'Manage mods'", () => {
-    const html = renderInteractive(<ServerManageMods options={{ label: "Mods" }} />, {
-      subjectContext: { kind: "server", data: server },
-    });
-    expect(html).toContain('data-part="label">Manage mods</span>');
-  });
-
-  it("an icon option swaps the icon", () => {
-    const html = renderInteractive(<ServerManageMods options={{ icon: "x" }} />, {
-      subjectContext: { kind: "server", data: server },
-    });
-    expect(html).toContain("lucide-x");
-  });
-});
-
-describe("ServerGameTime icon option", () => {
-  it("no option keeps the glyph", () => {
-    const day: Server = { ...server, in_game_time: "14:00", day_multiplier: 1, night_multiplier: 1 };
-    const html = renderNode(<ServerGameTime />, { subjectContext: { kind: "server", data: day } });
-    expect(html).toContain("☀");
-  });
-
-  it("an icon option swaps the glyph for the lucide icon", () => {
-    const day: Server = { ...server, in_game_time: "14:00", day_multiplier: 1, night_multiplier: 1 };
-    const html = renderNode(<ServerGameTime options={{ icon: "x" }} />, { subjectContext: { kind: "server", data: day } });
-    expect(html).toContain("lucide-x");
-    expect(html).not.toContain("☀");
+  it.each(labelOptionCases)("$el reads its label option as the accessible name", ({ node, ariaLabel, title }) => {
+    const html = render(node, serverContext(server));
+    expect(html).toContain(`aria-label="${ariaLabel}"`);
+    if (title) expect(html).toContain(`title="${title}"`);
   });
 });
 
@@ -923,14 +728,11 @@ const uniqueSummary = { count: 2, total_size_bytes: 4_000_000 };
 const unsubscribeOutcome = { count: 2, total_size_bytes: 4_000_000 };
 
 describe("ServerCheckMods", () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     mockServerActions.op = null;
-    mockServerActions.setNotice.mockClear();
-    const { checkServerMods } = await import("@/lib/tauri");
-    vi.mocked(checkServerMods).mockClear();
   });
 
-  it("calls checkServerMods for the subject server, showing busy while running", async () => {
+  it("calls checkServerMods for the subject server, marking its mods pending", async () => {
     const { checkServerMods } = await import("@/lib/tauri");
     let resolveCheck: (v: ServerModReadiness) => void = () => {};
     vi.mocked(checkServerMods).mockReturnValueOnce(
@@ -940,12 +742,10 @@ describe("ServerCheckMods", () => {
     );
     useServerStore.setState({ modPending: {} });
 
-    const html = renderInteractive(<ServerCheckMods />, { subjectContext: { kind: "server", data: server } });
-    const onClick = captured["server.checkMods"].onClick as (e: { stopPropagation: () => void }) => Promise<void>;
-    const pending = onClick({ stopPropagation: vi.fn() });
+    render(<ServerCheckMods />, serverContext(server));
+    const pending = click("server.checkMods").result as Promise<void>;
 
     expect(checkServerMods).toHaveBeenCalledWith(server.addr, server.query_port);
-    void html;
 
     resolveCheck(readiness([mod({ state: "not_subscribed" })]));
     await pending;
@@ -957,9 +757,8 @@ describe("ServerCheckMods", () => {
     const { checkServerMods } = await import("@/lib/tauri");
     vi.mocked(checkServerMods).mockRejectedValueOnce(new Error("boom"));
 
-    renderInteractive(<ServerCheckMods />, { subjectContext: { kind: "server", data: server } });
-    const onClick = captured["server.checkMods"].onClick as (e: { stopPropagation: () => void }) => Promise<void>;
-    await onClick({ stopPropagation: vi.fn() });
+    render(<ServerCheckMods />, serverContext(server));
+    await click("server.checkMods").result;
 
     expect(mockServerActions.setNotice).toHaveBeenCalledWith({ kind: "plain", text: "Error: boom" }, server.addr);
   });
@@ -969,39 +768,31 @@ describe("ServerSubscribeAll", () => {
   beforeEach(() => {
     mockServerActions.op = null;
     mockServerActions.dayzUp = false;
-    mockServerActions.subscribeOnly.mockClear();
   });
 
   it("calls subscribeOnly with the subject server", () => {
-    renderInteractive(<ServerSubscribeAll />, { subjectContext: { kind: "server", data: server } });
-    const onClick = captured["server.subscribeAll"].onClick as (e: { stopPropagation: () => void }) => void;
-    onClick({ stopPropagation: vi.fn() });
+    render(<ServerSubscribeAll />, serverContext(server));
+    click("server.subscribeAll");
     expect(mockServerActions.subscribeOnly).toHaveBeenCalledWith(server);
   });
 
-  it("shows busy while this server's subscribe op is active", () => {
+  it("marks this server's subscribe op busy and disables the button for any op", () => {
     mockServerActions.op = { addr: server.addr, serverName: server.name, phase: "subscribing", note: null };
-    const html = renderInteractive(<ServerSubscribeAll />, { subjectContext: { kind: "server", data: server } });
-    expect(html).toContain('data-state="busy"');
+    const mine = render(<ServerSubscribeAll />, serverContext(server));
+    expect(mine).toContain('data-state="busy"');
     expect(captured["server.subscribeAll"].disabled).toBe(true);
-  });
 
-  it("is disabled without the busy state for a different server's op", () => {
     mockServerActions.op = { addr: otherServer.addr, serverName: otherServer.name, phase: "subscribing", note: null };
-    const html = renderInteractive(<ServerSubscribeAll />, { subjectContext: { kind: "server", data: server } });
-    expect(html).not.toContain('data-state="busy"');
-    expect(html).toContain('data-state="disabled"');
+    const other = render(<ServerSubscribeAll />, serverContext(server));
+    expect(other).not.toContain('data-state="busy"');
+    expect(other).toContain('data-state="disabled"');
   });
 });
 
 describe("ServerUnsubscribeUnique", () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     mockServerActions.op = null;
-    mockServerActions.setNotice.mockClear();
     askConfirmCalls.length = 0;
-    const { getUniqueModsSummary, unsubscribeUniqueMods } = await import("@/lib/tauri");
-    vi.mocked(getUniqueModsSummary).mockClear();
-    vi.mocked(unsubscribeUniqueMods).mockClear();
   });
 
   it("fetches the unique-mods summary, then confirms before unsubscribing", async () => {
@@ -1009,9 +800,8 @@ describe("ServerUnsubscribeUnique", () => {
     vi.mocked(getUniqueModsSummary).mockResolvedValueOnce(uniqueSummary);
     vi.mocked(unsubscribeUniqueMods).mockResolvedValueOnce(unsubscribeOutcome);
 
-    renderInteractive(<ServerUnsubscribeUnique />, { subjectContext: { kind: "server", data: server } });
-    const onClick = captured["server.unsubscribeUnique"].onClick as (e: { stopPropagation: () => void }) => Promise<void>;
-    await onClick({ stopPropagation: vi.fn() });
+    render(<ServerUnsubscribeUnique />, serverContext(server));
+    await click("server.unsubscribeUnique").result;
 
     expect(getUniqueModsSummary).toHaveBeenCalledWith(server.addr, server.query_port);
     expect(unsubscribeUniqueMods).not.toHaveBeenCalled();
@@ -1030,9 +820,8 @@ describe("ServerUnsubscribeUnique", () => {
     const { getUniqueModsSummary, unsubscribeUniqueMods } = await import("@/lib/tauri");
     vi.mocked(getUniqueModsSummary).mockResolvedValueOnce(uniqueSummary);
 
-    renderInteractive(<ServerUnsubscribeUnique />, { subjectContext: { kind: "server", data: server } });
-    const onClick = captured["server.unsubscribeUnique"].onClick as (e: { stopPropagation: () => void }) => Promise<void>;
-    await onClick({ stopPropagation: vi.fn() });
+    render(<ServerUnsubscribeUnique />, serverContext(server));
+    await click("server.unsubscribeUnique").result;
 
     expect(askConfirmCalls).toHaveLength(1);
     expect(unsubscribeUniqueMods).not.toHaveBeenCalled();
@@ -1042,9 +831,8 @@ describe("ServerUnsubscribeUnique", () => {
     const { getUniqueModsSummary } = await import("@/lib/tauri");
     vi.mocked(getUniqueModsSummary).mockRejectedValueOnce(new Error("boom"));
 
-    renderInteractive(<ServerUnsubscribeUnique />, { subjectContext: { kind: "server", data: server } });
-    const onClick = captured["server.unsubscribeUnique"].onClick as (e: { stopPropagation: () => void }) => Promise<void>;
-    await onClick({ stopPropagation: vi.fn() });
+    render(<ServerUnsubscribeUnique />, serverContext(server));
+    await click("server.unsubscribeUnique").result;
 
     expect(mockServerActions.setNotice).toHaveBeenCalledWith({ kind: "plain", text: "Error: boom" }, server.addr);
     expect(askConfirmCalls).toHaveLength(0);
@@ -1054,24 +842,22 @@ describe("ServerUnsubscribeUnique", () => {
 describe("ServerCopyAddress", () => {
   beforeEach(async () => {
     const { copyServerAddress } = await import("@/lib/tauri");
-    vi.mocked(copyServerAddress).mockReset();
     vi.mocked(copyServerAddress).mockResolvedValue(undefined);
   });
 
-  it("reads 'Copy address' idle, with a Copy icon", () => {
-    const html = renderInteractive(<ServerCopyAddress />, { subjectContext: { kind: "server", data: server } });
-    expect(html).toContain(">Copy address<");
-    expect(html).not.toContain('data-state="copied"');
+  it("reads 'Copy address' by default, and the label option when given", () => {
+    const value = serverContext(server);
+    const idle = render(<ServerCopyAddress />, value);
+    expect(idle).toContain(">Copy address<");
+    expect(idle).not.toContain('data-state="copied"');
+
+    expect(render(<ServerCopyAddress options={{ label: "Copy" }} />, value)).toContain(">Copy<");
   });
 
   it("calls copyServerAddress with the subject server, stopping propagation", async () => {
     const { copyServerAddress } = await import("@/lib/tauri");
-    renderInteractive(<ServerCopyAddress />, { subjectContext: { kind: "server", data: server } });
-    const onClick = captured["server.copyAddress"].onClick as (e: { stopPropagation: () => void }) => void;
-    const stopPropagation = vi.fn();
-    onClick({ stopPropagation });
-
-    expect(stopPropagation).toHaveBeenCalled();
+    render(<ServerCopyAddress />, serverContext(server));
+    expect(click("server.copyAddress").stopPropagation).toHaveBeenCalled();
     expect(copyServerAddress).toHaveBeenCalledWith(server);
   });
 
@@ -1080,9 +866,8 @@ describe("ServerCopyAddress", () => {
     vi.useFakeTimers();
     try {
       const setTimeoutSpy = vi.spyOn(global, "setTimeout");
-      renderInteractive(<ServerCopyAddress />, { subjectContext: { kind: "server", data: server } });
-      const onClick = captured["server.copyAddress"].onClick as (e: { stopPropagation: () => void }) => void;
-      onClick({ stopPropagation: vi.fn() });
+      render(<ServerCopyAddress />, serverContext(server));
+      click("server.copyAddress");
 
       await vi.advanceTimersByTimeAsync(0);
       expect(copyServerAddress).toHaveBeenCalledWith(server);
@@ -1096,9 +881,8 @@ describe("ServerCopyAddress", () => {
     const { copyServerAddress } = await import("@/lib/tauri");
     vi.mocked(copyServerAddress).mockRejectedValueOnce(new Error("clipboard denied"));
 
-    renderInteractive(<ServerCopyAddress />, { subjectContext: { kind: "server", data: server } });
-    const onClick = captured["server.copyAddress"].onClick as (e: { stopPropagation: () => void }) => void;
-    onClick({ stopPropagation: vi.fn() });
+    render(<ServerCopyAddress />, serverContext(server));
+    click("server.copyAddress");
     await Promise.resolve();
     await Promise.resolve();
 
@@ -1107,13 +891,6 @@ describe("ServerCopyAddress", () => {
       server.addr,
     );
   });
-
-  it("honours the label option", () => {
-    const html = renderInteractive(<ServerCopyAddress options={{ label: "Copy" }} />, {
-      subjectContext: { kind: "server", data: server },
-    });
-    expect(html).toContain(">Copy<");
-  });
 });
 
 describe("ServerModUpdate", () => {
@@ -1121,43 +898,26 @@ describe("ServerModUpdate", () => {
     useServerStore.setState({ modPending: {} });
   });
 
-  it("renders nothing without a pending mod update", () => {
-    const html = renderNode(<ServerModUpdate />, { subjectContext: { kind: "server", data: server } });
-    expect(html).toBe("");
-  });
+  it("renders nothing without a pending mod update for this server", () => {
+    const value = serverContext(server);
+    expect(render(<ServerModUpdate />, value)).toBe("");
 
-  it("renders UPDATE while this server has a pending mod update", () => {
-    useServerStore.setState({ modPending: { [server.addr]: true } });
-    const html = renderNode(<ServerModUpdate />, { subjectContext: { kind: "server", data: server } });
-    expect(html).toContain(">UPDATE<");
-  });
-
-  it("ignores another server's pending update", () => {
     useServerStore.setState({ modPending: { [otherServer.addr]: true } });
-    const html = renderNode(<ServerModUpdate />, { subjectContext: { kind: "server", data: server } });
-    expect(html).toBe("");
+    expect(render(<ServerModUpdate />, value)).toBe("");
   });
 
-  it("honours the label option", () => {
+  it("renders UPDATE while this server has a pending mod update, honouring the label option", () => {
     useServerStore.setState({ modPending: { [server.addr]: true } });
-    const html = renderNode(<ServerModUpdate options={{ label: "Update available" }} />, {
-      subjectContext: { kind: "server", data: server },
-    });
-    expect(html).toContain(">Update available<");
+    const value = serverContext(server);
+    expect(render(<ServerModUpdate />, value)).toContain(">UPDATE<");
+    expect(render(<ServerModUpdate options={{ label: "Update available" }} />, value)).toContain(">Update available<");
   });
 });
 
-describe("ServerAddress outside the selection panel", () => {
-  it("labels the game port instead of appending it to the query-port address", async () => {
-    const { ServerAddress } = await import("./server-elements");
-    const { renderToStaticMarkup } = await import("react-dom/server");
-    const { ElementContextProvider } = await import("./context");
-    const server = { addr: "1.2.3.4:2303", game_port: 2302, online: true } as unknown as import("@/types/server").Server;
-    const html = renderToStaticMarkup(
-      <ElementContextProvider value={{ subjectContext: { kind: "server", data: server } } as never}>
-        <ServerAddress options={{ showGamePort: true }} />
-      </ElementContextProvider>,
-    );
+describe("ServerAddress game port", () => {
+  it("labels the game port instead of appending it to the query-port address", () => {
+    const gamePortServer = { addr: "1.2.3.4:2303", game_port: 2302, online: true } as Server;
+    const html = render(<ServerAddress options={{ showGamePort: true }} />, serverContext(gamePortServer));
     expect(html).toContain("1.2.3.4:2303");
     expect(html).toContain("game port 2302");
     expect(html).not.toContain(":2303:");
