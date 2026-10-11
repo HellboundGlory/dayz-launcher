@@ -36,7 +36,7 @@ export function StatusSteam({
           )}
         />
       )}
-      {showLabel && <span data-part="label" className="text-xs text-muted font-mono-data">{text}</span>}
+      {showLabel && <span data-part="label" className="[font-size:var(--t-type-size-lg)] leading-4 text-muted font-mono-data">{text}</span>}
     </div>
   );
 }
@@ -171,7 +171,7 @@ export function StatusActivity({
         data-part="dot"
         className={cn("size-2 [border-radius:var(--t-radius-pill)] shrink-0", dotClass)}
       />
-      <span data-part="label" className="text-xs text-muted">
+      <span data-part="label" className="[font-size:var(--t-type-size-lg)] leading-4 text-muted">
         {label}
       </span>
     </div>

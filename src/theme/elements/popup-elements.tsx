@@ -163,7 +163,7 @@ export function PopupMapOptions({ className, style }: { className?: string; styl
   return (
     <div data-el="popup.mapOptions" role="listbox" aria-multiselectable className={className} style={style}>
       {maps.length === 0 && (
-        <div data-part="empty" className="px-2 py-1.5 text-[10px] text-muted">
+        <div data-part="empty" className="px-2 py-1.5 [font-size:var(--t-type-size-sm)] text-muted">
           Loading maps...
         </div>
       )}
@@ -200,7 +200,7 @@ export function PopupTagOptions({ className, style }: { className?: string; styl
             selected={val === true}
             state={indicatorState(val)}
             mark={
-              <span data-part="indicator" className="font-mono-data text-[10px]">
+              <span data-part="indicator" className="font-mono-data [font-size:var(--t-type-size-sm)]">
                 {indicatorText(val)}
               </span>
             }

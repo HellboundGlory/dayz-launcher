@@ -26,7 +26,7 @@ export const REFRESH_INTERVALS: { value: number; label: string }[] = [
 
 /** The shared text-input / select styling (board `.field input`). */
 export const INPUT_CLASS =
-  "w-full [border-radius:var(--t-radius-input)] border border-line bg-bg px-2.5 py-2 text-xs text-ink placeholder-muted outline-hidden transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:border-line-weak focus:border-accent-line";
+  "w-full [border-radius:var(--t-radius-input)] border border-line bg-bg px-2.5 py-2 [font-size:var(--t-type-size-lg)] leading-4 text-ink placeholder-muted outline-hidden transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:border-line-weak focus:border-accent-line";
 
 /** Small secondary button (Detect / Open) sitting next to an input. */
 export const BUTTON_CLASS =
