@@ -13,6 +13,7 @@ import {
   getActiveLayout,
   getThemeOwnedLayout,
   mergeSettingsValues,
+  newThemeId,
   resolvedExtras,
   useThemeStore,
   watchHotReload,
@@ -26,8 +27,8 @@ import type { LayoutFile } from "./renderer/types";
 import { nextDuplicateName } from "@/components/themes-page/ThemeGrid";
 
 const backend = vi.hoisted(() => ({
-  /** What `migrate_legacy_custom_themes` reports back, in input order. */
-  migratedIds: [] as string[],
+  /** What `migrate_legacy_custom_themes` reports back, one entry per input theme. */
+  migratedIds: [] as (string | null)[],
   /** Ids written through `set_active_theme_id`, in call order. */
   setActiveCalls: [] as (string | null)[],
   /** What `list_installed_themes` sees. */
@@ -239,20 +240,23 @@ describe("hydrate legacy migration", () => {
   it("remaps a stored custom:<name> selection onto the id the migration created", async () => {
     storage.set(
       "tetra.customThemes",
-      JSON.stringify([{ name: "Foo", dark: PALETTE, light: PALETTE }]),
+      JSON.stringify([
+        { name: "Ёлка", dark: PALETTE, light: PALETTE },
+        { name: "Звезда", dark: PALETTE, light: PALETTE },
+      ]),
     );
     storage.set(
       "tetra.themeActive",
-      JSON.stringify({ activeId: "custom:Foo", scheme: "dark", bloom: 0.9 }),
+      JSON.stringify({ activeId: "custom:Звезда", scheme: "dark", bloom: 0.9 }),
     );
-    // The id the backend actually created, as it reports it back.
-    backend.migratedIds.push("local.foo");
-    backend.installed = [{ id: "local.foo", name: "Foo" }];
+    // One entry per input theme, in input order; the first was not written.
+    backend.migratedIds.push(null, "local.theme-2");
+    backend.installed = [{ id: "local.theme-2", name: "Звезда" }];
 
     await useThemeStore.getState().hydrate();
 
-    expect(useThemeStore.getState().activeId).toBe("local.foo");
-    expect(backend.setActiveCalls).toEqual(["local.foo"]);
+    expect(useThemeStore.getState().activeId).toBe("local.theme-2");
+    expect(backend.setActiveCalls).toEqual(["local.theme-2"]);
     expect(storage.has("tetra.customThemes")).toBe(false);
   });
 
@@ -695,6 +699,33 @@ describe("duplicateTheme", () => {
     expect(backend.savedTokens).toHaveLength(1);
   });
 
+  it("gives a name with no ASCII letters a free local.theme id", async () => {
+    useThemeStore.setState({
+      activeId: "neutral",
+      installedThemes: [],
+      themeFiles: { "local.source": themeFile({ schemaVersion: 2 }) },
+    });
+
+    await useThemeStore.getState().duplicateTheme("local.source", "Ёлка");
+
+    expect(backend.savedManifests[0]).toMatchObject({ id: "local.theme", name: "Ёлка" });
+  });
+
+  it("steps past an installed local.theme instead of offering to replace it", async () => {
+    backend.installed = [summary("local.theme", "Theme")];
+    useThemeStore.setState({
+      activeId: "neutral",
+      installedThemes: [summary("local.theme", "Theme")],
+      themeFiles: { "local.source": themeFile({ schemaVersion: 2 }) },
+    });
+
+    const result = await useThemeStore.getState().duplicateTheme("local.source", "Звезда");
+
+    expect(result).toBe("saved");
+    expect(backend.deleted).toEqual([]);
+    expect(backend.savedManifests[0]).toMatchObject({ id: "local.theme-2" });
+  });
+
   it("marks a fresh duplicate for deletion on revert but not a replacement", async () => {
     await useThemeStore.getState().duplicateTheme("local.source", "Fresh");
     installCopyClash();
@@ -709,9 +740,38 @@ describe("duplicateTheme", () => {
   });
 });
 
+describe("newThemeId", () => {
+  it("finds a same-named user theme by name, else takes the next free id", () => {
+    const cases = [
+      {
+        name: "Ёлка 2",
+        installed: [{ id: "local.2", name: "Звезда 2" }],
+        expected: { id: "local.2-2", clash: false },
+      },
+      {
+        name: "Ёлка 2",
+        installed: [{ id: "local.2", name: "ёлка 2" }],
+        expected: { id: "local.2", clash: true },
+      },
+      {
+        name: "Ёлка",
+        installed: [{ id: "local.ёлка", name: "Ёлка" }],
+        expected: { id: "local.ёлка", clash: true },
+      },
+    ];
+
+    for (const { name, installed, expected } of cases) {
+      const themes = installed.map((t) => summary(t.id, t.name));
+      expect(newThemeId(name, themes)).toEqual(expected);
+    }
+  });
+});
+
 describe("nextDuplicateName", () => {
-  it("suffixes a name whose slug is already taken", () => {
+  it("suffixes a name that is already taken, compared as a name", () => {
     expect(nextDuplicateName("Neutral", ["neutral copy"])).toBe("Neutral copy 2");
+    // Two names that differ only in punctuation are different names.
+    expect(nextDuplicateName("Some", ["Some copy!"])).toBe("Some copy");
   });
 });
 

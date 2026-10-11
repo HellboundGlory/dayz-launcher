@@ -223,10 +223,14 @@ pub fn set_active_theme_id(app: AppHandle, id: Option<String>) -> Result<(), Str
 }
 
 /// Import themes saved by an older build in the frontend's `localStorage`,
-/// writing one directory each. Returns the ids created, in input order, so the
-/// caller can remap a saved selection onto them.
+/// writing one directory each. Returns one entry per theme, in input order: the
+/// id it was written as, or `None` when it was skipped, so a saved selection can
+/// be remapped by position.
 #[tauri::command]
-pub fn migrate_legacy_custom_themes(app: AppHandle, legacy: Vec<LegacyTheme>) -> Vec<String> {
+pub fn migrate_legacy_custom_themes(
+    app: AppHandle,
+    legacy: Vec<LegacyTheme>,
+) -> Vec<Option<String>> {
     let migration = theme::migrate(&crate::paths::themes_dir(&app), &legacy);
     for message in &migration.skipped {
         crate::log::log_line(
@@ -235,12 +239,9 @@ pub fn migrate_legacy_custom_themes(app: AppHandle, legacy: Vec<LegacyTheme>) ->
             &format!("Legacy theme not migrated — {message}"),
         );
     }
-    if !migration.migrated.is_empty() {
-        crate::log::log_line(
-            &app,
-            "theme",
-            &format!("Migrated {} saved theme(s)", migration.migrated.len()),
-        );
+    let written = migration.migrated.iter().filter(|id| id.is_some()).count();
+    if written > 0 {
+        crate::log::log_line(&app, "theme", &format!("Migrated {written} saved theme(s)"));
     }
     migration.migrated
 }
@@ -725,6 +726,7 @@ fn derive_from_installed(
             manifest.id
         ));
     }
+    theme::validate_new_theme_id(&manifest.id)?;
     let source = themes_root.join(source_id);
     if !source.is_dir() {
         return Err(format!(
@@ -1611,6 +1613,12 @@ mod derive_from_installed {
         let error = derive_from_installed(&root, "local.source", &escaping, &tokens)
             .expect_err("a path is not a derived id");
         assert!(error.contains("not a usable theme id"), "{error}");
+
+        let mut reserved = derived_manifest();
+        reserved.id = "builtin.copy".to_string();
+        let error = derive_from_installed(&root, "local.source", &reserved, &tokens)
+            .expect_err("a reserved id is not a derived id");
+        assert!(error.contains("reserved prefix 'builtin.'"), "{error}");
 
         let error = derive_from_installed(&root, "local.missing", &derived_manifest(), &tokens)
             .expect_err("this root holds no such theme");

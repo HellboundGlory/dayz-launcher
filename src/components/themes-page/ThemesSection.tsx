@@ -60,12 +60,9 @@ export function ThemesSection({
     [themeFiles, activeId],
   );
 
-  /** Names a new theme must avoid: the presets, and every installed theme by name and by id. */
+  /** Names a new theme must avoid: the presets and every installed theme. */
   function takenNames(): string[] {
-    return [
-      ...PRESETS.map((p) => p.name),
-      ...installedThemes.flatMap((t) => [t.name, t.id.replace(/^local\./, "")]),
-    ];
+    return [...PRESETS.map((p) => p.name), ...installedThemes.map((t) => t.name)];
   }
 
   async function copyTheme(sourceId: string) {

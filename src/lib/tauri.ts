@@ -705,9 +705,9 @@ export async function setActiveThemeId(id: string | null): Promise<void> {
   return invoke<void>("set_active_theme_id", { id });
 }
 
-/** Resolves with the ids created, in input order — remap a saved selection against those. */
-export async function migrateLegacyCustomThemes(legacy: LegacyTheme[]): Promise<string[]> {
-  return invoke<string[]>("migrate_legacy_custom_themes", { legacy });
+/** Resolves with one entry per legacy theme, in input order; null when it was not migrated. */
+export async function migrateLegacyCustomThemes(legacy: LegacyTheme[]): Promise<(string | null)[]> {
+  return invoke<(string | null)[]>("migrate_legacy_custom_themes", { legacy });
 }
 
 /**
