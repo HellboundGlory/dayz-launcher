@@ -1,3 +1,4 @@
+import { __unstable__loadDesignSystem } from "@tailwindcss/node";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -47,6 +48,71 @@ function isRawValue(line: string): boolean {
 
 const repoPath = (file: string) => relative(process.cwd(), file).split(sep).join("/");
 
+/** Text between the bracket at `open` and its match, string contents skipped. */
+function bracketBody(text: string, open: number): string {
+  const [opener, closer] = text[open] === "{" ? ["{", "}"] : ["(", ")"];
+  let depth = 1;
+  let quote = "";
+  let i = open + 1;
+  for (; i < text.length && depth > 0; i++) {
+    const char = text[i];
+    if (quote) {
+      if (char === "\\") i++;
+      else if (char === quote) quote = "";
+    } else if (char === '"' || char === "'" || char === "`") {
+      quote = char;
+    } else if (char === opener) {
+      depth++;
+    } else if (char === closer) {
+      depth--;
+    }
+  }
+  return text.slice(open + 1, i - 1);
+}
+
+// Tailwind emits neither: theme-trigger is the visual harness's click target, and group/peer
+// (bare or named) are variant markers.
+const ALLOWED_CLASSES = new Set(["theme-trigger"]);
+const VARIANT_MARKER = /^(group|peer)(\/|$)/;
+
+/** Every class string a file hands to Tailwind, with the line it sits on. */
+function classTokens(file: string): [string, number][] {
+  const text = readFileSync(file, "utf8");
+  const lineOf = (at: number) => text.slice(0, at).split("\n").length;
+  const tokens: [string, number][] = [];
+  const push = (at: number, chunk: string) => {
+    for (const token of chunk.split(/\s+/)) if (token) tokens.push([token, lineOf(at)]);
+  };
+  // Quoted literals in a code span; `x === "failed"` is a comparison, not a class.
+  const pushLiterals = (at: number, code: string) => {
+    for (const literal of code.matchAll(/"([^"]*)"|'([^']*)'/g)) {
+      if (/[=!]$/.test(code.slice(0, literal.index).trimEnd())) continue;
+      push(at + (literal.index ?? 0), literal[1] ?? literal[2]);
+    }
+  };
+
+  for (const match of text.matchAll(/className="([^"]*)"/g)) push(match.index ?? 0, match[1]);
+  // Defaults (`className ?? "…"`), ternaries and the like.
+  for (const match of text.matchAll(/className=\{(?!`)/g)) {
+    const open = (match.index ?? 0) + match[0].length - 1;
+    pushLiterals(open + 1, bracketBody(text, open));
+  }
+  for (const match of text.matchAll(/className=\{`([^`]*)`\}/g)) {
+    const at = match.index ?? 0;
+    push(at, match[1].replace(/\$\{[^}]*\}/g, " "));
+    for (const part of match[1].matchAll(/\$\{([^}]*)\}/g)) pushLiterals(at, part[1]);
+  }
+  for (const match of text.matchAll(/const [A-Z][A-Z0-9_]*(?:_CLASS|_BTN)[A-Z0-9_]* =[ \t]*\n?[ \t]*"([^"]*)"/g)) {
+    push(match.index ?? 0, match[1]);
+  }
+  for (const match of text.matchAll(/defaultClass:[ \t]*\n?[ \t]*"([^"]*)"/g)) push(match.index ?? 0, match[1]);
+  for (const match of text.matchAll(/\b(?:cn|clsx)\(/g)) {
+    const open = (match.index ?? 0) + match[0].length - 1;
+    pushLiterals(open + 1, bracketBody(text, open));
+  }
+  return tokens;
+}
+
 function offendingLines(files: string[], isBad: (line: string) => boolean): string[] {
   return files.flatMap((file) => {
     const path = repoPath(file);
@@ -65,5 +131,35 @@ describe("token utility guard", () => {
   it("has no raw colour or stacking number outside the token sources", () => {
     const files = sourceFiles(SRC).filter((file) => !RAW_VALUE_SKIPPED.some((prefix) => repoPath(file).startsWith(prefix)));
     expect(offendingLines(files, isRawValue)).toEqual([]);
+  });
+
+  it("has no class token Tailwind can't build", async () => {
+    const design = await __unstable__loadDesignSystem(readFileSync(join(SRC, "main.css"), "utf8"), { base: SRC });
+    const files = sourceFiles(SRC);
+    // theme-guard.html carries its own inline sheet.
+    const selectors = new Set(
+      [...files.filter((file) => file.endsWith(".css")), join(process.cwd(), "theme-guard.html")].flatMap((file) =>
+        [...readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\/|"[^"]*"|'[^']*'/g, "").matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map(
+          (match) => match[1],
+        ),
+      ),
+    );
+
+    const found = new Map<string, string>();
+    for (const file of files.filter((file) => /\.tsx?$/.test(file))) {
+      for (const [token, line] of classTokens(file)) {
+        if (!found.has(token)) found.set(token, `${repoPath(file)}:${line}`);
+      }
+    }
+
+    const tokens = [...found.keys()];
+    const built = design.candidatesToCss(tokens);
+    const dead = tokens.flatMap((token, index) => {
+      if (built[index] !== null || selectors.has(token) || ALLOWED_CLASSES.has(token) || VARIANT_MARKER.test(token)) {
+        return [];
+      }
+      return [`${found.get(token)} ${token}`];
+    });
+    expect(dead).toEqual([]);
   });
 });

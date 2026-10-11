@@ -127,7 +127,7 @@ function ThemeGuardRoot() {
         <button type="button" className="tg-btn tg-btn-keep" onClick={keep}>
           Keep
         </button>
-        <button type="button" className="tg-btn tg-btn-revert" onClick={revert}>
+        <button type="button" className="tg-btn" onClick={revert}>
           Revert now
         </button>
       </div>

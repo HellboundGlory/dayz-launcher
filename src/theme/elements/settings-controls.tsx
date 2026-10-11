@@ -58,19 +58,19 @@ export function Field({
 }) {
   const LabelTag = htmlFor ? "label" : "div";
   return (
-    <div className={className ?? "field mb-3.5"} data-el={dataEl} data-state={dataState} style={style}>
+    <div className={className ?? "mb-3.5"} data-el={dataEl} data-state={dataState} style={style}>
       <LabelTag
         htmlFor={htmlFor}
         data-part="label"
         className={cn(
-          "fb [font-size:var(--t-type-label-size)] font-semibold text-ink",
+          "[font-size:var(--t-type-label-size)] font-semibold text-ink",
           htmlFor && "block",
         )}
       >
         {label}
       </LabelTag>
       {hint && showHint && (
-        <div id={hintId} data-part="hint" className="fh mt-0.5 [font-size:var(--t-type-caption-size)] leading-[1.4] text-muted">
+        <div id={hintId} data-part="hint" className="mt-0.5 [font-size:var(--t-type-caption-size)] leading-[1.4] text-muted">
           {hint}
         </div>
       )}
@@ -116,8 +116,8 @@ export function CheckboxRow({
       className={
         className ??
         (disabled
-          ? "chk flex cursor-not-allowed items-start gap-2 py-1.5"
-          : "chk flex cursor-pointer items-start gap-2 py-1.5")
+          ? "flex cursor-not-allowed items-start gap-2 py-1.5"
+          : "flex cursor-pointer items-start gap-2 py-1.5")
       }
       style={style}
     >
@@ -136,11 +136,11 @@ export function CheckboxRow({
         }
       />
       <span className="min-w-0">
-        <span data-part="label" className="cl block [font-size:var(--t-type-body-size)] text-ink">
+        <span data-part="label" className="block [font-size:var(--t-type-body-size)] text-ink">
           {label}
         </span>
         {hint && showHint && (
-          <span id={hintId} data-part="hint" className="ch mt-0.5 block [font-size:var(--t-type-caption-size)] leading-[1.4] text-muted">
+          <span id={hintId} data-part="hint" className="mt-0.5 block [font-size:var(--t-type-caption-size)] leading-[1.4] text-muted">
             {hint}
           </span>
         )}
