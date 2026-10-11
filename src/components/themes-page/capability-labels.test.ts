@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { capabilityLabel, capabilityLabels } from "./capability-labels";
-import { packagedFiles } from "./ExportThemeDialog";
+import { packagedFiles } from "./export-theme-dialog";
 
 /** The backend gate every manifest passes: a capability it rejects never reaches
  * a theme, so the label table has to cover exactly this set. */

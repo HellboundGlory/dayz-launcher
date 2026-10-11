@@ -4,7 +4,6 @@ import { emit, listen } from "@tauri-apps/api/event";
 import { SplashScreen } from "./components/splash-screen";
 // Needs the launcher's Tailwind stylesheet too, or every class is dead here.
 import "./main.css";
-import "./splash.css";
 
 /** What the main window publishes (`App.tsx`) as startup advances. */
 interface SplashProgress {

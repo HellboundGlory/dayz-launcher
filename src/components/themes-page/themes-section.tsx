@@ -9,10 +9,10 @@ import {
 } from "@/theme/theme-store";
 import { PRESETS } from "@/theme/palette";
 import { ThemeCustomiser } from "../theme-customiser";
-import { ThemeGrid, nextDuplicateName } from "./ThemeGrid";
-import { ThemeSettingsForm } from "./ThemeSettingsForm";
-import { ImportThemeDialog } from "./ImportThemeDialog";
-import { ExportThemeDialog } from "./ExportThemeDialog";
+import { ThemeGrid, nextDuplicateName } from "./theme-grid";
+import { ThemeSettingsForm } from "./theme-settings-form";
+import { ImportThemeDialog } from "./import-theme-dialog";
+import { ExportThemeDialog } from "./export-theme-dialog";
 import { capabilityLabel } from "./capability-labels";
 
 const TOOLBAR_BTN =

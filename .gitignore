@@ -11,8 +11,7 @@ tetra.db
 tetra.db-shm
 tetra.db-wal
 
-# Project notes kept local, not published
-# Design-rationale notes mirroring the source tree
+# Design-rationale notes mirroring the source tree, kept local
 .ai-notes/
 
 # Editor / tooling
@@ -23,13 +22,10 @@ tetra.db-wal
 CLAUDE.md
 AGENTS.md
 
-# UI overhaul screenshots — not committed
-screenshots/
-
 # Harness scratch output (prod build, server logs) — regenerable
 /tools/harness/.out/
 
-# Visual baselines — regenerable with `npm run visual`
+# Visual baselines — regenerable with `npm run harness:visual`
 /tools/harness/baselines/
 
 # Backend deployment secrets — holds the Steam Web API key

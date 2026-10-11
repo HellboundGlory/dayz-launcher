@@ -4,8 +4,8 @@ import { resolveThemeAsset } from "@/theme/asset-resolver";
 import { deleteThemeMessage, resolvedPair } from "@/theme/theme-store";
 import { useConfirm } from "@/components/confirm-dialog";
 import type { ThemeFile, ThemeSummary } from "@/types/theme";
-import { ThemeCard } from "./ThemeCard";
-import { Pagination } from "./Pagination";
+import { ThemeCard } from "./theme-card";
+import { Pagination } from "./pagination";
 
 export interface GridEntry {
   id: string;

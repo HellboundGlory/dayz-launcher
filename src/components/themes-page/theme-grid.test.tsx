@@ -2,10 +2,10 @@
  * and the real card's menu is closed in static markup. */
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { buildGridEntries, ThemeGrid } from "./ThemeGrid";
+import { buildGridEntries, ThemeGrid } from "./theme-grid";
 import type { ThemeSummary } from "@/types/theme";
 
-vi.mock("./ThemeCard", () => ({
+vi.mock("./theme-card", () => ({
   ThemeCard: ({
     name,
     builtin,

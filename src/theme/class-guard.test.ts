@@ -32,9 +32,8 @@ const RAW_VALUE_SKIPPED = [
   "src/theme/palette.ts",
   "src/main.css",
   "src/splash.tsx",
-  "src/splash.css",
   "src/components/splash-screen.tsx",
-  "src/components/themes-page/DevMode",
+  "src/components/themes-page/dev-mode-",
   "src/theme/dev/",
   "src/theme/elements/mod-thumbnail.tsx",
 ];

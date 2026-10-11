@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { OptionIcon } from "./option-icon";
 import { useSettingsStore } from "@/stores/settings-store";
 import { discoverSteamPaths, dataFolderPath, openDataFolder } from "@/lib/tauri";
-import { ThemesSection } from "@/components/themes-page/ThemesSection";
+import { ThemesSection } from "@/components/themes-page/themes-section";
 import { SECS, REFRESH_INTERVALS, INPUT_CLASS, BUTTON_CLASS, Field, CheckboxRow } from "./settings-controls";
 import { useElementContext } from "./context";
 

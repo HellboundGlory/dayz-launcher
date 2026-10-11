@@ -82,12 +82,38 @@ npm run lint
 These are exactly what CI runs on every push that touches more than `docs/` — see
 [`.github/workflows/check.yml`](.github/workflows/check.yml).
 
-The workspace is a Tauri v2 app: a Rust backend split into crates
-(`tetra-core`, `tetra-net`, `tetra-registry`, `tetra-steam`, `tetra-launch`,
-`tetra-index` for reading the server index, and `tetra-discord` for Rich
-Presence) behind a React + Vite frontend. `tetra-indexer` is the separate
-server-index backend, deployed from `deploy/`. It
-compiles and ships on both Windows and Linux — Windows-only code (Steam
+## Repository layout
+
+- `src/` — the React + Vite frontend.
+- `src/components/` — the shared dialogs, modals and window handles, plus the `themes-page/` folder.
+- `src/hooks/` — startup, refresh-loop, server-data, mod-list and backend-event hooks.
+- `src/stores/` — the launcher's client-side state.
+- `src/lib/` — Tauri IPC bindings, the updater and small helpers.
+- `src/theme/` — the theme engine: registry, tokens, CSS loading and settings schemas.
+- `src/theme/elements/` — the themed elements the layout renderer draws.
+- `src/theme/renderer/` — turns a theme's layout into React nodes.
+- `src/theme/neutral/` — the neutral theme's own markup and styles.
+- `src/theme/lists/` — the list hosts, rows and headers, with keyboard navigation.
+- `src/theme/interaction/` — tabs, accordions, popups and modals.
+- `src/theme/fallback/` — the visibility check that rejects a layout it can't render.
+- `src/theme/dev/` — Dev Mode's store and contrast checker.
+- `src-tauri/` — the Tauri shell: IPC commands, the theme validator and package handling, and the bundled builtin themes under `resources/`.
+- `crates/tetra-core/` — A2S wire-format parsing and server classification.
+- `crates/tetra-net/` — async UDP transport for A2S queries.
+- `crates/tetra-registry/` — the SQLite registry, the only crate that owns SQL.
+- `crates/tetra-steam/` — Steamworks access, confined to one thread.
+- `crates/tetra-launch/` — the pre-launch mod gate, the `dzsa://` handler and the DayZ process spawn.
+- `crates/tetra-index/` — the wire format shared with `tetra-indexer` and the client that fetches the server index.
+- `crates/tetra-discord/` — Discord Rich Presence.
+- `crates/tetra-indexer/` — the separate server-index backend, deployed from `deploy/`.
+- `tools/harness/` — headless screenshots and the smoke, visual and perf checks (see its README).
+- `tools/docs/` — the theme docs generator.
+- `docs/` — the website, deployed by GitHub Pages.
+- `deploy/` — the indexer container.
+- `index.html`, `splash.html`, `theme-guard.html` — the three window entries.
+- `.github/workflows/` — CI: the check suite, the indexer image, Pages and releases.
+
+It compiles and ships on both Windows and Linux — Windows-only code (Steam
 registry discovery, the `dzsa://` protocol handler on that platform) is
 `cfg(windows)`-gated, with a Linux equivalent where one exists.
 
