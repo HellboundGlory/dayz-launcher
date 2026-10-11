@@ -99,53 +99,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_booting_steam_client_is_worth_waiting_for() {
-        assert!(InitFailure::SteamNotRunning.resolves_by_waiting());
-        assert!(InitFailure::SteamNotReady.resolves_by_waiting());
-    }
-
-    #[test]
-    fn an_in_flight_init_attempt_is_worth_waiting_for_too() {
-        assert!(InitFailure::AlreadyInitialising.resolves_by_waiting());
-        assert!(InitFailure::AlreadyInitialising
-            .auto_retry_limit()
-            .is_some());
-    }
-
-    #[test]
-    fn failures_the_user_must_act_on_never_poll() {
-        for kind in [
-            InitFailure::SteamOutOfDate,
-            InitFailure::Internal,
-            InitFailure::Disconnected,
-        ] {
-            assert!(
-                !kind.resolves_by_waiting(),
-                "{kind:?} would make the retry timer spin forever"
-            );
+    fn only_failures_that_clear_themselves_are_waited_on() {
+        let cases: [(InitFailure, bool, Option<u32>); 6] = [
+            (InitFailure::SteamNotRunning, true, None),
+            (InitFailure::SteamNotReady, true, Some(15)),
+            (InitFailure::AlreadyInitialising, true, Some(5)),
+            // The user has to act, so the retry timer must not spin forever.
+            (InitFailure::SteamOutOfDate, false, Some(0)),
+            (InitFailure::Internal, false, Some(0)),
+            (InitFailure::Disconnected, false, Some(0)),
+        ];
+        for (kind, resolves_by_waiting, auto_retry_limit) in cases {
+            assert_eq!(kind.resolves_by_waiting(), resolves_by_waiting, "{kind:?}");
+            assert_eq!(kind.auto_retry_limit(), auto_retry_limit, "{kind:?}");
         }
-    }
-
-    #[test]
-    fn only_an_absent_client_is_waited_on_indefinitely() {
-        assert_eq!(InitFailure::SteamNotRunning.auto_retry_limit(), None);
-        for kind in [
-            InitFailure::SteamNotReady,
-            InitFailure::SteamOutOfDate,
-            InitFailure::Internal,
-            InitFailure::Disconnected,
-        ] {
-            assert!(
-                kind.auto_retry_limit().is_some(),
-                "{kind:?} polls forever with no way to stop"
-            );
-        }
-    }
-
-    #[test]
-    fn disconnected_never_auto_retries() {
-        assert!(!InitFailure::Disconnected.resolves_by_waiting());
-        assert_eq!(InitFailure::Disconnected.auto_retry_limit(), Some(0));
     }
 
     #[test]

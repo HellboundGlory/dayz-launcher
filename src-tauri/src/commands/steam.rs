@@ -329,13 +329,6 @@ mod tests {
     use tetra_steam::MutationResult;
 
     #[test]
-    fn an_id_steam_cannot_use_is_rejected_by_name() {
-        assert!(parse_workshop_id("abc").unwrap_err().contains("abc"));
-        assert!(parse_workshop_id("0").unwrap_err().contains("0"));
-        assert_eq!(parse_workshop_id("221100").unwrap(), 221100);
-    }
-
-    #[test]
     fn ids_that_never_reach_steam_are_reported_individually() {
         let ids: Vec<String> = ["abc", "221100", "0"]
             .iter()

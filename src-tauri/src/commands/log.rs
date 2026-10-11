@@ -33,28 +33,24 @@ pub fn log_client(app: AppHandle, level: String, message: String, verbose: Optio
 mod tests {
     use super::*;
 
+    /// Stripping control characters stops a message from forging a fake
+    /// second log line via an embedded newline.
     #[test]
-    fn strips_newlines_so_a_message_cannot_forge_a_second_log_line() {
-        let forged = "real message\n[exit] state persisted and Steam shut down; terminating";
-        let cleaned = sanitise(forged);
-        assert!(!cleaned.contains('\n'));
-        assert_eq!(
-            cleaned,
-            "real message[exit] state persisted and Steam shut down; terminating"
-        );
-    }
-
-    #[test]
-    fn strips_other_control_characters_too() {
-        assert_eq!(sanitise("a\rb\tc\u{7}d"), "abcd");
-    }
-
-    #[test]
-    fn an_ordinary_message_is_unchanged() {
-        assert_eq!(
-            sanitise("get_server_list: 42 rows in 12ms"),
-            "get_server_list: 42 rows in 12ms"
-        );
+    fn control_characters_are_stripped_from_a_message() {
+        let cases = [
+            (
+                "real message\n[exit] state persisted and Steam shut down; terminating",
+                "real message[exit] state persisted and Steam shut down; terminating",
+            ),
+            ("a\rb\tc\u{7}d", "abcd"),
+            (
+                "get_server_list: 42 rows in 12ms",
+                "get_server_list: 42 rows in 12ms",
+            ),
+        ];
+        for (raw, expected) in cases {
+            assert_eq!(sanitise(raw), expected, "raw: {raw:?}");
+        }
     }
 
     #[test]

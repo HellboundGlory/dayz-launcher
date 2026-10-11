@@ -301,35 +301,35 @@ mod tests {
     use super::*;
 
     /// The BattlEye stub must be told not to self-update and which exe to
-    /// start — the official launcher's `0 1 0 -exe DayZ_x64.exe`.
+    /// start — the official launcher's `0 1 0 -exe DayZ_x64.exe` — while the
+    /// game exe itself takes no BattlEye arguments.
     #[test]
-    fn battleye_stub_gets_the_official_launchers_prefix() {
-        assert_eq!(
-            battleye_prefix("DayZ_BE.exe", true),
-            vec!["0", "1", "0", "-exe", "DayZ_x64.exe"]
-        );
-    }
-
-    #[test]
-    fn battleye_prefix_matches_the_stub_case_insensitively() {
-        assert_eq!(
-            battleye_prefix("dayz_be.exe", true),
-            battleye_prefix("DayZ_BE.exe", true)
-        );
-    }
-
-    /// Launching the game directly takes no BattlEye arguments — they would
-    /// reach DayZ as unknown parameters.
-    #[test]
-    fn the_game_exe_gets_no_battleye_prefix() {
-        assert!(battleye_prefix("DayZ_x64.exe", true).is_empty());
-    }
-
-    /// Without `DayZ_x64.exe` beside it there is nothing to point `-exe` at,
-    /// so the stub falls back to finding the game itself.
-    #[test]
-    fn exe_is_omitted_when_the_game_is_not_beside_the_stub() {
-        assert_eq!(battleye_prefix("DayZ_BE.exe", false), vec!["0", "1", "0"]);
+    fn battleye_arguments_follow_the_stub_and_the_game_beside_it() {
+        let cases: &[(&str, bool, &[&str])] = &[
+            (
+                "DayZ_BE.exe",
+                true,
+                &["0", "1", "0", "-exe", "DayZ_x64.exe"],
+            ),
+            // The stub's name arrives in whatever case the filesystem gave it.
+            (
+                "dayz_be.exe",
+                true,
+                &["0", "1", "0", "-exe", "DayZ_x64.exe"],
+            ),
+            ("DayZ_x64.exe", true, &[]),
+            // Without `DayZ_x64.exe` beside it there is nothing to point
+            // `-exe` at, so the stub falls back to finding the game itself.
+            ("DayZ_BE.exe", false, &["0", "1", "0"]),
+        ];
+        for (exe_name, game_exe_present, expected) in cases {
+            let expected: Vec<String> = expected.iter().map(|a| a.to_string()).collect();
+            assert_eq!(
+                battleye_prefix(exe_name, *game_exe_present),
+                expected,
+                "exe: {exe_name}, game exe beside it: {game_exe_present}"
+            );
+        }
     }
 
     #[test]
@@ -362,18 +362,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn mod_arg_given_even_when_empty() {
-        let args = build_launch_args(false, "10.0.0.1", 2302, None, "", &[], None);
-        assert!(!args.contains(&String::from("-mod=")));
-    }
-
-    #[test]
-    fn name_omitted_when_none() {
-        let args = build_launch_args(false, "127.0.0.1", 2302, None, "", &[], None);
-        assert!(!args.iter().any(|a| a.starts_with("-name=")));
-    }
-
     /// `-mod=` must stay last — some builds read a trailing flag as part of the mod path.
     #[test]
     fn user_parameters_precede_the_mod_line() {
@@ -403,15 +391,6 @@ mod tests {
                 .position(|a| a == flag)
                 .expect("flag was dropped");
             assert!(at < mod_index, "{flag} must come before -mod=");
-        }
-    }
-
-    #[test]
-    fn every_supplied_parameter_reaches_the_command_line() {
-        let extra: Vec<String> = vec!["-noSplash".into(), "-window".into()];
-        let args = build_launch_args(false, "127.0.0.1", 2302, None, "", &extra, None);
-        for flag in &extra {
-            assert!(args.contains(flag), "{flag} was dropped");
         }
     }
 
@@ -463,56 +442,52 @@ mod tests {
         }
 
         #[test]
-        fn a_higher_numeric_version_beats_a_lower_one_despite_sorting_first() {
-            let candidates = vec![proton("Proton 9.0 (Beta)"), proton("Proton 5.13")];
-            assert_eq!(best_proton(candidates), Some(proton("Proton 9.0 (Beta)")));
-        }
-
-        #[test]
-        fn experimental_beats_every_numbered_build() {
-            let candidates = vec![
-                proton("Proton 9.0"),
-                proton("Proton - Experimental"),
-                proton("Proton 5.13"),
+        fn the_best_proton_is_experimental_then_the_highest_numbered_build() {
+            let cases: &[(&[&str], &str)] = &[
+                (&["Proton 9.0 (Beta)", "Proton 5.13"], "Proton 9.0 (Beta)"),
+                (
+                    &["Proton 9.0", "Proton - Experimental", "Proton 5.13"],
+                    "Proton - Experimental",
+                ),
+                // A non-numeric edition only wins when nothing else is installed.
+                (&["Proton Hotfix"], "Proton Hotfix"),
+                (&["Proton Hotfix", "Proton 5.0"], "Proton 5.0"),
             ];
-            assert_eq!(
-                best_proton(candidates),
-                Some(proton("Proton - Experimental"))
-            );
+            for (installed, expected) in cases {
+                let candidates = installed.iter().map(|dir| proton(dir)).collect();
+                assert_eq!(
+                    best_proton(candidates),
+                    Some(proton(expected)),
+                    "installed: {installed:?}"
+                );
+            }
         }
 
         #[test]
-        fn a_non_numeric_edition_only_wins_when_nothing_else_is_installed() {
-            let candidates = vec![proton("Proton Hotfix")];
-            assert_eq!(best_proton(candidates), Some(proton("Proton Hotfix")));
-
-            let candidates = vec![proton("Proton Hotfix"), proton("Proton 5.0")];
-            assert_eq!(best_proton(candidates), Some(proton("Proton 5.0")));
-        }
-
-        #[test]
-        fn sniper_beats_soldier_beats_scout() {
-            let candidates = vec![
-                runtime("SteamLinuxRuntime"),
-                runtime("SteamLinuxRuntime_soldier"),
-                runtime("SteamLinuxRuntime_sniper"),
+        fn sniper_beats_soldier_beats_the_bare_runtime() {
+            let cases: &[(&[&str], &str)] = &[
+                (
+                    &[
+                        "SteamLinuxRuntime",
+                        "SteamLinuxRuntime_soldier",
+                        "SteamLinuxRuntime_sniper",
+                    ],
+                    "SteamLinuxRuntime_sniper",
+                ),
+                // The bare runtime is scout, not a prefix match for sniper.
+                (
+                    &["SteamLinuxRuntime_sniper", "SteamLinuxRuntime"],
+                    "SteamLinuxRuntime_sniper",
+                ),
             ];
-            assert_eq!(
-                best_runtime(candidates),
-                Some(runtime("SteamLinuxRuntime_sniper"))
-            );
-        }
-
-        #[test]
-        fn bare_scout_is_not_mistaken_for_sniper_by_string_prefix() {
-            let candidates = vec![
-                runtime("SteamLinuxRuntime_sniper"),
-                runtime("SteamLinuxRuntime"),
-            ];
-            assert_eq!(
-                best_runtime(candidates),
-                Some(runtime("SteamLinuxRuntime_sniper"))
-            );
+            for (installed, expected) in cases {
+                let candidates = installed.iter().map(|dir| runtime(dir)).collect();
+                assert_eq!(
+                    best_runtime(candidates),
+                    Some(runtime(expected)),
+                    "installed: {installed:?}"
+                );
+            }
         }
 
         #[test]

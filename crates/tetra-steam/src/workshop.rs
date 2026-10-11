@@ -114,42 +114,54 @@ mod tests {
         assert_eq!(ItemFlags::DOWNLOAD_PENDING, 32);
     }
 
+    /// Bit combinations Steam actually reports. Order matters: downloading
+    /// wins outright (content on disk is in flux), then not-subscribed
+    /// outranks installed, then needs-update outranks installed.
     #[test]
-    fn a_subscribed_and_installed_mod_is_ready() {
-        let bits = ItemFlags::SUBSCRIBED | ItemFlags::INSTALLED;
-        assert_eq!(ModState::from_bits(bits), ModState::Ready);
-        assert!(ModState::from_bits(bits).is_ready());
-    }
-
-    /// A naive `INSTALLED`-first check would call this ready, and DayZ would
-    /// join with stale content.
-    #[test]
-    fn an_installed_mod_needing_update_is_not_ready() {
-        let bits = ItemFlags::SUBSCRIBED | ItemFlags::INSTALLED | ItemFlags::NEEDS_UPDATE;
-        assert_eq!(ModState::from_bits(bits), ModState::NeedsUpdate);
-        assert!(!ModState::from_bits(bits).is_ready());
-    }
-
-    /// Downloading co-occurs with INSTALLED and NEEDS_UPDATE during an update,
-    /// and must win — the content on disk is in flux.
-    #[test]
-    fn downloading_outranks_every_other_bit() {
-        let updating = ItemFlags::SUBSCRIBED
-            | ItemFlags::INSTALLED
-            | ItemFlags::NEEDS_UPDATE
-            | ItemFlags::DOWNLOADING;
-        assert_eq!(ModState::from_bits(updating), ModState::Downloading);
-
-        let queued = ItemFlags::SUBSCRIBED | ItemFlags::DOWNLOAD_PENDING;
-        assert_eq!(ModState::from_bits(queued), ModState::Downloading);
-    }
-
-    #[test]
-    fn subscribed_without_content_is_not_installed() {
-        assert_eq!(
-            ModState::from_bits(ItemFlags::SUBSCRIBED),
-            ModState::NotInstalled
-        );
+    fn steam_flags_map_to_the_mod_state_they_describe() {
+        let cases: [(u32, ModState); 9] = [
+            (
+                ItemFlags::SUBSCRIBED | ItemFlags::INSTALLED,
+                ModState::Ready,
+            ),
+            (
+                ItemFlags::SUBSCRIBED | ItemFlags::INSTALLED | ItemFlags::NEEDS_UPDATE,
+                ModState::NeedsUpdate,
+            ),
+            (
+                ItemFlags::SUBSCRIBED
+                    | ItemFlags::INSTALLED
+                    | ItemFlags::NEEDS_UPDATE
+                    | ItemFlags::DOWNLOADING,
+                ModState::Downloading,
+            ),
+            (
+                ItemFlags::SUBSCRIBED | ItemFlags::DOWNLOAD_PENDING,
+                ModState::Downloading,
+            ),
+            (ItemFlags::SUBSCRIBED, ModState::NotInstalled),
+            (ItemFlags::NONE, ModState::NotSubscribed),
+            // `LEGACY_ITEM` occupies bit 2, not content on disk.
+            (
+                ItemFlags::SUBSCRIBED | ItemFlags::LEGACY_ITEM,
+                ModState::NotInstalled,
+            ),
+            // Straight after an unsubscribe: subscription gone, folder not
+            // deleted yet, and Steam may not have cleared NEEDS_UPDATE either.
+            (ItemFlags::INSTALLED, ModState::NotSubscribed),
+            (
+                ItemFlags::INSTALLED | ItemFlags::NEEDS_UPDATE,
+                ModState::NotSubscribed,
+            ),
+        ];
+        for (bits, expected) in cases {
+            assert_eq!(ModState::from_bits(bits), expected, "bits {bits}");
+            assert_eq!(
+                ModState::from_bits(bits).is_ready(),
+                expected == ModState::Ready,
+                "bits {bits}"
+            );
+        }
     }
 
     #[test]
@@ -158,39 +170,5 @@ mod tests {
         assert!(ModState::is_workshop_id(1559212036));
         // Ids above u32::MAX are valid Workshop ids and must not be excluded.
         assert!(ModState::is_workshop_id(u64::from(u32::MAX) + 1));
-    }
-
-    #[test]
-    fn no_bits_is_not_subscribed() {
-        assert_eq!(
-            ModState::from_bits(ItemFlags::NONE),
-            ModState::NotSubscribed
-        );
-    }
-
-    /// `LEGACY_ITEM` occupies bit 2. Under the old (wrong) constants that bit
-    /// was called `INSTALLED`, so a legacy-only item reported as ready.
-    #[test]
-    fn a_legacy_only_item_is_not_treated_as_installed() {
-        let bits = ItemFlags::SUBSCRIBED | ItemFlags::LEGACY_ITEM;
-        assert_eq!(ModState::from_bits(bits), ModState::NotInstalled);
-        assert!(!ModState::from_bits(bits).is_ready());
-    }
-
-    /// Straight after an unsubscribe: subscription gone, folder not deleted yet.
-    /// Must read as `NotSubscribed`, not `Ready`.
-    #[test]
-    fn installed_but_unsubscribed_reads_as_not_subscribed() {
-        assert_eq!(
-            ModState::from_bits(ItemFlags::INSTALLED),
-            ModState::NotSubscribed
-        );
-        assert!(!ModState::from_bits(ItemFlags::INSTALLED).is_ready());
-
-        // Same during the gap where Steam has not yet cleared NEEDS_UPDATE.
-        assert_eq!(
-            ModState::from_bits(ItemFlags::INSTALLED | ItemFlags::NEEDS_UPDATE),
-            ModState::NotSubscribed
-        );
     }
 }

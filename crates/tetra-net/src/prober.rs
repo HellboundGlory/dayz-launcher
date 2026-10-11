@@ -224,9 +224,10 @@ mod tests {
         drop(silent_server);
     }
 
-    /// Cloning a `Prober` shares the budget rather than minting a new one.
+    /// Permits are shared through a clone, but a separately built `Prober`
+    /// brings its own — the reason the app must construct exactly one.
     #[tokio::test]
-    async fn clones_share_one_permit_budget() {
+    async fn a_clone_shares_the_permit_budget_but_a_fresh_prober_does_not() {
         let prober = Prober::new(impatient(1));
         let clone = prober.clone();
 
@@ -238,6 +239,12 @@ mod tests {
             clone.permits.available_permits(),
             0,
             "a clone must see the original's permit taken"
+        );
+        let separate = Prober::new(impatient(1));
+        assert_eq!(
+            separate.permits.available_permits(),
+            1,
+            "an independently built Prober brings its own full allowance"
         );
 
         drop(held);
@@ -291,24 +298,5 @@ mod tests {
         );
 
         responder.abort();
-    }
-
-    /// A separately constructed `Prober` is a separate budget — the reason the
-    /// app must construct exactly one and share it.
-    #[tokio::test]
-    async fn separate_probers_do_not_share_a_budget() {
-        let a = Prober::new(impatient(1));
-        let b = Prober::new(impatient(1));
-
-        let _held = Arc::clone(&a.permits)
-            .acquire_owned()
-            .await
-            .expect("semaphore open");
-        assert_eq!(a.permits.available_permits(), 0);
-        assert_eq!(
-            b.permits.available_permits(),
-            1,
-            "an independently built Prober brings its own full allowance"
-        );
     }
 }
