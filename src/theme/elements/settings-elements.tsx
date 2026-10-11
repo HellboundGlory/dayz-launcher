@@ -519,9 +519,9 @@ export function SettingsSectionTitle({ options, className, style }: ElementProps
   const sec = SECS.find((s) => s.id === options?.section);
   if (!sec) return null;
   return (
-    <div data-el="settings.sectionTitle" className={className} style={style}>
+    <span data-el="settings.sectionTitle" className={className} style={style}>
       <span data-part="text">{sec.title}</span>
-    </div>
+    </span>
   );
 }
 
@@ -529,9 +529,9 @@ export function SettingsSectionDescription({ options, className, style }: Elemen
   const sec = SECS.find((s) => s.id === options?.section);
   if (!sec) return null;
   return (
-    <div data-el="settings.sectionDescription" className={className} style={style}>
+    <span data-el="settings.sectionDescription" className={className} style={style}>
       <span data-part="text">{sec.description}</span>
-    </div>
+    </span>
   );
 }
 
@@ -539,11 +539,11 @@ export function SettingsSectionIcon({ options, className, style }: ElementProps)
   const sec = SECS.find((s) => s.id === options?.section);
   if (!sec) return null;
   return (
-    <div data-el="settings.sectionIcon" className={className} style={style}>
+    <span data-el="settings.sectionIcon" className={className} style={style}>
       <span data-part="icon">
         <OptionIcon icon={options?.icon} fallback={sec.icon} className="h-[17px] w-[17px]" />
       </span>
-    </div>
+    </span>
   );
 }
 
