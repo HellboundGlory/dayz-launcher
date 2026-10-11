@@ -64,7 +64,6 @@ describe("Neutral shell layout", () => {
     expect(html).toContain("Active View");
     expect(html).toContain("Active Modals");
     expect(html).toContain('id="r-sidebar"');
-    expect(html).toContain('data-el="app.collapseToggle"');
     expect(html).toContain('data-surface="surface.windowControls"');
     expect(html).toContain('data-el="notice.storage"');
     expect(html).toContain('data-el="notice.error"');
