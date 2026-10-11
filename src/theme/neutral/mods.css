@@ -178,7 +178,11 @@
   }
 
   .t-neutral-mods-inspector-btn [data-part="icon"] {
-    @apply contents;
+    @apply flex min-w-0;
+  }
+
+  .t-neutral-mods-inspector-btn [data-part="icon"] svg {
+    @apply w-full;
   }
 
   .t-neutral-mods-inspector-update {

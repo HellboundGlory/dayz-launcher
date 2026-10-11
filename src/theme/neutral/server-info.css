@@ -278,10 +278,10 @@
   }
 
   .t-neutral-serverinfo-menu [data-part="popup"] {
-    @apply z-[6] w-56 min-w-0 [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)];
+    @apply z-[6] w-56 [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)];
   }
 
   .t-neutral-serverinfo-menu [data-part="item"] {
-    @apply flex w-full items-center gap-2 [border-radius:var(--t-radius-popupItem)] px-3 py-2 text-left [font-size:var(--t-type-body-size)] font-bold uppercase tracking-wider text-ink transition-colors hover:bg-accent-soft hover:text-accent;
+    @apply flex w-full items-center gap-2 [border-radius:var(--t-radius-popupItem)] px-3 py-2 text-left [font-size:var(--t-type-body-size)] [line-height:inherit] font-bold uppercase tracking-wider text-ink transition-colors hover:bg-accent-soft hover:text-accent;
   }
 }
