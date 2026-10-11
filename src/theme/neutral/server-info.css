@@ -147,6 +147,12 @@
     @apply bg-warn [box-shadow:var(--t-shadow-readinessWarning)];
   }
 
+  /* Only the warnings earn a line; the count is already in the Mods row. */
+  .t-neutral-serverinfo-readiness[data-state~="ready"],
+  .t-neutral-serverinfo-readiness[data-state~="noMods"] {
+    @apply hidden;
+  }
+
   .t-neutral-serverinfo-mods-section {
     @apply border-b border-line px-3.5 py-2.5;
   }
