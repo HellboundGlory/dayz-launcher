@@ -76,13 +76,7 @@ const SMALL_POPUP_ROWS = [
     themes: ["neutral"],
   },
   { ...SMALL, id: "mods-unsubscribe", query: `view=mods&${click(FIRST_MOD)}&${click(trigger("mods.unsubscribeMenu"))}` },
-  // Tactical's action bar is wider than the small window, so its Verify trigger is out of reach there for now.
-  {
-    ...SMALL,
-    id: "mods-verify",
-    query: `view=mods&${click(FIRST_MOD)}&${click(trigger("mods.verifyMenu"))}`,
-    themes: ["neutral"],
-  },
+  { ...SMALL, id: "mods-verify", query: `view=mods&${click(FIRST_MOD)}&${click(trigger("mods.verifyMenu"))}` },
   { ...SMALL, id: "serverinfo-load", query: `modal=serverInfo&${click(LOAD_MENU)}`, themes: ["neutral"] },
   { ...SMALL, id: "select3-load", query: `select=3&${click(LOAD_MENU)}`, themes: ["builtin.tactical"] },
   {

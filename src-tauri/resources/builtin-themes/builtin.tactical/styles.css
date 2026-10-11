@@ -2463,6 +2463,7 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
 [data-region="r-mods-actions"] {
   padding: 8px 12px;
   gap: 8px;
+  flex-wrap: wrap;
   background-color: var(--bg);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
