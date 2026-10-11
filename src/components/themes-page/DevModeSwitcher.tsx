@@ -2,8 +2,6 @@ import { useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useThemeStore } from "@/theme/theme-store";
 import { useDevStore } from "@/theme/dev/dev-store";
-import { resolveSettingsSchema } from "@/theme/settings-schema";
-import { settingsCombinations } from "@/theme/dev/combinations";
 import { NEUTRAL_LAYOUTS } from "@/theme/neutral/index";
 
 // 650 is the narrowest CSS width the launcher allows; 1400 is the harness's
@@ -162,9 +160,10 @@ export function DevModeSwitcher() {
         ? "No variants declared"
         : null;
 
-  const { fields } = resolveSettingsSchema(activeFile?.settingsSchema);
-  const { combinations, capped } = settingsCombinations(fields);
-  const settingsAvailable = fields.length > 0;
+  const settings = activeFile?.settings;
+  const combinations = settings?.combinations;
+  const capped = settings?.capped ?? false;
+  const settingsAvailable = (settings?.fields.length ?? 0) > 0;
   const activeCombination = settingsOverride === null ? null : pickedLabel;
 
   const handlePickWidth = useCallback(
@@ -178,7 +177,7 @@ export function DevModeSwitcher() {
         setSettingsOverride(null);
         setPickedLabel(null);
       } else {
-        const found = combinations.find((c) => c.label === label);
+        const found = combinations?.find((c) => c.label === label);
         setSettingsOverride(found?.values ?? null);
         setPickedLabel(label);
       }
@@ -191,7 +190,7 @@ export function DevModeSwitcher() {
     <DevModeSwitcherView
       widths={widths}
       activeWidth={activeWidth}
-      combinations={combinations.map((c) => ({ label: c.label }))}
+      combinations={combinations?.map((c) => ({ label: c.label })) ?? []}
       activeCombination={activeCombination}
       capped={capped}
       settingsAvailable={settingsAvailable}

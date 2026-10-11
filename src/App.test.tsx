@@ -68,7 +68,7 @@ function themeFile(layouts: Record<string, LayoutFile>): ThemeFile {
     tags: [],
     capabilities: ["tokens", "layouts"],
     tokens: {},
-    settingsSchema: null,
+    settings: null,
     layouts,
     fallbacks: [],
   };

@@ -70,11 +70,17 @@ async function themeFile(id: string) {
     const layout = await readJson(`${THEME_ROOT}/${id}/${path}`);
     if (layout) layouts[path] = layout;
   }
+  const schema = (await readJson(`${THEME_ROOT}/${id}/settings.schema.json`)) as Record<
+    string,
+    unknown
+  > | null;
   return {
     ...manifest,
     tokens: await readJson(`${THEME_ROOT}/${id}/tokens.json`),
     layout: null,
-    settingsSchema: await readJson(`${THEME_ROOT}/${id}/settings.schema.json`),
+    // The real backend resolves the schema; no harness shot opens Dev Mode's
+    // combination list, so it stays empty here.
+    settings: schema ? { fields: schema.fields, combinations: [], capped: false } : null,
     components: {},
     layouts,
   };

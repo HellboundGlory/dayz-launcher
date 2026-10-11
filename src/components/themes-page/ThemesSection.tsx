@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Upload, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -7,7 +7,6 @@ import {
   activeInstalled,
   resolvedPair,
 } from "@/theme/theme-store";
-import { resolveSettingsSchema } from "@/theme/settings-schema";
 import { PRESETS } from "@/theme/palette";
 import { ThemeCustomiser } from "../theme-customiser";
 import { ThemeGrid, nextDuplicateName } from "./ThemeGrid";
@@ -53,12 +52,9 @@ export function ThemesSection({
   const preset = activePreset(activeId);
   const activeName = installed?.name ?? preset?.name ?? "Neutral";
   const dark = resolvedPair(activeId, themeFiles).dark;
-  // Only an installed theme can ship a schema; a preset or neutral resolves to
-  // an empty list, which is exactly what leaves the button disabled.
-  const settingsFields = useMemo(
-    () => resolveSettingsSchema(themeFiles[activeId]?.settingsSchema).fields,
-    [themeFiles, activeId],
-  );
+  // Only an installed theme carries settings; a preset or neutral leaves the
+  // list empty, which is what leaves the button disabled.
+  const settingsFields = themeFiles[activeId]?.settings?.fields ?? [];
 
   /** Names a new theme must avoid: the presets and every installed theme. */
   function takenNames(): string[] {

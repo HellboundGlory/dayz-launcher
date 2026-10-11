@@ -20,7 +20,7 @@ import {
   watchThemeActivationReverted,
 } from "./theme-store";
 import { clearFallbackMemory, isFileFallenBack, useFallbackStore } from "./fallback/store";
-import type { ThemeFile, ThemeSummary, ValidationIssue } from "@/types/theme";
+import type { ThemeFile, ThemeSettings, ThemeSummary, ValidationIssue } from "@/types/theme";
 import { NEUTRAL_TOKENS, parseTokens } from "./tokens";
 import { getNeutralLayout } from "./neutral";
 import type { LayoutFile } from "./renderer/types";
@@ -53,8 +53,8 @@ const backend = vi.hoisted(() => ({
   fallbacksById: {} as Record<string, ValidationIssue[]>,
   /** `settings.values.json` contents `get_theme_settings_values` returns, by id. */
   settingsById: {} as Record<string, Record<string, unknown>>,
-  /** Each theme's `settings.schema.json`, by id. */
-  schemaById: {} as Record<string, unknown>,
+  /** The resolved settings `get_theme` returns, by id. */
+  themeSettingsById: {} as Record<string, ThemeSettings>,
   /** Every `set_theme_settings_value` call, in order. */
   setSettingsCalls: [] as { id: string; fieldId: string; value: string | number | boolean }[],
   /** Ids `get_theme` was asked for, in call order. */
@@ -103,7 +103,7 @@ vi.mock("@/lib/tauri", () => ({
       id,
       name: id,
       tokens: backend.tokensById[id] ?? {},
-      settingsSchema: backend.schemaById[id] ?? null,
+      settings: backend.themeSettingsById[id] ?? null,
       layouts: backend.layoutsById[id] ?? {},
       fallbacks: backend.fallbacksById[id] ?? [],
     };
@@ -193,7 +193,7 @@ beforeEach(() => {
   backend.layoutsById = {};
   backend.fallbacksById = {};
   backend.settingsById = {};
-  backend.schemaById = {};
+  backend.themeSettingsById = {};
   backend.setSettingsCalls.length = 0;
   backend.themeCalls.length = 0;
   backend.validationIssuesById = {};
@@ -454,7 +454,7 @@ describe("theme extras", () => {
 
 describe("saveTheme in place", () => {
   const themeFile = (id: string, tokens: unknown): ThemeFile =>
-    ({ id, name: id, tokens, settingsSchema: null, layouts: {} }) as unknown as ThemeFile;
+    ({ id, name: id, tokens, settings: null, layouts: {} }) as unknown as ThemeFile;
 
   it("rewrites an installed user theme's tokens instead of creating a new theme", async () => {
     const sourceTokens = {
@@ -531,7 +531,7 @@ describe("duplicateTheme", () => {
       id: "local.source",
       name: "Source",
       tokens,
-      settingsSchema: null,
+      settings: null,
       layouts: {},
     }) as unknown as ThemeFile;
 
@@ -805,19 +805,20 @@ describe("apply() asset wiring", () => {
 });
 
 describe("settings values", () => {
-  const SCHEMA = {
-    schemaVersion: 1,
+  const SETTINGS: ThemeSettings = {
     fields: [
       { id: "accentHue", type: "number", label: "Accent hue", min: 0, max: 360, default: 210 },
       { id: "compactRows", type: "boolean", label: "Compact rows", default: false },
     ],
+    combinations: [],
+    capped: false,
   };
 
-  /** A theme whose palette is templated on the two schema fields above. Both
+  /** A theme whose palette is templated on the two fields above. Both
    * schemes are templated so an assertion holds whichever one is active. */
   const templated = (id: string) => {
     backend.installed = [{ id, name: id }];
-    backend.schemaById[id] = SCHEMA;
+    backend.themeSettingsById[id] = SETTINGS;
     backend.tokensById[id] = {
       schemaVersion: 2,
       colors: {

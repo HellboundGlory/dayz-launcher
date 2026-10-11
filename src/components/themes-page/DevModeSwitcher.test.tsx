@@ -115,7 +115,7 @@ describe("DevModeSwitcher variant widths", () => {
     tags: [],
     capabilities: ["tokens", "layout"],
     tokens: {},
-    settingsSchema: null,
+    settings: null,
     layouts,
     fallbacks: [],
   });

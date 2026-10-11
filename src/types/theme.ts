@@ -49,11 +49,19 @@ export interface ThemeSummary {
 }
 
 import type { LayoutFile } from "@/theme/renderer/types";
+import type { SettingsCombination, SettingsField } from "@/theme/settings-schema";
+
+/** The active theme's settings, resolved and validated by the backend. */
+export interface ThemeSettings {
+  fields: SettingsField[];
+  combinations: SettingsCombination[];
+  capped: boolean;
+}
 
 /** One theme, fully. The backend flattens the manifest, so this isn't nested at the wire level. */
 export type ThemeFile = ThemeManifest & {
   tokens: unknown;
-  settingsSchema: unknown | null;
+  settings: ThemeSettings | null;
   /** Keyed by package-relative path (`layout/shell.json`) — absent when the theme ships none. */
   layouts?: Record<string, LayoutFile>;
   /** Files the backend dropped from `layouts` for failing validation, with the issues that dropped them. */
