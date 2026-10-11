@@ -23,11 +23,7 @@ import { applyTheme, DEFAULT_EXTRAS, type ThemeExtras } from "./apply";
 import { useDevStore } from "./dev/dev-store";
 import { NEUTRAL_TOKENS, parseTokens, resolveTokens, type TokensV2, type TokenValue } from "./tokens";
 import { applyThemeStylesheet } from "./css-loader";
-import {
-  resolveSettingsSchema,
-  substitutePlaceholders,
-  type SettingsField,
-} from "./settings-schema";
+import { substitutePlaceholders, type SettingsField } from "./settings-schema";
 import {
   armActivation,
   deleteTheme as deleteThemeCmd,
@@ -472,7 +468,7 @@ async function refreshSettingsValues(id: string): Promise<void> {
     // schema's own defaults rather than nothing.
     console.error(`Could not read settings values for theme "${id}":`, e);
   }
-  const values = mergeSettingsValues(resolveSettingsSchema(file.settingsSchema).fields, stored);
+  const values = mergeSettingsValues(file.settings?.fields ?? [], stored);
   useThemeStore.setState((state) => ({
     settingsValues: { ...state.settingsValues, [id]: values },
   }));
@@ -687,7 +683,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       const file = state.themeFiles[id];
       const base =
         state.settingsValues[id] ??
-        mergeSettingsValues(resolveSettingsSchema(file?.settingsSchema).fields, {});
+        mergeSettingsValues(file?.settings?.fields ?? [], {});
       return { settingsValues: { ...state.settingsValues, [id]: { ...base, [fieldId]: value } } };
     });
     get().apply();
