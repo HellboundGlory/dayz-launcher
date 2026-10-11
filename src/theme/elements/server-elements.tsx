@@ -974,7 +974,7 @@ export function ServerRegion({
       data-state={states}
       className={className ?? "text-muted font-mono-data"}
       style={style}
-      title={isCode ? regionName(server.country_code) : undefined}
+      title={unknown ? undefined : regionName(server.country_code)}
     >
       <span data-part="text">{isCode ? (server.country_code ?? "—") : regionName(server.country_code)}</span>
     </span>
