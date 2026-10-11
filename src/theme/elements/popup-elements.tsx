@@ -115,7 +115,7 @@ export function sortValueLabel(key: SortKey): string {
   return SORT_OPTIONS.find((o) => o.key === key)?.label ?? key;
 }
 
-/** Picking the active key flips direction; picking a different key starts descending (matches legacy `server-table.tsx`). */
+/** Picking the active key flips direction; picking a different key starts descending. */
 export function nextSortDir(currentKey: SortKey, currentDir: SortDir, picked: SortKey): SortDir {
   return picked === currentKey ? (currentDir === "desc" ? "asc" : "desc") : "desc";
 }

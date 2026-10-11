@@ -5,7 +5,7 @@ import { OptionIcon } from "./option-icon";
 import { useSettingsStore } from "@/stores/settings-store";
 import { discoverSteamPaths, dataFolderPath, openDataFolder } from "@/lib/tauri";
 import { ThemesSection } from "@/components/themes-page/ThemesSection";
-import { SECS, REFRESH_INTERVALS, INPUT_CLASS, BUTTON_CLASS, Field, CheckboxRow } from "@/components/settings-controls";
+import { SECS, REFRESH_INTERVALS, INPUT_CLASS, BUTTON_CLASS, Field, CheckboxRow } from "./settings-controls";
 import { useElementContext } from "./context";
 
 interface ElementProps {

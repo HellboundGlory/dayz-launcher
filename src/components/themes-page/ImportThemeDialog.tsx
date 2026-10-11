@@ -71,7 +71,7 @@ function discardStaging(staging: React.MutableRefObject<string | null>): void {
   });
 }
 
-/** Compact pill, the same language as mods-tab's status pills. */
+/** Compact pill, the same language as the mod status pills. */
 export function CapabilityBadge({ capabilities }: { capabilities: readonly string[] }) {
   return (
     <span

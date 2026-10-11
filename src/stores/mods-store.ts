@@ -111,6 +111,105 @@ export function visibleRows(rows: SubscribedMod[]): SubscribedMod[] {
   return rows.filter((r) => !r.removed);
 }
 
+function modSubscribed(mod: { time_added_to_user_list: number; install_timestamp: number }) {
+  return mod.time_added_to_user_list || mod.install_timestamp || 0;
+}
+
+/**
+ * Resolve effective mod state between the authoritative Workshop enumeration row
+ * and the 1.5s live Steam client poll. Steam's local item_state reports "ready" for
+ * any installed mod because it doesn't query the Workshop; a cheap poll must never
+ * downgrade an authoritative "needs_update" from Workshop enumeration to "ready".
+ */
+export function effectiveModState(rowState: ModState, liveState?: ModState): ModState {
+  if (!liveState) return rowState;
+  if (liveState === "downloading") return "downloading";
+  if (rowState === "needs_update") {
+    if (liveState === "ready") return "needs_update";
+  }
+  return liveState;
+}
+
+const STATUS_RANK: Record<ModState, number> = {
+  downloading: 0,
+  needs_update: 1,
+  not_installed: 2,
+  not_subscribed: 3,
+  ready: 4,
+  not_on_workshop: 5,
+};
+
+/** The visible rows after search, status filter and sort — what the Mods view lists. */
+export function filterAndSortMods(
+  rows: SubscribedMod[],
+  {
+    search,
+    statusFilter,
+    sortKey,
+    sortDir,
+    states,
+  }: {
+    search: string;
+    statusFilter: ModStatusFilter;
+    sortKey: ModSortKey;
+    sortDir: ModSortDir;
+    states: Record<string, ModState>;
+  },
+): SubscribedMod[] {
+  let visible = visibleRows(rows);
+  const q = search.trim().toLowerCase();
+  if (q) {
+    visible = visible.filter(
+      (r) =>
+        (r.title ?? "").toLowerCase().includes(q) ||
+        (r.tags ?? []).some((t) => t.toLowerCase().includes(q)) ||
+        (r.workshop_id ?? "").includes(q),
+    );
+  }
+  if (statusFilter !== "all") {
+    visible = visible.filter((r) => {
+      const state = effectiveModState(r.state, states[r.workshop_id]);
+      switch (statusFilter) {
+        case "outdated":
+          return state === "needs_update";
+        case "downloading":
+          return state === "downloading";
+      }
+    });
+  }
+  return sortMods(visible, sortKey, sortDir, states);
+}
+
+export function sortMods(
+  mods: SubscribedMod[],
+  sortKey: ModSortKey,
+  sortDir: ModSortDir,
+  states: Record<string, ModState> = {},
+): SubscribedMod[] {
+  const dir = sortDir === "asc" ? 1 : -1;
+  return [...mods].sort((a, b) => {
+    switch (sortKey) {
+      case "name":
+        return (a.title ?? "").localeCompare(b.title ?? "") * dir;
+      case "status": {
+        const stateA = effectiveModState(a.state, states[a.workshop_id]);
+        const stateB = effectiveModState(b.state, states[b.workshop_id]);
+        const rankDiff = STATUS_RANK[stateA] - STATUS_RANK[stateB];
+        if (rankDiff !== 0) {
+          return rankDiff * dir;
+        }
+        return (a.title ?? "").localeCompare(b.title ?? "");
+      }
+      case "subscribed":
+        return (modSubscribed(a) - modSubscribed(b)) * dir;
+      case "updated":
+        return ((a.time_updated ?? 0) - (b.time_updated ?? 0)) * dir;
+      case "size":
+        return (Number(a.size_on_disk || 0) - Number(b.size_on_disk || 0)) * dir;
+    }
+  });
+}
+
 // Whether two `{ id: T }` maps carry the same entries — used to skip a
 // state update when a poll tick reports nothing new.
 function sameEntries<T>(a: Record<string, T>, eq: (x: T, y: T) => boolean) {

@@ -42,7 +42,7 @@ const SWATCH_TOKENS = ["bg", "surface2", "accent", "accent2"] as const;
 
 // "Export Theme" dialog: the export-time manifest override form, prefilled
 // from `id`'s installed theme.json. Focus trapped; Escape, ✕ and backdrop
-// click close, same contract as ServerInfoModal.
+// click close.
 export function ExportThemeDialog({
   id,
   onExported,

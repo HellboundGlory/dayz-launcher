@@ -19,7 +19,7 @@ export function rowProbeState(probe: RowProbe, addr: string, queryPort: number) 
   return { busy, disabled: probe.probingKey !== null && !busy };
 }
 
-/** Click handler shared by the themed `server.refresh` element and the legacy row button. */
+/** Click handler for the `server.refresh` element. */
 export function probeRow(
   probe: RowProbe,
   addr: string,

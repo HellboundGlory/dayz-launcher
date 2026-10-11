@@ -1,8 +1,7 @@
 import { useState, type CSSProperties, type MouseEvent } from "react";
 import { Check, Download, ExternalLink, FolderOpen, Package, RefreshCw, X } from "lucide-react";
 import { cn, formatBytes } from "@/lib/utils";
-import { useModsStore } from "@/stores/mods-store";
-import { effectiveModState } from "@/components/mods-tab";
+import { useModsStore, effectiveModState } from "@/stores/mods-store";
 import {
   openModFolder,
   openWorkshopInSteam,
