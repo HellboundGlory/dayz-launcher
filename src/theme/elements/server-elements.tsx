@@ -583,7 +583,7 @@ export function ServerLoadMenuPopup({
 }: {
   open: boolean;
   onLoad: (e: MouseEvent) => void;
-  popupRef?: RefObject<HTMLDivElement>;
+  popupRef?: RefObject<HTMLDivElement | null>;
   style?: CSSProperties;
 }) {
   if (!open) return null;

@@ -100,7 +100,7 @@ export function ThemeGrid({
   onDuplicate,
   onExport,
   onDelete,
-}: ThemeGridProps): JSX.Element {
+}: ThemeGridProps) {
   // Local page state on purpose — resets when the accordion section unmounts.
   const [page, setPage] = useState(0);
   const confirm = useConfirm();

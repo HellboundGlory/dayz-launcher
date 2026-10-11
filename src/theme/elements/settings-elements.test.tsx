@@ -186,7 +186,7 @@ describe("SettingsWorkshopPath", () => {
     expect(html).toContain('data-el="settings.workshopPath"');
     expect(html).toContain("Workshop Content");
     expect(html).toContain("Not detected yet");
-    expect(html).toContain("readonly");
+    expect(html).toContain('readOnly=""');
   });
 });
 
@@ -273,7 +273,7 @@ describe("SettingsDataFolder", () => {
     const html = render(<SettingsDataFolder />);
     expect(html).toContain('data-el="settings.dataFolder"');
     expect(html).toContain("Data folder");
-    expect(html).toContain("readonly");
+    expect(html).toContain('readOnly=""');
   });
 });
 
