@@ -46,7 +46,7 @@ export interface RolesV2 {
   radius: Steps<"window" | "panel" | "card" | "modal" | "popup" | "row" | "control" | "input" | "chip" | "badge" | "thumb" | "track" | "pill" | "sidebarItem" | "controlSmall" | "popupItem" | "confirm" | "controlCompact" | "readinessRow" | "modalLarge">;
   space: Steps<"windowPad" | "panelPad" | "modalPad" | "popupPad" | "rowX" | "rowY" | "controlX" | "controlY" | "chipX" | "chipY" | "stackGap" | "inlineGap" | "sectionGap" | "listGap" | "controlCompactX" | "controlCompactY" | "controlSmallX" | "controlSmallY" | "sidebarPad" | "sidebarSettingsPad" | "sidebarLogoY" | "sidebarListGap" | "sidebarItemGap" | "inlineGapWide" | "inlineGapSmall" | "popupFilterPad" | "popupOffset" | "popupClearGap" | "separatorX" | "separatorY" | "footerX" | "footerY" | "footerGap" | "stateChipY" | "windowControlWidth" | "windowControlHeight" | "sidebarWidth" | "sidebarToggleOffset" | "sidebarToggleHeight" | "searchMinWidth" | "popupMinWidth" | "popupMaxHeight" | "scaleTrackWidth" | "scaleKnobSize" | "sliderHeight" | "stateDotSize" | "pingTrackWidth" | "dataWidth" | "iconTiny" | "iconSmall" | "iconChevron" | "iconMedium" | "iconLarge" | "iconBox" | "sidebarCollapsedWidth">;
   type: Partial<Record<"display" | "heading" | "subheading" | "body" | "label" | "caption" | "micro" | "button" | "chip" | "data" | "rowName" | "rowMeta" | "statValue" | "statCaption" | "brand" | "compactMicro" | "compactCaption" | "compactBody" | "compactHeading" | "compactSubheading" | "compactTitle", TypeRoleV2>>;
-  color: Steps<"onAccent" | "onAccent2" | "onDanger" | "onSuccess" | "focusRing" | "scrim" | "rowHover" | "rowSelected">;
+  color: Steps<"onAccent" | "onAccent2" | "onDanger" | "onSuccess" | "focusRing" | "scrim" | "scrimBlocking" | "rowHover" | "rowSelected">;
   border: Steps<"hairline" | "control" | "focus">;
   shadow: Steps<"panel" | "modal" | "popup" | "drawer" | "glow" | "popupFilter" | "stateWarning" | "confirm" | "readinessWarning" | "readinessSuccess" | "statusDot" | "update" | "inspector">;
   motion: Partial<Record<"hover" | "expand" | "overlay", MotionRoleV2>>;
@@ -96,7 +96,7 @@ export const NEUTRAL_TOKENS: TokensV2 & ResolvedTokensV2 = {
       compactMicro: typeRole("8.5px"), compactCaption: typeRole("9.5px"), compactBody: typeRole("10.5px"), compactHeading: typeRole("13.5px"),
       compactSubheading: typeRole("11.5px"), compactTitle: typeRole("12.5px"),
     },
-    color: { onAccent: "#10131a", onAccent2: "#10131a", onDanger: "#10131a", onSuccess: "#10131a", focusRing: "var(--accent-line)", scrim: "rgba(5,8,13,0.7)", rowHover: "var(--row-hover)", rowSelected: "var(--row-selected)" },
+    color: { onAccent: "#10131a", onAccent2: "#10131a", onDanger: "#10131a", onSuccess: "#10131a", focusRing: "var(--accent-line)", scrim: "rgba(5,8,13,0.7)", scrimBlocking: "rgba(0,0,0,0.9)", rowHover: "var(--row-hover)", rowSelected: "var(--row-selected)" },
     border: { hairline: "hairline", control: "hairline", focus: "thick" },
     shadow: { panel: "none", modal: "lg", popup: "sm", drawer: "-10px 0 26px rgba(0,0,0,0.4)", glow: "glow", popupFilter: "md", stateWarning: "0 0 4px var(--warn)", confirm: "0 25px 50px -12px rgb(0 0 0 / 0.25)", readinessWarning: "0 0 5px rgba(193,154,85,0.6)", readinessSuccess: "0 0 5px rgba(77,154,117,0.6)", statusDot: "0 0 4px currentColor", update: "0 25px 50px -12px rgb(0 0 0 / 0.5)", inspector: "0 8px 24px rgba(0,0,0,0.5)" },
     motion: { hover: { duration: "fast", easing: "standard" }, expand: { duration: "normal", easing: "standard" }, overlay: { duration: "0ms", easing: "standard" } },

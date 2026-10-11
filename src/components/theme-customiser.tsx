@@ -196,7 +196,7 @@ export function ThemeCustomiser() {
         </button>
 
         {dropOpen && (
-          <div className="theme-menu absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-[280px] overflow-auto [border-radius:var(--t-radius-card)] border border-line bg-surface2 [box-shadow:var(--t-shadow-popupFilter)]">
+          <div className="theme-menu absolute left-0 right-0 top-[calc(100%+4px)] z-[var(--z-popup)] max-h-[280px] overflow-auto [border-radius:var(--t-radius-card)] border border-line bg-surface2 [box-shadow:var(--t-shadow-popupFilter)]">
             <div className="theme-group px-2.5 pb-1 pt-[7px] [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-[0.05em] text-muted">
               Built-in
             </div>

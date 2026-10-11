@@ -554,6 +554,7 @@ token_group! {
         on_success: TokenValue = "#10131a".into() => "onSuccess",
         focus_ring: TokenValue = "var(--accent-line)".into() => "focusRing",
         scrim: TokenValue = "rgba(5,8,13,0.7)".into() => "scrim",
+        scrim_blocking: TokenValue = "rgba(0,0,0,0.9)".into() => "scrimBlocking",
         row_hover: TokenValue = "var(--row-hover)".into() => "rowHover",
         row_selected: TokenValue = "var(--row-selected)".into() => "rowSelected",
     }

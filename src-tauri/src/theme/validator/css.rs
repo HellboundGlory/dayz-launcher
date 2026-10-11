@@ -1048,13 +1048,14 @@ fn validate_declaration(
         });
     }
 
-    if prop == "z-index" {
+    // The launcher's overlay layers are `--z-*` custom properties.
+    if prop == "z-index" || prop.starts_with("--z-") {
         issues.push(ValidationIssue {
             rule_id: "CSS-04".into(),
             severity: Severity::Error,
             file: file_path.into(),
-            pointer: "z-index".into(),
-            message: "Property z-index is refused".into(),
+            pointer: prop.into(),
+            message: format!("Property {prop} is refused"),
             hint: None,
         });
     }
@@ -1313,11 +1314,13 @@ mod tests {
     }
 
     #[test]
-    fn test_css_04_z_index_refused() {
-        let css = "[data-el=\"box\"] { z-index: 100; }";
-        let issues = validate_css_stylesheet("styles.css", css, None);
-        assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].rule_id, "CSS-04");
+    fn test_css_04_stacking_refused() {
+        for decl in ["z-index: 100", "--z-popup: 999"] {
+            let css = format!("[data-el=\"box\"] {{ {decl}; }}");
+            let issues = validate_css_stylesheet("styles.css", &css, None);
+            assert_eq!(issues.len(), 1, "{decl}");
+            assert_eq!(issues[0].rule_id, "CSS-04", "{decl}");
+        }
     }
 
     #[test]

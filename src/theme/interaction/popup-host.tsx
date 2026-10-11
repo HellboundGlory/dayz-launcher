@@ -78,7 +78,7 @@ export function PopupHost({
   };
 
   if (mode === "anchored") {
-    containerStyle = { zIndex: 40, overflowY: "auto", ...anchoredStyle };
+    containerStyle = { zIndex: "var(--z-popup)", overflowY: "auto", ...anchoredStyle };
   } else if (mode === "inline") {
     containerStyle = {
       position: "relative",

@@ -25,7 +25,7 @@ export function WindowResizeHandles() {
       {HANDLES.map((h) => (
         <div
           key={h.dir}
-          className={`pointer-events-auto fixed z-50 ${h.className}`}
+          className={`pointer-events-auto fixed z-[var(--z-window-edge)] ${h.className}`}
           onMouseDown={(e) => {
             e.preventDefault();
             getCurrentWindow()

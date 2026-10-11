@@ -152,7 +152,7 @@ export function DevModeValidationPanelView({
     <div
       ref={panelRef}
       data-dev-panel
-      className="pointer-events-auto fixed z-[390] flex flex-col overflow-hidden [border-radius:var(--t-radius-control)] border [border-color:rgb(255,79,216)] bg-[rgba(12,10,16,0.95)] font-mono-data [font-size:var(--t-type-label-size)] leading-[1.5] [color:rgb(233,230,242)] [box-shadow:var(--t-shadow-inspector)]"
+      className="pointer-events-auto fixed z-[var(--z-dev-panel)] flex flex-col overflow-hidden [border-radius:var(--t-radius-control)] border [border-color:rgb(255,79,216)] bg-[rgba(12,10,16,0.95)] font-mono-data [font-size:var(--t-type-label-size)] leading-[1.5] [color:rgb(233,230,242)] [box-shadow:var(--t-shadow-inspector)]"
       style={{ ...positionStyle, maxWidth: "min(420px, calc(100vw - 16px))", maxHeight: "60vh" }}
     >
       <div

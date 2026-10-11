@@ -49,7 +49,7 @@ export function ConfirmDialog() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center [background-color:var(--t-color-scrim)] p-4"
       onClick={() => resolve(false)}
     >
       <div

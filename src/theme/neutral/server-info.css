@@ -3,10 +3,6 @@
 @layer launcher, neutral, theme, guarantees;
 
 @layer neutral {
-  [data-modal-host]:has(.t-neutral-serverinfo) {
-    @apply [background-color:var(--t-color-scrim)];
-  }
-
   [data-part="modal-dialog"]:has(> .t-neutral-serverinfo) {
     @apply w-[min(480px,calc(100%-40px))];
   }

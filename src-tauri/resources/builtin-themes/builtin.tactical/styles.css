@@ -1594,7 +1594,7 @@
 
 /* Settings dialog */
 [data-region="r-settings-scrim"] {
-  background-color: rgba(0, 0, 0, 0.7);
+  background-color: var(--t-color-scrim);
   padding: 24px;
 }
 

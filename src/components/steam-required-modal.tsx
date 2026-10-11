@@ -98,7 +98,7 @@ export function SteamRequiredModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-xs">
+    <div className="fixed inset-0 z-[var(--z-blocking)] flex items-center justify-center [background-color:var(--t-color-scrimBlocking)] backdrop-blur-xs">
       <div
         className="w-[440px] rounded-lg border border-line bg-surface shadow-2xl"
       >

@@ -96,7 +96,7 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
   const canContinue = phase !== "scanning" && profileName.trim().length > 0;
 
   return (
-    <div className="absolute inset-0 z-[90] flex items-center justify-center bg-[rgba(5,8,13,0.7)]">
+    <div className="absolute inset-0 z-[var(--z-onboarding)] flex items-center justify-center [background-color:var(--t-color-scrim)]">
       <div
         className="w-[min(360px,calc(100%-40px))] overflow-hidden rounded-[10px] border border-line bg-surface shadow-[0_12px_40px_rgba(0,0,0,0.5)]"
       >
