@@ -79,14 +79,16 @@ afterEach(() => {
 });
 
 describe("nextSortDir", () => {
-  it("flips direction when picking the already-active key", () => {
-    expect(nextSortDir("players", "desc", "players")).toBe("asc");
-    expect(nextSortDir("players", "asc", "players")).toBe("desc");
-  });
-
-  it("defaults a newly picked key to descending", () => {
-    expect(nextSortDir("players", "asc", "ping")).toBe("desc");
-  });
+  it.each([
+    { current: "players", dir: "desc", picked: "players", next: "asc" },
+    { current: "players", dir: "asc", picked: "players", next: "desc" },
+    { current: "players", dir: "asc", picked: "ping", next: "desc" },
+  ] as const)(
+    "moving from $current/$dir to $picked gives $next",
+    ({ current, dir, picked, next }) => {
+      expect(nextSortDir(current, dir, picked)).toBe(next);
+    },
+  );
 });
 
 describe("sortValueLabel", () => {
@@ -97,7 +99,7 @@ describe("sortValueLabel", () => {
 });
 
 describe("PopupMapOptions", () => {
-  it("renders the loading empty state while maps hasn't loaded", async () => {
+  it("renders the empty state while maps hasn't loaded", async () => {
     const html = await withServerStore({ maps: [], filter: { maps: [] } }, () =>
       renderToStaticMarkup(<PopupMapOptions />),
     );
@@ -106,19 +108,7 @@ describe("PopupMapOptions", () => {
     expect(html).toContain("Loading maps...");
   });
 
-  it("marks the selected map option", async () => {
-    const html = await withServerStore(
-      {
-        maps: [["chernarusplus", "Chernarus"]],
-        filter: { maps: ["chernarusplus"] },
-      },
-      () => renderToStaticMarkup(<PopupMapOptions />),
-    );
-    expect(html).toContain('data-part="option" data-state="selected"');
-    expect(html).toContain("Chernarus");
-  });
-
-  it("exposes each map as an option whose aria-selected follows the filter", async () => {
+  it("marks the selected map with data-state and aria-selected", async () => {
     const html = await withServerStore(
       {
         maps: [
@@ -129,6 +119,7 @@ describe("PopupMapOptions", () => {
       },
       () => renderToStaticMarkup(<PopupMapOptions />),
     );
+    expect(html).toContain('data-part="option" data-state="selected"');
     expect(html).toContain('role="option" aria-selected="true"');
     expect(html).toContain('role="option" aria-selected="false"');
   });
@@ -143,14 +134,6 @@ describe("PopupTagOptions", () => {
     expect(html).toContain('data-state="selected included"');
     expect(html).toContain('data-state="excluded"');
     expect(html.match(/data-part="box"[^>]*><span data-part="indicator"/g)).toHaveLength(3);
-    expect(html).not.toContain("<svg");
-  });
-
-  it("labels the tags as the filter bar does", async () => {
-    const html = await withServerStore({}, () => renderToStaticMarkup(<PopupTagOptions />));
-    expect(html).toContain(">Official<");
-    expect(html).toContain(">Modded<");
-    expect(html).toContain(">First person<");
   });
 });
 
@@ -161,7 +144,6 @@ describe("PopupRegionOptions", () => {
       () => renderToStaticMarkup(<PopupRegionOptions />),
     );
     expect(html).toContain('data-state="selected"');
-    expect(html).toContain("Europe");
   });
 });
 

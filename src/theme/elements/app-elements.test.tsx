@@ -34,9 +34,15 @@ describe("AppMinimize / AppMaximize / AppClose", () => {
 describe("AppSchemeToggle", () => {
   it("defaults to the scheme's own icon", () => {
     schemeState.scheme = "dark";
-    expect(renderToStaticMarkup(<AppSchemeToggle />)).toContain("lucide-sun");
+    const dark = renderToStaticMarkup(<AppSchemeToggle />);
+    expect(dark).toContain('data-state="dark"');
+    expect(dark).toContain('data-part="icon"');
+    expect(dark).toContain("lucide-sun");
+
     schemeState.scheme = "light";
-    expect(renderToStaticMarkup(<AppSchemeToggle />)).toContain("lucide-moon");
+    const light = renderToStaticMarkup(<AppSchemeToggle />);
+    expect(light).toContain('data-state="light"');
+    expect(light).toContain("lucide-moon");
   });
 
   it("honours the icon option regardless of scheme", () => {
