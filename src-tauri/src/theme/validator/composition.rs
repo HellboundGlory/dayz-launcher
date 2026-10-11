@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
-use super::settings::{ResolvedSettings, SettingsField};
+use super::settings::ResolvedSettings;
 use serde_json::Value;
 
 use super::ast::{Node, NodeKind};
@@ -38,29 +38,57 @@ fn validate_hidden(
     pointer: &str,
     file: &str,
     discrete: &HashSet<&str>,
+    settings: Option<&ResolvedSettings>,
     issues: &mut Vec<ValidationIssue>,
 ) {
     let Some(props) = value.as_object() else {
         return;
     };
     if let Some(hidden) = props.get("hidden") {
+        let condition = hidden.as_object();
+        let named = condition
+            .and_then(|condition| condition.get("setting"))
+            .and_then(Value::as_str);
+        // A well-shaped condition names one setting with exactly one of equals/not.
+        let shaped = condition.is_some_and(|condition| {
+            condition.len() == 2
+                && named.is_some()
+                && (condition.contains_key("equals") ^ condition.contains_key("not"))
+        });
+        let target = named.filter(|_| shaped);
+        let reason = target.and_then(|id| refusal(id, discrete, settings));
         let valid = hidden.is_boolean()
-            || hidden.as_object().is_some_and(|condition| {
-                condition.len() == 2
-                    && condition
-                        .get("setting")
-                        .and_then(Value::as_str)
-                        .is_some_and(|id| discrete.contains(id))
-                    && (condition.contains_key("equals") ^ condition.contains_key("not"))
-            });
+            || (reason.is_none() && target.is_some_and(|id| discrete.contains(id)));
         if !valid {
-            issue(issues, "LAY-03", file, &format!("{pointer}/hidden"),
-                "Hidden must be a boolean or a setting condition with exactly one of equals/not referencing a boolean or choice setting".into());
+            issue(
+                issues,
+                "LAY-03",
+                file,
+                &format!("{pointer}/hidden"),
+                reason.unwrap_or_else(|| "Hidden must be a boolean or a setting condition with exactly one of equals/not referencing a boolean or choice setting".into()),
+            );
         }
     }
     for (child, path) in rules::descendants(props, pointer) {
-        validate_hidden(child, &path, file, discrete, issues);
+        validate_hidden(child, &path, file, discrete, settings, issues);
     }
+}
+
+/// Why a well-shaped condition on `id` cannot be checked, when the settings say so.
+fn refusal(
+    id: &str,
+    discrete: &HashSet<&str>,
+    settings: Option<&ResolvedSettings>,
+) -> Option<String> {
+    let settings = settings?;
+    if let Some((_, code)) = settings.dropped.iter().find(|(dropped, _)| dropped == id) {
+        return Some(format!(
+            "Hidden refers to setting `{id}`, which was dropped by {code}"
+        ));
+    }
+    (settings.capped && discrete.contains(id)).then(|| {
+        format!("Hidden refers to setting `{id}`, but the settings exceed 64 combinations (SET-05), so conditions are refused")
+    })
 }
 
 fn visibility<'a>(
@@ -196,21 +224,16 @@ pub(super) fn validate(
         .map(|(file, value)| (file.as_str(), collect(value, registry)))
         .collect();
     let mut issues = Vec::new();
-    // Capped settings (SET-05) offer only a prefix of their combinations, which
-    // cannot prove a required element stays visible, so their conditions are refused.
-    let settings = settings.filter(|settings| !settings.capped);
     let discrete: HashSet<&str> = settings
         .into_iter()
         .flat_map(|settings| settings.fields.iter())
-        .filter_map(|field| match field {
-            SettingsField::Boolean { id, .. } | SettingsField::Choice { id, .. } => {
-                Some(id.as_str())
-            }
-            _ => None,
-        })
+        .filter(|field| field.discrete_values().is_some())
+        .map(|field| field.id())
         .collect();
     // Only the discrete values decide visibility; the rest would just clutter messages.
-    let combinations: Vec<Settings> = match settings {
+    // validate_hidden refuses every condition of a capped schema, so one empty
+    // combination is enough for the visibility pass.
+    let combinations: Vec<Settings> = match settings.filter(|settings| !settings.capped) {
         Some(settings) => settings
             .combinations
             .iter()
@@ -227,7 +250,7 @@ pub(super) fn validate(
     for (file, layout) in &layouts {
         for root in &layout.roots {
             if let Some(value) = root.value {
-                validate_hidden(value, &root.pointer, file, &discrete, &mut issues);
+                validate_hidden(value, &root.pointer, file, &discrete, settings, &mut issues);
             }
         }
     }

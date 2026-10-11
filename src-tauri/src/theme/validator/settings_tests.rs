@@ -1,9 +1,19 @@
 use serde_json::{json, Value};
 
-use super::settings::{resolve_settings, validate_settings_schema, SettingsField, SettingsOption};
+use super::settings::{
+    resolve_settings, resolve_settings_with_issues, validate_settings_schema, SettingsField,
+    SettingsOption,
+};
 
 fn schema(field: Value) -> Value {
     json!({"schemaVersion":2,"fields":[field]})
+}
+
+/// A schema of `count` boolean fields `f0`, `f1`, ...
+pub(super) fn booleans(count: usize) -> Value {
+    json!({"schemaVersion":2,"fields":(0..count)
+        .map(|i| json!({"id":format!("f{i}"),"type":"boolean","label":"Flag","default":false}))
+        .collect::<Vec<_>>()})
 }
 
 #[test]
@@ -202,9 +212,7 @@ fn invalid_fields_are_dropped_and_the_others_stay() {
     }
 
     // A drop at one index does not reach the field at a higher index sharing the digits.
-    let mut value = json!({"schemaVersion":2,"fields":(0..11)
-        .map(|i| json!({"id":format!("f{i}"),"type":"boolean","label":"Flag","default":false}))
-        .collect::<Vec<_>>()});
+    let mut value = booleans(11);
     value["fields"][1]["type"] = json!("text");
     let fields = resolve_settings(&value).fields;
     assert_eq!(fields.len(), 10);
@@ -249,21 +257,42 @@ fn combinations_expand_discrete_fields_and_pin_defaults() {
         serde_json::to_value(&resolved.combinations[0].values).unwrap(),
         json!({"size":4.0,"tint":"#abcdef"})
     );
+}
 
-    let value = json!({"schemaVersion":2,"fields":(0..7)
-        .map(|i| json!({"id":format!("f{i}"),"type":"boolean","label":"Flag","default":false}))
-        .collect::<Vec<_>>()});
-    assert!(validate_settings_schema(&value)
-        .iter()
-        .any(|issue| issue.rule_id == "SET-05" && issue.pointer == "/fields"));
-    let resolved = resolve_settings(&value);
-    assert_eq!(resolved.fields.len(), 7);
-    assert_eq!(resolved.combinations.len(), 64);
-    assert!(resolved.capped);
-    let distinct: std::collections::HashSet<String> = resolved
-        .combinations
-        .iter()
-        .map(|c| serde_json::to_string(&c.values).unwrap())
-        .collect();
-    assert_eq!(distinct.len(), 64);
+#[test]
+fn the_combination_cap_counts_surviving_fields() {
+    let mut duplicate = booleans(7);
+    duplicate["fields"][6]["id"] = json!("f0");
+    let wide = json!({"schemaVersion":2,"fields":[{
+        "id":"mode","type":"choice","label":"Mode","default":"missing",
+        "options":(0..70).map(|i| json!({"value":format!("v{i}"),"label":"Option"})).collect::<Vec<_>>()
+    }]});
+    for (value, fields, capped, combinations, dropped) in [
+        (booleans(7), 7, true, 64, vec![]),
+        (duplicate, 6, false, 64, vec![]),
+        (wide, 0, false, 1, vec![("mode", "SET-04")]),
+    ] {
+        let (resolved, issues) = resolve_settings_with_issues(&value);
+        assert_eq!(resolved.fields.len(), fields);
+        let listed: Vec<(&str, &str)> = resolved
+            .dropped
+            .iter()
+            .map(|(id, code)| (id.as_str(), code.as_str()))
+            .collect();
+        assert_eq!(listed, dropped);
+        assert_eq!(resolved.capped, capped);
+        assert_eq!(resolved.combinations.len(), combinations);
+        let distinct: std::collections::HashSet<String> = resolved
+            .combinations
+            .iter()
+            .map(|combination| serde_json::to_string(&combination.values).unwrap())
+            .collect();
+        assert_eq!(distinct.len(), combinations);
+        assert_eq!(
+            issues
+                .iter()
+                .any(|issue| issue.rule_id == "SET-05" && issue.pointer == "/fields"),
+            capped
+        );
+    }
 }

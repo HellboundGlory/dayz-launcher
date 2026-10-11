@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use serde_json::{json, Value};
 
 use super::settings::resolve_settings;
+use super::settings_tests::booleans;
 use super::{validate_theme_layouts, REGISTRY};
 
 const SHELL: &str = "layout/shell.json";
@@ -333,13 +334,29 @@ fn hidden_rejects_malformed_or_non_discrete_references() {
     assert!(validate_theme_layouts(&files, None)
         .iter()
         .any(|i| i.rule_id == "LAY-03"));
-    // A field the settings check drops is gone for conditions too.
-    let dropped = resolve_settings(
-        &json!({"schemaVersion":2,"fields":[{"id":"foo","type":"boolean","label":"","default":false}]}),
-    );
-    assert!(validate_theme_layouts(&files, Some(&dropped))
-        .iter()
-        .any(|i| i.rule_id == "LAY-03" && i.pointer == "/root/hidden"));
+}
+
+#[test]
+fn hidden_conditions_report_a_dropped_or_capped_setting() {
+    let mut files = theme();
+    let dropped = json!({"schemaVersion":2,"fields":[{"id":"foo","type":"boolean","label":"","default":false}]});
+    for (hidden, schema, reason) in [
+        (
+            json!({"setting":"foo","equals":true}),
+            dropped,
+            "`foo`, which was dropped by SET-01",
+        ),
+        (json!({"setting":"f0","equals":true}), booleans(7), "SET-05"),
+    ] {
+        files.get_mut(BROWSER).unwrap()["root"]["hidden"] = hidden;
+        let issues = validate_theme_layouts(&files, Some(&resolve_settings(&schema)));
+        assert!(
+            issues.iter().any(|issue| issue.rule_id == "LAY-03"
+                && issue.pointer == "/root/hidden"
+                && issue.message.contains(reason)),
+            "{reason}"
+        );
+    }
 }
 
 #[test]
@@ -404,11 +421,7 @@ fn a_join_cannot_borrow_a_notice_from_another_context_or_a_hidden_one() {
 #[test]
 fn all_four_variants_are_checked_at_sixty_four_combinations() {
     let mut files = theme();
-    let fields: Vec<_> = (0..6)
-        .map(|i| json!({"id":format!("f{i}"),"type":"boolean","label":"Flag","default":false}))
-        .collect();
-    let schema = json!({"schemaVersion":2,"fields":fields});
-    let settings = resolve_settings(&schema);
+    let settings = resolve_settings(&booleans(6));
     let root = files[BROWSER]["root"].clone();
     files.insert(
         BROWSER.into(),
