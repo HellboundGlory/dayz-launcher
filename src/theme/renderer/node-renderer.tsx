@@ -14,7 +14,6 @@ import { SubjectContextProvider, useElementContext, type ElementContextValue } f
 import { Tabs } from "../interaction/tabs";
 import { Accordion } from "../interaction/accordion";
 import { ResizableHandle, useRegionSize } from "../interaction/resizable";
-import { getPersistedCollapsed } from "../interaction/store";
 import { useColumnPlacement } from "../lists/column-context";
 
 export interface RenderContextValue {
@@ -116,17 +115,16 @@ function ContainerRenderer({ node, columnStyle }: { node: ContainerNode; columnS
         subject={{ kind: subjectKind, data: subjectData }}
         contextName={node.context}
       >
-        {renderContainer(node, ctx, elementCtx, columnStyle, regionSize, handle)}
+        {renderContainer(node, elementCtx, columnStyle, regionSize, handle)}
       </SubjectContextProvider>
     );
   }
 
-  return renderContainer(node, ctx, elementCtx, columnStyle, regionSize, handle);
+  return renderContainer(node, elementCtx, columnStyle, regionSize, handle);
 }
 
 function renderContainer(
   node: ContainerNode,
-  ctx: RenderContextValue,
   elementCtx: ElementContextValue,
   columnStyle: CSSProperties | undefined,
   regionSize: string | undefined,
@@ -159,14 +157,8 @@ function renderContainer(
 
   let isCollapsed = false;
   if (node.collapsible) {
-    if (regionId && elementCtx.collapsedRegions[regionId] !== undefined) {
-      isCollapsed = elementCtx.collapsedRegions[regionId];
-    } else if (regionId) {
-      const defaultCollapsed = node.collapsible.default === "collapsed";
-      isCollapsed = getPersistedCollapsed(ctx.themeId, regionId, defaultCollapsed);
-    } else {
-      isCollapsed = node.collapsible.default === "collapsed";
-    }
+    const defaultCollapsed = node.collapsible.default === "collapsed";
+    isCollapsed = regionId ? elementCtx.isCollapsed(regionId, defaultCollapsed) : defaultCollapsed;
     attrs["data-state"] = isCollapsed ? "collapsed" : "expanded";
   }
 

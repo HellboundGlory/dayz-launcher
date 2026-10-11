@@ -70,7 +70,7 @@ export interface CommonProps {
   landmark?: Landmark;
   context?: "selection" | "modSelection" | "modFilterPreview";
   empty?: LayoutNode;
-  collapsible?: { default?: "expanded" | "collapsed"; collapsed: LayoutNode };
+  collapsible?: { default?: "expanded" | "collapsed"; collapseBelow?: string; collapsed: LayoutNode };
   resizable?: { edge: "left" | "right" | "top" | "bottom"; min?: Length; max?: Length };
   column?: string;
 }
