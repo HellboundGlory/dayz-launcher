@@ -469,6 +469,14 @@ describe("ServerVersion", () => {
   });
 });
 
+describe("server.region", () => {
+  it("shows the full region name on hover in both formats", () => {
+    for (const format of ["name", "code"]) {
+      expect(render(<ServerRegion options={{ format }} />, serverContext({ ...server, country_code: "NA" }))).toContain('title="North America"');
+    }
+  });
+});
+
 describe("offline state on server elements", () => {
   it("adds offline to server.name, server.region and server.modCount for an offline server", () => {
     const value = serverContext(offlineServer);
