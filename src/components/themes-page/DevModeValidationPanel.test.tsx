@@ -87,18 +87,16 @@ describe("DevModeValidationPanelView", () => {
     expect(html).toContain("Could not validate: theme folder missing");
   });
 
-  it("hides the body when collapsed and shows it again when expanded", () => {
-    const collapsedHtml = render({ collapsed: true, issues: [ERROR_ISSUE] });
-    expect(collapsedHtml).not.toContain("missing required child");
-
-    const expandedHtml = render({ collapsed: false, issues: [ERROR_ISSUE] });
-    expect(expandedHtml).toContain("missing required child");
-  });
-
-  it("renders the switcher node inside the expanded body and omits it when collapsed", () => {
+  it("hides the body, issues and injected switcher alike, when collapsed", () => {
     const switcher = <div data-testid="the-switcher">switcher markup</div>;
-    expect(render({ collapsed: false, switcher })).toContain("switcher markup");
-    expect(render({ collapsed: true, switcher })).not.toContain("switcher markup");
+
+    const collapsedHtml = render({ collapsed: true, issues: [ERROR_ISSUE], switcher });
+    expect(collapsedHtml).not.toContain("missing required child");
+    expect(collapsedHtml).not.toContain("switcher markup");
+
+    const expandedHtml = render({ collapsed: false, issues: [ERROR_ISSUE], switcher });
+    expect(expandedHtml).toContain("missing required child");
+    expect(expandedHtml).toContain("switcher markup");
   });
 
   it("renders the held-reload line only when heldReload is true", () => {
@@ -106,16 +104,14 @@ describe("DevModeValidationPanelView", () => {
     expect(render({ heldReload: false })).not.toContain("Hot reload held");
   });
 
-  it("renders the positioning style it is handed", () => {
-    const html = render({ positionStyle: { top: 100, left: 50 } });
-    expect(html).toContain("top:100px");
-    expect(html).toContain("left:50px");
-  });
+  it("uses the positioning style it is handed, or the default top-right anchor", () => {
+    const dragged = render({ positionStyle: { top: 100, left: 50 } });
+    expect(dragged).toContain("top:100px");
+    expect(dragged).toContain("left:50px");
 
-  it("uses the default top-right anchor when no positioning style is given", () => {
-    const html = render();
-    expect(html).toContain("top:36px");
-    expect(html).toContain("right:8px");
+    const anchored = render();
+    expect(anchored).toContain("top:36px");
+    expect(anchored).toContain("right:8px");
   });
 
   it("gives the header a grab cursor, and a grabbing cursor while dragging", () => {
@@ -128,23 +124,12 @@ describe("clampPanelPosition", () => {
   const size = { w: 400, h: 300 };
   const viewport = { w: 1200, h: 800 };
 
-  it("returns a position already inside the viewport unchanged", () => {
-    expect(clampPanelPosition({ top: 100, left: 200 }, size, viewport)).toEqual({ top: 100, left: 200 });
-  });
-
-  it("pulls a position off the right or bottom edge back to the 8px margin", () => {
-    expect(clampPanelPosition({ top: 790, left: 1190 }, size, viewport)).toEqual({
-      top: viewport.h - size.h - 8,
-      left: viewport.w - size.w - 8,
-    });
-  });
-
-  it("pushes a negative position to the 8px margin", () => {
-    expect(clampPanelPosition({ top: -50, left: -20 }, size, viewport)).toEqual({ top: 8, left: 8 });
-  });
-
-  it("collapses to the 8px minimum when the panel is bigger than the viewport", () => {
-    const hugeSize = { w: 1500, h: 900 };
-    expect(clampPanelPosition({ top: 100, left: 100 }, hugeSize, viewport)).toEqual({ top: 8, left: 8 });
+  it.each([
+    { case: "already inside", pos: { top: 100, left: 200 }, canvas: size, want: { top: 100, left: 200 } },
+    { case: "off the right and bottom edges", pos: { top: 790, left: 1190 }, canvas: size, want: { top: 492, left: 792 } },
+    { case: "negative", pos: { top: -50, left: -20 }, canvas: size, want: { top: 8, left: 8 } },
+    { case: "bigger than the viewport", pos: { top: 100, left: 100 }, canvas: { w: 1500, h: 900 }, want: { top: 8, left: 8 } },
+  ])("keeps a position $case within the 8px margin", ({ pos, canvas, want }) => {
+    expect(clampPanelPosition(pos, canvas, viewport)).toEqual(want);
   });
 });

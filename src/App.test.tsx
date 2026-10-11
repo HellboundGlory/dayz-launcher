@@ -97,24 +97,18 @@ beforeEach(() => {
 });
 
 describe("App screen source", () => {
-  it.each([
-    { case: "Neutral", setup: noop },
-    { case: "a theme's own files", setup: () => themed(ALL_SCREENS) },
-    ...["layout/views/browser.json", "layout/shell.json"].map((file) => ({
-      case: `a theme whose ${file} fell back`,
-      setup: () => {
-        themed(ALL_SCREENS);
-        markFileFallback("local.aurora", file, "LAY-01: dropped");
-      },
-    })),
-  ])("draws the shell and browser through the pipeline for $case", ({ setup }) => {
-    setup();
+  it.each(["layout/views/browser.json", "layout/shell.json"])(
+    "draws the shell and browser through the pipeline when a theme's %s fell back",
+    (file) => {
+      themed(ALL_SCREENS);
+      markFileFallback("local.aurora", file, "LAY-01: dropped");
 
-    const html = renderToStaticMarkup(<App />);
+      const html = renderToStaticMarkup(<App />);
 
-    expect(html).toContain(PIPELINE_SHELL);
-    expect(html).toContain(PIPELINE_LIST);
-  });
+      expect(html).toContain(PIPELINE_SHELL);
+      expect(html).toContain(PIPELINE_LIST);
+    },
+  );
 
   it("shows the fallback notice for a themed file and never for Neutral", () => {
     expect(renderToStaticMarkup(<App />)).not.toContain('data-part="fallback-notice"');

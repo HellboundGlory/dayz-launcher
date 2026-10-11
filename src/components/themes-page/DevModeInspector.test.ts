@@ -40,25 +40,21 @@ describe("findTetraNode", () => {
     });
   });
 
-  it("detects nearest enclosing context", () => {
+  it("reads the nearest data-context, on an ancestor or the node itself", () => {
     const contextContainer = node({ "data-context": "selection" });
-    const el = node({ "data-el": "server.name" }, contextContainer);
+    const under = node({ "data-el": "server.name" }, contextContainer);
+    const own = node({ "data-el": "server.name", "data-context": "selection" });
 
-    expect(findTetraNode(el)).toMatchObject({
+    expect(findTetraNode(under)).toMatchObject({
       id: "server.name",
       kind: "el",
-      element: el,
+      element: under,
       context: "selection",
     });
-  });
-
-  it("detects context directly on the node itself", () => {
-    const el = node({ "data-el": "server.name", "data-context": "selection" });
-
-    expect(findTetraNode(el)).toMatchObject({
+    expect(findTetraNode(own)).toMatchObject({
       id: "server.name",
       kind: "el",
-      element: el,
+      element: own,
       context: "selection",
     });
   });

@@ -9,22 +9,16 @@ import { isHexColor } from "@/theme/settings-schema";
 import { scheduleCommit, stepFor, type CommitTimers } from "./ThemeSettingsForm";
 
 describe("isHexColor", () => {
-  it("accepts only a complete hex, so a partial one stays a draft", () => {
-    for (const partial of ["", "#", "#f", "#ff", "#ff00", "#ff000"]) {
-      expect(isHexColor(partial)).toBe(false);
-    }
-    expect(isHexColor("#ff0000")).toBe(true);
+  it.each(["#ff0000", "#AbCdEf"])("accepts the complete hex %j", (value) => {
+    expect(isHexColor(value)).toBe(true);
   });
 
-  it("accepts a complete hex in either case", () => {
-    expect(isHexColor("#AbCdEf")).toBe(true);
-  });
-
-  it("rejects a string the store would have to sanitise", () => {
-    for (const value of ["#ff00001", "#ff000", "ff0000", "red"]) {
+  it.each(["", "#", "#f", "#ff", "#ff00", "#ff000", "#ff00001", "ff0000", "red"])(
+    "rejects %j, so a partial hex stays a draft",
+    (value) => {
       expect(isHexColor(value)).toBe(false);
-    }
-  });
+    },
+  );
 });
 
 describe("stepFor", () => {
@@ -54,7 +48,10 @@ describe("scheduleCommit", () => {
     }
     expect(written).toEqual([]);
 
-    vi.advanceTimersByTime(400);
+    vi.advanceTimersByTime(349);
+    expect(written).toEqual([]);
+
+    vi.advanceTimersByTime(1);
     expect(written).toEqual([30]);
   });
 
@@ -73,17 +70,5 @@ describe("scheduleCommit", () => {
     expect(written).toHaveLength(2);
     expect(written).toContain(3);
     expect(written).toContain(2);
-  });
-
-  it("does nothing before the delay elapses", () => {
-    const timers: CommitTimers = {};
-    const commit = vi.fn();
-
-    scheduleCommit(timers, "accentHue", commit);
-    vi.advanceTimersByTime(349);
-
-    expect(commit).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1);
-    expect(commit).toHaveBeenCalledTimes(1);
   });
 });

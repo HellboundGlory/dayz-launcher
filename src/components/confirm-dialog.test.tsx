@@ -77,17 +77,4 @@ describe("ConfirmDialog", () => {
     expect(action).not.toHaveBeenCalled();
     expect(useConfirmStore.getState().request).toBeNull();
   });
-
-  it("closes without running the action on Escape (same resolve(false) path the key handler calls)", async () => {
-    const { ConfirmDialog } = await import("./confirm-dialog");
-    const { useConfirmStore } = await import("@/stores/confirm-store");
-    const action = vi.fn();
-    useConfirmStore.getState().ask("Delete it", "Are you sure?", action);
-    renderToStaticMarkup(<ConfirmDialog />);
-
-    useConfirmStore.getState().resolve(false);
-
-    expect(action).not.toHaveBeenCalled();
-    expect(useConfirmStore.getState().request).toBeNull();
-  });
 });

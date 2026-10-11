@@ -73,20 +73,12 @@ describe("readiness store", () => {
     expect(getCachedReadiness("1.2.3.4", 27016)).toEqual({ error: true });
   });
 
-  it("notifies consumers when a fetch succeeds", async () => {
-    serverModReadiness.mockResolvedValue(sample);
-    const listener = vi.fn();
-    const unsubscribe = subscribeReadiness(listener);
-
-    scheduleReadinessFetch("1.2.3.4", 27016);
-    await vi.advanceTimersByTimeAsync(250);
-
-    expect(listener).toHaveBeenCalled();
-    unsubscribe();
-  });
-
-  it("notifies consumers when a fetch fails", async () => {
-    serverModReadiness.mockRejectedValue(new Error("steam unreachable"));
+  it.each([
+    { outcome: "succeeds", reject: false },
+    { outcome: "fails", reject: true },
+  ])("notifies consumers when a fetch $outcome", async ({ reject }) => {
+    if (reject) serverModReadiness.mockRejectedValue(new Error("steam unreachable"));
+    else serverModReadiness.mockResolvedValue(sample);
     const listener = vi.fn();
     const unsubscribe = subscribeReadiness(listener);
 

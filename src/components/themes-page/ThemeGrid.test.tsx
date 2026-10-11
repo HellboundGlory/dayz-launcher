@@ -83,16 +83,9 @@ const cards = (html: string) =>
   });
 
 describe("buildGridEntries", () => {
-  it("orders neutral, then the showcase theme, then user themes", () => {
-    expect(buildGridEntries(scanOrder).map((e) => e.id)).toEqual([
-      "neutral",
-      "builtin.tactical",
-      "local.myskin",
-    ]);
-  });
-
-  it("marks the showcase theme builtin and keeps a user theme custom", () => {
+  it("orders neutral, then the showcase theme, then user themes, the showcase marked builtin", () => {
     const entries = buildGridEntries(scanOrder);
+    expect(entries.map((e) => e.id)).toEqual(["neutral", "builtin.tactical", "local.myskin"]);
     expect(entries[1]).toMatchObject({ id: "builtin.tactical", builtin: true });
     expect(entries[2]).toMatchObject({ id: "local.myskin", builtin: false });
   });
@@ -102,36 +95,30 @@ describe("buildGridEntries", () => {
     expect(entries.map((e) => e.id)).toEqual(["neutral", "local.x"]);
   });
 
-  it("prefers the first previews entry over the legacy preview field", () => {
-    const t = { ...summary("local.x", "X"), preview: "preview.png", previews: [{ file: "previews/one.png", caption: "One" }] };
-    const entries = buildGridEntries([t]);
-    expect(entries.find((e) => e.id === "local.x")).toMatchObject({ preview: "previews/one.png" });
+  const previewCases: { case: string; extra: Partial<ThemeSummary>; want: string | undefined }[] = [
+    {
+      case: "the first previews entry over the legacy field",
+      extra: { preview: "preview.png", previews: [{ file: "previews/one.png", caption: "One" }] },
+      want: "previews/one.png",
+    },
+    { case: "the legacy field when previews is absent", extra: { preview: "preview.png" }, want: "preview.png" },
+    { case: "the legacy field when previews is empty", extra: { preview: "preview.png", previews: [] }, want: "preview.png" },
+    { case: "no preview when neither field is set", extra: {}, want: undefined },
+  ];
+
+  it.each(previewCases)("takes $case", ({ extra, want }) => {
+    const entries = buildGridEntries([{ ...summary("local.x", "X"), ...extra }]);
+    expect(entries.find((e) => e.id === "local.x")).toMatchObject({ preview: want });
   });
 
-  it("falls back to the legacy preview field when previews is absent or empty", () => {
-    const withoutField = summary("local.x", "X");
-    const withEmpty = { ...summary("local.y", "Y"), previews: [] };
-    const entries = buildGridEntries([{ ...withoutField, preview: "preview.png" }, { ...withEmpty, preview: "preview.png" }]);
-    expect(entries.find((e) => e.id === "local.x")).toMatchObject({ preview: "preview.png" });
-    expect(entries.find((e) => e.id === "local.y")).toMatchObject({ preview: "preview.png" });
-  });
+  it("carries an incompatible theme's flag and reason through, leaving an ordinary theme's undefined", () => {
+    const old = { ...summary("local.old", "Old Skin"), incompatible: true, incompatibleReason: "v1 theme" };
+    const entries = buildGridEntries([old, summary("local.x", "X")]);
 
-  it("yields no preview when neither field is set", () => {
-    const entries = buildGridEntries([summary("local.x", "X")]);
-    expect(entries.find((e) => e.id === "local.x")).toMatchObject({ preview: undefined });
-  });
-
-  it("carries an incompatible theme's flag and reason through, still present in the grid", () => {
-    const t = { ...summary("local.old", "Old Skin"), incompatible: true, incompatibleReason: "v1 theme" };
-    const entries = buildGridEntries([t]);
     expect(entries.find((e) => e.id === "local.old")).toMatchObject({
       incompatible: true,
       incompatibleReason: "v1 theme",
     });
-  });
-
-  it("leaves incompatible undefined for an ordinary theme", () => {
-    const entries = buildGridEntries([summary("local.x", "X")]);
     expect(entries.find((e) => e.id === "local.x")).toMatchObject({
       incompatible: undefined,
       incompatibleReason: undefined,
@@ -140,21 +127,13 @@ describe("buildGridEntries", () => {
 });
 
 describe("ThemeGrid render", () => {
-  it("shows page 1 as neutral plus the showcase theme, without export or delete", () => {
+  it("offers export and delete only on an ordinary installed theme's card", () => {
     const page = cards(renderGrid(scanOrder));
     expect(page.map((c) => c.name)).toEqual(["Neutral", "Tactical", "My Skin"]);
-    for (const card of page.slice(0, 2)) {
-      expect(card.builtin).toBe("true");
-      expect(card.hasExport).toBe("no");
-      expect(card.hasDelete).toBe("no");
-    }
-  });
-
-  it("still offers export and delete for an ordinary installed theme", () => {
-    const page = cards(renderGrid([summary("local.myskin", "My Skin")]));
-    expect(page).toMatchObject([
-      { name: "Neutral", builtin: "true", hasExport: "no", hasDelete: "no" },
-      { name: "My Skin", builtin: "false", hasExport: "yes", hasDelete: "yes" },
+    expect(page.map((c) => [c.builtin, c.hasExport, c.hasDelete])).toEqual([
+      ["true", "no", "no"],
+      ["true", "no", "no"],
+      ["false", "yes", "yes"],
     ]);
   });
 

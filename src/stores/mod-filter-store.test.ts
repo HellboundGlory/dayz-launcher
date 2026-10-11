@@ -128,16 +128,14 @@ describe("pick cycling", () => {
     expect(useModFilterStore.getState().meta["1"]).toEqual({ title: "A Mod", previewUrl: null });
   });
 
-  it("setPick toggles a specific state off when reapplied", () => {
+  it("setPick sets a state, toggles it off on reapply, and switches between states", () => {
     const { setPick } = useModFilterStore.getState();
     setPick(entry, "include");
     expect(useModFilterStore.getState().selection["1"]).toBe("include");
+
     setPick(entry, "include");
     expect(useModFilterStore.getState().selection["1"]).toBeUndefined();
-  });
 
-  it("setPick switches directly from include to exclude", () => {
-    const { setPick } = useModFilterStore.getState();
     setPick(entry, "include");
     setPick(entry, "exclude");
     expect(useModFilterStore.getState().selection["1"]).toBe("exclude");
