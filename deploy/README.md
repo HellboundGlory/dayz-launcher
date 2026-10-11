@@ -187,7 +187,7 @@ format, `format_version` changes with it: clients discard a mismatched body
 rather than migrating it, so old launchers stop reading the index until they
 are updated. Nothing to do server-side.
 
-The builder toolchain is pinned (`ARG RUST_IMAGE=rust:1.86-bookworm`) rather
+The builder toolchain is pinned (`ARG RUST_IMAGE=rust:1.90-bookworm`) rather
 than floating, so a new stable compiler cannot break the image on its own. That
 pin must move whenever `[workspace.package] rust-version` in the root
 `Cargo.toml` does — otherwise the build fails with "rustc … is not supported by

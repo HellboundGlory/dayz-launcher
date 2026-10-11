@@ -10,10 +10,10 @@
 
 # Pinned, not floating: a reproducible backend build beats picking up new
 # compilers automatically. Move this in step with `[workspace.package]
-# rust-version` in the root Cargo.toml (1.86, the floor Cargo.lock's icu 2.2
-# imposes). Override for a one-off:
-#   docker build --build-arg RUST_IMAGE=rust:1.90-bookworm ...
-ARG RUST_IMAGE=rust:1.86-bookworm
+# rust-version` in the root Cargo.toml (1.90, which the Tauri plugin crates
+# need). Override for a one-off:
+#   docker build --build-arg RUST_IMAGE=rust:1.95-bookworm ...
+ARG RUST_IMAGE=rust:1.90-bookworm
 
 FROM ${RUST_IMAGE} AS builder
 WORKDIR /app
