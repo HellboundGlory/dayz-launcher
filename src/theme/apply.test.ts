@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { applyTheme, DEFAULT_EXTRAS } from "./apply";
 import { NEUTRAL_DARK, rgba } from "./palette";
@@ -88,4 +89,21 @@ describe("settingsValues CSS custom properties", () => {
     expect(props["--setting-fontMode"]).toBe("sans");
     expect(props["--setting-primaryColor"]).toBe("#ff0000");
   });
+});
+
+it("main.css first-paint colours match the default theme", () => {
+  const props = render("dark", DEFAULT_EXTRAS.shadows.glowIntensity);
+  const css = readFileSync(new URL("../main.css", import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const root = /@layer launcher\s*\{\s*:root\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
+  const declared: Record<string, string> = {};
+  for (const decl of root.split(";")) {
+    const colon = decl.indexOf(":");
+    if (colon > 0) declared[decl.slice(0, colon).trim()] = decl.slice(colon + 1).replace(/\s/g, "");
+  }
+  const expected = Object.fromEntries(
+    Object.entries(props)
+      .filter(([name]) => !name.startsWith("--t-"))
+      .map(([name, value]) => [name, value.replace(/\s/g, "")]),
+  );
+  expect(declared).toMatchObject(expected);
 });
