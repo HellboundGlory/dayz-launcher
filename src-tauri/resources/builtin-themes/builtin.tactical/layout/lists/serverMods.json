@@ -6,7 +6,6 @@
     "align": "center",
     "class": "t-server-mod-row",
     "children": [
-      { "element": "serverMod.order" },
       { "element": "serverMod.thumbnail" },
       {
         "type": "stack",
@@ -22,7 +21,12 @@
             "class": "t-mod-name-row",
             "children": [
               { "element": "serverMod.name" },
-              { "element": "serverMod.unique" }
+              {
+                "element": "serverMod.unique",
+                "options": {
+                  "label": "Unique"
+                }
+              }
             ]
           },
           {
@@ -31,12 +35,6 @@
             "align": "center",
             "class": "t-mod-meta-row",
             "children": [
-              {
-                "element": "serverMod.state",
-                "options": {
-                  "display": "dot"
-                }
-              },
               { "element": "serverMod.size" },
               {
                 "element": "serverMod.state",
@@ -48,12 +46,6 @@
             ]
           }
         ]
-      },
-      {
-        "element": "serverMod.openInSteam",
-        "options": {
-          "display": "icon"
-        }
       }
     ]
   }

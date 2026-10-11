@@ -42,10 +42,17 @@
     },
     {
       "id": "map",
-      "width": "148px",
+      "width": "120px",
       "align": "start",
       "sort": "map",
       "label": "MAP",
+      "minWidth": "70px"
+    },
+    {
+      "id": "region",
+      "width": "112px",
+      "align": "start",
+      "label": "REGION",
       "minWidth": "70px"
     },
     {
@@ -96,10 +103,7 @@
         "column": "name",
         "children": [
           { "element": "server.name" },
-          {
-            "element": "server.tags",
-            "options": { "officialWording": "official" }
-          }
+          { "element": "server.tags" }
         ]
       },
       {
@@ -113,11 +117,16 @@
       {
         "element": "server.lastPlayed",
         "column": "last-played",
-        "options": { "label": "", "showNever": true }
+        "options": { "label": "", "recentOnly": true }
       },
       {
         "element": "server.map",
         "column": "map"
+      },
+      {
+        "element": "server.region",
+        "column": "region",
+        "options": { "format": "name" }
       },
       {
         "element": "server.players",
@@ -144,7 +153,7 @@
           { "element": "server.refresh" },
           {
             "element": "server.join",
-            "options": { "display": "icon" }
+            "options": { "display": "icon", "wording": "fixAndJoin" }
           },
           { "element": "server.actionNotice" }
         ]

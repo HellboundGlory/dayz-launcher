@@ -51,6 +51,9 @@ const SCENARIOS = [
   { id: "modal-serverinfo-modsmixed", query: "modal=serverInfo&mods=mixed" },
 ];
 
+/** Scenarios that open the server info modal, which Tactical drops. */
+const SERVER_INFO_ROWS = ["modal-serverinfo", "modal-serverinfo-modsmixed"];
+
 /** Tab ids of a theme's Settings layout — one shot each. */
 async function settingsTabIds(theme) {
   const file = path.join(THEME_ROOT, theme, "layout/settings.json");
@@ -109,7 +112,15 @@ async function buildMatrix(themes) {
       ...SCENARIOS,
       ...tabs.map((tab) => ({ id: `settings-${tab}`, query: `settings=1&settingsTab=${tab}` })),
     ];
+    if (theme === "builtin.tactical") {
+      skips.push({
+        count: SERVER_INFO_ROWS.length * SCHEMES.length * SIZES.length,
+        label: `${theme} · ${SERVER_INFO_ROWS.join(", ")}`,
+        reason: "no server info modal; the detail panel is its server info",
+      });
+    }
     for (const row of rows) {
+      if (theme === "builtin.tactical" && SERVER_INFO_ROWS.includes(row.id)) continue;
       for (const scheme of SCHEMES) {
         for (const [width, height] of SIZES) {
           shots.push({
