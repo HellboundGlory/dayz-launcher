@@ -44,7 +44,7 @@ import {
   validateTheme,
 } from "@/lib/tauri";
 import type { LegacyTheme, ThemeFile, ThemeManifest, ThemeSummary, ValidationIssue } from "@/types/theme";
-import { NEUTRAL_ENGINE_FILES, getNeutralLayout } from "./neutral";
+import { getNeutralLayout } from "./neutral";
 import { clearFallbacks, isFileFallenBack, markFileFallback, useFallbackStore } from "./fallback/store";
 import type { LayoutFile } from "./renderer/types";
 
@@ -926,20 +926,6 @@ export function getThemeOwnedLayout(path: string): LayoutFile | undefined {
   if (isFileFallenBack(path)) return undefined;
   const { activeId, themeFiles } = useThemeStore.getState();
   return themeFiles[activeId]?.layouts?.[path];
-}
-
-/**
- * The file the engine draws: the active theme's own valid file; else Neutral's
- * file when the path is one the engine owns; else `undefined`.
- */
-export function getEngineLayout(
-  path: string,
-  engineFiles: ReadonlySet<string> = NEUTRAL_ENGINE_FILES,
-): LayoutFile | undefined {
-  const own = getThemeOwnedLayout(path);
-  if (own) return own;
-  const normalised = path.startsWith("layout/") ? path : `layout/${path}`;
-  return engineFiles.has(normalised) ? getNeutralLayout(path) : undefined;
 }
 
 /** Re-renders a component that reads the layout getters when theme files swap or a file falls back. */

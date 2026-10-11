@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { useDevStore } from "../dev/dev-store";
 import { REGISTRY } from "../registry";
 import type { LayoutFile, PopupLayoutFile } from "../renderer/types";
-import { getEngineLayout, getThemeOwnedLayout, useThemeStore } from "../theme-store";
+import { getThemeOwnedLayout, useThemeStore } from "../theme-store";
 import { isElementInLayout } from "../layout-query";
 import { clearRuntimeFallbacks, isFileFallenBack, markRuntimeFallback } from "./store";
 import { MISSING_ELEMENT_REASON, runVisibilityCheck } from "./visibility";
@@ -191,9 +191,6 @@ export function measureVisibilityCheck({
 }: VisibilityCheckRun): Map<string, string[]> {
   const reasonsByFile = new Map<string, string[]>();
   if (!root) return reasonsByFile;
-  // Without an engine-drawn shell the launcher renders its legacy components,
-  // which carry none of the themed host attributes.
-  if (!getEngineLayout(SHELL_FILE)) return reasonsByFile;
 
   const active = resolveActiveContexts(env, root);
   const required = resolveRequiredElements(active.contexts);

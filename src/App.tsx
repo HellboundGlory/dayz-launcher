@@ -1,33 +1,12 @@
-import {
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
-  useMemo,
-  type CSSProperties,
-} from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { WindowResizeHandles } from "./components/window-resize-handles";
-import { Sidebar, type ViewId } from "./components/sidebar";
-
-// Servers/Favourites/Recent share one component tree (just a different
-// server-list filter), so this is what gives each its own themeable
-// background despite being the same DOM structure underneath.
-import { WindowControls } from "./components/window-controls";
-import { FilterBar } from "./components/filter-bar";
-import { ServerList } from "./components/server-list";
-import { ServerInfoModal } from "./components/server-info-modal";
-import { ModFilterModal } from "./components/mod-filter-modal";
-import { ModsTab } from "./components/mods-tab";
-import { FooterBar } from "./components/footer-bar";
-import { SettingsView } from "./components/settings-view";
 import { SettingsHost, SettingsRegionPortal } from "./theme/interaction/settings-host";
 import { ModalHost } from "./theme/interaction/modal-host";
-import type { ModalLayoutFile, SettingsLayoutFile } from "./theme/renderer/types";
+import type { LayoutFile, ModalLayoutFile, SettingsLayoutFile } from "./theme/renderer/types";
 import { DevModeInspector } from "./components/themes-page/DevModeInspector";
 import { DevModeValidationPanel } from "./components/themes-page/DevModeValidationPanel";
 import { ConfirmDialog } from "./components/confirm-dialog";
 import { OnboardingModal } from "./components/onboarding-modal";
-import { UpdateModal } from "./components/update-modal";
 import { SteamRequiredModal } from "./components/steam-required-modal";
 import type { SplashScreenProps } from "./components/splash-screen";
 import { useServerStore } from "./stores/server-store";
@@ -44,14 +23,19 @@ import {
   useLayoutSubscription,
   watchHotReload,
   watchThemeActivationReverted,
-  getEngineLayout,
+  getActiveLayout,
 } from "./theme/theme-store";
 import { FallbackNotice } from "./theme/fallback/fallback-notice";
 import { NoticeLaunch } from "./theme/elements/notice-elements";
 import { isElementInLayout } from "./theme/layout-query";
 import { IncompatibleThemeNotice } from "./theme/fallback/incompatible-theme-notice";
 import { useVisibilityCheck } from "./theme/fallback/use-visibility-check";
-import { ElementContextProvider, SubjectContextProvider, useElementContext } from "./theme/elements/context";
+import {
+  ElementContextProvider,
+  SubjectContextProvider,
+  useElementContext,
+  type ViewId,
+} from "./theme/elements/context";
 import { ModsViewHost } from "./theme/elements/mods-view-host";
 import { LayoutRenderer } from "./theme/renderer";
 import { useServerDataLoader } from "./hooks/use-server-data-loader";
@@ -125,13 +109,16 @@ function splashDetail(found: number): string | undefined {
   return found > 0 ? `Found ${found.toLocaleString()} servers` : undefined;
 }
 
+/** Neutral backs every engine path, so the active file is never missing. */
+function engineLayout<T extends LayoutFile = LayoutFile>(path: string): T {
+  return getActiveLayout(path) as T;
+}
+
 export function App() {
   const [activeView, setActiveView] = useState<ViewId>("servers");
   /** The row whose ⋯ menu asked for "More info" — drives the M1 modal. */
   const [infoServer, setInfoServer] = useState<Server | null>(null);
   const [modFilterOpen, setModFilterOpen] = useState(false);
-  /** Mirrors the sidebar's collapse so `--side-w` tracks it on the shell. */
-  const [sideCollapsed, setSideCollapsed] = useState(false);
   // The fallback notice is dismissed per launcher version (§16.1).
   const [launcherVersion, setLauncherVersion] = useState<string | undefined>(undefined);
   const triggerReload = useServerStore((s) => s.triggerReload);
@@ -140,11 +127,6 @@ export function App() {
   const mapsLoaded = useServerStore((s) => s.mapsLoaded);
   const hasLoadedOnce = useServerStore((s) => s.hasLoadedOnce);
   const loadError = useServerStore((s) => s.loadError);
-
-  const sidebarRight = false;
-  const sideWidthValue = sideCollapsed
-    ? "var(--t-space-sidebarCollapsedWidth)"
-    : "var(--t-space-sidebarWidth)";
 
   // Each tab is a filter preset, not just a highlight toggle.
   const handleViewChange = useCallback(
@@ -207,7 +189,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   // One-shot: the backend's registry may not be open yet when the first queries run.
   const registryReadyHandled = useRef(false);
-  // One error value for both shells: a failed list load shows like a failed action.
+  // A failed list load shows like a failed action.
   const shownError = error ?? (registryReadyHandled.current ? loadError : null);
   const [counts, setCounts] = useState({ total: 0, populated: 0 });
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
@@ -325,24 +307,16 @@ export function App() {
   useServerDataLoader();
   useLayoutSubscription();
 
-  // The file the engine draws for each screen; `undefined` means the launcher's own component still draws it.
-  const shellLayout = getEngineLayout("layout/shell.json");
-  const browserLayout = getEngineLayout("layout/views/browser.json");
-  const modsLayout = getEngineLayout("layout/views/mods.json");
-  const settingsLayout = getEngineLayout("layout/settings.json") as SettingsLayoutFile | undefined;
-  const themedServerInfoModal = getEngineLayout("layout/modals/serverInfo.json") as
-    | ModalLayoutFile
-    | undefined;
-  const themedModFilterModal = getEngineLayout("layout/modals/modFilter.json") as
-    | ModalLayoutFile
-    | undefined;
-  const themedUpdateModal = getEngineLayout("layout/modals/update.json") as
-    | ModalLayoutFile
-    | undefined;
-  const browserPlaces = (element: string) =>
-    !!browserLayout && isElementInLayout(browserLayout, element);
-  const settingsMode = settingsLayout?.presentation?.mode ?? "overlay";
-  const closeSettings = () => setSettingsOpen(false);
+  // Each screen's file: the active theme's own, else Neutral's.
+  const shellLayout = engineLayout("layout/shell.json");
+  const browserLayout = engineLayout("layout/views/browser.json");
+  const modsLayout = engineLayout("layout/views/mods.json");
+  const settingsLayout = engineLayout<SettingsLayoutFile>("layout/settings.json");
+  const serverInfoModal = engineLayout<ModalLayoutFile>("layout/modals/serverInfo.json");
+  const modFilterModal = engineLayout<ModalLayoutFile>("layout/modals/modFilter.json");
+  const updateModal = engineLayout<ModalLayoutFile>("layout/modals/update.json");
+  const browserPlaces = (element: string) => isElementInLayout(browserLayout, element);
+  const settingsMode = settingsLayout.presentation?.mode ?? "overlay";
 
   // SPEC §15: runs the visibility check whenever the screen composition changes.
   useVisibilityCheck({
@@ -871,18 +845,6 @@ export function App() {
   const onOpenSettings = useCallback(() => setSettingsOpen(true), []);
   const onCloseSettings = useCallback(() => setSettingsOpen(false), []);
 
-  // Hoisted so `position: "right"` can place it after the main column.
-  const sidebar = (
-    <Sidebar
-      activeView={activeView}
-      onViewChange={handleViewChange}
-      settingsOpen={settingsOpen}
-      onOpenSettings={onOpenSettings}
-      onCloseSettings={onCloseSettings}
-      onCollapsedChange={setSideCollapsed}
-    />
-  );
-
   const openModFilter = useCallback(() => {
     useModFilterStore.getState().begin();
     setModFilterOpen(true);
@@ -974,17 +936,15 @@ export function App() {
     (window as unknown as { __harness?: Record<string, unknown> }).__harness = {
       openServerInfo: setInfoServer,
       openModFilter,
-      openUpdateModal: () => setUpdateOpen(true),
+      openUpdateModal,
       closeModal,
     };
   });
 
-  const modsView = modsLayout ? (
+  const modsView = (
     <ModsViewHost file={modsLayout} themeId={activeId} settings={settingsValues[activeId]} />
-  ) : (
-    <ModsTab />
   );
-  const engineBrowser = browserLayout && (
+  const engineBrowser = (
     <LayoutRenderer file={browserLayout} themeId={activeId} settings={settingsValues[activeId]} />
   );
 
@@ -995,53 +955,38 @@ export function App() {
       {showOnboarding && steamConnected && (
         <OnboardingModal onDone={() => setShowOnboarding(false)} />
       )}
-      {themedUpdateModal ? (
-        updateOpen && (
-          <ModalHost
-            file={themedUpdateModal}
-            label="Update"
-            initialFocus='[data-el="update.install"], [data-el="update.viewRelease"]'
-            themeId={activeId}
-            settings={settingsValues[activeId]}
-            onClose={() => setUpdateOpen(false)}
-          />
-        )
-      ) : (
-        <UpdateModal open={updateOpen} onClose={() => setUpdateOpen(false)} />
+      {updateOpen && (
+        <ModalHost
+          file={updateModal}
+          label="Update"
+          initialFocus='[data-el="update.install"], [data-el="update.viewRelease"]'
+          themeId={activeId}
+          settings={settingsValues[activeId]}
+          onClose={() => setUpdateOpen(false)}
+        />
       )}
       {infoServer && (
-        themedServerInfoModal ? (
-          <SubjectContextProvider
-            subject={{ kind: "server", data: infoServer }}
-            contextName="modal"
-          >
-            <ModalHost
-              file={themedServerInfoModal}
-              label={`Server info: ${infoServer.name || infoServer.addr}`}
-              initialFocus='[data-el="server.join"]'
-              themeId={activeId}
-              settings={settingsValues[activeId]}
-              onClose={() => setInfoServer(null)}
-            />
-          </SubjectContextProvider>
-        ) : (
-          <ServerInfoModal
-            server={infoServer}
-            onClose={() => setInfoServer(null)}
-          />
-        )
-      )}
-      {modFilterOpen && (
-        themedModFilterModal ? (
-          <ThemedModFilterModal
-            file={themedModFilterModal}
+        <SubjectContextProvider
+          subject={{ kind: "server", data: infoServer }}
+          contextName="modal"
+        >
+          <ModalHost
+            file={serverInfoModal}
+            label={`Server info: ${infoServer.name || infoServer.addr}`}
+            initialFocus='[data-el="server.join"]'
             themeId={activeId}
             settings={settingsValues[activeId]}
-            onClose={() => setModFilterOpen(false)}
+            onClose={() => setInfoServer(null)}
           />
-        ) : (
-          <ModFilterModal onClose={() => setModFilterOpen(false)} />
-        )
+        </SubjectContextProvider>
+      )}
+      {modFilterOpen && (
+        <ThemedModFilterModal
+          file={modFilterModal}
+          themeId={activeId}
+          settings={settingsValues[activeId]}
+          onClose={() => setModFilterOpen(false)}
+        />
       )}
       {/* Blocking: nothing works without Steam. */}
       {!steamConnected && steamError && (
@@ -1058,204 +1003,52 @@ export function App() {
 
   return (
     <ElementContextProvider value={elementContextValue}>
-      <div
-        className="relative flex h-screen flex-col overflow-hidden [border-radius:var(--t-radius-window)] border border-line bg-bg"
-        style={{ "--side-w": sideWidthValue } as CSSProperties}
-      >
+      <div className="relative flex h-screen flex-col overflow-hidden [border-radius:var(--t-radius-window)] border border-line bg-bg">
         <WindowResizeHandles />
 
         {activeId !== "neutral" && (
           <FallbackNotice themeId={activeId} launcherVersion={launcherVersion} />
         )}
-        {shellLayout && <IncompatibleThemeNotice />}
+        <IncompatibleThemeNotice />
 
         {/* Rows never show a join result, so a themed shell without the bar still gets one. */}
-        {shellLayout &&
-          !isElementInLayout(shellLayout, "notice.launch") &&
+        {!isElementInLayout(shellLayout, "notice.launch") &&
           !browserPlaces("notice.launch") && <NoticeLaunch />}
 
-        {shellLayout ? (
-          <>
-            <div className="flex min-h-0 flex-1 flex-col">
-              <LayoutRenderer
-                file={shellLayout}
-                themeId={activeId}
-                settings={settingsValues[activeId]}
-                outlets={{
-                  view:
-                    settingsOpen && settingsMode === "view" ? (
-                      <SettingsSurface
-                        layout={settingsLayout}
-                        placement="outlet"
-                        onClose={closeSettings}
-                        devMode={devMode}
-                        onDevModeChange={setDevMode}
-                      />
-                    ) : activeView === "mods" ? (
-                      modsView
-                    ) : browserLayout ? (
-                      engineBrowser
-                    ) : (
-                      <div className="flex min-h-0 flex-1 flex-col">
-                        <FilterBar
-                          onRefresh={handleRefresh}
-                          refreshing={refreshing}
-                          onOpenModFilter={() => setModFilterOpen(true)}
-                          modFilterOpen={modFilterOpen}
-                        />
-                        <ServerList view={activeView} onMoreInfo={setInfoServer} />
-                      </div>
-                    ),
-                  modals: modalLayer,
-                }}
-              />
-            </div>
-            {settingsOpen && (
-              <SettingsSurface
-                layout={settingsLayout}
-                onClose={closeSettings}
-                devMode={devMode}
-                onDevModeChange={setDevMode}
-              />
-            )}
-          </>
-        ) : (
-          <>
-            <div className="flex min-h-0 flex-1">
-              {!sidebarRight && sidebar}
-              <div className="flex min-w-0 flex-1 flex-col">
-                <WindowControls />
-
-                <IncompatibleThemeNotice />
-
-                {/* "Later" dismisses for this session only. */}
-                {updateAvailable && !updateBannerDismissed && (
-                  <div className="flex items-center gap-[var(--t-space-stackGap)] border-b border-accent-line bg-accent-soft px-[var(--t-space-rowX)] py-[var(--t-space-controlY)]">
-                    <span className="[font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-accent">
-                      Update available
-                    </span>
-                    <span className="min-w-0 flex-1 truncate [font-size:var(--t-type-body-size)] text-ink">
-                      Tetra Launcher v{updateAvailable.version} is ready to install.
-                    </span>
-                    <button
-                      onClick={() => {
-                        setUpdateBannerDismissed(true);
-                        setUpdateOpen(true);
-                      }}
-                      className="shrink-0 [border-radius:var(--t-radius-controlSmall)] bg-accent px-[var(--t-space-controlSmallX)] py-[var(--t-space-controlSmallY)] [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-button-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-bg transition-[filter] [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:brightness-110"
-                    >
-                      Update
-                    </button>
-                    <button
-                      onClick={() => setUpdateBannerDismissed(true)}
-                      className="shrink-0 [border-radius:var(--t-radius-controlSmall)] px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlSmallY)] [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:text-ink"
-                    >
-                      Later
-                    </button>
-                  </div>
-                )}
-
-                {activeView === "mods" ? (
-                  /* Mods tab replaces the whole server-browser stack while active. */
+        <div className="flex min-h-0 flex-1 flex-col">
+          <LayoutRenderer
+            file={shellLayout}
+            themeId={activeId}
+            settings={settingsValues[activeId]}
+            outlets={{
+              view:
+                settingsOpen && settingsMode === "view" ? (
+                  <SettingsSurface layout={settingsLayout} placement="outlet" onClose={onCloseSettings} />
+                ) : activeView === "mods" ? (
                   modsView
                 ) : (
-                  <div className="flex min-h-0 flex-1 flex-col">
-                    {!browserLayout && (
-                      <FilterBar
-                        onRefresh={handleRefresh}
-                        refreshing={refreshing}
-                        onOpenModFilter={() => setModFilterOpen(true)}
-                        modFilterOpen={modFilterOpen}
-                      />
-                    )}
-
-                    {!browserPlaces("notice.launch") && <NoticeLaunch />}
-
-                    {/* Not dismissible — favourites/recent are not being saved. */}
-                    {storageDegraded && !browserPlaces("notice.storage") && (
-                      <div className="flex items-center gap-[var(--t-space-inlineGapWide)] border-b border-warn bg-warn-soft px-[var(--t-space-rowX)] py-[var(--t-space-controlY)]">
-                        <span className="[font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase text-warn">
-                          STORAGE
-                        </span>
-                        <span className="[font-size:var(--t-type-body-size)] text-ink">
-                          The server database could not be opened, so this session is
-                          running from memory — favourites and recently-played will
-                          not be saved.
-                        </span>
-                      </div>
-                    )}
-
-                    {shownError && !browserPlaces("notice.error") && (
-                      <div className="flex items-center gap-[var(--t-space-inlineGapWide)] border-b border-danger bg-surface2 px-[var(--t-space-rowX)] py-[var(--t-space-controlY)]">
-                        <span className="[font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase text-danger">
-                          ERROR
-                        </span>
-                        <span className="truncate [font-size:var(--t-type-body-size)] text-ink">{shownError}</span>
-                        <button
-                          onClick={dismissError}
-                          className="ml-auto shrink-0 [font-size:var(--t-type-label-size)] text-muted hover:text-ink"
-                        >
-                          DISMISS
-                        </button>
-                      </div>
-                    )}
-
-                    {engineBrowser || <ServerList view={activeView} onMoreInfo={setInfoServer} />}
-                  </div>
-                )}
-
-                <FooterBar
-                  servers={counts.total}
-                  populated={counts.populated}
-                  refreshedAt={refreshedAt}
-                  steamConnected={steamConnected}
-                  listSource={listSource}
-                />
-              </div>
-              {sidebarRight && sidebar}
-            </div>
-
-            {settingsOpen && (
-              <SettingsView
-                onClose={() => setSettingsOpen(false)}
-                devMode={devMode}
-                onDevModeChange={setDevMode}
-              />
-            )}
-
-            {modalLayer}
-          </>
-        )}
+                  engineBrowser
+                ),
+              modals: modalLayer,
+            }}
+          />
+        </div>
+        {settingsOpen && <SettingsSurface layout={settingsLayout} onClose={onCloseSettings} />}
       </div>
     </ElementContextProvider>
   );
 }
 
 export interface SettingsSurfaceProps {
-  /** The active theme's own `layout/settings.json`, `undefined` when it ships none or it fell back (§16.1). */
-  layout?: SettingsLayoutFile;
+  /** The active theme's `layout/settings.json`, or Neutral's when the theme's own is missing or fell back. */
+  layout: SettingsLayoutFile;
   /** `outlet` draws `view` Settings where the shell's view outlet goes; the default hosts overlay/panel Settings beside the shell. */
   placement?: "outlet" | "overlay";
   onClose: () => void;
-  devMode: boolean;
-  onDevModeChange: (devMode: boolean) => void;
 }
 
-/** Settings in the themed shell. A theme-owned file renders through the pipeline;
- *  without one — never shipped, or fallen back — Settings is the launcher's own
- *  component, exactly as it is under Neutral (§16.1). */
-export function SettingsSurface({
-  layout,
-  placement = "overlay",
-  onClose,
-  devMode,
-  onDevModeChange,
-}: SettingsSurfaceProps) {
-  if (!layout) {
-    if (placement === "outlet") return null;
-    return <SettingsView onClose={onClose} devMode={devMode} onDevModeChange={onDevModeChange} />;
-  }
-
+/** Settings from the shell's `settings.json`: the view outlet for `view` mode, else beside the shell. */
+export function SettingsSurface({ layout, placement = "overlay", onClose }: SettingsSurfaceProps) {
   const mode = layout.presentation?.mode ?? "overlay";
   if (placement === "outlet") {
     return mode === "view" ? <SettingsHost file={layout} onClose={onClose} /> : null;

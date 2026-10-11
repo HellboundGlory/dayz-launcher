@@ -14,12 +14,8 @@ const ACTIVATION_RUNS = 5;
 const VISIBILITY_RUNS = 20;
 const BUDGETS = { fps: 55, activationMs: 300, visibilityMs: 16, memoryRatio: 1.1 };
 
-// Scroll viewports: the theme pipeline tags its list root, neutral's base
-// components only carry row hooks, so the walk to the scroller starts from a row.
-const SCROLL_SEED = {
-  "builtin.tactical": '[data-list="servers"] [data-row]',
-  neutral: '[data-tetra-el="name"], [data-list="servers"] [data-row]',
-};
+// Scroll viewports: the walk to the scroller starts from a server row.
+const SCROLL_SEED = '[data-list="servers"] [data-row]';
 
 const alwaysOk = process.argv.slice(2).includes("--no-fail");
 
@@ -98,7 +94,7 @@ async function measureScroll(page, seed) {
         p95FrameMs: sorted[Math.ceil(0.95 * sorted.length) - 1],
         maxFrameMs: sorted[sorted.length - 1],
         framesOver33ms: intervals.filter((d) => d > 33).length,
-        rows: scroller.querySelectorAll('[data-row], [data-tetra-el="name"]').length,
+        rows: scroller.querySelectorAll('[data-row]').length,
       };
     },
     { seed, ...SCROLL },
@@ -193,7 +189,7 @@ try {
   for (const theme of ["builtin.tactical", "neutral"]) {
     const page = await openScenario(browser, server.url, `theme=${theme}&servers=${ROWS}`, VIEWPORT);
     try {
-      results.scroll[theme] = await measureScroll(page, SCROLL_SEED[theme]);
+      results.scroll[theme] = await measureScroll(page, SCROLL_SEED);
       results.memory[theme] = await measureMemory(page);
     } finally {
       await page.context().close();

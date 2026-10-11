@@ -2,10 +2,9 @@
 // Run with `npm run harness:smoke`.
 import { launchBrowser, openScenario, startServer } from "./driver.mjs";
 
-// Neutral's marker is its legacy hook or the engine's list, whichever tree draws it;
-// a theme package renders the element pipeline, which carries `data-el`.
+// Every theme, Neutral included, draws its list through the element pipeline.
 const SCENARIOS = [
-  { query: "theme=neutral", marker: '[data-tetra-el="name"], [data-el="list.servers"]' },
+  { query: "theme=neutral", marker: '[data-el="list.servers"]' },
   { query: "theme=builtin.tactical&scheme=light", marker: '[data-el="list.servers"]' },
 ];
 

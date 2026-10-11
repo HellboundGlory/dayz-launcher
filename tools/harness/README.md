@@ -136,10 +136,9 @@ Two things worth knowing about the matrix:
 
 - The prod build drives the whole matrix, `modal=` included: `App` exposes the
   modal openers whenever `window.__harness` exists, which `main.tsx` defines.
-- Neutral renders the legacy components, whose hooks are `data-tetra-el`, so its
-  rows reach the same state by clicking those hooks through `click=`. Its
-  Settings is one scrolling accordion rather than tabs, so the per-tab shots are
-  skipped and listed in the output instead of failing.
+- Neutral renders through the theme engine like any theme, and its rows use the
+  same queries. Its Settings is one scrolling accordion rather than tabs, so the
+  per-tab shots are skipped and listed in the output instead of failing.
 - A scenario whose hook never appeared is reported as `no-hook` and never
   baselined: silently shooting the screen behind it would freeze the wrong
   picture in as the baseline.
