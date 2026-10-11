@@ -2742,7 +2742,7 @@ mod tests {
 
         let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
 
-        assert!(error.contains(MANIFEST_FILE), "message was: {error}");
+        assert!(error.contains("not a Tetra theme"), "message was: {error}");
     }
 
     #[test]

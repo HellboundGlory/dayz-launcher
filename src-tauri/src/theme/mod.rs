@@ -880,9 +880,10 @@ mod tests {
     }
 
     /// No layout rule emits a warning yet, so this drives the split directly:
-    /// a warning must remove nothing and never reach `fallbacks`.
+    /// a warning, or an error on a file that is not a layout, must remove
+    /// nothing and never reach `fallbacks`.
     #[test]
-    fn a_warning_never_removes_a_layout() {
+    fn a_warning_or_a_non_layout_error_never_removes_a_layout() {
         let mut parsed = HashMap::new();
         parsed.insert(
             "layout/views/mods.json".to_string(),
@@ -897,7 +898,16 @@ mod tests {
             hint: None,
         };
 
-        let (layouts, fallbacks) = fall_back_broken_layouts(parsed, vec![warning]);
+        let elsewhere = ValidationIssue {
+            rule_id: "SET-01".into(),
+            severity: Severity::Error,
+            file: SETTINGS_SCHEMA_FILE.into(),
+            pointer: String::new(),
+            message: "not a layout".into(),
+            hint: None,
+        };
+
+        let (layouts, fallbacks) = fall_back_broken_layouts(parsed, vec![warning, elsewhere]);
 
         assert!(layouts.contains_key("layout/views/mods.json"));
         assert!(fallbacks.is_empty(), "{fallbacks:?}");
