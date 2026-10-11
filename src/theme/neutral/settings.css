@@ -1,1 +1,95 @@
 @layer launcher, neutral, theme, guarantees;
+
+@layer neutral {
+  .t-neutral-settings-root {
+    @apply h-full w-full bg-bg;
+  }
+
+  .t-neutral-settings-head {
+    @apply shrink-0 items-center justify-between border-b border-line bg-surface px-[18px] py-[13px];
+  }
+
+  .t-neutral-settings-head-group {
+    @apply items-center gap-2.5;
+  }
+
+  .t-neutral-settings-head-group [data-el="settings.back"] > [data-part="icon"] {
+    @apply flex;
+  }
+
+  .t-neutral-settings-body {
+    @apply min-h-0 flex-1 px-[22px] pb-6 pt-[18px];
+  }
+
+  .t-neutral-settings-sections > [data-section] {
+    @apply overflow-hidden [border-radius:var(--t-radius-panel)] border border-line bg-surface;
+  }
+
+  .t-neutral-settings-sections > [data-section] > button {
+    @apply flex w-full items-center px-4 py-3.5 text-left transition-colors hover:bg-surface2;
+  }
+
+  .t-neutral-settings-section-head {
+    @apply min-w-0 flex-1 gap-2.5;
+  }
+
+  .t-neutral-settings-section-icon {
+    @apply flex h-[18px] w-[18px] shrink-0 items-center justify-center text-muted2;
+  }
+
+  .t-neutral-settings-section-icon > [data-part="icon"] {
+    @apply flex;
+  }
+
+  .t-neutral-settings-section-text {
+    @apply min-w-0 flex-1;
+  }
+
+  .t-neutral-settings-section-title {
+    @apply block [font-size:var(--t-type-subheading-size)] font-semibold text-ink;
+  }
+
+  .t-neutral-settings-section-desc {
+    @apply mt-0.5 block truncate [font-size:var(--t-type-label-size)] text-muted;
+  }
+
+  .t-neutral-settings-chevron {
+    @apply h-[14px] w-[14px] shrink-0 text-muted transition-transform [transition-duration:var(--t-motion-expand-duration)];
+  }
+
+  .t-neutral-settings-sections > [data-section][data-state~="open"] > button .t-neutral-settings-chevron {
+    @apply rotate-180;
+  }
+
+  .t-neutral-settings-sections > [data-section] > [role="region"] {
+    @apply px-4 py-4;
+  }
+
+  .t-neutral-settings-sections > [data-section][data-state~="open"] > [role="region"] {
+    @apply border-t border-line;
+  }
+
+  .t-neutral-settings-group {
+    @apply mt-2 border-t border-line pt-3;
+  }
+
+  .t-neutral-settings-group-title {
+    @apply mb-1 text-xs font-medium text-ink;
+  }
+
+  .t-neutral-settings-field {
+    @apply min-w-0;
+  }
+
+  .t-neutral-settings-field-row {
+    @apply gap-2 mb-3.5;
+  }
+
+  .t-neutral-settings-start-minimised {
+    @apply flex cursor-pointer items-start gap-2 py-1;
+  }
+
+  .t-neutral-settings-start-minimised[data-state~="disabled"] {
+    @apply cursor-not-allowed opacity-40;
+  }
+}

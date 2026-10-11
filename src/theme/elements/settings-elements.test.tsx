@@ -320,6 +320,14 @@ describe("SettingsSectionTitle / sectionDescription / sectionIcon", () => {
     expect(icon).toContain('data-part="icon"');
   });
 
+  it.each([
+    ["title", SettingsSectionTitle],
+    ["description", SettingsSectionDescription],
+    ["icon", SettingsSectionIcon],
+  ])("renders the section %s as inline markup, since it sits inside a button", (_, Section) => {
+    expect(render(<Section options={{ section: "game" }} />)).not.toContain("<div");
+  });
+
   it("renders nothing for an unknown section", () => {
     expect(render(<SettingsSectionTitle options={{ section: "nope" }} />)).toBe("");
     expect(render(<SettingsSectionDescription options={{ section: "nope" }} />)).toBe("");
