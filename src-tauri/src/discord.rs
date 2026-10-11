@@ -43,7 +43,7 @@ pub fn start(app: &AppHandle, enabled: bool) {
             interval.tick().await;
             poll_once(
                 &app,
-                tick % IDLE_REFRESH_EVERY_N_TICKS == 0,
+                tick.is_multiple_of(IDLE_REFRESH_EVERY_N_TICKS),
                 &mut confirmed_running,
                 &mut reported,
             )
