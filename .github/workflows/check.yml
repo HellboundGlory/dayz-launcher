@@ -1,14 +1,6 @@
 name: Check
 
-# The regression net for ordinary work. `release.yml` only ever runs on a
-# version tag, so before this workflow existed nothing verified a commit —
-# a build break could sit on `main` until the next release attempt found it.
-#
-# `paths-ignore: docs/**` mirrors pages.yml's own `paths: docs/**` scoping:
-# a change confined to the marketing site can't affect the Rust workspace or
-# the frontend, so it has no reason to spend ~2 minutes running fmt/clippy/
-# test/tsc across both. A commit that touches anything outside docs/ still
-# runs the full suite, mixed commits included.
+# docs/ changes can't affect the Rust workspace or the frontend (mirrors pages.yml's docs/** scope).
 on:
   push:
     branches: ["**"]
@@ -18,65 +10,19 @@ on:
     paths-ignore:
       - "docs/**"
 
-# A new push to the same branch makes the in-flight run obsolete.
 concurrency:
   group: check-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   rust:
-    # Windows still gets its own same job so the Windows-only code paths
-    # (winreg, window-vibrancy, registry discovery) keep compiling. The Linux
-    # equivalent runs in `rust-linux` below.
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-
-      - name: Format
-        run: cargo fmt --all --check
-
-      - name: Clippy
-        run: cargo clippy --locked --workspace --all-targets -- -D warnings
-
-      - name: Test
-        run: cargo test --locked --workspace
-
-  # Linux half of the Rust check. The workspace now compiles on Linux too, so a
-  # future Windows-only change must not silently break the Linux/AppImage build.
-  rust-linux:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Linux dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y             libwebkit2gtk-4.1-dev             build-essential             libssl-dev             libayatana-appindicator3-dev             librsvg2-dev
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-
-      - name: Format
-        run: cargo fmt --all --check
-
-      - name: Clippy
-        run: cargo clippy --locked --workspace --all-targets -- -D warnings
-
-      - name: Test
-        run: cargo test --locked --workspace
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    uses: ./.github/workflows/rust-check.yml
+    with:
+      os: ${{ matrix.os }}
 
   frontend:
     runs-on: ubuntu-latest
@@ -92,27 +38,34 @@ jobs:
       - name: Install
         run: npm ci
 
-      # T2 (2026-08-29 audit): this used to run only `tsc --noEmit`, on the
-      # theory that the release workflow's `tauri build` covers the Vite
-      # build itself — true, but that means a broken Vite input (the
-      # two-entry index.html/splash.html setup, a bad asset import, a
-      # PostCSS failure) was caught for the first time during a release, not
-      # in ordinary CI. `npm run build` runs both steps and is well under two
-      # seconds.
+      - name: Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('playwright-core/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: playwright
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
       - name: Build
         run: npm run build
 
-      # T1 (2026-08-29 audit): there was no frontend test runner or linter at
-      # all — `palette.test.ts` locks a WCAG contrast invariant across a hue
-      # sweep and ran only when someone remembered to by hand.
       - name: Test
         run: npm test
 
       - name: Lint
         run: npm run lint
 
+      # The browser binaries are cached; the OS packages they need are not.
       - name: Install headless Chromium
+        if: steps.playwright.outputs.cache-hit != 'true'
         run: npx playwright-core install --with-deps chromium-headless-shell
+
+      - name: Install Chromium system dependencies
+        if: steps.playwright.outputs.cache-hit == 'true'
+        run: npx playwright-core install-deps chromium-headless-shell
 
       - name: UI harness smoke
         run: npm run harness:smoke

@@ -1,12 +1,7 @@
 name: Deploy Pages
 
-# Publishes docs/ (the marketing site + the dzsa:// join landing page) to
-# GitHub Pages. Scoped to changes under docs/ (or this workflow itself) so
-# an ordinary app-code push doesn't redeploy the site for no reason.
-#
-# Deliberately separate from check.yml and release.yml: this never touches
-# the Rust workspace or produces an app build, and release.yml only ever
-# triggers on a version tag — pushing here cannot kick either off.
+# Publishes docs/ (the marketing site + the dzsa:// join landing page) to GitHub
+# Pages. Scoped to docs/ (and this workflow) so an app-code push doesn't redeploy the site.
 on:
   push:
     branches: ["main"]
@@ -20,9 +15,7 @@ permissions:
   pages: write
   id-token: write
 
-# Only one Pages deployment at a time; let an in-flight one finish rather
-# than cancelling it, since a half-published site is worse than a slightly
-# stale one.
+# Let an in-flight deployment finish rather than cancelling it: a half-published site is worse than a stale one.
 concurrency:
   group: pages
   cancel-in-progress: false
