@@ -1194,6 +1194,27 @@
   color: var(--muted);
 }
 
+.t-stat > [data-el="server.gameTime"] {
+  white-space: nowrap;
+}
+
+.t-stat-suffix {
+  font-family: var(--t-type-label-family);
+  font-size: var(--t-type-label-size);
+  line-height: var(--t-type-label-leading);
+  font-weight: var(--t-type-label-weight);
+  letter-spacing: var(--t-type-label-tracking);
+  color: var(--muted);
+}
+
+.t-stat-suffix [data-part="time"] {
+  display: none;
+}
+
+.t-stat-suffix [data-part="multiplier"] {
+  margin-left: 4px;
+}
+
 .t-stat > [data-el="server.players"][data-state~="empty"],
 .t-stat > [data-el="server.players"][data-state~="offline"] {
   color: var(--muted);

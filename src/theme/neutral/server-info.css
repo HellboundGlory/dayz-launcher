@@ -109,7 +109,19 @@
   }
 
   .t-neutral-serverinfo-time {
-    @apply text-accent;
+    @apply whitespace-nowrap text-accent;
+  }
+
+  .t-neutral-serverinfo-stat-suffix {
+    @apply [font-family:var(--t-type-micro-family)] [font-size:var(--t-type-micro-size)] [line-height:var(--t-type-micro-leading)] font-bold tracking-[0.06em] text-muted;
+  }
+
+  .t-neutral-serverinfo-stat-suffix [data-part="time"] {
+    @apply hidden;
+  }
+
+  .t-neutral-serverinfo-stat-suffix [data-part="multiplier"] {
+    @apply ml-1;
   }
 
   .t-neutral-serverinfo-stat-label {
