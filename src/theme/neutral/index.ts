@@ -29,7 +29,7 @@ export {
 };
 
 /** Paths the theme engine draws from Neutral's own file instead of the launcher's legacy component. */
-export const NEUTRAL_ENGINE_FILES: ReadonlySet<string> = new Set<string>(["layout/modals/update.json", "layout/modals/modFilter.json", "layout/views/mods.json"]);
+export const NEUTRAL_ENGINE_FILES: ReadonlySet<string> = new Set<string>(["layout/modals/update.json", "layout/modals/modFilter.json", "layout/views/mods.json", "layout/modals/serverInfo.json"]);
 
 export const NEUTRAL_LAYOUTS: Record<string, LayoutFile> = {
   "layout/shell.json": SHELL_LAYOUT,
