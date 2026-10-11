@@ -222,6 +222,64 @@ async function waitUntil<T>(check: () => T, label: string, timeout = 8000, inter
 const waitFor = (selector: string) =>
   waitUntil(() => document.querySelector<HTMLElement>(selector), selector);
 
+/**
+ * A `click=` target: a CSS selector, `text:<button label>`, or `last-visible:<selector>` (the last match on screen).
+ * A disabled target is missing: clicking it does nothing, so its shot would show the wrong state.
+ */
+function clickTarget(spec: string): HTMLElement | null {
+  const enabled = (el: HTMLElement) => !el.matches(":disabled");
+  if (spec.startsWith("text:")) {
+    const label = spec.slice("text:".length);
+    return [...document.querySelectorAll<HTMLElement>("button")].find((el) => el.textContent?.trim() === label && enabled(el)) ?? null;
+  }
+  if (spec.startsWith("last-visible:")) {
+    const shown = [...document.querySelectorAll<HTMLElement>(spec.slice("last-visible:".length))].filter(
+      (el) => enabled(el) && fullyOnScreen(el),
+    );
+    return shown.pop() ?? null;
+  }
+  const el = document.querySelector<HTMLElement>(spec);
+  return el && enabled(el) ? el : null;
+}
+
+/** Whether the element's centre is the element itself or one of its children, not something drawn over it. */
+function hitsCentre(el: HTMLElement): boolean {
+  const box = el.getBoundingClientRect();
+  const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+  return hit !== null && el.contains(hit);
+}
+
+/**
+ * Scrolls only when the target is cut off vertically or covered (a scroller's footer), and undoes any sideways
+ * scroll that brings. Scrolling sideways would shift the whole view.
+ */
+function scrollIntoWindow(el: HTMLElement) {
+  const box = el.getBoundingClientRect();
+  if (box.top >= 0 && box.bottom <= window.innerHeight && hitsCentre(el)) return;
+  const lefts: [Element, number][] = [];
+  for (let node = el.parentElement; node; node = node.parentElement) lefts.push([node, node.scrollLeft]);
+  el.scrollIntoView({ block: "nearest", inline: "nearest" });
+  for (const [node, left] of lefts) node.scrollLeft = left;
+}
+
+/** The player can reach the element sideways: it is inside the window and not covered. */
+function reachable(el: HTMLElement): boolean {
+  const box = el.getBoundingClientRect();
+  return box.left >= 0 && box.right <= window.innerWidth && hitsCentre(el);
+}
+
+/** The element's row (or the element) is inside the window and not cut off by a scroller. */
+function fullyOnScreen(el: HTMLElement): boolean {
+  const row = el.closest<HTMLElement>("[data-row]") ?? el;
+  const box = row.getBoundingClientRect();
+  if (box.top < 0 || box.left < 0 || box.bottom > window.innerHeight || box.right > window.innerWidth) return false;
+  const x = box.left + box.width / 2;
+  return [box.top + 1, box.bottom - 1].every((y) => {
+    const hit = document.elementFromPoint(x, y);
+    return hit !== null && row.contains(hit);
+  });
+}
+
 /** Resolves once the DOM has gone `quietMs` without a change and every image has decoded. */
 async function settle(quietMs = 100, cap = 3000) {
   let last = performance.now();
@@ -284,12 +342,26 @@ async function runScenario() {
       harness?.openUpdateModal();
     }
   }
-  for (const selector of params.getAll("click")) {
+  let last: HTMLElement | null = null;
+  for (const spec of params.getAll("click")) {
     await settle();
-    (await waitFor(selector))?.click();
+    const target = await waitUntil(() => clickTarget(spec), spec);
+    if (!target) continue;
+    scrollIntoWindow(target);
+    if (!reachable(target)) {
+      missing.push(spec);
+      console.warn(`[harness] cut off sideways: ${spec}`);
+      continue;
+    }
+    target.click();
+    last = target;
   }
   // Longer than the app's own debounces (readiness waits 250 ms before it fetches).
   await settle(400);
+  if (last) {
+    const box = last.getBoundingClientRect();
+    harness.pointer = [box.left + box.width / 2, box.top + box.height / 2];
+  }
   document.body.dataset.harnessReady = "1";
 }
 

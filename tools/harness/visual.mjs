@@ -54,6 +54,63 @@ const SCENARIOS = [
 /** Scenarios that open the server info modal, which Tactical drops. */
 const SERVER_INFO_ROWS = ["modal-serverinfo", "modal-serverinfo-modsmixed"];
 
+/** The smallest window: 975×620 at UI scale 1.5, dark scheme only. */
+const SMALL = { sizes: [[650, 413]], schemes: ["dark"], scale: 1.5 };
+const click = (selector) => `click=${encodeURIComponent(selector)}`;
+const trigger = (el) => `[data-el="${el}"] [data-part="trigger"]`;
+const FIRST_MOD = '[data-el="mod.select"]';
+const LOAD_MENU = '[data-el="server.menu"] [data-part="trigger"][aria-label^="Load this server"]';
+const cardMenu = (name) => `[aria-label="${name} options"]`;
+const THEME_SECTION = '[data-section="theme"] button';
+
+/** Popups and menus opened at the small size. `themes` limits a row to the themes that have that element. */
+const SMALL_POPUP_ROWS = [
+  { ...SMALL, id: "popup-map", query: click(trigger("filter.map")) },
+  { ...SMALL, id: "popup-tags", query: click(trigger("filter.tags")) },
+  { ...SMALL, id: "popup-region", query: click(trigger("filter.region")) },
+  { ...SMALL, id: "popup-sort", query: click(trigger("filter.sort")), themes: ["neutral"] },
+  {
+    ...SMALL,
+    id: "row-menu-last",
+    query: click('last-visible:[data-el="server.menu"] [data-part="trigger"]'),
+    themes: ["neutral"],
+  },
+  { ...SMALL, id: "mods-unsubscribe", query: `view=mods&${click(FIRST_MOD)}&${click(trigger("mods.unsubscribeMenu"))}` },
+  // Tactical's action bar is wider than the small window, so its Verify trigger is out of reach there for now.
+  {
+    ...SMALL,
+    id: "mods-verify",
+    query: `view=mods&${click(FIRST_MOD)}&${click(trigger("mods.verifyMenu"))}`,
+    themes: ["neutral"],
+  },
+  { ...SMALL, id: "serverinfo-load", query: `modal=serverInfo&${click(LOAD_MENU)}`, themes: ["neutral"] },
+  { ...SMALL, id: "select3-load", query: `select=3&${click(LOAD_MENU)}`, themes: ["builtin.tactical"] },
+  {
+    ...SMALL,
+    id: "theme-card-menu",
+    query: `settings=1&settingsTab=themes&${click(cardMenu("Tactical"))}`,
+    themes: ["builtin.tactical"],
+  },
+  {
+    ...SMALL,
+    id: "theme-card-menu-accordion",
+    query: `settings=1&${click(THEME_SECTION)}&${click(cardMenu("Neutral"))}`,
+    themes: ["neutral"],
+  },
+  {
+    ...SMALL,
+    id: "theme-customiser",
+    query: `settings=1&settingsTab=themes&${click("text:Customize tokens")}&${click(".theme-trigger")}`,
+    themes: ["builtin.tactical"],
+  },
+  {
+    ...SMALL,
+    id: "theme-customiser-accordion",
+    query: `settings=1&${click(THEME_SECTION)}&${click("text:Customize tokens")}&${click(".theme-trigger")}`,
+    themes: ["neutral"],
+  },
+];
+
 /** Tab ids of a theme's Settings layout — one shot each. */
 async function settingsTabIds(theme) {
   const file = path.join(THEME_ROOT, theme, "layout/settings.json");
@@ -111,6 +168,7 @@ async function buildMatrix(themes) {
     const rows = [
       ...SCENARIOS,
       ...tabs.map((tab) => ({ id: `settings-${tab}`, query: `settings=1&settingsTab=${tab}` })),
+      ...SMALL_POPUP_ROWS,
     ];
     if (theme === "builtin.tactical") {
       skips.push({
@@ -121,13 +179,15 @@ async function buildMatrix(themes) {
     }
     for (const row of rows) {
       if (theme === "builtin.tactical" && SERVER_INFO_ROWS.includes(row.id)) continue;
-      for (const scheme of SCHEMES) {
-        for (const [width, height] of SIZES) {
+      if (row.themes && !row.themes.includes(theme)) continue;
+      for (const scheme of row.schemes ?? SCHEMES) {
+        for (const [width, height] of row.sizes ?? SIZES) {
           shots.push({
             rel: `${theme}/${scheme}-${width}x${height}-${row.id}.png`,
             scheme,
             width,
             height,
+            scale: row.scale ?? 1,
             query: [`theme=${theme}`, row.query, `scheme=${scheme}`, "static=1"].filter(Boolean).join("&"),
           });
         }
@@ -208,12 +268,18 @@ async function main() {
       page = await openScenario(browser, server.url, shot.query, {
         width: shot.width,
         height: shot.height,
-        scale: 1,
+        scale: shot.scale,
         scheme: shot.scheme,
       });
       // A query whose hook never appeared shot the wrong screen; a baseline for
       // it would be a lie, so report it instead of writing one.
       const missing = await page.evaluate(() => window.__harness?.missing ?? []);
+      // A click leaves the pointer over its target; move the real pointer there so hover styles apply.
+      const pointer = await page.evaluate(() => window.__harness?.pointer ?? null);
+      if (pointer) {
+        await page.mouse.move(pointer[0], pointer[1]);
+        await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      }
       const png = await page.screenshot({ type: "png" });
       result =
         missing.length > 0
