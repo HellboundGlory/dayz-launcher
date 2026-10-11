@@ -188,187 +188,162 @@ mod tests {
     }
 
     #[test]
-    fn recognises_a_single_packet() {
-        let p = vec![0xff, 0xff, 0xff, 0xff, 0x49, 0x01];
-        assert_eq!(classify_packet(&p).unwrap(), PacketKind::Single);
-    }
-
-    #[test]
-    fn recognises_a_challenge() {
-        let p = vec![0xff, 0xff, 0xff, 0xff, 0x41, 0xde, 0xad, 0xbe, 0xef];
-        assert_eq!(
-            classify_packet(&p).unwrap(),
-            PacketKind::Challenge([0xde, 0xad, 0xbe, 0xef])
-        );
-    }
-
-    #[test]
-    fn recognises_a_split_packet() {
-        let p = split_packet(3, 1, b"xyz");
-        assert_eq!(
-            classify_packet(&p).unwrap(),
-            PacketKind::Split {
-                id: 1234,
-                total: 3,
-                index: 1
-            }
-        );
-    }
-
-    #[test]
-    fn reassembles_split_packets_in_index_order() {
-        let packets = vec![
-            split_packet(3, 2, b"CCC"),
-            split_packet(3, 0, b"AAA"),
-            split_packet(3, 1, b"BBB"),
+    fn classifies_packet_kinds() {
+        let cases: &[(&str, Vec<u8>, PacketKind)] = &[
+            (
+                "single",
+                vec![0xff, 0xff, 0xff, 0xff, 0x49, 0x01],
+                PacketKind::Single,
+            ),
+            (
+                "challenge",
+                vec![0xff, 0xff, 0xff, 0xff, 0x41, 0xde, 0xad, 0xbe, 0xef],
+                PacketKind::Challenge([0xde, 0xad, 0xbe, 0xef]),
+            ),
+            (
+                "split",
+                split_packet(3, 1, b"xyz"),
+                PacketKind::Split {
+                    id: 1234,
+                    total: 3,
+                    index: 1,
+                },
+            ),
+            (
+                "split answering another request",
+                split_packet_id(0xdead_beef, 2, 0, b"AA"),
+                PacketKind::Split {
+                    id: 0xdead_beef,
+                    total: 2,
+                    index: 0,
+                },
+            ),
         ];
-        assert_eq!(reassemble_split(&packets).unwrap(), b"AAABBBCCC");
+        for (name, packet, expected) in cases {
+            assert_eq!(classify_packet(packet).unwrap(), *expected, "{name}");
+        }
     }
 
-    #[test]
-    fn rejects_an_incomplete_split_set() {
-        let packets = vec![split_packet(3, 0, b"AAA"), split_packet(3, 1, b"BBB")];
-        assert_eq!(
-            reassemble_split(&packets),
-            Err(ParseError::IncompleteSplit { have: 2, total: 3 })
-        );
-    }
+    type Reassembly = (&'static str, Vec<Vec<u8>>, &'static [u8]);
+    type Rejection = (&'static str, Vec<Vec<u8>>, fn(&ParseError) -> bool);
 
     #[test]
-    fn a_single_packet_reassembles_to_its_own_body() {
-        let packets = vec![vec![0xff, 0xff, 0xff, 0xff, 0x45, 0x02, 0x00]];
-        assert_eq!(reassemble_split(&packets).unwrap(), vec![0x45, 0x02, 0x00]);
-    }
-
-    #[test]
-    fn rejects_duplicate_indices() {
-        let packets = vec![
-            split_packet(3, 0, b"AAA"),
-            split_packet(3, 0, b"AAA"),
-            split_packet(3, 2, b"CCC"),
+    fn reassembles_split_packets() {
+        let cases: &[Reassembly] = &[
+            (
+                "in index order",
+                vec![
+                    split_packet(3, 2, b"CCC"),
+                    split_packet(3, 0, b"AAA"),
+                    split_packet(3, 1, b"BBB"),
+                ],
+                b"AAABBBCCC",
+            ),
+            (
+                "a single packet yields its own body",
+                vec![vec![0xff, 0xff, 0xff, 0xff, 0x45, 0x02, 0x00]],
+                &[0x45, 0x02, 0x00],
+            ),
+            (
+                "stripping an embedded response header",
+                vec![
+                    split_packet(2, 0, &[0xff, 0xff, 0xff, 0xff, 0x45, b'A', b'B']),
+                    split_packet(2, 1, b"CCC"),
+                ],
+                b"\x45ABCCC",
+            ),
+            (
+                "leaving a payload that carries no header",
+                vec![split_packet(2, 0, b"AAA"), split_packet(2, 1, b"BBB")],
+                b"AAABBB",
+            ),
         ];
-        assert!(matches!(
-            reassemble_split(&packets),
-            Err(ParseError::MalformedSplit { .. })
-        ));
+        for (name, packets, expected) in cases {
+            assert_eq!(reassemble_split(packets).unwrap(), *expected, "{name}");
+        }
     }
 
     #[test]
-    fn rejects_index_out_of_range() {
-        let packets = vec![
-            split_packet(3, 0, b"AAA"),
-            split_packet(3, 1, b"BBB"),
-            split_packet(3, 5, b"CCC"),
+    fn rejects_malformed_split_sets() {
+        let cases: Vec<Rejection> = vec![
+            (
+                "an incomplete set",
+                vec![split_packet(3, 0, b"AAA"), split_packet(3, 1, b"BBB")],
+                |e| matches!(e, ParseError::IncompleteSplit { have: 2, total: 3 }),
+            ),
+            (
+                "a duplicate index",
+                vec![
+                    split_packet(3, 0, b"AAA"),
+                    split_packet(3, 0, b"AAA"),
+                    split_packet(3, 2, b"CCC"),
+                ],
+                |e| matches!(e, ParseError::MalformedSplit { .. }),
+            ),
+            (
+                "an index out of range",
+                vec![
+                    split_packet(3, 0, b"AAA"),
+                    split_packet(3, 1, b"BBB"),
+                    split_packet(3, 5, b"CCC"),
+                ],
+                |e| matches!(e, ParseError::MalformedSplit { .. }),
+            ),
+            (
+                "disagreeing totals",
+                vec![
+                    split_packet(3, 0, b"AAA"),
+                    split_packet(2, 1, b"BBB"),
+                    split_packet(3, 2, b"CCC"),
+                ],
+                |e| matches!(e, ParseError::MalformedSplit { .. }),
+            ),
+            (
+                "a stray single packet inside the set",
+                vec![
+                    split_packet(3, 0, b"AAA"),
+                    split_packet(3, 1, b"BBB"),
+                    vec![0xff, 0xff, 0xff, 0xff, 0x45, 0x02, 0x00],
+                    split_packet(3, 2, b"CCC"),
+                ],
+                |e| matches!(e, ParseError::MalformedSplit { .. }),
+            ),
+            (
+                "a lone challenge packet",
+                vec![vec![0xff, 0xff, 0xff, 0xff, 0x41, 0xde, 0xad, 0xbe, 0xef]],
+                |e| matches!(e, ParseError::MalformedSplit { .. }),
+            ),
+            ("a total of zero", vec![split_packet(0, 0, b"")], |e| {
+                matches!(e, ParseError::MalformedSplit { .. })
+            }),
+            (
+                "fragments from different requests",
+                vec![
+                    split_packet_id(1000, 2, 0, b"AAA"),
+                    split_packet_id(2000, 2, 1, b"BBB"),
+                ],
+                |e| {
+                    matches!(
+                        e,
+                        ParseError::SplitIdMismatch {
+                            expected: 1000,
+                            found: 2000
+                        }
+                    )
+                },
+            ),
+            (
+                "a compressed payload",
+                vec![
+                    split_packet_id(1000, 2, 0, b"AAA"),
+                    split_packet_id(0x8000_0001, 2, 1, b"BBB"),
+                ],
+                |e| matches!(e, ParseError::CompressedSplit { id: 0x8000_0001 }),
+            ),
         ];
-        assert!(matches!(
-            reassemble_split(&packets),
-            Err(ParseError::MalformedSplit { .. })
-        ));
-    }
-
-    #[test]
-    fn rejects_disagreeing_totals() {
-        let packets = vec![
-            split_packet(3, 0, b"AAA"),
-            split_packet(2, 1, b"BBB"),
-            split_packet(3, 2, b"CCC"),
-        ];
-        assert!(matches!(
-            reassemble_split(&packets),
-            Err(ParseError::MalformedSplit { .. })
-        ));
-    }
-
-    #[test]
-    fn rejects_stray_single_packet_in_split_set() {
-        let packets = vec![
-            split_packet(3, 0, b"AAA"),
-            split_packet(3, 1, b"BBB"),
-            vec![0xff, 0xff, 0xff, 0xff, 0x45, 0x02, 0x00],
-            split_packet(3, 2, b"CCC"),
-        ];
-        assert!(matches!(
-            reassemble_split(&packets),
-            Err(ParseError::MalformedSplit { .. })
-        ));
-    }
-
-    #[test]
-    fn rejects_lone_challenge_packet() {
-        let packets = vec![vec![0xff, 0xff, 0xff, 0xff, 0x41, 0xde, 0xad, 0xbe, 0xef]];
-        assert!(matches!(
-            reassemble_split(&packets),
-            Err(ParseError::MalformedSplit { .. })
-        ));
-    }
-
-    #[test]
-    fn rejects_total_of_zero() {
-        let mut v = vec![0xff, 0xff, 0xff, 0xfe];
-        v.extend_from_slice(&1234u32.to_le_bytes());
-        v.push(0); // total = 0
-        v.push(0); // index = 0
-        v.extend_from_slice(&1248u16.to_le_bytes());
-        v.extend_from_slice(b"");
-        let packets = vec![v];
-        assert!(matches!(
-            reassemble_split(&packets),
-            Err(ParseError::MalformedSplit { .. })
-        ));
-    }
-
-    #[test]
-    fn strips_an_embedded_response_header_when_present() {
-        let packets = vec![
-            split_packet(2, 0, &[0xff, 0xff, 0xff, 0xff, 0x45, b'A', b'B']),
-            split_packet(2, 1, b"CCC"),
-        ];
-        assert_eq!(reassemble_split(&packets).unwrap(), b"\x45ABCCC");
-    }
-
-    #[test]
-    fn leaves_the_payload_untouched_when_no_header_is_embedded() {
-        let packets = vec![split_packet(2, 0, b"AAA"), split_packet(2, 1, b"BBB")];
-        assert_eq!(reassemble_split(&packets).unwrap(), b"AAABBB");
-    }
-
-    #[test]
-    fn exposes_the_request_id() {
-        let p = split_packet_id(0xdead_beef, 2, 0, b"AA");
-        assert_eq!(
-            classify_packet(&p).unwrap(),
-            PacketKind::Split {
-                id: 0xdead_beef,
-                total: 2,
-                index: 0
-            }
-        );
-    }
-
-    #[test]
-    fn rejects_fragments_from_different_requests() {
-        let packets = vec![
-            split_packet_id(1000, 2, 0, b"AAA"),
-            split_packet_id(2000, 2, 1, b"BBB"),
-        ];
-        assert_eq!(
-            reassemble_split(&packets),
-            Err(ParseError::SplitIdMismatch {
-                expected: 1000,
-                found: 2000
-            })
-        );
-    }
-
-    #[test]
-    fn rejects_a_compressed_split_payload() {
-        let packets = vec![
-            split_packet_id(1000, 2, 0, b"AAA"),
-            split_packet_id(0x8000_0001, 2, 1, b"BBB"),
-        ];
-        assert_eq!(
-            reassemble_split(&packets),
-            Err(ParseError::CompressedSplit { id: 0x8000_0001 })
-        );
+        for (name, packets, expected) in cases {
+            let err = reassemble_split(&packets).expect_err(name);
+            assert!(expected(&err), "{name}: {err}");
+        }
     }
 }

@@ -219,20 +219,20 @@ mod tests {
             ..Shard::default()
         };
         let kids = cell.split();
-        // chernarusplus..banov, then the residual's own next cut.
+        // One child per known map, then the residual's own next cut.
         assert_eq!(
-            kids[0].filter(),
-            "\\appid\\221100\\noplayers\\1\\map\\chernarusplus"
+            kids.iter().map(|k| k.filter()).collect::<Vec<_>>(),
+            vec![
+                "\\appid\\221100\\noplayers\\1\\map\\chernarusplus",
+                "\\appid\\221100\\noplayers\\1\\map\\enoch",
+                "\\appid\\221100\\noplayers\\1\\map\\namalsk",
+                "\\appid\\221100\\noplayers\\1\\map\\deerisle",
+                "\\appid\\221100\\noplayers\\1\\map\\sakhal",
+                "\\appid\\221100\\noplayers\\1\\map\\banov",
+                "\\appid\\221100\\noplayers\\1\\gametagsand\\lqs1",
+                "\\appid\\221100\\noplayers\\1\\gametagsnor\\lqs1",
+            ]
         );
-        assert_eq!(
-            kids[5].filter(),
-            "\\appid\\221100\\noplayers\\1\\map\\banov"
-        );
-        assert_eq!(
-            kids[6].filter(),
-            "\\appid\\221100\\noplayers\\1\\gametagsand\\lqs1"
-        );
-        assert_eq!(kids.len(), 8);
     }
 
     #[test]
