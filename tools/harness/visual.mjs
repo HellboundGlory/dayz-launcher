@@ -7,7 +7,8 @@
 //
 // `record` writes tools/harness/baselines/<theme>/<scheme>-<w>x<h>-<scenario>.png;
 // `check` shoots into tools/harness/.out/visual and diffs against those.
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { availableParallelism } from "node:os";
 import path from "node:path";
@@ -20,6 +21,7 @@ import { launchBrowser, openScenario, ROOT, startServer } from "./driver.mjs";
 process.env.TZ = "UTC";
 
 const BASELINES = path.join(ROOT, "tools/harness/baselines");
+const RECORDS = path.join(BASELINES, "RECORDS.log");
 const OUT = path.join(ROOT, "tools/harness/.out/visual");
 const THEME_ROOT = path.join(ROOT, "src-tauri/resources/builtin-themes");
 
@@ -222,6 +224,26 @@ async function store(mode, shot, png) {
   return { status: "ok", changed: 0, total };
 }
 
+const headSha = () =>
+  execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim();
+
+/** One `RECORDS.log` line: when the run happened, at which commit, and how narrow it was. */
+function recordEntry(scope) {
+  const dirty = execFileSync("git", ["status", "--porcelain"], { cwd: ROOT, encoding: "utf8" }).trim() !== "";
+  return `${new Date().toISOString()} ${headSha()}${dirty ? "+dirty" : ""} ${scope}`;
+}
+
+/** The last `record` run, for `check` to print beside its results. */
+async function lastRecordNote() {
+  const entries = await readFile(RECORDS, "utf8").catch(() => "");
+  const last = entries.trim().split("\n").pop();
+  if (!last) return "no record of when baselines were taken";
+  const [time, sha, ...scope] = last.split(" ");
+  const note = `baselines last recorded at ${sha} (${time}, ${scope.join(" ")})`;
+  const head = headSha();
+  return sha.split("+")[0] === head ? note : `${note}; HEAD is ${head}`;
+}
+
 async function main() {
   const [mode, ...args] = process.argv.slice(2);
   if (mode !== "record" && mode !== "check") {
@@ -306,6 +328,12 @@ async function main() {
 
   if (mode === "record") {
     const written = rows.filter((row) => row.status === "recorded").length;
+    const scope =
+      [themeFilter && `theme=${themeFilter}`, filter && `filter=${filter}`].filter(Boolean).join(" ") || "all";
+    if (written === rows.length) {
+      await mkdir(BASELINES, { recursive: true });
+      await appendFile(RECORDS, `${recordEntry(scope)}\n`);
+    }
     console.log("");
     console.log(
       `${written}/${rows.length} baseline(s) written to ${path.relative(ROOT, BASELINES)} in ${(
@@ -314,6 +342,8 @@ async function main() {
     );
     if (written !== rows.length) process.exitCode = 1;
   } else {
+    console.log("");
+    console.log(await lastRecordNote());
     console.log("");
     console.log("  status     diff px    % pixels  file");
     for (const row of rows) {
