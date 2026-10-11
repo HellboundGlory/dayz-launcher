@@ -923,7 +923,7 @@ describe("pickTheme bloom reset", () => {
     expect(writtenProps["--bloom"]).toBe("0.4");
   });
 
-  it.each<string[]>([
+  it.each<[string, string]>([
     ["a theme that declares none", "local.plain"],
     ["a preset", "neutral"],
   ])("falls back to the default bloom for %s", async (_case, id) => {

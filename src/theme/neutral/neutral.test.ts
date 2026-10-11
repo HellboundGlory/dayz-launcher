@@ -69,6 +69,8 @@ describe("Neutral layouts", () => {
         ),
       );
       expect(html.length).toBeGreaterThan(0);
+    } else {
+      throw new Error(`${_file} has no root or row`);
     }
   });
 
