@@ -675,18 +675,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn empty_objects_restore_neutral_at_every_level() {
+    fn empty_and_partial_objects_keep_neutral_defaults() {
         for input in [
             "{}",
             r#"{"colors":{"dark":{}},"scales":{"type":{"size":{}}},"roles":{"type":{"heading":{}},"motion":{"hover":{}}}}"#,
         ] {
             let tokens: TokensV2 = serde_json::from_str(input).unwrap();
-            assert_eq!(tokens, TokensV2::default());
+            assert_eq!(tokens, TokensV2::default(), "{input}");
         }
-    }
 
-    #[test]
-    fn partial_overrides_preserve_sibling_defaults() {
         let tokens: TokensV2 = serde_json::from_str(r##"{
             "schemaVersion": 2, "bloom": 0, "glow": "always",
             "colors": {"light": {"accent": "#ff0000"}},

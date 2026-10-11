@@ -683,10 +683,11 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// Fail-closed, like a corrupt `tokens.json`: a broken settings schema
-    /// costs the whole theme rather than silently reading as absent.
+    /// Fail-closed, like a corrupt `tokens.json`: a broken settings schema costs
+    /// the whole theme rather than silently reading as absent, and the load-time
+    /// gate holds it to the v2 version the deep validator requires.
     #[test]
-    fn a_corrupt_settings_schema_fails_the_read_rather_than_being_ignored() {
+    fn a_broken_settings_schema_fails_the_read_rather_than_being_ignored() {
         let root = scratch("badschema");
         let dir = root.join("dev.bad");
         save(&root, &manifest("dev.bad"), &tokens()).expect("save");
@@ -694,31 +695,15 @@ mod tests {
         std::fs::write(dir.join(SETTINGS_SCHEMA_FILE), "{ not json").unwrap();
         assert!(get(&root, "dev.bad").is_err(), "malformed JSON must fail");
 
-        std::fs::write(dir.join(SETTINGS_SCHEMA_FILE), r#"{"fields":[]}"#).unwrap();
-        let err = get(&root, "dev.bad").expect_err("a file with no schemaVersion must fail");
-        assert!(err.contains("schemaVersion"), "{err}");
+        for schema in [r#"{"fields":[]}"#, r#"{"schemaVersion":3}"#] {
+            std::fs::write(dir.join(SETTINGS_SCHEMA_FILE), schema).unwrap();
+            let err = get(&root, "dev.bad").expect_err("a schema this build cannot read");
+            assert!(err.contains("schemaVersion"), "{schema}: {err}");
+        }
 
         std::fs::remove_file(dir.join(SETTINGS_SCHEMA_FILE)).unwrap();
         // With it gone, the theme reads again — the failure was the file, not the theme.
         assert!(get(&root, "dev.bad").is_ok());
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    /// The load-time gate holds the settings schema to the same v2 version the
-    /// deep validator requires, not merely the presence of the key.
-    #[test]
-    fn a_settings_schema_that_is_not_v2_fails_the_read() {
-        let root = scratch("v3schema");
-        let dir = root.join("dev.v3");
-        save(&root, &manifest("dev.v3"), &tokens()).expect("save");
-        std::fs::write(
-            dir.join(SETTINGS_SCHEMA_FILE),
-            serde_json::to_vec_pretty(&serde_json::json!({ "schemaVersion": 3 })).unwrap(),
-        )
-        .unwrap();
-
-        let err = get(&root, "dev.v3").expect_err("a schema version this build cannot read");
-        assert!(err.contains("schemaVersion"), "{err}");
         let _ = std::fs::remove_dir_all(&root);
     }
 

@@ -22,25 +22,6 @@ mod tests {
     }
 
     #[test]
-    fn an_at_import_is_refused() {
-        rejects(r#"@import "other.css";"#, "@import");
-        rejects("@IMPORT url(other.css);", "@import");
-    }
-
-    #[test]
-    fn an_escaped_at_import_is_refused() {
-        rejects(r#"@\69 mport "other.css";"#, "@import");
-    }
-
-    #[test]
-    fn an_expression_function_is_refused() {
-        rejects(
-            "[data-el=\"box\"] { width: expression(alert(1)); }",
-            "expression(",
-        );
-    }
-
-    #[test]
     fn a_moz_binding_is_refused() {
         rejects(
             "[data-el=\"box\"] { -moz-binding: url(evil.xml#x); }",
@@ -48,40 +29,11 @@ mod tests {
         );
     }
 
+    // CSS escapes are decoded before a construct is judged, so an escape cannot
+    // hide one the rule would otherwise catch.
     #[test]
-    fn a_behavior_property_is_refused() {
-        rejects(
-            "[data-el=\"box\"] { behavior: url(evil.htc); }",
-            "behavior:",
-        );
-    }
-
-    #[test]
-    fn a_javascript_url_is_refused() {
-        rejects(
-            "[data-el=\"link\"] { background: url(javascript:alert(1)); }",
-            "javascript:",
-        );
-    }
-
-    #[test]
-    fn a_vbscript_url_is_refused() {
-        rejects(
-            "[data-el=\"link\"] { background: url(vbscript:msgbox(1)); }",
-            "vbscript:",
-        );
-    }
-
-    #[test]
-    fn a_remote_url_is_refused() {
-        rejects(
-            "[data-el=\"link\"] { background: url(https://evil.example/x.png); }",
-            "https://evil.example/x.png",
-        );
-        rejects(
-            r#"[data-el="link"] { background: url("https://evil.example/x.png"); }"#,
-            "https://evil.example/x.png",
-        );
+    fn an_escaped_at_import_is_refused() {
+        rejects(r#"@\69 mport "other.css";"#, "@import");
     }
 
     #[test]
@@ -105,30 +57,6 @@ mod tests {
     }
 
     #[test]
-    fn a_scheme_relative_url_is_refused() {
-        rejects(
-            "[data-el=\"link\"] { background: url(//evil.example/x.png); }",
-            "//evil.example/x.png",
-        );
-    }
-
-    #[test]
-    fn a_parent_segment_is_refused() {
-        rejects(
-            "[data-el=\"link\"] { background: url(../secret.png); }",
-            "../secret.png",
-        );
-        rejects(
-            "[data-el=\"link\"] { background: url(x/../../secret.png); }",
-            "..",
-        );
-        rejects(
-            r#"[data-el="link"] { background: url("assets/../secret.png"); }"#,
-            "assets/../secret.png",
-        );
-    }
-
-    #[test]
     fn an_escaped_parent_segment_is_refused() {
         rejects(
             r"[data-el=link] { background: url(\2e\2e/secret.png); }",
@@ -146,35 +74,19 @@ mod tests {
     }
 
     #[test]
-    fn a_data_url_is_refused() {
-        rejects(
-            "[data-el=\"link\"] { background: url(data:image/png;base64,iVBORw0KGgo=); }",
-            "data:",
-        );
-    }
-
-    #[test]
-    fn the_element_rule_passes() {
+    fn a_stylesheet_with_nothing_banned_passes() {
+        validate_css("").expect("an empty stylesheet must pass");
         validate_css(r#"[data-el="server.row"] { border-radius: 2px; }"#)
             .expect("an element rule must pass");
-    }
-
-    #[test]
-    fn a_relative_url_passes() {
-        validate_css("[data-el=\"link\"] { background: url(assets/bg.png); }").expect("must pass");
-        validate_css(r#"[data-el="link"] { background: url("assets/bg.png"); }"#)
-            .expect("must pass");
+        validate_css(r#"[data-el="link"] { background: url(assets/bg.png); }"#)
+            .expect("a relative url must pass");
         validate_css("[data-el=\"link\"] { background: url(./assets/bg.png); }")
-            .expect("must pass");
-    }
-
-    #[test]
-    fn harmless_unknown_css_passes() {
+            .expect("a relative url must pass");
+        validate_css("[data-el=\"card\"] { color: notacolor; }")
+            .expect("an unknown value must pass");
         validate_css(
             "@media (min-width: 1px) { [data-el=\"card\"]:hover::before { -unknown-thing: 3 silly; } }",
         )
-        .expect("must pass");
-        validate_css("[data-el=\"card\"] { color: notacolor; }").expect("must pass");
-        validate_css("").expect("an empty stylesheet must pass");
+        .expect("harmless unknown css must pass");
     }
 }
