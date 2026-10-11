@@ -4,7 +4,7 @@ import { useModFilterStore, pickSummary, type ModFilterTab } from "@/stores/mod-
 import { useElementContext } from "./context";
 import { OptionIcon } from "./option-icon";
 import { nextTabIndex } from "../interaction/tabs";
-import { hashHue, initials } from "./mod-thumbnail";
+import { GeneratedThumbnail } from "./mod-thumbnail";
 import { renderWorkshopModElement } from "./workshop-mod-elements";
 import type { ElementNode } from "../renderer/types";
 
@@ -33,15 +33,7 @@ function SummaryThumb({ id, title, previewUrl }: { id: string; title: string; pr
       />
     );
   }
-  const hue = hashHue(id);
-  return (
-    <div
-      className="flex h-full w-full items-center justify-center text-[8px] font-extrabold text-white/85"
-      style={{ background: `linear-gradient(135deg, hsl(${hue} 42% 32%), hsl(${(hue + 42) % 360} 48% 20%))` }}
-    >
-      {initials(title)}
-    </div>
-  );
+  return <GeneratedThumbnail id={id} title={title} className="[font-size:var(--t-type-size-2xs)]" />;
 }
 
 function ModFilterApply({ className, style }: { className?: string; style?: CSSProperties }) {
