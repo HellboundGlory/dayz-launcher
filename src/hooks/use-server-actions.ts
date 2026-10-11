@@ -346,7 +346,6 @@ export function useServerActions() {
     launchResult,
     notice: storeNotice?.notice ?? null,
     noticeAddr: storeNotice?.addr ?? null,
-    setNotice: (notice: Notice | null, addr: string) => setStoreNotice(addr, notice),
     verifyAndJoin,
     subscribeOnly,
     cancelWait,

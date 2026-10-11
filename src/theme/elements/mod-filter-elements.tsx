@@ -1,9 +1,9 @@
 import { type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { Search } from "lucide-react";
+import { useLoadableImage } from "@/hooks/use-loadable-image";
 import { useModFilterStore, pickSummary, type ModFilterTab } from "@/stores/mod-filter-store";
 import { useElementContext } from "./context";
 import { OptionIcon } from "./option-icon";
-import { useLoadableImage } from "./use-loadable-image";
 import { nextTabIndex } from "../interaction/tabs";
 import { GeneratedThumbnail } from "./mod-thumbnail";
 import { renderWorkshopModElement } from "./workshop-mod-elements";

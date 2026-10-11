@@ -104,7 +104,8 @@ function classTokens(file: string): [string, number][] {
   for (const match of text.matchAll(/const [A-Z][A-Z0-9_]*(?:_CLASS|_BTN)[A-Z0-9_]* =[ \t]*\n?[ \t]*"([^"]*)"/g)) {
     push(match.index ?? 0, match[1]);
   }
-  for (const match of text.matchAll(/defaultClass:[ \t]*\n?[ \t]*"([^"]*)"/g)) push(match.index ?? 0, match[1]);
+  const PROP = /\b(?:cls|dotClass|labelClass|className|defaultClass):[ \t]*\n?[ \t]*(?:"([^"]*)"|'([^']*)')/g;
+  for (const match of text.matchAll(PROP)) push(match.index ?? 0, match[1] ?? match[2]);
   for (const match of text.matchAll(/\b(?:cn|clsx)\(/g)) {
     const open = (match.index ?? 0) + match[0].length - 1;
     pushLiterals(open + 1, bracketBody(text, open));

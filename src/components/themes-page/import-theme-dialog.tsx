@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { CircleCheck, FileArchive, LoaderCircle, X } from "lucide-react";
+import { useLoadableImage } from "@/hooks/use-loadable-image";
 import { cn } from "@/lib/utils";
 import { confirmThemeInstall, discardThemeImport, importThemePreview } from "@/lib/tauri";
 import { resolveThemeAsset } from "@/theme/asset-resolver";
@@ -10,20 +11,19 @@ import { capabilityLabel, capabilityLabels } from "./capability-labels";
 
 const MAX_RENDERED_PREVIEWS = 5;
 
-/** One staged preview image + caption. Mirrors `ThemeCard`'s image-failure fallback: a broken
- * image hides itself and keeps its caption, rather than showing a broken-image icon. */
+/** One staged preview image + caption; a broken image hides itself and keeps its caption. */
 function PreviewThumb({ stagingId, preview }: { stagingId: string; preview: ThemePreview }) {
-  const [failed, setFailed] = useState(false);
   // A staged package isn't installed under `themes/<id>` yet — it lives at
   // `themes/.staging/<stagingId>`, which protocol.rs serves under this prefix.
   const url = resolveThemeAsset(`.staging/${stagingId}`, preview.file);
+  const [src, markBroken] = useLoadableImage(url);
   return (
     <figure className="w-28 shrink-0">
-      {!failed && (
+      {src && (
         <img
-          src={url}
+          src={src}
           alt=""
-          onError={() => setFailed(true)}
+          onError={markBroken}
           className="h-16 w-28 [border-radius:var(--t-radius-thumb)] border border-line object-cover"
         />
       )}

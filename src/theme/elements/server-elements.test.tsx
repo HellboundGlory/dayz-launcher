@@ -74,7 +74,6 @@ const mockServerActions = {
   dayzUp: false,
   launchResult: null,
   notice: null,
-  setNotice: vi.fn(),
   verifyAndJoin: vi.fn(),
   subscribeOnly: vi.fn(),
   cancelWait: vi.fn(),
@@ -743,6 +742,7 @@ const unsubscribeOutcome = { count: 2, total_size_bytes: 4_000_000 };
 describe("ServerCheckMods", () => {
   beforeEach(() => {
     mockServerActions.op = null;
+    useLaunchStore.setState({ notice: null });
   });
 
   it("calls checkServerMods for the subject server, marking its mods pending", async () => {
@@ -766,14 +766,17 @@ describe("ServerCheckMods", () => {
     expect(useServerStore.getState().modPending[server.addr]).toBe(true);
   });
 
-  it("reports an error via setNotice on failure", async () => {
+  it("reports an error via the launch notice on failure", async () => {
     const { checkServerMods } = await import("@/lib/tauri");
     vi.mocked(checkServerMods).mockRejectedValueOnce(new Error("boom"));
 
     render(<ServerCheckMods />, serverContext(server));
     await click("server.checkMods").result;
 
-    expect(mockServerActions.setNotice).toHaveBeenCalledWith({ kind: "plain", text: "Error: boom" }, server.addr);
+    expect(useLaunchStore.getState().notice).toEqual({
+      addr: server.addr,
+      notice: { kind: "plain", text: "Error: boom" },
+    });
   });
 });
 
@@ -806,6 +809,7 @@ describe("ServerUnsubscribeUnique", () => {
   beforeEach(() => {
     mockServerActions.op = null;
     askConfirmCalls.length = 0;
+    useLaunchStore.setState({ notice: null });
   });
 
   it("fetches the unique-mods summary, then confirms before unsubscribing", async () => {
@@ -823,10 +827,13 @@ describe("ServerUnsubscribeUnique", () => {
     await askConfirmCalls[0].action();
 
     expect(unsubscribeUniqueMods).toHaveBeenCalledWith(server.addr, server.query_port);
-    expect(mockServerActions.setNotice).toHaveBeenCalledWith(
-      { kind: "plain", text: `Unsubscribed 2 unique mods (${formatBytes(unsubscribeOutcome.total_size_bytes, 1)})` },
-      server.addr,
-    );
+    expect(useLaunchStore.getState().notice).toEqual({
+      addr: server.addr,
+      notice: {
+        kind: "plain",
+        text: `Unsubscribed 2 unique mods (${formatBytes(unsubscribeOutcome.total_size_bytes, 1)})`,
+      },
+    });
   });
 
   it("never calls unsubscribeUniqueMods when the confirm is never resolved true", async () => {
@@ -840,14 +847,17 @@ describe("ServerUnsubscribeUnique", () => {
     expect(unsubscribeUniqueMods).not.toHaveBeenCalled();
   });
 
-  it("reports an error via setNotice when the summary fetch fails", async () => {
+  it("reports an error via the launch notice when the summary fetch fails", async () => {
     const { getUniqueModsSummary } = await import("@/lib/tauri");
     vi.mocked(getUniqueModsSummary).mockRejectedValueOnce(new Error("boom"));
 
     render(<ServerUnsubscribeUnique />, serverContext(server));
     await click("server.unsubscribeUnique").result;
 
-    expect(mockServerActions.setNotice).toHaveBeenCalledWith({ kind: "plain", text: "Error: boom" }, server.addr);
+    expect(useLaunchStore.getState().notice).toEqual({
+      addr: server.addr,
+      notice: { kind: "plain", text: "Error: boom" },
+    });
     expect(askConfirmCalls).toHaveLength(0);
   });
 });

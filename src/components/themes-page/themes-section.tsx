@@ -47,6 +47,7 @@ export function ThemesSection({
   const [customiserOpen, setCustomiserOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
 
   const installed = activeInstalled(activeId, installedThemes);
   const preset = activePreset(activeId);
@@ -61,10 +62,16 @@ export function ThemesSection({
     return [...PRESETS.map((p) => p.name), ...installedThemes.map((t) => t.name)];
   }
 
+  async function duplicate(sourceId: string, name: string): Promise<boolean> {
+    setCopyError(null);
+    const result = await duplicateTheme(sourceId, name).catch(() => "failed" as const);
+    if (result === "failed") setCopyError("Could not copy the theme.");
+    return result === "saved";
+  }
+
   async function copyTheme(sourceId: string) {
     setCopyOpen(false);
-    const result = await duplicateTheme(sourceId, nextDuplicateName("New Theme", takenNames()));
-    if (result === "saved") setCustomiserOpen(true);
+    if (await duplicate(sourceId, nextDuplicateName("New Theme", takenNames()))) setCustomiserOpen(true);
   }
 
   return (
@@ -74,7 +81,14 @@ export function ThemesSection({
           Installed themes
         </span>
         <div className="flex gap-1.5">
-          <button type="button" onClick={() => setImportOpen(true)} className={TOOLBAR_BTN}>
+          <button
+            type="button"
+            onClick={() => {
+              setCopyError(null);
+              setImportOpen(true);
+            }}
+            className={TOOLBAR_BTN}
+          >
             <Upload className="size-3" />
             Import…
           </button>
@@ -89,6 +103,12 @@ export function ThemesSection({
           </button>
         </div>
       </div>
+
+      {copyError && (
+        <p role="alert" className="[font-size:var(--t-type-compactCaption-size)] text-danger">
+          {copyError}
+        </p>
+      )}
 
       {copyOpen && (
         <div className="[border-radius:var(--t-radius-card)] border border-line bg-surface2 p-2.5">
@@ -113,8 +133,11 @@ export function ThemesSection({
         installedThemes={installedThemes}
         themeFiles={themeFiles}
         onActivate={(id) => void pickTheme(id)}
-        onDuplicate={(sourceId, name) => void duplicateTheme(sourceId, name)}
-        onExport={(id) => setExportId(id)}
+        onDuplicate={(sourceId, name) => void duplicate(sourceId, name)}
+        onExport={(id) => {
+          setCopyError(null);
+          setExportId(id);
+        }}
         onDelete={(id) => void deleteTheme(id)}
       />
 

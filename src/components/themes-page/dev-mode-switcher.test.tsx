@@ -80,7 +80,9 @@ describe("DevModeSwitcherView", () => {
   });
 
   it("renders the capped notice when capped is true", () => {
-    expect(render({ capped: true })).toContain("Showing the first 64 combinations");
+    expect(render({ capped: true })).toContain(
+      "Showing the first 64 combinations (the last boolean or choice setting changes fastest)",
+    );
     expect(render({ capped: false })).not.toContain("Showing the first 64 combinations");
   });
 

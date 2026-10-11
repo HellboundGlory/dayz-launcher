@@ -1,12 +1,12 @@
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import { Ban, Check, ExternalLink, Star, ThumbsUp, Users } from "lucide-react";
+import { useLoadableImage } from "@/hooks/use-loadable-image";
 import { cn, formatBytes } from "@/lib/utils";
 import { openWorkshopInSteam } from "@/lib/tauri";
 import { useModFilterStore, type ModFilterEntry } from "@/stores/mod-filter-store";
 import { useElementContext } from "./context";
 import { OptionIcon } from "./option-icon";
 import { GeneratedThumbnail } from "./mod-thumbnail";
-import { useLoadableImage } from "./use-loadable-image";
 import { formatElementTime } from "./element-utils";
 import type { ElementNode } from "../renderer/types";
 

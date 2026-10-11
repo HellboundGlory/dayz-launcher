@@ -116,7 +116,11 @@ export function DevModeSwitcherView({
         ) : (
           <div className="[color:rgb(156,147,173)]">No theme settings</div>
         )}
-        {capped && <div className="[color:rgb(156,147,173)]">Showing the first 64 combinations</div>}
+        {capped && (
+          <div className="[color:rgb(156,147,173)]">
+            Showing the first 64 combinations (the last boolean or choice setting changes fastest)
+          </div>
+        )}
       </div>
     </div>
   );

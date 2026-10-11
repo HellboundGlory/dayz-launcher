@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LoaderCircle, X } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
+import { useLoadableImage } from "@/hooks/use-loadable-image";
 import { cn } from "@/lib/utils";
 import { exportTheme, getTheme } from "@/lib/tauri";
 import { resolveThemeAsset } from "@/theme/asset-resolver";
@@ -51,7 +52,6 @@ export function ExportThemeDialog({
   const [theme, setTheme] = useState<ThemeFile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [previewFailed, setPreviewFailed] = useState(false);
 
   const [name, setName] = useState("");
   const [author, setAuthor] = useState("");
@@ -71,7 +71,6 @@ export function ExportThemeDialog({
       .then((file) => {
         if (cancelled) return;
         setTheme(file);
-        setPreviewFailed(false);
         setName(file.name);
         setAuthor(file.author);
         setVersion(file.version);
@@ -175,6 +174,7 @@ export function ExportThemeDialog({
   const loaded = theme !== null;
   const palette = theme ? resolvedPair(id, { [id]: theme }).dark : null;
   const previewUrl = theme?.preview ? resolveThemeAsset(id, theme.preview) : null;
+  const [previewSrc, markPreviewBroken] = useLoadableImage(previewUrl);
   const includedFiles = theme ? packagedFiles(theme) : [];
 
   return (
@@ -203,11 +203,11 @@ export function ExportThemeDialog({
                 otherwise its tokens are the only preview there is. */}
             {palette && (
               <div className="mt-1.5 flex items-center gap-1" aria-hidden="true">
-                {previewUrl && !previewFailed && (
+                {previewSrc && (
                   <img
-                    src={previewUrl}
+                    src={previewSrc}
                     alt=""
-                    onError={() => setPreviewFailed(true)}
+                    onError={markPreviewBroken}
                     className="h-[14px] w-16 [border-radius:var(--t-radius-badge)] object-cover ring-1 ring-line"
                   />
                 )}
