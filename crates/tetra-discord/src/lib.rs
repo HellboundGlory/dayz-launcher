@@ -359,65 +359,71 @@ mod tests {
     }
 
     #[test]
-    fn details_combines_name_and_map() {
-        assert_eq!(details_text(&info(1, 2)), "GulagZ — Chernarus");
+    fn details_text_names_the_map_only_when_the_server_reports_one() {
+        let cases: &[(Option<&str>, &str)] = &[
+            (Some("Chernarus"), "GulagZ — Chernarus"),
+            (Some(""), "GulagZ"),
+            (None, "GulagZ"),
+        ];
+        for (map, expected) in cases {
+            let mut i = info(1, 2);
+            i.map = map.map(|m| m.to_string());
+            assert_eq!(details_text(&i), *expected, "map: {map:?}");
+        }
     }
 
     #[test]
-    fn a_blank_map_falls_back_to_the_name_alone() {
-        let mut i = info(1, 2);
-        i.map = Some("".into());
-        assert_eq!(details_text(&i), "GulagZ");
-        i.map = None;
-        assert_eq!(details_text(&i), "GulagZ");
+    fn party_size_shows_the_server_count_clamped_to_its_capacity() {
+        let cases = [
+            (12, 60, Some([12, 60])),
+            // Nothing to show when no capacity was reported.
+            (0, 0, None),
+            (70, 60, Some([60, 60])),
+        ];
+        for (players, max_players, expected) in cases {
+            assert_eq!(
+                party_size(&info(players, max_players)),
+                expected,
+                "players={players}, max_players={max_players}"
+            );
+        }
     }
 
     #[test]
-    fn party_size_reflects_the_server() {
-        assert_eq!(party_size(&info(12, 60)), Some([12, 60]));
+    fn day_or_night_reads_a_clock_and_refuses_anything_else() {
+        let cases: &[(&str, Option<bool>)] = &[
+            ("13:23", Some(true)),
+            ("00:00", Some(false)),
+            // Day runs 06:00–19:59.
+            ("05:59", Some(false)),
+            ("06:00", Some(true)),
+            ("19:59", Some(true)),
+            ("20:00", Some(false)),
+            ("", None),
+            ("not a time", None),
+            ("25:00", None),
+            ("12:99", None),
+            ("12", None),
+        ];
+        for (hhmm, expected) in cases {
+            assert_eq!(day_or_night(hhmm), *expected, "clock: {hhmm:?}");
+        }
     }
 
     #[test]
-    fn an_unreported_capacity_shows_no_party() {
-        assert_eq!(party_size(&info(0, 0)), None);
-    }
-
-    #[test]
-    fn a_player_count_past_capacity_is_clamped() {
-        assert_eq!(party_size(&info(70, 60)), Some([60, 60]));
-    }
-
-    #[test]
-    fn midday_and_midnight_are_unambiguous() {
-        assert_eq!(day_or_night("13:23"), Some(true));
-        assert_eq!(day_or_night("00:00"), Some(false));
-    }
-
-    #[test]
-    fn the_boundary_hours_land_on_the_documented_side() {
-        assert_eq!(day_or_night("05:59"), Some(false));
-        assert_eq!(day_or_night("06:00"), Some(true));
-        assert_eq!(day_or_night("19:59"), Some(true));
-        assert_eq!(day_or_night("20:00"), Some(false));
-    }
-
-    #[test]
-    fn malformed_clocks_show_no_badge_rather_than_a_guess() {
-        assert_eq!(day_or_night(""), None);
-        assert_eq!(day_or_night("not a time"), None);
-        assert_eq!(day_or_night("25:00"), None);
-        assert_eq!(day_or_night("12:99"), None);
-        assert_eq!(day_or_night("12"), None);
-    }
-
-    #[test]
-    fn join_url_carries_the_address_and_name() {
+    fn join_url_carries_the_address_and_the_map_when_there_is_one() {
         let url = join_url(&info(1, 2));
         assert_eq!(
             url,
             "https://tetralauncher.com/join\
              ?ip=51.254.46.15&port=2303&name=GulagZ&map=Chernarus"
         );
+
+        let mut without_map = info(1, 2);
+        without_map.map = None;
+        assert!(!join_url(&without_map).contains("map="));
+        without_map.map = Some("".into());
+        assert!(!join_url(&without_map).contains("map="));
     }
 
     #[test]
@@ -430,37 +436,30 @@ mod tests {
     }
 
     #[test]
-    fn an_unchanged_command_does_not_need_reapplying() {
-        let cmd = Command::Playing(info(12, 60));
-        assert!(!needs_apply(&Some(cmd.clone()), &cmd));
-    }
-
-    #[test]
-    fn a_changed_field_does_need_reapplying() {
-        let before = Command::Playing(info(12, 60));
-        let after = Command::Playing(info(13, 60));
-        assert!(needs_apply(&Some(before), &after));
-    }
-
-    #[test]
-    fn nothing_applied_yet_always_needs_applying() {
-        assert!(needs_apply(&None, &Command::Idle(None)));
-    }
-
-    #[test]
-    fn a_different_command_kind_needs_reapplying() {
-        assert!(needs_apply(
-            &Some(Command::Idle(Some(5))),
-            &Command::Verifying("GulagZ".into())
-        ));
-    }
-
-    #[test]
-    fn join_url_omits_a_blank_map() {
-        let mut i = info(1, 2);
-        i.map = None;
-        assert!(!join_url(&i).contains("map="));
-        i.map = Some("".into());
-        assert!(!join_url(&i).contains("map="));
+    fn only_a_changed_command_is_reapplied() {
+        let cases: [(&str, Option<Command>, Command, bool); 4] = [
+            (
+                "unchanged",
+                Some(Command::Playing(info(12, 60))),
+                Command::Playing(info(12, 60)),
+                false,
+            ),
+            (
+                "changed field",
+                Some(Command::Playing(info(12, 60))),
+                Command::Playing(info(13, 60)),
+                true,
+            ),
+            ("nothing applied yet", None, Command::Idle(None), true),
+            (
+                "different kind",
+                Some(Command::Idle(Some(5))),
+                Command::Verifying("GulagZ".into()),
+                true,
+            ),
+        ];
+        for (label, before, after, expected) in cases {
+            assert_eq!(needs_apply(&before, &after), expected, "{label}");
+        }
     }
 }

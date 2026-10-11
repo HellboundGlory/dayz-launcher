@@ -90,71 +90,51 @@ mod tests {
         );
     }
 
-    /// Deadline scales with `attempts`, so raising the attempt count can't
-    /// silently truncate legitimate retries.
+    /// Deadline scales with `attempts` and budgets the backoff the loop
+    /// actually sleeps, so raising either can't truncate legitimate retries.
     #[tokio::test]
-    async fn more_attempts_are_given_more_time_before_the_ceiling_trips() {
+    async fn every_configured_attempt_runs_before_the_deadline_trips() {
         use std::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::Arc;
 
-        let calls = Arc::new(AtomicUsize::new(0));
-        let counted = Arc::clone(&calls);
+        let cases = [
+            (config(3), 3),
+            (
+                ProbeConfig {
+                    timeout: Duration::from_millis(1),
+                    attempts: 4,
+                    // The backoff outgrows the per-attempt timeout, so the
+                    // deadline has to cover the sleeps as well.
+                    backoff: Duration::from_millis(30),
+                    max_in_flight: 4,
+                },
+                4,
+            ),
+        ];
 
-        let result: Result<(), NetError> = with_retries(addr(), &config(3), move || {
-            let counted = Arc::clone(&counted);
-            async move {
-                counted.fetch_add(1, Ordering::SeqCst);
-                Err(NetError::NoResponse {
-                    addr: addr(),
-                    attempts: 1,
-                })
-            }
-        })
-        .await;
+        for (config, expected_calls) in cases {
+            let calls = Arc::new(AtomicUsize::new(0));
+            let counted = Arc::clone(&calls);
 
-        assert!(result.is_err());
-        assert_eq!(
-            calls.load(Ordering::SeqCst),
-            3,
-            "all 3 configured attempts should run — the deadline must not cut the chain short"
-        );
-    }
+            let result: Result<(), NetError> = with_retries(addr(), &config, move || {
+                let counted = Arc::clone(&counted);
+                async move {
+                    counted.fetch_add(1, Ordering::SeqCst);
+                    Err(NetError::NoResponse {
+                        addr: addr(),
+                        attempts: 1,
+                    })
+                }
+            })
+            .await;
 
-    /// The deadline must budget the backoff the loop actually sleeps, or a
-    /// later attempt is cut off before it can run.
-    #[tokio::test]
-    async fn every_attempt_runs_when_the_backoff_outgrows_the_timeout() {
-        use std::sync::atomic::{AtomicUsize, Ordering};
-        use std::sync::Arc;
-
-        let calls = Arc::new(AtomicUsize::new(0));
-        let counted = Arc::clone(&calls);
-
-        let tight = ProbeConfig {
-            timeout: Duration::from_millis(1),
-            attempts: 4,
-            backoff: Duration::from_millis(30),
-            max_in_flight: 4,
-        };
-
-        let result: Result<(), NetError> = with_retries(addr(), &tight, move || {
-            let counted = Arc::clone(&counted);
-            async move {
-                counted.fetch_add(1, Ordering::SeqCst);
-                Err(NetError::NoResponse {
-                    addr: addr(),
-                    attempts: 1,
-                })
-            }
-        })
-        .await;
-
-        assert!(result.is_err());
-        assert_eq!(
-            calls.load(Ordering::SeqCst),
-            4,
-            "the geometric backoff must fit inside the deadline"
-        );
+            assert!(result.is_err());
+            assert_eq!(
+                calls.load(Ordering::SeqCst),
+                expected_calls,
+                "every attempt should run: {config:?}"
+            );
+        }
     }
 
     /// A parse failure (`NetError::Core`) is never retried — the server

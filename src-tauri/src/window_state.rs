@@ -246,8 +246,10 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Pins the shape `settings.json` stores under `window`, so a rename or a
+    /// serde attribute can't silently change the file format.
     #[test]
-    fn geometry_round_trips_through_the_settings_representation() {
+    fn the_geometry_is_stored_as_the_plain_settings_fields() {
         let state = WindowState {
             width: 1400,
             height: 800,
@@ -255,7 +257,12 @@ mod tests {
             y: 40,
             maximized: false,
         };
-        let json = serde_json::to_string(&state).unwrap();
-        assert_eq!(serde_json::from_str::<WindowState>(&json).unwrap(), state);
+
+        let json = serde_json::to_value(state).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({ "width": 1400, "height": 800, "x": -12, "y": 40, "maximized": false })
+        );
+        assert_eq!(serde_json::from_value::<WindowState>(json).unwrap(), state);
     }
 }

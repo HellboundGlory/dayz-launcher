@@ -52,27 +52,22 @@ mod tests {
     }
 
     #[test]
-    fn preserves_declared_order() {
-        let paths: Vec<String> = vec![
-            r"C:\steam\workshop\content\221100\1234567890".into(),
-            r"C:\steam\workshop\content\221100\9876543210".into(),
-            r"D:\games\mods\@my_mod".into(),
+    fn the_mod_line_joins_the_paths_in_the_order_given() {
+        let cases: &[(&[&str], &str)] = &[
+            (
+                &[
+                    r"C:\steam\workshop\content\221100\1234567890",
+                    r"C:\steam\workshop\content\221100\9876543210",
+                    r"D:\games\mods\@my_mod",
+                ],
+                r"-mod=C:\steam\workshop\content\221100\1234567890;C:\steam\workshop\content\221100\9876543210;D:\games\mods\@my_mod",
+            ),
+            (&[r"C:\mods\@test"], r"-mod=C:\mods\@test"),
+            (&[], ""),
         ];
-        let result = build_mod_string(&paths);
-        assert_eq!(
-            result,
-            r"-mod=C:\steam\workshop\content\221100\1234567890;C:\steam\workshop\content\221100\9876543210;D:\games\mods\@my_mod"
-        );
-    }
-
-    #[test]
-    fn empty_list_produces_empty_string() {
-        assert_eq!(build_mod_string(&[]), "");
-    }
-
-    #[test]
-    fn single_mod_no_trailing_semicolon() {
-        let result = build_mod_string(&[r"C:\mods\@test".into()]);
-        assert_eq!(result, r"-mod=C:\mods\@test");
+        for (paths, expected) in cases {
+            let paths: Vec<String> = paths.iter().map(|p| p.to_string()).collect();
+            assert_eq!(build_mod_string(&paths), *expected, "paths: {paths:?}");
+        }
     }
 }

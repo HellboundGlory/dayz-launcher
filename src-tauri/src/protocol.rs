@@ -125,113 +125,99 @@ mod tests {
     }
 
     #[test]
-    fn a_link_is_found_past_the_executable_path() {
-        let args = argv(&[
-            r"C:\Program Files\Tetra Launcher\tetra-launcher.exe",
-            "dzsa://connect/1.2.3.4:2302",
-        ]);
-        assert_eq!(link_in_argv(&args), Some("dzsa://connect/1.2.3.4:2302"));
-    }
-
-    /// Windows does not promise a case for the scheme it hands back, and the
-    /// registry key it comes from is case-insensitive.
-    #[test]
-    fn the_scheme_is_matched_case_insensitively() {
-        let args = argv(&["tetra-launcher.exe", "DZSA://connect/1.2.3.4:2302"]);
-        assert!(link_in_argv(&args).is_some());
-    }
-
-    /// The ordinary autostart launch. Treating `--autostart` as a link would
-    /// mean every boot looked like a join request.
-    #[test]
-    fn an_ordinary_launch_carries_no_link() {
-        assert_eq!(link_in_argv(&argv(&["tetra-launcher.exe"])), None);
-        assert_eq!(
-            link_in_argv(&argv(&["tetra-launcher.exe", "--autostart"])),
-            None
-        );
-    }
-
-    #[test]
-    fn a_plain_connect_link_parses() {
-        assert_eq!(
-            parse_connect_link("dzsa://connect/51.254.46.15:2303"),
-            Some(ConnectRequest {
-                ip: "51.254.46.15".into(),
-                query_port: 2303,
-                favourite: false,
-            })
-        );
+    fn only_a_dzsa_argument_is_taken_as_the_link() {
+        let cases: &[(&[&str], Option<&str>)] = &[
+            (
+                &[
+                    r"C:\Program Files\Tetra Launcher\tetra-launcher.exe",
+                    "dzsa://connect/1.2.3.4:2302",
+                ],
+                Some("dzsa://connect/1.2.3.4:2302"),
+            ),
+            // Windows does not promise a case for the scheme it hands back, and
+            // the registry key it comes from is case-insensitive.
+            (
+                &["tetra-launcher.exe", "DZSA://connect/1.2.3.4:2302"],
+                Some("DZSA://connect/1.2.3.4:2302"),
+            ),
+            (&["tetra-launcher.exe"], None),
+            // The ordinary autostart launch must not look like a join request.
+            (&["tetra-launcher.exe", "--autostart"], None),
+        ];
+        for (args, expected) in cases {
+            let args = argv(args);
+            assert_eq!(link_in_argv(&args), *expected, "argv: {args:?}");
+        }
     }
 
     #[test]
-    fn a_favourite_query_param_is_read() {
-        let parsed = parse_connect_link("dzsa://connect/51.254.46.15:2303?fav=1").unwrap();
-        assert!(parsed.favourite);
+    fn a_connect_link_parses() {
+        let cases: &[(&str, ConnectRequest)] = &[
+            (
+                "dzsa://connect/51.254.46.15:2303",
+                request("51.254.46.15", 2303, false),
+            ),
+            (
+                "dzsa://connect/51.254.46.15:2303?fav=1",
+                request("51.254.46.15", 2303, true),
+            ),
+            // Scheme and segment are matched case-insensitively.
+            (
+                "DZSA://CONNECT/1.2.3.4:2302",
+                request("1.2.3.4", 2302, false),
+            ),
+        ];
+        for (link, expected) in cases {
+            assert_eq!(
+                parse_connect_link(link),
+                Some(expected.clone()),
+                "link: {link}"
+            );
+        }
+    }
+
+    /// One case per refusal rule: this is the widest untrusted-input surface in
+    /// the app, so anything that is not `dzsa://connect/<ipv4>:<port>` is out.
+    #[test]
+    fn a_link_that_is_not_a_connect_request_does_not_parse() {
+        let cases: &[(&str, &str)] = &[
+            ("dzsa://connect/1.2.3.4", "no port"),
+            ("dzsa://connect/1.2.3.4:notaport", "port is not a number"),
+            ("dzsa://connect/:2302", "no ip"),
+            (
+                "dzsa://connect/example.com:2302",
+                "host is not an ipv4 address",
+            ),
+            (
+                "dzsa://connect/not-an-ip-at-all:2302",
+                "host is not an ipv4 address",
+            ),
+            (
+                "dzsa://connect/192.168.001.001:2302",
+                "octet with a leading zero",
+            ),
+            ("https://connect/1.2.3.4:2302", "foreign scheme"),
+            ("dzsa://1.2.3.4:2302", "no connect segment"),
+        ];
+        for (link, reason) in cases {
+            assert_eq!(parse_connect_link(link), None, "link: {link} ({reason})");
+        }
     }
 
     #[test]
-    fn the_scheme_and_segment_are_matched_case_insensitively() {
-        assert!(parse_connect_link("DZSA://CONNECT/1.2.3.4:2302").is_some());
-    }
-
-    #[test]
-    fn a_missing_port_does_not_parse() {
-        assert_eq!(parse_connect_link("dzsa://connect/1.2.3.4"), None);
-    }
-
-    #[test]
-    fn a_non_numeric_port_does_not_parse() {
-        assert_eq!(parse_connect_link("dzsa://connect/1.2.3.4:notaport"), None);
-    }
-
-    #[test]
-    fn a_missing_ip_does_not_parse() {
-        assert_eq!(parse_connect_link("dzsa://connect/:2302"), None);
-    }
-
-    /// Regression: previously anything non-empty before the first `:` passed.
-    #[test]
-    fn a_non_ipv4_host_does_not_parse() {
-        assert_eq!(parse_connect_link("dzsa://connect/example.com:2302"), None);
-        assert_eq!(
-            parse_connect_link("dzsa://connect/not-an-ip-at-all:2302"),
-            None
-        );
-    }
-
-    /// Leading zeros are ambiguous decimal/octal; `Ipv4Addr::from_str` rejects them.
-    #[test]
-    fn an_octet_with_a_leading_zero_does_not_parse() {
-        assert_eq!(
-            parse_connect_link("dzsa://connect/192.168.001.001:2302"),
-            None
-        );
-    }
-
-    #[test]
-    fn a_foreign_scheme_does_not_parse() {
-        assert_eq!(parse_connect_link("https://connect/1.2.3.4:2302"), None);
-    }
-
-    #[test]
-    fn a_missing_connect_segment_does_not_parse() {
-        assert_eq!(parse_connect_link("dzsa://1.2.3.4:2302"), None);
-    }
-
-    #[test]
-    fn a_link_in_argv_fills_the_pending_slot() {
-        let pending = PendingConnect::from_argv(&argv(&[
-            "tetra-launcher.exe",
-            "dzsa://connect/1.2.3.4:2302?fav=1",
-        ]));
-        assert_eq!(pending.take(), Some(request("1.2.3.4", 2302, true)));
-    }
-
-    #[test]
-    fn an_argv_without_a_link_leaves_the_slot_empty() {
-        let pending = PendingConnect::from_argv(&argv(&["tetra-launcher.exe", "--autostart"]));
-        assert_eq!(pending.take(), None);
+    fn an_argv_link_fills_the_pending_slot() {
+        let cases: &[(&[&str], Option<ConnectRequest>)] = &[
+            (
+                &["tetra-launcher.exe", "dzsa://connect/1.2.3.4:2302?fav=1"],
+                Some(request("1.2.3.4", 2302, true)),
+            ),
+            (&["tetra-launcher.exe", "--autostart"], None),
+        ];
+        for (args, expected) in cases {
+            let args = argv(args);
+            let pending = PendingConnect::from_argv(&args);
+            assert_eq!(pending.take(), expected.clone(), "argv: {args:?}");
+        }
     }
 
     #[test]

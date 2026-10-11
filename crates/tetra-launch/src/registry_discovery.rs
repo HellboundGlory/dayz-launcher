@@ -277,25 +277,11 @@ mod tests {
     }
 
     #[test]
-    fn the_manifest_decides_which_library_holds_dayz() {
-        // A leftover DayZ folder sits in the Steam root, but the install of
-        // record (the app manifest) is in an extra library.
+    fn the_manifest_decides_which_library_holds_dayz_and_its_workshop() {
+        // A leftover DayZ folder *and* stale workshop content sit in the Steam
+        // root, but the install of record (the app manifest) is in an extra library.
         let root = ScratchDir::new();
         touch(&root.join("steam"), "steamapps/common/DayZ");
-        touch(&root.join("extra"), "steamapps/common/DayZ");
-        touch(&root.join("extra"), "steamapps/appmanifest_221100.acf");
-        let paths = resolve_paths(&root.join("steam"), &[root.join("extra")]).unwrap();
-        assert_eq!(paths.dayz_install, root.join("extra/steamapps/common/DayZ"));
-        assert_eq!(
-            paths.workshop_dir,
-            root.join("extra/steamapps/workshop/content/221100")
-        );
-    }
-
-    #[test]
-    fn the_workshop_folder_follows_dayz_even_before_it_exists() {
-        // Stale workshop content under the Steam root, DayZ installed elsewhere.
-        let root = ScratchDir::new();
         touch(&root.join("steam"), "steamapps/workshop/content/221100");
         touch(&root.join("extra"), "steamapps/common/DayZ");
         touch(&root.join("extra"), "steamapps/appmanifest_221100.acf");

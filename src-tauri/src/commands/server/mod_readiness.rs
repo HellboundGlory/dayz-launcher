@@ -957,140 +957,8 @@ mod tests {
         server_task.abort();
     }
 
-    #[tokio::test]
-    async fn test_unsubscribe_unique_mods_unsubs_only_unique_mods_never_cared() {
-        use std::net::Ipv4Addr;
-        use std::sync::Arc;
-        use tetra_core::a2s::dayz::ServerMod;
-        use tetra_registry::rows::WorkshopCacheRow;
-        use tetra_registry::{Registry, ServerKey, ServerRow};
-        use tetra_steam::{Command, MutationResult, SteamHandle};
-
-        let registry = Registry::open_in_memory().expect("open registry");
-        let writer = registry.writer();
-
-        let cared_key = ServerKey {
-            ip: Ipv4Addr::new(198, 51, 100, 10),
-            query_port: 27016,
-        };
-        let target_key = ServerKey {
-            ip: Ipv4Addr::new(198, 51, 100, 20),
-            query_port: 27016,
-        };
-
-        writer
-            .upsert_servers(vec![
-                ServerRow {
-                    key: cared_key,
-                    name: "Cared Server".into(),
-                    responded: true,
-                    ..Default::default()
-                },
-                ServerRow {
-                    key: target_key,
-                    name: "Target Server".into(),
-                    responded: true,
-                    ..Default::default()
-                },
-            ])
-            .await
-            .expect("upsert servers");
-
-        writer
-            .set_favourite(cared_key, true)
-            .await
-            .expect("set favourite");
-
-        writer
-            .upsert_server_mods(
-                cared_key,
-                vec![ServerMod {
-                    workshop_id: 1001,
-                    name: "Shared Mod".into(),
-                }],
-            )
-            .await
-            .expect("upsert cared mods");
-
-        writer
-            .upsert_server_mods(
-                target_key,
-                vec![
-                    ServerMod {
-                        workshop_id: 1001,
-                        name: "Shared Mod".into(),
-                    },
-                    ServerMod {
-                        workshop_id: 3003,
-                        name: "Target Unique Mod".into(),
-                    },
-                ],
-            )
-            .await
-            .expect("upsert target mods");
-
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-
-        writer
-            .upsert_workshop_cache(vec![
-                WorkshopCacheRow {
-                    workshop_id: 1001,
-                    title: "Shared Mod".into(),
-                    file_size: 100_000_000,
-                    preview_url: None,
-                    time_updated: now,
-                    cached_at: now as i64,
-                },
-                WorkshopCacheRow {
-                    workshop_id: 3003,
-                    title: "Target Unique Mod".into(),
-                    file_size: 250_000_000,
-                    preview_url: None,
-                    time_updated: now,
-                    cached_at: now as i64,
-                },
-            ])
-            .await
-            .expect("upsert cache");
-
-        let app_state = crate::state::AppState::new();
-        *app_state.registry.lock().unwrap() = Some(registry);
-
-        let (tx, rx) = std::sync::mpsc::channel();
-        let steam_handle = SteamHandle::new_mock(tx);
-        *app_state.steam.lock().unwrap() = Some(Arc::new(steam_handle));
-
-        std::thread::spawn(move || {
-            while let Ok(cmd) = rx.recv() {
-                match cmd {
-                    Command::UGCUnsubscribe(ids, ack) => {
-                        assert_eq!(ids, vec![3003], "must only unsub unique mod 3003");
-                        assert!(!ids.contains(&1001), "must never touch shared mod 1001");
-                        let _ = ack.send(Ok(vec![MutationResult {
-                            workshop_id: 3003,
-                            error: None,
-                        }]));
-                    }
-                    Command::UGCQueryDetails(_ids, ack) => {
-                        let _ = ack.send(Ok(Vec::new()));
-                    }
-                    _ => {}
-                }
-            }
-        });
-
-        let outcome =
-            super::unsubscribe_unique_mods_impl(&app_state, "198.51.100.20".into(), 27016)
-                .await
-                .expect("unsubscribe outcome");
-
-        assert_eq!(outcome.count, 1);
-        assert_eq!(outcome.total_size_bytes, 250_000_000);
-    }
-
+    /// The confirmation dialog's figures and the unsubscribe must agree on
+    /// which mods are unique, and a shared mod must never be unsubscribed.
     #[tokio::test]
     async fn test_unique_mods_confirmation_figures_match_unique_rows() {
         use std::net::Ipv4Addr;
@@ -1213,6 +1081,9 @@ mod tests {
             while let Ok(cmd) = rx.recv() {
                 match cmd {
                     Command::UGCUnsubscribe(ids, ack) => {
+                        assert_eq!(ids.len(), 2, "only the unique mods: {ids:?}");
+                        assert!(ids.contains(&101) && ids.contains(&102), "{ids:?}");
+                        assert!(!ids.contains(&103), "the shared mod must not be touched");
                         let res = ids
                             .into_iter()
                             .map(|id| MutationResult {

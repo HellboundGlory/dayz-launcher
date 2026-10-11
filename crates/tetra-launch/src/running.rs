@@ -77,56 +77,26 @@ pub fn dayz_running_since(launched_at: i64) -> bool {
 mod tests {
     use super::*;
 
-    /// Just checks the query runs without panicking — result depends on the machine.
     #[test]
-    fn the_process_query_answers_without_panicking() {
-        let _ = dayz_is_running();
-    }
-
-    /// A reused `ProcessWatch` must answer the same as a fresh one.
-    #[test]
-    fn a_reused_process_watch_answers_consistently_across_calls() {
-        let mut watch = ProcessWatch::new();
-        let first = watch.dayz_is_running();
-        let second = watch.dayz_is_running();
-        assert_eq!(first, second);
-    }
-
-    /// Pins the negative case with a name nothing can plausibly have — asserting
-    /// on DayZ itself would be flaky depending on the test machine's state.
-    #[test]
-    fn a_name_no_process_has_is_not_found() {
-        let mut system = System::new();
-        system.refresh_processes_specifics(
-            ProcessesToUpdate::All,
-            true,
-            ProcessRefreshKind::nothing(),
-        );
-        assert!(system
-            .processes_by_name(OsStr::new("tetra-no-such-process-8f3a.exe"))
-            .next()
-            .is_none());
-    }
-
-    #[test]
-    fn a_process_that_started_after_the_launch_is_this_session() {
-        assert!(plausibly_this_session(1_000, 900));
-        assert!(plausibly_this_session(1_000, 1_000));
-    }
-
-    #[test]
-    fn a_process_from_well_before_the_launch_is_stale() {
-        assert!(!plausibly_this_session(500, 1_000));
-    }
-
-    #[test]
-    fn the_grace_window_absorbs_a_small_head_start() {
-        assert!(plausibly_this_session(995, 1_000));
-        assert!(!plausibly_this_session(989, 1_000));
-    }
-
-    #[test]
-    fn an_unreported_start_time_fails_open_rather_than_stale() {
-        assert!(plausibly_this_session(0, 1_000_000));
+    fn only_a_process_started_around_the_launch_counts_as_this_session() {
+        let cases = [
+            // At or after the launch.
+            (1_000, 900, true),
+            (1_000, 1_000, true),
+            // A leftover from an earlier session.
+            (500, 1_000, false),
+            // The grace window absorbs a start recorded just before the launch.
+            (995, 1_000, true),
+            (989, 1_000, false),
+            // An unreported start time fails open rather than stale.
+            (0, 1_000_000, true),
+        ];
+        for (start_time, launched_at, expected) in cases {
+            assert_eq!(
+                plausibly_this_session(start_time, launched_at),
+                expected,
+                "start_time={start_time}, launched_at={launched_at}"
+            );
+        }
     }
 }

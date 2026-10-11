@@ -631,40 +631,35 @@ mod tests {
         assert_eq!(read_from_disk(&path).unwrap().profile_name, "second");
     }
 
+    /// `closeToTray` (when written) wins over the retired dropdown, and an
+    /// absent one defaults on.
     #[test]
-    fn an_explicit_close_to_tray_opt_out_survives() {
-        assert!(!load(r#"{ "closeToTray": false }"#).closes_to_tray());
+    fn closes_to_tray_reads_the_boolean_with_the_dropdown_folded_in() {
+        let cases: &[(&str, bool)] = &[
+            (r#"{ "closeToTray": false }"#, false),
+            (r#"{ "closeToTray": true }"#, true),
+            ("{}", true),
+            (r#"{ "onClose": "tray" }"#, true),
+            (r#"{ "onClose": "quit" }"#, false),
+            (r#"{ "onClose": "minimise" }"#, false),
+            (r#"{ "closeToTray": true, "onClose": "quit" }"#, true),
+        ];
+        for (raw, expected) in cases {
+            assert_eq!(load(raw).closes_to_tray(), *expected, "{raw}");
+        }
     }
 
     #[test]
-    fn close_to_tray_defaults_on() {
-        assert!(load(r#"{ "closeToTray": true }"#).closes_to_tray());
-        // And a file predating every version of this setting.
-        assert!(load("{}").closes_to_tray());
-    }
-
-    #[test]
-    fn the_retired_dropdown_migrates_to_the_boolean() {
-        assert!(load(r#"{ "onClose": "tray" }"#).closes_to_tray());
-        assert!(!load(r#"{ "onClose": "quit" }"#).closes_to_tray());
-        assert!(!load(r#"{ "onClose": "minimise" }"#).closes_to_tray());
-    }
-
-    #[test]
-    fn close_to_tray_wins_over_the_retired_dropdown() {
-        assert!(load(r#"{ "closeToTray": true, "onClose": "quit" }"#).closes_to_tray());
-    }
-
-    #[test]
-    fn discord_presence_defaults_on() {
-        assert!(load(r#"{ "discordRichPresence": true }"#).discord_presence_enabled());
-        // And a file predating this setting entirely.
-        assert!(load("{}").discord_presence_enabled());
-    }
-
-    #[test]
-    fn an_explicit_discord_presence_opt_out_survives() {
-        assert!(!load(r#"{ "discordRichPresence": false }"#).discord_presence_enabled());
+    fn discord_presence_is_on_unless_the_file_says_otherwise() {
+        let cases: &[(&str, bool)] = &[
+            (r#"{ "discordRichPresence": true }"#, true),
+            (r#"{ "discordRichPresence": false }"#, false),
+            // A file predating this setting entirely.
+            ("{}", true),
+        ];
+        for (raw, expected) in cases {
+            assert_eq!(load(raw).discord_presence_enabled(), *expected, "{raw}");
+        }
     }
 
     #[test]
@@ -687,12 +682,8 @@ mod tests {
     }
 
     #[test]
-    fn a_file_predating_ui_scale_gets_the_new_default() {
+    fn the_ui_scale_defaults_and_clamps_into_range() {
         assert_eq!(load("{}").scale(), DEFAULT_UI_SCALE);
-    }
-
-    #[test]
-    fn an_out_of_range_scale_is_clamped() {
         assert_eq!(load(r#"{ "uiScale": 0 }"#).scale(), 1.0);
         assert_eq!(load(r#"{ "uiScale": 9 }"#).scale(), MAX_UI_SCALE);
     }
@@ -702,35 +693,23 @@ mod tests {
         assert_eq!(load("{}").active_theme_id, None);
     }
 
-    /// The regression: an omitted `activeThemeId` must not reset the selection.
+    /// A save that omits `activeThemeId` must not reset the selection, while a
+    /// sent one wins. An explicit `null` reads the same as omitted, so clearing
+    /// the selection is `set_active_theme_id`'s job, never a side effect here.
     #[test]
-    fn a_save_that_omits_the_theme_selection_keeps_the_stored_one() {
+    fn a_save_keeps_the_stored_theme_selection_it_did_not_send() {
         let on_disk = load(r#"{ "profileName": "James", "activeThemeId": "local.ember" }"#);
-        let mut incoming = load(r#"{ "profileName": "James II" }"#);
 
-        incoming.absorb_unsent_theme_selection(&on_disk);
-
-        assert_eq!(incoming.active_theme_id.as_deref(), Some("local.ember"));
-    }
-
-    #[test]
-    fn a_sent_theme_selection_wins_over_the_stored_one() {
-        let on_disk = load(r#"{ "activeThemeId": "local.ember" }"#);
+        let mut omitted = load(r#"{ "profileName": "James II" }"#);
+        omitted.absorb_unsent_theme_selection(&on_disk);
+        assert_eq!(omitted.active_theme_id.as_deref(), Some("local.ember"));
 
         let mut switched = load(r#"{ "activeThemeId": "dev.pack" }"#);
         switched.absorb_unsent_theme_selection(&on_disk);
         assert_eq!(switched.active_theme_id.as_deref(), Some("dev.pack"));
-    }
-
-    /// `null` and omitted are indistinguishable after deserialising, so this
-    /// can't clear the selection — `set_active_theme_id` is the way to do that.
-    #[test]
-    fn clearing_the_selection_goes_through_its_own_command_not_a_settings_save() {
-        let on_disk = load(r#"{ "activeThemeId": "local.ember" }"#);
 
         let mut nulled = load(r#"{ "activeThemeId": null }"#);
         nulled.absorb_unsent_theme_selection(&on_disk);
-
         assert_eq!(nulled.active_theme_id.as_deref(), Some("local.ember"));
     }
 

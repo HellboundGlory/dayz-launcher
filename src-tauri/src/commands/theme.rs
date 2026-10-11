@@ -1109,33 +1109,23 @@ mod tests {
 
     /// A poll after the deadline must report `0`, not an underflowed/huge duration.
     #[test]
-    fn remaining_ms_is_zero_once_the_deadline_has_passed() {
-        let pending = PendingActivation {
-            previous_id: None,
-            new_id: None,
-            delete_on_revert: false,
-            deadline: Instant::now(),
-        };
-
-        assert_eq!(
-            pending.remaining_ms(Instant::now() + Duration::from_secs(1)),
-            0
-        );
-    }
-
-    #[test]
-    fn remaining_ms_counts_down_from_the_deadline() {
+    fn remaining_ms_counts_down_to_zero_at_the_deadline() {
         let started = Instant::now();
         let pending = armed_at(started).unwrap();
 
-        assert_eq!(
-            pending.remaining_ms(started),
-            ACTIVATION_WINDOW.as_millis() as u64
-        );
-        assert_eq!(
-            pending.remaining_ms(started + Duration::from_secs(5)),
-            10_000
-        );
+        let cases = [
+            (started, ACTIVATION_WINDOW.as_millis() as u64),
+            (started + Duration::from_secs(5), 10_000),
+            (started + ACTIVATION_WINDOW + Duration::from_secs(1), 0),
+        ];
+        for (now, expected) in cases {
+            assert_eq!(
+                pending.remaining_ms(now),
+                expected,
+                "now: +{:?}",
+                now.saturating_duration_since(started)
+            );
+        }
     }
 
     /// No previous theme (the built-in default) serialises as `null`, not an empty string.
@@ -1201,14 +1191,18 @@ mod tests {
         assert!(slot.is_none(), "expiry leaves nothing pending behind");
     }
 
-    /// Trying a second theme before answering replaces the pending one and restarts the clock.
+    /// Trying a second theme before answering replaces the pending one and
+    /// restarts the clock, handing back what it displaced so the caller can
+    /// clean up an abandoned duplicate.
     #[test]
-    fn re_arming_replaces_the_pending_activation_and_restarts_the_clock() {
+    fn re_arming_replaces_the_pending_activation_and_returns_what_it_displaced() {
         let started = Instant::now();
-        let mut slot = armed_at(started);
+        let mut slot = None;
+        let first = arm(&mut slot, None, Some("local.first".into()), true, started);
+        assert!(first.is_none(), "nothing was pending yet");
 
         let later = started + Duration::from_secs(10);
-        arm(
+        let armed = arm(
             &mut slot,
             Some("local.ember".into()),
             Some("dev.pack".into()),
@@ -1216,41 +1210,18 @@ mod tests {
             later,
         );
 
-        let pending = slot.as_ref().expect("still armed");
-        assert_eq!(pending.new_id.as_deref(), Some("dev.pack"));
-        assert_eq!(pending.previous_id.as_deref(), Some("local.ember"));
-        assert_eq!(pending.deadline, later + ACTIVATION_WINDOW);
-        assert_eq!(pending.remaining_ms(later), 15_000);
-    }
-
-    /// `arm` hands back whatever it displaces, so a caller can tell a fresh
-    /// arm (nothing to clean up) from a re-arm (something was abandoned).
-    #[test]
-    fn arming_returns_the_previously_pending_activation_if_any() {
-        let mut slot = None;
-        let first = arm(
-            &mut slot,
-            None,
-            Some("local.first".into()),
-            true,
-            Instant::now(),
-        );
-        assert!(first.is_none(), "nothing was pending yet");
-
-        let second = arm(
-            &mut slot,
-            None,
-            Some("local.second".into()),
-            false,
-            Instant::now(),
-        );
-        let displaced = second.expect("the first arm was displaced");
+        let displaced = armed.expect("the first arm was displaced");
         assert_eq!(displaced.new_id.as_deref(), Some("local.first"));
         assert!(
             displaced.delete_on_revert,
             "carried the flag it was armed with"
         );
-        assert_eq!(slot.unwrap().new_id.as_deref(), Some("local.second"));
+
+        let pending = slot.as_ref().expect("still armed");
+        assert_eq!(pending.new_id.as_deref(), Some("dev.pack"));
+        assert_eq!(pending.previous_id.as_deref(), Some("local.ember"));
+        assert_eq!(pending.deadline, later + ACTIVATION_WINDOW);
+        assert_eq!(pending.remaining_ms(later), 15_000);
     }
 
     /// A stray confirm or revert after the flow settled must be a quiet no-op.
