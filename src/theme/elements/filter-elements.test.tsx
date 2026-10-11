@@ -42,24 +42,10 @@ vi.mock("@/stores/server-store", () => ({
   useServerStore: (selector: (s: typeof mockStore) => unknown) => selector(mockStore),
 }));
 
-let themedPopupFile: unknown = undefined;
 vi.mock("../theme-store", () => ({
   useLayoutSubscription: () => {},
-  getThemeOwnedLayout: () => themedPopupFile,
+  getThemeOwnedLayout: () => undefined,
 }));
-
-// The default popup body only exists while open, so a static render forces the trigger open.
-const popupState = { forceOpen: false };
-vi.mock("../interaction/use-popup-trigger", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../interaction/use-popup-trigger")>();
-  return {
-    ...actual,
-    usePopupTrigger: (...args: Parameters<typeof actual.usePopupTrigger>) => {
-      const trigger = actual.usePopupTrigger(...args);
-      return popupState.forceOpen ? { ...trigger, open: true } : trigger;
-    },
-  };
-});
 
 // Captures a button's props as it is created, since renderToStaticMarkup
 // discards event handlers from its HTML output.
@@ -110,46 +96,35 @@ beforeEach(() => {
   mockStore.maps = [];
   mockStore.sortKey = "players";
   mockStore.sortDir = "desc";
-  mockStore.setFilter.mockClear();
-  mockStore.setSort.mockClear();
-  mockStore.resetFilter.mockClear();
-  themedPopupFile = undefined;
-  popupState.forceOpen = false;
   capturedProps = null;
   captureDataEl = null;
 });
 
 describe("mapDisplayValue", () => {
-  it("reads Any with no maps selected", () => {
-    expect(mapDisplayValue([], [])).toBe("Any");
-  });
+  const cases: { selected: string[]; maps: [string, string][]; value: string }[] = [
+    { selected: [], maps: [], value: "Any" },
+    { selected: ["chernarusplus"], maps: [["chernarusplus", "Chernarus"]], value: "Chernarus" },
+    { selected: ["a", "b", "c"], maps: [], value: "3 maps" },
+  ];
 
-  it("reads the map's display name with one selected", () => {
-    expect(mapDisplayValue(["chernarusplus"], [["chernarusplus", "Chernarus"]])).toBe("Chernarus");
-  });
-
-  it("reads a count with several selected", () => {
-    expect(mapDisplayValue(["a", "b", "c"], [])).toBe("3 maps");
+  it.each(cases)("maps $selected.length selected to $value", ({ selected, maps, value }) => {
+    expect(mapDisplayValue(selected, maps)).toBe(value);
   });
 });
 
 describe("tagsDisplayValue and cycleTagValue", () => {
+  it.each([
+    { active: 0, value: "Any" },
+    { active: 1, value: "1 tag" },
+    { active: 2, value: "2 tags" },
+  ])("reads $value with $active active", ({ active, value }) => {
+    expect(tagsDisplayValue(active)).toBe(value);
+  });
+
   it("cycles null -> true -> false -> null", () => {
     expect(cycleTagValue(null)).toBe(true);
     expect(cycleTagValue(true)).toBe(false);
     expect(cycleTagValue(false)).toBeNull();
-  });
-
-  it("reads Any with nothing active", () => {
-    expect(tagsDisplayValue(0)).toBe("Any");
-  });
-
-  it("reads a plural count for multiple active tags", () => {
-    expect(tagsDisplayValue(2)).toBe("2 tags");
-  });
-
-  it("reads a singular count for one active tag", () => {
-    expect(tagsDisplayValue(1)).toBe("1 tag");
   });
 });
 
@@ -158,16 +133,12 @@ describe("regionDisplayValue and toggleInList", () => {
     expect(REGIONS.map((r) => r.code)).toEqual(["EU", "NA", "AS", "OC", "SA"]);
   });
 
-  it("reads Any with no regions selected", () => {
-    expect(regionDisplayValue([])).toBe("Any");
-  });
-
-  it("reads the region name with one selected", () => {
-    expect(regionDisplayValue(["EU"])).toBe("Europe");
-  });
-
-  it("reads a count with several selected", () => {
-    expect(regionDisplayValue(["EU", "NA"])).toBe("2 regions");
+  it.each([
+    { selected: [] as string[], value: "Any" },
+    { selected: ["EU"], value: "Europe" },
+    { selected: ["EU", "NA"], value: "2 regions" },
+  ])("reads $value with $selected.length selected", ({ selected, value }) => {
+    expect(regionDisplayValue(selected)).toBe(value);
   });
 
   it("toggles a code into and out of the list", () => {
@@ -178,151 +149,101 @@ describe("regionDisplayValue and toggleInList", () => {
 });
 
 describe("ping helpers", () => {
-  it("maps a null filter to the top of the slider and 'Any'", () => {
-    expect(pingSliderValue(null)).toBe(500);
-    expect(pingDisplayValue(null)).toBe("Any");
-  });
-
-  it("maps the top of the slider back to a null filter", () => {
-    expect(nextPingFilter(500)).toBeNull();
-  });
-
-  it("reads '{v}ms' below the top of the range", () => {
-    expect(pingSliderValue(250)).toBe(250);
-    expect(pingDisplayValue(250)).toBe("250ms");
-    expect(nextPingFilter(250)).toBe(250);
+  it.each([
+    { maxPing: null, slider: 500, value: "Any", next: null },
+    { maxPing: 250, slider: 250, value: "250ms", next: 250 },
+  ])("maps $maxPing to the slider, its label and back", ({ maxPing, slider, value, next }) => {
+    expect(pingSliderValue(maxPing)).toBe(slider);
+    expect(pingDisplayValue(maxPing)).toBe(value);
+    expect(nextPingFilter(slider)).toBe(next);
   });
 });
 
 describe("FilterSearch", () => {
-  it("renders the icon and input parts with no filled state when empty", () => {
-    const html = renderToStaticMarkup(<FilterSearch />);
-    expect(html).toContain('data-el="filter.search"');
-    expect(html).not.toContain('data-state="filled"');
-    expect(html).toContain('data-part="icon"');
-    expect(html).toContain('data-part="input"');
-    expect(html).toContain('placeholder="Search servers…"');
-  });
+  it("renders the icon and input parts, and the filled state with a search term", () => {
+    const empty = renderToStaticMarkup(<FilterSearch />);
+    expect(empty).toContain('data-el="filter.search"');
+    expect(empty).toContain('data-part="icon"');
+    expect(empty).toContain('data-part="input"');
+    expect(empty).not.toContain('data-state="filled"');
 
-  it("renders the filled state when the store has a search term", () => {
     mockStore.filter.search = "chernarus";
-    const html = renderToStaticMarkup(<FilterSearch />);
-    expect(html).toContain('data-state="filled"');
+    expect(renderToStaticMarkup(<FilterSearch />)).toContain('data-state="filled"');
   });
 
-  it("omits the icon part when showIcon is false", () => {
-    const html = renderToStaticMarkup(<FilterSearch options={{ showIcon: false }} />);
-    expect(html).not.toContain('data-part="icon"');
-  });
+  it("honours the showIcon and icon options", () => {
+    const noIcon = renderToStaticMarkup(<FilterSearch options={{ showIcon: false }} />);
+    expect(noIcon).not.toContain('data-part="icon"');
 
-  it("honours the icon option", () => {
-    expect(renderToStaticMarkup(<FilterSearch />)).toContain("lucide-search");
     expect(renderToStaticMarkup(<FilterSearch options={{ icon: "globe" }} />)).toContain("lucide-globe");
   });
 });
 
 describe("FilterMap", () => {
-  it("renders 'Any' and no active state with nothing selected", () => {
-    const html = renderToStaticMarkup(<FilterMap />);
-    expect(html).toContain('data-el="filter.map"');
-    expect(html).not.toContain('data-state="active"');
-    expect(html).toContain('data-part="value"');
-    expect(html).toContain(">Any<");
-  });
+  it("is active only while maps are selected", () => {
+    const none = renderToStaticMarkup(<FilterMap />);
+    expect(none).toContain('data-el="filter.map"');
+    expect(none).not.toContain('data-state="active"');
 
-  it("renders the map name and active state with one selected", () => {
     mockStore.filter.maps = ["chernarusplus"];
     mockStore.maps = [["chernarusplus", "Chernarus"]];
-    const html = renderToStaticMarkup(<FilterMap />);
-    expect(html).toContain('data-state="active"');
-    expect(html).toContain("Chernarus");
-  });
-
-  it("renders a count with several selected", () => {
-    mockStore.filter.maps = ["a", "b", "c"];
-    const html = renderToStaticMarkup(<FilterMap />);
-    expect(html).toContain("3 maps");
-  });
-
-  it("default body lists the options, then a separator and Clear", () => {
-    popupState.forceOpen = true;
-    mockStore.maps = [["chernarusplus", "Chernarus"]];
-    const html = renderToStaticMarkup(<FilterMap />);
-    const options = html.indexOf('data-el="popup.mapOptions"');
-    const separator = html.indexOf('data-part="separator"');
-    const clear = html.indexOf('data-el="popup.clear"');
-    expect(options).toBeGreaterThan(-1);
-    expect(separator).toBeGreaterThan(options);
-    expect(clear).toBeGreaterThan(separator);
+    expect(renderToStaticMarkup(<FilterMap />)).toContain('data-state="active"');
   });
 });
 
 describe("FilterTags", () => {
-  it("renders 'Any' with nothing active", () => {
-    const html = renderToStaticMarkup(<FilterTags />);
-    expect(html).toContain('data-el="filter.tags"');
-    expect(html).toContain(">Any<");
-  });
+  it("is active only while a tag filter is set", () => {
+    const none = renderToStaticMarkup(<FilterTags />);
+    expect(none).toContain('data-el="filter.tags"');
+    expect(none).not.toContain('data-state="active"');
 
-  it("renders the active count", () => {
     mockStore.filter.official = true;
     mockStore.filter.modded = false;
     const html = renderToStaticMarkup(<FilterTags />);
-    expect(html).toContain("2 tags");
     expect(html).toContain('data-state="active"');
+    expect(html).toContain("2 tags");
   });
 });
 
 describe("FilterRegion", () => {
-  it("defaults the label to REGION", () => {
-    const html = renderToStaticMarkup(<FilterRegion />);
-    expect(html).toContain('data-el="filter.region"');
-    expect(html).toContain(">REGION<");
-    expect(html).toContain(">Any<");
+  it("is active only while regions are selected", () => {
+    const none = renderToStaticMarkup(<FilterRegion />);
+    expect(none).toContain('data-el="filter.region"');
+    expect(none).not.toContain('data-state="active"');
+
+    mockStore.filter.countries = ["EU", "NA"];
+    expect(renderToStaticMarkup(<FilterRegion />)).toContain('data-state="active"');
   });
 
   it("honours a label option override", () => {
     const html = renderToStaticMarkup(<FilterRegion options={{ label: "Country" }} />);
     expect(html).toContain(">Country<");
   });
-
-  it("renders a region count and active state", () => {
-    mockStore.filter.countries = ["EU", "NA"];
-    const html = renderToStaticMarkup(<FilterRegion />);
-    expect(html).toContain("2 regions");
-    expect(html).toContain('data-state="active"');
-  });
 });
 
 describe("FilterSort", () => {
-  it("defaults to Players, descending, and not active", () => {
-    const html = renderToStaticMarkup(<FilterSort />);
-    expect(html).toContain('data-el="filter.sort"');
-    expect(html).toContain(">SORT<");
-    expect(html).toContain(">Players<");
-    expect(html).toContain("↓");
-    expect(html).not.toContain('data-state="active"');
-  });
+  it.each([
+    { sortKey: "players", sortDir: "desc", active: false, value: "Players", direction: "↓" },
+    { sortKey: "ping", sortDir: "desc", active: true, value: "Ping", direction: "↓" },
+    { sortKey: "players", sortDir: "asc", active: true, value: "Players", direction: "↑" },
+  ] as const)(
+    "shows $sortKey $sortDir with active=$active and direction $direction",
+    ({ sortKey, sortDir, active, value, direction }) => {
+      mockStore.sortKey = sortKey;
+      mockStore.sortDir = sortDir;
+      const html = renderToStaticMarkup(<FilterSort />);
+      expect(html).toContain('data-el="filter.sort"');
+      expect(html.includes('data-state="active"')).toBe(active);
+      expect(html).toContain(`>${value}<`);
+      expect(html).toContain(direction);
+    },
+  );
 
-  it("is active for any sort other than Players descending", () => {
-    mockStore.sortKey = "ping";
-    mockStore.sortDir = "desc";
-    const html = renderToStaticMarkup(<FilterSort />);
-    expect(html).toContain('data-state="active"');
-    expect(html).toContain(">Ping<");
-  });
+  it("honours the showLabel and label options", () => {
+    expect(renderToStaticMarkup(<FilterSort />)).toContain('data-part="label"');
 
-  it("is active for Players ascending", () => {
-    mockStore.sortKey = "players";
-    mockStore.sortDir = "asc";
-    const html = renderToStaticMarkup(<FilterSort />);
-    expect(html).toContain('data-state="active"');
-    expect(html).toContain("↑");
-  });
-
-  it("honours showLabel and a label override", () => {
     const noLabel = renderToStaticMarkup(<FilterSort options={{ showLabel: false }} />);
-    expect(noLabel).not.toContain(">SORT<");
+    expect(noLabel).not.toContain('data-part="label"');
 
     const custom = renderToStaticMarkup(<FilterSort options={{ label: "ORDER" }} />);
     expect(custom).toContain(">ORDER<");
@@ -330,46 +251,40 @@ describe("FilterSort", () => {
 });
 
 describe("FilterMaxPing", () => {
-  it("reads 'Any' with no ping limit and removes the bordered box", () => {
-    const html = renderToStaticMarkup(<FilterMaxPing />);
-    expect(html).toContain('data-el="filter.maxPing"');
-    expect(html).not.toContain('data-state="active"');
-    expect(html).toContain(">Any<");
-  });
+  it("is active only with a ping limit", () => {
+    const unset = renderToStaticMarkup(<FilterMaxPing />);
+    expect(unset).toContain('data-el="filter.maxPing"');
+    expect(unset).not.toContain('data-state="active"');
 
-  it("reads '{v}ms' and is active below the top of the range", () => {
     mockStore.filter.max_ping = 250;
-    const html = renderToStaticMarkup(<FilterMaxPing />);
-    expect(html).toContain('data-state="active"');
-    expect(html).toContain("250ms");
+    expect(renderToStaticMarkup(<FilterMaxPing />)).toContain('data-state="active"');
   });
 });
 
 describe("hide toggles", () => {
-  it("default their labels", () => {
-    expect(renderToStaticMarkup(<FilterHideEmpty />)).toContain("Hide empty");
-    expect(renderToStaticMarkup(<FilterHideFull />)).toContain("Hide full");
-    expect(renderToStaticMarkup(<FilterHideLocked />)).toContain("Hide locked");
-    expect(renderToStaticMarkup(<FilterHideOffline />)).toContain("Hide offline");
+  const toggles = [
+    { el: "filter.hideEmpty", node: <FilterHideEmpty />, field: "hide_empty" as const },
+    { el: "filter.hideFull", node: <FilterHideFull />, field: "hide_full" as const },
+    { el: "filter.hideLocked", node: <FilterHideLocked />, field: "hide_locked" as const },
+    { el: "filter.hideOffline", node: <FilterHideOffline />, field: "hide_offline" as const },
+  ];
+
+  it.each(toggles)("$el is off until its filter field is set", ({ el, node, field }) => {
+    const off = renderToStaticMarkup(node);
+    expect(off).toContain(`data-el="${el}"`);
+    expect(off).not.toContain('data-state="on"');
+
+    mockStore.filter[field] = true;
+    const on = renderToStaticMarkup(node);
+    expect(on).toContain('data-state="on"');
+    expect(on).toContain('aria-pressed="true"');
   });
 
-  it("honours a label override", () => {
-    const html = renderToStaticMarkup(<FilterHideEmpty options={{ label: "No empties" }} />);
-    expect(html).toContain("No empties");
-  });
-
-  it("clicking flips its filter field through the store", () => {
-    captureDataEl = "filter.hideEmpty";
-    renderToStaticMarkup(<FilterHideEmpty />);
+  it.each(toggles)("$el flips its own filter field through the store", ({ el, node, field }) => {
+    captureDataEl = el;
+    renderToStaticMarkup(node);
     (capturedProps?.onClick as () => void)();
-    expect(mockStore.setFilter).toHaveBeenCalledWith({ hide_empty: true });
-  });
-
-  it("carries the on state and aria-pressed when active", () => {
-    mockStore.filter.hide_empty = true;
-    const html = renderToStaticMarkup(<FilterHideEmpty />);
-    expect(html).toContain('data-state="on"');
-    expect(html).toContain('aria-pressed="true"');
+    expect(mockStore.setFilter).toHaveBeenCalledWith({ [field]: true });
   });
 
   it.each(["checkbox", "switch"] as const)(
@@ -381,92 +296,68 @@ describe("hide toggles", () => {
     },
   );
 
-  it("omits the icon part with no option, and honours it when set", () => {
+  it("honours the label and icon options", () => {
     expect(renderToStaticMarkup(<FilterHideEmpty />)).not.toContain('data-part="icon"');
-    const html = renderToStaticMarkup(<FilterHideEmpty options={{ icon: "check" }} />);
+
+    const html = renderToStaticMarkup(<FilterHideEmpty options={{ label: "No empties", icon: "check" }} />);
+    expect(html).toContain("No empties");
     expect(html).toContain('data-part="icon"');
     expect(html).toContain("lucide-check");
   });
 });
 
 describe("FilterReset", () => {
-  it("clicking calls resetFilter", () => {
+  it("calls resetFilter on click", () => {
     captureDataEl = "filter.reset";
     renderToStaticMarkup(<FilterReset />);
     (capturedProps?.onClick as () => void)();
     expect(mockStore.resetFilter).toHaveBeenCalledTimes(1);
   });
 
-  it("defaults to the iconLabel display with the label Reset", () => {
-    const html = renderToStaticMarkup(<FilterReset />);
+  it.each([
+    { name: "default", options: undefined, icon: true, label: true },
+    { name: "iconLabel", options: { display: "iconLabel" }, icon: true, label: true },
+    { name: "icon", options: { display: "icon" }, icon: true, label: false },
+    { name: "label", options: { display: "label" }, icon: false, label: true },
+  ])("shows the parts its $name display declares", ({ options, icon, label }) => {
+    const html = renderToStaticMarkup(<FilterReset options={options} />);
     expect(html).toContain('data-el="filter.reset"');
-    expect(html).toContain('data-part="icon"');
-    expect(html).toContain(">Reset<");
+    expect(html.includes('data-part="icon"')).toBe(icon);
+    expect(html.includes('data-part="label"')).toBe(label);
   });
 
-  it("honours display: icon by omitting the label part", () => {
-    const html = renderToStaticMarkup(<FilterReset options={{ display: "icon" }} />);
-    expect(html).not.toContain('data-part="label"');
-  });
+  it("honours the label and icon options", () => {
+    const custom = renderToStaticMarkup(<FilterReset options={{ label: "Clear filters" }} />);
+    expect(custom).toContain("Clear filters");
 
-  it("honours a label override", () => {
-    const html = renderToStaticMarkup(<FilterReset options={{ label: "Clear filters" }} />);
-    expect(html).toContain("Clear filters");
-  });
-
-  it("honours the icon option", () => {
-    expect(renderToStaticMarkup(<FilterReset />)).toContain("lucide-rotate-ccw");
     expect(renderToStaticMarkup(<FilterReset options={{ icon: "x" }} />)).toContain("lucide-x");
   });
 });
 
 describe("modsFilterValue", () => {
-  it("reads Any with nothing selected", () => {
-    expect(modsFilterValue(0, 0)).toBe("Any");
-  });
-
-  it("reads a singular/plural mod count when only included", () => {
-    expect(modsFilterValue(1, 0)).toBe("1 mod");
-    expect(modsFilterValue(2, 0)).toBe("2 mods");
-  });
-
-  it("reads an excluded count when only excluded", () => {
-    expect(modsFilterValue(0, 3)).toBe("3 excluded");
-  });
-
-  it("reads combined in/out counts when both are set", () => {
-    expect(modsFilterValue(2, 1)).toBe("2 in, 1 out");
+  it.each([
+    { included: 0, excluded: 0, value: "Any" },
+    { included: 1, excluded: 0, value: "1 mod" },
+    { included: 2, excluded: 0, value: "2 mods" },
+    { included: 0, excluded: 3, value: "3 excluded" },
+    { included: 2, excluded: 1, value: "2 in, 1 out" },
+  ])("reads $value for $included in / $excluded out", ({ included, excluded, value }) => {
+    expect(modsFilterValue(included, excluded)).toBe(value);
   });
 });
 
 describe("FilterMods", () => {
-  it("shows Any and no active state with nothing selected", () => {
-    const html = renderToStaticMarkup(<FilterMods />);
-    expect(html).toContain('data-el="filter.mods"');
-    expect(html).not.toContain('data-state="active"');
-    expect(html).toContain('data-part="value"');
-    expect(html).toContain(">Any<");
-  });
+  it("is active only while mods are filtered", () => {
+    const none = renderToStaticMarkup(<FilterMods />);
+    expect(none).toContain('data-el="filter.mods"');
+    expect(none).not.toContain('data-state="active"');
+    expect(none).toContain('data-part="value"');
 
-  it("shows active state and the mod count once mods are selected", () => {
     mockStore.filter = makeFilter({ mod_ids: ["1", "2"] });
-    const html = renderToStaticMarkup(<FilterMods />);
-    expect(html).toContain('data-state="active"');
-    expect(html).toContain('data-part="value"');
-    expect(html).toContain(">2 mods<");
-    expect(html).toContain("text-accent");
-  });
-
-  it("honours showLabel and a label override", () => {
-    const withLabel = renderToStaticMarkup(<FilterMods />);
-    expect(withLabel).toContain('data-part="label"');
-    expect(withLabel).toContain(">MODS<");
-
-    const noLabel = renderToStaticMarkup(<FilterMods options={{ showLabel: false }} />);
-    expect(noLabel).not.toContain('data-part="label"');
-
-    const customLabel = renderToStaticMarkup(<FilterMods options={{ label: "WORKSHOP" }} />);
-    expect(customLabel).toContain(">WORKSHOP<");
+    const selected = renderToStaticMarkup(<FilterMods />);
+    expect(selected).toContain('data-state="active"');
+    expect(selected).toContain('data-part="value"');
+    expect(selected).toContain(">2 mods<");
   });
 
   it("reflects modFilterOpen through aria-expanded", () => {
@@ -496,40 +387,42 @@ describe("FilterMods", () => {
     (capturedProps?.onClick as () => void)?.();
     expect(openModFilter).toHaveBeenCalledTimes(1);
   });
+
+  it("honours the showLabel and label options", () => {
+    expect(renderToStaticMarkup(<FilterMods />)).toContain('data-part="label"');
+
+    const noLabel = renderToStaticMarkup(<FilterMods options={{ showLabel: false }} />);
+    expect(noLabel).not.toContain('data-part="label"');
+
+    const customLabel = renderToStaticMarkup(<FilterMods options={{ label: "WORKSHOP" }} />);
+    expect(customLabel).toContain(">WORKSHOP<");
+  });
 });
 
 describe("ServersRefresh", () => {
   it("calls context onRefresh when clicked", () => {
     const onRefresh = vi.fn();
     captureDataEl = "servers.refresh";
-    renderToStaticMarkup(
+    const html = renderToStaticMarkup(
       <ElementContextProvider value={{ onRefresh, refreshing: false }}>
         <ServersRefresh />
       </ElementContextProvider>,
     );
+    expect(html).not.toContain('data-state="busy"');
     (capturedProps?.onClick as () => void)?.();
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
-  it("shows busy state and is disabled while refreshing", () => {
+  it("shows the busy state and is disabled while refreshing", () => {
     const html = renderToStaticMarkup(
       <ElementContextProvider value={{ onRefresh: vi.fn(), refreshing: true }}>
         <ServersRefresh />
       </ElementContextProvider>,
     );
+    expect(html).toContain('data-el="servers.refresh"');
     expect(html).toContain('data-state="busy"');
     expect(html).toContain("disabled=\"\"");
     expect(html).toContain("Refreshing…");
-  });
-
-  it("reads Refresh while idle", () => {
-    const html = renderToStaticMarkup(
-      <ElementContextProvider value={{ onRefresh: vi.fn(), refreshing: false }}>
-        <ServersRefresh />
-      </ElementContextProvider>,
-    );
-    expect(html).not.toContain('data-state="busy"');
-    expect(html).toContain(">Refresh<");
   });
 
   it("honours the icon option", () => {

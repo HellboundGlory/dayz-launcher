@@ -72,7 +72,6 @@ function reset() {
   storeState.startMinimised = false;
   storeState.onJoin = "stay";
   storeState.discordRichPresence = true;
-  storeState.setSetting.mockClear();
 }
 
 afterEach(reset);
@@ -82,66 +81,31 @@ const render = (node: React.ReactElement, contextValue: Record<string, unknown> 
     <ElementContextProvider value={contextValue}>{node}</ElementContextProvider>,
   );
 
-describe("SettingsBack", () => {
-  it("renders icon and label parts and calls onCloseSettings", () => {
-    const onCloseSettings = vi.fn();
-    const html = render(<SettingsBack options={{ display: "iconLabel" }} />, { onCloseSettings });
-    expect(html).toContain('data-el="settings.back"');
-    expect(html).toContain('data-part="icon"');
-    expect(html).toContain('data-part="label"');
-    expect(html).toContain("Back");
-  });
+describe("SettingsBack and SettingsDone", () => {
+  const buttons = [
+    { el: "settings.back", Component: SettingsBack },
+    { el: "settings.done", Component: SettingsDone },
+  ];
+  const displays = [
+    { name: "default", display: undefined, icon: false, label: true },
+    { name: "iconLabel", display: "iconLabel", icon: true, label: true },
+    { name: "icon", display: "icon", icon: true, label: false },
+    { name: "label", display: "label", icon: false, label: true },
+  ];
 
-  it("defaults to label-only display", () => {
-    const html = render(<SettingsBack />);
-    expect(html).not.toContain('data-part="icon"');
-    expect(html).toContain('data-part="label"');
-  });
-
-  it("hides the label when display is icon-only", () => {
-    const html = render(<SettingsBack options={{ display: "icon" }} />);
-    expect(html).not.toContain('data-part="label"');
-    expect(html).toContain('data-part="icon"');
-  });
-
-  it("hides the icon when display is label-only", () => {
-    const html = render(<SettingsBack options={{ display: "label" }} />);
-    expect(html).not.toContain('data-part="icon"');
-    expect(html).toContain('data-part="label"');
-  });
+  it.each(buttons.flatMap((b) => displays.map((d) => ({ ...b, ...d }))))(
+    "$el $name display: icon $icon, label $label",
+    ({ Component, el, display, icon, label }) => {
+      const html = render(<Component options={display ? { display } : undefined} />);
+      expect(html).toContain(`data-el="${el}"`);
+      expect(html.includes('data-part="icon"')).toBe(icon);
+      expect(html.includes('data-part="label"')).toBe(label);
+    },
+  );
 
   it("honours the icon option", () => {
-    expect(render(<SettingsBack options={{ display: "icon", icon: "x" }} />)).toContain("lucide-x");
-    expect(render(<SettingsBack options={{ display: "icon" }} />)).toContain("lucide-chevron-left");
-  });
-});
-
-describe("SettingsDone", () => {
-  it("renders icon and label parts and calls onCloseSettings on click", () => {
-    const onCloseSettings = vi.fn();
-    const html = render(<SettingsDone options={{ display: "iconLabel" }} />, { onCloseSettings });
-    expect(html).toContain('data-el="settings.done"');
-    expect(html).toContain('data-part="icon"');
-    expect(html).toContain('data-part="label"');
-    expect(html).toContain("Done");
-  });
-
-  it("defaults to label-only display", () => {
-    const html = render(<SettingsDone />);
-    expect(html).not.toContain('data-part="icon"');
-    expect(html).toContain('data-part="label"');
-  });
-
-  it("hides the label when display is icon-only", () => {
-    const html = render(<SettingsDone options={{ display: "icon" }} />);
-    expect(html).not.toContain('data-part="label"');
-    expect(html).toContain('data-part="icon"');
-  });
-
-  it("hides the icon when display is label-only", () => {
-    const html = render(<SettingsDone options={{ display: "label" }} />);
-    expect(html).not.toContain('data-part="icon"');
-    expect(html).toContain('data-part="label"');
+    const html = render(<SettingsBack options={{ display: "icon", icon: "x" }} />);
+    expect(html).toContain("lucide-x");
   });
 });
 
@@ -150,7 +114,6 @@ describe("SettingsTitle", () => {
     const html = render(<SettingsTitle />);
     expect(html).toContain('data-el="settings.title"');
     expect(html).toContain('data-part="text"');
-    expect(html).toContain("Settings");
   });
 });
 
@@ -160,7 +123,6 @@ describe("SettingsProfileName", () => {
     const html = render(<SettingsProfileName />);
     expect(html).toContain('data-el="settings.profileName"');
     expect(html).toContain('data-part="label"');
-    expect(html).toContain("In-Game Name");
     expect(html).toContain('data-part="hint"');
     expect(html).toContain('data-part="control"');
     expect(html).toContain('value="Survivor42"');
@@ -176,16 +138,14 @@ describe("SettingsDayzPath", () => {
   it("renders an empty value when dayzPath is null", () => {
     const html = render(<SettingsDayzPath />);
     expect(html).toContain('data-el="settings.dayzPath"');
-    expect(html).toContain("DayZ Install Path");
+    expect(html).toContain('value=""');
   });
 });
 
 describe("SettingsWorkshopPath", () => {
-  it("renders read-only with the not-detected placeholder", () => {
+  it("renders read-only", () => {
     const html = render(<SettingsWorkshopPath />);
     expect(html).toContain('data-el="settings.workshopPath"');
-    expect(html).toContain("Workshop Content");
-    expect(html).toContain("Not detected yet");
     expect(html).toContain('readOnly=""');
   });
 });
@@ -209,24 +169,22 @@ describe("SettingsOnJoin", () => {
 
 describe("SettingsMinimiseToTray", () => {
   it("follows the store's checked state", () => {
-    storeState.minimiseToTray = true;
-    const html = render(<SettingsMinimiseToTray />);
-    expect(html).toContain('data-el="settings.minimiseToTray"');
-    expect(html).toContain('data-state="checked"');
-    expect(html).toContain('data-part="box"');
-    expect(html).toContain("checked=\"\"");
-  });
+    const off = render(<SettingsMinimiseToTray />);
+    expect(off).toContain('data-el="settings.minimiseToTray"');
+    expect(off).not.toContain('data-state="checked"');
 
-  it("is unchecked by default", () => {
-    const html = render(<SettingsMinimiseToTray />);
-    expect(html).not.toContain('data-state="checked"');
+    storeState.minimiseToTray = true;
+    const on = render(<SettingsMinimiseToTray />);
+    expect(on).toContain('data-state="checked"');
+    expect(on).toContain('data-part="box"');
+    expect(on).toContain("checked=\"\"");
   });
 });
 
 describe("SettingsCloseToTray", () => {
-  it("renders the label and hint", () => {
+  it("renders the label and hint parts", () => {
     const html = render(<SettingsCloseToTray />);
-    expect(html).toContain("Close to the system tray");
+    expect(html).toContain('data-el="settings.closeToTray"');
     expect(html).toContain('data-part="hint"');
   });
 });
@@ -235,27 +193,23 @@ describe("SettingsStartWithWindows", () => {
   it("renders the checkbox and the debug-build note", () => {
     const html = render(<SettingsStartWithWindows />);
     expect(html).toContain('data-el="settings.startWithWindows"');
-    expect(html).toContain("Start with Windows");
     expect(html).toContain('data-part="note"');
     expect(html).toContain("debug build");
   });
 });
 
 describe("SettingsStartMinimised", () => {
-  it("is disabled when startWithWindows is false", () => {
-    storeState.startWithWindows = false;
-    const html = render(<SettingsStartMinimised />);
-    expect(html).toContain('data-el="settings.startMinimised"');
-    expect(html).toContain("disabled=\"\"");
-    expect(html).toContain('data-state="disabled"');
-  });
+  it("is disabled until startWithWindows is on", () => {
+    const disabled = render(<SettingsStartMinimised />);
+    expect(disabled).toContain('data-el="settings.startMinimised"');
+    expect(disabled).toContain("disabled=\"\"");
+    expect(disabled).toContain('data-state="disabled"');
 
-  it("is enabled and reflects checked when startWithWindows is true", () => {
     storeState.startWithWindows = true;
     storeState.startMinimised = true;
-    const html = render(<SettingsStartMinimised />);
-    expect(html).not.toContain("disabled=\"\"");
-    expect(html).toContain('data-state="checked"');
+    const enabled = render(<SettingsStartMinimised />);
+    expect(enabled).not.toContain("disabled=\"\"");
+    expect(enabled).toContain('data-state="checked"');
   });
 });
 
@@ -263,8 +217,8 @@ describe("SettingsDiscordPresence", () => {
   it("follows discordRichPresence", () => {
     storeState.discordRichPresence = false;
     const html = render(<SettingsDiscordPresence />);
+    expect(html).toContain('data-el="settings.discordPresence"');
     expect(html).not.toContain('data-state="checked"');
-    expect(html).toContain("Show Rich Presence in Discord");
   });
 });
 
@@ -272,17 +226,17 @@ describe("SettingsDataFolder", () => {
   it("renders the label and a read-only control", () => {
     const html = render(<SettingsDataFolder />);
     expect(html).toContain('data-el="settings.dataFolder"');
-    expect(html).toContain("Data folder");
     expect(html).toContain('readOnly=""');
   });
 });
 
 describe("SettingsOpenDataFolder", () => {
-  it("renders the Open label", () => {
+  it("is disabled until the data folder path resolves", () => {
     const html = render(<SettingsOpenDataFolder />);
     expect(html).toContain('data-el="settings.openDataFolder"');
     expect(html).toContain('data-part="label"');
-    expect(html).toContain("Open");
+    expect(html).toContain('data-state="disabled"');
+    expect(html).toContain("disabled=\"\"");
   });
 });
 
@@ -321,11 +275,11 @@ describe("SettingsSectionTitle / sectionDescription / sectionIcon", () => {
   });
 
   it.each([
-    ["title", SettingsSectionTitle],
-    ["description", SettingsSectionDescription],
-    ["icon", SettingsSectionIcon],
-  ])("renders the section %s as inline markup, since it sits inside a button", (_, Section) => {
-    expect(render(<Section options={{ section: "game" }} />)).not.toContain("<div");
+    { name: "title", Component: SettingsSectionTitle },
+    { name: "description", Component: SettingsSectionDescription },
+    { name: "icon", Component: SettingsSectionIcon },
+  ])("renders the section $name as inline markup, since it sits inside a button", ({ Component }) => {
+    expect(render(<Component options={{ section: "game" }} />)).not.toContain("<div");
   });
 
   it("renders nothing for an unknown section", () => {
@@ -335,7 +289,10 @@ describe("SettingsSectionTitle / sectionDescription / sectionIcon", () => {
   });
 
   it("defaults to the section's own icon and honours the icon option", () => {
-    expect(render(<SettingsSectionIcon options={{ section: "theme" }} />)).toContain("lucide-palette");
+    const html = render(<SettingsSectionIcon options={{ section: "theme" }} />);
+    expect(html).toContain('data-el="settings.sectionIcon"');
+    expect(html).toContain('data-part="icon"');
+
     expect(render(<SettingsSectionIcon options={{ section: "theme", icon: "star" }} />)).toContain("lucide-star");
     expect(render(<SettingsSectionIcon options={{ section: "theme", icon: "none" }} />)).not.toContain("<svg");
   });

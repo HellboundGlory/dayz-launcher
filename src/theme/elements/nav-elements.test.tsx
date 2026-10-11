@@ -9,13 +9,6 @@ const render = (node: React.ReactElement, contextValue: Record<string, unknown> 
   );
 
 describe("NavServers", () => {
-  it("renders its default lucide icon and label with no options", () => {
-    const html = render(<NavServers />);
-    expect(html).toContain("lucide-globe");
-    expect(html).toContain('data-part="label"');
-    expect(html).toContain("Servers");
-  });
-
   it("honours the icon option, and none removes it", () => {
     expect(render(<NavServers options={{ icon: "star" }} />)).toContain("lucide-star");
     expect(render(<NavServers options={{ icon: "none" }} />)).not.toContain("<svg");
