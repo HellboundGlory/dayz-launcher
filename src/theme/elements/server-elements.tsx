@@ -364,7 +364,7 @@ function ServerJoinIdleButton({
       disabled={disabled}
       onClick={onClick}
       aria-label={label}
-      className={className ?? "flex items-center gap-1.5 bg-accent px-3 py-1 font-semibold text-bg"}
+      className={className ?? "flex items-center gap-1.5 bg-accent px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] font-semibold text-bg"}
       style={style}
     >
       {showIcon && (
@@ -461,7 +461,7 @@ export function ServerJoin({
         disabled
         onClick={handleClick}
         aria-label={phaseLabel(activeOp)}
-        className={className ?? "flex items-center gap-1.5 bg-accent px-3 py-1 font-semibold text-bg"}
+        className={className ?? "flex items-center gap-1.5 bg-accent px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] font-semibold text-bg"}
         style={style}
       >
         {showIcon && (
@@ -483,7 +483,7 @@ export function ServerJoin({
         disabled
         title="DayZ is running. Quit the game before joining another server."
         aria-label="Playing"
-        className={className ?? "flex items-center gap-1.5 bg-accent px-3 py-1 font-semibold text-bg"}
+        className={className ?? "flex items-center gap-1.5 bg-accent px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] font-semibold text-bg"}
         style={style}
       >
         {showIcon && (
@@ -600,7 +600,7 @@ export function ServerLoadMenuPopup({
         data-part="item"
         role="menuitem"
         onClick={onLoad}
-        className="block w-full px-3 py-1.5 text-left [font-size:var(--t-type-size-lg)] leading-4 hover:bg-surface2"
+        className="block w-full px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] text-left [font-size:var(--t-type-size-lg)] leading-4 hover:bg-surface2"
       >
         Load to menu
       </button>
@@ -1039,7 +1039,7 @@ export function ServerCheckMods({
       onClick={handleClick}
       aria-label={label}
       title={showLabel ? undefined : label}
-      className={className ?? "flex-1 py-2 px-3 [font-size:var(--t-type-size-lg)] leading-4 font-semibold text-center border border-line bg-surface2 hover:border-accent text-ink transition-colors"}
+      className={className ?? "flex-1 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-size-lg)] leading-4 font-semibold text-center border border-line bg-surface2 hover:border-accent text-ink transition-colors"}
       style={style}
     >
       {showIcon && (
@@ -1086,7 +1086,7 @@ export function ServerSubscribeAll({
       onClick={handleClick}
       aria-label={label}
       title={showLabel ? undefined : label}
-      className={className ?? "flex-1 py-2 px-3 [font-size:var(--t-type-size-lg)] leading-4 font-semibold text-center border border-line bg-surface2 hover:border-accent text-ink transition-colors"}
+      className={className ?? "flex-1 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-size-lg)] leading-4 font-semibold text-center border border-line bg-surface2 hover:border-accent text-ink transition-colors"}
       style={style}
     >
       {showIcon && (
@@ -1166,7 +1166,7 @@ export function ServerUnsubscribeUnique({
       onClick={handleClick}
       aria-label={label}
       title={showLabel ? undefined : label}
-      className={className ?? "flex-1 py-2 px-3 [font-size:var(--t-type-size-lg)] leading-4 font-semibold text-center border border-line bg-surface2 hover:border-accent text-ink transition-colors"}
+      className={className ?? "flex-1 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-size-lg)] leading-4 font-semibold text-center border border-line bg-surface2 hover:border-accent text-ink transition-colors"}
       style={style}
     >
       {showIcon && (

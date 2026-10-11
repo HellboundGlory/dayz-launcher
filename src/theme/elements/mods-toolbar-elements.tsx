@@ -59,7 +59,7 @@ export function ModsSearch({ className, style }: { className?: string; style?: C
     <div
       data-el="mods.search"
       data-state={filled ? "filled" : undefined}
-      className={className ?? "flex min-w-0 flex-1 items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-[5px]"}
+      className={className ?? "flex min-w-0 flex-1 items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)]"}
       style={style}
     >
       <span data-part="icon" className="flex shrink-0">
@@ -94,7 +94,7 @@ export function ModsStatusFilter({ className, style }: { className?: string; sty
             aria-pressed={selected}
             onClick={() => setStatusFilter(f.key)}
             className={cn(
-              "flex items-center justify-center [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-[5px] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider transition-colors",
+              "flex items-center justify-center [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider transition-colors",
               selected ? "border-accent-line bg-accent-soft text-accent" : "text-muted hover:text-ink",
             )}
           >
@@ -121,7 +121,7 @@ export function ModsRefresh({ options, className, style }: { options?: Record<st
       onClick={() => void load(true)}
       disabled={busy}
       title="Re-read the list and refresh details from the Workshop"
-      className={className ?? "flex shrink-0 items-center gap-1 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2 py-[5px] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"}
+      className={className ?? "flex shrink-0 items-center gap-1 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-muted transition-colors hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"}
       style={style}
     >
       {showIcon && (
@@ -219,7 +219,7 @@ export function ModsCleanupRemoved({ options, className, style }: { options?: Re
       }
       disabled={busy}
       title={`${removedCount} subscribed item${removedCount === 1 ? " is" : "s are"} no longer on the Workshop`}
-      className={className ?? "flex items-center gap-1 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2 py-[5px] [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-[0.04em] text-warn transition-[filter] hover:brightness-110 disabled:opacity-50"}
+      className={className ?? "flex items-center gap-1 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-[0.04em] text-warn transition-[filter] hover:brightness-110 disabled:opacity-50"}
       style={style}
     >
       {showIcon && (
@@ -241,7 +241,7 @@ interface MenuItemProps {
 }
 
 const MENU_ITEM_CLASS =
-  "flex w-full items-center [border-radius:var(--t-radius-controlCompact)] px-3 py-2 text-left [font-size:var(--t-type-body-size)] font-semibold text-ink transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40";
+  "flex w-full items-center [border-radius:var(--t-radius-controlCompact)] px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] text-left [font-size:var(--t-type-body-size)] font-semibold text-ink transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40";
 
 const UNSUBSCRIBE_MESSAGE =
   "Steam deletes the mod files from disk, and Workshop mods are shared — " +
@@ -280,7 +280,7 @@ export function ModsUnsubscribe({ options, className, style }: { options?: Recor
       className={
         className ??
         cn(
-          "flex items-center justify-center gap-1.5 [border-top-left-radius:var(--t-radius-control)] [border-bottom-left-radius:var(--t-radius-control)] border border-danger-line bg-danger-soft px-3 py-[7px] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-danger transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40",
+          "flex items-center justify-center gap-1.5 [border-top-left-radius:var(--t-radius-control)] [border-bottom-left-radius:var(--t-radius-control)] border border-danger-line bg-danger-soft px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-danger transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40",
           busy && "animate-pulse",
         )
       }
@@ -442,7 +442,7 @@ export function ModsVerify({ options, className, style }: { options?: Record<str
       className={
         className ??
         cn(
-          "flex items-center justify-center gap-1.5 [border-top-left-radius:var(--t-radius-control)] [border-bottom-left-radius:var(--t-radius-control)] bg-accent px-3 py-[7px] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50",
+          "flex items-center justify-center gap-1.5 [border-top-left-radius:var(--t-radius-control)] [border-bottom-left-radius:var(--t-radius-control)] bg-accent px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50",
           busy && "animate-pulse",
         )
       }
@@ -593,7 +593,7 @@ export function ModsUpdateOutdated({ options, className, style }: { options?: Re
       className={
         className ??
         cn(
-          "flex shrink-0 items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-warn-line bg-warn-soft px-2.5 py-[7px] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-warn transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50",
+          "flex shrink-0 items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-warn-line bg-warn-soft px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-warn transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50",
           busy && "animate-pulse",
         )
       }
@@ -655,7 +655,7 @@ export function ModsSelectUnique({ options, className, style }: { options?: Reco
       className={cn(
         "relative",
         className ??
-          "flex items-center [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2 py-[5px] [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-[0.04em] text-muted2 transition-colors hover:text-ink",
+          "flex items-center [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-[0.04em] text-muted2 transition-colors hover:text-ink",
         disabled && "opacity-50",
       )}
       style={style}
