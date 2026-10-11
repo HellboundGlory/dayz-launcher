@@ -11,9 +11,9 @@
     "docs:themes": "node tools/docs/theme-docs.mjs",
     "lint": "eslint .",
     "harness:smoke": "node tools/harness/smoke.mjs",
-    "perf": "node tools/harness/perf.mjs",
-    "visual": "node tools/harness/visual.mjs record",
-    "visual:check": "node tools/harness/visual.mjs check"
+    "harness:perf": "node tools/harness/perf.mjs",
+    "harness:visual": "node tools/harness/visual.mjs record",
+    "harness:visual:check": "node tools/harness/visual.mjs check"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3",

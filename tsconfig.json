@@ -16,14 +16,11 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    // `npm run build` and CI both run `tsc --noEmit`, so an unused import or a
-    // dangling variable is a build failure rather than something that
-    // accumulates. Turned on after the dead-code pass, not before.
     "noUncheckedIndexedAccess": false,
     "paths": {
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src"],
+  "include": ["src", "tools/harness"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

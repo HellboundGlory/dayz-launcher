@@ -4,8 +4,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-// The triple-slash reference above lets Vitest type-check the `test` block
-// below, so `palette.test.ts` runs through the same config as the rest of the build.
+// The triple-slash reference above lets Vitest type-check the `test` block below.
 export default defineConfig({
   test: {
     environment: "node",
