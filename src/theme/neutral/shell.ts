@@ -71,6 +71,54 @@ const TITLE_BAR: LayoutNode = {
   ],
 };
 
+const COUNTS: LayoutNode = {
+  type: "stack",
+  direction: "row",
+  align: "center",
+  grow: 1,
+  class: "t-neutral-shell-counts",
+  children: [
+    { element: "status.serverTotal", class: "t-neutral-shell-count" },
+    { element: "status.populated", class: "t-neutral-shell-count" },
+    { element: "status.listSource", class: "t-neutral-shell-count" },
+    { element: "status.lastRefreshed", class: "t-neutral-shell-count", options: { label: "refreshed" } },
+  ],
+};
+
+const FOOTER: LayoutNode = {
+  type: "stack",
+  direction: "row",
+  align: "center",
+  landmark: "contentinfo",
+  class: "t-neutral-shell-footer",
+  children: [
+    { element: "status.steam", class: "t-neutral-shell-steam" },
+    { type: "box", class: "t-neutral-shell-vrule", children: [] },
+    COUNTS,
+    { element: "app.uiScale", class: "t-neutral-shell-scale", options: { label: "Scale" } },
+    { element: "app.schemeToggle", class: "t-neutral-shell-scheme" },
+  ],
+};
+
+const CONTENT: LayoutNode = {
+  type: "stack",
+  direction: "column",
+  id: "r-main",
+  grow: 1,
+  class: "t-neutral-shell-content",
+  children: [
+    { element: "notice.update" },
+    {
+      type: "box",
+      landmark: "main",
+      grow: 1,
+      class: "t-neutral-shell-view",
+      children: [{ type: "outlet", name: "view" }],
+    },
+    FOOTER,
+  ],
+};
+
 export const SHELL_LAYOUT: LayoutFile = {
   schemaVersion: 2,
   root: {
@@ -84,32 +132,7 @@ export const SHELL_LAYOUT: LayoutFile = {
         type: "stack",
         direction: "column",
         class: "t-neutral-shell-main",
-        children: [
-          TITLE_BAR,
-          { element: "notice.storage" },
-          { element: "notice.error" },
-          {
-            type: "box",
-            id: "r-main",
-            landmark: "main",
-            grow: 1,
-            children: [{ type: "outlet", name: "view" }],
-          },
-          {
-            type: "stack",
-            direction: "row",
-            align: "center",
-            landmark: "contentinfo",
-            children: [
-              { element: "status.steam" },
-              { element: "status.serverTotal" },
-              { element: "status.populated" },
-              { element: "status.lastRefreshed" },
-              { element: "status.listSource" },
-            ],
-          },
-          { type: "outlet", name: "modals" },
-        ],
+        children: [TITLE_BAR, CONTENT, { type: "outlet", name: "modals" }],
       },
     ],
   },

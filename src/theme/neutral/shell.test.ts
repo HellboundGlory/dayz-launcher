@@ -2,12 +2,13 @@ import { createElement } from "react";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ElementContextProvider } from "../elements/context";
+import { resolveRequiredElements } from "../fallback/use-visibility-check";
 import { isElementInLayout } from "../layout-query";
 import { LayoutRenderer } from "../renderer/layout-renderer";
 import type { LayoutNode } from "../renderer/types";
+import { BROWSER_LAYOUT } from "./browser";
 import { SETTINGS_LAYOUT } from "./settings";
 import { SHELL_LAYOUT } from "./shell";
-import { expectRequiredPlaced } from "./test-helpers";
 
 function childrenOf(node: LayoutNode | undefined): LayoutNode[] {
   return node && "children" in node ? node.children : [];
@@ -22,28 +23,20 @@ function findNode(node: LayoutNode | undefined, id: string): LayoutNode | undefi
   return undefined;
 }
 
-describe("Neutral shell layout", () => {
-  it.each(["views", "views+settings"])("%s places every element it requires", (context) => {
-    expectRequiredPlaced(context, SHELL_LAYOUT);
-  });
+// The shell and Neutral's browser view are both Neutral's, so together they place what a context requires.
+function placed(id: string): boolean {
+  return isElementInLayout(SHELL_LAYOUT, id) || isElementInLayout(BROWSER_LAYOUT, id);
+}
 
-  it("shell contains all required elements for views and views+settings", () => {
-    expect(isElementInLayout(SHELL_LAYOUT, "app.minimize")).toBe(true);
-    expect(isElementInLayout(SHELL_LAYOUT, "app.maximize")).toBe(true);
-    expect(isElementInLayout(SHELL_LAYOUT, "app.close")).toBe(true);
-    expect(isElementInLayout(SHELL_LAYOUT, "app.dragRegion")).toBe(true);
-    expect(isElementInLayout(SHELL_LAYOUT, "nav.servers")).toBe(true);
-    expect(isElementInLayout(SHELL_LAYOUT, "nav.favourites")).toBe(true);
-    expect(isElementInLayout(SHELL_LAYOUT, "nav.recent")).toBe(true);
-    expect(isElementInLayout(SHELL_LAYOUT, "nav.mods")).toBe(true);
-    expect(isElementInLayout(SHELL_LAYOUT, "nav.settings")).toBe(true);
-    expect(isElementInLayout(SHELL_LAYOUT, "status.steam")).toBe(true);
-    expect(isElementInLayout(SHELL_LAYOUT, "notice.storage")).toBe(true);
-    expect(isElementInLayout(SHELL_LAYOUT, "notice.error")).toBe(true);
+describe("Neutral shell layout", () => {
+  it.each(["views", "views+settings"])("%s: the shell and the browser view place every element it requires", (context) => {
+    const required = [...resolveRequiredElements([context]).keys()];
+    expect(required.length).toBeGreaterThan(0);
+    expect(required.filter((id) => !placed(id))).toEqual([]);
   });
 
   it("shell landmark box defines region r-main matching settings overlay presentation", () => {
-    expect(findNode(SHELL_LAYOUT.root, "r-main")?.landmark).toBe("main");
+    expect(childrenOf(findNode(SHELL_LAYOUT.root, "r-main")).some((node) => node.landmark === "main")).toBe(true);
     expect(SETTINGS_LAYOUT.presentation).toEqual({ mode: "overlay", region: "r-main" });
   });
 
@@ -51,7 +44,7 @@ describe("Neutral shell layout", () => {
     const html = renderToStaticMarkup(
       createElement(
         ElementContextProvider,
-        { value: { storageDegraded: true, error: "Disk error" } },
+        { value: {} },
         createElement(LayoutRenderer, {
           file: SHELL_LAYOUT,
           outlets: {
@@ -65,8 +58,6 @@ describe("Neutral shell layout", () => {
     expect(html).toContain("Active Modals");
     expect(html).toContain('id="r-sidebar"');
     expect(html).toContain('data-surface="surface.windowControls"');
-    expect(html).toContain('data-el="notice.storage"');
-    expect(html).toContain('data-el="notice.error"');
     expect(html).toContain('id="r-main"');
   });
 });
