@@ -8,8 +8,7 @@
       "width": "22px",
       "align": "center",
       "label": "",
-      "resizable": false,
-      "headerElement": "mods.selectAll"
+      "resizable": false
     },
     {
       "id": "img",
@@ -32,13 +31,6 @@
       "align": "start",
       "sort": "status",
       "label": "STATUS"
-    },
-    {
-      "id": "subscribed",
-      "width": "78px",
-      "align": "start",
-      "sort": "subscribed",
-      "label": "SUBSCRIBED"
     },
     {
       "id": "updated",
@@ -73,7 +65,6 @@
             "align": "center",
             "class": "t-mod-name-line",
             "children": [
-              { "element": "mod.status" },
               { "element": "mod.name" },
               { "element": "mod.disabledBadge" }
             ]
@@ -82,7 +73,6 @@
         ]
       },
       { "element": "mod.status", "column": "status" },
-      { "element": "mod.subscribed", "column": "subscribed" },
       { "element": "mod.updated", "column": "updated" },
       { "element": "mod.size", "column": "size" }
     ]

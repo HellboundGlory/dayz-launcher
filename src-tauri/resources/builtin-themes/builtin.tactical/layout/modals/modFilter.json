@@ -81,6 +81,11 @@
               "class": "t-modfilter-preview-empty",
               "children": [
                 {
+                  "type": "image",
+                  "icon": "inbox",
+                  "class": "t-modfilter-preview-empty-icon"
+                },
+                {
                   "type": "text",
                   "value": "Click a mod on the left to see its details here.",
                   "role": "body",
@@ -115,12 +120,7 @@
                 ]
               },
               { "element": "workshopMod.tags" },
-              {
-                "element": "workshopMod.description",
-                "options": {
-                  "clamp": 6
-                }
-              },
+              { "element": "workshopMod.description" },
               { "element": "workshopMod.serverNote" },
               {
                 "type": "stack",
