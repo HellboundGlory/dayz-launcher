@@ -37,6 +37,31 @@ function naturalLayout(popup: HTMLElement) {
   return layout;
 }
 
+const POPUP_ANCESTOR = "data-popup-ancestor";
+const popupAncestorCounts = new WeakMap<Element, number>();
+
+/** Marks the ancestors of an open popup so the guarantees layer clears what would make one its containing block. */
+export function markPopupAncestors(popup: Element): () => void {
+  const ancestors: Element[] = [];
+  for (let el = popup.parentElement; el; el = el.parentElement) {
+    const count = popupAncestorCounts.get(el) ?? 0;
+    if (count === 0) el.setAttribute(POPUP_ANCESTOR, "");
+    popupAncestorCounts.set(el, count + 1);
+    ancestors.push(el);
+  }
+  return () => {
+    for (const el of ancestors) {
+      const count = (popupAncestorCounts.get(el) ?? 1) - 1;
+      if (count > 0) {
+        popupAncestorCounts.set(el, count);
+      } else {
+        popupAncestorCounts.delete(el);
+        el.removeAttribute(POPUP_ANCESTOR);
+      }
+    }
+  };
+}
+
 export function useAnchoredPopup(
   open: boolean,
   triggerRef: RefObject<HTMLElement | null>,
@@ -45,6 +70,7 @@ export function useAnchoredPopup(
 ): CSSProperties {
   const [style, setStyle] = useState<CSSProperties>(() => ({
     position: "fixed",
+    zIndex: "var(--z-popup)",
     top: 0,
     left: 0,
     right: "auto",
@@ -60,6 +86,7 @@ export function useAnchoredPopup(
     const popup = popupRef.current;
     if (!trigger || !popup) return;
 
+    const unmarkAncestors = markPopupAncestors(popup);
     const natural = naturalLayout(popup);
     const themeMax = opts.maxHeight ?? natural.maxHeight;
     const capPx = themeMax === "none" ? Infinity : resolveLengthPx(themeMax);
@@ -90,6 +117,7 @@ export function useAnchoredPopup(
       });
       const next: CSSProperties = {
         position: "fixed",
+        zIndex: "var(--z-popup)",
         top: placement.top,
         left: placement.left,
         right: "auto",
@@ -127,6 +155,7 @@ export function useAnchoredPopup(
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", onScroll, true);
       resized?.disconnect();
+      unmarkAncestors();
     };
   }, [
     open,

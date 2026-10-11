@@ -202,7 +202,7 @@ export function FilterMap({
           ref={popupRef}
           style={popupStyle}
           data-part="popup"
-          className="absolute left-0 top-full mt-1 z-[var(--z-popup)] max-h-64 min-w-[224px] overflow-y-auto border border-line bg-surface2 p-1 shadow-lg [font-size:var(--t-type-size-lg)] leading-4"
+          className="absolute left-0 top-full mt-1 max-h-64 min-w-[224px] overflow-y-auto border border-line bg-surface2 p-1 shadow-lg [font-size:var(--t-type-size-lg)] leading-4"
         >
           <PopupMapOptions />
           <PopupSeparator />
@@ -255,7 +255,7 @@ export function FilterTags({
           ref={popupRef}
           style={popupStyle}
           data-part="popup"
-          className="absolute left-0 top-full mt-1 z-[var(--z-popup)] min-w-[208px] overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg [font-size:var(--t-type-size-lg)] leading-4 space-y-1"
+          className="absolute left-0 top-full mt-1 min-w-[208px] overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg [font-size:var(--t-type-size-lg)] leading-4 space-y-1"
         >
           <PopupTagOptions />
           <PopupSeparator />
@@ -309,7 +309,7 @@ export function FilterRegion({
           ref={popupRef}
           style={popupStyle}
           data-part="popup"
-          className="absolute left-0 top-full mt-1 z-[var(--z-popup)] min-w-[176px] max-h-64 overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg [font-size:var(--t-type-size-lg)] leading-4 space-y-1"
+          className="absolute left-0 top-full mt-1 min-w-[176px] max-h-64 overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg [font-size:var(--t-type-size-lg)] leading-4 space-y-1"
         >
           <PopupRegionOptions />
           <PopupSeparator />
@@ -620,7 +620,7 @@ export function FilterSort({
           ref={popupRef}
           style={popupStyle}
           data-part="popup"
-          className="absolute left-0 top-full mt-1 z-[var(--z-popup)] min-w-[176px] overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg [font-size:var(--t-type-size-lg)] leading-4 space-y-1"
+          className="absolute left-0 top-full mt-1 min-w-[176px] overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg [font-size:var(--t-type-size-lg)] leading-4 space-y-1"
         >
           <PopupSortOptions />
         </div>
