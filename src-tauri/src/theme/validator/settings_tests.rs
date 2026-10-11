@@ -1,6 +1,9 @@
 use serde_json::{json, Value};
 
-use super::settings::{extract_settings_combinations, validate_settings_schema};
+use super::settings::{
+    extract_settings_combinations, resolve_settings, validate_settings_schema, SettingsField,
+    SettingsOption,
+};
 
 fn schema(field: Value) -> Value {
     json!({"schemaVersion":2,"fields":[field]})
@@ -13,6 +16,10 @@ fn malformed_schemas_report_field_locations() {
         (json!({"schemaVersion":2,"fields":{}}), "/fields"),
         (
             schema(json!({"id":"foo","type":"boolean","label":"x".repeat(41),"default":false})),
+            "/fields/0/label",
+        ),
+        (
+            schema(json!({"id":"foo","type":"boolean","label":"","default":false})),
             "/fields/0/label",
         ),
         (
@@ -90,6 +97,7 @@ fn discrete_and_color_defaults_and_options_are_validated() {
         ("/options/1/value", json!("a")),
         ("/options/1/value", json!("Bad")),
         ("/options/1/label", json!("x".repeat(41))),
+        ("/options/1/label", json!("")),
         ("/default", json!("c")),
     ] {
         let mut field = choice.clone();
@@ -155,4 +163,152 @@ fn combinations_expand_discrete_fields_only_and_enforce_the_cap() {
         extract_settings_combinations(&json!({"schemaVersion":2,"fields":[]})).unwrap(),
         vec![std::collections::HashMap::new()]
     );
+}
+
+#[test]
+fn fields_resolve_in_file_order_with_their_properties() {
+    let value = json!({"schemaVersion":2,"fields":[
+        {"id":"gap","type":"number","label":"Gap","min":0,"max":24,"step":2,"default":8},
+        {"id":"compact","type":"boolean","label":"Compact","default":true},
+        {"id":"density","type":"choice","label":"Density","default":"cosy","options":[{"value":"cosy","label":"Cosy"},{"value":"tight","label":"Tight"}]},
+        {"id":"tint","type":"color","label":"Tint","default":"#abcdef"}
+    ]});
+    assert_eq!(
+        resolve_settings(&value).fields,
+        vec![
+            SettingsField::Number {
+                id: "gap".into(),
+                label: "Gap".into(),
+                min: 0.0,
+                max: 24.0,
+                step: Some(2.0),
+                default: 8.0,
+            },
+            SettingsField::Boolean {
+                id: "compact".into(),
+                label: "Compact".into(),
+                default: true,
+            },
+            SettingsField::Choice {
+                id: "density".into(),
+                label: "Density".into(),
+                options: vec![
+                    SettingsOption {
+                        value: "cosy".into(),
+                        label: "Cosy".into(),
+                    },
+                    SettingsOption {
+                        value: "tight".into(),
+                        label: "Tight".into(),
+                    },
+                ],
+                default: "cosy".into(),
+            },
+            SettingsField::Color {
+                id: "tint".into(),
+                label: "Tint".into(),
+                default: "#abcdef".into(),
+            },
+        ]
+    );
+    assert_eq!(
+        resolve_settings(&schema(
+            json!({"id":"gap","type":"number","label":"Gap","min":0,"max":24,"default":8})
+        ))
+        .fields[0],
+        SettingsField::Number {
+            id: "gap".into(),
+            label: "Gap".into(),
+            min: 0.0,
+            max: 24.0,
+            step: None,
+            default: 8.0,
+        }
+    );
+}
+
+#[test]
+fn invalid_fields_are_dropped_and_the_others_stay() {
+    let good = json!({"id":"size","type":"number","label":"Size","min":0,"max":10,"default":5});
+    let kept = SettingsField::Number {
+        id: "size".into(),
+        label: "Size".into(),
+        min: 0.0,
+        max: 10.0,
+        step: None,
+        default: 5.0,
+    };
+    for bad in [
+        json!({"id":"mode","type":"text","label":"Mode"}),
+        json!({"id":"size","type":"number","label":"Again","min":0,"max":10,"default":5}),
+        json!({"id":"offset","type":"number","label":"Offset","min":0,"max":10,"default":11}),
+        json!({"id":"blank","type":"boolean","label":"","default":true}),
+    ] {
+        let fields = resolve_settings(&json!({"schemaVersion":2,"fields":[good,bad]})).fields;
+        assert_eq!(fields, vec![kept.clone()], "{bad}");
+    }
+
+    // A drop at one index does not reach the field at a higher index sharing the digits.
+    let mut value = json!({"schemaVersion":2,"fields":(0..11)
+        .map(|i| json!({"id":format!("f{i}"),"type":"boolean","label":"Flag","default":false}))
+        .collect::<Vec<_>>()});
+    value["fields"][1]["type"] = json!("text");
+    let fields = resolve_settings(&value).fields;
+    assert_eq!(fields.len(), 10);
+    assert!(fields
+        .iter()
+        .any(|field| matches!(field, SettingsField::Boolean { id, .. } if id == "f10")));
+}
+
+#[test]
+fn combinations_expand_discrete_fields_and_pin_defaults() {
+    let value = json!({"schemaVersion":2,"fields":[
+        {"id":"flag","type":"boolean","label":"Flag","default":true},
+        {"id":"alt","type":"boolean","label":"Alt","default":false},
+        {"id":"mode","type":"choice","label":"Mode","default":"a","options":[{"value":"a","label":"A"},{"value":"b","label":"B"}]},
+        {"id":"size","type":"number","label":"Size","min":0,"max":10,"default":4}
+    ]});
+    let resolved = resolve_settings(&value);
+    assert!(!resolved.capped);
+    assert_eq!(resolved.combinations.len(), 8);
+    assert_eq!(
+        resolved.combinations[0].label,
+        "flag=off · alt=off · mode=a"
+    );
+    assert_eq!(resolved.combinations[7].label, "flag=on · alt=on · mode=b");
+    assert_eq!(
+        serde_json::to_value(&resolved.combinations[0].values).unwrap(),
+        json!({"flag":false,"alt":false,"mode":"a","size":4.0})
+    );
+    assert!(resolved
+        .combinations
+        .iter()
+        .all(|combination| combination.values.len() == 4));
+}
+
+#[test]
+fn a_schema_without_discrete_fields_offers_only_the_defaults() {
+    let value = json!({"schemaVersion":2,"fields":[
+        {"id":"size","type":"number","label":"Size","min":0,"max":10,"default":4},
+        {"id":"tint","type":"color","label":"Tint","default":"#abcdef"}
+    ]});
+    let resolved = resolve_settings(&value);
+    assert!(!resolved.capped);
+    assert_eq!(resolved.combinations.len(), 1);
+    assert_eq!(resolved.combinations[0].label, "Defaults");
+    assert_eq!(
+        serde_json::to_value(&resolved.combinations[0].values).unwrap(),
+        json!({"size":4.0,"tint":"#abcdef"})
+    );
+}
+
+#[test]
+fn combinations_are_capped_at_64_without_dropping_fields() {
+    let value = json!({"schemaVersion":2,"fields":(0..7)
+        .map(|i| json!({"id":format!("f{i}"),"type":"boolean","label":"Flag","default":false}))
+        .collect::<Vec<_>>()});
+    let resolved = resolve_settings(&value);
+    assert_eq!(resolved.fields.len(), 7);
+    assert_eq!(resolved.combinations.len(), 64);
+    assert!(resolved.capped);
 }

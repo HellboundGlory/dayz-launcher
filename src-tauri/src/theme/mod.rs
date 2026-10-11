@@ -115,9 +115,8 @@ pub struct ThemeFile {
     #[serde(flatten)]
     pub manifest: ThemeManifest,
     pub tokens: serde_json::Value,
-    /// `rename` because `ThemeFile` has no struct-level `rename_all`.
-    #[serde(rename = "settingsSchema")]
-    pub settings_schema: Option<serde_json::Value>,
+    /// The theme's settings, resolved from `settings.schema.json` when it ships one.
+    pub settings: Option<validator::settings::ResolvedSettings>,
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub layouts: std::collections::BTreeMap<String, serde_json::Value>,
     /// Files dropped from `layouts` for failing validation, with the issues that dropped them.
@@ -313,7 +312,9 @@ pub fn get(themes_root: &Path, id: &str) -> Result<ThemeFile, String> {
     Ok(ThemeFile {
         manifest,
         tokens,
-        settings_schema,
+        settings: settings_schema
+            .as_ref()
+            .map(validator::settings::resolve_settings),
         layouts,
         fallbacks,
     })
@@ -670,7 +671,10 @@ mod tests {
     }
 
     fn settings_schema() -> Value {
-        serde_json::json!({ "schemaVersion": 2, "fields": [{ "key": "bloom", "type": "number" }] })
+        serde_json::json!({
+            "schemaVersion": 2,
+            "fields": [{ "id": "compact", "type": "boolean", "label": "Compact", "default": false }],
+        })
     }
 
     #[test]
@@ -687,10 +691,7 @@ mod tests {
         assert_eq!(loaded.manifest.version, "2.1.0");
         assert_eq!(loaded.manifest.capabilities, vec!["tokens".to_string()]);
         assert_eq!(loaded.tokens, written_tokens, "tokens round-trip verbatim");
-        assert!(
-            loaded.settings_schema.is_none(),
-            "no settings schema was written"
-        );
+        assert!(loaded.settings.is_none(), "no settings schema was written");
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -708,8 +709,8 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// The optional settings schema reads back when present; its absence is not
-    /// an error, and a corrupt one fails the read like a corrupt `tokens.json`.
+    /// The optional settings schema is resolved for the app when present; its
+    /// absence is not an error, and a corrupt one fails the read like a corrupt `tokens.json`.
     #[test]
     fn an_optional_settings_schema_reads_back_when_present() {
         let root = scratch("schema");
@@ -717,22 +718,31 @@ mod tests {
         save(&root, &manifest("dev.schema"), &tokens()).expect("save");
 
         let loaded = get(&root, "dev.schema").expect("get");
-        assert!(loaded.settings_schema.is_none(), "absent by default");
+        assert!(loaded.settings.is_none(), "absent by default");
 
-        let written_schema = settings_schema();
         std::fs::write(
             dir.join(SETTINGS_SCHEMA_FILE),
-            serde_json::to_vec_pretty(&written_schema).unwrap(),
+            serde_json::to_vec_pretty(&settings_schema()).unwrap(),
         )
         .unwrap();
 
         let loaded = get(&root, "dev.schema").expect("get");
-        assert_eq!(loaded.settings_schema.as_ref(), Some(&written_schema));
+        assert_eq!(
+            loaded.settings.as_ref().unwrap().fields,
+            vec![validator::settings::SettingsField::Boolean {
+                id: "compact".into(),
+                label: "Compact".into(),
+                default: false,
+            }]
+        );
 
-        // `ThemeFile` carries no struct-level `rename_all`, so the field is
-        // camelCase on the wire only because of its own `rename`.
         let wire = serde_json::to_value(&loaded).expect("serialise");
-        assert_eq!(wire["settingsSchema"], written_schema);
+        assert_eq!(wire["settings"]["fields"][0]["id"], "compact");
+        assert_eq!(wire["settings"]["fields"][0]["type"], "boolean");
+        assert!(
+            wire.get("settingsSchema").is_none(),
+            "the raw schema is gone"
+        );
         assert!(wire.get("settings_schema").is_none());
         // The v1 keys are gone from the wire the frontend codes against.
         assert!(wire.get("layout").is_none());
@@ -740,7 +750,7 @@ mod tests {
 
         std::fs::remove_file(dir.join(SETTINGS_SCHEMA_FILE)).unwrap();
         let loaded = get(&root, "dev.schema").expect("get");
-        assert!(loaded.settings_schema.is_none());
+        assert!(loaded.settings.is_none());
         let _ = std::fs::remove_dir_all(&root);
     }
 
