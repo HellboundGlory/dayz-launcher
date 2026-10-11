@@ -1,8 +1,6 @@
 import { useMemo, useState } from "react";
 import { Upload, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { listStarterTemplates, scaffoldThemeFromTemplate } from "@/lib/tauri";
-import type { ThemeSummary } from "@/types/theme";
 import {
   useThemeStore,
   activePreset,
@@ -14,7 +12,6 @@ import { PRESETS } from "@/theme/palette";
 import { ThemeCustomiser } from "../theme-customiser";
 import { ThemeGrid, nextDuplicateName } from "./ThemeGrid";
 import { ThemeSettingsForm } from "./ThemeSettingsForm";
-import { newThemeRequest, byCapability } from "./new-theme";
 import { ImportThemeDialog } from "./ImportThemeDialog";
 import { ExportThemeDialog } from "./ExportThemeDialog";
 import { capabilityLabel } from "./capability-labels";
@@ -50,8 +47,7 @@ export function ThemesSection({
   const [exportId, setExportId] = useState<string | null>(null);
   const [customiserOpen, setCustomiserOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  /** `null` while the picker is closed. Its list starts empty and fills on open. */
-  const [templates, setTemplates] = useState<ThemeSummary[] | null>(null);
+  const [copyOpen, setCopyOpen] = useState(false);
 
   const installed = activeInstalled(activeId, installedThemes);
   const preset = activePreset(activeId);
@@ -72,48 +68,9 @@ export function ThemesSection({
     ];
   }
 
-  async function createFromTemplate(templateId: string, templateName: string) {
-    // Taken from the template's own name, the way a duplicate is named after its
-    // source, so a scaffolded theme reads as a copy of what it started from.
-    const name = nextDuplicateName(templateName, takenNames());
-    const request = newThemeRequest(templateId, name, templates ?? []);
-    if (request === null || request.kind !== "template") return;
-
-    setTemplates(null);
-    try {
-      await scaffoldThemeFromTemplate(
-        request.templateId,
-        request.newId,
-        request.name,
-      );
-    } catch (e) {
-      console.error(`Could not create a theme from "${templateName}":`, e);
-      return;
-    }
-    // `pickTheme` re-reads the installed list for an id it has never seen, which
-    // is exactly this theme; it also arms the same activation window as any pick.
-    setCustomiserOpen(true);
-    await pickTheme(request.newId, true);
-  }
-
-  async function handleNewTheme() {
-    if (templates !== null) {
-      setTemplates(null);
-      return;
-    }
-    try {
-      setTemplates(await listStarterTemplates());
-    } catch (e) {
-      // Blank still needs to work with no templates at all, so this opens the
-      // picker empty rather than failing the button.
-      console.error("Could not list the bundled starter templates:", e);
-      setTemplates([]);
-    }
-  }
-
-  function handleBlankTheme() {
-    setTemplates(null);
-    void duplicateTheme("neutral", nextDuplicateName("New Theme", takenNames()));
+  function copyTheme(sourceId: string) {
+    setCopyOpen(false);
+    void duplicateTheme(sourceId, nextDuplicateName("New Theme", takenNames()));
     setCustomiserOpen(true);
   }
 
@@ -130,9 +87,9 @@ export function ThemesSection({
           </button>
           <button
             type="button"
-            onClick={() => void handleNewTheme()}
-            aria-expanded={templates !== null}
-            className={cn(TOOLBAR_BTN, templates !== null && "border-accent-line text-accent")}
+            onClick={() => setCopyOpen((open) => !open)}
+            aria-expanded={copyOpen}
+            className={cn(TOOLBAR_BTN, copyOpen && "border-accent-line text-accent")}
           >
             <Plus className="size-3" />
             New theme
@@ -140,34 +97,19 @@ export function ThemesSection({
         </div>
       </div>
 
-      {templates !== null && (
+      {copyOpen && (
         <div className="[border-radius:var(--t-radius-card)] border border-line bg-surface2 p-2.5">
           <div className="mb-1.5 [font-size:var(--t-type-compactCaption-size)] font-bold uppercase tracking-wider text-muted2">
             Start from
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {/* Today's behaviour, unchanged — now one choice rather than the only one. */}
-            <button type="button" onClick={handleBlankTheme} className={ACTION_BTN}>
-              Blank (copy Neutral)
+            <button type="button" onClick={() => copyTheme("neutral")} className={ACTION_BTN}>
+              Copy Neutral
             </button>
-            {byCapability(templates).map((template) => (
-              <button
-                key={template.id}
-                type="button"
-                onClick={() => void createFromTemplate(template.id, template.name)}
-                title={template.description}
-                className={ACTION_BTN}
-              >
-                {template.name}
-                <span className="ml-1.5 font-mono-data [font-size:var(--t-type-caption-size)] normal-case text-muted">
-                  {capabilityLabel(template.capabilities)}
-                </span>
+            {installedThemes.some((t) => t.id === "builtin.tactical") && (
+              <button type="button" onClick={() => copyTheme("builtin.tactical")} className={ACTION_BTN}>
+                Copy Tactical
               </button>
-            ))}
-            {templates.length === 0 && (
-              <span className="self-center [font-size:var(--t-type-label-size)] text-muted">
-                No starter templates ship with this build.
-              </span>
             )}
           </div>
         </div>

@@ -9,7 +9,7 @@ const SCENARIOS = [
 ];
 
 // A layout swapped for the default on a resize or in Settings is a broken theme screen.
-const GUARDED_THEMES = ["neutral", "builtin.tactical", "starter.layout", "starter.styled"];
+const GUARDED_THEMES = ["neutral", "builtin.tactical"];
 // A failure is confirmed on a second pass after a 150 ms debounce and two frames.
 const SETTLE_MS = 600;
 
