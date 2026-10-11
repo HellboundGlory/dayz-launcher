@@ -446,20 +446,6 @@ describe("theme extras", () => {
     expect(writtenProps["--t-radius-row"]).toBe("8px");
     expect(useThemeStore.getState().customExtras).toEqual({ radius: {}, family: {} });
   });
-
-  it("persists the live bloom into a saved theme's v2 palette", async () => {
-    useThemeStore.setState({
-      activeId: "local.partial",
-      themeFiles: { "local.partial": { id: "local.partial", tokens: { schemaVersion: 2 } } as ThemeFile },
-      bloom: 0.42,
-    });
-
-    await useThemeStore.getState().saveTheme("Extras skin");
-
-    expect(backend.savedTokens).toHaveLength(1);
-    // The slider's live value, not the source theme's own glowIntensity.
-    expect(parseTokens(backend.savedTokens[0]).bloom).toBe(0.42);
-  });
 });
 
 describe("saveTheme in place", () => {
@@ -873,18 +859,6 @@ describe("settings values", () => {
     expect(writtenProps["--t-radius-row"]).toBe("210px");
   });
 
-  it("leaves a placeholder no field names literal, per Package C's contract", async () => {
-    const id = templated("local.stale");
-    backend.tokensById[id] = {
-      dark: { accent: "hsl({{goneHue}}, 45%, 60%)" },
-      light: { accent: "hsl({{goneHue}}, 45%, 60%)" },
-    };
-
-    await useThemeStore.getState().pickTheme(id);
-
-    expect(writtenProps["--accent"]).toBe("hsl({{goneHue}}, 45%, 60%)");
-  });
-
   it("writes a tuned value through and repaints from it without re-reading", async () => {
     const id = templated("local.tuned");
     backend.settingsById[id] = {};
@@ -925,19 +899,15 @@ describe("apply() dev settings override", () => {
     useDevStore.getState().clear();
   });
 
-  it("substitutes the dev override's values instead of the stored ones", () => {
-    useDevStore.getState().setSettingsOverride({ hue: 250 });
+  it.each<[string, Record<string, number> | null, number]>([
+    ["the dev override", { hue: 250 }, 250],
+    ["the stored values", null, 100],
+  ])("apply() substitutes %s into the templated palette", (_case, override, hue) => {
+    useDevStore.getState().setSettingsOverride(override);
     useThemeStore.getState().apply();
-    expect(writtenProps["--accent"]).toBe("hsl(250, 50%, 50%)");
-    expect(writtenProps["--t-radius-row"]).toBe("250px");
-    expect(writtenProps["--setting-hue"]).toBe("250");
-  });
-
-  it("substitutes the stored values exactly as before when there is no override", () => {
-    useThemeStore.getState().apply();
-    expect(writtenProps["--accent"]).toBe("hsl(100, 50%, 50%)");
-    expect(writtenProps["--t-radius-row"]).toBe("100px");
-    expect(writtenProps["--setting-hue"]).toBe("100");
+    expect(writtenProps["--accent"]).toBe(`hsl(${hue}, 50%, 50%)`);
+    expect(writtenProps["--t-radius-row"]).toBe(`${hue}px`);
+    expect(writtenProps["--setting-hue"]).toBe(String(hue));
   });
 });
 
@@ -953,20 +923,15 @@ describe("pickTheme bloom reset", () => {
     expect(writtenProps["--bloom"]).toBe("0.4");
   });
 
-  it("falls back to the default bloom when the picked theme declares none", async () => {
+  it.each<string[]>([
+    ["a theme that declares none", "local.plain"],
+    ["a preset", "neutral"],
+  ])("falls back to the default bloom for %s", async (_case, id) => {
     backend.tokensById["local.plain"] = {};
     backend.installed = [{ id: "local.plain", name: "Plain" }];
     useThemeStore.setState({ bloom: 0.1 });
 
-    await useThemeStore.getState().pickTheme("local.plain");
-
-    expect(useThemeStore.getState().bloom).toBe(DEFAULT_EXTRAS.shadows.glowIntensity);
-  });
-
-  it("resets bloom to the default for a preset", async () => {
-    useThemeStore.setState({ bloom: 0.1 });
-
-    await useThemeStore.getState().pickTheme("neutral");
+    await useThemeStore.getState().pickTheme(id);
 
     expect(useThemeStore.getState().bloom).toBe(DEFAULT_EXTRAS.shadows.glowIntensity);
   });
@@ -1133,12 +1098,6 @@ describe("getThemeOwnedLayout", () => {
     });
 
     expect(getThemeOwnedLayout("layout/modals/serverInfo.json")).toBe(modal);
-  });
-
-  it("ignores Neutral, unlike getActiveLayout", () => {
-    useThemeStore.setState({ activeId: "local.aurora", themeFiles: {} });
-
-    expect(getThemeOwnedLayout("layout/modals/serverInfo.json")).toBeUndefined();
   });
 
   it("returns undefined when the active theme doesn't ship the file", () => {

@@ -105,7 +105,8 @@ describe("useDevStore", () => {
     expect(useDevStore.getState().issues).toEqual([BACKEND_ISSUE]);
   });
 
-  it("clear resets every field including variantWidth, settingsOverride and heldReload", () => {
+  it("clear resets every field but leaves activeRenderers alone", () => {
+    useDevStore.getState().registerRenderer();
     useDevStore.setState({
       issues: [BACKEND_ISSUE],
       contrast: [BACKEND_ISSUE],
@@ -116,6 +117,7 @@ describe("useDevStore", () => {
     });
     clearDevState();
     const state = useDevStore.getState();
+    expect(state.activeRenderers).toBe(1);
     expect(state.issues).toEqual([]);
     expect(state.contrast).toEqual([]);
     expect(state.error).toBeNull();
@@ -160,38 +162,18 @@ describe("useDevStore", () => {
     expect(useDevStore.getState().settingsOverride).toBeNull();
   });
 
-  it("registerRenderer increments activeRenderers and its returned function decrements it", () => {
-    expect(useDevStore.getState().activeRenderers).toBe(0);
-    const unregister = useDevStore.getState().registerRenderer();
-    expect(useDevStore.getState().activeRenderers).toBe(1);
-    unregister();
-    expect(useDevStore.getState().activeRenderers).toBe(0);
-  });
-
-  it("counts overlapping registrations correctly", () => {
+  it("counts overlapping renderer registrations and never drops below zero", () => {
     const unregisterA = useDevStore.getState().registerRenderer();
+    expect(useDevStore.getState().activeRenderers).toBe(1);
     const unregisterB = useDevStore.getState().registerRenderer();
     expect(useDevStore.getState().activeRenderers).toBe(2);
+
     unregisterA();
     expect(useDevStore.getState().activeRenderers).toBe(1);
+
     unregisterB();
     expect(useDevStore.getState().activeRenderers).toBe(0);
-  });
-
-  it("never lets activeRenderers go below 0", () => {
-    const unregister = useDevStore.getState().registerRenderer();
-    unregister();
-    unregister();
+    unregisterB();
     expect(useDevStore.getState().activeRenderers).toBe(0);
-  });
-
-  it("clear leaves activeRenderers untouched while resetting the other fields", () => {
-    useDevStore.getState().registerRenderer();
-    useDevStore.setState({ issues: [BACKEND_ISSUE], variantWidth: 650 });
-    clearDevState();
-    const state = useDevStore.getState();
-    expect(state.activeRenderers).toBe(1);
-    expect(state.issues).toEqual([]);
-    expect(state.variantWidth).toBeNull();
   });
 });
