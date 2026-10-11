@@ -116,7 +116,10 @@ with the list already rendered.
 compares each shot with pixelmatch (`threshold: 0.1`, `includeAA: false`), writes
 `<shot>.diff.png` next to every mismatch, prints the table of results and
 exits 1 on any differing pixel or missing baseline. Both are local only —
-nothing gates CI, and the baselines are gitignored.
+nothing gates CI, and the baselines are gitignored. Every `record` run appends
+its time, commit (`+dirty` when the tree was modified) and the flags that
+narrowed it to `baselines/RECORDS.log`, and `check` prints the last line so an
+old baseline is visible at a glance.
 
 The matrix is themes `neutral` and `builtin.tactical` × schemes `dark`, `light`
 × 1400×800 and 975×620 at device scale 1 × the `SCENARIOS` table in
