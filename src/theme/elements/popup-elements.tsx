@@ -143,7 +143,7 @@ function OptionRow({
       data-part="option"
       data-state={[selected && "selected", state].filter(Boolean).join(" ") || undefined}
       onClick={onClick}
-      className="flex w-full items-center gap-2 px-2 py-1.5 text-left hover:bg-surface transition-colors"
+      className="flex w-full items-center gap-2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] text-left hover:bg-surface transition-colors"
     >
       <span data-part="box" className="flex size-[var(--t-space-iconMedium)] shrink-0 items-center justify-center text-muted">
         {mark ?? <Check strokeWidth={2} className={cn("size-[var(--t-space-iconSmall)]", !selected && "opacity-0")} />}
@@ -287,7 +287,7 @@ export function UniqueServerOptionsList({
             data-part="option"
             title={label}
             onClick={() => onSelect(srv.addr, srv.query_port, srv.name)}
-            className="flex w-full items-center gap-2 [border-radius:var(--t-radius-controlCompact)] px-3 py-2 text-left transition-colors hover:bg-surface"
+            className="flex w-full items-center gap-2 [border-radius:var(--t-radius-controlCompact)] px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] text-left transition-colors hover:bg-surface"
           >
             <ChevronRight className="size-3 shrink-0 text-muted" />
             <span className="min-w-0 whitespace-normal break-words [font-size:var(--t-type-body-size)] leading-snug text-ink">
@@ -363,7 +363,7 @@ export function PopupClear({
       data-state={disabled ? "disabled" : undefined}
       onClick={handleClick}
       disabled={disabled}
-      className={className ?? "flex w-full items-center gap-2 px-2 py-1 text-muted font-semibold hover:bg-surface transition-colors disabled:opacity-50"}
+      className={className ?? "flex w-full items-center gap-2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] text-muted font-semibold hover:bg-surface transition-colors disabled:opacity-50"}
       style={style}
     >
       <X className="size-3" />

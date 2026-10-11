@@ -26,11 +26,11 @@ export const REFRESH_INTERVALS: { value: number; label: string }[] = [
 
 /** The shared text-input / select styling (board `.field input`). */
 export const INPUT_CLASS =
-  "w-full [border-radius:var(--t-radius-input)] border border-line bg-bg px-2.5 py-2 [font-size:var(--t-type-size-lg)] leading-4 text-ink placeholder-muted outline-hidden transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:border-line-weak focus:border-accent-line";
+  "w-full [border-radius:var(--t-radius-input)] border border-line bg-bg px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-size-lg)] leading-4 text-ink placeholder-muted outline-hidden transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:border-line-weak focus:border-accent-line";
 
 /** Small secondary button (Detect / Open) sitting next to an input. */
 export const BUTTON_CLASS =
-  "flex shrink-0 items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-2 [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider text-muted2 transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:text-ink disabled:opacity-50";
+  "flex shrink-0 items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider text-muted2 transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:text-ink disabled:opacity-50";
 
 /** A labelled control with an optional explanatory line beneath it. */
 export function Field({

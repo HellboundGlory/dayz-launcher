@@ -98,7 +98,7 @@ function DropdownRoot({
       ref={innerRef}
       data-el={el}
       data-state={states.length > 0 ? states.join(" ") : undefined}
-      className={className ?? "relative flex items-center gap-1.5 border border-line bg-surface2 px-2.5 py-1 [font-size:var(--t-type-size-lg)] leading-4 text-ink transition-colors hover:border-accent"}
+      className={className ?? "relative flex items-center gap-1.5 border border-line bg-surface2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-size-lg)] leading-4 text-ink transition-colors hover:border-accent"}
       style={style}
     >
       {children}
@@ -138,7 +138,7 @@ export function FilterSearch({
     <div
       data-el="filter.search"
       data-state={filled ? "filled" : undefined}
-      className={className ?? "flex items-center gap-2 border border-line bg-surface2 px-2.5 py-1 [font-size:var(--t-type-size-2xl)] leading-5 text-ink"}
+      className={className ?? "flex items-center gap-2 border border-line bg-surface2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-size-2xl)] leading-5 text-ink"}
       style={style}
     >
       {showIcon && (
@@ -414,7 +414,7 @@ function HideToggle({
   const toggle = () => setFilter({ [field]: !on });
 
   const defaultClass = cn(
-    "px-2.5 py-1 [font-size:var(--t-type-size-lg)] leading-4 font-bold uppercase tracking-wider border transition-colors",
+    "px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-size-lg)] leading-4 font-bold uppercase tracking-wider border transition-colors",
     on
       ? "border-accent bg-accent text-bg shadow-[0_0_6px_var(--accent)]"
       : "border-line bg-surface text-muted2 hover:text-ink hover:border-accent",
@@ -503,7 +503,7 @@ export function ServersRefresh({
       disabled={refreshing}
       aria-label="Refresh server list"
       title="Re-probe the servers currently on screen — ping, lock, mods, online status"
-      className={className ?? "flex items-center gap-1.5 p-1.5 border border-line bg-surface2 hover:border-accent text-muted hover:text-ink transition-colors disabled:opacity-60 disabled:cursor-not-allowed"}
+      className={className ?? "flex items-center gap-1.5 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] border border-line bg-surface2 hover:border-accent text-muted hover:text-ink transition-colors disabled:opacity-60 disabled:cursor-not-allowed"}
       style={style}
     >
       {display !== "label" && (
@@ -554,7 +554,7 @@ export function FilterMods({
       onClick={openModFilter}
       aria-haspopup="dialog"
       aria-expanded={modFilterOpen}
-      className={className ?? "flex items-center gap-1.5 border border-line bg-surface2 px-2.5 py-1 [font-size:var(--t-type-size-lg)] leading-4 text-ink transition-colors hover:border-accent"}
+      className={className ?? "flex items-center gap-1.5 border border-line bg-surface2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-size-lg)] leading-4 text-ink transition-colors hover:border-accent"}
       style={style}
     >
       {showLabel && (
@@ -649,7 +649,7 @@ export function FilterReset({
       onClick={() => resetFilter()}
       aria-label="Reset filters"
       title="Reset all filters to defaults"
-      className={className ?? "flex items-center gap-1 px-2 py-1 [font-size:var(--t-type-size-lg)] leading-4 border border-line bg-surface2 hover:border-accent text-muted hover:text-ink transition-colors"}
+      className={className ?? "flex items-center gap-1 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-size-lg)] leading-4 border border-line bg-surface2 hover:border-accent text-muted hover:text-ink transition-colors"}
       style={style}
     >
       {display !== "label" && (

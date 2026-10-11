@@ -32,7 +32,7 @@ export function SettingsBack({ options, className, style }: ElementProps) {
       aria-label="Back to the launcher"
       className={
         className ??
-        "s-back flex items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-1.5 [font-size:var(--t-type-label-size)] font-semibold text-muted2 transition-colors hover:border-accent-line hover:text-ink"
+        "s-back flex items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-semibold text-muted2 transition-colors hover:border-accent-line hover:text-ink"
       }
       style={style}
     >
@@ -59,7 +59,7 @@ export function SettingsDone({ options, className, style }: ElementProps) {
       onClick={onCloseSettings}
       className={
         className ??
-        "s-done flex items-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-2.5 py-1.5 [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wide text-bg transition-[filter] hover:brightness-110"
+        "s-done flex items-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wide text-bg transition-[filter] hover:brightness-110"
       }
       style={style}
     >

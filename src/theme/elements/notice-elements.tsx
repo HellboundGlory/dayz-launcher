@@ -93,7 +93,7 @@ export function NoticeUpdate({ className, style }: { className?: string; style?:
         type="button"
         data-part="later"
         onClick={dismissUpdateBanner}
-        className="shrink-0 [border-radius:var(--t-radius-controlSmall)] px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlSmallY)] [font-size:var(--t-type-label-size)] uppercase text-muted hover:text-ink"
+        className="shrink-0 [border-radius:var(--t-radius-controlSmall)] px-[var(--t-space-controlSmallX)] py-[var(--t-space-controlSmallY)] [font-size:var(--t-type-label-size)] uppercase text-muted hover:text-ink"
       >
         Later
       </button>
@@ -240,7 +240,7 @@ export function NoticeModsOutdated({ className, style }: { className?: string; s
         data-part="updateAll"
         onClick={() => void updateAllOutdated()}
         disabled={!!op}
-        className="ml-auto shrink-0 [border-radius:var(--t-radius-controlCompact)] bg-warn px-2 py-1 [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+        className="ml-auto shrink-0 [border-radius:var(--t-radius-controlCompact)] bg-warn px-[var(--t-space-controlSmallX)] py-[var(--t-space-controlSmallY)] [font-size:var(--t-type-caption-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {busy ? op?.note ?? "Updating…" : "Update all"}
       </button>
