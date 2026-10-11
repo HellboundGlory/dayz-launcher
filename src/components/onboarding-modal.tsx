@@ -16,7 +16,7 @@ import tetraLogo from "@/assets/tetra-logo.png";
 type ScanPhase = "scanning" | "found" | "not-found";
 
 const INPUT_CLASS =
-  "w-full rounded-[6px] border border-line bg-bg px-2.5 py-2 text-[11.5px] text-ink placeholder-muted outline-none transition-colors duration-150 hover:border-line-weak focus:border-accent-line";
+  "w-full rounded-[6px] border border-line bg-bg px-2.5 py-2 text-[11.5px] text-ink placeholder-muted outline-hidden transition-colors duration-150 hover:border-line-weak focus:border-accent-line";
 
 const GHOST_BUTTON_CLASS =
   "flex shrink-0 items-center gap-1.5 rounded-[6px] border border-line bg-surface2 px-2.5 text-[9.5px] font-bold uppercase tracking-wider text-muted2 transition-colors duration-150 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50";

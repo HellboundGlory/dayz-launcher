@@ -240,7 +240,7 @@ export function ServerTags({
   const showModUpdate = options?.showModUpdate !== false;
   const showBattleye = options?.showBattleye === true;
 
-  const chipClass = "border px-1 py-0.5 rounded font-semibold";
+  const chipClass = "border px-1 py-0.5 rounded-sm font-semibold";
 
   return (
     <div data-el="server.tags" data-state={serverStates(offline)} className={className ?? "flex items-center gap-1 text-[10px]"} style={style}>
@@ -593,7 +593,7 @@ export function ServerLoadMenuPopup({
       data-part="popup"
       role="menu"
       style={style}
-      className="absolute right-0 top-full mt-1 min-w-[140px] rounded border border-line bg-surface py-1 shadow-xl"
+      className="absolute right-0 top-full mt-1 min-w-[140px] rounded-sm border border-line bg-surface py-1 shadow-xl"
     >
       <button
         type="button"

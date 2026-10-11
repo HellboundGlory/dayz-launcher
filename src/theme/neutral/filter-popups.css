@@ -1,3 +1,5 @@
+@reference "../../main.css";
+
 @layer launcher, neutral, theme, guarantees;
 
 @layer neutral {
@@ -6,9 +8,9 @@
   }
 
   /* The engine's space-y-1 wrappers would add gaps between legacy rows. */
-  .t-neutral-browser-dropdown [data-part="popup"] > :not([hidden]) ~ :not([hidden]):not([data-part="separator"]),
-  .t-neutral-browser-dropdown [data-el="popup.tagOptions"] > :not([hidden]) ~ :not([hidden]),
-  .t-neutral-browser-dropdown [data-el="popup.regionOptions"] > :not([hidden]) ~ :not([hidden]) {
+  .t-neutral-browser-dropdown [data-part="popup"] > :not([data-part="separator"]),
+  .t-neutral-browser-dropdown [data-el="popup.tagOptions"] > *,
+  .t-neutral-browser-dropdown [data-el="popup.regionOptions"] > * {
     @apply my-0;
   }
 

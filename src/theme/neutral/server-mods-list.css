@@ -1,3 +1,5 @@
+@reference "../../main.css";
+
 @layer launcher, neutral, theme, guarantees;
 
 @layer neutral {
@@ -6,7 +8,7 @@
   }
 
   .t-neutral-servermods-thumb {
-    @apply flex size-7 shrink-0 items-center justify-center overflow-hidden rounded border border-line-weak;
+    @apply flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-sm border border-line-weak;
   }
 
   .t-neutral-servermods-thumb[data-state~="missing"] {

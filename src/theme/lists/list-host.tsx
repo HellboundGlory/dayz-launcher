@@ -359,7 +359,7 @@ export function ListHost<T = unknown>({
       role="grid"
       tabIndex={0}
       onKeyDown={onKeyDown}
-      className={className ?? "flex h-full w-full flex-col overflow-hidden outline-none"}
+      className={className ?? "flex h-full w-full flex-col overflow-hidden outline-hidden"}
       style={style}
     >
       {isScroll ? (

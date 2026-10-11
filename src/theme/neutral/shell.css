@@ -1,3 +1,5 @@
+@reference "../../main.css";
+
 /* Every stylesheet repeats this line; whichever loads first fixes the layer order. */
 @layer launcher, neutral, theme, guarantees;
 
