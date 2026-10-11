@@ -286,6 +286,9 @@
   [data-modal-host][data-backdrop="dim"] {
     background-color: rgba(0, 0, 0, 0.65);
   }
+
+  /* Without this Tailwind emits hover:/disabled: utilities outside every layer, so they beat Neutral and theme CSS. */
+  @tailwind variants;
 }
 
 @layer guarantees {
