@@ -133,7 +133,7 @@ export function SteamRequiredModal({
             <button
               data-tetra-el="startSteamAction"
               onClick={handleStartSteam}
-              className="flex items-center gap-1.5 [border-radius:var(--t-radius-controlSmall)] bg-surface2 px-3 py-1.5 [font-size:var(--t-type-size-md)] font-semibold text-ink ring-1 ring-line hover:bg-line"
+              className="flex items-center gap-1.5 [border-radius:var(--t-radius-controlSmall)] bg-surface2 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-size-md)] font-semibold text-ink ring-1 ring-line hover:bg-line"
             >
               <ExternalLink className="size-3" />
               Start Steam
@@ -155,7 +155,7 @@ export function SteamRequiredModal({
               data-tetra-el="retryAction"
               onClick={onRetry}
               disabled={checking}
-              className="flex items-center gap-1.5 [border-radius:var(--t-radius-controlSmall)] bg-accent px-3 py-1.5 [font-size:var(--t-type-size-md)] font-semibold text-bg hover:brightness-110 disabled:opacity-50"
+              className="flex items-center gap-1.5 [border-radius:var(--t-radius-controlSmall)] bg-accent px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-size-md)] font-semibold text-bg hover:brightness-110 disabled:opacity-50"
             >
               {checking ? (
                 <LoaderCircle className="size-3 animate-spin" />

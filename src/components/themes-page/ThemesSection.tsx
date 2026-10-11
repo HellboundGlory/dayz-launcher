@@ -17,10 +17,10 @@ import { ExportThemeDialog } from "./ExportThemeDialog";
 import { capabilityLabel } from "./capability-labels";
 
 const TOOLBAR_BTN =
-  "flex items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-1.5 [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-[0.04em] text-muted2 transition-colors hover:text-ink";
+  "flex items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-[0.04em] text-muted2 transition-colors hover:text-ink";
 
 const ACTION_BTN =
-  "[border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-1.5 [font-size:var(--t-type-label-size)] font-semibold text-ink transition-colors hover:border-accent-line hover:text-accent disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line disabled:hover:text-ink";
+  "[border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-semibold text-ink transition-colors hover:border-accent-line hover:text-accent disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line disabled:hover:text-ink";
 
 /** The "Theme" accordion body: the installed-themes grid, the active theme's
  * detail strip, and the existing token customiser tucked behind "Customize

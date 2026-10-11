@@ -327,7 +327,7 @@ export function ImportThemeDialog({
                   ref={chooseRef}
                   onClick={() => void chooseFile()}
                   disabled={phase === "loading" || busy}
-                  className="flex items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface px-3 py-2 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-ink transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:border-accent-line hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-ink transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:border-accent-line hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {phase === "loading" ? (
                     <LoaderCircle className="size-3.5 animate-spin" />
@@ -356,7 +356,7 @@ export function ImportThemeDialog({
               <div className="flex justify-end">
                 <button
                   onClick={close}
-                  className="[border-radius:var(--t-radius-control)] border border-line bg-surface px-3 py-2 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-muted2 transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:text-ink"
+                  className="[border-radius:var(--t-radius-control)] border border-line bg-surface px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-muted2 transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:text-ink"
                 >
                   Cancel
                 </button>
@@ -435,7 +435,7 @@ export function ImportThemeDialog({
                   <button
                     onClick={close}
                     disabled={busy}
-                    className="[border-radius:var(--t-radius-control)] border border-line bg-surface px-3 py-2 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-muted2 transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+                    className="[border-radius:var(--t-radius-control)] border border-line bg-surface px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-muted2 transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Cancel
                   </button>
@@ -444,7 +444,7 @@ export function ImportThemeDialog({
                     onClick={() => void install()}
                     disabled={busy}
                     className={cn(
-                      "flex items-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-3.5 py-2 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110",
+                      "flex items-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110",
                       "disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:brightness-100",
                     )}
                   >

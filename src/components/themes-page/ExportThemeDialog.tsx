@@ -35,7 +35,7 @@ export function packagedFiles(theme: Pick<ThemeFile, "layouts" | "capabilities">
 
 /** Shared text-input styling (board `.field input`). */
 const INPUT_CLASS =
-  "w-full [border-radius:var(--t-radius-control)] border border-line bg-bg px-2.5 py-2 [font-size:var(--t-type-compactSubheading-size)] text-ink placeholder-muted outline-hidden transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:border-line-weak focus:border-accent-line";
+  "w-full [border-radius:var(--t-radius-control)] border border-line bg-bg px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-compactSubheading-size)] text-ink placeholder-muted outline-hidden transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:border-line-weak focus:border-accent-line";
 
 /** The four tokens the read-only swatch strip shows: background, raised surface, and the two accents. */
 const SWATCH_TOKENS = ["bg", "surface2", "accent", "accent2"] as const;
@@ -306,7 +306,7 @@ export function ExportThemeDialog({
                     }}
                     placeholder="Add tag…"
                     aria-label="Add tag"
-                    className={cn(INPUT_CLASS, "w-auto min-w-[92px] flex-1 py-[3px] [font-size:var(--t-type-label-size)]")}
+                    className={cn(INPUT_CLASS, "w-auto min-w-[92px] flex-1 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-label-size)]")}
                   />
                 </div>
               </Field>
@@ -358,14 +358,14 @@ export function ExportThemeDialog({
         <div className="flex shrink-0 items-center justify-end gap-1.5 border-t border-line px-4 py-3">
           <button
             onClick={onClose}
-            className="[border-radius:var(--t-radius-control)] border border-line bg-surface2 px-3 py-2 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-muted2 transition-colors hover:text-ink"
+            className="[border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-muted2 transition-colors hover:text-ink"
           >
             Cancel
           </button>
           <button
             onClick={() => void handleExport()}
             disabled={!loaded || busy}
-            className="flex items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-4 py-2 [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none disabled:hover:brightness-100"
+            className="flex items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none disabled:hover:brightness-100"
           >
             {busy && <LoaderCircle className="size-3.5 animate-spin" />}
             <span>Export ZIP…</span>
