@@ -1,4 +1,5 @@
 // Headless UI harness: the real App against a faked Tauri backend. See README.md.
+import "@/main.css";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
@@ -406,7 +407,6 @@ harness.visibilityCheck = () => {
 // Awaited so a `scheme=` override still precedes the first render.
 await useThemeStore.getState().hydrate();
 if (scheme === "dark" || scheme === "light") useThemeStore.getState().setScheme(scheme);
-await import("@/main.css");
 const { App } = await import("@/App");
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

@@ -1,7 +1,5 @@
 @reference "../../main.css";
 
-@layer launcher, neutral, theme, guarantees;
-
 @layer neutral {
   [data-popup-host]:has(> .t-neutral-servers-menu-panel) {
     @apply [border-radius:var(--t-radius-popup)] [box-shadow:var(--t-shadow-popup)];

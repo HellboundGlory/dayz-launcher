@@ -1,7 +1,5 @@
 @reference "../../main.css";
 
-@layer launcher, neutral, theme, guarantees;
-
 @layer neutral {
   .t-neutral-modfilter-results-row {
     @apply w-full cursor-pointer gap-2.5 [border-radius:var(--t-radius-popup)] px-1.5 py-1.5 text-left transition-colors hover:bg-surface2;

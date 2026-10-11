@@ -1,7 +1,5 @@
 @reference "../../main.css";
 
-@layer launcher, neutral, theme, guarantees;
-
 @layer neutral {
   [data-modal-host]:has(.t-neutral-update) {
     @apply p-6;

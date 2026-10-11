@@ -13,6 +13,7 @@ import {
 import { useElementContext } from "./context";
 import { MOD_STATE_NAME } from "./list-elements";
 import { OptionIcon } from "./option-icon";
+import { useLoadableImage } from "./use-loadable-image";
 import { displayOption, formatElementTime, states } from "./element-utils";
 
 function useModSubject(): SubscribedMod | null {
@@ -108,10 +109,9 @@ export function ModStatus({ className, style }: { className?: string; style?: CS
 export function ModThumbnail({ className, style }: { className?: string; style?: CSSProperties }) {
   const mod = useModSubject();
   const { contextName } = useElementContext();
-  const [brokenUrl, setBrokenUrl] = useState<string | null>(null);
+  const [image, reportBroken] = useLoadableImage(mod?.preview_url);
   if (!mod) return null;
 
-  const image = mod.preview_url && mod.preview_url !== brokenUrl ? mod.preview_url : null;
   const missing = !image;
   const inSelection = contextName === "modSelection";
   const placeholder = inSelection ? "No preview image" : mod.locally_disabled ? "⏸" : "—";
@@ -125,7 +125,7 @@ export function ModThumbnail({ className, style }: { className?: string; style?:
           loading="lazy"
           draggable={false}
           className="h-full w-full object-cover"
-          onError={() => setBrokenUrl(image)}
+          onError={reportBroken}
         />
       ) : (
         <span
@@ -821,13 +821,22 @@ export function ServerModOrder({ className, style }: { className?: string; style
 
 export function ServerModThumbnail({ className, style }: { className?: string; style?: CSSProperties }) {
   const mod = useServerModSubject();
+  const [image, reportBroken] = useLoadableImage(mod?.preview_url);
   if (!mod) return null;
 
-  const missing = !mod.preview_url;
+  const missing = !image;
   return (
     <span data-el="serverMod.thumbnail" data-state={missing ? "missing" : undefined} className={className} style={style}>
-      {mod.preview_url ? (
-        <img data-part="image" src={mod.preview_url} alt="" loading="lazy" draggable={false} className="h-full w-full object-cover" />
+      {image ? (
+        <img
+          data-part="image"
+          src={image}
+          alt=""
+          loading="lazy"
+          draggable={false}
+          className="h-full w-full object-cover"
+          onError={reportBroken}
+        />
       ) : (
         <Package data-part="image" className="size-full text-muted" />
       )}

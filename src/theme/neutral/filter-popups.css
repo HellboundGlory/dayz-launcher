@@ -1,7 +1,5 @@
 @reference "../../main.css";
 
-@layer launcher, neutral, theme, guarantees;
-
 @layer neutral {
   .t-neutral-browser-dropdown [data-part="popup"] {
     @apply absolute left-0 top-[calc(100%+var(--t-space-popupOffset))] mt-0 max-h-[var(--t-space-popupMaxHeight)] min-w-[var(--t-space-popupMinWidth)] overflow-y-auto [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-[var(--t-space-popupFilterPad)] [box-shadow:var(--t-shadow-popupFilter)] [font-size:inherit] [line-height:inherit];

@@ -387,35 +387,9 @@ describe("ListHost", () => {
     expect(html).toContain("No servers match the current filters.");
   });
 
-  it("renders non-virtualized lists (list.serverMods)", () => {
-    const html = renderToStaticMarkup(
-      <ListHost
-        listId="list.serverMods"
-        items={[mockServer]}
-        columns={sampleColumns}
-        selectedItem={mockServer}
-      />,
-    );
-
-    expect(html).toContain('data-list="serverMods"');
-    expect(html).toContain('data-state="selected"');
-    expect(html).toContain("DayZ Epoch Test");
-  });
-
-  it("marks every second row even by its list position", () => {
-    const html = renderToStaticMarkup(
-      <ListHost
-        listId="list.serverMods"
-        items={[mockServer, { ...mockServer }, { ...mockServer }]}
-        columns={sampleColumns}
-      />,
-    );
-    expect(html.match(/data-state="even"/g)).toHaveLength(1);
-  });
-
   it("clip mode (default) renders without a scroll wrapper", () => {
     const html = renderToStaticMarkup(
-      <ListHost listId="list.serverMods" items={[mockServer]} columns={sampleColumns} />,
+      <ListHost listId="list.servers" items={[mockServer]} columns={sampleColumns} />,
     );
 
     expect(html).not.toContain('data-part="headerSticky"');
@@ -460,19 +434,6 @@ describe("ListHost", () => {
 
     expect(html).toContain("height:74px");
   });
-
-  it("applies a row gap token to the rows wrapper", () => {
-    const html = renderToStaticMarkup(
-      <ListHost
-        listId="list.serverMods"
-        items={[mockServer, { ...mockServer }]}
-        columns={sampleColumns}
-        rowGap="rowY"
-      />,
-    );
-
-    expect(html).toContain("row-gap:var(--t-space-rowY)");
-  });
 });
 
 describe("ListHost column widths", () => {
@@ -480,24 +441,14 @@ describe("ListHost column widths", () => {
     clearColumnWidthMemory();
   });
 
-  it("gives the header and rows the same grid template when there is a stored override", () => {
-    setStoredWidths("neutral", "list.serverMods", { players: 200 });
+  it("gives the header the stored grid template and its resize handles", () => {
+    setStoredWidths("neutral", "list.servers", { players: 200 });
 
     const html = renderToStaticMarkup(
-      <ListHost
-        listId="list.serverMods"
-        items={[mockServer]}
-        columns={sampleColumns}
-        rowNode={{
-          type: "grid",
-          children: [{ type: "text", value: String(mockServer.players), column: "players" }],
-        }}
-      />,
+      <ListHost listId="list.servers" items={[mockServer]} columns={sampleColumns} />,
     );
 
-    expect(html).toContain("grid-template-columns:40px 1fr 200px 60px");
-    // Only one grid-template-columns should appear across header + row.
-    expect(html.match(/grid-template-columns:40px 1fr 200px 60px/g)).toHaveLength(2);
+    expect(html.match(/grid-template-columns:40px 1fr 200px 60px/g)).toHaveLength(1);
     // fav (40px), players (80px) and ping (60px) are resizable; name (1fr) is not.
     expect(html.match(/data-part="resizeHandle"/g)).toHaveLength(3);
   });

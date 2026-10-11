@@ -1,7 +1,5 @@
 @reference "../../main.css";
 
-@layer launcher, neutral, theme, guarantees;
-
 @layer neutral {
   .t-neutral-servermods-row {
     @apply gap-2 [border-radius:var(--t-radius-readinessRow)] border border-line bg-surface2 px-2.5 py-1.5 [font-size:var(--t-type-body-size)];

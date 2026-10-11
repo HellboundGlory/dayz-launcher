@@ -87,8 +87,11 @@ export function rowStates<T>(
   return (index % 2 === 1 ? [...states, "even"] : states).join(" ");
 }
 
+/** Every list a theme draws with `ListHost` is virtualised. */
+type VirtualListId = Extract<ListId, "list.servers" | "list.mods" | "list.modFilterResults">;
+
 export interface ListHostProps<T = unknown> {
-  listId: ListId;
+  listId: VirtualListId;
   items: T[];
   columns?: ColumnDef[];
   rowNode?: LayoutNode;
@@ -175,11 +178,6 @@ export function ListHost<T = unknown>({
     return () => observer.disconnect();
   }, [isScroll, isEmpty]);
 
-  const isVirtualized =
-    listId === "list.servers" ||
-    listId === "list.mods" ||
-    listId === "list.modFilterResults";
-
   const listDef = REGISTRY.lists[listId];
   const subjectKind = listDef?.subject ?? "server";
 
@@ -243,9 +241,7 @@ export function ListHost<T = unknown>({
         const target = items[index];
         if (target && index !== selectedIndex) {
           handleRowSelect(target);
-          if (isVirtualized) {
-            virtualizer.scrollToIndex(index, { align: "auto" });
-          }
+          virtualizer.scrollToIndex(index, { align: "auto" });
         }
       },
       onClearSelection: () => {
@@ -294,7 +290,7 @@ export function ListHost<T = unknown>({
     </div>
   );
 
-  const rowList = isVirtualized ? (
+  const rowList = (
     <div
       data-part="rows"
       style={{
@@ -331,23 +327,6 @@ export function ListHost<T = unknown>({
               onSelect={handleRowSelect}
             />
           </div>
-        );
-      })}
-    </div>
-  ) : (
-    <div data-part="rows" className="flex flex-col" style={{ rowGap: rowGapVar }}>
-      {items.map((item, index) => {
-        const isSelected = item === selectedItem;
-        return (
-          <ListRow
-            key={index}
-            rowNode={rowNode}
-            columns={effectiveColumns}
-            item={item}
-            subjectKind={subjectKind}
-            states={rowStates(item, isSelected, index, computeRowStates)}
-            onSelect={handleRowSelect}
-          />
         );
       })}
     </div>
@@ -397,11 +376,7 @@ export function ListHost<T = unknown>({
             <div
               ref={scrollRef}
               data-part="scroller"
-              className={
-                isVirtualized
-                  ? "relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
-                  : "min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
-              }
+              className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
             >
               {rowList}
             </div>

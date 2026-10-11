@@ -6,6 +6,7 @@ import { useModFilterStore, type ModFilterEntry } from "@/stores/mod-filter-stor
 import { useElementContext } from "./context";
 import { OptionIcon } from "./option-icon";
 import { GeneratedThumbnail } from "./mod-thumbnail";
+import { useLoadableImage } from "./use-loadable-image";
 import { formatElementTime } from "./element-utils";
 import type { ElementNode } from "../renderer/types";
 
@@ -57,13 +58,22 @@ function WorkshopModPick({ className, style }: { className?: string; style?: CSS
 
 function WorkshopModThumbnail({ className, style }: { className?: string; style?: CSSProperties }) {
   const entry = useWorkshopModSubject();
+  const [image, reportBroken] = useLoadableImage(entry?.previewUrl);
   if (!entry) return null;
 
-  const missing = !entry.previewUrl;
+  const missing = !image;
   return (
     <span data-el="workshopMod.thumbnail" data-state={missing ? "missing" : undefined} className={className} style={style}>
-      {entry.previewUrl ? (
-        <img data-part="image" src={entry.previewUrl} alt="" loading="lazy" draggable={false} className="h-full w-full object-cover" />
+      {image ? (
+        <img
+          data-part="image"
+          src={image}
+          alt=""
+          loading="lazy"
+          draggable={false}
+          className="h-full w-full object-cover"
+          onError={reportBroken}
+        />
       ) : (
         <GeneratedThumbnail id={entry.id} title={entry.title} data-part="initials" />
       )}

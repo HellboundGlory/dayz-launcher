@@ -1,7 +1,5 @@
 @reference "../../main.css";
 
-@layer launcher, neutral, theme, guarantees;
-
 @layer neutral {
   .t-neutral-settings-root {
     @apply h-full w-full bg-bg;
