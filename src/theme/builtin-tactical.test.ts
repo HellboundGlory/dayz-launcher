@@ -83,15 +83,15 @@ describe("builtin.tactical browser view", () => {
       "filter.search",
       "filter.map",
       "filter.tags",
-      "filter.region",
       "filter.mods",
+      "filter.region",
       "filter.maxPing",
     ]);
     expect(elements(narrow.children[1])).toEqual([
       "filter.hideEmpty",
-      "filter.hideOffline",
       "filter.hideFull",
       "filter.hideLocked",
+      "filter.hideOffline",
       "filter.reset",
       "servers.refresh",
     ]);
@@ -113,13 +113,13 @@ describe("builtin.tactical browser view", () => {
       "filter.search",
       "filter.map",
       "filter.tags",
-      "filter.region",
       "filter.mods",
+      "filter.region",
       "filter.maxPing",
       "filter.hideEmpty",
-      "filter.hideOffline",
       "filter.hideFull",
       "filter.hideLocked",
+      "filter.hideOffline",
       "filter.reset",
       "servers.refresh",
     ]);
@@ -127,10 +127,9 @@ describe("builtin.tactical browser view", () => {
 
   it("keeps the list area shrinkable in both variants", () => {
     for (const root of [narrowBrowser, wideBrowser]) {
-      const list = child(root, 1) as StackNode;
+      const list = (root as StackNode).children.find((node) => hasElement(node, "list.servers")) as StackNode;
       expect(list.minHeight).toBe("0px");
       expect(list.grow).toBe(1);
-      expect(hasElement(list, "list.servers")).toBe(true);
     }
   });
 
@@ -139,31 +138,33 @@ describe("builtin.tactical browser view", () => {
     const toolbar = [
       ["server.checkMods", { display: "icon" }],
       ["server.subscribeAll", { display: "icon" }],
-      ["server.unsubscribeUnique", { display: "icon" }],
+      ["server.unsubscribeUnique", { display: "icon", label: "Unsubscribe unique" }],
       ["server.copyAddress", { display: "icon" }],
+    ];
+    const detailsHead = [
+      "r-identity",
+      "r-stats",
+      "server.readiness",
+      "r-props",
+      "r-detail-toolbar",
+      "server.downloadSize",
     ];
 
     for (const root of [narrowBrowser, wideBrowser]) {
       expect(hasElement(root, "server.info")).toBe(false);
+      expect(hasElement(root, "server.manageMods")).toBe(false);
 
       const detail = findRegion(root, "r-detail")!;
+      const body = findRegion(root, "r-detail-body");
+      const flat = detail.children.flatMap((node) => (node === body ? body.children : [node]));
       // The mods list grows between the details and r-actions, which stays last.
-      expect(detail.children.map(identify)).toEqual(
-        detail.children.some((node) => node.id === "r-detail-body")
-          ? ["r-detail-body", "list.serverMods", "r-actions"]
-          : ["r-identity", "r-stats", "r-props", "list.serverMods", "r-actions"],
-      );
+      expect(flat.map(identify)).toEqual([...detailsHead, "list.serverMods", "r-actions"]);
       const list = detail.children.find((node) => identify(node) === "list.serverMods")!;
       expect(list).toMatchObject(modsList);
       expect(hasElement(detail, "server.info")).toBe(false);
 
       const actions = findRegion(root, "r-actions")!;
-      expect(actions.children.map(identify)).toEqual([
-        "server.actionNotice",
-        "r-join",
-        "r-detail-toolbar",
-        "server.manageMods",
-      ]);
+      expect(actions.children.map(identify)).toEqual(["server.actionNotice", "r-join"]);
       expect(placements(findRegion(root, "r-detail-toolbar")!)).toEqual(toolbar);
 
       const join = findRegion(root, "r-join")!.children.find((node) => identify(node) === "server.join")!;

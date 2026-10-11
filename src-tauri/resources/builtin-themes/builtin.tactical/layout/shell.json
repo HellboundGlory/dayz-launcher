@@ -91,9 +91,6 @@
             "element": "notice.error"
           },
           {
-            "element": "notice.launch"
-          },
-          {
             "element": "notice.storage"
           },
           {
@@ -131,6 +128,9 @@
                     "element": "status.populated"
                   },
                   {
+                    "element": "status.listSource"
+                  },
+                  {
                     "element": "status.lastRefreshed",
                     "options": {
                       "label": "refreshed"
@@ -139,10 +139,21 @@
                 ]
               },
               {
-                "element": "app.uiScale",
-                "options": {
-                  "label": "Scale"
-                }
+                "type": "stack",
+                "id": "r-footer-tools",
+                "direction": "row",
+                "align": "center",
+                "children": [
+                  {
+                    "element": "app.uiScale",
+                    "options": {
+                      "label": "Scale"
+                    }
+                  },
+                  {
+                    "element": "app.schemeToggle"
+                  }
+                ]
               }
             ],
             "shrink": 0
@@ -238,9 +249,6 @@
             "element": "notice.error"
           },
           {
-            "element": "notice.launch"
-          },
-          {
             "element": "notice.storage"
           },
           {
@@ -278,6 +286,9 @@
                     "element": "status.populated"
                   },
                   {
+                    "element": "status.listSource"
+                  },
+                  {
                     "element": "status.lastRefreshed",
                     "options": {
                       "label": "refreshed"
@@ -286,10 +297,21 @@
                 ]
               },
               {
-                "element": "app.uiScale",
-                "options": {
-                  "label": "Scale"
-                }
+                "type": "stack",
+                "id": "r-footer-tools",
+                "direction": "row",
+                "align": "center",
+                "children": [
+                  {
+                    "element": "app.uiScale",
+                    "options": {
+                      "label": "Scale"
+                    }
+                  },
+                  {
+                    "element": "app.schemeToggle"
+                  }
+                ]
               }
             ],
             "shrink": 0

@@ -35,10 +35,10 @@
                     "element": "filter.tags"
                   },
                   {
-                    "element": "filter.region"
+                    "element": "filter.mods"
                   },
                   {
-                    "element": "filter.mods"
+                    "element": "filter.region"
                   },
                   {
                     "element": "filter.maxPing"
@@ -63,13 +63,13 @@
                         "element": "filter.hideEmpty"
                       },
                       {
-                        "element": "filter.hideOffline"
-                      },
-                      {
                         "element": "filter.hideFull"
                       },
                       {
                         "element": "filter.hideLocked"
+                      },
+                      {
+                        "element": "filter.hideOffline"
                       }
                     ]
                   },
@@ -89,6 +89,9 @@
               }
             ],
             "shrink": 0
+          },
+          {
+            "element": "notice.launch"
           },
           {
             "type": "stack",
@@ -128,9 +131,6 @@
                                 "element": "server.name"
                               },
                               {
-                                "element": "server.favourite"
-                              },
-                              {
                                 "element": "server.deselect"
                               }
                             ]
@@ -157,21 +157,67 @@
                         "direction": "row",
                         "children": [
                           {
-                            "element": "server.players"
+                            "type": "stack",
+                            "direction": "column",
+                            "class": "t-stat",
+                            "children": [
+                              {
+                                "element": "server.players",
+                                "options": {
+                                  "showCaption": false,
+                                  "showQueue": false
+                                }
+                              },
+                              {
+                                "type": "text",
+                                "value": "Players",
+                                "role": "label",
+                                "class": "t-stat-label"
+                              }
+                            ]
                           },
                           {
-                            "element": "server.ping",
-                            "options": {
-                              "showUnit": true
-                            }
+                            "type": "stack",
+                            "direction": "column",
+                            "class": "t-stat",
+                            "children": [
+                              {
+                                "element": "server.ping",
+                                "options": {
+                                  "showCaption": false
+                                }
+                              },
+                              {
+                                "type": "text",
+                                "value": "Ping ms",
+                                "role": "label",
+                                "class": "t-stat-label"
+                              }
+                            ]
                           },
                           {
-                            "element": "server.gameTime"
-                          },
-                          {
-                            "element": "server.modCount"
+                            "type": "stack",
+                            "direction": "column",
+                            "class": "t-stat",
+                            "children": [
+                              {
+                                "element": "server.gameTime"
+                              },
+                              {
+                                "type": "text",
+                                "value": "Time",
+                                "role": "label",
+                                "class": "t-stat-label"
+                              }
+                            ]
                           }
                         ]
+                      },
+                      {
+                        "element": "server.readiness",
+                        "options": {
+                          "basis": "declared"
+                        }
                       },
                       {
                         "type": "stack",
@@ -186,7 +232,7 @@
                             "children": [
                               {
                                 "type": "text",
-                                "value": "MAP",
+                                "value": "Map",
                                 "role": "label",
                                 "class": "t-prop-label"
                               },
@@ -203,7 +249,7 @@
                             "children": [
                               {
                                 "type": "text",
-                                "value": "VERSION",
+                                "value": "Version",
                                 "role": "label",
                                 "class": "t-prop-label"
                               },
@@ -220,7 +266,7 @@
                             "children": [
                               {
                                 "type": "text",
-                                "value": "REGION",
+                                "value": "Region",
                                 "role": "label",
                                 "class": "t-prop-label"
                               },
@@ -228,8 +274,63 @@
                                 "element": "server.region"
                               }
                             ]
+                          },
+                          {
+                            "type": "stack",
+                            "direction": "row",
+                            "align": "baseline",
+                            "class": "t-prop",
+                            "children": [
+                              {
+                                "type": "text",
+                                "value": "Mods",
+                                "role": "label",
+                                "class": "t-prop-label"
+                              },
+                              {
+                                "element": "server.modCount",
+                                "options": {
+                                  "showCaption": false
+                                }
+                              }
+                            ]
                           }
                         ]
+                      },
+                      {
+                        "type": "stack",
+                        "id": "r-detail-toolbar",
+                        "direction": "row",
+                        "children": [
+                          {
+                            "element": "server.checkMods",
+                            "options": {
+                              "display": "icon"
+                            }
+                          },
+                          {
+                            "element": "server.subscribeAll",
+                            "options": {
+                              "display": "icon"
+                            }
+                          },
+                          {
+                            "element": "server.unsubscribeUnique",
+                            "options": {
+                              "display": "icon",
+                              "label": "Unsubscribe unique"
+                            }
+                          },
+                          {
+                            "element": "server.copyAddress",
+                            "options": {
+                              "display": "icon"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "element": "server.downloadSize"
                       }
                     ]
                   },
@@ -237,7 +338,10 @@
                     "element": "list.serverMods",
                     "grow": 1,
                     "minHeight": "0px",
-                    "minWidth": "0px"
+                    "minWidth": "0px",
+                    "options": {
+                      "header": false
+                    }
                   },
                   {
                     "type": "stack",
@@ -265,44 +369,11 @@
                             "element": "server.menu",
                             "options": {
                               "menu": "serverLoad",
-                              "icon": "chevronDown"
+                              "icon": "chevronDown",
+                              "label": "Load this server's mods to the main menu"
                             }
                           }
                         ]
-                      },
-                      {
-                        "type": "stack",
-                        "id": "r-detail-toolbar",
-                        "direction": "row",
-                        "children": [
-                          {
-                            "element": "server.checkMods",
-                            "options": {
-                              "display": "icon"
-                            }
-                          },
-                          {
-                            "element": "server.subscribeAll",
-                            "options": {
-                              "display": "icon"
-                            }
-                          },
-                          {
-                            "element": "server.unsubscribeUnique",
-                            "options": {
-                              "display": "icon"
-                            }
-                          },
-                          {
-                            "element": "server.copyAddress",
-                            "options": {
-                              "display": "icon"
-                            }
-                          }
-                        ]
-                      },
-                      {
-                        "element": "server.manageMods"
                       }
                     ]
                   }
@@ -342,10 +413,10 @@
                 "element": "filter.tags"
               },
               {
-                "element": "filter.region"
+                "element": "filter.mods"
               },
               {
-                "element": "filter.mods"
+                "element": "filter.region"
               },
               {
                 "element": "filter.maxPing"
@@ -360,13 +431,13 @@
                     "element": "filter.hideEmpty"
                   },
                   {
-                    "element": "filter.hideOffline"
-                  },
-                  {
                     "element": "filter.hideFull"
                   },
                   {
                     "element": "filter.hideLocked"
+                  },
+                  {
+                    "element": "filter.hideOffline"
                   }
                 ]
               },
@@ -384,6 +455,9 @@
               }
             ],
             "shrink": 0
+          },
+          {
+            "element": "notice.launch"
           },
           {
             "type": "stack",
@@ -418,9 +492,6 @@
                             "element": "server.name"
                           },
                           {
-                            "element": "server.favourite"
-                          },
-                          {
                             "element": "server.deselect"
                           }
                         ]
@@ -447,21 +518,67 @@
                     "direction": "row",
                     "children": [
                       {
-                        "element": "server.players"
+                        "type": "stack",
+                        "direction": "column",
+                        "class": "t-stat",
+                        "children": [
+                          {
+                            "element": "server.players",
+                            "options": {
+                              "showCaption": false,
+                              "showQueue": false
+                            }
+                          },
+                          {
+                            "type": "text",
+                            "value": "Players",
+                            "role": "label",
+                            "class": "t-stat-label"
+                          }
+                        ]
                       },
                       {
-                        "element": "server.ping",
-                        "options": {
-                          "showUnit": true
-                        }
+                        "type": "stack",
+                        "direction": "column",
+                        "class": "t-stat",
+                        "children": [
+                          {
+                            "element": "server.ping",
+                            "options": {
+                              "showCaption": false
+                            }
+                          },
+                          {
+                            "type": "text",
+                            "value": "Ping ms",
+                            "role": "label",
+                            "class": "t-stat-label"
+                          }
+                        ]
                       },
                       {
-                        "element": "server.gameTime"
-                      },
-                      {
-                        "element": "server.modCount"
+                        "type": "stack",
+                        "direction": "column",
+                        "class": "t-stat",
+                        "children": [
+                          {
+                            "element": "server.gameTime"
+                          },
+                          {
+                            "type": "text",
+                            "value": "Time",
+                            "role": "label",
+                            "class": "t-stat-label"
+                          }
+                        ]
                       }
                     ]
+                  },
+                  {
+                    "element": "server.readiness",
+                    "options": {
+                      "basis": "declared"
+                    }
                   },
                   {
                     "type": "stack",
@@ -476,7 +593,7 @@
                         "children": [
                           {
                             "type": "text",
-                            "value": "MAP",
+                            "value": "Map",
                             "role": "label",
                             "class": "t-prop-label"
                           },
@@ -493,7 +610,7 @@
                         "children": [
                           {
                             "type": "text",
-                            "value": "VERSION",
+                            "value": "Version",
                             "role": "label",
                             "class": "t-prop-label"
                           },
@@ -510,7 +627,7 @@
                         "children": [
                           {
                             "type": "text",
-                            "value": "REGION",
+                            "value": "Region",
                             "role": "label",
                             "class": "t-prop-label"
                           },
@@ -518,14 +635,72 @@
                             "element": "server.region"
                           }
                         ]
+                      },
+                      {
+                        "type": "stack",
+                        "direction": "row",
+                        "align": "baseline",
+                        "class": "t-prop",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Mods",
+                            "role": "label",
+                            "class": "t-prop-label"
+                          },
+                          {
+                            "element": "server.modCount",
+                            "options": {
+                              "showCaption": false
+                            }
+                          }
+                        ]
                       }
                     ]
+                  },
+                  {
+                    "type": "stack",
+                    "id": "r-detail-toolbar",
+                    "direction": "row",
+                    "children": [
+                      {
+                        "element": "server.checkMods",
+                        "options": {
+                          "display": "icon"
+                        }
+                      },
+                      {
+                        "element": "server.subscribeAll",
+                        "options": {
+                          "display": "icon"
+                        }
+                      },
+                      {
+                        "element": "server.unsubscribeUnique",
+                        "options": {
+                          "display": "icon",
+                          "label": "Unsubscribe unique"
+                        }
+                      },
+                      {
+                        "element": "server.copyAddress",
+                        "options": {
+                          "display": "icon"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "element": "server.downloadSize"
                   },
                   {
                     "element": "list.serverMods",
                     "grow": 1,
                     "minHeight": "0px",
-                    "minWidth": "0px"
+                    "minWidth": "0px",
+                    "options": {
+                      "header": false
+                    }
                   },
                   {
                     "type": "stack",
@@ -553,44 +728,11 @@
                             "element": "server.menu",
                             "options": {
                               "menu": "serverLoad",
-                              "icon": "chevronDown"
+                              "icon": "chevronDown",
+                              "label": "Load this server's mods to the main menu"
                             }
                           }
                         ]
-                      },
-                      {
-                        "type": "stack",
-                        "id": "r-detail-toolbar",
-                        "direction": "row",
-                        "children": [
-                          {
-                            "element": "server.checkMods",
-                            "options": {
-                              "display": "icon"
-                            }
-                          },
-                          {
-                            "element": "server.subscribeAll",
-                            "options": {
-                              "display": "icon"
-                            }
-                          },
-                          {
-                            "element": "server.unsubscribeUnique",
-                            "options": {
-                              "display": "icon"
-                            }
-                          },
-                          {
-                            "element": "server.copyAddress",
-                            "options": {
-                              "display": "icon"
-                            }
-                          }
-                        ]
-                      },
-                      {
-                        "element": "server.manageMods"
                       }
                     ]
                   }
