@@ -68,7 +68,7 @@ describe("applyThemeStylesheet", () => {
     expect(head).toHaveLength(0);
   });
 
-  it("removes the link when switching to a theme without css, and restores it on switch back", () => {
+  it("removes the link for a theme without css and when no theme is active, restoring it on switch back", () => {
     applyThemeStylesheet("aurora", ["css"]);
     expect(head).toHaveLength(1);
 
@@ -79,11 +79,19 @@ describe("applyThemeStylesheet", () => {
     expect(head).toHaveLength(1);
     expect(head[0].attributes.href).toBe("tetra-theme://localhost/aurora/styles.css");
     expect(head[0].attributes.layer).toBe("theme");
+
+    applyThemeStylesheet(null, []);
+    expect(head).toHaveLength(0);
   });
 
-  it("updates the existing link in place when the theme id changes", () => {
+  it("updates the existing link in place when the theme id changes, and re-applying the same theme is a no-op", () => {
     applyThemeStylesheet("aurora", ["css"]);
     const first = head[0];
+
+    applyThemeStylesheet("aurora", ["css"]);
+    applyThemeStylesheet("aurora", ["css"]);
+    expect(head).toHaveLength(1);
+    expect(head[0]).toBe(first);
 
     applyThemeStylesheet("borealis", ["css"]);
 
@@ -91,27 +99,6 @@ describe("applyThemeStylesheet", () => {
     expect(head[0]).toBe(first);
     expect(first.attributes.href).toBe("tetra-theme://localhost/borealis/styles.css");
     expect(first.attributes.layer).toBe("theme");
-  });
-
-  it("removes the link when no theme is active", () => {
-    applyThemeStylesheet("aurora", ["css"]);
-
-    applyThemeStylesheet(null, []);
-
-    expect(head).toHaveLength(0);
-  });
-
-  it("is idempotent when re-called with the same arguments", () => {
-    applyThemeStylesheet("aurora", ["css"]);
-    applyThemeStylesheet("aurora", ["css"]);
-    applyThemeStylesheet("aurora", ["css"]);
-
-    expect(head).toHaveLength(1);
-  });
-
-  it("configures theme stylesheet in the 'theme' cascade layer", () => {
-    applyThemeStylesheet("aurora", ["css"]);
-    expect(head[0].attributes.layer).toBe("theme");
   });
 
   it("ensures layer='theme' is present when updating an existing link missing the attribute", () => {

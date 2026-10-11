@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { settingsCombinations } from "./combinations";
 import type { SettingsField } from "@/theme/settings-schema";
+import type { SettingsValue } from "@/theme/theme-store";
 
 const boolField = (id: string, label = id): SettingsField => ({
   id,
@@ -63,15 +64,12 @@ describe("settingsCombinations", () => {
     }
   });
 
-  it("yields one 'Defaults' combination for a schema with no discrete fields", () => {
-    const { combinations, capped } = settingsCombinations([numberField("scale", 3), colorField("accent")]);
-    expect(capped).toBe(false);
-    expect(combinations).toEqual([{ values: { scale: 3, accent: "#112233" }, label: "Defaults" }]);
-  });
-
-  it("yields one 'Defaults' combination for an empty fields array", () => {
-    expect(settingsCombinations([])).toEqual({
-      combinations: [{ values: {}, label: "Defaults" }],
+  it.each<[string, SettingsField[], Record<string, SettingsValue>]>([
+    ["a schema with no discrete fields", [numberField("scale", 3), colorField("accent")], { scale: 3, accent: "#112233" }],
+    ["an empty fields array", [], {}],
+  ])("yields one 'Defaults' combination for %s", (_case, fields, values) => {
+    expect(settingsCombinations(fields)).toEqual({
+      combinations: [{ values, label: "Defaults" }],
       capped: false,
     });
   });

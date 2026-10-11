@@ -28,20 +28,16 @@ function render(scheme: "dark" | "light", glowIntensity: number): Record<string,
 }
 
 describe("glow regression across glowIntensity", () => {
-  it("matches the legacy bloom formula byte-for-byte in dark mode", () => {
-    for (const glowIntensity of GLOW_STEPS) {
-      const props = render("dark", glowIntensity);
-      expect(props["--bloom"]).toBe(String(glowIntensity));
-      expect(props["--glow"]).toBe(legacyGlow(NEUTRAL_DARK.accent, "dark", glowIntensity));
-    }
+  it.each(GLOW_STEPS)("bloom %s: --bloom and --glow follow the legacy dark formula", (glowIntensity) => {
+    const props = render("dark", glowIntensity);
+    expect(props["--bloom"]).toBe(String(glowIntensity));
+    expect(props["--glow"]).toBe(legacyGlow(NEUTRAL_DARK.accent, "dark", glowIntensity));
   });
 
-  it("keeps the light-mode dimming factor intact", () => {
-    for (const glowIntensity of GLOW_STEPS) {
-      const props = render("light", glowIntensity);
-      expect(props["--glow"]).toBe(legacyGlow(NEUTRAL_DARK.accent, "light", glowIntensity));
-    }
-    expect(render("light", 1)["--glow"]).not.toBe(render("dark", 1)["--glow"]);
+  it.each(GLOW_STEPS)("bloom %s: the light-mode glow keeps its dimming factor", (glowIntensity) => {
+    const light = render("light", glowIntensity);
+    expect(light["--glow"]).toBe(legacyGlow(NEUTRAL_DARK.accent, "light", glowIntensity));
+    expect(light["--glow"]).not.toBe(render("dark", glowIntensity)["--glow"]);
   });
 });
 
@@ -57,21 +53,18 @@ describe("glow policy CSS custom properties", () => {
     return props;
   }
 
-  it("lights only selected controls by default", () => {
-    for (const props of [propsFor(), propsFor("selected")]) {
-      expect(props["--t-glow-rest"]).toBe("none");
-      expect(props["--t-glow-selected"]).toBe("var(--t-shadow-glow)");
-    }
-  });
+  const GLOW = "var(--t-shadow-glow)";
 
-  it("lights controls at rest only under always, and neither under never", () => {
-    const always = propsFor("always");
-    expect(always["--t-glow-rest"]).toBe("var(--t-shadow-glow)");
-    expect(always["--t-glow-selected"]).toBe("var(--t-shadow-glow)");
+  it.each<[string, "always" | "selected" | "never" | undefined, string, string]>([
+    ["nothing", undefined, "none", GLOW],
+    ["'selected'", "selected", "none", GLOW],
+    ["'always'", "always", GLOW, GLOW],
+    ["'never'", "never", "none", "none"],
+  ])("writes --t-glow-* for a theme that declares %s", (_policy, glow, rest, selected) => {
+    const props = propsFor(glow);
 
-    const never = propsFor("never");
-    expect(never["--t-glow-rest"]).toBe("none");
-    expect(never["--t-glow-selected"]).toBe("none");
+    expect(props["--t-glow-rest"]).toBe(rest);
+    expect(props["--t-glow-selected"]).toBe(selected);
   });
 });
 

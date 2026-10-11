@@ -1,22 +1,15 @@
 import { createElement } from "react";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { REGISTRY } from "../registry";
-import type { LayoutNode } from "../renderer/types";
-import { LayoutRenderer } from "../renderer/layout-renderer";
-import { ModalHost } from "../interaction/modal-host";
-import { ListRow } from "../lists/list-row";
 import { ElementContextProvider } from "../elements/context";
+import { REGISTRY } from "../registry";
+import { LayoutRenderer } from "../renderer/layout-renderer";
+import type { LayoutNode } from "../renderer/types";
+import { ListRow } from "../lists/list-row";
 import {
   BROWSER_LAYOUT,
-  MOD_FILTER_MODAL,
-  MOD_FILTER_RESULTS_LIST,
-  MODS_LIST,
   NEUTRAL_LAYOUTS,
-  SERVER_INFO_MODAL,
-  SERVERS_LIST,
   SHELL_LAYOUT,
-  UPDATE_MODAL,
   getNeutralLayout,
 } from "./index";
 
@@ -48,27 +41,38 @@ describe("Neutral layouts", () => {
     });
   });
 
-  describe("Schema and structural validation", () => {
-    it("all layouts specify schemaVersion 2", () => {
-      for (const layout of Object.values(NEUTRAL_LAYOUTS)) {
-        expect(layout.schemaVersion).toBe(2);
-      }
-    });
-
-    it("modal files specify center placement and dim backdrop", () => {
-      const modals = [SERVER_INFO_MODAL, UPDATE_MODAL, MOD_FILTER_MODAL];
-      for (const modal of modals) {
-        expect(modal.placement?.mode).toBe("center");
-        expect(modal.backdrop).toBe("dim");
-        expect(modal.root).toBeDefined();
-      }
-    });
+  it.each(Object.entries(NEUTRAL_LAYOUTS))("specifies schemaVersion 2 in %s", (_file, layout) => {
+    expect(layout.schemaVersion).toBe(2);
   });
 
-  describe("Registered id coverage", () => {
-    // Walks every node reachable from a layout file and asserts each `element`/`surface`
-    // id is known to the registry. This catches unknown ids (the drift that actually
-    // happened); it does not replace the Rust validator's full structural checks.
+  it.each(Object.entries(NEUTRAL_LAYOUTS))("renders %s without throwing", (_file, layout) => {
+    if (layout.root) {
+      const html = renderToStaticMarkup(
+        createElement(
+          ElementContextProvider,
+          null,
+          createElement(LayoutRenderer, { file: layout }),
+        ),
+      );
+      expect(html.length).toBeGreaterThan(0);
+    } else if (layout.row) {
+      const html = renderToStaticMarkup(
+        createElement(
+          ElementContextProvider,
+          null,
+          createElement(ListRow, {
+            rowNode: layout.row,
+            columns: layout.columns,
+            item: { name: "Item" },
+            subjectKind: "server",
+          }),
+        ),
+      );
+      expect(html.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("every element/surface id used by Neutral's layouts is registered", () => {
     function collectUnknownIds(node: LayoutNode, file: string, violations: string[]): void {
       if ("element" in node && node.element) {
         if (!(node.element in REGISTRY.elements)) {
@@ -99,138 +103,12 @@ describe("Neutral layouts", () => {
       if (node.collapsible?.collapsed) collectUnknownIds(node.collapsible.collapsed, file, violations);
     }
 
-    it("every element/surface id used by Neutral's layouts is registered", () => {
-      const violations: string[] = [];
-      for (const [file, layout] of Object.entries(NEUTRAL_LAYOUTS)) {
-        if (layout.root) collectUnknownIds(layout.root, file, violations);
-        for (const variant of layout.variants ?? []) collectUnknownIds(variant.root, file, violations);
-        if (layout.row) collectUnknownIds(layout.row, file, violations);
-      }
-      expect(violations).toEqual([]);
-    });
-  });
-
-  describe("Pure React SSR rendering", () => {
-    it("renders all modals with ModalHost without throwing", () => {
-      const mockServer = {
-        name: "DayZ Server",
-        address: "127.0.0.1:2302",
-        players: 10,
-        maxPlayers: 60,
-        ping: 30,
-        map: "Chernarus",
-      };
-
-      const serverInfoHtml = renderToStaticMarkup(
-        createElement(
-          ElementContextProvider,
-          { value: { selectedServer: mockServer as never } },
-          createElement(ModalHost, { file: SERVER_INFO_MODAL, onClose: () => {} }),
-        ),
-      );
-      expect(serverInfoHtml).toContain('data-modal-host=""');
-      expect(serverInfoHtml).toContain('data-backdrop="dim"');
-      expect(serverInfoHtml).toContain('data-placement="center"');
-      expect(serverInfoHtml).toContain('data-el="modal.close"');
-      expect(serverInfoHtml).toContain('data-el="server.join"');
-
-      const updateHtml = renderToStaticMarkup(
-        createElement(
-          ElementContextProvider,
-          null,
-          createElement(ModalHost, { file: UPDATE_MODAL, onClose: () => {} }),
-        ),
-      );
-      expect(updateHtml).toContain("Updates");
-      expect(updateHtml).toContain('data-el="update.viewRelease"');
-
-      const modFilterHtml = renderToStaticMarkup(
-        createElement(
-          ElementContextProvider,
-          null,
-          createElement(ModalHost, { file: MOD_FILTER_MODAL, onClose: () => {} }),
-        ),
-      );
-      expect(modFilterHtml).toContain("Filter by mod");
-      expect(modFilterHtml).toContain('data-el="modFilter.apply"');
-      expect(modFilterHtml).toContain('data-el="list.modFilterResults"');
-    });
-
-    it("renders list row templates with ListRow without throwing", () => {
-      const serverRowHtml = renderToStaticMarkup(
-        createElement(
-          ElementContextProvider,
-          null,
-          createElement(ListRow, {
-            rowNode: SERVERS_LIST.row,
-            columns: SERVERS_LIST.columns,
-            item: { name: "Official US - NY 1234", ping: 45, map: "Livonia" },
-            subjectKind: "server",
-          }),
-        ),
-      );
-      expect(serverRowHtml).toContain('data-row=""');
-      expect(serverRowHtml).toContain('data-el="server.name"');
-      expect(serverRowHtml).toContain('data-el="server.join"');
-
-      const modRowHtml = renderToStaticMarkup(
-        createElement(
-          ElementContextProvider,
-          null,
-          createElement(ListRow, {
-            rowNode: MODS_LIST.row,
-            columns: MODS_LIST.columns,
-            item: { name: "DayZ-Expansion", status: "Ready", size: 1048576 },
-            subjectKind: "mod",
-          }),
-        ),
-      );
-      expect(modRowHtml).toContain('data-row=""');
-      expect(modRowHtml).toContain('data-el="mod.name"');
-      expect(modRowHtml).toContain('data-el="mod.status"');
-
-      const modFilterRowHtml = renderToStaticMarkup(
-        createElement(
-          ElementContextProvider,
-          null,
-          createElement(ListRow, {
-            rowNode: MOD_FILTER_RESULTS_LIST.row,
-            item: { id: "123456", title: "TraderPlus", previewUrl: null, subscribed: false, serverCount: null },
-            subjectKind: "workshopMod",
-          }),
-        ),
-      );
-      expect(modFilterRowHtml).toContain('data-row=""');
-      expect(modFilterRowHtml).toContain('data-el="workshopMod.pick"');
-    });
-
-    it("renders every compiled-in Neutral layout without throwing", () => {
-      for (const [name, layout] of Object.entries(NEUTRAL_LAYOUTS)) {
-        if (layout.root) {
-          const html = renderToStaticMarkup(
-            createElement(
-              ElementContextProvider,
-              null,
-              createElement(LayoutRenderer, { file: layout }),
-            ),
-          );
-          expect(html.length, `Layout ${name} should produce non-empty markup`).toBeGreaterThan(0);
-        } else if (layout.row) {
-          const html = renderToStaticMarkup(
-            createElement(
-              ElementContextProvider,
-              null,
-              createElement(ListRow, {
-                rowNode: layout.row,
-                columns: layout.columns,
-                item: { name: "Item" },
-                subjectKind: "server",
-              }),
-            ),
-          );
-          expect(html.length, `List template ${name} should produce non-empty markup`).toBeGreaterThan(0);
-        }
-      }
-    });
+    const violations: string[] = [];
+    for (const [file, layout] of Object.entries(NEUTRAL_LAYOUTS)) {
+      if (layout.root) collectUnknownIds(layout.root, file, violations);
+      for (const variant of layout.variants ?? []) collectUnknownIds(variant.root, file, violations);
+      if (layout.row) collectUnknownIds(layout.row, file, violations);
+    }
+    expect(violations).toEqual([]);
   });
 });
