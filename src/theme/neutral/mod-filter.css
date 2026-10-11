@@ -4,11 +4,11 @@
 
 @layer neutral {
   .t-neutral-modfilter {
-    @apply relative h-[540px] w-full overflow-hidden [border-radius:var(--t-radius-modalLarge)] border border-line bg-surface [box-shadow:var(--t-shadow-xl)];
+    @apply relative h-full w-full overflow-hidden [border-radius:var(--t-radius-modalLarge)] border border-line bg-surface [box-shadow:var(--t-shadow-xl)];
   }
 
   [data-part="modal-dialog"]:has(> .t-neutral-modfilter) {
-    @apply w-[min(700px,calc(100%-40px))];
+    @apply h-[min(540px,calc(100%-40px))] w-[min(700px,calc(100%-40px))];
   }
 
   .t-neutral-modfilter-header {

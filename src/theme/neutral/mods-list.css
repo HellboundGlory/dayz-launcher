@@ -129,4 +129,31 @@
   .t-neutral-modrow-updated {
     @apply block w-[76px] shrink-0 truncate text-right [font-family:var(--t-type-family-data)] [font-size:var(--t-type-caption-size)] text-muted2;
   }
+
+  /* Rows are about 438 px wide at the regular 975 px size, so the columns stay there. */
+  @container (max-width: 419px) {
+    .t-neutral-modrow-size,
+    .t-neutral-modrow-updated {
+      @apply hidden;
+    }
+  }
+
+  @container (max-width: 299px) {
+    .t-neutral-modrow-thumb {
+      @apply hidden;
+    }
+
+    .t-neutral-modrow-status {
+      @apply w-auto;
+    }
+
+    .t-neutral-modrow-status::before {
+      @apply hidden;
+    }
+
+    /* The label stays in the tree for screen readers. */
+    .t-neutral-modrow-status [data-part="label"] {
+      @apply sr-only;
+    }
+  }
 }
