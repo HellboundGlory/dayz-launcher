@@ -123,11 +123,14 @@ export function nextSortDir(currentKey: SortKey, currentDir: SortDir, picked: So
 /** A filter option: the check column, then its label. Shared by the map, tag, region and sort popups. */
 function OptionRow({
   selected,
+  mark,
   state,
   onClick,
   children,
 }: {
   selected: boolean;
+  /** Drawn in the check column in place of the tick. */
+  mark?: ReactNode;
   state?: string | false;
   onClick: () => void;
   children: ReactNode;
@@ -143,7 +146,7 @@ function OptionRow({
       className="flex w-full items-center gap-2 px-2 py-1.5 text-left hover:bg-surface transition-colors"
     >
       <span data-part="box" className="flex size-[var(--t-space-iconMedium)] shrink-0 items-center justify-center text-muted">
-        <Check strokeWidth={2} className={cn("size-[var(--t-space-iconSmall)]", !selected && "opacity-0")} />
+        {mark ?? <Check strokeWidth={2} className={cn("size-[var(--t-space-iconSmall)]", !selected && "opacity-0")} />}
       </span>
       {children}
     </button>
@@ -196,11 +199,13 @@ export function PopupTagOptions({ className, style }: { className?: string; styl
             key={opt.field}
             selected={val === true}
             state={indicatorState(val)}
+            mark={
+              <span data-part="indicator" className="font-mono-data text-[10px]">
+                {indicatorText(val)}
+              </span>
+            }
             onClick={() => cycle(opt.field)}
           >
-            <span data-part="indicator" className="font-mono-data text-[10px]">
-              {indicatorText(val)}
-            </span>
             <span className="truncate">{opt.label}</span>
           </OptionRow>
         );
