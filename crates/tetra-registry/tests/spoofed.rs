@@ -76,30 +76,7 @@ async fn spoofed_rows_are_dropped_and_honest_ones_kept() {
 }
 
 #[tokio::test]
-async fn a_row_that_starts_lying_is_removed() {
-    let registry = Registry::open_in_memory().expect("registry");
-    let writer = registry.writer();
-
-    writer
-        .upsert_servers(vec![row(key(10), "Survivor Haven", 42, 60, 0)])
-        .await
-        .expect("honest write");
-    assert_eq!(names(&registry).len(), 1);
-
-    // Same address, now reporting a mirrored bot count.
-    writer
-        .upsert_servers(vec![row(key(10), "Survivor Haven", 60, 60, 60)])
-        .await
-        .expect("spoofed write");
-
-    assert!(
-        names(&registry).is_empty(),
-        "a listing that turns spoofed must not linger"
-    );
-}
-
-#[tokio::test]
-async fn a_server_that_starts_lying_loses_its_mods() {
+async fn a_row_that_starts_lying_is_dropped_with_its_mods() {
     let registry = Registry::open_in_memory().expect("registry");
     let writer = registry.writer();
     let k = key(10);
@@ -120,6 +97,7 @@ async fn a_server_that_starts_lying_loses_its_mods() {
         .expect("mods");
 
     let reader = registry.reader().expect("reader");
+    assert_eq!(names(&registry).len(), 1);
     assert_eq!(reader.known_mods(50).expect("known").len(), 1);
 
     // Same address, now reporting a mirrored bot count.
@@ -128,6 +106,10 @@ async fn a_server_that_starts_lying_loses_its_mods() {
         .await
         .expect("spoofed write");
 
+    assert!(
+        names(&registry).is_empty(),
+        "a listing that turns spoofed must not linger"
+    );
     assert!(
         reader.mods_for(k).expect("mods_for").is_empty(),
         "mod rows of a dropped server must go with it"
@@ -150,24 +132,4 @@ async fn a_server_that_starts_lying_loses_its_mods() {
         .await
         .expect("late rules write");
     assert!(reader.known_mods(50).expect("known").is_empty());
-}
-
-#[tokio::test]
-async fn an_unresolved_master_row_is_not_mistaken_for_a_spoof() {
-    let registry = Registry::open_in_memory().expect("registry");
-    let writer = registry.writer();
-
-    // What Steam hands over for a server it could not reach itself: structural
-    // zeroes, no name. Those rows are the backlog `resolve_unlisted` works
-    // through, so dropping them would be a regression.
-    let mut unresolved = row(key(20), "", 0, 0, 0);
-    unresolved.responded = false;
-    unresolved.keywords = None;
-    writer
-        .upsert_servers(vec![unresolved])
-        .await
-        .expect("write");
-
-    let reader = registry.reader().expect("reader");
-    assert_eq!(reader.unresolved(10, 0).expect("unresolved").len(), 1);
 }

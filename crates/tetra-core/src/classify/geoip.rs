@@ -97,78 +97,51 @@ mod tests {
     use std::net::Ipv4Addr;
 
     #[test]
-    fn hetzner_is_eu() {
-        assert_eq!(
-            region_code(Ipv4Addr::new(88, 198, 1, 1)),
-            Some(REGION_EUROPE)
-        );
+    fn maps_addresses_to_regions() {
+        let cases: &[(&str, Ipv4Addr, &str)] = &[
+            ("hetzner", Ipv4Addr::new(88, 198, 1, 1), REGION_EUROPE),
+            ("ovh france", Ipv4Addr::new(51, 38, 100, 1), REGION_EUROPE),
+            (
+                "the other ovh france range",
+                Ipv4Addr::new(178, 33, 0, 1),
+                REGION_EUROPE,
+            ),
+            ("ovh uk", Ipv4Addr::new(51, 254, 46, 15), REGION_EUROPE),
+            ("us", Ipv4Addr::new(4, 2, 2, 2), REGION_NORTH_AMERICA),
+            (
+                "google dns",
+                Ipv4Addr::new(8, 8, 8, 8),
+                REGION_NORTH_AMERICA,
+            ),
+            ("au", Ipv4Addr::new(1, 1, 1, 1), REGION_OCEANIA),
+            ("br", Ipv4Addr::new(177, 54, 0, 1), REGION_SOUTH_AMERICA),
+            ("cn", Ipv4Addr::new(14, 0, 0, 1), REGION_ASIA),
+            (
+                "top of the asia range",
+                Ipv4Addr::new(223, 255, 0, 1),
+                REGION_ASIA,
+            ),
+        ];
+        for (name, ip, region) in cases {
+            assert_eq!(region_code(*ip), Some(*region), "{name}");
+        }
     }
 
     #[test]
-    fn ovh_france_is_eu() {
-        assert_eq!(
-            region_code(Ipv4Addr::new(51, 38, 100, 1)),
-            Some(REGION_EUROPE)
-        );
-        assert_eq!(
-            region_code(Ipv4Addr::new(178, 33, 0, 1)),
-            Some(REGION_EUROPE)
-        );
-    }
-
-    #[test]
-    fn ovh_uk_is_eu() {
-        // 51.254.46.15 — OVH UK
-        assert_eq!(
-            region_code(Ipv4Addr::new(51, 254, 46, 15)),
-            Some(REGION_EUROPE)
-        );
-    }
-
-    #[test]
-    fn us_is_na() {
-        assert_eq!(
-            region_code(Ipv4Addr::new(4, 2, 2, 2)),
-            Some(REGION_NORTH_AMERICA)
-        );
-        assert_eq!(
-            region_code(Ipv4Addr::new(8, 8, 8, 8)),
-            Some(REGION_NORTH_AMERICA)
-        );
-    }
-
-    #[test]
-    fn au_is_oc() {
-        assert_eq!(region_code(Ipv4Addr::new(1, 1, 1, 1)), Some(REGION_OCEANIA));
-    }
-
-    #[test]
-    fn br_is_sa() {
-        assert_eq!(
-            region_code(Ipv4Addr::new(177, 54, 0, 1)),
-            Some(REGION_SOUTH_AMERICA)
-        );
-    }
-
-    #[test]
-    fn cn_is_as() {
-        assert_eq!(region_code(Ipv4Addr::new(14, 0, 0, 1)), Some(REGION_ASIA));
-        assert_eq!(
-            region_code(Ipv4Addr::new(223, 255, 0, 1)),
-            Some(REGION_ASIA)
-        );
-    }
-
-    #[test]
-    fn loopback_is_none() {
-        assert_eq!(region_code(Ipv4Addr::new(127, 0, 0, 1)), None);
-    }
-
-    #[test]
-    fn private_is_none() {
-        assert_eq!(region_code(Ipv4Addr::new(192, 168, 1, 1)), None);
-        assert_eq!(region_code(Ipv4Addr::new(10, 0, 0, 1)), None);
-        assert_eq!(region_code(Ipv4Addr::new(172, 16, 0, 1)), None);
+    fn non_routable_addresses_have_no_region() {
+        let cases: &[(&str, Ipv4Addr)] = &[
+            ("loopback", Ipv4Addr::new(127, 0, 0, 1)),
+            ("private class c", Ipv4Addr::new(192, 168, 1, 1)),
+            ("private class a", Ipv4Addr::new(10, 0, 0, 1)),
+            ("private class b", Ipv4Addr::new(172, 16, 0, 1)),
+            ("link-local", Ipv4Addr::new(169, 254, 1, 1)),
+            ("carrier-grade NAT", Ipv4Addr::new(100, 64, 0, 1)),
+            ("unspecified", Ipv4Addr::new(0, 0, 0, 0)),
+            ("broadcast", Ipv4Addr::new(255, 255, 255, 255)),
+        ];
+        for (name, ip) in cases {
+            assert_eq!(region_code(*ip), None, "{name}");
+        }
     }
 
     /// The private guard must not swallow the routable remainder of the same
@@ -229,13 +202,5 @@ mod tests {
                 Some(REGION_EUROPE)
             );
         }
-    }
-
-    #[test]
-    fn other_non_routable_ranges_are_none() {
-        assert_eq!(region_code(Ipv4Addr::new(169, 254, 1, 1)), None); // link-local
-        assert_eq!(region_code(Ipv4Addr::new(100, 64, 0, 1)), None); // CGNAT
-        assert_eq!(region_code(Ipv4Addr::new(0, 0, 0, 0)), None); // unspecified
-        assert_eq!(region_code(Ipv4Addr::new(255, 255, 255, 255)), None); // broadcast
     }
 }

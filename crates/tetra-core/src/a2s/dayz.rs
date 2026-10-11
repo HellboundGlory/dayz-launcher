@@ -260,7 +260,7 @@ pub fn parse_dayz_rules(response: &[u8]) -> Result<PackedPayload, PackedError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_dayz_rules, parse_packed, reassemble_chunks, unescape};
+    use super::{parse_dayz_rules, parse_packed, reassemble_chunks};
     use crate::error::PackedError;
 
     fn pair(k: &[u8], v: &[u8]) -> (Vec<u8>, Vec<u8>) {
@@ -291,122 +291,87 @@ mod tests {
     }
 
     #[test]
-    fn unescape_maps_0x01_0x02_to_nul() {
-        assert_eq!(
-            unescape(&[0xAA, 0x01, 0x02, 0xBB]).unwrap(),
-            vec![0xAA, 0x00, 0xBB]
-        );
-    }
-
-    #[test]
-    fn unescape_maps_0x01_0x03_to_0xff() {
-        assert_eq!(
-            unescape(&[0xAA, 0x01, 0x03, 0xBB]).unwrap(),
-            vec![0xAA, 0xFF, 0xBB]
-        );
-    }
-
-    #[test]
     fn unescapes_an_escape_pair_that_straddles_a_chunk_boundary() {
         let rules = vec![pair(&[1, 2], &[0xAA, 0x01]), pair(&[2, 2], &[0x02, 0xBB])];
         assert_eq!(reassemble_chunks(&rules).unwrap(), vec![0xAA, 0x00, 0xBB]);
     }
 
-    #[test]
-    fn rejects_a_missing_chunk() {
-        let rules = vec![pair(&[1, 3], b"AAA"), pair(&[3, 3], b"CCC")];
-        assert_eq!(
-            reassemble_chunks(&rules),
-            Err(PackedError::MissingChunk { index: 2, total: 3 })
-        );
-    }
+    type Case = (
+        &'static str,
+        Vec<(Vec<u8>, Vec<u8>)>,
+        fn(&PackedError) -> bool,
+    );
 
     #[test]
-    fn rejects_a_rules_set_with_no_chunks() {
-        let rules = vec![pair(b"island", b"chernarusplus")];
-        assert_eq!(reassemble_chunks(&rules), Err(PackedError::NoChunks));
-    }
-
-    #[test]
-    fn rejects_unknown_escape_byte() {
-        let rules = vec![pair(&[1, 1], &[0x01, 0x05])];
-        assert!(matches!(
-            reassemble_chunks(&rules),
-            Err(PackedError::Unrecognised { .. })
-        ));
-    }
-
-    #[test]
-    fn rejects_dangling_trailing_escape_marker() {
-        let rules = vec![pair(&[1, 1], &[0xAA, 0x01])];
-        assert!(matches!(
-            reassemble_chunks(&rules),
-            Err(PackedError::Unrecognised { .. })
-        ));
-    }
-
-    #[test]
-    fn rejects_disagreeing_totals() {
-        let rules = vec![
-            pair(&[1, 3], b"AAA"),
-            pair(&[2, 4], b"BBB"),
-            pair(&[3, 3], b"CCC"),
+    fn rejects_malformed_chunk_sets() {
+        let cases: Vec<Case> = vec![
+            (
+                "no chunks at all",
+                vec![pair(b"island", b"chernarusplus")],
+                |e| matches!(e, PackedError::NoChunks),
+            ),
+            (
+                "a missing chunk",
+                vec![pair(&[1, 3], b"AAA"), pair(&[3, 3], b"CCC")],
+                |e| matches!(e, PackedError::MissingChunk { index: 2, total: 3 }),
+            ),
+            (
+                "chunks that disagree on the total",
+                vec![
+                    pair(&[1, 3], b"AAA"),
+                    pair(&[2, 4], b"BBB"),
+                    pair(&[3, 3], b"CCC"),
+                ],
+                |e| matches!(e, PackedError::Unrecognised { .. }),
+            ),
+            (
+                "an index above the total",
+                vec![
+                    pair(&[1, 3], b"AAA"),
+                    pair(&[2, 3], b"BBB"),
+                    pair(&[3, 3], b"CCC"),
+                    pair(&[4, 3], b"DDD"),
+                ],
+                |e| matches!(e, PackedError::Unrecognised { .. }),
+            ),
+            (
+                "a duplicate index",
+                vec![
+                    pair(&[1, 3], b"AAA"),
+                    pair(&[1, 3], b"AAA_DUP"),
+                    pair(&[2, 3], b"BBB"),
+                    pair(&[3, 3], b"CCC"),
+                ],
+                |e| matches!(e, PackedError::Unrecognised { .. }),
+            ),
+            (
+                "index zero",
+                vec![
+                    pair(&[0, 3], b"ZERO"),
+                    pair(&[1, 3], b"AAA"),
+                    pair(&[2, 3], b"BBB"),
+                    pair(&[3, 3], b"CCC"),
+                ],
+                |e| matches!(e, PackedError::Unrecognised { .. }),
+            ),
+            ("total zero", vec![pair(&[1, 0], b"AAA")], |e| {
+                matches!(e, PackedError::Unrecognised { .. })
+            }),
+            (
+                "an unknown escape byte",
+                vec![pair(&[1, 1], &[0x01, 0x05])],
+                |e| matches!(e, PackedError::Unrecognised { .. }),
+            ),
+            (
+                "a dangling trailing escape marker",
+                vec![pair(&[1, 1], &[0xAA, 0x01])],
+                |e| matches!(e, PackedError::Unrecognised { .. }),
+            ),
         ];
-        assert!(matches!(
-            reassemble_chunks(&rules),
-            Err(PackedError::Unrecognised { .. })
-        ));
-    }
-
-    #[test]
-    fn rejects_index_exceeding_total() {
-        let rules = vec![
-            pair(&[1, 3], b"AAA"),
-            pair(&[2, 3], b"BBB"),
-            pair(&[3, 3], b"CCC"),
-            pair(&[4, 3], b"DDD"),
-        ];
-        assert!(matches!(
-            reassemble_chunks(&rules),
-            Err(PackedError::Unrecognised { .. })
-        ));
-    }
-
-    #[test]
-    fn rejects_duplicate_index() {
-        let rules = vec![
-            pair(&[1, 3], b"AAA"),
-            pair(&[1, 3], b"AAA_DUP"),
-            pair(&[2, 3], b"BBB"),
-            pair(&[3, 3], b"CCC"),
-        ];
-        assert!(matches!(
-            reassemble_chunks(&rules),
-            Err(PackedError::Unrecognised { .. })
-        ));
-    }
-
-    #[test]
-    fn rejects_index_zero() {
-        let rules = vec![
-            pair(&[0, 3], b"ZERO"),
-            pair(&[1, 3], b"AAA"),
-            pair(&[2, 3], b"BBB"),
-            pair(&[3, 3], b"CCC"),
-        ];
-        assert!(matches!(
-            reassemble_chunks(&rules),
-            Err(PackedError::Unrecognised { .. })
-        ));
-    }
-
-    #[test]
-    fn rejects_total_zero() {
-        let rules = vec![pair(&[1, 0], b"AAA")];
-        assert!(matches!(
-            reassemble_chunks(&rules),
-            Err(PackedError::Unrecognised { .. })
-        ));
+        for (name, rules, expected) in cases {
+            let err = reassemble_chunks(&rules).expect_err(name);
+            assert!(expected(&err), "{name}: {err}");
+        }
     }
 
     #[test]

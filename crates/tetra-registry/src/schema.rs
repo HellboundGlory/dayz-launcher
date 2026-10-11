@@ -257,35 +257,112 @@ mod tests {
             .as_secs() as i64
     }
 
+    /// `responded_age_days` is `None` for a row Steam listed but that never
+    /// answered anyone, which then ages out on `last_seen` instead.
     fn insert_server(
         conn: &Connection,
-        ip: &str,
-        port: i64,
-        last_responded: Option<i64>,
+        last_seen_age_days: i64,
+        responded_age_days: Option<i64>,
         favourite: bool,
-        last_played: Option<i64>,
+        played_age_days: Option<i64>,
     ) {
+        let seen = now() - last_seen_age_days * 86_400;
         conn.execute(
             "INSERT INTO servers (ip, query_port, first_seen, last_seen, last_responded, favourite, last_played)
-             VALUES (?1, ?2, ?3, ?3, ?4, ?5, ?6)",
-            rusqlite::params![ip, port, now(), last_responded, favourite as i64, last_played],
+             VALUES ('1.2.3.4', 2302, ?1, ?1, ?2, ?3, ?4)",
+            rusqlite::params![
+                seen,
+                responded_age_days.map(|d| now() - d * 86_400),
+                favourite as i64,
+                played_age_days.map(|d| now() - d * 86_400),
+            ],
         )
         .unwrap();
     }
 
-    /// A row Steam listed but that never answered anyone, last listed
-    /// `age_days` ago.
-    fn insert_never_responded(conn: &Connection, ip: &str, port: i64, age_days: i64) {
-        conn.execute(
-            "INSERT INTO servers (ip, query_port, first_seen, last_seen, last_responded)
-             VALUES (?1, ?2, ?3, ?3, NULL)",
-            rusqlite::params![ip, port, now() - age_days * 86_400],
-        )
-        .unwrap();
+    struct PruneCase {
+        name: &'static str,
+        last_seen_age_days: i64,
+        responded_age_days: Option<i64>,
+        favourite: bool,
+        played_age_days: Option<i64>,
+        expected_pruned: usize,
     }
 
     #[test]
-    fn mods_without_a_server_row_are_swept() {
+    fn prune_stale_keeps_servers_that_are_recent_cared_about_or_still_listed() {
+        let cases = [
+            PruneCase {
+                name: "recently responsive",
+                last_seen_age_days: 0,
+                responded_age_days: Some(10),
+                favourite: false,
+                played_age_days: None,
+                expected_pruned: 0,
+            },
+            PruneCase {
+                name: "unresponsive and uncared for",
+                last_seen_age_days: 0,
+                responded_age_days: Some(61),
+                favourite: false,
+                played_age_days: None,
+                expected_pruned: 1,
+            },
+            PruneCase {
+                name: "favourited however stale",
+                last_seen_age_days: 0,
+                responded_age_days: Some(400),
+                favourite: true,
+                played_age_days: None,
+                expected_pruned: 0,
+            },
+            PruneCase {
+                name: "played however stale",
+                last_seen_age_days: 0,
+                responded_age_days: Some(400),
+                favourite: false,
+                played_age_days: Some(400),
+                expected_pruned: 0,
+            },
+            PruneCase {
+                name: "never responded, still listed",
+                last_seen_age_days: 1,
+                responded_age_days: None,
+                favourite: false,
+                played_age_days: None,
+                expected_pruned: 0,
+            },
+            PruneCase {
+                name: "never responded, aged out",
+                last_seen_age_days: 61,
+                responded_age_days: None,
+                favourite: false,
+                played_age_days: None,
+                expected_pruned: 1,
+            },
+        ];
+        for case in cases {
+            let conn = fresh_conn();
+            insert_server(
+                &conn,
+                case.last_seen_age_days,
+                case.responded_age_days,
+                case.favourite,
+                case.played_age_days,
+            );
+            assert_eq!(
+                prune_stale(&conn).unwrap(),
+                case.expected_pruned,
+                "case: {}",
+                case.name
+            );
+        }
+    }
+
+    #[test]
+    fn prune_stale_sweeps_mods_of_removed_and_orphaned_servers() {
+        // `server_mods` has no `FOREIGN KEY` on (ip, query_port) — nothing
+        // cascades this for free.
         let conn = fresh_conn();
         conn.execute(
             "INSERT INTO server_mods (ip, query_port, ordinal, workshop_id, name)
@@ -293,113 +370,15 @@ mod tests {
             [],
         )
         .unwrap();
-        prune_stale(&conn).unwrap();
-        let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM server_mods", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(count, 0);
-    }
-
-    #[test]
-    fn a_long_unresponsive_unfavourited_unplayed_server_is_pruned() {
-        let conn = fresh_conn();
-        insert_server(
-            &conn,
-            "1.2.3.4",
-            2302,
-            Some(now() - 61 * 86_400),
-            false,
-            None,
-        );
-        assert_eq!(prune_stale(&conn).unwrap(), 1);
-        let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM servers", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(count, 0);
-    }
-
-    #[test]
-    fn a_recently_responsive_server_survives() {
-        let conn = fresh_conn();
-        insert_server(
-            &conn,
-            "1.2.3.4",
-            2302,
-            Some(now() - 10 * 86_400),
-            false,
-            None,
-        );
-        assert_eq!(prune_stale(&conn).unwrap(), 0);
-    }
-
-    #[test]
-    fn a_favourite_survives_no_matter_how_stale() {
-        let conn = fresh_conn();
-        insert_server(
-            &conn,
-            "1.2.3.4",
-            2302,
-            Some(now() - 400 * 86_400),
-            true,
-            None,
-        );
-        assert_eq!(prune_stale(&conn).unwrap(), 0);
-    }
-
-    #[test]
-    fn a_played_server_survives_no_matter_how_stale() {
-        let conn = fresh_conn();
-        insert_server(
-            &conn,
-            "1.2.3.4",
-            2302,
-            Some(now() - 400 * 86_400),
-            false,
-            Some(now() - 400 * 86_400),
-        );
-        assert_eq!(prune_stale(&conn).unwrap(), 0);
-    }
-
-    #[test]
-    fn a_never_responded_server_ages_out_on_last_seen() {
-        // These rows have no `last_responded` to age out on, so the original
-        // predicate kept every one of them forever: nameless, hidden by the
-        // browser, and growing without bound.
-        let conn = fresh_conn();
-        insert_never_responded(&conn, "1.2.3.4", 2302, 61);
-        assert_eq!(prune_stale(&conn).unwrap(), 1);
-    }
-
-    #[test]
-    fn a_never_responded_server_steam_still_lists_survives() {
-        // Still in the master list, so it's a probe candidate, not garbage.
-        let conn = fresh_conn();
-        insert_never_responded(&conn, "1.2.3.4", 2302, 1);
-        assert_eq!(prune_stale(&conn).unwrap(), 0);
-    }
-
-    #[test]
-    fn pruning_a_server_also_deletes_its_declared_mods() {
-        // `server_mods` has no `FOREIGN KEY` on (ip, query_port) — nothing
-        // cascades this for free.
-        let conn = fresh_conn();
-        insert_server(
-            &conn,
-            "1.2.3.4",
-            2302,
-            Some(now() - 61 * 86_400),
-            false,
-            None,
-        );
+        insert_server(&conn, 0, Some(61), false, None);
         conn.execute(
-            "INSERT INTO server_mods (ip, query_port, ordinal, workshop_id, name) \
+            "INSERT INTO server_mods (ip, query_port, ordinal, workshop_id, name)
              VALUES ('1.2.3.4', 2302, 0, 12345, 'Test Mod')",
             [],
         )
         .unwrap();
 
-        prune_stale(&conn).unwrap();
-
+        assert_eq!(prune_stale(&conn).unwrap(), 1);
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM server_mods", [], |r| r.get(0))
             .unwrap();

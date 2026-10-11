@@ -342,30 +342,40 @@ mod tests {
             retry_after,
         };
 
-        assert_eq!(retry_delay(&SteamError::Status(403), backoff), None);
-        assert_eq!(retry_delay(&SteamError::Status(404), backoff), None);
-        assert_eq!(
-            retry_delay(&SteamError::Status(500), backoff),
-            Some(backoff)
-        );
-        assert_eq!(
-            retry_delay(&SteamError::Http("boom".into()), backoff),
-            Some(backoff)
-        );
-        assert_eq!(
-            retry_delay(&throttled(429, Some(Duration::from_secs(5))), backoff),
-            Some(Duration::from_secs(5))
-        );
-        assert_eq!(retry_delay(&throttled(429, None), backoff), Some(backoff));
-        assert_eq!(
-            retry_delay(&throttled(429, Some(Duration::from_millis(500))), backoff),
-            Some(backoff)
-        );
-        assert_eq!(
-            retry_delay(&throttled(429, Some(Duration::from_secs(120))), backoff),
-            Some(Duration::from_secs(30))
-        );
-        assert_eq!(retry_delay(&throttled(408, None), backoff), Some(backoff));
+        // (case, failure, next delay, or None when the failure is permanent).
+        for (name, err, expected) in [
+            ("a rejected request", SteamError::Status(403), None),
+            ("a missing shard", SteamError::Status(404), None),
+            ("a server fault", SteamError::Status(500), Some(backoff)),
+            (
+                "a transport fault",
+                SteamError::Http("boom".into()),
+                Some(backoff),
+            ),
+            (
+                "throttling with a wait",
+                throttled(429, Some(Duration::from_secs(5))),
+                Some(Duration::from_secs(5)),
+            ),
+            (
+                "throttling without a wait",
+                throttled(429, None),
+                Some(backoff),
+            ),
+            (
+                "a wait below the backoff",
+                throttled(429, Some(Duration::from_millis(500))),
+                Some(backoff),
+            ),
+            (
+                "a wait above the cap",
+                throttled(429, Some(Duration::from_secs(120))),
+                Some(Duration::from_secs(30)),
+            ),
+            ("a request timeout", throttled(408, None), Some(backoff)),
+        ] {
+            assert_eq!(retry_delay(&err, backoff), expected, "{name}");
+        }
     }
 
     #[test]
@@ -389,10 +399,15 @@ mod tests {
 
     #[test]
     fn retry_after_reads_only_whole_seconds() {
-        assert_eq!(parse_retry_after("5"), Some(Duration::from_secs(5)));
-        assert_eq!(parse_retry_after(" 10 "), Some(Duration::from_secs(10)));
-        assert_eq!(parse_retry_after("Wed, 21 Oct 2015 07:28:00 GMT"), None);
-        assert_eq!(parse_retry_after(""), None);
+        for (value, expected) in [
+            ("5", Some(Duration::from_secs(5))),
+            (" 10 ", Some(Duration::from_secs(10))),
+            // The HTTP-date form is ignored.
+            ("Wed, 21 Oct 2015 07:28:00 GMT", None),
+            ("", None),
+        ] {
+            assert_eq!(parse_retry_after(value), expected, "{value:?}");
+        }
     }
 
     #[test]

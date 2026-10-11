@@ -78,133 +78,111 @@ async fn list(registry: &Registry, filter: &ServerFilter) -> Vec<String> {
         .collect()
 }
 
-#[tokio::test]
-async fn no_mod_filter_returns_every_server() {
-    let registry = Registry::open_in_memory().expect("registry");
-    build_three_servers(&registry).await;
-
-    let names = list(&registry, &ServerFilter::default()).await;
-    assert_eq!(names, vec!["CF + Trader", "CF Only", "Vanilla"]);
+struct FilterCase {
+    name: &'static str,
+    filter: ServerFilter,
+    expected: &'static [&'static str],
 }
 
 #[tokio::test]
-async fn any_match_returns_servers_declaring_at_least_one_selected_mod() {
+async fn mod_filters_select_the_expected_servers() {
+    let cases = [
+        FilterCase {
+            name: "no filter keeps every server",
+            filter: ServerFilter::default(),
+            expected: &["CF + Trader", "CF Only", "Vanilla"],
+        },
+        FilterCase {
+            name: "any match keeps servers declaring one id",
+            filter: ServerFilter {
+                mod_ids: vec![2],
+                mod_match: ModMatch::Any,
+                ..Default::default()
+            },
+            expected: &["CF + Trader"],
+        },
+        FilterCase {
+            name: "any match unions across ids",
+            filter: ServerFilter {
+                mod_ids: vec![1, 2],
+                mod_match: ModMatch::Any,
+                ..Default::default()
+            },
+            expected: &["CF + Trader", "CF Only"],
+        },
+        FilterCase {
+            name: "all match requires every id on one server",
+            filter: ServerFilter {
+                mod_ids: vec![1, 2],
+                mod_match: ModMatch::All,
+                ..Default::default()
+            },
+            expected: &["CF + Trader"],
+        },
+        FilterCase {
+            name: "all match drops a server missing a mod",
+            filter: ServerFilter {
+                mod_ids: vec![1],
+                mod_match: ModMatch::All,
+                ..Default::default()
+            },
+            expected: &["CF + Trader", "CF Only"],
+        },
+        FilterCase {
+            name: "exclude drops every declaring server",
+            filter: ServerFilter {
+                mod_ids_exclude: vec![1],
+                ..Default::default()
+            },
+            expected: &["Vanilla"],
+        },
+        FilterCase {
+            name: "exclude keeps mod-free servers",
+            filter: ServerFilter {
+                mod_ids_exclude: vec![1, 2],
+                ..Default::default()
+            },
+            expected: &["Vanilla"],
+        },
+        FilterCase {
+            name: "exclude wins over a matching include",
+            filter: ServerFilter {
+                mod_ids: vec![2],
+                mod_match: ModMatch::Any,
+                mod_ids_exclude: vec![1],
+                ..Default::default()
+            },
+            expected: &[],
+        },
+    ];
+
     let registry = Registry::open_in_memory().expect("registry");
     build_three_servers(&registry).await;
-
-    let filter = ServerFilter {
-        mod_ids: vec![2],
-        mod_match: ModMatch::Any,
-        ..Default::default()
-    };
-    assert_eq!(list(&registry, &filter).await, vec!["CF + Trader"]);
+    for case in cases {
+        assert_eq!(
+            list(&registry, &case.filter).await,
+            case.expected,
+            "case: {}",
+            case.name
+        );
+    }
 }
 
 #[tokio::test]
-async fn any_match_unions_across_multiple_selected_mods() {
-    let registry = Registry::open_in_memory().expect("registry");
-    build_three_servers(&registry).await;
-
-    let filter = ServerFilter {
-        mod_ids: vec![1, 2],
-        mod_match: ModMatch::Any,
-        ..Default::default()
-    };
-    assert_eq!(
-        list(&registry, &filter).await,
-        vec!["CF + Trader", "CF Only"]
-    );
-}
-
-#[tokio::test]
-async fn all_match_requires_every_selected_mod_on_the_same_server() {
-    let registry = Registry::open_in_memory().expect("registry");
-    build_three_servers(&registry).await;
-
-    let filter = ServerFilter {
-        mod_ids: vec![1, 2],
-        mod_match: ModMatch::All,
-        ..Default::default()
-    };
-    assert_eq!(list(&registry, &filter).await, vec!["CF + Trader"]);
-}
-
-#[tokio::test]
-async fn excluding_a_mod_drops_every_server_that_declares_it() {
-    let registry = Registry::open_in_memory().expect("registry");
-    build_three_servers(&registry).await;
-
-    let filter = ServerFilter {
-        mod_ids_exclude: vec![1],
-        ..Default::default()
-    };
-    // Both "CF Only" and "CF + Trader" declare mod 1; only the mod-free
-    // server is left.
-    assert_eq!(list(&registry, &filter).await, vec!["Vanilla"]);
-}
-
-#[tokio::test]
-async fn exclude_wins_over_a_matching_include() {
-    let registry = Registry::open_in_memory().expect("registry");
-    build_three_servers(&registry).await;
-
-    // "CF + Trader" declares mod 2 (included) but also mod 1 (excluded) —
-    // exclusion must drop it even though it satisfies the include side.
-    let filter = ServerFilter {
-        mod_ids: vec![2],
-        mod_match: ModMatch::Any,
-        mod_ids_exclude: vec![1],
-        ..Default::default()
-    };
-    assert!(list(&registry, &filter).await.is_empty());
-}
-
-#[tokio::test]
-async fn a_mod_free_server_survives_an_exclude_filter() {
-    let registry = Registry::open_in_memory().expect("registry");
-    build_three_servers(&registry).await;
-
-    let filter = ServerFilter {
-        mod_ids_exclude: vec![1, 2],
-        ..Default::default()
-    };
-    assert_eq!(list(&registry, &filter).await, vec!["Vanilla"]);
-}
-
-#[tokio::test]
-async fn a_server_with_no_mods_never_matches() {
-    let registry = Registry::open_in_memory().expect("registry");
-    build_three_servers(&registry).await;
-
-    let filter = ServerFilter {
-        mod_ids: vec![1],
-        mod_match: ModMatch::All,
-        ..Default::default()
-    };
-    let names = list(&registry, &filter).await;
-    assert!(!names.contains(&"Vanilla".to_string()));
-}
-
-#[tokio::test]
-async fn known_mods_ranks_by_server_count_descending() {
+async fn known_mods_rank_by_server_count_and_honour_the_limit() {
     let registry = Registry::open_in_memory().expect("registry");
     build_three_servers(&registry).await;
 
     let reader = registry.reader().expect("reader");
     let known = reader.known_mods(10).expect("known_mods");
-
     assert_eq!(known.len(), 2, "vanilla contributes no rows");
     assert_eq!(known[0], (1, "Community Framework".to_string(), 2));
     assert_eq!(known[1], (2, "Trader Plus".to_string(), 1));
-}
 
-#[tokio::test]
-async fn known_mods_respects_the_limit() {
-    let registry = Registry::open_in_memory().expect("registry");
-    build_three_servers(&registry).await;
-
-    let reader = registry.reader().expect("reader");
-    let known = reader.known_mods(1).expect("known_mods");
-    assert_eq!(known.len(), 1);
-    assert_eq!(known[0].0, 1, "the most-declared mod wins the single slot");
+    let limited = reader.known_mods(1).expect("known_mods");
+    assert_eq!(limited.len(), 1);
+    assert_eq!(
+        limited[0].0, 1,
+        "the most-declared mod wins the single slot"
+    );
 }

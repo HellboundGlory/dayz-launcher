@@ -625,389 +625,352 @@ pub fn is_english_name(name: &str) -> bool {
 mod tests {
     use super::*;
 
-    #[test]
-    fn catches_the_hoster_defaults_seen_in_the_wild() {
-        for name in [
-            "nitrado.net gameserver",
-            "Hosted by GTXGaming.co.uk",
-            "DayZ Server by HostHavoc.com",
-            "4Netplayers DayZ Server",
-            "EXAMPLE NAME",
-        ] {
-            assert!(
-                is_placeholder_name(name),
-                "{name:?} should be a placeholder"
-            );
+    fn assert_names(cases: &[(&str, &[&str])], check: fn(&str) -> bool, expected: bool) {
+        for (case, names) in cases {
+            for name in *names {
+                assert_eq!(check(name), expected, "{case}: {name:?}");
+            }
         }
     }
 
     #[test]
-    fn filler_only_names_are_placeholders() {
-        for name in [
-            "TEST",
-            "  dayz server  ",
-            "DayZ Standalone Server",
-            "New Server",
-        ] {
-            assert!(is_placeholder_name(name), "{name:?} carries no identity");
-        }
-    }
-
-    #[test]
-    fn one_distinctive_word_is_enough_to_keep_a_name() {
-        for name in [
-            "Testosterone Wasteland",
-            "Bob's DayZ Server",
-            "The Test Kitchen | PVE",
-            "Server 51 | Chernarus",
-        ] {
-            assert!(!is_placeholder_name(name), "{name:?} is a real name");
-        }
-    }
-
-    /// Real, populated servers — hiding them is the point, not an accident.
-    #[test]
-    fn a_hoster_name_in_the_body_is_enough() {
-        for name in [
-            "4Netplayers Purgatorio [ESP]",
-            "GRAGOLL nitrado.net",
-            "TonyRoma68 nitrado.net gameserver",
-            "Nitrado Zombieland PVE",
-            "nitrado.net gameserver back again",
-            "4Netplayers GayZ",
-        ] {
-            assert!(
-                is_placeholder_name(name),
-                "{name:?} carries hoster branding and should be hidden"
-            );
-        }
-    }
-
-    #[test]
-    fn a_trailing_hosting_credit_is_not_branding() {
-        for name in [
-            "Stoned and Afraid PVE - By Pingperfect.com",
-            "ISA | Bitterroot 365 | No Bases - By Pingperfect.com",
-            "Bullwark DeerIsle - By Pingperfect.com",
-            "Papaws Livonia by HostHavoc.com",
-            "ForzaDinamo by GTXGaming.co.uk",
-            "SaltysEnochPVE - GTXGaming.co.uk",
-            "Cold  realism  Winter @ Chernarus by 4Netplayers",
-            "UK-INSANITY-PVE-STALKER-RETURN 2 CHERNO2035- By Pingperfect.com",
-        ] {
-            assert!(
-                !is_placeholder_name(name),
-                "{name:?} is a real name with a hosting credit appended"
-            );
-        }
-    }
-
-    /// The exemption must not rescue a name that was filler to begin with.
-    #[test]
-    fn stripping_a_credit_does_not_rescue_a_filler_name() {
-        for name in [
-            "DayZ Server by HostHavoc.com",
-            "DayZ Standalone - By Pingperfect.com",
-            "- by nitrado.net",
-        ] {
-            assert!(
-                is_placeholder_name(name),
-                "{name:?} has no name of its own once the credit is gone"
-            );
-        }
-    }
-
-    /// Only a marked-off clause is a credit — a bare trailing space stays hidden.
-    #[test]
-    fn a_bare_trailing_hoster_is_not_a_credit() {
-        assert!(is_placeholder_name("GRAGOLL nitrado.net"));
-        assert!(is_placeholder_name("SuperLunatics Nitrado Server"));
-    }
-
-    #[test]
-    fn trailing_digits_do_not_make_a_name() {
-        assert!(is_placeholder_name("4Netplayers DayZ Server15831672"));
-        assert!(is_placeholder_name("nitrado.net gameserver 2"));
-    }
-
-    /// Only *known* hosters are branding — extending the filter means
-    /// extending `HOST_MARKERS`.
-    #[test]
-    fn an_unlisted_hoster_is_just_another_word() {
-        assert!(!is_placeholder_name("Hosted by SomeNewHost.io"));
-    }
-
-    #[test]
-    fn an_empty_name_is_not_a_placeholder() {
-        // Missing, not default — `hide_unnamed` covers it instead.
-        assert!(!is_placeholder_name(""));
-        assert!(!is_placeholder_name("   "));
-    }
-
-    #[test]
-    fn ordinary_english_names_are_latin() {
-        for name in [
-            "Survivor Haven | PVE | Loot+",
-            "[US] BLOOD & BANDAGES|1.5X LOOT|CLUSTER",
-            "Sérvidor Español",
-            "DayZ Chernarus 1PP",
-        ] {
-            assert!(is_latin_name(name), "{name:?} should read as Latin");
-        }
-    }
-
-    #[test]
-    fn wholly_non_latin_names_are_not() {
-        for name in ["生存服务器", "Русский сервер", "생존 서버", "サバイバル鯖"]
-        {
-            assert!(!is_latin_name(name), "{name:?} should not read as Latin");
-        }
-    }
-
-    /// The case the 30% threshold exists for.
-    #[test]
-    fn a_latin_region_tag_does_not_rescue_a_non_latin_name() {
-        assert!(!is_latin_name("[RU] Русский сервер PVE"));
-        assert!(!is_latin_name("[CN] 生存服务器 官方"));
-    }
-
-    #[test]
-    fn a_decorative_character_does_not_condemn_an_english_name() {
-        assert!(is_latin_name("Чernarus Survival — English Community"));
-        assert!(is_latin_name("Wasteland ★ PVP ★ High Loot"));
-    }
-
-    #[test]
-    fn names_with_no_letters_count_as_latin() {
-        for name in ["[24/7]", "★★★", "1.28", ""] {
-            assert!(is_latin_name(name), "{name:?} has nothing to be unreadable");
-        }
-    }
-
-    // ─── Language ────────────────────────────────────────────────────────────
-
-    /// The report that prompted the language rule: German servers showing
-    /// under ENGLISH ONLY because German is Latin script.
-    #[test]
-    fn latin_script_is_not_the_same_as_english() {
-        for name in [
-            "[GER][PvE] Zockerfreunde | Chiemsee | Trader | Helis | Cars",
-            "[GER] Zockersuchtis | Fresh Wiped 01.08.2026",
-            "[EU] Gebirgsjäger |Banov|PVP/PVE-Zones|Loot+/Stamina+|Rules!",
-            "Zwiebelmett mit Guerkchen GER|MAPLINK|PVE/PVP|Trader|MMG|Helis|",
-            "- Letzte Zuflucht | Deutsch German | Untergrundbase | Safe Base",
-        ] {
-            assert!(is_latin_name(name), "{name:?} is Latin script");
-            assert!(!is_english_name(name), "{name:?} is not English");
-        }
-    }
-
-    /// A bracketed language/country tag is enough on its own, even when every
-    /// other word is English.
-    #[test]
-    fn a_language_tag_settles_it() {
-        for name in [
-            "[BR] THE KINGZ | FULL PVE | SEASON 1",
-            "[RU] FIDA | PVE | NO MODS",
-            "[UA] Ukrainian Stalker Project RP test",
-            "(ESP)Los Desahuciados RP-PVE-PVP",
-            "[PL]SPRZYMIERZENI PvE Strefy PvP",
-        ] {
-            assert!(
-                !is_english_name(name),
-                "{name:?} tags a non-English audience"
-            );
-        }
-    }
-
-    #[test]
-    fn an_audience_tag_waives_the_language_tag() {
-        assert!(is_english_name("[EU] Survivor Haven | PVE | Loot+"));
-        assert!(is_english_name("[US] Wasteland | 1PP | High Loot"));
-        // Waived, but the umlaut still condemns it — the signals are
-        // independent, and this one is German whatever its tag says.
-        assert!(!is_english_name("[EU] Gebirgsjäger |Cherno|PVP"));
-    }
-
-    /// The ones a careless word list would eat: `Wanderer` contains "der",
-    /// `Bandit` contains "band".
-    #[test]
-    fn english_names_survive() {
-        for name in [
-            "Survivor Haven | PVE | Loot+",
-            "The Wanderer | Chernarus | 1PP",
-            "Bandit Country | PVP | High Loot",
-            "[EU] BLOOD & BANDAGES|1.5X LOOT|CLUSTER",
-            "DayZ Chernarus 1PP",
-            "Wasteland ★ PVP ★ High Loot",
-            "Deer Isle Nights",
-        ] {
-            assert!(is_english_name(name), "{name:?} is an English name");
-        }
-    }
-
-    /// Substring matches fail silently — the server just stops appearing.
-    #[test]
-    fn a_foreign_word_inside_an_english_word_does_not_count() {
-        // "und" inside "Thunder", "mit" inside "Summit", "vida" inside "Vidal".
-        for name in ["Thunder Ridge PVP", "Summit Survival", "Vidal Heights RP"] {
-            assert!(
-                is_english_name(name),
-                "{name:?} was caught by a substring, not a word"
-            );
-        }
-    }
-
-    #[test]
-    fn non_latin_names_are_still_not_english() {
-        for name in ["生存服务器", "Русский сервер", "[RU] Русский сервер PVE"]
-        {
-            assert!(!is_english_name(name), "{name:?}");
-        }
-    }
-
-    /// One Han character settles it, whatever the ratio.
-    #[test]
-    fn a_single_han_character_is_decisive() {
-        for name in [
-            "[TN]#鹿岛/PVE Deerisle QQ群703109220",
-            "BX公益服|PVP仿官|Vanilla+",
-            "PVE服",
-            "[Lake]Vanilla/HighLoot/한국어",
-        ] {
-            assert!(!is_english_name(name), "{name:?} contains CJK/Hangul");
-        }
-        assert!(
-            is_latin_name("BX公益服|PVP仿官|Vanilla+"),
-            "the script test is unchanged; the language test is what catches it"
+    fn placeholder_names_are_hidden() {
+        assert_names(
+            &[
+                (
+                    "a hoster's default name",
+                    &[
+                        "nitrado.net gameserver",
+                        "Hosted by GTXGaming.co.uk",
+                        "DayZ Server by HostHavoc.com",
+                        "4Netplayers DayZ Server",
+                    ],
+                ),
+                (
+                    "nothing but filler",
+                    &[
+                        "EXAMPLE NAME",
+                        "TEST",
+                        "  dayz server  ",
+                        "DayZ Standalone Server",
+                        "New Server",
+                    ],
+                ),
+                // Real, populated servers — hiding them is the point, not an accident.
+                (
+                    "a hoster's branding inside an otherwise real name",
+                    &[
+                        "4Netplayers Purgatorio [ESP]",
+                        "TonyRoma68 nitrado.net gameserver",
+                        "Nitrado Zombieland PVE",
+                        "nitrado.net gameserver back again",
+                        "4Netplayers GayZ",
+                    ],
+                ),
+                // The credit exemption must not rescue a name that was filler to begin with.
+                (
+                    "a trailing credit that leaves no name of its own",
+                    &[
+                        "DayZ Server by HostHavoc.com",
+                        "DayZ Standalone - By Pingperfect.com",
+                        "- by nitrado.net",
+                    ],
+                ),
+                // Only a marked-off clause is a credit; a bare trailing space stays hidden.
+                (
+                    "a bare trailing hoster is branding, not a credit",
+                    &["GRAGOLL nitrado.net", "SuperLunatics Nitrado Server"],
+                ),
+                (
+                    "trailing digits do not make a name",
+                    &[
+                        "4Netplayers DayZ Server15831672",
+                        "nitrado.net gameserver 2",
+                    ],
+                ),
+            ],
+            is_placeholder_name,
+            true,
         );
     }
 
-    /// None of these carry a bracketed language tag the tag rule could see.
     #[test]
-    fn spanish_and_portuguese_are_not_english() {
-        for name in [
-            "🌵 LATAMDESERT | FULL PVE + 4 ZONAS PVP | AUTOS REALISTAS |",
-            "El server de prueba jonyep",
-            "| Latam | Arg | Chile | BASTARDOS | BBP | 6 Man Party | PVP |",
-            "PelotaZ || Airborne 2 - Morra com Honra || AI Combat ||",
-            "INFIERNO MUERTO: La isla sin retorno [ARG].",
-            "Scars PVE - Entre por sua conta e risco.",
-        ] {
-            assert!(!is_english_name(name), "{name:?}");
-        }
+    fn distinctive_names_are_kept() {
+        assert_names(
+            &[
+                (
+                    "one distinctive word",
+                    &[
+                        "Testosterone Wasteland",
+                        "Bob's DayZ Server",
+                        "The Test Kitchen | PVE",
+                        "Server 51 | Chernarus",
+                    ],
+                ),
+                (
+                    "a trailing hosting credit",
+                    &[
+                        "Stoned and Afraid PVE - By Pingperfect.com",
+                        "ISA | Bitterroot 365 | No Bases - By Pingperfect.com",
+                        "Bullwark DeerIsle - By Pingperfect.com",
+                        "Papaws Livonia by HostHavoc.com",
+                        "ForzaDinamo by GTXGaming.co.uk",
+                        "SaltysEnochPVE - GTXGaming.co.uk",
+                        "Cold  realism  Winter @ Chernarus by 4Netplayers",
+                        "UK-INSANITY-PVE-STALKER-RETURN 2 CHERNO2035- By Pingperfect.com",
+                    ],
+                ),
+                // Only the markers in `HOST_MARKERS` count.
+                ("an unlisted hoster", &["Hosted by SomeNewHost.io"]),
+                // Missing, not default — `hide_unnamed` covers it instead.
+                ("an empty name", &["", "   "]),
+            ],
+            is_placeholder_name,
+            false,
+        );
     }
 
-    /// Every one of these was visible under ENGLISH ONLY before `bracket_tags`
-    /// split compound tags like `[CZ/SK]`.
     #[test]
-    fn several_tags_can_share_one_bracket() {
-        for name in [
-            "[CZ/SK] Bolted.cz | Chernarus PVP/PVE - WIPE 3/7",
-            "[CZ-SK] Usvit nemrtvych PVE / PVP zone",
-            "Project-Z (GER/PVE)",
-            "(PVE-GER) Haicatraz",
-            "[GER HKD] LootIsland PVE|Fresh Wipe 08 April|Synced|Quest|Trade",
-            "DeerIsle PVE [FR-QC]",
-            "[PVE-Fr] CocoDayZ",
-            "[RU/PVE] UNION STALKER | Mutants | Artefacts | X5 Loot",
-            "[BR/3PP] +18 Deathmatch | 20MM | .50Cal",
-            "[UA-PVE] MKASGaming",
-            "Andes Cloud Dayz [ES-AR]",
-            "Baltic Chernarus [LT-LV-EE] 1PP | Extended Vanilla | Cars+",
-            "[SG/TH] Intelligent DayZ | Hardcore AI Camps | Zombie Horde",
-        ] {
-            assert!(
-                !is_english_name(name),
-                "{name:?} tags a non-English audience"
-            );
-        }
+    fn latin_names_are_recognised() {
+        assert_names(
+            &[
+                (
+                    "ordinary English",
+                    &[
+                        "Survivor Haven | PVE | Loot+",
+                        "[US] BLOOD & BANDAGES|1.5X LOOT|CLUSTER",
+                        "Sérvidor Español",
+                        "DayZ Chernarus 1PP",
+                    ],
+                ),
+                // One Cyrillic letter does not condemn an English name.
+                (
+                    "a decorative character",
+                    &[
+                        "Чernarus Survival — English Community",
+                        "Wasteland ★ PVP ★ High Loot",
+                    ],
+                ),
+                // Nothing in it to be unreadable.
+                ("no letters at all", &["[24/7]", "★★★", "1.28", ""]),
+                // Latin script is not the same as English.
+                (
+                    "German written in Latin script",
+                    &[
+                        "[GER][PvE] Zockerfreunde | Chiemsee | Trader | Helis | Cars",
+                        "[GER] Zockersuchtis | Fresh Wiped 01.08.2026",
+                        "[EU] Gebirgsjäger |Banov|PVP/PVE-Zones|Loot+/Stamina+|Rules!",
+                        "Zwiebelmett mit Guerkchen GER|MAPLINK|PVE/PVP|Trader|MMG|Helis|",
+                        "- Letzte Zuflucht | Deutsch German | Untergrundbase | Safe Base",
+                    ],
+                ),
+                // The script ratio stays as it is; the language rule is what catches this.
+                (
+                    "a mostly Latin name wearing CJK tags",
+                    &["BX公益服|PVP仿官|Vanilla+"],
+                ),
+            ],
+            is_latin_name,
+            true,
+        );
     }
 
-    /// The waiver has to see `en` as a split part of `[GER/EN]`, not merely a
-    /// whole bracket — worth ~30 servers on a real registry.
     #[test]
-    fn a_bilingual_tag_still_waives() {
-        for name in [
-            "[GER/EN] TagZ PVE/PVP Trader/Base+/AI/Quests/more",
-            "[RU|EN|EU] REQUIEM  PVP LOOT+|EVENTS discord.gg/SnzeUez",
-            "[PL/EN] Almost Vanilla x1.5 1PP  WIPED 20.02",
-            "[ES,EN] Sakhal 1PP | Traders | Levels | Jobs | Home | Clans",
-            "[DE/EN] Hungerland | Survival PvE Hard | AI | Skills | BaseBuil",
-            "[SK/EN] Krajina Nemrtvych | Trader | Mutants | Loot 1,5x | Cars",
-        ] {
-            assert!(
-                is_english_name(name),
-                "{name:?} advertises an English audience"
-            );
-        }
+    fn non_latin_names_are_not_recognised() {
+        assert_names(
+            &[
+                (
+                    "wholly non-Latin",
+                    &["生存服务器", "Русский сервер", "생존 서버", "サバイバル鯖"],
+                ),
+                // The case the 30% threshold exists for.
+                (
+                    "a Latin region tag does not rescue it",
+                    &["[RU] Русский сервер PVE", "[CN] 生存服务器 官方"],
+                ),
+            ],
+            is_latin_name,
+            false,
+        );
     }
 
-    /// `[SA]` is the sharpest case: in DayZ it means Standalone, not South Africa.
     #[test]
-    fn splitting_tags_does_not_resurrect_ambiguous_country_codes() {
-        for name in [
-            "Forgotten Jungle (Enter At Own Risk) Terje Skills",
-            "[EU] Antoria Official Server (By Vlad and Mr Crumpet)",
-            "[SA] Chernarus Vanilla | 1PP",
-            "[US] Wasteland (Built By The Community)",
-        ] {
-            assert!(
-                is_english_name(name),
-                "{name:?} is English — at/by/sa are not country tags here"
-            );
-        }
+    fn non_english_names_are_rejected() {
+        assert_names(
+            &[
+                // A bracketed language tag settles it even when every other word is English.
+                (
+                    "a language tag",
+                    &[
+                        "[BR] THE KINGZ | FULL PVE | SEASON 1",
+                        "[RU] FIDA | PVE | NO MODS",
+                        "[UA] Ukrainian Stalker Project RP test",
+                        "(ESP)Los Desahuciados RP-PVE-PVP",
+                        "[PL]SPRZYMIERZENI PvE Strefy PvP",
+                    ],
+                ),
+                // German servers were shown under ENGLISH ONLY before this rule.
+                (
+                    "Latin script is not the same as English",
+                    &[
+                        "[GER][PvE] Zockerfreunde | Chiemsee | Trader | Helis | Cars",
+                        "[GER] Zockersuchtis | Fresh Wiped 01.08.2026",
+                        "[EU] Gebirgsjäger |Banov|PVP/PVE-Zones|Loot+/Stamina+|Rules!",
+                        "Zwiebelmett mit Guerkchen GER|MAPLINK|PVE/PVP|Trader|MMG|Helis|",
+                        "- Letzte Zuflucht | Deutsch German | Untergrundbase | Safe Base",
+                        // Waived by its `[EU]` tag, but the umlaut still condemns it.
+                        "[EU] Gebirgsjäger |Cherno|PVP",
+                    ],
+                ),
+                // All of these were visible under ENGLISH ONLY before compound tags like
+                // `[CZ/SK]` were split.
+                (
+                    "several tags sharing one bracket",
+                    &[
+                        "[CZ/SK] Bolted.cz | Chernarus PVP/PVE - WIPE 3/7",
+                        "[CZ-SK] Usvit nemrtvych PVE / PVP zone",
+                        "Project-Z (GER/PVE)",
+                        "(PVE-GER) Haicatraz",
+                        "[GER HKD] LootIsland PVE|Fresh Wipe 08 April|Synced|Quest|Trade",
+                        "DeerIsle PVE [FR-QC]",
+                        "[PVE-Fr] CocoDayZ",
+                        "[RU/PVE] UNION STALKER | Mutants | Artefacts | X5 Loot",
+                        "[BR/3PP] +18 Deathmatch | 20MM | .50Cal",
+                        "[UA-PVE] MKASGaming",
+                        "Andes Cloud Dayz [ES-AR]",
+                        "Baltic Chernarus [LT-LV-EE] 1PP | Extended Vanilla | Cars+",
+                        "[SG/TH] Intelligent DayZ | Hardcore AI Camps | Zombie Horde",
+                    ],
+                ),
+                // None of these carry a bracketed tag the tag rule could see.
+                (
+                    "Spanish or Portuguese with no tag",
+                    &[
+                        "🌵 LATAMDESERT | FULL PVE + 4 ZONAS PVP | AUTOS REALISTAS |",
+                        "El server de prueba jonyep",
+                        "| Latam | Arg | Chile | BASTARDOS | BBP | 6 Man Party | PVP |",
+                        "PelotaZ || Airborne 2 - Morra com Honra || AI Combat ||",
+                        "INFIERNO MUERTO: La isla sin retorno [ARG].",
+                        "Scars PVE - Entre por sua conta e risco.",
+                    ],
+                ),
+                // Latin map/mode tags can sail a Russian name under the 30% ratio cut.
+                (
+                    "a Cyrillic word under a padded Latin name",
+                    &[
+                        "!*ВДАЛИ от ЖЁН Chernarus*! 1 [PVE] [vk.com/vdzh_pve]",
+                        "Выживание Chernarus PVE Trader Helis Cars Airdrop Loot",
+                    ],
+                ),
+                // `é` was missing from `foreign_letter` while `è`/`ê`/`ë` were present.
+                (
+                    "an acute e",
+                    &[
+                        "Québec Vanilla",
+                        "Serv Privé",
+                        "Révélation 13",
+                        "EXIL | PvP | Moddé | Trader | Missions | Vehicles | Events",
+                        "Infection Z | PHASE DE TEST | Testeurs recherchés !",
+                    ],
+                ),
+                (
+                    "non-Latin script",
+                    &["生存服务器", "Русский сервер", "[RU] Русский сервер PVE"],
+                ),
+                // One Han character settles it, whatever the ratio.
+                (
+                    "a single Han or Hangul character",
+                    &[
+                        "[TN]#鹿岛/PVE Deerisle QQ群703109220",
+                        "BX公益服|PVP仿官|Vanilla+",
+                        "PVE服",
+                        "[Lake]Vanilla/HighLoot/한국어",
+                    ],
+                ),
+            ],
+            is_english_name,
+            false,
+        );
     }
 
-    /// A Russian name padded with Latin map/mode tags can sail under the 30%
-    /// ratio cut while being plainly Russian.
     #[test]
-    fn a_cyrillic_word_beats_the_ratio() {
-        for name in [
-            "!*ВДАЛИ от ЖЁН Chernarus*! 1 [PVE] [vk.com/vdzh_pve]",
-            "Выживание Chernarus PVE Trader Helis Cars Airdrop Loot",
-        ] {
-            assert!(!is_english_name(name), "{name:?} contains Cyrillic words");
-        }
-    }
-
-    /// ...and the case that kept Cyrillic off the decisive-character list must
-    /// still survive: a Latin word wearing one Cyrillic letter is not a Russian
-    /// word, because it is not *mostly* Cyrillic.
-    #[test]
-    fn a_decorative_cyrillic_letter_is_not_a_cyrillic_word() {
-        assert!(is_english_name("Чernarus Survival — English Community"));
-        assert!(is_english_name("ЯED Zone PVP | High Loot"));
-    }
-
-    /// `é` used to be missing from `foreign_letter` while `è`/`ê`/`ë` were present.
-    #[test]
-    fn e_acute_is_a_foreign_letter() {
-        for name in [
-            "Québec Vanilla",
-            "Serv Privé",
-            "Révélation 13",
-            "EXIL | PvP | Moddé | Trader | Missions | Vehicles | Events",
-            "Infection Z | PHASE DE TEST | Testeurs recherchés !",
-        ] {
-            assert!(!is_english_name(name), "{name:?} carries an acute e");
-        }
-    }
-
-    /// Words a careless list would have added: `solo`/`duo`/`trio` are DayZ
-    /// jargon, `terra`/`il`/`noc`/`diversion` are ordinary English words too.
-    #[test]
-    fn dayz_jargon_and_english_lookalikes_are_not_foreign_words() {
-        for name in [
-            "Decay | EU | Solo/Duo/Trio | A Balanced Modded Experience",
-            "Rearmed US2 | Solo Duo Trio",
-            "DSS Terra Incognita PVE Missions Drop Quests",
-            "Terra Nova | Vanilla+ | 1PP",
-            "NOC_SERVER",
-            "Northern IL Survivors | PVP",
-            "A Welcome Diversion | PVE",
-        ] {
-            assert!(is_english_name(name), "{name:?} is English");
-        }
+    fn english_names_are_accepted() {
+        assert_names(
+            &[
+                // `Wanderer` contains "der" and `Bandit` contains "band".
+                (
+                    "plain English",
+                    &[
+                        "Survivor Haven | PVE | Loot+",
+                        "The Wanderer | Chernarus | 1PP",
+                        "Bandit Country | PVP | High Loot",
+                        "[EU] BLOOD & BANDAGES|1.5X LOOT|CLUSTER",
+                        "DayZ Chernarus 1PP",
+                        "Wasteland ★ PVP ★ High Loot",
+                        "Deer Isle Nights",
+                    ],
+                ),
+                (
+                    "an audience tag waiving the language tag",
+                    &[
+                        "[EU] Survivor Haven | PVE | Loot+",
+                        "[US] Wasteland | 1PP | High Loot",
+                    ],
+                ),
+                // "und" in `Thunder`, "mit" in `Summit`, "vida" in `Vidal`: a substring
+                // match fails silently, the server just stops appearing.
+                (
+                    "a foreign substring inside a longer word",
+                    &["Thunder Ridge PVP", "Summit Survival", "Vidal Heights RP"],
+                ),
+                // The waiver has to see `en` as a split part of `[GER/EN]`, not a whole bracket.
+                (
+                    "a bilingual tag",
+                    &[
+                        "[GER/EN] TagZ PVE/PVP Trader/Base+/AI/Quests/more",
+                        "[RU|EN|EU] REQUIEM  PVP LOOT+|EVENTS discord.gg/SnzeUez",
+                        "[PL/EN] Almost Vanilla x1.5 1PP  WIPED 20.02",
+                        "[ES,EN] Sakhal 1PP | Traders | Levels | Jobs | Home | Clans",
+                        "[DE/EN] Hungerland | Survival PvE Hard | AI | Skills | BaseBuil",
+                        "[SK/EN] Krajina Nemrtvych | Trader | Mutants | Loot 1,5x | Cars",
+                    ],
+                ),
+                // `[SA]` means Standalone in DayZ, not South Africa; `at`, `by` and `sa`
+                // are not country tags here.
+                (
+                    "ambiguous country codes",
+                    &[
+                        "Forgotten Jungle (Enter At Own Risk) Terje Skills",
+                        "[EU] Antoria Official Server (By Vlad and Mr Crumpet)",
+                        "[SA] Chernarus Vanilla | 1PP",
+                        "[US] Wasteland (Built By The Community)",
+                    ],
+                ),
+                // A Latin word wearing one Cyrillic letter is not a Cyrillic word.
+                (
+                    "one decorative Cyrillic letter",
+                    &[
+                        "Чernarus Survival — English Community",
+                        "ЯED Zone PVP | High Loot",
+                    ],
+                ),
+                // `solo`/`duo`/`trio` are DayZ jargon; `terra`/`il`/`noc`/`diversion` are
+                // ordinary English words too.
+                (
+                    "DayZ jargon and English lookalikes",
+                    &[
+                        "Decay | EU | Solo/Duo/Trio | A Balanced Modded Experience",
+                        "Rearmed US2 | Solo Duo Trio",
+                        "DSS Terra Incognita PVE Missions Drop Quests",
+                        "Terra Nova | Vanilla+ | 1PP",
+                        "NOC_SERVER",
+                        "Northern IL Survivors | PVP",
+                        "A Welcome Diversion | PVE",
+                    ],
+                ),
+            ],
+            is_english_name,
+            true,
+        );
     }
 }

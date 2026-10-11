@@ -96,17 +96,9 @@ async fn a_responding_row_does_overwrite_a_live_one() {
     let row = fetch(&registry).await;
     assert_eq!(row.name, "Renamed Server");
     assert_eq!(row.players, 7);
-}
 
-/// Emptying out is a real measurement, not missing data, so a responding row
-/// must be able to write zero players. This is why the guard keys on
-/// `responded` rather than on the values being zero.
-#[tokio::test]
-async fn a_responding_row_may_write_zero_players() {
-    let registry = Registry::open_in_memory().expect("registry");
-    let writer = registry.writer();
-
-    writer.upsert_servers(vec![live_row()]).await.expect("live");
+    // Emptying out is a real measurement, not missing data: the guard keys on
+    // `responded` rather than on the values being zero.
     writer
         .upsert_servers(vec![ServerRow {
             players: 0,
@@ -114,7 +106,6 @@ async fn a_responding_row_may_write_zero_players() {
         }])
         .await
         .expect("emptied");
-
     assert_eq!(fetch(&registry).await.players, 0);
 }
 
@@ -301,8 +292,10 @@ async fn refresh_priority_puts_never_probed_servers_first() {
 #[tokio::test]
 async fn counts_reports_total_and_populated_separately() {
     let registry = Registry::open_in_memory().expect("registry");
-    let writer = registry.writer();
+    let reader = registry.reader().expect("reader");
+    assert_eq!(reader.counts().expect("counts"), (0, 0));
 
+    let writer = registry.writer();
     let empty = ServerKey {
         ip: Ipv4Addr::new(203, 0, 113, 30),
         query_port: 27016,
@@ -332,63 +325,54 @@ async fn counts_reports_total_and_populated_separately() {
         .await
         .expect("rows");
 
-    let reader = registry.reader().expect("reader");
     assert_eq!(reader.counts().expect("counts"), (3, 2));
 }
 
+/// The browser's server-list filters, end to end through the SQL. An unnamed
+/// row (never answered a probe) is listed by default and only `hide_unnamed`
+/// drops it.
 #[tokio::test]
-async fn counts_are_zero_on_an_untouched_registry() {
-    let registry = Registry::open_in_memory().expect("registry");
-    let reader = registry.reader().expect("reader");
-    assert_eq!(reader.counts().expect("counts"), (0, 0));
-}
+async fn list_filters_select_the_right_rows() {
+    struct Case {
+        name: &'static str,
+        filter: ServerFilter,
+        expected: &'static [&'static str],
+    }
 
-/// The browser's noise filters, end to end through the SQL — also proves
-/// Nameless rows are always hidden from the browser — the one name filter
-/// that survives: a row that never answered a probe has nothing to show.
-#[tokio::test]
-async fn hide_unnamed_keeps_only_named_servers() {
-    let registry = Registry::open_in_memory().expect("registry");
-    let writer = registry.writer();
-
-    writer
-        .upsert_servers(vec![
-            live_row(),
-            ServerRow {
-                key: ServerKey {
-                    ip: Ipv4Addr::new(203, 0, 113, 46),
-                    query_port: 27016,
-                },
-                responded: false,
+    let cases = [
+        Case {
+            name: "no filter keeps unnamed rows",
+            filter: ServerFilter::default(),
+            expected: &["", "Second", "Survivor Haven"],
+        },
+        Case {
+            name: "favourites only",
+            filter: ServerFilter {
+                favourites_only: true,
                 ..Default::default()
             },
-        ])
-        .await
-        .expect("rows");
+            expected: &["Survivor Haven"],
+        },
+        Case {
+            name: "recent only",
+            filter: ServerFilter {
+                recent_only: true,
+                ..Default::default()
+            },
+            expected: &["Second"],
+        },
+        Case {
+            name: "hide unnamed",
+            filter: ServerFilter {
+                hide_unnamed: true,
+                ..Default::default()
+            },
+            expected: &["Second", "Survivor Haven"],
+        },
+    ];
 
-    let reader = registry.reader().expect("reader");
-    let list = |f: &ServerFilter| -> Vec<String> {
-        reader
-            .list(f, SortKey::Name, SortDir::Asc, 50)
-            .expect("list")
-            .into_iter()
-            .map(|r| r.name)
-            .collect()
-    };
-
-    assert_eq!(list(&ServerFilter::default()).len(), 2);
-    let hidden = ServerFilter {
-        hide_unnamed: true,
-        ..Default::default()
-    };
-    assert_eq!(list(&hidden), vec!["Survivor Haven"]);
-}
-
-#[tokio::test]
-async fn favourites_and_recent_filters_select_the_right_rows() {
     let registry = Registry::open_in_memory().expect("registry");
     let writer = registry.writer();
-
     let other = ServerKey {
         ip: Ipv4Addr::new(203, 0, 113, 11),
         query_port: 27016,
@@ -401,40 +385,44 @@ async fn favourites_and_recent_filters_select_the_right_rows() {
                 name: "Second".into(),
                 ..live_row()
             },
+            ServerRow {
+                key: ServerKey {
+                    ip: Ipv4Addr::new(203, 0, 113, 46),
+                    query_port: 27016,
+                },
+                responded: false,
+                ..Default::default()
+            },
         ])
         .await
-        .expect("two rows");
-
+        .expect("rows");
     writer.set_favourite(key(), true).await.expect("favourite");
     writer.mark_played(other).await.expect("played");
 
     let reader = registry.reader().expect("reader");
+    for case in cases {
+        let got: Vec<String> = reader
+            .list(&case.filter, SortKey::Name, SortDir::Asc, 50)
+            .expect("list")
+            .into_iter()
+            .map(|r| r.name)
+            .collect();
+        assert_eq!(got, case.expected, "case: {}", case.name);
+    }
 
-    let favs = reader
-        .list(
-            &ServerFilter {
-                favourites_only: true,
-                ..Default::default()
-            },
-            SortKey::Players,
-            SortDir::Desc,
-            10,
-        )
-        .expect("favourites");
-    assert_eq!(favs.len(), 1);
-    assert_eq!(favs[0].name, "Survivor Haven");
-
+    // The reader reads `last_played` by column index, so the row the
+    // `recent_only` filter selects must carry it.
     let recent = reader
         .list(
             &ServerFilter {
                 recent_only: true,
                 ..Default::default()
             },
-            SortKey::Players,
-            SortDir::Desc,
-            10,
+            SortKey::Name,
+            SortDir::Asc,
+            50,
         )
-        .expect("recent");
+        .expect("list");
     assert_eq!(recent.len(), 1);
     assert_eq!(recent[0].name, "Second");
     assert!(recent[0].last_played.is_some());
@@ -453,13 +441,12 @@ async fn get_returns_the_same_row_list_would() {
     assert_eq!(row.name, "Survivor Haven");
     assert_eq!(row.players, 42);
     assert_eq!(row.max_players, 60);
-}
 
-#[tokio::test]
-async fn get_on_an_unknown_key_is_none_not_an_error() {
-    let registry = Registry::open_in_memory().expect("registry");
-    let reader = registry.reader().expect("reader");
-    assert!(reader.get(key()).expect("get").is_none());
+    let unknown = ServerKey {
+        ip: Ipv4Addr::new(203, 0, 113, 99),
+        query_port: 27016,
+    };
+    assert!(reader.get(unknown).expect("get").is_none());
 }
 
 /// `set_favourite`/`mark_played` are targeted `UPDATE`s — SQLite reports
