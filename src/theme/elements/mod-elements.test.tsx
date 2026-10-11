@@ -244,15 +244,16 @@ describe("ModPublishedSize", () => {
 });
 
 describe("ModUpdated / ModSubscribed / ModCreated", () => {
-  it("show the em-dash and unknown state when their timestamp is missing", async () => {
-    const { ModUpdated, ModSubscribed, ModCreated } = await import("./mod-elements");
-    const mod = makeMod("1", { time_updated: 0, time_added_to_user_list: 0, install_timestamp: 0, time_created: 0 });
-    for (const El of [ModUpdated, ModSubscribed, ModCreated]) {
+  it.each(["ModUpdated", "ModSubscribed", "ModCreated"] as const)(
+    "%s shows the em-dash and unknown state when its timestamp is missing",
+    async (name) => {
+      const El = (await import("./mod-elements"))[name];
+      const mod = makeMod("1", { time_updated: 0, time_added_to_user_list: 0, install_timestamp: 0, time_created: 0 });
       const html = renderWithMod(<El />, mod);
       expect(html).toContain("—");
       expect(html).toContain("unknown");
-    }
-  });
+    },
+  );
 
   it("mod.subscribed falls back to install_timestamp when never added to the user list", async () => {
     const { ModSubscribed } = await import("./mod-elements");

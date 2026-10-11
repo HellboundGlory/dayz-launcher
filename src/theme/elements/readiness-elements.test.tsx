@@ -210,7 +210,12 @@ describe("ServerDownloadSize", () => {
   it.each([
     {
       case: "an upper-bound estimate",
-      mods: [mod({ state: "needs_update", size_bytes: 5000, size_is_upper_bound: true }), mod({ state: "ready" }), mod({ state: "ready" }), mod({ state: "ready" })],
+      mods: [
+        mod({ state: "needs_update", size_bytes: 5000, size_is_upper_bound: true }),
+        mod({ state: "ready" }),
+        mod({ state: "ready" }),
+        mod({ state: "ready" }),
+      ],
       state: "upperBound",
       count: "4 mods",
       size: "up to 4.9 KB",

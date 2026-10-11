@@ -2,8 +2,8 @@
 // 1400 and 975 wide, so the <900 narrow shell is only covered here.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { LayoutFile, LayoutNode, StackNode } from "./renderer/types";
 import { resolveVariant } from "./renderer/variant";
+import type { LayoutFile, LayoutNode, StackNode } from "./renderer/types";
 
 const read = (relative: string) =>
   JSON.parse(

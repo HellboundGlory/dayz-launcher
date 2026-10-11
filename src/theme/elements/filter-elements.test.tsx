@@ -299,10 +299,10 @@ describe("hide toggles", () => {
   it("honours the label and icon options", () => {
     expect(renderToStaticMarkup(<FilterHideEmpty />)).not.toContain('data-part="icon"');
 
-    const html = renderToStaticMarkup(<FilterHideEmpty options={{ label: "No empties", icon: "check" }} />);
+    const html = renderToStaticMarkup(<FilterHideEmpty options={{ label: "No empties", icon: "x" }} />);
     expect(html).toContain("No empties");
     expect(html).toContain('data-part="icon"');
-    expect(html).toContain("lucide-check");
+    expect(html).toContain("lucide-x");
   });
 });
 
@@ -356,8 +356,7 @@ describe("FilterMods", () => {
     mockStore.filter = makeFilter({ mod_ids: ["1", "2"] });
     const selected = renderToStaticMarkup(<FilterMods />);
     expect(selected).toContain('data-state="active"');
-    expect(selected).toContain('data-part="value"');
-    expect(selected).toContain(">2 mods<");
+    expect(selected).toMatch(/data-part="value"[^>]*>2 mods</);
   });
 
   it("reflects modFilterOpen through aria-expanded", () => {
