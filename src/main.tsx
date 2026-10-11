@@ -1,8 +1,9 @@
+// First, so main.css fixes the cascade layer order before any other stylesheet loads.
+import "./main.css";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { App } from "./App";
 import { useThemeStore } from "./theme/theme-store";
-import "./main.css";
 
 // Paint the active theme before first render.
 useThemeStore.getState().hydrate();

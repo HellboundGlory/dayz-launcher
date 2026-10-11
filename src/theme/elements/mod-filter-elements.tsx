@@ -1,8 +1,9 @@
-import { useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { Search } from "lucide-react";
 import { useModFilterStore, pickSummary, type ModFilterTab } from "@/stores/mod-filter-store";
 import { useElementContext } from "./context";
 import { OptionIcon } from "./option-icon";
+import { useLoadableImage } from "./use-loadable-image";
 import { nextTabIndex } from "../interaction/tabs";
 import { GeneratedThumbnail } from "./mod-thumbnail";
 import { renderWorkshopModElement } from "./workshop-mod-elements";
@@ -21,14 +22,14 @@ function searchPlaceholder(tab: ModFilterTab): string {
 }
 
 function SummaryThumb({ id, title, previewUrl }: { id: string; title: string; previewUrl: string | null }) {
-  const [broken, setBroken] = useState(false);
-  if (previewUrl && !broken) {
+  const [image, reportBroken] = useLoadableImage(previewUrl);
+  if (image) {
     return (
       <img
-        src={previewUrl}
+        src={image}
         alt=""
         draggable={false}
-        onError={() => setBroken(true)}
+        onError={reportBroken}
         className="h-full w-full object-cover"
       />
     );

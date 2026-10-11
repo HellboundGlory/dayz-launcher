@@ -68,10 +68,10 @@ export function ThemesSection({
     ];
   }
 
-  function copyTheme(sourceId: string) {
+  async function copyTheme(sourceId: string) {
     setCopyOpen(false);
-    void duplicateTheme(sourceId, nextDuplicateName("New Theme", takenNames()));
-    setCustomiserOpen(true);
+    const result = await duplicateTheme(sourceId, nextDuplicateName("New Theme", takenNames()));
+    if (result === "saved") setCustomiserOpen(true);
   }
 
   return (
@@ -103,11 +103,11 @@ export function ThemesSection({
             Start from
           </div>
           <div className="flex flex-wrap gap-1.5">
-            <button type="button" onClick={() => copyTheme("neutral")} className={ACTION_BTN}>
+            <button type="button" onClick={() => void copyTheme("neutral")} className={ACTION_BTN}>
               Copy Neutral
             </button>
             {installedThemes.some((t) => t.id === "builtin.tactical") && (
-              <button type="button" onClick={() => copyTheme("builtin.tactical")} className={ACTION_BTN}>
+              <button type="button" onClick={() => void copyTheme("builtin.tactical")} className={ACTION_BTN}>
                 Copy Tactical
               </button>
             )}

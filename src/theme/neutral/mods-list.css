@@ -1,7 +1,5 @@
 @reference "../../main.css";
 
-@layer launcher, neutral, theme, guarantees;
-
 @layer neutral {
   .t-neutral-modrow-row {
     @apply cursor-pointer gap-2.5 [border-radius:var(--t-radius-row)] border border-line bg-surface px-2.5 py-2 transition-[border-color,background,box-shadow] [transition-duration:var(--t-motion-hover-duration)];
