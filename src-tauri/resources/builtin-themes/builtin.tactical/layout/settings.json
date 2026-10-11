@@ -63,14 +63,17 @@
                       "class": "t-settings-tab",
                       "children": [
                         {
-                          "type": "image",
-                          "icon": "gamepad",
+                          "element": "settings.sectionIcon",
+                          "options": {
+                            "section": "game"
+                          },
                           "class": "t-settings-tab-icon"
                         },
                         {
-                          "type": "text",
-                          "role": "body",
-                          "value": "Game",
+                          "element": "settings.sectionTitle",
+                          "options": {
+                            "section": "game"
+                          },
                           "class": "t-settings-tab-label"
                         }
                       ]
@@ -116,14 +119,17 @@
                       "class": "t-settings-tab",
                       "children": [
                         {
-                          "type": "image",
-                          "icon": "appWindow",
+                          "element": "settings.sectionIcon",
+                          "options": {
+                            "section": "launcher"
+                          },
                           "class": "t-settings-tab-icon"
                         },
                         {
-                          "type": "text",
-                          "role": "body",
-                          "value": "Launcher",
+                          "element": "settings.sectionTitle",
+                          "options": {
+                            "section": "launcher"
+                          },
                           "class": "t-settings-tab-label"
                         }
                       ]
@@ -204,38 +210,16 @@
                               "element": "settings.openDataFolder"
                             }
                           ]
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "id": "browser",
-                    "label": {
-                      "type": "stack",
-                      "direction": "row",
-                      "align": "center",
-                      "class": "t-settings-tab",
-                      "children": [
-                        {
-                          "type": "image",
-                          "icon": "filter",
-                          "class": "t-settings-tab-icon"
                         },
                         {
-                          "type": "text",
-                          "role": "body",
-                          "value": "Server Browser",
-                          "class": "t-settings-tab-label"
-                        }
-                      ]
-                    },
-                    "content": {
-                      "type": "scroll",
-                      "axis": "y",
-                      "class": "t-settings-pane",
-                      "children": [
-                        {
-                          "element": "settings.autoRefresh"
+                          "type": "stack",
+                          "direction": "column",
+                          "class": "t-settings-group",
+                          "children": [
+                            {
+                              "element": "settings.autoRefresh"
+                            }
+                          ]
                         }
                       ]
                     }
@@ -249,14 +233,17 @@
                       "class": "t-settings-tab",
                       "children": [
                         {
-                          "type": "image",
-                          "icon": "palette",
+                          "element": "settings.sectionIcon",
+                          "options": {
+                            "section": "theme"
+                          },
                           "class": "t-settings-tab-icon"
                         },
                         {
-                          "type": "text",
-                          "role": "body",
-                          "value": "Themes",
+                          "element": "settings.sectionTitle",
+                          "options": {
+                            "section": "theme"
+                          },
                           "class": "t-settings-tab-label"
                         }
                       ]

@@ -92,6 +92,7 @@
                   {
                     "element": "mod.tags",
                     "options": {
+                      "limit": 6,
                       "style": "chips"
                     }
                   },
@@ -114,7 +115,7 @@
                         "children": [
                           {
                             "type": "text",
-                            "value": "SUBSCRIBED",
+                            "value": "Subscribed",
                             "role": "label",
                             "class": "t-mod-prop-label"
                           },
@@ -131,7 +132,7 @@
                         "children": [
                           {
                             "type": "text",
-                            "value": "UPDATED",
+                            "value": "Updated",
                             "role": "label",
                             "class": "t-mod-prop-label"
                           },
@@ -148,24 +149,7 @@
                         "children": [
                           {
                             "type": "text",
-                            "value": "CREATED",
-                            "role": "label",
-                            "class": "t-mod-prop-label"
-                          },
-                          {
-                            "element": "mod.created"
-                          }
-                        ]
-                      },
-                      {
-                        "type": "stack",
-                        "direction": "row",
-                        "align": "baseline",
-                        "class": "t-mod-prop",
-                        "children": [
-                          {
-                            "type": "text",
-                            "value": "SIZE ON DISK",
+                            "value": "Size",
                             "role": "label",
                             "class": "t-mod-prop-label"
                           },
@@ -182,41 +166,7 @@
                         "children": [
                           {
                             "type": "text",
-                            "value": "PUBLISHED SIZE",
-                            "role": "label",
-                            "class": "t-mod-prop-label"
-                          },
-                          {
-                            "element": "mod.publishedSize"
-                          }
-                        ]
-                      },
-                      {
-                        "type": "stack",
-                        "direction": "row",
-                        "align": "baseline",
-                        "class": "t-mod-prop",
-                        "children": [
-                          {
-                            "type": "text",
-                            "value": "SUBSCRIBERS",
-                            "role": "label",
-                            "class": "t-mod-prop-label"
-                          },
-                          {
-                            "element": "mod.subscribers"
-                          }
-                        ]
-                      },
-                      {
-                        "type": "stack",
-                        "direction": "row",
-                        "align": "baseline",
-                        "class": "t-mod-prop",
-                        "children": [
-                          {
-                            "type": "text",
-                            "value": "RATING",
+                            "value": "Rating",
                             "role": "label",
                             "class": "t-mod-prop-label"
                           },
@@ -233,7 +183,7 @@
                         "children": [
                           {
                             "type": "text",
-                            "value": "WORKSHOP ID",
+                            "value": "Workshop id",
                             "role": "label",
                             "class": "t-mod-prop-label"
                           },
@@ -241,36 +191,6 @@
                             "element": "mod.workshopId"
                           }
                         ]
-                      },
-                      {
-                        "type": "stack",
-                        "direction": "row",
-                        "align": "baseline",
-                        "class": "t-mod-prop",
-                        "children": [
-                          {
-                            "type": "text",
-                            "value": "FOLDER",
-                            "role": "label",
-                            "class": "t-mod-prop-label"
-                          },
-                          {
-                            "element": "mod.folder"
-                          }
-                        ]
-                      }
-                    ]
-                  },
-                  {
-                    "type": "stack",
-                    "id": "r-mod-needed",
-                    "direction": "column",
-                    "children": [
-                      {
-                        "element": "mod.neededBy"
-                      },
-                      {
-                        "element": "list.modServers"
                       }
                     ]
                   },
@@ -331,6 +251,12 @@
         "children": [
           {
             "element": "mods.count"
+          },
+          {
+            "element": "mods.selectAll",
+            "options": {
+              "display": "label"
+            }
           },
           {
             "element": "mods.clearSelection"

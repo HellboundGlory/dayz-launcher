@@ -1747,16 +1747,21 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   color: var(--muted);
 }
 
+.t-settings-tab-icon [data-part="icon"] > :first-child {
+  width: 14px;
+  height: 14px;
+}
+
 [data-region="r-settings-tabs"] [data-part="tab"][data-state~="selected"] .t-settings-tab-icon {
   color: var(--accent);
 }
 
 .t-settings-tab-label {
-  --t-type-body-size: 12px;
+  font-size: 12px;
 }
 
 [data-region="r-settings-tabs"] [data-part="tab"][data-state~="selected"] .t-settings-tab-label {
-  --t-type-body-weight: 500;
+  font-weight: 500;
 }
 
 [data-region="r-settings-tabs"] [data-part="panel"] {
@@ -2133,20 +2138,10 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   white-space: nowrap;
 }
 
-.t-mod-name-line [data-el="mod.status"] [data-part="label"],
-.t-mod-name-line [data-el="mod.status"] [data-part="progress"] {
-  display: none;
-}
-
-[data-column="status"] [data-el="mod.status"] [data-part="dot"] {
-  display: none;
-}
-
 .t-mod-row [data-el="mod.status"] {
   font-size: 10px;
 }
 
-.t-mod-row [data-el="mod.subscribed"],
 .t-mod-row [data-el="mod.updated"] {
   font-size: 10px;
   color: var(--muted2);
@@ -2374,43 +2369,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   min-width: 0;
 }
 
-[data-region="r-mod-needed"] {
-  gap: 4px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
-}
-
-[data-el="mod.neededBy"] {
-  font-size: 9px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-}
-
-[data-list="modServers"] {
-  gap: 2px;
-}
-
-.t-modserver-row {
-  padding: 2px 0;
-}
-
-[data-el="modServer.name"] {
-  font-size: 10px;
-  color: var(--muted2);
-}
-
-[data-el="modServer.lastPlayed"] {
-  font-size: 9px;
-  color: color-mix(in srgb, var(--border) 40%, var(--muted));
-}
-
-[data-list="modServers"] [data-part="more"] {
-  font-size: 9px;
-  color: var(--muted);
-}
-
 [data-region="r-mod-actions"] {
   gap: 6px;
   padding-top: 8px;
@@ -2520,6 +2478,18 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
 
 [data-el="mods.count"] {
   font-family: var(--t-type-family-data);
+}
+
+[data-region="r-mods-actions"] [data-el="mods.selectAll"] {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+[data-region="r-mods-actions"] [data-el="mods.selectAll"]:hover {
+  color: var(--text);
 }
 
 [data-region="r-mods-actions-right"] {
@@ -3383,6 +3353,12 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
 .t-modfilter-preview-empty {
   width: 300px;
   flex-shrink: 0;
+}
+
+.t-modfilter-preview-empty-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--muted);
 }
 
 .t-modfilter-preview-empty-text {
