@@ -7,34 +7,6 @@ use tetra_steam::workshop::ModState;
 
 use super::{blocking_read, prober, reader, server_key};
 
-/// Get mods for a single server.
-#[derive(serde::Serialize, Clone)]
-pub struct ModEntry {
-    pub workshop_id: String,
-    pub name: String,
-}
-
-#[tauri::command]
-pub async fn get_server_mods(
-    state: State<'_, AppState>,
-    addr: String,
-    query_port: u16,
-) -> Result<Vec<ModEntry>, String> {
-    let key = server_key(&addr, query_port)?;
-    blocking_read(&state, move |reader| {
-        let mods = reader.mods_for(key).map_err(|e| e.to_string())?;
-        Ok(mods
-            .into_iter()
-            .map(|m| ModEntry {
-                // Stringified: workshop ids exceed JS's safe integer range.
-                workshop_id: m.workshop_id.to_string(),
-                name: m.name,
-            })
-            .collect())
-    })
-    .await
-}
-
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct ServerModReadiness {
     pub stale: bool,

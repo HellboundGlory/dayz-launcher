@@ -379,12 +379,20 @@ pub async fn launch_game(
     })
 }
 
+/// A declared server mod. `workshop_id` is a string because ids exceed JS's
+/// safe integer range.
+#[derive(serde::Serialize)]
+pub struct DeclaredMod {
+    pub workshop_id: String,
+    pub name: String,
+}
+
 /// What a pre-launch verification found.
 #[derive(serde::Serialize)]
 pub struct VerifyOutcome {
     /// The server's mod list as it declares it *right now*, in declared order.
     /// The details panel replaces its own list with this.
-    pub mods: Vec<crate::commands::server::ModEntry>,
+    pub mods: Vec<DeclaredMod>,
     /// Workshop ids a fresh copy was queued for, stringified for JS.
     pub refreshed: Vec<String>,
     /// Whether Steam was reachable enough to check freshness at all. `false`
@@ -467,7 +475,7 @@ pub async fn verify_server_mods(
     Ok(VerifyOutcome {
         mods: declared
             .into_iter()
-            .map(|m| crate::commands::server::ModEntry {
+            .map(|m| DeclaredMod {
                 workshop_id: m.workshop_id.to_string(),
                 name: m.name,
             })

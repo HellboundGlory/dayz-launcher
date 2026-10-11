@@ -370,16 +370,6 @@ export async function launchGame(
   });
 }
 
-export async function getServerMods(
-  addr: string,
-  queryPort: number,
-): Promise<{ workshop_id: string; name: string }[]> {
-  return invoke<{ workshop_id: string; name: string }[]>("get_server_mods", {
-    addr,
-    queryPort,
-  });
-}
-
 export async function serverModReadiness(
   addr: string,
   queryPort: number,

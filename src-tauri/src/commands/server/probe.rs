@@ -297,7 +297,7 @@ pub async fn refresh_servers(
 }
 
 /// One server the frontend wants re-probed, identified the same way the
-/// bridge already identifies one for `toggle_favourite` / `get_server_mods`.
+/// bridge already identifies one for `toggle_favourite`.
 #[derive(serde::Deserialize)]
 pub struct AddrPort {
     pub addr: String,
