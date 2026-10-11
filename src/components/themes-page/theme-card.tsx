@@ -1,5 +1,5 @@
-import { useState } from "react";
 import { Copy, Ellipsis, FileOutput, Trash, type LucideIcon } from "lucide-react";
+import { useLoadableImage } from "@/hooks/use-loadable-image";
 import { cn } from "@/lib/utils";
 import { usePopupTrigger } from "@/theme/interaction/use-popup-trigger";
 
@@ -41,9 +41,8 @@ export function ThemeCard({
   incompatibleReason,
 }: ThemeCardProps) {
   // A preview that fails (missing/stale file) falls back to the swatch strip,
-  // which is why `swatches` stays required either way. Keyed by URL so a later
-  // preview for the same card gets its own chance to load.
-  const [failedPreview, setFailedPreview] = useState<string | null>(null);
+  // which is why `swatches` stays required either way.
+  const [previewSrc, markPreviewBroken] = useLoadableImage(previewUrl);
   // Opens upward by preference: inside a settings panel there's rarely room below.
   const {
     open: menuOpen,
@@ -63,11 +62,11 @@ export function ThemeCard({
     >
       {/* Live theme colours, so inline styles — the one place a hex is correct. */}
       <div className="flex h-9 overflow-hidden [border-top-left-radius:var(--t-radius-thumb)] [border-top-right-radius:var(--t-radius-thumb)]">
-        {previewUrl && failedPreview !== previewUrl ? (
+        {previewSrc ? (
           <img
-            src={previewUrl}
+            src={previewSrc}
             alt=""
-            onError={() => setFailedPreview(previewUrl)}
+            onError={markPreviewBroken}
             className="h-9 w-full [border-top-left-radius:var(--t-radius-thumb)] [border-top-right-radius:var(--t-radius-thumb)] object-cover"
           />
         ) : (

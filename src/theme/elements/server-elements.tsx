@@ -1003,7 +1003,8 @@ export function ServerCheckMods({
   style?: CSSProperties;
 }) {
   const server = useServerSubject();
-  const { op, setNotice } = useServerActions();
+  const { op } = useServerActions();
+  const setNotice = useLaunchStore((s) => s.setNotice);
   const mergeModPending = useServerStore((s) => s.mergeModPending);
   const triggerReload = useServerStore((s) => s.triggerReload);
   const [busy, setBusy] = useState(false);
@@ -1025,7 +1026,7 @@ export function ServerCheckMods({
       mergeModPending([{ addr: server.addr, pending: hasPending }]);
       triggerReload();
     } catch (err) {
-      setNotice({ kind: "plain", text: String(err) }, server.addr);
+      setNotice(server.addr, { kind: "plain", text: String(err) });
     } finally {
       setBusy(false);
     }
@@ -1110,7 +1111,8 @@ export function ServerUnsubscribeUnique({
   style?: CSSProperties;
 }) {
   const subject = useServerSubject();
-  const { op, setNotice } = useServerActions();
+  const { op } = useServerActions();
+  const setNotice = useLaunchStore((s) => s.setNotice);
   const triggerReload = useServerStore((s) => s.triggerReload);
   const askConfirm = useConfirm();
   const [busy, setBusy] = useState(false);
@@ -1126,16 +1128,13 @@ export function ServerUnsubscribeUnique({
     try {
       const outcome = await unsubscribeUniqueMods(server.addr, server.query_port);
       invalidateReadiness();
-      setNotice(
-        {
-          kind: "plain",
-          text: `Unsubscribed ${outcome.count} unique mod${outcome.count === 1 ? "" : "s"} (${formatBytes(outcome.total_size_bytes, 1)})`,
-        },
-        server.addr,
-      );
+      setNotice(server.addr, {
+        kind: "plain",
+        text: `Unsubscribed ${outcome.count} unique mod${outcome.count === 1 ? "" : "s"} (${formatBytes(outcome.total_size_bytes, 1)})`,
+      });
       triggerReload();
     } catch (err) {
-      setNotice({ kind: "plain", text: String(err) }, server.addr);
+      setNotice(server.addr, { kind: "plain", text: String(err) });
     } finally {
       setBusy(false);
     }
@@ -1154,7 +1153,7 @@ export function ServerUnsubscribeUnique({
         "Unsubscribe",
       );
     } catch (err) {
-      setNotice({ kind: "plain", text: String(err) }, server.addr);
+      setNotice(server.addr, { kind: "plain", text: String(err) });
     }
   };
 

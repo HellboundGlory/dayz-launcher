@@ -1,5 +1,6 @@
 import { useState, type CSSProperties, type MouseEvent } from "react";
 import { Check, Download, ExternalLink, FolderOpen, Package, RefreshCw, X } from "lucide-react";
+import { useLoadableImage } from "@/hooks/use-loadable-image";
 import { cn, formatBytes } from "@/lib/utils";
 import { useModsStore, effectiveModState } from "@/stores/mods-store";
 import {
@@ -13,7 +14,6 @@ import {
 import { useElementContext } from "./context";
 import { MOD_STATE_NAME } from "./list-elements";
 import { OptionIcon } from "./option-icon";
-import { useLoadableImage } from "./use-loadable-image";
 import { displayOption, formatElementTime, states } from "./element-utils";
 
 function useModSubject(): SubscribedMod | null {
