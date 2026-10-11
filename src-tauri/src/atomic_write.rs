@@ -79,6 +79,10 @@ mod tests {
             temp_path(&dir.join("styles.css")),
             temp_path(&dir.join("styles.json"))
         );
+        assert_eq!(
+            temp_path(&dir.join("styles.css")),
+            dir.join("styles.css.tmp")
+        );
     }
 
     #[test]

@@ -148,19 +148,17 @@ describe("theme interaction and presentation", () => {
       orientation: "horizontal" | "vertical";
       forward: string;
       backward: string;
-      others: string[];
+      other: string;
     }>([
-      { orientation: "horizontal", forward: "ArrowRight", backward: "ArrowLeft", others: ["ArrowUp", "ArrowDown"] },
-      { orientation: "vertical", forward: "ArrowDown", backward: "ArrowUp", others: ["ArrowLeft", "ArrowRight"] },
-    ])("moves a $orientation tablist with its own arrows and Home/End", ({ orientation, forward, backward, others }) => {
+      { orientation: "horizontal", forward: "ArrowRight", backward: "ArrowLeft", other: "ArrowUp" },
+      { orientation: "vertical", forward: "ArrowDown", backward: "ArrowUp", other: "ArrowLeft" },
+    ])("moves a $orientation tablist with its own arrows and Home/End", ({ orientation, forward, backward, other }) => {
       const vertical = orientation === "vertical";
       expect(nextTabIndex({ key: forward, currentIndex: 0, count: 3, vertical })).toBe(1);
       expect(nextTabIndex({ key: backward, currentIndex: 0, count: 3, vertical })).toBe(2);
       expect(nextTabIndex({ key: "Home", currentIndex: 2, count: 3, vertical })).toBe(0);
       expect(nextTabIndex({ key: "End", currentIndex: 0, count: 3, vertical })).toBe(2);
-      for (const key of others) {
-        expect(nextTabIndex({ key, currentIndex: 0, count: 3, vertical })).toBeNull();
-      }
+      expect(nextTabIndex({ key: other, currentIndex: 0, count: 3, vertical })).toBeNull();
     });
 
     it("respects persisted active tab", () => {

@@ -126,10 +126,10 @@ describe("clampPanelPosition", () => {
 
   it.each([
     { case: "already inside", pos: { top: 100, left: 200 }, canvas: size, want: { top: 100, left: 200 } },
-    { case: "off the right and bottom edges", pos: { top: 790, left: 1190 }, canvas: size, want: { top: 492, left: 792 } },
-    { case: "negative", pos: { top: -50, left: -20 }, canvas: size, want: { top: 8, left: 8 } },
-    { case: "bigger than the viewport", pos: { top: 100, left: 100 }, canvas: { w: 1500, h: 900 }, want: { top: 8, left: 8 } },
-  ])("keeps a position $case within the 8px margin", ({ pos, canvas, want }) => {
+    { case: "past the right and bottom edges", pos: { top: 790, left: 1190 }, canvas: size, want: { top: 492, left: 792 } },
+    { case: "at negative coordinates", pos: { top: -50, left: -20 }, canvas: size, want: { top: 8, left: 8 } },
+    { case: "larger than the viewport", pos: { top: 100, left: 100 }, canvas: { w: 1500, h: 900 }, want: { top: 8, left: 8 } },
+  ])("clamps a panel $case into the 8px margin", ({ pos, canvas, want }) => {
     expect(clampPanelPosition(pos, canvas, viewport)).toEqual(want);
   });
 });
