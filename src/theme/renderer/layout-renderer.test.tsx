@@ -10,6 +10,8 @@ import { ElementContextProvider } from "../elements/context";
 import type { Server } from "@/types/server";
 import { resolveVariant } from "./variant";
 import type { LayoutFile, LayoutNode, SettingValue } from "./types";
+import { TEXT_TAGS } from "./leaves";
+import textRoles from "../text-roles.json";
 
 afterEach(() => useDevStore.getState().clear());
 
@@ -189,6 +191,10 @@ describe("leaves", () => {
 
   it("renders nothing for an outlet with no content", () => {
     expect(render({ type: "outlet", name: "modals" })).toBe("");
+  });
+
+  it("matches the shared text-role list", () => {
+    expect(Object.keys(TEXT_TAGS)).toEqual(textRoles);
   });
 });
 

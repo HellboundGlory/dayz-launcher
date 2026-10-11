@@ -8,6 +8,7 @@
 //! files an import accepts, and refuses to ship one naming this machine's own
 //! data folder.
 
+use std::borrow::Cow;
 use std::io::{Read, Seek, Write};
 use std::path::{Path, PathBuf};
 
@@ -29,18 +30,18 @@ fn package_too_large() -> String {
 const ALLOWED_EXTENSIONS: [&str; 12] = [
     "json", "css", "png", "webp", "jpg", "jpeg", "svg", "woff2", "woff", "ttf", "otf", "md",
 ];
-/// The folders a package's directory entries may name; `package_extension`
-/// holds files to the same folders. The list bounds depth by construction.
-pub(crate) const PACKAGE_FOLDERS: [&str; 8] = [
-    "layout",
-    "layout/views",
-    "layout/modals",
-    "layout/lists",
-    "layout/popups",
-    "fonts",
-    "images",
-    "previews",
-];
+/// The folders a package's directory entries may use for assets.
+const ASSET_FOLDERS: [&str; 3] = ["fonts", "images", "previews"];
+
+/// A directory entry may be an asset folder or any folder above a file on the
+/// layout allowlist (`layout`, `layout/views`, …).
+fn is_package_folder(name: &str) -> bool {
+    ASSET_FOLDERS.contains(&name)
+        || super::LAYOUT_ALLOWLIST.iter().any(|path| {
+            path.strip_prefix(name)
+                .is_some_and(|rest| rest.starts_with('/'))
+        })
+}
 const FONT_EXTENSIONS: [&str; 4] = ["woff2", "woff", "ttf", "otf"];
 const IMAGE_EXTENSIONS: [&str; 5] = ["png", "webp", "jpg", "jpeg", "svg"];
 const CAPABILITIES: [&str; 6] = ["tokens", "css", "fonts", "images", "layout", "settings"];
@@ -221,16 +222,21 @@ fn inspect<R: Read + Seek>(
     archive: &mut zip::ZipArchive<R>,
     staging_dir: &Path,
 ) -> Result<(ThemeManifest, usize), String> {
+    // Bytes actually decompressed, never the archive's own claimed `size()` —
+    // a crafted entry can declare small and stream gigabytes.
+    let mut total_bytes = 0u64;
     // Read before anything is extracted, so a missing manifest or an obsolete
-    // format is reported ahead of path errors.
-    let manifest: ThemeManifest = match archive.by_name(MANIFEST_FILE) {
+    // format is reported ahead of path errors; the walk below writes these bytes.
+    let (manifest, manifest_bytes): (ThemeManifest, Vec<u8>) = match archive.by_name(MANIFEST_FILE)
+    {
         Ok(mut entry) => {
             if entry.size() > MAX_TOTAL_UNCOMPRESSED_BYTES {
                 return Err(package_too_large());
             }
-            let bytes = read_entry(&mut entry, MANIFEST_FILE, &mut 0)?;
-            serde_json::from_slice(&bytes)
-                .map_err(|e| format!("{MANIFEST_FILE} is not a valid manifest: {e}"))?
+            let bytes = read_entry(&mut entry, MANIFEST_FILE, &mut total_bytes)?;
+            let manifest = serde_json::from_slice(&bytes)
+                .map_err(|e| format!("{MANIFEST_FILE} is not a valid manifest: {e}"))?;
+            (manifest, bytes)
         }
         Err(zip::result::ZipError::FileNotFound) => {
             return Err(format!(
@@ -253,15 +259,13 @@ fn inspect<R: Read + Seek>(
     // Lowercased relative names already accepted; a repeat would overwrite on a
     // case-insensitive filesystem and make the extracted set platform-dependent.
     let mut seen = std::collections::HashSet::new();
-    // Bytes actually decompressed, never the archive's own claimed `size()` —
-    // a crafted entry can declare small and stream gigabytes.
-    let mut total_bytes = 0u64;
 
     for index in 0..archive.len() {
         let mut entry = archive
             .by_index(index)
             .map_err(|e| format!("Could not read entry {index} of the package: {e}"))?;
         let name = entry.name().to_string();
+        let is_manifest = name == MANIFEST_FILE;
 
         if !seen.insert(name.to_lowercase()) {
             return Err(format!(
@@ -274,8 +278,10 @@ fn inspect<R: Read + Seek>(
                 "PKG-03: This package holds more than {MAX_FILES} files."
             ));
         }
-        // A cheap early hint only — the streaming sum below is what actually enforces the limit.
-        if let Some(claimed) = entry.size().checked_add(total_bytes) {
+        // A cheap early hint only — the streaming sum below is what actually
+        // enforces the limit. The manifest's bytes are in the sum already.
+        let pending = if is_manifest { 0 } else { entry.size() };
+        if let Some(claimed) = pending.checked_add(total_bytes) {
             if claimed > MAX_TOTAL_UNCOMPRESSED_BYTES {
                 return Err(package_too_large());
             }
@@ -287,7 +293,7 @@ fn inspect<R: Read + Seek>(
         // carries no extension, so it is held to the folder list instead.
         let extension = if entry.is_dir() {
             let folder = name.strip_suffix('/').unwrap_or(&name);
-            if !PACKAGE_FOLDERS.contains(&folder) {
+            if !is_package_folder(folder) {
                 return Err(format!(
                     "`{name}` is outside the package path allowlist; refusing it."
                 ));
@@ -307,7 +313,11 @@ fn inspect<R: Read + Seek>(
         // Read into memory rather than straight to disk: an asset has to be
         // sniffed before it is staged, and a theme asset is bounded by the
         // uncompressed ceiling this loop already enforces.
-        let bytes = read_entry(&mut entry, &name, &mut total_bytes)?;
+        let bytes: Cow<[u8]> = if is_manifest {
+            Cow::Borrowed(&manifest_bytes)
+        } else {
+            Cow::Owned(read_entry(&mut entry, &name, &mut total_bytes)?)
+        };
         sniff_asset(&name, extension, &bytes)?;
         std::fs::write(&output, &bytes)
             .map_err(|e| format!("Could not write {}: {e}", output.display()))?;
@@ -984,6 +994,16 @@ fn validate_manifest(parsed: &ThemeManifest) -> Result<(), String> {
                 .to_string(),
         );
     }
+    if let Some(preview) = parsed
+        .previews
+        .iter()
+        .find(|preview| !preview.file.starts_with("previews/"))
+    {
+        return Err(format!(
+            "MAN-09: preview `{}` must be a file under previews/.",
+            preview.file
+        ));
+    }
     semver::Version::parse(&parsed.version)
         .map_err(|e| format!("MAN-04: version is not valid semver: {e}"))?;
     minimum_launcher_version_at_most(parsed)
@@ -1362,6 +1382,10 @@ mod tests {
             vec![preview.clone(); 6],
             vec![crate::theme::ThemePreview {
                 caption: "x".repeat(81),
+                ..preview.clone()
+            }],
+            vec![crate::theme::ThemePreview {
+                file: "theme.json".into(),
                 ..preview.clone()
             }],
             vec![preview.clone()],
@@ -2068,10 +2092,16 @@ mod tests {
         let zip_path = fixture(
             &root,
             "folders",
-            &PACKAGE_FOLDERS
-                .iter()
-                .map(|folder| Entry::dir(format!("{folder}/")))
-                .collect::<Vec<_>>(),
+            &[
+                Entry::dir("layout/"),
+                Entry::dir("layout/views/"),
+                Entry::dir("layout/modals/"),
+                Entry::dir("layout/lists/"),
+                Entry::dir("layout/popups/"),
+                Entry::dir("fonts/"),
+                Entry::dir("images/"),
+                Entry::dir("previews/"),
+            ],
         );
 
         stage_for_preview(&root, &zip_path, &[]).expect("allowlisted folder entries must stage");

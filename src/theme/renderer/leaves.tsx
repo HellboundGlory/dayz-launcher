@@ -104,7 +104,7 @@ export const ICONS: Record<string, LucideIcon> = {
 };
 
 /** A text role's heading semantics; anything not a heading is inline/flow. */
-const TEXT_TAGS: Record<TextRole, "h1" | "h2" | "h3" | "p" | "span"> = {
+export const TEXT_TAGS: Record<TextRole, "h1" | "h2" | "h3" | "p" | "span"> = {
   display: "h1",
   heading: "h2",
   subheading: "h3",
