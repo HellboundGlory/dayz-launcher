@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Copy, Ellipsis, FileOutput, Trash, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePopupTrigger } from "@/theme/interaction/use-popup-trigger";
 
 interface ThemeCardProps {
   name: string;
@@ -24,15 +25,6 @@ interface ThemeCardProps {
   incompatibleReason?: string;
 }
 
-// Same hook as theme-customiser.tsx's, kept local on purpose — too small to share.
-function useOutsideClick(open: boolean, onOutside: (e: MouseEvent) => void) {
-  useEffect(() => {
-    if (!open) return;
-    document.addEventListener("mousedown", onOutside);
-    return () => document.removeEventListener("mousedown", onOutside);
-  }, [open, onOutside]);
-}
-
 export function ThemeCard({
   name,
   builtin,
@@ -48,30 +40,18 @@ export function ThemeCard({
   incompatible,
   incompatibleReason,
 }: ThemeCardProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
   // A preview that fails (missing/stale file) falls back to the swatch strip,
   // which is why `swatches` stays required either way. Keyed by URL so a later
   // preview for the same card gets its own chance to load.
   const [failedPreview, setFailedPreview] = useState<string | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-
-  // The trigger toggles on click, so a mousedown inside it must not close.
-  function closeOnOutside(e: MouseEvent) {
-    const target = e.target as Node;
-    if (menuRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
-    setMenuOpen(false);
-  }
-  useOutsideClick(menuOpen, closeOnOutside);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setMenuOpen(false);
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [menuOpen]);
+  const {
+    open: menuOpen,
+    setOpen: setMenuOpen,
+    close: closeMenu,
+    ref: menuAnchorRef,
+    popupRef: menuRef,
+    popupStyle: menuStyle,
+  } = usePopupTrigger({ side: "top", align: "end" });
 
   return (
     <div
@@ -123,68 +103,71 @@ export function ThemeCard({
               : `by ${author} · v${version}`}
         </p>
 
-        <div className="relative mt-2.5 flex items-center gap-1.5">
+        <div className="mt-2.5 flex items-center gap-1.5">
           {!active && onActivate && (
             <button
               type="button"
               onClick={onActivate}
-              className="inline-flex h-[22px] min-w-0 flex-1 items-center justify-center truncate [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface2 px-2 [font-size:var(--t-type-label-size)] font-semibold text-ink transition-colors hover:border-accent-line hover:text-accent"
+              className="inline-flex h-[22px] min-w-0 flex-1 items-center justify-center truncate [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface2 px-[var(--t-space-controlCompactX)] [font-size:var(--t-type-label-size)] font-semibold text-ink transition-colors hover:border-accent-line hover:text-accent"
             >
               Activate
             </button>
           )}
-          <button
-            ref={triggerRef}
-            type="button"
-            onClick={() => setMenuOpen((open) => !open)}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            aria-label={`${name} options`}
-            className="inline-flex h-[22px] w-[26px] shrink-0 items-center justify-center [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface2 text-muted2 transition-colors hover:text-ink"
-          >
-            <Ellipsis className="size-3.5" />
-          </button>
-
-          {/* Opens upward: inside a settings panel there's rarely room below. */}
-          {menuOpen && (
-            <div
-              ref={menuRef}
-              role="menu"
-              className="absolute bottom-full right-0 z-[var(--z-popup)] mb-1 w-44 [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)]"
+          <div ref={menuAnchorRef} className="shrink-0">
+            <button
+              type="button"
+              onClick={() => setMenuOpen((open) => !open)}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              aria-label={`${name} options`}
+              className="inline-flex h-[22px] w-[26px] shrink-0 items-center justify-center [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface2 text-muted2 transition-colors hover:text-ink"
             >
-              {onDuplicate && (
-                <MenuItem
-                  icon={Copy}
-                  label="Duplicate as new theme"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onDuplicate();
-                  }}
-                />
-              )}
-              {onExport && (
-                <MenuItem
-                  icon={FileOutput}
-                  label="Export"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onExport();
-                  }}
-                />
-              )}
-              {onRequestDelete && (
-                <MenuItem
-                  icon={Trash}
-                  destructive
-                  label="Delete"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onRequestDelete();
-                  }}
-                />
-              )}
-            </div>
-          )}
+              <Ellipsis className="size-3.5" />
+            </button>
+
+            {/* Opens upward: inside a settings panel there's rarely room below. */}
+            {menuOpen && (
+              <div
+                ref={menuRef}
+                data-part="popup"
+                role="menu"
+                style={menuStyle}
+                className="w-44 [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-1 [box-shadow:var(--t-shadow-popup)]"
+              >
+                {onDuplicate && (
+                  <MenuItem
+                    icon={Copy}
+                    label="Duplicate as new theme"
+                    onClick={() => {
+                      closeMenu();
+                      onDuplicate();
+                    }}
+                  />
+                )}
+                {onExport && (
+                  <MenuItem
+                    icon={FileOutput}
+                    label="Export"
+                    onClick={() => {
+                      closeMenu();
+                      onExport();
+                    }}
+                  />
+                )}
+                {onRequestDelete && (
+                  <MenuItem
+                    icon={Trash}
+                    destructive
+                    label="Delete"
+                    onClick={() => {
+                      closeMenu();
+                      onRequestDelete();
+                    }}
+                  />
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -208,7 +191,7 @@ function MenuItem({
       role="menuitem"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2 [border-radius:var(--t-radius-controlCompact)] px-2.5 py-1.5 text-left [font-size:var(--t-type-body-size)] font-semibold transition-colors hover:bg-surface",
+        "flex w-full items-center gap-2 [border-radius:var(--t-radius-controlCompact)] px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] text-left [font-size:var(--t-type-body-size)] font-semibold transition-colors hover:bg-surface",
         destructive ? "text-danger" : "text-ink",
       )}
     >

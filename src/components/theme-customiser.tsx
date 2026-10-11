@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useState, type RefObject } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePopupTrigger } from "@/theme/interaction/use-popup-trigger";
 import { useConfirm } from "./confirm-dialog";
 import {
   useThemeStore,
@@ -34,15 +35,15 @@ const FAMILY_ROWS: { key: FontFamilyRole; label: string }[] = [
 
 /** Raw CSS length/font-family value, same posture as the colour hex readout. */
 const EXTRAS_INPUT_CLASS =
-  "min-w-0 flex-1 [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface px-1.5 py-[3px] text-right font-mono-data [font-size:var(--t-type-caption-size)] text-ink outline-hidden transition-colors focus:border-accent-line";
+  "min-w-0 flex-1 [border-radius:var(--t-radius-controlCompact)] border border-line bg-surface px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] text-right font-mono-data [font-size:var(--t-type-caption-size)] text-ink outline-hidden transition-colors focus:border-accent-line";
 
 /** The accent save control, shared by "Save changes" and "Save theme". */
 const SAVE_BUTTON_CLASS =
-  "shrink-0 [border-radius:var(--t-radius-control)] border-none bg-accent px-3 py-[7px] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-[0.05em] [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-[filter] hover:brightness-110";
+  "shrink-0 [border-radius:var(--t-radius-control)] border-none bg-accent px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-[0.05em] [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-[filter] hover:brightness-110";
 
 /** The quieter control beside the accent save — the name-based "Save as new". */
 const SECONDARY_BUTTON_CLASS =
-  "shrink-0 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-[7px] [font-size:var(--t-type-caption-size)] font-semibold uppercase tracking-[0.04em] text-muted2 transition-colors hover:text-ink";
+  "shrink-0 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-caption-size)] font-semibold uppercase tracking-[0.04em] text-muted2 transition-colors hover:text-ink";
 
 const ACTIVE_NAME_NOTICE = "A theme with that name is active. Pick another name.";
 
@@ -67,10 +68,17 @@ export function ThemeCustomiser() {
   const deleteTheme = useThemeStore((s) => s.deleteTheme);
   const resetToBase = useThemeStore((s) => s.resetToBase);
 
-  const [dropOpen, setDropOpen] = useState(false);
   const [name, setName] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
-  const dropRef = useRef<HTMLDivElement>(null);
+  const {
+    open: dropOpen,
+    setOpen: setDropOpen,
+    close: closeDrop,
+    ref: dropRef,
+    popupRef: dropMenuRef,
+    popupStyle: dropMenuStyle,
+  } = usePopupTrigger({ side: "bottom", align: "start" });
+  const dropWidth = useElementWidth(dropRef);
   const confirm = useConfirm();
 
   const pair = resolvedPair(activeId, themeFiles);
@@ -81,13 +89,6 @@ export function ThemeCustomiser() {
   // SPEC §4.6: only an installed `local.*` theme can be written in place; an
   // import or a bundled built-in is saved as a new theme instead.
   const userTheme = isUserTheme(activeId, myThemes);
-
-  // Outside mousedown closes the theme dropdown (same pattern as the filter
-  // bar popovers).
-  function closeOnOutside(e: MouseEvent) {
-    if (!dropRef.current?.contains(e.target as Node)) setDropOpen(false);
-  }
-  useOutsideClick(dropOpen, closeOnOutside);
 
   const isDark = scheme === "dark";
 
@@ -178,7 +179,7 @@ export function ThemeCustomiser() {
           onClick={() => setDropOpen((o) => !o)}
           aria-haspopup="menu"
           aria-expanded={dropOpen}
-          className="theme-trigger flex w-full min-w-0 cursor-pointer items-center gap-2 [border-radius:var(--t-radius-popup)] border border-line bg-surface px-2.5 py-2 text-left [font-size:var(--t-type-body-size)] font-semibold text-ink transition-colors hover:border-accent-line"
+          className="theme-trigger flex w-full min-w-0 cursor-pointer items-center gap-2 [border-radius:var(--t-radius-popup)] border border-line bg-surface px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] text-left [font-size:var(--t-type-body-size)] font-semibold text-ink transition-colors hover:border-accent-line"
         >
           <span className="chips inline-flex shrink-0 gap-0.5">
             <i className="h-2.5 w-2.5 [border-radius:var(--t-radius-track)]" style={{ background: pair.dark.accent }} />
@@ -196,7 +197,12 @@ export function ThemeCustomiser() {
         </button>
 
         {dropOpen && (
-          <div className="theme-menu absolute left-0 right-0 top-[calc(100%+4px)] z-[var(--z-popup)] max-h-[280px] overflow-auto [border-radius:var(--t-radius-card)] border border-line bg-surface2 [box-shadow:var(--t-shadow-popupFilter)]">
+          <div
+            ref={dropMenuRef}
+            data-part="popup"
+            style={{ ...dropMenuStyle, width: dropWidth }}
+            className="theme-menu max-h-[280px] overflow-auto [border-radius:var(--t-radius-card)] border border-line bg-surface2 [box-shadow:var(--t-shadow-popupFilter)]"
+          >
             <div className="theme-group px-2.5 pb-1 pt-[7px] [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-[0.05em] text-muted">
               Built-in
             </div>
@@ -208,7 +214,7 @@ export function ThemeCustomiser() {
                 aria-checked={activeId === p.id}
                 onClick={() => {
                   void pickTheme(p.id);
-                  setDropOpen(false);
+                  closeDrop();
                 }}
                 className={cn(
                   "theme-item flex w-full cursor-pointer items-center gap-2 px-2.5 py-[7px] text-left [font-size:var(--t-type-body-size)] font-semibold text-muted2 transition-colors hover:bg-surface hover:text-ink",
@@ -241,7 +247,7 @@ export function ThemeCustomiser() {
                     aria-checked={saved?.id === t.id}
                     onClick={() => {
                       void pickTheme(t.id);
-                      setDropOpen(false);
+                      closeDrop();
                       }}
                       className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left [font-size:var(--t-type-body-size)] font-semibold text-muted2 hover:text-ink"
                     >
@@ -396,7 +402,7 @@ export function ThemeCustomiser() {
             if (e.key !== "Enter") return;
             saveNewName();
           }}
-          className="min-w-0 flex-1 [border-radius:var(--t-radius-control)] border border-line bg-bg px-2.5 py-[7px] [font-size:var(--t-type-body-size)] text-ink placeholder-muted outline-hidden transition-colors focus:border-accent-line"
+          className="min-w-0 flex-1 [border-radius:var(--t-radius-control)] border border-line bg-bg px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-body-size)] text-ink placeholder-muted outline-hidden transition-colors focus:border-accent-line"
         />
         {userTheme ? (
           <button
@@ -427,7 +433,7 @@ export function ThemeCustomiser() {
         <button
           type="button"
           onClick={resetToBase}
-          className="[border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-1 [font-size:var(--t-type-caption-size)] font-semibold uppercase tracking-[0.04em] text-muted2 transition-colors hover:text-ink"
+          className="[border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-caption-size)] font-semibold uppercase tracking-[0.04em] text-muted2 transition-colors hover:text-ink"
         >
           Reset to base
         </button>
@@ -478,11 +484,17 @@ function ExtrasCard<K extends string>({
   );
 }
 
-/** Bind a document-level mousedown listener while `open`; fires `onOutside`. */
-function useOutsideClick(open: boolean, onOutside: (e: MouseEvent) => void) {
-  useEffect(() => {
-    if (!open) return;
-    document.addEventListener("mousedown", onOutside);
-    return () => document.removeEventListener("mousedown", onOutside);
-  }, [open, onOutside]);
+// The popup hook re-renders only when the popup moves, so a resize needs its own observer.
+function useElementWidth(ref: RefObject<HTMLElement | null>): number {
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const measure = () => setWidth(el.offsetWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [ref]);
+  return width;
 }
