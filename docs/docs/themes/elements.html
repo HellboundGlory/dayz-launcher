@@ -303,7 +303,7 @@
   <section class="el" id="el-servers-refresh" data-el="servers.refresh">
   <h3><code>servers.refresh</code> <span class="el-kind">action</span></h3>
   <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Required in</dt><dd>the shell + server browser composition</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>busy</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
-  <div class="md el-notes"><p>Re-probes the servers currently on screen. It reads &quot;Refresh&quot;, or &quot;Refreshing…&quot; while <code>busy</code>, when it is disabled and its icon spins.</p></div>
+  <div class="md el-notes"><p>Re-probes the first 5,000 servers in the list's current order. It reads &quot;Refresh&quot;, or &quot;Refreshing…&quot; while <code>busy</code>, when it is disabled and its icon spins.</p></div>
 </section>
 </section>
 

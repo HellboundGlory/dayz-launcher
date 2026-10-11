@@ -482,7 +482,7 @@ export function SettingsAutoRefresh({ options, className, style }: ElementProps)
     <Field
       dataEl="settings.autoRefresh"
       label="Auto-refresh"
-      hint="Re-queries the servers on screen, not the whole list. Defaults to a minute — ping is measured from your connection, so rows get their numbers shortly after every load."
+      hint="Re-queries the first 5,000 servers in the list's current order, not all of them. Defaults to a minute — ping is measured from your connection, so rows get their numbers shortly after every load."
       showHint={showHint}
       htmlFor={id}
       hintId={hintId}

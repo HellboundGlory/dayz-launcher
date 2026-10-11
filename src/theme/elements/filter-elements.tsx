@@ -502,7 +502,7 @@ export function ServersRefresh({
       onClick={onRefresh}
       disabled={refreshing}
       aria-label="Refresh server list"
-      title="Re-probe the servers currently on screen — ping, lock, mods, online status"
+      title="Re-probe the first 5,000 servers in the list's current order — ping, lock, mods, online status"
       className={className ?? "flex items-center gap-1.5 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] border border-line bg-surface2 hover:border-accent text-muted hover:text-ink transition-colors disabled:opacity-60 disabled:cursor-not-allowed"}
       style={style}
     >

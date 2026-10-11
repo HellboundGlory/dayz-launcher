@@ -335,7 +335,7 @@ pub async fn refresh_visible_servers(
     // which is now the whole browser rather than a 5000-row slice of it, and
     // one click must not turn into tens of thousands of INFO+RULES round
     // trips. The list arrives in the table's sort order, so the cap keeps the
-    // rows the user is actually looking at.
+    // first 5,000 rows of that order.
     let socket_addrs: Vec<SocketAddr> = addrs
         .iter()
         .take(PROBE_WINDOW)
