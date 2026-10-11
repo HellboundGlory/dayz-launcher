@@ -30,52 +30,20 @@ const SIZES = [
   [975, 620],
 ];
 
-/**
- * `click=` for a legacy (`data-tetra-el`) hook or the engine element that replaces it,
- * so one query reaches the screen whichever tree draws it. Encoded for a query string.
- */
-function neutralClick(hook, engine, tail = "", engineTail = tail) {
-  const selector = `[data-tetra-el="${hook}"]${tail}, [data-el="${engine}"]${engineTail}`;
-  return new URLSearchParams([["click", selector]]).toString();
-}
-
-/**
- * The matrix, one row per scenario. `neutral` is the extra query that reaches the same
- * state under theme=neutral: a click on its legacy hook or on the engine element.
- */
+/** The matrix, one row per scenario. */
 const SCENARIOS = [
   { id: "browser", query: "" },
   { id: "servers0", query: "servers=0" },
   { id: "select3", query: "select=3" },
   { id: "storage-degraded", query: "storage=degraded" },
-  {
-    id: "view-favourites",
-    query: "view=favourites",
-    neutral: neutralClick("navFavourites", "nav.favourites"),
-  },
-  { id: "view-recent", query: "view=recent", neutral: neutralClick("navRecent", "nav.recent") },
-  { id: "view-mods", query: "view=mods", neutral: neutralClick("navMods", "nav.mods") },
-  {
-    id: "view-mods-selectmod0",
-    query: "view=mods&selectMod=0",
-    neutral: `selectMod=0&${neutralClick("navMods", "nav.mods")}`,
-  },
-  { id: "settings", query: "settings=1", neutral: neutralClick("settingsEntry", "nav.settings") },
-  {
-    id: "popup-map",
-    query: "popup=map",
-    neutral: neutralClick("mapFilter", "filter.map", " button", ' [data-part="trigger"]'),
-  },
-  {
-    id: "popup-tags",
-    query: "popup=tags",
-    neutral: neutralClick("tagsFilter", "filter.tags", " button", ' [data-part="trigger"]'),
-  },
-  {
-    id: "popup-region",
-    query: "popup=region",
-    neutral: neutralClick("countryFilter", "filter.region", " button", ' [data-part="trigger"]'),
-  },
+  { id: "view-favourites", query: "view=favourites" },
+  { id: "view-recent", query: "view=recent" },
+  { id: "view-mods", query: "view=mods" },
+  { id: "view-mods-selectmod0", query: "view=mods&selectMod=0" },
+  { id: "settings", query: "settings=1" },
+  { id: "popup-map", query: "popup=map" },
+  { id: "popup-tags", query: "popup=tags" },
+  { id: "popup-region", query: "popup=region" },
   { id: "modal-serverinfo", query: "modal=serverInfo" },
   { id: "modal-modfilter", query: "modal=modFilter" },
   { id: "modal-update", query: "modal=update" },
@@ -142,7 +110,6 @@ async function buildMatrix(themes) {
       ...tabs.map((tab) => ({ id: `settings-${tab}`, query: `settings=1&settingsTab=${tab}` })),
     ];
     for (const row of rows) {
-      const base = theme === "neutral" && row.neutral !== undefined ? row.neutral : row.query;
       for (const scheme of SCHEMES) {
         for (const [width, height] of SIZES) {
           shots.push({
@@ -150,7 +117,7 @@ async function buildMatrix(themes) {
             scheme,
             width,
             height,
-            query: [`theme=${theme}`, base, `scheme=${scheme}`, "static=1"].filter(Boolean).join("&"),
+            query: [`theme=${theme}`, row.query, `scheme=${scheme}`, "static=1"].filter(Boolean).join("&"),
           });
         }
       }

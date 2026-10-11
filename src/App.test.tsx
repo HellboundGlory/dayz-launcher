@@ -2,19 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { clearFallbackMemory, markFileFallback } from "./theme/fallback/store";
 import { SHELL_LAYOUT, BROWSER_LAYOUT, MODS_LAYOUT } from "./theme/neutral";
-import type * as NeutralModule from "./theme/neutral";
 import type { useThemeStore } from "./theme/theme-store";
 import type { LayoutFile } from "./theme/renderer/types";
 import type { ThemeFile } from "./types/theme";
 
 type ThemeStoreHook = typeof useThemeStore;
-
-const engine = vi.hoisted(() => ({ files: new Set<string>() }));
-
-vi.mock("./theme/neutral", async (importOriginal) => {
-  const actual = await importOriginal<typeof NeutralModule>();
-  return { ...actual, NEUTRAL_ENGINE_FILES: engine.files };
-});
 
 vi.mock("@tauri-apps/api/event", () => ({
   listen: async () => () => {},
@@ -53,7 +45,7 @@ vi.mock("./theme/theme-store", async (importOriginal) => {
 });
 
 import { App, SettingsSurface } from "./App";
-import { getThemeOwnedLayout } from "./theme/theme-store";
+import { getActiveLayout } from "./theme/theme-store";
 import type { SettingsLayoutFile } from "./theme/renderer/types";
 
 const themeStore = realStore.hook as ThemeStoreHook;
@@ -95,84 +87,33 @@ const ALL_SCREENS = {
   "layout/views/mods.json": MODS_LAYOUT,
 };
 
-/** The pipeline's shell renders the window controls as a surface; the legacy
- * shell renders the launcher's own component, which has no such marker. */
+/** The shell's window controls, drawn through the pipeline. */
 const PIPELINE_SHELL = 'data-surface="surface.windowControls"';
-/** The legacy server list; the pipeline's list host carries `data-el` instead. */
-const LEGACY_LIST = "l2-body";
+const PIPELINE_LIST = 'data-el="list.servers"';
 
 beforeEach(() => {
   themeStore.setState({ activeId: "neutral", themeFiles: {}, incompatibleSwitch: null });
   clearFallbackMemory();
-  engine.files.clear();
 });
 
-describe("engine-drawn files", () => {
+describe("App screen source", () => {
   it.each([
-    {
-      file: "layout/views/browser.json",
-      setup: () => {},
-      draws: ['data-el="list.servers"'],
-      omits: [LEGACY_LIST, PIPELINE_SHELL],
-    },
-    {
-      file: "layout/shell.json",
+    { case: "Neutral", setup: noop },
+    { case: "a theme's own files", setup: () => themed(ALL_SCREENS) },
+    ...["layout/views/browser.json", "layout/shell.json"].map((file) => ({
+      case: `a theme whose ${file} fell back`,
       setup: () => {
         themed(ALL_SCREENS);
-        markFileFallback("local.aurora", "layout/shell.json", "LAY-01: dropped");
+        markFileFallback("local.aurora", file, "LAY-01: dropped");
       },
-      draws: [PIPELINE_SHELL],
-      omits: [LEGACY_LIST],
-    },
-  ])("draws $file from the engine inside either shell", ({ file, setup, draws, omits }) => {
-    engine.files.add(file);
+    })),
+  ])("draws the shell and browser through the pipeline for $case", ({ setup }) => {
     setup();
 
     const html = renderToStaticMarkup(<App />);
 
-    for (const marker of draws) expect(html).toContain(marker);
-    for (const marker of omits) expect(html).not.toContain(marker);
-  });
-});
-
-describe("App screen source", () => {
-  it("draws Neutral through the launcher's legacy components", () => {
-    const html = renderToStaticMarkup(<App />);
-
-    expect(html).not.toContain(PIPELINE_SHELL);
-    expect(html).toContain(LEGACY_LIST);
-  });
-
-  it("draws a theme's own shell and views through the pipeline", () => {
-    themed(ALL_SCREENS);
-
-    const html = renderToStaticMarkup(<App />);
-
     expect(html).toContain(PIPELINE_SHELL);
-    expect(html).toContain('data-el="list.servers"');
-    expect(html).not.toContain(LEGACY_LIST);
-  });
-
-  it("drops only a fallen-back view to the legacy list, keeping the theme's shell", () => {
-    themed(ALL_SCREENS);
-    markFileFallback("local.aurora", "layout/views/browser.json", "LAY-01: dropped");
-
-    const html = renderToStaticMarkup(<App />);
-
-    expect(html).toContain(PIPELINE_SHELL);
-    expect(html).not.toContain('data-el="list.servers"');
-    expect(html).toContain(LEGACY_LIST);
-  });
-
-  it("drops a fallen-back shell to the legacy shell, keeping the theme's views inside it", () => {
-    themed(ALL_SCREENS);
-    markFileFallback("local.aurora", "layout/shell.json", "LAY-01: dropped");
-
-    const html = renderToStaticMarkup(<App />);
-
-    expect(html).not.toContain(PIPELINE_SHELL);
-    expect(html).toContain('data-el="list.servers"');
-    expect(html).not.toContain(LEGACY_LIST);
+    expect(html).toContain(PIPELINE_LIST);
   });
 
   it("shows the fallback notice for a themed file and never for Neutral", () => {
@@ -184,7 +125,7 @@ describe("App screen source", () => {
     expect(renderToStaticMarkup(<App />)).toContain('data-part="fallback-notice"');
   });
 
-  it("shows the incompatible-theme notice whichever shell draws", () => {
+  it("shows the incompatible-theme notice once", () => {
     themeStore.setState({ incompatibleSwitch: { id: "local.old", name: "Old Timer" } });
 
     const notices = () => renderToStaticMarkup(<App />).split('data-part="incompatible-theme-notice"').length - 1;
@@ -197,10 +138,8 @@ describe("App screen source", () => {
   });
 });
 
-/** What the pipeline's Settings host draws; the legacy `SettingsView` has none. */
+/** What the pipeline's Settings host draws. */
 const PIPELINE_SETTINGS = 'data-settings-host=""';
-/** The legacy `SettingsView`'s accordion headers; the pipeline draws its own accordions. */
-const LEGACY_SETTINGS = "data-acc-header";
 
 const SETTINGS_ROOT = {
   type: "stack" as const,
@@ -221,14 +160,12 @@ const THEMED_SETTINGS_OVERLAY: SettingsLayoutFile = {
 };
 
 describe("Themed settings surface", () => {
-  /** App hands `SettingsSurface` the same theme-owned read it resolves. */
+  /** App hands `SettingsSurface` the active file: the theme's own, else Neutral's. */
   const surface = (placement?: "outlet" | "overlay") => (
     <SettingsSurface
-      layout={getThemeOwnedLayout("layout/settings.json") as SettingsLayoutFile | undefined}
+      layout={getActiveLayout("layout/settings.json") as SettingsLayoutFile}
       placement={placement}
       onClose={noop}
-      devMode={false}
-      onDevModeChange={noop}
     />
   );
 
@@ -238,34 +175,13 @@ describe("Themed settings surface", () => {
     const html = renderToStaticMarkup(surface("outlet"));
 
     expect(html).toContain(PIPELINE_SETTINGS);
-    expect(html).not.toContain(LEGACY_SETTINGS);
   });
 
-  it("draws Settings without a theme-owned settings.json through SettingsView", () => {
-    themed(ALL_SCREENS);
-
-    const html = renderToStaticMarkup(surface());
-
-    expect(html).toContain(LEGACY_SETTINGS);
-    expect(html).not.toContain(PIPELINE_SETTINGS);
-  });
-
-  it("draws a fallen-back settings.json through SettingsView, never Neutral's skeleton", () => {
-    themed({ ...ALL_SCREENS, "layout/settings.json": THEMED_SETTINGS_OVERLAY });
-    markFileFallback("local.aurora", "layout/settings.json", "LAY-01: dropped");
-
-    const html = renderToStaticMarkup(surface());
-
-    expect(html).toContain(LEGACY_SETTINGS);
-    expect(html).not.toContain(PIPELINE_SETTINGS);
-  });
-
-  it("keeps a theme-owned overlay out of the shell's view outlet and of SettingsView", () => {
+  it("keeps a theme-owned overlay out of the view outlet", () => {
     themed({ ...ALL_SCREENS, "layout/settings.json": THEMED_SETTINGS_OVERLAY });
 
     const html = renderToStaticMarkup(surface("outlet"));
 
     expect(html).not.toContain(PIPELINE_SETTINGS);
-    expect(html).not.toContain(LEGACY_SETTINGS);
   });
 });
