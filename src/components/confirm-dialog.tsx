@@ -61,7 +61,7 @@ export function ConfirmDialog() {
         className="w-80 [border-radius:var(--t-radius-confirm)] border border-line bg-surface p-3 [box-shadow:var(--t-shadow-confirm)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <p data-part="title" className="text-xs font-bold text-ink">
+        <p data-part="title" className="[font-size:var(--t-type-subheading-size)] font-bold leading-4 text-ink">
           {request.title}
         </p>
         <p data-part="message" className="mt-1.5 [font-size:var(--t-type-body-size)] leading-relaxed text-muted2">

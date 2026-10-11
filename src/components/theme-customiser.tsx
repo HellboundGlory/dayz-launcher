@@ -153,13 +153,13 @@ export function ThemeCustomiser() {
           />
           <span
             className={cn(
-              "tr pointer-events-none absolute inset-0 rounded-full transition-colors [transition-duration:var(--t-motion-hover-duration)] peer-focus-visible:ring-2 peer-focus-visible:ring-accent-line",
+              "tr pointer-events-none absolute inset-0 [border-radius:var(--t-radius-pill)] transition-colors [transition-duration:var(--t-motion-hover-duration)] peer-focus-visible:ring-2 peer-focus-visible:ring-accent-line",
               isDark ? "bg-accent [box-shadow:var(--t-glow-selected)]" : "bg-line",
             )}
           />
           <span
             className={cn(
-              "kn pointer-events-none absolute left-[2px] top-[2px] h-4 w-4 rounded-full transition-transform [transition-duration:var(--t-motion-hover-duration)]",
+              "kn pointer-events-none absolute left-[2px] top-[2px] h-4 w-4 [border-radius:var(--t-radius-pill)] transition-transform [transition-duration:var(--t-motion-hover-duration)]",
               isDark ? "translate-x-[18px] [background-color:var(--t-color-onAccent)]" : "translate-x-0 bg-muted2",
             )}
           />

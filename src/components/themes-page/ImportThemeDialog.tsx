@@ -76,7 +76,7 @@ export function CapabilityBadge({ capabilities }: { capabilities: readonly strin
   return (
     <span
       className={cn(
-        "inline-flex items-center whitespace-nowrap rounded-full border px-1.5 py-[3px] [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-wider",
+        "inline-flex items-center whitespace-nowrap [border-radius:var(--t-radius-pill)] border px-1.5 py-[3px] [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-wider",
         "border-accent-line bg-accent-soft text-accent",
       )}
     >

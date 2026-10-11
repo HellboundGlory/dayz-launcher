@@ -129,7 +129,7 @@ export function ThemesSection({
         <div className="flex flex-wrap items-center gap-2">
           <span
             aria-hidden
-            className="size-1.5 shrink-0 rounded-full bg-success ring-2 ring-success-soft"
+            className="size-1.5 shrink-0 [border-radius:var(--t-radius-pill)] bg-success ring-2 ring-success-soft"
           />
           <strong className="[font-size:var(--t-type-subheading-size)] text-ink">{activeName}</strong>
           {installed && (
