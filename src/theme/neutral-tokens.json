@@ -1,0 +1,409 @@
+{
+  "schemaVersion": 2,
+  "colors": {
+    "dark": {
+      "bg": "#0d0f13",
+      "surface": "#12151b",
+      "surface2": "#1a1e26",
+      "border": "#262b34",
+      "text": "#e7ebf0",
+      "muted": "#7a8494",
+      "muted2": "#98a2b2",
+      "accent": "#8fa3bd",
+      "accent2": "#b0976a",
+      "success": "#4d9a75",
+      "warn": "#c19a55",
+      "danger": "#b3564d"
+    },
+    "light": {
+      "bg": "#f3f4f6",
+      "surface": "#ffffff",
+      "surface2": "#e9ebef",
+      "border": "#d2d6dc",
+      "text": "#181b20",
+      "muted": "#5d6570",
+      "muted2": "#8a919d",
+      "accent": "#3e5f7d",
+      "accent2": "#8a6d34",
+      "success": "#287a4f",
+      "warn": "#9a7b3a",
+      "danger": "#a94a42"
+    }
+  },
+  "bloom": 0.9,
+  "glow": "selected",
+  "scales": {
+    "radius": {
+      "none": 0,
+      "xs": "2px",
+      "sm": "4px",
+      "md": "6px",
+      "lg": "8px",
+      "full": "9999px"
+    },
+    "space": {
+      "0": "0px",
+      "2": "2px",
+      "4": "4px",
+      "6": "6px",
+      "8": "8px",
+      "10": "10px",
+      "12": "12px",
+      "14": "14px",
+      "16": "16px",
+      "18": "18px",
+      "20": "20px",
+      "22": "22px",
+      "24": "24px",
+      "26": "26px",
+      "28": "28px",
+      "30": "30px",
+      "32": "32px",
+      "34": "34px",
+      "36": "36px",
+      "38": "38px",
+      "40": "40px",
+      "42": "42px",
+      "44": "44px",
+      "46": "46px",
+      "48": "48px"
+    },
+    "type": {
+      "size": {
+        "3xs": "7px",
+        "2xs": "8px",
+        "xs": "9px",
+        "sm": "10px",
+        "md": "11px",
+        "lg": "12px",
+        "xl": "13px",
+        "2xl": "14px",
+        "3xl": "22px"
+      },
+      "weight": {
+        "normal": 400,
+        "medium": 500,
+        "semibold": 600,
+        "bold": 700,
+        "extrabold": 800
+      },
+      "tracking": {
+        "none": 0,
+        "tight": "-0.025em",
+        "wide": "0.025em",
+        "wider": "0.05em",
+        "widest": "0.1em"
+      },
+      "leading": {
+        "none": 1,
+        "tight": 1.25,
+        "snug": 1.375,
+        "normal": 1.5,
+        "relaxed": 1.625
+      },
+      "family": {
+        "ui": "\"Inter\", \"Segoe UI\", system-ui, sans-serif",
+        "data": "\"JetBrains Mono\", \"Fira Code\", \"Consolas\", monospace"
+      }
+    },
+    "border": {
+      "none": 0,
+      "hairline": "1px",
+      "thick": "2px"
+    },
+    "shadow": {
+      "none": "none",
+      "sm": "0 8px 24px rgba(0,0,0,0.4)",
+      "md": "0 10px 28px rgba(0,0,0,0.5)",
+      "lg": "0 12px 40px rgba(0,0,0,0.5)",
+      "xl": "0 24px 60px rgba(0,0,0,0.6)",
+      "glow": "var(--glow)"
+    },
+    "motion": {
+      "duration": {
+        "fast": "150ms",
+        "normal": "200ms",
+        "slow": "300ms"
+      },
+      "easing": {
+        "standard": "cubic-bezier(0.4, 0, 0.2, 1)",
+        "linear": "linear"
+      }
+    }
+  },
+  "roles": {
+    "radius": {
+      "window": "lg",
+      "panel": "9px",
+      "card": "lg",
+      "modal": "10px",
+      "popup": "7px",
+      "row": "lg",
+      "control": "md",
+      "input": "md",
+      "chip": "sm",
+      "badge": "3px",
+      "thumb": "7px",
+      "track": "xs",
+      "pill": "full",
+      "sidebarItem": "7px",
+      "controlSmall": "sm",
+      "popupItem": "5px",
+      "confirm": "lg",
+      "controlCompact": "5px",
+      "readinessRow": "5px",
+      "modalLarge": "12px"
+    },
+    "space": {
+      "windowPad": "0",
+      "panelPad": "16",
+      "modalPad": "14",
+      "popupPad": "4",
+      "rowX": "12",
+      "rowY": "8",
+      "controlX": "12",
+      "controlY": "6",
+      "chipX": "4",
+      "chipY": "1px",
+      "stackGap": "12",
+      "inlineGap": "6",
+      "sectionGap": "14",
+      "listGap": "6",
+      "controlCompactX": "8",
+      "controlCompactY": "5px",
+      "controlSmallX": "10",
+      "controlSmallY": "2",
+      "sidebarPad": "8",
+      "sidebarSettingsPad": "10",
+      "sidebarLogoY": "14",
+      "sidebarListGap": "3px",
+      "sidebarItemGap": "10",
+      "inlineGapWide": "8",
+      "inlineGapSmall": "4",
+      "popupFilterPad": "5px",
+      "popupOffset": "5px",
+      "popupClearGap": "7px",
+      "separatorX": "2",
+      "separatorY": "4",
+      "footerX": "14",
+      "footerY": "7px",
+      "footerGap": "14",
+      "stateChipY": "3px",
+      "windowControlWidth": "40",
+      "windowControlHeight": "28",
+      "sidebarWidth": "176px",
+      "sidebarToggleOffset": "96px",
+      "sidebarToggleHeight": "46",
+      "searchMinWidth": "140px",
+      "popupMinWidth": "190px",
+      "popupMaxHeight": "320px",
+      "scaleTrackWidth": "120px",
+      "scaleKnobSize": "7px",
+      "sliderHeight": "3px",
+      "stateDotSize": "5px",
+      "pingTrackWidth": "56px",
+      "dataWidth": "36",
+      "iconTiny": "11px",
+      "iconSmall": "12",
+      "iconChevron": "13px",
+      "iconMedium": "14",
+      "iconLarge": "18",
+      "iconBox": "22",
+      "sidebarCollapsedWidth": "52px"
+    },
+    "type": {
+      "display": {
+        "family": "data",
+        "size": "3xl",
+        "weight": "extrabold",
+        "tracking": "none",
+        "leading": "none"
+      },
+      "heading": {
+        "family": "ui",
+        "size": "2xl",
+        "weight": "bold",
+        "tracking": "none",
+        "leading": "snug"
+      },
+      "subheading": {
+        "family": "ui",
+        "size": "lg",
+        "weight": "semibold",
+        "tracking": "none",
+        "leading": "normal"
+      },
+      "body": {
+        "family": "ui",
+        "size": "md",
+        "weight": "normal",
+        "tracking": "none",
+        "leading": "normal"
+      },
+      "label": {
+        "family": "ui",
+        "size": "sm",
+        "weight": "semibold",
+        "tracking": "none",
+        "leading": "normal"
+      },
+      "caption": {
+        "family": "ui",
+        "size": "xs",
+        "weight": "normal",
+        "tracking": "none",
+        "leading": "1.4"
+      },
+      "micro": {
+        "family": "ui",
+        "size": "2xs",
+        "weight": "normal",
+        "tracking": "none",
+        "leading": "normal"
+      },
+      "button": {
+        "family": "ui",
+        "size": "sm",
+        "weight": "bold",
+        "tracking": "wider",
+        "leading": "normal"
+      },
+      "chip": {
+        "family": "ui",
+        "size": "2xs",
+        "weight": "bold",
+        "tracking": "0.04em",
+        "leading": "1.3"
+      },
+      "data": {
+        "family": "data",
+        "size": "sm",
+        "weight": "normal",
+        "tracking": "none",
+        "leading": "normal"
+      },
+      "rowName": {
+        "family": "ui",
+        "size": "lg",
+        "weight": "semibold",
+        "tracking": "none",
+        "leading": "normal"
+      },
+      "rowMeta": {
+        "family": "ui",
+        "size": "xs",
+        "weight": "normal",
+        "tracking": "none",
+        "leading": "normal"
+      },
+      "statValue": {
+        "family": "data",
+        "size": "xl",
+        "weight": "bold",
+        "tracking": "none",
+        "leading": "none"
+      },
+      "statCaption": {
+        "family": "ui",
+        "size": "3xs",
+        "weight": "bold",
+        "tracking": "0.07em",
+        "leading": "normal"
+      },
+      "brand": {
+        "family": "ui",
+        "size": "xl",
+        "weight": "bold",
+        "tracking": "0.06em",
+        "leading": "normal"
+      },
+      "compactMicro": {
+        "family": "ui",
+        "size": "8.5px",
+        "weight": "normal",
+        "tracking": "none",
+        "leading": "normal"
+      },
+      "compactCaption": {
+        "family": "ui",
+        "size": "9.5px",
+        "weight": "normal",
+        "tracking": "none",
+        "leading": "normal"
+      },
+      "compactBody": {
+        "family": "ui",
+        "size": "10.5px",
+        "weight": "normal",
+        "tracking": "none",
+        "leading": "normal"
+      },
+      "compactHeading": {
+        "family": "ui",
+        "size": "13.5px",
+        "weight": "normal",
+        "tracking": "none",
+        "leading": "normal"
+      },
+      "compactSubheading": {
+        "family": "ui",
+        "size": "11.5px",
+        "weight": "normal",
+        "tracking": "none",
+        "leading": "normal"
+      },
+      "compactTitle": {
+        "family": "ui",
+        "size": "12.5px",
+        "weight": "normal",
+        "tracking": "none",
+        "leading": "normal"
+      }
+    },
+    "color": {
+      "onAccent": "#10131a",
+      "onAccent2": "#10131a",
+      "onDanger": "#10131a",
+      "onSuccess": "#10131a",
+      "focusRing": "var(--accent-line)",
+      "scrim": "rgba(5,8,13,0.7)",
+      "scrimBlocking": "rgba(0,0,0,0.9)",
+      "rowHover": "var(--row-hover)",
+      "rowSelected": "var(--row-selected)"
+    },
+    "border": {
+      "hairline": "hairline",
+      "control": "hairline",
+      "focus": "thick"
+    },
+    "shadow": {
+      "panel": "none",
+      "modal": "lg",
+      "popup": "sm",
+      "drawer": "-10px 0 26px rgba(0,0,0,0.4)",
+      "glow": "glow",
+      "popupFilter": "md",
+      "stateWarning": "0 0 4px var(--warn)",
+      "confirm": "0 25px 50px -12px rgb(0 0 0 / 0.25)",
+      "readinessWarning": "0 0 5px rgba(193,154,85,0.6)",
+      "readinessSuccess": "0 0 5px rgba(77,154,117,0.6)",
+      "statusDot": "0 0 4px currentColor",
+      "update": "0 25px 50px -12px rgb(0 0 0 / 0.5)",
+      "inspector": "0 8px 24px rgba(0,0,0,0.5)"
+    },
+    "motion": {
+      "hover": {
+        "duration": "fast",
+        "easing": "standard"
+      },
+      "expand": {
+        "duration": "normal",
+        "easing": "standard"
+      },
+      "overlay": {
+        "duration": "0ms",
+        "easing": "standard"
+      }
+    }
+  }
+}

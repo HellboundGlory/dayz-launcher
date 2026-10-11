@@ -240,10 +240,10 @@ export type CustomOverrides = { dark: Partial<Palette>; light: Partial<Palette> 
 // Plain data, like the colour palette above, and not per-scheme — none of
 // these vary by mode.
 
-/** Neutral's `type.family.ui`, and the stack `main.css`'s `@font-face` rules provide. Mirrored byte-for-byte in `src-tauri/src/theme/tokens.rs`. */
+/** Neutral's `type.family.ui`, and the stack `main.css`'s `@font-face` rules provide. Tests hold both sides to `src/theme/neutral-tokens.json`. */
 export const UI_FONT_STACK = '"Inter", "Segoe UI", system-ui, sans-serif';
 
-/** Neutral's `type.family.data`, the stack every number, address, timestamp and size renders in. Mirrored in `src-tauri/src/theme/tokens.rs`. */
+/** Neutral's `type.family.data`, the stack every number, address, timestamp and size renders in. Tests hold both sides to `src/theme/neutral-tokens.json`. */
 export const DATA_FONT_STACK = '"JetBrains Mono", "Fira Code", "Consolas", monospace';
 
 /** The `radius` roles the token customiser edits (SPEC §4.6). */

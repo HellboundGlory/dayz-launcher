@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import neutralDefaults from "./neutral-tokens.json";
 import { applyTheme, DEFAULT_EXTRAS } from "./apply";
 import { DATA_FONT_STACK, NEUTRAL_DARK, NEUTRAL_LIGHT, UI_FONT_STACK, rgba } from "./palette";
 import { NEUTRAL_TOKENS, parseTokens, resolveTokens } from "./tokens";
@@ -40,8 +41,6 @@ describe("v2 token resolution", () => {
 });
 
 it("defaults the family scale, and the launcher's two font utilities, to the bundled stacks", () => {
-  expect(NEUTRAL_TOKENS.scales.type.family).toEqual({ ui: UI_FONT_STACK, data: DATA_FONT_STACK });
-
   const properties = new Map<string, string>();
   vi.stubGlobal("document", { documentElement: { style: { setProperty: (name: string, value: string) => properties.set(name, value) } } });
   applyTheme(NEUTRAL_DARK, "dark");
@@ -85,4 +84,8 @@ it("writes resolved scale and role properties, palette derivations and bloom, th
   expect(properties.get("--t-radius-control")).toBe("6px");
   expect(properties.get("--t-shadow-glow")).toBe("var(--glow)");
   expect(properties.get("--accent")).toBe(NEUTRAL_LIGHT.accent);
+});
+
+it("matches the shared Neutral defaults file", () => {
+  expect(NEUTRAL_TOKENS).toStrictEqual(neutralDefaults);
 });
