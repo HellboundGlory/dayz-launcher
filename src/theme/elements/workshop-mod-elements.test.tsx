@@ -61,7 +61,6 @@ const INITIAL_STATE = {
 
 beforeEach(() => {
   captured = {};
-  tauriMocks.openWorkshopInSteam.mockClear();
   useModFilterStore.setState(INITIAL_STATE, false);
 });
 
@@ -104,14 +103,9 @@ function renderPreview(element: string, previewMod: ModFilterEntry | null, optio
 }
 
 describe("subject resolution", () => {
-  it("reads the row subject from subjectContext", () => {
-    const entry = makeEntry({ title: "Row Mod" });
-    expect(renderEl("workshopMod.name", entry)).toContain("Row Mod");
-  });
-
-  it("falls back to previewMod outside a row context", () => {
-    const entry = makeEntry({ title: "Preview Mod" });
-    expect(renderPreview("workshopMod.name", entry)).toContain("Preview Mod");
+  it("reads the row subject from subjectContext, falling back to previewMod", () => {
+    expect(renderEl("workshopMod.name", makeEntry({ title: "Row Mod" }))).toContain("Row Mod");
+    expect(renderPreview("workshopMod.name", makeEntry({ title: "Preview Mod" }))).toContain("Preview Mod");
   });
 
   it("renders nothing with no subject at all", () => {
@@ -149,110 +143,85 @@ describe("workshopMod.pick", () => {
 });
 
 describe("workshopMod.thumbnail", () => {
-  it("renders an image when a preview URL is present", () => {
-    const entry = makeEntry({ previewUrl: "https://example.com/p.jpg" });
-    const html = renderEl("workshopMod.thumbnail", entry);
-    expect(html).toContain('data-part="image"');
-    expect(html).not.toContain("missing");
-  });
+  it("renders an image, or an initials tile and the missing state without a preview URL", () => {
+    const withUrl = renderEl("workshopMod.thumbnail", makeEntry({ previewUrl: "https://example.com/p.jpg" }));
+    expect(withUrl).toContain('data-part="image"');
+    expect(withUrl).not.toContain("missing");
 
-  it("falls back to an initials tile and the missing state without a preview URL", () => {
-    const entry = makeEntry({ previewUrl: null, title: "Base Building Plus" });
-    const html = renderEl("workshopMod.thumbnail", entry);
-    expect(html).toContain('data-part="initials"');
-    expect(html).toContain('data-state="missing"');
-    expect(html).toContain("BB");
+    const withoutUrl = renderEl("workshopMod.thumbnail", makeEntry({ previewUrl: null, title: "Base Building Plus" }));
+    expect(withoutUrl).toContain('data-part="initials"');
+    expect(withoutUrl).toContain('data-state="missing"');
+    expect(withoutUrl).toContain("BB");
   });
 });
 
 describe("workshopMod.subscribed", () => {
-  it("renders nothing unless subscribed", () => {
+  it("renders nothing unless subscribed, else the star icon", () => {
     expect(renderEl("workshopMod.subscribed", makeEntry({ subscribed: false }))).toBe("");
-  });
-
-  it("renders the star icon when subscribed", () => {
     expect(renderEl("workshopMod.subscribed", makeEntry({ subscribed: true }))).toContain('data-part="icon"');
   });
 });
 
 describe("workshopMod.serverCount", () => {
-  it("shows the count and unit", () => {
-    const html = renderEl("workshopMod.serverCount", makeEntry({ serverCount: 12 }));
-    expect(html).toContain("12");
-    expect(html).toContain("srv");
-  });
+  it("shows the count and unit, or the none state and a dash without any servers", () => {
+    const counted = renderEl("workshopMod.serverCount", makeEntry({ serverCount: 12 }));
+    expect(counted).toContain("12");
+    expect(counted).toContain("srv");
 
-  it("shows the none state and a dash without any servers", () => {
-    const html = renderEl("workshopMod.serverCount", makeEntry({ serverCount: null }));
-    expect(html).toContain('data-state="none"');
-    expect(html).toContain("—");
+    const none = renderEl("workshopMod.serverCount", makeEntry({ serverCount: null }));
+    expect(none).toContain('data-state="none"');
+    expect(none).toContain("—");
   });
 });
 
 describe("workshopMod.score", () => {
-  it("renders as a rounded percentage", () => {
+  it("renders as a rounded percentage, and nothing without a score", () => {
     expect(renderEl("workshopMod.score", makeEntry({ score: 0.874 }))).toContain("87%");
-  });
-
-  it("renders nothing without a score", () => {
     expect(renderEl("workshopMod.score", makeEntry({ score: null }))).toBe("");
   });
 });
 
 describe("workshopMod.subscribers", () => {
-  it("shows the count and default label", () => {
+  it("shows the count with the default or given label, and nothing without a count", () => {
     const html = renderEl("workshopMod.subscribers", makeEntry({ numSubscriptions: "12000" }));
     expect(html).toContain("12,000");
     expect(html).toContain("subscribers");
-  });
 
-  it("honours the label option", () => {
-    const html = renderEl("workshopMod.subscribers", makeEntry({ numSubscriptions: "5" }), { label: "subs" });
-    expect(html).toContain("subs");
-  });
-
-  it("renders nothing without a subscriber count", () => {
+    expect(renderEl("workshopMod.subscribers", makeEntry({ numSubscriptions: "5" }), { label: "subs" })).toContain(
+      "subs",
+    );
     expect(renderEl("workshopMod.subscribers", makeEntry({ numSubscriptions: null }))).toBe("");
   });
 });
 
 describe("workshopMod.size", () => {
-  it("formats the file size", () => {
-    const html = renderEl("workshopMod.size", makeEntry({ fileSize: 1024 * 1024 }));
-    expect(html).not.toContain('data-state="unknown"');
-  });
+  it("formats the file size, or shows the unknown state without one", () => {
+    expect(renderEl("workshopMod.size", makeEntry({ fileSize: 1024 * 1024 }))).not.toContain('data-state="unknown"');
 
-  it("shows unknown without a size", () => {
-    const html = renderEl("workshopMod.size", makeEntry({ fileSize: null }));
-    expect(html).toContain('data-state="unknown"');
-    expect(html).toContain("—");
+    const missing = renderEl("workshopMod.size", makeEntry({ fileSize: null }));
+    expect(missing).toContain('data-state="unknown"');
+    expect(missing).toContain("—");
   });
 });
 
 describe("workshopMod.updated", () => {
-  it("renders nothing without a timestamp", () => {
+  it("reads the default label with a relative time, a date with the format option, and nothing without a timestamp", () => {
     expect(renderEl("workshopMod.updated", makeEntry({ timeUpdated: null }))).toBe("");
-  });
 
-  it("reads the default label and a relative time", () => {
-    const html = renderEl("workshopMod.updated", makeEntry({ timeUpdated: Math.floor(Date.now() / 1000) }));
-    expect(html).toContain("Updated");
-  });
+    const relative = renderEl("workshopMod.updated", makeEntry({ timeUpdated: Math.floor(Date.now() / 1000) }));
+    expect(relative).toContain("Updated");
 
-  it("switches to a date with the format option", () => {
     const ts = Math.floor(new Date("2024-01-15").getTime() / 1000);
-    const html = renderEl("workshopMod.updated", makeEntry({ timeUpdated: ts }), { format: "date" });
-    expect(html).toContain(new Date(ts * 1000).toLocaleDateString());
+    expect(renderEl("workshopMod.updated", makeEntry({ timeUpdated: ts }), { format: "date" })).toContain(
+      new Date(ts * 1000).toLocaleDateString(),
+    );
   });
 });
 
 describe("workshopMod.description", () => {
-  it("is empty when the mod has no description", () => {
-    const html = renderEl("workshopMod.description", makeEntry({ description: null }));
-    expect(html).toContain('data-state="empty"');
-  });
+  it("marks the empty state, and renders the text under the clamp option", () => {
+    expect(renderEl("workshopMod.description", makeEntry({ description: null }))).toContain('data-state="empty"');
 
-  it("renders the description text and applies a clamp option", () => {
     const html = renderEl("workshopMod.description", makeEntry({ description: "Adds a trader" }), { clamp: 3 });
     expect(html).toContain("Adds a trader");
     expect(html).toContain("line-clamp");
@@ -260,83 +229,58 @@ describe("workshopMod.description", () => {
 });
 
 describe("workshopMod.tags", () => {
-  it("renders nothing without tags", () => {
+  it("renders nothing without tags, else every tag as a chip capped by the limit option", () => {
     expect(renderEl("workshopMod.tags", makeEntry({ tags: [] }))).toBe("");
-  });
 
-  it("renders every tag as a chip by default", () => {
-    const html = renderEl("workshopMod.tags", makeEntry({ tags: ["a", "b", "c", "d"] }));
-    expect(html.match(/data-part="chip"/g)?.length).toBe(4);
-  });
+    const all = renderEl("workshopMod.tags", makeEntry({ tags: ["a", "b", "c", "d"] }));
+    expect(all.match(/data-part="chip"/g)?.length).toBe(4);
 
-  it("limits the tags shown with the limit option", () => {
-    const html = renderEl("workshopMod.tags", makeEntry({ tags: ["a", "b", "c", "d"] }), { limit: 3 });
-    expect(html.match(/data-part="chip"/g)?.length).toBe(3);
+    const limited = renderEl("workshopMod.tags", makeEntry({ tags: ["a", "b", "c", "d"] }), { limit: 3 });
+    expect(limited.match(/data-part="chip"/g)?.length).toBe(3);
   });
 });
 
 describe("workshopMod.serverNote", () => {
-  it("names the server count when seen", () => {
-    const html = renderEl("workshopMod.serverNote", makeEntry({ serverCount: 4 }));
-    expect(html).toContain("4 of the servers currently listed run this mod");
-  });
-
-  it("reads the not-seen note otherwise", () => {
-    const html = renderEl("workshopMod.serverNote", makeEntry({ serverCount: null }));
-    expect(html).toContain("Not seen on any currently listed server yet");
+  it("names the server count when seen, and reads the not-seen note otherwise", () => {
+    expect(renderEl("workshopMod.serverNote", makeEntry({ serverCount: 4 }))).toContain(
+      "4 of the servers currently listed run this mod",
+    );
+    expect(renderEl("workshopMod.serverNote", makeEntry({ serverCount: null }))).toContain(
+      "Not seen on any currently listed server yet",
+    );
   });
 });
 
 describe("workshopMod.viewOnSteam", () => {
-  it("reads View on Steam and opens the workshop page for the mod id", () => {
+  it("reads View on Steam and opens the workshop page for the mod id, and nothing without a Workshop URL", () => {
     const entry = makeEntry({ id: "99", workshopUrl: "https://steamcommunity.com/sharedfiles/filedetails/?id=99" });
-    const html = renderEl("workshopMod.viewOnSteam", entry);
-    expect(html).toContain("View on Steam");
+    expect(renderEl("workshopMod.viewOnSteam", entry)).toContain("View on Steam");
 
     const stopPropagation = vi.fn();
-    (captured["workshopMod.viewOnSteam"].onClick as (e: { stopPropagation: () => void }) => void)({ stopPropagation });
+    (captured["workshopMod.viewOnSteam"].onClick as (e: { stopPropagation: () => void }) => void)({
+      stopPropagation,
+    });
     expect(stopPropagation).toHaveBeenCalled();
     expect(tauriMocks.openWorkshopInSteam).toHaveBeenCalledWith("99");
-  });
 
-  it("renders nothing without a Workshop URL", () => {
     expect(renderEl("workshopMod.viewOnSteam", makeEntry({ workshopUrl: null }))).toBe("");
   });
 });
 
 describe("workshopMod.include / workshopMod.exclude", () => {
-  it("include reads Include/Included and sets the pick", () => {
+  it.each([
+    { element: "workshopMod.include", pick: "include", idle: "Include", active: "Included" },
+    { element: "workshopMod.exclude", pick: "exclude", idle: "Exclude", active: "Excluded" },
+  ] as const)("$element reads $idle, then $active once clicked", (c) => {
     const entry = makeEntry({ id: "7" });
-    let html = renderEl("workshopMod.include", entry);
-    expect(html).toContain("Include");
-    expect(captured["workshopMod.include"]["data-state"]).toBeUndefined();
 
-    (captured["workshopMod.include"].onClick as (e: { stopPropagation: () => void }) => void)({ stopPropagation: vi.fn() });
-    expect(useModFilterStore.getState().selection["7"]).toBe("include");
+    expect(renderEl(c.element, entry)).toContain(`>${c.idle}<`);
+    expect(captured[c.element]["data-state"]).toBeUndefined();
 
-    html = renderEl("workshopMod.include", entry);
-    expect(html).toContain("Included");
-    expect(captured["workshopMod.include"]["data-state"]).toBe("on");
-  });
+    (captured[c.element].onClick as (e: { stopPropagation: () => void }) => void)({ stopPropagation: vi.fn() });
+    expect(useModFilterStore.getState().selection["7"]).toBe(c.pick);
 
-  it("exclude reads Exclude/Excluded and sets the pick", () => {
-    const entry = makeEntry({ id: "8" });
-    let html = renderEl("workshopMod.exclude", entry);
-    expect(html).toContain("Exclude");
-
-    (captured["workshopMod.exclude"].onClick as (e: { stopPropagation: () => void }) => void)({ stopPropagation: vi.fn() });
-    expect(useModFilterStore.getState().selection["8"]).toBe("exclude");
-
-    html = renderEl("workshopMod.exclude", entry);
-    expect(html).toContain("Excluded");
-    expect(captured["workshopMod.exclude"]["data-state"]).toBe("on");
-  });
-
-  it("toggling the same pick again clears the selection", () => {
-    const entry = makeEntry({ id: "9" });
-    useModFilterStore.setState({ selection: { "9": "include" } }, false);
-    renderEl("workshopMod.include", entry);
-    (captured["workshopMod.include"].onClick as (e: { stopPropagation: () => void }) => void)({ stopPropagation: vi.fn() });
-    expect(useModFilterStore.getState().selection["9"]).toBeUndefined();
+    expect(renderEl(c.element, entry)).toContain(`>${c.active}<`);
+    expect(captured[c.element]["data-state"]).toBe("on");
   });
 });

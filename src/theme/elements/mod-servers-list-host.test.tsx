@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ServerNeeding } from "@/lib/tauri";
 
@@ -7,7 +7,6 @@ function liveHook<T extends { getState: () => S }, S>(store: T) {
   return Object.assign(<R,>(sel: (s: S) => R) => sel(store.getState()), store);
 }
 
-import { vi } from "vitest";
 vi.mock("@/stores/mods-store", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/stores/mods-store")>();
   return { ...actual, useModsStore: liveHook(actual.useModsStore) };
@@ -40,24 +39,21 @@ describe("ModServersListHost", () => {
     expect(html).not.toContain('data-part="more"');
   });
 
-  it("renders every server up to 8, with no trailing 'more' part", async () => {
+  it("renders every server up to 8, with a trailing '+N more' part beyond that", async () => {
     const { ModServersListHost } = await import("./list-elements");
-    const needing = Array.from({ length: 8 }, (_, i) => makeNeeding(i + 1));
-    const html = await withStore({ needing }, () => renderToStaticMarkup(<ModServersListHost />));
+    const eight = Array.from({ length: 8 }, (_, i) => makeNeeding(i + 1));
+    const html = await withStore({ needing: eight }, () => renderToStaticMarkup(<ModServersListHost />));
     expect(html).toContain("Server 1");
     expect(html).toContain("Server 8");
     expect(html).not.toContain('data-part="more"');
-  });
 
-  it("caps rows at 8 and shows a trailing '+N more' part beyond that", async () => {
-    const { ModServersListHost } = await import("./list-elements");
-    const needing = Array.from({ length: 11 }, (_, i) => makeNeeding(i + 1));
-    const html = await withStore({ needing }, () => renderToStaticMarkup(<ModServersListHost />));
-    expect(html).toContain("Server 1");
-    expect(html).toContain("Server 8");
-    expect(html).not.toContain("Server 9");
-    expect(html).toContain('data-part="more"');
-    expect(html).toContain("+3 more");
+    const eleven = Array.from({ length: 11 }, (_, i) => makeNeeding(i + 1));
+    const capped = await withStore({ needing: eleven }, () => renderToStaticMarkup(<ModServersListHost />));
+    expect(capped).toContain("Server 1");
+    expect(capped).toContain("Server 8");
+    expect(capped).not.toContain("Server 9");
+    expect(capped).toContain('data-part="more"');
+    expect(capped).toContain("+3 more");
   });
 
   it("marks a row 'played' only when it has a last-played timestamp", async () => {

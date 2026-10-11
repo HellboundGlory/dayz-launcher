@@ -84,20 +84,17 @@ async function withStores<T>(
 }
 
 describe("ModFilterResultsListHost", () => {
-  it("lists subscribed DayZ mods on the subscribed tab", async () => {
+  it("lists the active tab's source: subscribed DayZ mods, `known` on seen, `searchResults` on workshop", async () => {
     const { ModFilterResultsListHost } = await import("./list-elements");
-    const html = await withStores(
+    const subscribed = await withStores(
       { rows: [makeSubscribed("1", { title: "Alpha" }), makeSubscribed("2", { title: "Bravo", for_dayz: false })] },
       { tab: "subscribed" },
       () => renderToStaticMarkup(<ModFilterResultsListHost />),
     );
-    expect(html).toContain("Alpha");
-    expect(html).not.toContain("Bravo");
-  });
+    expect(subscribed).toContain("Alpha");
+    expect(subscribed).not.toContain("Bravo");
 
-  it("filters the seen tab from `known`, and the workshop tab from `searchResults`", async () => {
-    const { ModFilterResultsListHost } = await import("./list-elements");
-    const htmlSeen = await withStores(
+    const seen = await withStores(
       {},
       {
         tab: "seen",
@@ -105,9 +102,9 @@ describe("ModFilterResultsListHost", () => {
       },
       () => renderToStaticMarkup(<ModFilterResultsListHost />),
     );
-    expect(htmlSeen).toContain("TraderPlus");
+    expect(seen).toContain("TraderPlus");
 
-    const htmlWorkshop = await withStores(
+    const workshop = await withStores(
       {},
       {
         tab: "workshop",
@@ -129,7 +126,7 @@ describe("ModFilterResultsListHost", () => {
       },
       () => renderToStaticMarkup(<ModFilterResultsListHost />),
     );
-    expect(htmlWorkshop).toContain("DayZ-Expansion");
+    expect(workshop).toContain("DayZ-Expansion");
   });
 
   it("passes the previewed entry as selectedItem and marks row states", async () => {
@@ -158,8 +155,9 @@ describe("ModFilterResultsListHost", () => {
     });
   });
 
-  it("reports loading while the source's own loading flag is set, and searching for the workshop tab", async () => {
+  it("reports loading and searching, and shows the four empty/loading texts for their conditions", async () => {
     const { ModFilterResultsListHost } = await import("./list-elements");
+
     let html = await withStores({ loading: true, rows: [] }, { tab: "subscribed" }, () =>
       renderToStaticMarkup(<ModFilterResultsListHost />),
     );
@@ -171,10 +169,6 @@ describe("ModFilterResultsListHost", () => {
       renderToStaticMarkup(<ModFilterResultsListHost />),
     );
     expect(html).toContain('data-state="searching"');
-  });
-
-  it("shows the four empty/loading texts for their conditions", async () => {
-    const { ModFilterResultsListHost } = await import("./list-elements");
 
     await withStores({ rows: [] }, { tab: "subscribed" }, () => renderToStaticMarkup(<ModFilterResultsListHost />));
     expect(lastProps?.emptyNode).toMatchObject({ value: "No subscribed DayZ mods." });

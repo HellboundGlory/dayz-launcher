@@ -93,7 +93,7 @@ describe("modFilter.apply", () => {
 });
 
 describe("modFilter.cancel", () => {
-  it("closes without applying, and reads Cancel by default", () => {
+  it("closes without applying and reads Cancel by default, honouring the label option", () => {
     const closeModal = vi.fn();
     useModFilterStore.setState({ selection: { "1": "include" } }, false);
     const html = renderEl("modFilter.cancel", undefined, { closeModal });
@@ -103,22 +103,17 @@ describe("modFilter.cancel", () => {
 
     expect(closeModal).toHaveBeenCalledTimes(1);
     expect(useServerStore.getState().filter.mod_ids).toEqual([]);
-  });
 
-  it("honours the label option", () => {
-    const html = renderEl("modFilter.cancel", { label: "Nevermind" });
-    expect(html).toContain("Nevermind");
+    expect(renderEl("modFilter.cancel", { label: "Nevermind" })).toContain("Nevermind");
   });
 });
 
 describe("modFilter.clear", () => {
-  it("is disabled with nothing selected", () => {
-    const html = renderEl("modFilter.clear");
+  it("is disabled with nothing selected, else clears the selection, honouring the label option", () => {
+    const disabled = renderEl("modFilter.clear");
     expect(captured["modFilter.clear"]["data-state"]).toBe("disabled");
-    expect(html).toContain("disabled");
-  });
+    expect(disabled).toContain("disabled");
 
-  it("is enabled and clears the selection on click otherwise", () => {
     useModFilterStore.setState({ selection: { "1": "include" } }, false);
     renderEl("modFilter.clear");
     expect(captured["modFilter.clear"]["data-state"]).toBeUndefined();
@@ -126,23 +121,17 @@ describe("modFilter.clear", () => {
     (captured["modFilter.clear"].onClick as () => void)();
 
     expect(useModFilterStore.getState().selection).toEqual({});
-  });
-
-  it("honours the label option", () => {
-    const html = renderEl("modFilter.clear", { label: "Reset" });
-    expect(html).toContain("Reset");
+    expect(renderEl("modFilter.clear", { label: "Reset" })).toContain("Reset");
   });
 });
 
 describe("modFilter.source", () => {
-  it("marks the active tab selected", () => {
+  it("marks the active tab selected, and switching tabs clears the preview", () => {
     useModFilterStore.setState({ tab: "seen" }, false);
     renderEl("modFilter.source");
     expect(captured["modFilter-source-seen"]["aria-selected"]).toBe(true);
     expect(captured["modFilter-source-subscribed"]["aria-selected"]).toBe(false);
-  });
 
-  it("switches tabs on click and clears the preview", () => {
     useModFilterStore.setState({ previewId: "42" }, false);
     renderEl("modFilter.source");
 
@@ -165,19 +154,17 @@ describe("modFilter.search", () => {
     expect(renderEl("modFilter.search")).toContain("Filter mods seen on these servers");
   });
 
-  it("is filled once there's a query and busy while the workshop search loads", () => {
+  it("reports filled once there's a query and busy only while the workshop search loads", () => {
     useModFilterStore.setState({ tab: "workshop", query: "trader", searchLoading: true }, false);
     renderEl("modFilter.search");
     const state = (captured["modFilter.search"]["data-state"] as string) ?? "";
     expect(state).toContain("filled");
     expect(state).toContain("busy");
-  });
 
-  it("is not busy outside the workshop tab even while searchLoading is stale", () => {
     useModFilterStore.setState({ tab: "subscribed", searchLoading: true }, false);
     renderEl("modFilter.search");
-    const state = (captured["modFilter.search"]["data-state"] as string) ?? "";
-    expect(state).not.toContain("busy");
+    const stale = (captured["modFilter.search"]["data-state"] as string) ?? "";
+    expect(stale).not.toContain("busy");
   });
 
   it("hides the icon by default and shows it when showIcon is set", () => {
@@ -204,7 +191,7 @@ describe("modFilter.summary", () => {
     expect(captured["modFilter.summary"]["data-state"]).toBe("empty");
   });
 
-  it("shows counts and caps thumbnails at 4 with a +n more", () => {
+  it("shows counts, caps thumbnails at 4 with a +n more, and omits them for showThumbnails: false", () => {
     const selection: Record<string, "include" | "exclude"> = {};
     for (let i = 0; i < 5; i++) selection[`m${i}`] = i < 3 ? "include" : "exclude";
     useModFilterStore.setState({ selection }, false);
@@ -212,13 +199,10 @@ describe("modFilter.summary", () => {
     expect(html).toContain("3 included");
     expect(html).toContain("2 excluded");
     expect(html).toContain("+1");
-  });
 
-  it("omits thumbnails when showThumbnails is false", () => {
-    useModFilterStore.setState({ selection: { m1: "include" } }, false);
-    const html = renderEl("modFilter.summary", { showThumbnails: false });
-    expect(html).not.toContain('data-part="thumbnails"');
-    expect(html).toContain('data-part="counts"');
+    const bare = renderEl("modFilter.summary", { showThumbnails: false });
+    expect(bare).not.toContain('data-part="thumbnails"');
+    expect(bare).toContain('data-part="counts"');
   });
 });
 
