@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use serde::Serialize;
 use serde_json::Value;
 
 use super::{Severity, ValidationIssue};
@@ -60,7 +61,7 @@ pub fn validate_settings_schema(value: &Value) -> Vec<ValidationIssue> {
             report(
                 "SET-01",
                 format!("{path}/label"),
-                "Expected a label of at most 40 characters",
+                "Expected a label of 1 to 40 characters",
             );
         }
         match field.get("type").and_then(Value::as_str) {
@@ -107,7 +108,7 @@ pub fn validate_settings_schema(value: &Value) -> Vec<ValidationIssue> {
                             report(
                                 "SET-04",
                                 format!("{path}/options/{i}/label"),
-                                "Expected an option label of at most 40 characters",
+                                "Expected an option label of 1 to 40 characters",
                             );
                         }
                     }
@@ -205,7 +206,7 @@ pub fn validate_settings_schema(value: &Value) -> Vec<ValidationIssue> {
 fn label(value: Option<&Value>) -> bool {
     value
         .and_then(Value::as_str)
-        .is_some_and(|s| s.chars().count() <= 40)
+        .is_some_and(|s| (1..=40).contains(&s.chars().count()))
 }
 
 pub fn extract_settings_combinations(
@@ -239,4 +240,207 @@ pub fn extract_settings_combinations(
         combinations = expanded;
     }
     Ok(combinations)
+}
+
+/// One field of a resolved schema, as the app renders it.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum SettingsField {
+    Number {
+        id: String,
+        label: String,
+        min: f64,
+        max: f64,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        step: Option<f64>,
+        default: f64,
+    },
+    Boolean {
+        id: String,
+        label: String,
+        default: bool,
+    },
+    Choice {
+        id: String,
+        label: String,
+        options: Vec<SettingsOption>,
+        default: String,
+    },
+    Color {
+        id: String,
+        label: String,
+        default: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct SettingsOption {
+    pub value: String,
+    pub label: String,
+}
+
+/// One entry of the switcher: every field's value, and the label naming the discrete picks.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct SettingsCombination {
+    pub values: serde_json::Map<String, Value>,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ResolvedSettings {
+    pub fields: Vec<SettingsField>,
+    pub combinations: Vec<SettingsCombination>,
+    pub capped: bool,
+}
+
+const COMBINATION_CAP: usize = 64;
+
+/// The fields a schema declares that pass validation, and the combinations they offer.
+pub fn resolve_settings(schema: &Value) -> ResolvedSettings {
+    let issues = validate_settings_schema(schema);
+    // Only a field-level issue drops a field; `/schemaVersion` and `/fields` issues leave them alone.
+    let dropped = |index: usize| {
+        let prefix = format!("/fields/{index}");
+        let nested = format!("{prefix}/");
+        issues
+            .iter()
+            .any(|issue| issue.pointer == prefix || issue.pointer.starts_with(&nested))
+    };
+    let fields: Vec<SettingsField> = schema
+        .get("fields")
+        .and_then(Value::as_array)
+        .map(|raw| {
+            raw.iter()
+                .enumerate()
+                .filter(|(index, _)| !dropped(*index))
+                .map(|(_, field)| settings_field(field))
+                .collect()
+        })
+        .unwrap_or_default();
+    let (combinations, capped) = combinations(&fields);
+    ResolvedSettings {
+        fields,
+        combinations,
+        capped,
+    }
+}
+
+/// Validation already checked every property read here, so the unwraps cannot fire.
+fn settings_field(field: &Value) -> SettingsField {
+    let id = field["id"].as_str().unwrap().to_string();
+    let label = field["label"].as_str().unwrap().to_string();
+    match field["type"].as_str().unwrap() {
+        "number" => SettingsField::Number {
+            id,
+            label,
+            min: field["min"].as_f64().unwrap(),
+            max: field["max"].as_f64().unwrap(),
+            step: field.get("step").and_then(Value::as_f64),
+            default: field["default"].as_f64().unwrap(),
+        },
+        "boolean" => SettingsField::Boolean {
+            id,
+            label,
+            default: field["default"].as_bool().unwrap(),
+        },
+        "choice" => SettingsField::Choice {
+            id,
+            label,
+            options: field["options"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|option| SettingsOption {
+                    value: option["value"].as_str().unwrap().to_string(),
+                    label: option["label"].as_str().unwrap().to_string(),
+                })
+                .collect(),
+            default: field["default"].as_str().unwrap().to_string(),
+        },
+        "color" => SettingsField::Color {
+            id,
+            label,
+            default: field["default"].as_str().unwrap().to_string(),
+        },
+        _ => unreachable!("validation rejects every other type"),
+    }
+}
+
+fn combinations(fields: &[SettingsField]) -> (Vec<SettingsCombination>, bool) {
+    let mut defaults = serde_json::Map::new();
+    let mut discrete: Vec<(&str, Vec<Value>)> = Vec::new();
+    for field in fields {
+        let (id, default, values) = match field {
+            SettingsField::Number { id, default, .. } => (id.as_str(), Value::from(*default), None),
+            SettingsField::Boolean { id, default, .. } => (
+                id.as_str(),
+                Value::Bool(*default),
+                Some(vec![Value::Bool(false), Value::Bool(true)]),
+            ),
+            SettingsField::Choice {
+                id,
+                options,
+                default,
+                ..
+            } => (
+                id.as_str(),
+                Value::String(default.clone()),
+                Some(
+                    options
+                        .iter()
+                        .map(|option| Value::String(option.value.clone()))
+                        .collect(),
+                ),
+            ),
+            SettingsField::Color { id, default, .. } => {
+                (id.as_str(), Value::String(default.clone()), None)
+            }
+        };
+        defaults.insert(id.to_string(), default);
+        if let Some(values) = values {
+            discrete.push((id, values));
+        }
+    }
+    if discrete.is_empty() {
+        return (
+            vec![SettingsCombination {
+                values: defaults,
+                label: "Defaults".into(),
+            }],
+            false,
+        );
+    }
+
+    let total = discrete.iter().fold(1usize, |total, (_, values)| {
+        total.saturating_mul(values.len())
+    });
+    let capped = total > COMBINATION_CAP;
+
+    let mut combinations = Vec::with_capacity(total.min(COMBINATION_CAP));
+    for index in 0..total.min(COMBINATION_CAP) {
+        // Mixed-radix decode: the last discrete field varies fastest.
+        let mut remaining = index;
+        let mut values = defaults.clone();
+        let mut parts = Vec::with_capacity(discrete.len());
+        for (id, options) in discrete.iter().rev() {
+            let value = options[remaining % options.len()].clone();
+            remaining /= options.len();
+            parts.push(format!("{id}={}", discrete_label(&value)));
+            values.insert((*id).to_string(), value);
+        }
+        parts.reverse();
+        combinations.push(SettingsCombination {
+            values,
+            label: parts.join(" · "),
+        });
+    }
+    (combinations, capped)
+}
+
+fn discrete_label(value: &Value) -> &str {
+    match value {
+        Value::String(text) => text,
+        Value::Bool(true) => "on",
+        _ => "off",
+    }
 }
