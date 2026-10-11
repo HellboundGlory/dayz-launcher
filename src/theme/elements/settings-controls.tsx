@@ -32,12 +32,7 @@ export const INPUT_CLASS =
 export const BUTTON_CLASS =
   "flex shrink-0 items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-2.5 py-2 [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider text-muted2 transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:text-ink disabled:opacity-50";
 
-/**
- * A labelled control with an optional explanatory line beneath it.
- * `htmlFor`/`hintId` are only used by the themed elements, which need a real
- * `<label>` association — the legacy accordion view never passes them, so its
- * output is unchanged.
- */
+/** A labelled control with an optional explanatory line beneath it. */
 export function Field({
   label,
   hint,
@@ -86,11 +81,7 @@ export function Field({
   );
 }
 
-/**
- * A checkbox with a label and a one-line explanation. `dataEl`/`id`/`hintId`/
- * `disabled` are only used by the themed elements — the legacy accordion view
- * never passes them, so its output is unchanged.
- */
+/** A checkbox with a label and a one-line explanation. */
 export function CheckboxRow({
   checked,
   onChange,

@@ -852,8 +852,10 @@ describe("ServerRefresh", () => {
 
     const html = renderInteractive(<ServerRefresh />, { subjectContext: { kind: "server", data: server } });
     const onClick = captured["server.refresh"].onClick as (e: { stopPropagation: () => void }) => void;
-    onClick({ stopPropagation: vi.fn() });
+    const stopPropagation = vi.fn();
+    onClick({ stopPropagation });
 
+    expect(stopPropagation).toHaveBeenCalled();
     expect(refreshVisibleServers).toHaveBeenCalledWith([{ addr: server.addr, query_port: server.query_port }], "row");
     expect(useRowProbeStore.getState().probingKey).toBe(`${server.addr}:${server.query_port}`);
     expect(html).not.toContain('data-state="busy"');

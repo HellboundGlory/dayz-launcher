@@ -40,7 +40,7 @@ records the *decisions*.
 
 Semantic tokens only — components never carry raw hex (the token-bypass scan
 `audit-hardcoded-colors` enforces this; a few known legacy hexes remain in
-splash/steam-modal/update-modal, tracked as debt, not a license for new ones).
+splash/steam-modal, tracked as debt, not a license for new ones).
 Tokens are **hex strings on CSS custom properties** (not OKLCH — the palette
 math, `deriveLight`, is ported verbatim from the locked board and is
 hex-based; do not migrate without re-locking the board).
@@ -202,7 +202,7 @@ in the customiser.
 - **Recorded exceptions to the locked board (deliberate, do not silently revert):**
   - **Window controls strip** — the board has no min/max/close, but the real
     window is `decorations: false`; without them the launcher is uncloseable.
-    Slim 28px top-right strip (`window-controls.tsx`); doubles as the drag region.
+    Slim 28px top-right strip (`app.*` elements in `app-elements.tsx`); doubles as the drag region.
   - **Scale slider width 120px** (board: 46px) — user request: the 46px track
     made each 0.05 step ~4px and the slider felt hair-trigger.
   - **Sidebar logo** is the real TETRA mark (`src/assets/tetra-logo.png`),

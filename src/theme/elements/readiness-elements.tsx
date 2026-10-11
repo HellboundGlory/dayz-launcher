@@ -94,7 +94,7 @@ export function ServerReadiness(props: ReadinessProps) {
   return props.options?.basis === "declared" ? <DeclaredReadiness {...props} /> : <FetchedReadiness {...props} />;
 }
 
-/** The legacy strip's wording, from the server's declared mods, not fetched readiness. */
+/** Wording from the server's declared mods, not fetched readiness. */
 function declaredReadinessView(server: Server, pending: boolean): { dataState: ReadinessState; label: string } {
   if (pending) return { dataState: "needsUpdate", label: "Mod update pending — verify before join" };
   if (server.mod_count === null) {

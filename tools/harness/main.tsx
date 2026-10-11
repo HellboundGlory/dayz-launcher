@@ -256,8 +256,7 @@ async function runScenario() {
   }
   const selectMod = params.get("selectMod");
   if (selectMod !== null) {
-    const { useModsStore, visibleRows } = await import("@/stores/mods-store");
-    const { filterAndSortMods } = await import("@/components/mods-tab");
+    const { useModsStore, visibleRows, filterAndSortMods } = await import("@/stores/mods-store");
     await waitUntil(() => visibleRows(useModsStore.getState().rows).length > 0, "the mods list");
     const mods = useModsStore.getState();
     const list = filterAndSortMods(mods.rows, mods);

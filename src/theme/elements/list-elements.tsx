@@ -2,7 +2,7 @@ import { useMemo, useRef, type CSSProperties } from "react";
 import { Loader2 } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useServerStore } from "@/stores/server-store";
-import { useModsStore, type ModSortKey } from "@/stores/mods-store";
+import { useModsStore, effectiveModState, filterAndSortMods, type ModSortKey } from "@/stores/mods-store";
 import {
   useModFilterStore,
   subscribedForDayz,
@@ -18,7 +18,6 @@ import { serverModReadiness, type ModState, type SubscribedMod } from "@/lib/tau
 import { useSelectionReadiness } from "./use-selection-readiness";
 import { readinessKey } from "@/stores/readiness-store";
 import { useServerSubject } from "./server-elements";
-import { effectiveModState, filterAndSortMods } from "@/components/mods-tab";
 import type { Server, ModReadinessEntry, ServerModReadiness } from "@/types/server";
 import type { LayoutFile } from "../renderer/types";
 

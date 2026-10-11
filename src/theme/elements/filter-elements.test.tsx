@@ -358,6 +358,13 @@ describe("hide toggles", () => {
     expect(html).toContain("No empties");
   });
 
+  it("clicking flips its filter field through the store", () => {
+    captureDataEl = "filter.hideEmpty";
+    renderToStaticMarkup(<FilterHideEmpty />);
+    (capturedProps?.onClick as () => void)();
+    expect(mockStore.setFilter).toHaveBeenCalledWith({ hide_empty: true });
+  });
+
   it("carries the on state and aria-pressed when active", () => {
     mockStore.filter.hide_empty = true;
     const html = renderToStaticMarkup(<FilterHideEmpty />);
@@ -383,6 +390,13 @@ describe("hide toggles", () => {
 });
 
 describe("FilterReset", () => {
+  it("clicking calls resetFilter", () => {
+    captureDataEl = "filter.reset";
+    renderToStaticMarkup(<FilterReset />);
+    (capturedProps?.onClick as () => void)();
+    expect(mockStore.resetFilter).toHaveBeenCalledTimes(1);
+  });
+
   it("defaults to the iconLabel display with the label Reset", () => {
     const html = renderToStaticMarkup(<FilterReset />);
     expect(html).toContain('data-el="filter.reset"');

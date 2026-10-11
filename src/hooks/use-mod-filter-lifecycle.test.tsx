@@ -53,7 +53,7 @@ const makeSubscribed = (id: string, overrides: Partial<SubscribedMod> = {}): Sub
 
 // renderToStaticMarkup runs a component's render body (so `useMemo` executes) but
 // never its effects — the hook's side effects (loading, usage merge) are exercised
-// through the components that consume it (the legacy modal, the themed wrapper).
+// through the component that consumes it (the themed modal wrapper).
 function Harness({ onResult }: { onResult: (rows: SubscribedMod[]) => void }) {
   const { subscribedRows } = useModFilterLifecycle();
   onResult(subscribedRows);

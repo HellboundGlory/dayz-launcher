@@ -3,7 +3,7 @@ import { LayoutRenderer } from "../renderer";
 import type { SettingsValues } from "../renderer/props";
 import type { LayoutFile } from "../renderer/types";
 
-/** A theme's `layout/views/mods.json`, with the same data lifecycle as `ModsTab`. */
+/** A theme's `layout/views/mods.json`; mounts `useModsLifecycle`. */
 export function ModsViewHost({
   file,
   themeId,

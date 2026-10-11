@@ -6,7 +6,7 @@ import type { SubscribedMod } from "@/lib/tauri";
 
 /** Non-presentational effects the mod filter modal needs regardless of which UI renders it:
     loading subscribed/known mods on open, and merging server-count usage as the source or
-    tab changes. Both the legacy modal and the themed path call this. */
+    tab changes. */
 export function useModFilterLifecycle(): { subscribedRows: SubscribedMod[] } {
   const modsRows = useModsStore((s) => s.rows);
   const loadSubscribedMods = useModsStore((s) => s.load);

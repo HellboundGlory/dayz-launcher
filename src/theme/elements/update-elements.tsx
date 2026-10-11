@@ -1,11 +1,36 @@
 import type { CSSProperties, MouseEvent } from "react";
 import { Download, ExternalLink } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { open as openLink } from "@tauri-apps/plugin-shell";
 import { useUpdateStore } from "@/stores/update-store";
-import { DOWNLOAD_URL, UpdateChangelogMarkdown } from "@/components/update-modal";
 import { useElementContext } from "./context";
 import { OptionIcon } from "./option-icon";
 import { states } from "./element-utils";
+
+/** Where the "View Release" link sends a portable user for a manual download —
+    the project's own download page, not a raw link into GitHub's releases list. */
+const DOWNLOAD_URL = "https://tetralauncher.com/download";
+
+/** A plain <a> would navigate this webview away with no way back. */
+function UpdateChangelogMarkdown({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      components={{
+        a: ({ href, children }) => (
+          <button
+            type="button"
+            onClick={() => href && void openLink(href)}
+            className="text-accent underline decoration-dotted underline-offset-2 hover:brightness-110"
+          >
+            {children}
+          </button>
+        ),
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+}
 
 export function UpdateInstall({
   options,
