@@ -157,7 +157,7 @@ token_group! {
 
 token_group! {
     FamilyTypeScalesTokensV2 {
-        // Mirrors UI_FONT_STACK / DATA_FONT_STACK in src/theme/palette.ts.
+        // Tests hold this and palette.ts to src/theme/neutral-tokens.json.
         ui: TokenValue = "\"Inter\", \"Segoe UI\", system-ui, sans-serif".into() => "ui",
         data: TokenValue = "\"JetBrains Mono\", \"Fira Code\", \"Consolas\", monospace".into() => "data",
     }
@@ -674,6 +674,7 @@ fn schema_version<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<u
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::Value;
 
     #[test]
     fn empty_and_partial_objects_keep_neutral_defaults() {
@@ -737,5 +738,57 @@ mod tests {
         ] {
             assert!(serde_json::from_str::<TokensV2>(input).is_err());
         }
+    }
+
+    // serde_json keeps `0` and `0.0` apart, so every number is compared as f64.
+    fn as_f64_numbers(value: &mut Value) {
+        match value {
+            Value::Number(number) => {
+                *number = serde_json::Number::from_f64(number.as_f64().unwrap()).unwrap();
+            }
+            Value::Array(items) => items.iter_mut().for_each(as_f64_numbers),
+            Value::Object(fields) => fields.values_mut().for_each(as_f64_numbers),
+            _ => {}
+        }
+    }
+
+    fn first_difference(left: &Value, right: &Value, path: &str) -> Option<String> {
+        match (left, right) {
+            (Value::Object(left), Value::Object(right)) => left
+                .iter()
+                .find_map(|(key, value)| match right.get(key) {
+                    Some(other) => first_difference(value, other, &format!("{path}/{key}")),
+                    None => Some(format!("{path}/{key} is missing")),
+                })
+                .or_else(|| {
+                    right
+                        .keys()
+                        .find(|key| !left.contains_key(*key))
+                        .map(|key| format!("{path}/{key} is unexpected"))
+                }),
+            (Value::Array(left), Value::Array(right)) if left.len() == right.len() => left
+                .iter()
+                .zip(right)
+                .enumerate()
+                .find_map(|(index, (a, b))| first_difference(a, b, &format!("{path}/{index}"))),
+            _ if left == right => None,
+            _ => Some(format!("{path}: {left} != {right}")),
+        }
+    }
+
+    #[test]
+    fn defaults_match_the_shared_neutral_tokens_file() {
+        let mut shared: Value =
+            serde_json::from_str(include_str!("../../../src/theme/neutral-tokens.json")).unwrap();
+        let mut defaults = serde_json::to_value(TokensV2::default()).unwrap();
+        as_f64_numbers(&mut shared);
+        as_f64_numbers(&mut defaults);
+
+        assert_eq!(
+            shared,
+            defaults,
+            "{}",
+            first_difference(&shared, &defaults, "").unwrap_or_default()
+        );
     }
 }
