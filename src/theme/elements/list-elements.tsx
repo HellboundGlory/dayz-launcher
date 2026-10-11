@@ -131,7 +131,7 @@ export function ServerModsList({
       style={style}
     >
       {header && (
-        <div data-part="header" className="flex items-center justify-between py-1.5 px-2 text-[10px] text-muted font-bold tracking-wider uppercase border-b border-line">
+        <div data-part="header" className="flex items-center justify-between py-1.5 px-2 [font-size:var(--t-type-size-sm)] text-muted font-bold tracking-wider uppercase border-b border-line">
           <span>REQUIRED MODS · SERVER ORDER</span>
           <span className="font-mono-data">{mods.length}</span>
         </div>
@@ -139,12 +139,12 @@ export function ServerModsList({
 
       <div data-part="scroller" className="flex-1 overflow-y-auto min-h-0">
         {state === "loading" ? (
-          <div data-part="loading" className="flex items-center justify-center gap-1.5 p-4 text-xs text-muted">
+          <div data-part="loading" className="flex items-center justify-center gap-1.5 p-4 [font-size:var(--t-type-size-lg)] leading-4 text-muted">
             <LoaderCircle className="size-3.5 animate-spin" />
             Checking mod readiness…
           </div>
         ) : mods.length === 0 ? (
-          <div data-part="empty" className="p-4 text-xs text-muted">
+          <div data-part="empty" className="p-4 [font-size:var(--t-type-size-lg)] leading-4 text-muted">
             {modded ? "No mods found or not probed yet." : "No mods required."}
           </div>
         ) : (

@@ -761,12 +761,12 @@ export function ServerModState({
           data-part="dot"
           role={dotOnly ? "img" : undefined}
           aria-label={dotOnly ? wording : undefined}
-          className={cn(view.dotClass, "font-bold text-xs")}
+          className={cn(view.dotClass, "font-bold [font-size:var(--t-type-size-lg)] leading-4")}
         >
           {view.dot}
         </span>
       )}
-      {showLabel && <span data-part="label" className={cn(view.labelClass, "font-mono-data text-xs")}>{wording}</span>}
+      {showLabel && <span data-part="label" className={cn(view.labelClass, "font-mono-data [font-size:var(--t-type-size-lg)] leading-4")}>{wording}</span>}
     </span>
   );
 }
@@ -776,7 +776,7 @@ export function ServerModName({ className, style }: { className?: string; style?
   if (!mod) return null;
 
   return (
-    <span data-el="serverMod.name" className={className ?? "truncate text-xs font-medium text-ink"} style={style}>
+    <span data-el="serverMod.name" className={className ?? "truncate [font-size:var(--t-type-size-lg)] leading-4 font-medium text-ink"} style={style}>
       {mod.name ?? "Unknown mod"}
     </span>
   );
@@ -796,7 +796,7 @@ export function ServerModSize({ className, style }: { className?: string; style?
     <span
       data-el="serverMod.size"
       data-state={size === null ? "unknown" : upperBound ? "upperBound" : undefined}
-      className={className ?? "font-mono-data text-xs text-muted mr-2"}
+      className={className ?? "font-mono-data [font-size:var(--t-type-size-lg)] leading-4 text-muted mr-2"}
       style={style}
     >
       {upperBound && (

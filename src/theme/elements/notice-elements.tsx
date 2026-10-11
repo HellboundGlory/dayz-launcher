@@ -384,7 +384,7 @@ export function ServerActionNotice({ className, style }: { className?: string; s
         data-part="code"
         title={content.detail}
         className={cn(
-          "shrink-0 [border-radius:var(--t-radius-controlSmall)] px-1 font-mono-data text-[9px] font-semibold uppercase",
+          "shrink-0 [border-radius:var(--t-radius-controlSmall)] px-1 font-mono-data [font-size:var(--t-type-size-xs)] font-semibold uppercase",
           stateClass,
           content.state === "error" ? "bg-danger-soft" : "bg-warn-soft",
         )}
@@ -405,7 +405,7 @@ export function ServerActionNotice({ className, style }: { className?: string; s
       style={style}
     >
       {leading && <div className="mb-1">{leading}</div>}
-      <div data-part="message" className="text-xs text-muted2">
+      <div data-part="message" className="[font-size:var(--t-type-size-lg)] leading-4 text-muted2">
         {content.message}
       </div>
     </div>

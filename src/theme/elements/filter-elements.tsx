@@ -65,7 +65,7 @@ function DropdownTrigger({
       className="flex items-center gap-1.5 border-0 bg-transparent p-0 [font:inherit] [text-transform:inherit] [color:inherit]"
     >
       {label !== null && (
-        <span data-part="label" className="text-muted text-[10px] font-bold">
+        <span data-part="label" className="text-muted [font-size:var(--t-type-size-sm)] font-bold">
           {label}
         </span>
       )}
@@ -98,7 +98,7 @@ function DropdownRoot({
       ref={innerRef}
       data-el={el}
       data-state={states.length > 0 ? states.join(" ") : undefined}
-      className={className ?? "relative flex items-center gap-1.5 border border-line bg-surface2 px-2.5 py-1 text-xs text-ink transition-colors hover:border-accent"}
+      className={className ?? "relative flex items-center gap-1.5 border border-line bg-surface2 px-2.5 py-1 [font-size:var(--t-type-size-lg)] leading-4 text-ink transition-colors hover:border-accent"}
       style={style}
     >
       {children}
@@ -138,7 +138,7 @@ export function FilterSearch({
     <div
       data-el="filter.search"
       data-state={filled ? "filled" : undefined}
-      className={className ?? "flex items-center gap-2 border border-line bg-surface2 px-2.5 py-1 text-sm text-ink"}
+      className={className ?? "flex items-center gap-2 border border-line bg-surface2 px-2.5 py-1 [font-size:var(--t-type-size-2xl)] leading-5 text-ink"}
       style={style}
     >
       {showIcon && (
@@ -153,7 +153,7 @@ export function FilterSearch({
         aria-label="Search servers"
         value={text}
         onChange={(e) => setText(e.target.value)}
-        className="bg-transparent outline-hidden text-ink placeholder:text-muted min-w-[180px] text-xs"
+        className="bg-transparent outline-hidden text-ink placeholder:text-muted min-w-[180px] [font-size:var(--t-type-size-lg)] leading-4"
       />
     </div>
   );
@@ -202,7 +202,7 @@ export function FilterMap({
           ref={popupRef}
           style={popupStyle}
           data-part="popup"
-          className="absolute left-0 top-full mt-1 z-[var(--z-popup)] max-h-64 min-w-[224px] overflow-y-auto border border-line bg-surface2 p-1 shadow-lg text-xs"
+          className="absolute left-0 top-full mt-1 z-[var(--z-popup)] max-h-64 min-w-[224px] overflow-y-auto border border-line bg-surface2 p-1 shadow-lg [font-size:var(--t-type-size-lg)] leading-4"
         >
           <PopupMapOptions />
           <PopupSeparator />
@@ -255,7 +255,7 @@ export function FilterTags({
           ref={popupRef}
           style={popupStyle}
           data-part="popup"
-          className="absolute left-0 top-full mt-1 z-[var(--z-popup)] min-w-[208px] overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg text-xs space-y-1"
+          className="absolute left-0 top-full mt-1 z-[var(--z-popup)] min-w-[208px] overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg [font-size:var(--t-type-size-lg)] leading-4 space-y-1"
         >
           <PopupTagOptions />
           <PopupSeparator />
@@ -309,7 +309,7 @@ export function FilterRegion({
           ref={popupRef}
           style={popupStyle}
           data-part="popup"
-          className="absolute left-0 top-full mt-1 z-[var(--z-popup)] min-w-[176px] max-h-64 overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg text-xs space-y-1"
+          className="absolute left-0 top-full mt-1 z-[var(--z-popup)] min-w-[176px] max-h-64 overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg [font-size:var(--t-type-size-lg)] leading-4 space-y-1"
         >
           <PopupRegionOptions />
           <PopupSeparator />
@@ -358,11 +358,11 @@ export function FilterMaxPing({
     <div
       data-el="filter.maxPing"
       data-state={active ? "active" : undefined}
-      className={className ?? "flex items-center gap-2 px-2.5 py-1 text-xs text-ink"}
+      className={className ?? "flex items-center gap-2 px-2.5 py-1 [font-size:var(--t-type-size-lg)] leading-4 text-ink"}
       style={style}
     >
       {showLabel && (
-        <span data-part="label" className="text-muted text-[10px] font-bold">
+        <span data-part="label" className="text-muted [font-size:var(--t-type-size-sm)] font-bold">
           {label}
         </span>
       )}
@@ -380,7 +380,7 @@ export function FilterMaxPing({
         />
       </span>
       {showValue && (
-        <span data-part="value" className="text-xs font-mono-data tabular-nums text-muted2 w-9">
+        <span data-part="value" className="[font-size:var(--t-type-size-lg)] leading-4 font-mono-data tabular-nums text-muted2 w-9">
           {pingDisplayValue(maxPing)}
         </span>
       )}
@@ -414,7 +414,7 @@ function HideToggle({
   const toggle = () => setFilter({ [field]: !on });
 
   const defaultClass = cn(
-    "px-2.5 py-1 text-xs font-bold uppercase tracking-wider border transition-colors",
+    "px-2.5 py-1 [font-size:var(--t-type-size-lg)] leading-4 font-bold uppercase tracking-wider border transition-colors",
     on
       ? "border-accent bg-accent text-bg shadow-[0_0_6px_var(--accent)]"
       : "border-line bg-surface text-muted2 hover:text-ink hover:border-accent",
@@ -512,7 +512,7 @@ export function ServersRefresh({
         </span>
       )}
       {display !== "icon" && (
-        <span data-part="label" className="text-[10px] font-semibold uppercase">
+        <span data-part="label" className="[font-size:var(--t-type-size-sm)] font-semibold uppercase">
           {labelText}
         </span>
       )}
@@ -554,11 +554,11 @@ export function FilterMods({
       onClick={openModFilter}
       aria-haspopup="dialog"
       aria-expanded={modFilterOpen}
-      className={className ?? "flex items-center gap-1.5 border border-line bg-surface2 px-2.5 py-1 text-xs text-ink transition-colors hover:border-accent"}
+      className={className ?? "flex items-center gap-1.5 border border-line bg-surface2 px-2.5 py-1 [font-size:var(--t-type-size-lg)] leading-4 text-ink transition-colors hover:border-accent"}
       style={style}
     >
       {showLabel && (
-        <span data-part="label" className="text-muted text-[10px] font-bold">
+        <span data-part="label" className="text-muted [font-size:var(--t-type-size-sm)] font-bold">
           {label}
         </span>
       )}
@@ -603,7 +603,7 @@ export function FilterSort({
         extra={
           <>
             {" "}
-            <span data-part="direction" className="text-[10px] text-muted">
+            <span data-part="direction" className="[font-size:var(--t-type-size-sm)] text-muted">
               {sortDir === "asc" ? "↑" : "↓"}
             </span>
           </>
@@ -620,7 +620,7 @@ export function FilterSort({
           ref={popupRef}
           style={popupStyle}
           data-part="popup"
-          className="absolute left-0 top-full mt-1 z-[var(--z-popup)] min-w-[176px] overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg text-xs space-y-1"
+          className="absolute left-0 top-full mt-1 z-[var(--z-popup)] min-w-[176px] overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg [font-size:var(--t-type-size-lg)] leading-4 space-y-1"
         >
           <PopupSortOptions />
         </div>
@@ -649,7 +649,7 @@ export function FilterReset({
       onClick={() => resetFilter()}
       aria-label="Reset filters"
       title="Reset all filters to defaults"
-      className={className ?? "flex items-center gap-1 px-2 py-1 text-xs border border-line bg-surface2 hover:border-accent text-muted hover:text-ink transition-colors"}
+      className={className ?? "flex items-center gap-1 px-2 py-1 [font-size:var(--t-type-size-lg)] leading-4 border border-line bg-surface2 hover:border-accent text-muted hover:text-ink transition-colors"}
       style={style}
     >
       {display !== "label" && (
@@ -658,7 +658,7 @@ export function FilterReset({
         </span>
       )}
       {display !== "icon" && (
-        <span data-part="label" className="text-[10px] font-semibold uppercase">
+        <span data-part="label" className="[font-size:var(--t-type-size-sm)] font-semibold uppercase">
           {label}
         </span>
       )}

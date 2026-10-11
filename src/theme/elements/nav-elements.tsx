@@ -85,7 +85,7 @@ function NavItem({
       onKeyDown={onNavKeyDown}
       title={display === "icon" ? label : undefined}
       aria-label={label}
-      className={className ?? "flex items-center gap-[var(--t-space-sidebarItemGap)] px-3 py-1 text-xs font-bold uppercase tracking-wider transition-colors"}
+      className={className ?? "flex items-center gap-[var(--t-space-sidebarItemGap)] px-3 py-1 [font-size:var(--t-type-size-lg)] leading-4 font-bold uppercase tracking-wider transition-colors"}
       style={style}
     >
       {showIcon && (

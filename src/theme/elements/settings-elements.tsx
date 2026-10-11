@@ -75,7 +75,7 @@ export function SettingsDone({ options, className, style }: ElementProps) {
 
 export function SettingsTitle({ className, style }: Omit<ElementProps, "options">) {
   return (
-    <h2 data-el="settings.title" className={className ?? "m-0 text-sm font-bold text-ink"} style={style}>
+    <h2 data-el="settings.title" className={className ?? "m-0 [font-size:var(--t-type-size-2xl)] leading-5 font-bold text-ink"} style={style}>
       <span data-part="text">Settings</span>
     </h2>
   );
