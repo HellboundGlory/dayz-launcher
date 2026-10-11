@@ -51,42 +51,41 @@ fn validate_theme_at(themes_root: &Path, id: &str) -> Result<Vec<ValidationIssue
         return Err(format!("No installed theme `{id}` at {}", dir.display()));
     }
 
-    let mut issues = Vec::new();
-    issues.extend(validate_theme_layouts(&dir)?);
-    issues.extend(validate_theme_settings(&dir)?);
+    let (schema, settings_issues) = validate_theme_settings(&dir)?;
+    let (_, mut issues) = theme::read_and_validate_layouts(&dir, schema.as_ref())?;
+    issues.extend(settings_issues);
     issues.extend(validate_theme_styles(&dir)?);
     Ok(issues)
 }
 
-/// Dev Mode's view of the same parse-tolerant read the runtime fallback uses:
-/// issues for files that failed to parse, then the cross-file pass
-/// ([`validator::validate_theme_layouts`]) over the files that parsed.
-fn validate_theme_layouts(dir: &Path) -> Result<Vec<ValidationIssue>, String> {
-    let (parsed, mut issues) = theme::read_layout_files(dir)?;
-    issues.extend(validator::validate_theme_layouts(&parsed));
-    Ok(issues)
-}
-
-/// `settings.schema.json`, when the theme ships one. A parse failure is
-/// reported as a SET-01 issue rather than failing the whole command, matching
-/// how a malformed layout file is handled.
-fn validate_theme_settings(dir: &Path) -> Result<Vec<ValidationIssue>, String> {
+/// `settings.schema.json` as parsed, when the theme ships one, with its issues.
+/// A parse failure is reported as a SET-01 issue rather than failing the whole
+/// command, matching how a malformed layout file is handled.
+fn validate_theme_settings(
+    dir: &Path,
+) -> Result<(Option<serde_json::Value>, Vec<ValidationIssue>), String> {
     let path = dir.join(theme::SETTINGS_SCHEMA_FILE);
     if !path.is_file() {
-        return Ok(Vec::new());
+        return Ok((None, Vec::new()));
     }
     let content = std::fs::read_to_string(&path)
         .map_err(|e| format!("Could not read {}: {e}", path.display()))?;
-    match serde_json::from_str(&content) {
-        Ok(value) => Ok(validator::settings::validate_settings_schema(&value)),
-        Err(error) => Ok(vec![ValidationIssue {
-            rule_id: "SET-01".into(),
-            severity: Severity::Error,
-            file: theme::SETTINGS_SCHEMA_FILE.into(),
-            pointer: String::new(),
-            message: format!("Invalid settings.schema.json: {error}"),
-            hint: None,
-        }]),
+    match serde_json::from_str::<serde_json::Value>(&content) {
+        Ok(value) => {
+            let issues = validator::settings::validate_settings_schema(&value);
+            Ok((Some(value), issues))
+        }
+        Err(error) => Ok((
+            None,
+            vec![ValidationIssue {
+                rule_id: "SET-01".into(),
+                severity: Severity::Error,
+                file: theme::SETTINGS_SCHEMA_FILE.into(),
+                pointer: String::new(),
+                message: format!("Invalid settings.schema.json: {error}"),
+                hint: None,
+            }],
+        )),
     }
 }
 
@@ -1308,7 +1307,7 @@ mod tests {
         let (root, dir) = installed("validate-bad-layout", "local.bad-layout");
         write(&dir, "layout/shell.json", "{ not json");
 
-        let issues = validate_theme_layouts(&dir).unwrap();
+        let issues = validate_theme_at(&root, "local.bad-layout").unwrap();
 
         assert!(
             issues
@@ -1335,7 +1334,7 @@ mod tests {
         let (root, dir) = installed("validate-bad-settings", "local.bad-settings");
         write(&dir, theme::SETTINGS_SCHEMA_FILE, "{ not json");
 
-        let issues = validate_theme_settings(&dir).unwrap();
+        let (_, issues) = validate_theme_settings(&dir).unwrap();
 
         assert!(
             issues

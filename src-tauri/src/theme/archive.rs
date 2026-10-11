@@ -20,12 +20,18 @@ pub const SUPPORTED_THEME_API_RANGE: &str = "2.0";
 
 const MAX_FILES: usize = 64;
 const MAX_TOTAL_UNCOMPRESSED_BYTES: u64 = 8 * 1024 * 1024;
+fn package_too_large() -> String {
+    format!(
+        "PKG-04: This package expands to more than {} MB.",
+        MAX_TOTAL_UNCOMPRESSED_BYTES / (1024 * 1024)
+    )
+}
 const ALLOWED_EXTENSIONS: [&str; 12] = [
     "json", "css", "png", "webp", "jpg", "jpeg", "svg", "woff2", "woff", "ttf", "otf", "md",
 ];
 /// The folders a package's directory entries may name; `package_extension`
 /// holds files to the same folders. The list bounds depth by construction.
-const PACKAGE_FOLDERS: [&str; 8] = [
+pub(crate) const PACKAGE_FOLDERS: [&str; 8] = [
     "layout",
     "layout/views",
     "layout/modals",
@@ -215,21 +221,30 @@ fn inspect<R: Read + Seek>(
     archive: &mut zip::ZipArchive<R>,
     staging_dir: &Path,
 ) -> Result<(ThemeManifest, usize), String> {
-    // Report the obsolete format even when it carries obsolete paths too.
-    if let Ok(mut entry) = archive.by_name(MANIFEST_FILE) {
-        if entry.size() <= MAX_TOTAL_UNCOMPRESSED_BYTES {
-            let bytes = read_entry(&mut entry, MANIFEST_FILE, &mut 0)?;
-            if let Ok(manifest) = serde_json::from_slice::<ThemeManifest>(&bytes) {
-                validate_manifest(&manifest)?;
+    // Read before anything is extracted, so a missing manifest or an obsolete
+    // format is reported ahead of path errors.
+    let manifest: ThemeManifest = match archive.by_name(MANIFEST_FILE) {
+        Ok(mut entry) => {
+            if entry.size() > MAX_TOTAL_UNCOMPRESSED_BYTES {
+                return Err(package_too_large());
             }
+            let bytes = read_entry(&mut entry, MANIFEST_FILE, &mut 0)?;
+            serde_json::from_slice(&bytes)
+                .map_err(|e| format!("{MANIFEST_FILE} is not a valid manifest: {e}"))?
         }
-    }
+        Err(_) => {
+            return Err(format!(
+                "This package has no {MANIFEST_FILE} — it is not a Tetra theme."
+            ))
+        }
+    };
+    validate_manifest(&manifest)?;
     // Canonicalised once: on Windows the zip-slip check needs `\\?\C:\…` form to compare against.
     let staging_root = staging_dir
         .canonicalize()
         .map_err(|e| format!("Could not resolve {}: {e}", staging_dir.display()))?;
 
-    let mut extracted = 0usize;
+    let mut extracted: Vec<String> = Vec::new();
     // Lowercased relative names already accepted; a repeat would overwrite on a
     // case-insensitive filesystem and make the extracted set platform-dependent.
     let mut seen = std::collections::HashSet::new();
@@ -249,7 +264,7 @@ fn inspect<R: Read + Seek>(
             ));
         }
 
-        if !entry.is_dir() && extracted >= MAX_FILES {
+        if !entry.is_dir() && extracted.len() >= MAX_FILES {
             return Err(format!(
                 "PKG-03: This package holds more than {MAX_FILES} files."
             ));
@@ -257,10 +272,7 @@ fn inspect<R: Read + Seek>(
         // A cheap early hint only — the streaming sum below is what actually enforces the limit.
         if let Some(claimed) = entry.size().checked_add(total_bytes) {
             if claimed > MAX_TOTAL_UNCOMPRESSED_BYTES {
-                return Err(format!(
-                    "PKG-04: This package expands to more than {} MB.",
-                    MAX_TOTAL_UNCOMPRESSED_BYTES / (1024 * 1024)
-                ));
+                return Err(package_too_large());
             }
         } else {
             return Err("This package's declared size overflows — refusing it.".to_string());
@@ -294,16 +306,8 @@ fn inspect<R: Read + Seek>(
         sniff_asset(&name, extension, &bytes)?;
         std::fs::write(&output, &bytes)
             .map_err(|e| format!("Could not write {}: {e}", output.display()))?;
-        extracted += 1;
+        extracted.push(name);
     }
-
-    let manifest_path = staging_dir.join(MANIFEST_FILE);
-    let raw = std::fs::read_to_string(&manifest_path)
-        .map_err(|_| format!("This package has no {MANIFEST_FILE} — it is not a Tetra theme."))?;
-    let parsed: ThemeManifest = serde_json::from_str(&raw)
-        .map_err(|e| format!("{MANIFEST_FILE} is not a valid manifest: {e}"))?;
-
-    validate_manifest(&parsed)?;
 
     // Same optionality and same validators the loader applies, so a package it
     // could not read is refused here instead of after it is installed.
@@ -313,9 +317,9 @@ fn inspect<R: Read + Seek>(
         SETTINGS_SCHEMA_FILE,
         crate::theme::validate_settings_schema,
     )?;
-    validate_package_contents(&parsed, staging_dir)?;
+    check_package_contents(&manifest, extracted.iter().map(String::as_str))?;
 
-    Ok((parsed, extracted))
+    Ok((manifest, extracted.len()))
 }
 
 /// Resolve one entry's output path inside `staging_root`, refusing the three
@@ -389,10 +393,7 @@ fn read_entry(
         }
         *total_bytes += read as u64;
         if *total_bytes > MAX_TOTAL_UNCOMPRESSED_BYTES {
-            return Err(format!(
-                "PKG-04: This package expands to more than {} MB.",
-                MAX_TOTAL_UNCOMPRESSED_BYTES / (1024 * 1024)
-            ));
+            return Err(package_too_large());
         }
         bytes.extend_from_slice(&buffer[..read]);
     }
@@ -419,41 +420,10 @@ fn allowed_extension(name: &str) -> Option<&'static str> {
 fn package_extension(name: &str) -> Result<&'static str, String> {
     let extension = allowed_extension(name);
     let allowed = match name {
-        "theme.json"
-        | "tokens.json"
-        | "styles.css"
-        | "settings.schema.json"
-        | "README.md"
-        | "layout/shell.json"
-        | "layout/settings.json"
-        | "layout/views/browser.json"
-        | "layout/views/mods.json"
-        | "layout/modals/serverInfo.json"
-        | "layout/modals/modFilter.json"
-        | "layout/modals/update.json"
-        | "layout/lists/servers.json"
-        | "layout/lists/mods.json"
-        | "layout/lists/modFilterResults.json"
-        | "layout/lists/serverMods.json"
-        | "layout/lists/modServers.json" => true,
+        "theme.json" | "tokens.json" | "styles.css" | "settings.schema.json" | "README.md" => true,
+        _ if super::LAYOUT_ALLOWLIST.contains(&name) => true,
         _ => {
-            if let Some(popup) = name
-                .strip_prefix("layout/popups/")
-                .and_then(|p| p.strip_suffix(".json"))
-            {
-                [
-                    "mapFilter",
-                    "modsUnique",
-                    "regionFilter",
-                    "sort",
-                    "tagsFilter",
-                    "serverActions",
-                    "serverLoad",
-                    "modActions",
-                    "settingsNav",
-                ]
-                .contains(&popup)
-            } else if let Some((dir, file)) = name.split_once('/') {
+            if let Some((dir, file)) = name.split_once('/') {
                 let basename = file.rsplit_once('.').map(|(base, _)| base);
                 !file.contains('/')
                     && !file.contains('\\')
@@ -913,34 +883,20 @@ fn be_u32(bytes: &[u8], at: usize) -> Option<u32> {
     Some(u32::from_be_bytes([slice[0], slice[1], slice[2], slice[3]]))
 }
 
-fn validate_package_contents(manifest: &ThemeManifest, staging_dir: &Path) -> Result<(), String> {
+/// MAN-07/08/09 over a package's relative file names: every capability the
+/// manifest declares has its files, no capability's files go undeclared, and
+/// every preview names a file the package holds.
+fn check_package_contents<'a>(
+    manifest: &ThemeManifest,
+    files: impl Iterator<Item = &'a str>,
+) -> Result<(), String> {
     let mut shipped = [false; 6];
-    let mut files = std::collections::HashSet::new();
-    let mut stack = vec![(staging_dir.to_path_buf(), String::new())];
-    while let Some((dir, prefix)) = stack.pop() {
-        for entry in
-            std::fs::read_dir(&dir).map_err(|e| format!("Could not read {}: {e}", dir.display()))?
-        {
-            let entry = entry.map_err(|e| format!("Could not inspect theme content: {e}"))?;
-            let name = entry.file_name().to_string_lossy().into_owned();
-            let relative = if prefix.is_empty() {
-                name
-            } else {
-                format!("{prefix}/{name}")
-            };
-            if entry.file_type().map_err(|e| e.to_string())?.is_dir() {
-                stack.push((entry.path(), relative));
-                continue;
-            }
-            if relative == crate::theme::settings_values::SETTINGS_VALUES_FILE {
-                continue;
-            }
-            package_extension(&relative)?;
-            if let Some(index) = capability_for_path(&relative) {
-                shipped[index] = true;
-            }
-            files.insert(relative);
+    let mut present = std::collections::HashSet::new();
+    for name in files {
+        if let Some(index) = capability_for_path(name) {
+            shipped[index] = true;
         }
+        present.insert(name);
     }
     for (index, capability) in CAPABILITIES.iter().enumerate() {
         let declared = manifest
@@ -959,7 +915,7 @@ fn validate_package_contents(manifest: &ThemeManifest, staging_dir: &Path) -> Re
         }
     }
     for preview in &manifest.previews {
-        if !files.contains(&preview.file) {
+        if !present.contains(preview.file.as_str()) {
             return Err(format!(
                 "MAN-09: preview `{}` is not a file in the package.",
                 preview.file
@@ -1149,13 +1105,14 @@ pub fn export(
     let manifest_json = serde_json::to_vec_pretty(&manifest)
         .map_err(|e| format!("Could not serialise the manifest: {e}"))?;
     validate_manifest(&manifest)?;
-    validate_package_contents(&manifest, &theme_dir)?;
     let mut files = vec![(MANIFEST_FILE.to_string(), manifest_json)];
 
     let named = files.len();
     append_assets(&theme_dir, &mut files)?;
     // `read_dir` order is arbitrary; a stable one keeps two exports byte-identical.
     files[named..].sort_by(|a, b| a.0.cmp(&b.0));
+
+    check_package_contents(&manifest, files.iter().map(|(name, _)| name.as_str()))?;
 
     for (name, bytes) in &files {
         if leaks_path(bytes, data_root) {
@@ -1453,7 +1410,7 @@ mod tests {
             &package,
             &[
                 Entry::file(MANIFEST_FILE, serde_json::to_string(&themed).unwrap()),
-                Entry::file("layout/popups/settingsNav.json", "{}"),
+                Entry::file("layout/popups/modsVerify.json", "{}"),
                 Entry::file("settings.schema.json", r#"{"schemaVersion":2}"#),
             ],
         );
@@ -2064,7 +2021,7 @@ mod tests {
         // Highly compressible: the archive stays tiny, the content does not, so
         // only a limit on the decompressed bytes can refuse it.
         let bomb = "a".repeat(MAX_TOTAL_UNCOMPRESSED_BYTES as usize + 1);
-        let zip_path = fixture(&root, "bomb", &[Entry::file("README.md", bomb)]);
+        let zip_path = fixture(&root, "bomb", &[Entry::file("README.md", bomb.clone())]);
         let compressed = std::fs::metadata(&zip_path).unwrap().len();
         assert!(
             compressed < MAX_TOTAL_UNCOMPRESSED_BYTES / 100,
@@ -2073,6 +2030,12 @@ mod tests {
 
         let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
 
+        assert!(error.contains("PKG-04"), "message was: {error}");
+
+        // The manifest is read ahead of the walk, so its own size is checked there.
+        let zip_path = root.join("manifest-bomb.zip");
+        build_zip(&zip_path, &[Entry::file(MANIFEST_FILE, bomb)]);
+        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
         assert!(error.contains("PKG-04"), "message was: {error}");
     }
 

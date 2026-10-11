@@ -183,6 +183,7 @@ struct Layout<'a> {
 
 pub(super) fn validate(
     files: &HashMap<String, Value>,
+    settings_schema: Option<&Value>,
     registry: &Registry,
 ) -> Vec<ValidationIssue> {
     let layouts: BTreeMap<_, _> = files
@@ -191,25 +192,12 @@ pub(super) fn validate(
         .map(|(file, value)| (file.as_str(), collect(value, registry)))
         .collect();
     let mut issues = Vec::new();
-    let combinations = match files.get("settings.schema.json") {
-        Some(schema) => match super::settings::extract_settings_combinations(schema) {
-            Ok(combinations) => combinations,
-            Err(errors) => {
-                issues.extend(errors);
-                Vec::new()
-            }
-        },
-        None => vec![HashMap::new()],
-    };
-    let discrete: HashSet<_> = files
-        .get("settings.schema.json")
-        .and_then(|schema| schema.get("fields"))
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter(|field| matches!(field["type"].as_str(), Some("boolean" | "choice")))
-        .filter_map(|field| field["id"].as_str())
-        .collect();
+    // A schema the settings check refuses counts as absent here; that check reports it.
+    let combinations = settings_schema
+        .and_then(|schema| super::settings::extract_settings_combinations(schema).ok())
+        .unwrap_or_else(|| vec![HashMap::new()]);
+    // Every combination holds every boolean and choice id.
+    let discrete: HashSet<&str> = combinations[0].keys().map(String::as_str).collect();
     for (file, layout) in &layouts {
         for root in &layout.roots {
             if let Some(value) = root.value {

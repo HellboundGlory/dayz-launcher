@@ -45,13 +45,13 @@ fn theme() -> HashMap<String, Value> {
 #[test]
 fn valid_compositions_share_shell_requirements_and_allow_view_only_themes() {
     let files = theme();
-    assert_eq!(validate_theme_layouts(&files), vec![]);
+    assert_eq!(validate_theme_layouts(&files, None), vec![]);
     let standalone = HashMap::from([(
         BROWSER.into(),
         layout(&required(&["views", "views+settings", "view:browser"])),
     )]);
-    assert_eq!(validate_theme_layouts(&standalone), vec![]);
-    assert_eq!(validate_theme_layouts(&HashMap::new()), vec![]);
+    assert_eq!(validate_theme_layouts(&standalone, None), vec![]);
+    assert_eq!(validate_theme_layouts(&HashMap::new(), None), vec![]);
 }
 
 #[test]
@@ -77,7 +77,7 @@ fn required_failures_report_composition_file_and_row_pointer() {
         } else {
             layout(&[])
         };
-        let issues = validate_theme_layouts(&HashMap::from([(file.into(), value)]));
+        let issues = validate_theme_layouts(&HashMap::from([(file.into(), value)]), None);
         assert!(
             issues.iter().any(|issue| issue.rule_id == rule
                 && issue.file == file
@@ -97,12 +97,12 @@ fn surfaces_satisfy_requirements_and_collide_with_explicit_elements() {
         !["app.minimize", "app.maximize", "app.close"].contains(&node["element"].as_str().unwrap())
     });
     children.push(json!({"surface":"surface.windowControls"}));
-    assert_eq!(validate_theme_layouts(&files), vec![]);
+    assert_eq!(validate_theme_layouts(&files, None), vec![]);
     files.get_mut(BROWSER).unwrap()["root"]["children"]
         .as_array_mut()
         .unwrap()
         .push(json!({"element":"app.close"}));
-    let issues = validate_theme_layouts(&files);
+    let issues = validate_theme_layouts(&files, None);
     assert!(issues
         .iter()
         .any(|i| i.rule_id == "ELE-04" && i.file == BROWSER));
@@ -116,12 +116,12 @@ fn a_list_row_needs_only_join_but_other_join_contexts_still_need_the_notice() {
         "layout/lists/servers.json".into(),
         json!({"schemaVersion":2,"row":row}),
     );
-    assert!(!validate_theme_layouts(&files)
+    assert!(!validate_theme_layouts(&files, None)
         .iter()
         .any(|i| i.rule_id == "REQ-05"));
 
     files.get_mut("layout/lists/servers.json").unwrap()["row"] = json!({"type":"box"});
-    assert!(validate_theme_layouts(&files)
+    assert!(validate_theme_layouts(&files, None)
         .iter()
         .any(|i| i.rule_id == "REQ-05" && i.message.contains("server.join")));
 
@@ -141,7 +141,7 @@ fn a_list_row_needs_only_join_but_other_join_contexts_still_need_the_notice() {
                 .push(json!({"element":"modal.close"}));
         }
         files.insert(file.into(), json!({"schemaVersion":2,"root":root}));
-        let issues = validate_theme_layouts(&files);
+        let issues = validate_theme_layouts(&files, None);
         assert!(
             issues
                 .iter()
@@ -152,7 +152,7 @@ fn a_list_row_needs_only_join_but_other_join_contexts_still_need_the_notice() {
             .as_array_mut()
             .unwrap()
             .push(json!({"element":"server.actionNotice"}));
-        assert!(!validate_theme_layouts(&files)
+        assert!(!validate_theme_layouts(&files, None)
             .iter()
             .any(|i| i.message.contains("server.actionNotice")));
     }
@@ -162,16 +162,16 @@ fn a_list_row_needs_only_join_but_other_join_contexts_still_need_the_notice() {
 fn popup_close_depends_on_placement_mode() {
     let file = "layout/popups/mapFilter.json";
     let mut files = HashMap::from([(file.into(), layout(&["popup.mapOptions"]))]);
-    assert_eq!(validate_theme_layouts(&files), vec![]);
+    assert_eq!(validate_theme_layouts(&files, None), vec![]);
     files.get_mut(file).unwrap()["placement"] = json!({"mode":"inline"});
-    assert!(validate_theme_layouts(&files)
+    assert!(validate_theme_layouts(&files, None)
         .iter()
         .any(|i| i.rule_id == "REQ-04" && i.message.contains("popup.close")));
     files.get_mut(file).unwrap()["root"]["children"]
         .as_array_mut()
         .unwrap()
         .push(json!({"element":"popup.close"}));
-    assert_eq!(validate_theme_layouts(&files), vec![]);
+    assert_eq!(validate_theme_layouts(&files, None), vec![]);
 }
 
 #[test]
@@ -184,9 +184,9 @@ fn region_ids_are_global_but_references_only_resolve_in_composing_files() {
         .push(json!({"element":"app.collapseToggle","options":{"region":"r-main"}}));
     files.get_mut("layout/settings.json").unwrap()["presentation"] =
         json!({"mode":"overlay","region":"r-main"});
-    assert_eq!(validate_theme_layouts(&files), vec![]);
+    assert_eq!(validate_theme_layouts(&files, None), vec![]);
     files.get_mut("layout/views/mods.json").unwrap()["root"]["id"] = json!("r-main");
-    assert!(validate_theme_layouts(&files)
+    assert!(validate_theme_layouts(&files, None)
         .iter()
         .any(|i| i.rule_id == "LAY-08"));
     files.get_mut("layout/views/mods.json").unwrap()["root"]["id"] = json!("r-other");
@@ -194,11 +194,11 @@ fn region_ids_are_global_but_references_only_resolve_in_composing_files() {
         .as_array_mut()
         .unwrap()
         .push(json!({"element":"app.collapseToggle","options":{"region":"r-other"}}));
-    assert!(validate_theme_layouts(&files)
+    assert!(validate_theme_layouts(&files, None)
         .iter()
         .any(|i| i.rule_id == "LAY-09" && i.file == BROWSER));
     files.get_mut(BROWSER).unwrap()["metadata"] = json!({"ref":"r-missing"});
-    assert!(validate_theme_layouts(&files)
+    assert!(validate_theme_layouts(&files, None)
         .iter()
         .any(|i| i.rule_id == "LAY-09" && i.pointer == "/metadata/ref"));
 }
@@ -224,9 +224,9 @@ fn responsive_compositions_only_compare_simultaneously_active_roots() {
         json!([{"minWidth":0,"root":shell},{"minWidth":800,"root":shell}]);
     files.get_mut(BROWSER).unwrap()["variants"] =
         json!([{"minWidth":0,"root":browser},{"minWidth":800,"root":browser}]);
-    assert_eq!(validate_theme_layouts(&files), vec![]);
+    assert_eq!(validate_theme_layouts(&files, None), vec![]);
     files.get_mut(BROWSER).unwrap()["variants"][1]["root"]["children"] = json!([]);
-    assert!(validate_theme_layouts(&files)
+    assert!(validate_theme_layouts(&files, None)
         .iter()
         .any(|i| i.rule_id == "REQ-06" && i.pointer == "/variants/1/root"));
 }
@@ -258,7 +258,10 @@ fn nested_surfaces_expand_recursively() {
         !["app.minimize", "app.maximize", "app.close"].contains(&node["element"].as_str().unwrap())
     });
     children.push(json!({"surface":"surface.windowControls"}));
-    assert_eq!(super::composition::validate(&files, &registry), vec![]);
+    assert_eq!(
+        super::composition::validate(&files, None, &registry),
+        vec![]
+    );
 }
 
 #[test]
@@ -274,7 +277,7 @@ fn empty_row_content_neither_satisfies_requirements_nor_hides_regions() {
             json!({"schemaVersion":2,"root":{"type":"box","id":"r-empty"}}),
         ),
     ]);
-    let issues = validate_theme_layouts(&files);
+    let issues = validate_theme_layouts(&files, None);
     assert!(issues
         .iter()
         .any(|i| i.rule_id == "REQ-05" && i.message.contains("server.join")));
@@ -284,24 +287,22 @@ fn empty_row_content_neither_satisfies_requirements_nor_hides_regions() {
 #[test]
 fn hidden_conditions_expand_settings_and_inherit_container_visibility() {
     let mut files = theme();
-    files.insert("settings.schema.json".into(), json!({"schemaVersion":2,"fields":[{"id":"foo","type":"boolean","label":"Foo","default":false}]}));
+    let schema = json!({"schemaVersion":2,"fields":[{"id":"foo","type":"boolean","label":"Foo","default":false}]});
     files.get_mut(BROWSER).unwrap()["root"]["hidden"] = json!({"setting":"foo","equals":true});
-    let issues = validate_theme_layouts(&files);
+    let issues = validate_theme_layouts(&files, Some(&schema));
     assert!(issues.iter().any(|i| i.rule_id == "REQ-06"
         && i.file == BROWSER
         && i.pointer == "/root"
         && i.message.contains("\"foo\":true")));
-    assert!(!issues
-        .iter()
-        .any(|i| i.rule_id == "REQ-01" || i.rule_id == "SET-01"));
+    assert!(!issues.iter().any(|i| i.rule_id == "REQ-01"));
     files.get_mut(BROWSER).unwrap()["root"]["hidden"] = json!({"setting":"foo","not":false});
-    assert!(validate_theme_layouts(&files)
+    assert!(validate_theme_layouts(&files, Some(&schema))
         .iter()
         .any(|i| i.rule_id == "REQ-06" && i.message.contains("\"foo\":true")));
     files.get_mut(BROWSER).unwrap()["root"]["hidden"] = json!(false);
-    assert_eq!(validate_theme_layouts(&files), vec![]);
+    assert_eq!(validate_theme_layouts(&files, Some(&schema)), vec![]);
     files.get_mut(SHELL).unwrap()["root"]["hidden"] = json!(true);
-    assert!(validate_theme_layouts(&files)
+    assert!(validate_theme_layouts(&files, Some(&schema))
         .iter()
         .any(|i| i.rule_id == "REQ-06" && i.file == BROWSER));
 }
@@ -309,7 +310,7 @@ fn hidden_conditions_expand_settings_and_inherit_container_visibility() {
 #[test]
 fn hidden_rejects_malformed_or_non_discrete_references() {
     let mut files = theme();
-    files.insert("settings.schema.json".into(), json!({"schemaVersion":2,"fields":[{"id":"size","type":"number","label":"Size","min":0,"max":1,"default":0},{"id":"foo","type":"boolean","label":"Foo","default":false}]}));
+    let schema = json!({"schemaVersion":2,"fields":[{"id":"size","type":"number","label":"Size","min":0,"max":1,"default":0},{"id":"foo","type":"boolean","label":"Foo","default":false}]});
     for hidden in [
         json!(1),
         json!({}),
@@ -321,15 +322,18 @@ fn hidden_rejects_malformed_or_non_discrete_references() {
         json!({"setting":"foo","equals":true,"extra":true}),
     ] {
         files.get_mut(BROWSER).unwrap()["root"]["hidden"] = hidden;
-        assert!(validate_theme_layouts(&files)
+        assert!(validate_theme_layouts(&files, Some(&schema))
             .iter()
             .any(|i| i.rule_id == "LAY-03" && i.pointer == "/root/hidden"));
     }
-    files.remove("settings.schema.json");
     files.get_mut(BROWSER).unwrap()["root"]["hidden"] = json!({"setting":"foo","equals":true});
-    assert!(validate_theme_layouts(&files)
+    assert!(validate_theme_layouts(&files, None)
         .iter()
         .any(|i| i.rule_id == "LAY-03"));
+    let refused = json!({"schemaVersion":2,"fields":[{"id":"foo","type":"boolean","label":"Foo","default":false},{"id":"foo","type":"boolean","label":"Foo","default":false}]});
+    assert!(validate_theme_layouts(&files, Some(&refused))
+        .iter()
+        .any(|i| i.rule_id == "LAY-03" && i.pointer == "/root/hidden"));
 }
 
 #[test]
@@ -338,20 +342,20 @@ fn collapsible_requires_both_subtrees_and_a_tab_or_accordion_body_counts_as_cont
     let content = files[BROWSER]["root"].clone();
     files.get_mut(BROWSER).unwrap()["root"]["collapsible"] =
         json!({"default":"expanded","collapsed":{"type":"box"}});
-    assert!(validate_theme_layouts(&files)
+    assert!(validate_theme_layouts(&files, None)
         .iter()
         .any(|i| i.rule_id == "REQ-06" && i.pointer == "/root/collapsible/collapsed"));
     files.get_mut(BROWSER).unwrap()["root"]["collapsible"]["collapsed"] = content.clone();
-    assert_eq!(validate_theme_layouts(&files), vec![]);
+    assert_eq!(validate_theme_layouts(&files, None), vec![]);
     files.get_mut(BROWSER).unwrap()["root"]["children"] = json!([]);
-    assert!(validate_theme_layouts(&files)
+    assert!(validate_theme_layouts(&files, None)
         .iter()
         .any(|i| i.rule_id == "REQ-06" && i.pointer == "/root/children"));
     files.get_mut(BROWSER).unwrap()["root"] = json!({"type":"tabs","tabs":[
         {"id":"first","label":{"type":"text","value":"First"},"content":{"type":"box"}},
         {"id":"second","label":{"type":"text","value":"Second"},"content":content}
     ]});
-    assert!(!validate_theme_layouts(&files)
+    assert!(!validate_theme_layouts(&files, None)
         .iter()
         .any(|i| i.rule_id.starts_with("REQ-")));
 
@@ -361,7 +365,7 @@ fn collapsible_requires_both_subtrees_and_a_tab_or_accordion_body_counts_as_cont
     files.get_mut(BROWSER).unwrap()["root"] = json!({"type":"accordion","mode":"single","initial":"none","sections":[
         {"id":"first","header":{"type":"text","value":"First"},"body":content}
     ]});
-    assert_eq!(validate_theme_layouts(&files), vec![]);
+    assert_eq!(validate_theme_layouts(&files, None), vec![]);
 }
 
 #[test]
@@ -373,7 +377,7 @@ fn a_join_cannot_borrow_a_notice_from_another_context_or_a_hidden_one() {
             {"element":"server.actionNotice","hidden":true}
         ]}
     ]);
-    assert!(validate_theme_layouts(&files)
+    assert!(validate_theme_layouts(&files, None)
         .iter()
         .any(|issue| issue.rule_id == "REQ-06" && issue.message.contains("server.actionNotice")));
 
@@ -386,7 +390,7 @@ fn a_join_cannot_borrow_a_notice_from_another_context_or_a_hidden_one() {
             json!({"type":"box","context":"selection","children":[{"element":"server.join"}]}),
             json!({"type":"box","context":"selection","children":[{"element":"server.actionNotice"}]}),
         ]);
-    assert!(validate_theme_layouts(&files)
+    assert!(validate_theme_layouts(&files, None)
         .iter()
         .any(|i| i.rule_id == "REQ-01" && i.message.contains("server.actionNotice")));
 }
@@ -397,10 +401,7 @@ fn all_four_variants_are_checked_at_sixty_four_combinations() {
     let fields: Vec<_> = (0..6)
         .map(|i| json!({"id":format!("f{i}"),"type":"boolean","label":"Flag","default":false}))
         .collect();
-    files.insert(
-        "settings.schema.json".into(),
-        json!({"schemaVersion":2,"fields":fields}),
-    );
+    let schema = json!({"schemaVersion":2,"fields":fields});
     let root = files[BROWSER]["root"].clone();
     files.insert(
         BROWSER.into(),
@@ -409,10 +410,10 @@ fn all_four_variants_are_checked_at_sixty_four_combinations() {
             {"minWidth":1000,"root":root}, {"minWidth":1200,"root":root}
         ]}),
     );
-    assert_eq!(validate_theme_layouts(&files), vec![]);
+    assert_eq!(validate_theme_layouts(&files, Some(&schema)), vec![]);
     files.get_mut(BROWSER).unwrap()["variants"][3]["root"]["hidden"] =
         json!({"setting":"f5","equals":true});
-    let issues = validate_theme_layouts(&files);
+    let issues = validate_theme_layouts(&files, Some(&schema));
     assert!(issues.iter().any(|issue| issue.rule_id == "REQ-06"
         && issue.pointer == "/variants/3/root"
         && issue

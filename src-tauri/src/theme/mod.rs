@@ -99,13 +99,13 @@ pub const LAYOUT_ALLOWLIST: &[&str] = &[
     "layout/lists/modServers.json",
     "layout/popups/mapFilter.json",
     "layout/popups/modsUnique.json",
+    "layout/popups/modsUnsubscribe.json",
+    "layout/popups/modsVerify.json",
     "layout/popups/regionFilter.json",
     "layout/popups/sort.json",
     "layout/popups/tagsFilter.json",
     "layout/popups/serverActions.json",
     "layout/popups/serverLoad.json",
-    "layout/popups/modActions.json",
-    "layout/popups/settingsNav.json",
 ];
 
 /// One theme, fully: its manifest flattened with its raw optional content —
@@ -230,9 +230,7 @@ pub(crate) fn read_optional_json(
 /// Reads every layout file a theme ships from [`LAYOUT_ALLOWLIST`], parse-tolerantly:
 /// a file that fails to parse contributes its own issues instead of failing the read,
 /// so one broken screen costs one file. An unreadable file still fails.
-pub(crate) fn read_layout_files(
-    dir: &Path,
-) -> Result<(HashMap<String, Value>, Vec<ValidationIssue>), String> {
+fn read_layout_files(dir: &Path) -> Result<(HashMap<String, Value>, Vec<ValidationIssue>), String> {
     let mut parsed = HashMap::new();
     let mut issues = Vec::new();
     for rel_path in LAYOUT_ALLOWLIST {
@@ -252,9 +250,21 @@ pub(crate) fn read_layout_files(
     Ok((parsed, issues))
 }
 
+/// The theme's layouts and every issue they carry: parse issues first, then the
+/// cross-file pass with the settings schema, so a setting condition resolves the
+/// same way at load and in Dev Mode.
+pub(crate) fn read_and_validate_layouts(
+    dir: &Path,
+    settings_schema: Option<&Value>,
+) -> Result<(HashMap<String, Value>, Vec<ValidationIssue>), String> {
+    let (parsed, mut issues) = read_layout_files(dir)?;
+    issues.extend(validator::validate_theme_layouts(&parsed, settings_schema));
+    Ok((parsed, issues))
+}
+
 /// `parsed` split into the layouts that render and the ones that fall back: an
-/// issue naming a file in the map with `Severity::Error` removes that file and
-/// is kept as its fallback reason. Warnings remove nothing and are dropped.
+/// `Error` issue is kept as a fallback reason and removes the file it names
+/// when that file is in the map. Warnings remove nothing and are dropped.
 fn fall_back_broken_layouts(
     parsed: HashMap<String, Value>,
     issues: Vec<ValidationIssue>,
@@ -262,7 +272,7 @@ fn fall_back_broken_layouts(
     let mut fallbacks = Vec::new();
     let mut broken = HashSet::new();
     for issue in issues {
-        if issue.severity == Severity::Error && parsed.contains_key(&issue.file) {
+        if issue.severity == Severity::Error {
             broken.insert(issue.file.clone());
             fallbacks.push(issue);
         }
@@ -297,10 +307,8 @@ pub fn get(themes_root: &Path, id: &str) -> Result<ThemeFile, String> {
 
     let settings_schema = read_optional_json(&dir, SETTINGS_SCHEMA_FILE, validate_settings_schema)?;
 
-    let (parsed, mut fallbacks) = read_layout_files(&dir)?;
-    let layout_issues = validator::validate_theme_layouts(&parsed);
-    let (layouts, removals) = fall_back_broken_layouts(parsed, layout_issues);
-    fallbacks.extend(removals);
+    let (parsed, issues) = read_and_validate_layouts(&dir, settings_schema.as_ref())?;
+    let (layouts, fallbacks) = fall_back_broken_layouts(parsed, issues);
 
     Ok(ThemeFile {
         manifest,
@@ -758,6 +766,54 @@ mod tests {
         // With it gone, the theme reads again — the failure was the file, not the theme.
         assert!(get(&root, "dev.bad").is_ok());
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A setting condition in `hidden` resolves against the theme's own
+    /// settings schema, so a setting the schema declares is not a LAY-03.
+    #[test]
+    fn a_hidden_setting_condition_the_schema_declares_keeps_its_layout() {
+        let root = scratch("layout-hidden");
+        save(&root, &manifest("dev.hidden"), &tokens()).expect("save");
+        let dir = root.join("dev.hidden");
+        std::fs::write(
+            dir.join(SETTINGS_SCHEMA_FILE),
+            r#"{"schemaVersion":2,"fields":[{"id":"compact","type":"boolean","label":"Compact","default":false}]}"#,
+        )
+        .unwrap();
+        write_layout(
+            &dir,
+            "layout/shell.json",
+            r#"{"schemaVersion":2,"root":{"type":"box","children":[{"type":"box","hidden":{"setting":"compact","equals":true}}]}}"#,
+        );
+
+        let loaded = get(&root, "dev.hidden").expect("get");
+
+        assert!(
+            loaded.layouts.contains_key("layout/shell.json"),
+            "{:?}",
+            loaded.fallbacks
+        );
+        assert!(loaded.fallbacks.is_empty(), "{:?}", loaded.fallbacks);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// One list of layout files: its popups are the registry's, and every entry
+    /// sits in a folder a package may declare.
+    #[test]
+    fn the_layout_allowlist_matches_the_registry_and_the_package_folders() {
+        let registry = crate::theme::registry::parse_registry().unwrap();
+        let mut listed: Vec<&str> = LAYOUT_ALLOWLIST
+            .iter()
+            .filter_map(|path| path.strip_prefix("layout/popups/")?.strip_suffix(".json"))
+            .collect();
+        listed.sort_unstable();
+        let declared: Vec<&str> = registry.popups.keys().map(String::as_str).collect();
+        assert_eq!(listed, declared);
+
+        for path in LAYOUT_ALLOWLIST {
+            let parent = path.rsplit_once('/').expect("nested path").0;
+            assert!(super::archive::PACKAGE_FOLDERS.contains(&parent), "{path}");
+        }
     }
 
     fn write_layout(dir: &Path, relative: &str, content: &str) {
