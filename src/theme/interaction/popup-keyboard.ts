@@ -3,7 +3,8 @@ import { useEffect, useRef, type RefObject } from "react";
 export const FOCUSABLE =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-const SELECTED_OPTION = '[aria-selected="true"], [data-part="option"][data-state~="selected"]';
+const SELECTED_OPTION =
+  '[aria-selected="true"], [role="menuitemradio"][aria-checked="true"], [data-part="option"][data-state~="selected"]';
 
 export function popupKeyTarget(key: string, current: number, count: number): number | null {
   if (count === 0) return null;

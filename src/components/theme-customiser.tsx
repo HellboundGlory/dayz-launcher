@@ -199,6 +199,7 @@ export function ThemeCustomiser() {
           <div
             ref={dropMenuRef}
             data-part="popup"
+            role="menu"
             style={dropMenuStyle}
             className="theme-menu max-h-[280px] overflow-auto [border-radius:var(--t-radius-card)] border border-line bg-surface2 [box-shadow:var(--t-shadow-popupFilter)]"
           >
@@ -265,13 +266,10 @@ export function ThemeCustomiser() {
                   <button
                     type="button"
                       aria-label={`Delete theme ${t.name}`}
-                      onClick={() =>
-                        confirm(
-                          "Delete theme",
-                          deleteThemeMessage(t.name),
-                          () => void deleteTheme(t.id),
-                        )
-                      }
+                      onClick={() => {
+                        closeDrop();
+                        confirm("Delete theme", deleteThemeMessage(t.name), () => void deleteTheme(t.id));
+                      }}
                       className="cd shrink-0 cursor-pointer px-1 [font-size:var(--t-type-micro-size)] text-muted transition-colors hover:text-danger"
                     >
                       ✕

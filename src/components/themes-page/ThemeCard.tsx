@@ -61,9 +61,7 @@ export function ThemeCard({
         active ? "border-accent-line" : "border-line",
       )}
     >
-      {/* Live theme colours, so inline styles — the one place a hex is correct.
-          Rounded + clipped on its own, not the card root, so the upward-opening
-          overflow menu below isn't clipped by it too. */}
+      {/* Live theme colours, so inline styles — the one place a hex is correct. */}
       <div className="flex h-9 overflow-hidden [border-top-left-radius:var(--t-radius-thumb)] [border-top-right-radius:var(--t-radius-thumb)]">
         {previewUrl && failedPreview !== previewUrl ? (
           <img
