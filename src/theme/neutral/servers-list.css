@@ -172,7 +172,7 @@
   }
 
   .t-neutral-servers-refresh {
-    @apply flex shrink-0 items-center [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] text-muted2 transition-colors hover:border-accent-line hover:text-accent disabled:cursor-not-allowed disabled:opacity-40;
+    @apply flex shrink-0 items-center [border-radius:var(--t-radius-control)] border border-line bg-surface2 p-[5px] text-muted2 transition-colors hover:border-accent-line hover:text-accent disabled:cursor-not-allowed disabled:opacity-40;
   }
 
   .t-neutral-servers-join {
@@ -192,7 +192,7 @@
   }
 
   .t-neutral-servers-menu [data-part="trigger"] {
-    @apply [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] text-muted2 transition-colors hover:border-accent-line hover:text-accent;
+    @apply [border-radius:var(--t-radius-control)] border border-line bg-surface2 p-[5px] text-muted2 transition-colors hover:border-accent-line hover:text-accent;
   }
 
   .t-neutral-servers-menu[data-state~="open"] [data-part="trigger"] {
