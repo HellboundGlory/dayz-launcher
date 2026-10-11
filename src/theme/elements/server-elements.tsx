@@ -23,7 +23,6 @@ import { useServerActions, phaseLabel } from "@/hooks/use-server-actions";
 import { isOutstandingMod, useFetchesReadiness, useSelectionReadiness } from "./use-selection-readiness";
 import { useServerStore } from "@/stores/server-store";
 import { invalidateReadiness, setCachedReadiness } from "@/stores/readiness-store";
-import { joinAction } from "@/lib/join-action";
 import {
   toggleFavourite as toggleFavouriteRemote,
   checkServerMods,
@@ -60,18 +59,9 @@ function joinParts(nodes: ReactNode[]): ReactNode[] {
 }
 
 export function ServerName({ className, style }: { className?: string; style?: CSSProperties }) {
-  const { contextName } = useElementContext();
   const server = useServerSubject();
   if (!server) return null;
   const states = serverStates(!server.online);
-
-  if (contextName === "selection") {
-    return (
-      <div data-el="server.name" data-state={states} className={className ?? "text-lg font-bold text-ink truncate mb-0.5"} style={style}>
-        <span data-part="text">{server.name}</span>
-      </div>
-    );
-  }
 
   return (
     <span data-el="server.name" data-state={states} className={className ?? "truncate"} style={style}>
@@ -89,7 +79,6 @@ export function ServerPlayers({
   className?: string;
   style?: CSSProperties;
 }) {
-  const { contextName } = useElementContext();
   const server = useServerSubject();
   if (!server) return null;
 
@@ -119,17 +108,6 @@ export function ServerPlayers({
     </>
   );
 
-  if (contextName === "selection") {
-    return (
-      <div data-el="server.players" data-state={states} className={className} style={style}>
-        <div data-part="label" className="text-[10px] text-muted uppercase font-bold tracking-wider mb-1">
-          PLAYERS
-        </div>
-        <div className="text-base font-bold tabular-nums leading-none">{countNode}</div>
-      </div>
-    );
-  }
-
   return (
     <span
       data-el="server.players"
@@ -153,7 +131,6 @@ export function ServerPing({
   className?: string;
   style?: CSSProperties;
 }) {
-  const { contextName } = useElementContext();
   const server = useServerSubject();
   if (!server) return null;
 
@@ -164,22 +141,8 @@ export function ServerPing({
   const pingClass =
     pingState === "unknown" ? "text-muted" : pingState === "poor" ? "text-danger" : pingState === "fair" ? "text-warn" : "text-success";
   const text = unknown ? "—" : String(server.ping);
-  const showUnit = (options?.showUnit as boolean | undefined) ?? contextName === "selection";
+  const showUnit = options?.showUnit === true;
   const showCaption = options?.showCaption !== false;
-
-  if (contextName === "selection") {
-    return (
-      <div data-el="server.ping" data-state={states} className={className} style={style}>
-        <div data-part="label" className="text-[10px] text-muted uppercase font-bold tracking-wider mb-1">
-          PING
-        </div>
-        <div className={cn("text-base font-bold tabular-nums leading-none", pingClass)}>
-          <span data-part="value">{text}</span>
-          {showUnit && !unknown && <span data-part="unit" className="text-xs font-normal text-muted"> ms</span>}
-        </div>
-      </div>
-    );
-  }
 
   return (
     <span
@@ -215,7 +178,6 @@ export function ServerGameTime({
   className?: string;
   style?: CSSProperties;
 }) {
-  const { contextName } = useElementContext();
   const server = useServerSubject();
   if (!server) return null;
 
@@ -245,17 +207,6 @@ export function ServerGameTime({
   nodes.push(<span key="time" data-part="time">{gt.time}</span>);
   if (showMultiplier && gt.multiplier) nodes.push(<span key="mult" data-part="multiplier">· {gt.multiplier}</span>);
   const content = joinParts(nodes);
-
-  if (contextName === "selection") {
-    return (
-      <div data-el="server.gameTime" data-state={states} className={className} style={style} title={title}>
-        <div data-part="label" className="text-[10px] text-muted uppercase font-bold tracking-wider mb-1">
-          TIME
-        </div>
-        <div className="text-base font-bold tabular-nums leading-none">{content}</div>
-      </div>
-    );
-  }
 
   return (
     <span data-el="server.gameTime" data-state={states} className={className} style={style} title={title}>
@@ -336,7 +287,6 @@ export function ServerFavourite({
   className?: string;
   style?: CSSProperties;
 }) {
-  const { contextName } = useElementContext();
   const server = useServerSubject();
   const toggleFavouriteLocal = useServerStore((s) => s.toggleFavourite);
   if (!server) return null;
@@ -374,19 +324,12 @@ export function ServerFavourite({
       style={style}
     >
       <span data-part="icon">
-        <OptionIcon
-          icon={options?.icon}
-          fallback={Star}
-          className={cn(contextName === "selection" ? "size-4" : "size-3.5", on && "fill-current")}
-        />
+        <OptionIcon icon={options?.icon} fallback={Star} className={cn("size-3.5", on && "fill-current")} />
       </span>
       {showLabel && <span data-part="label">{label}</span>}
     </button>
   );
 }
-
-// verifyAndJoin always joins once downloads finish (the setting went in v2.2.0).
-const AUTO_JOIN_AFTER_DOWNLOAD = true;
 
 function ServerJoinIdleButton({
   server,
@@ -481,57 +424,6 @@ function ServerJoinIdleFetched({
   );
 }
 
-/** The selection idle-join form only, so `useSelectionReadiness` never runs per row. */
-function ServerJoinIdleSelection({
-  server,
-  disabled,
-  showIcon,
-  showLabel,
-  optionIcon,
-  onClick,
-  className,
-  style,
-}: {
-  server: Server;
-  disabled: boolean;
-  showIcon: boolean;
-  showLabel: boolean;
-  optionIcon: unknown;
-  onClick: (e: MouseEvent) => void;
-  className?: string;
-  style?: CSSProperties;
-}) {
-  const { selectedServer } = useElementContext();
-  const { readiness } = useSelectionReadiness(server);
-
-  let missingCount = 0;
-  let arrivingCount = 0;
-  if (selectedServer?.addr === server.addr && readiness) {
-    missingCount = readiness.mods.filter((m) => m.state === "not_subscribed").length;
-    arrivingCount = readiness.mods.filter(
-      (m) => m.state === "downloading" || m.state === "needs_update" || m.state === "not_installed",
-    ).length;
-  }
-
-  const idle = joinAction({ missingCount, arrivingCount, autoJoinAfterDownload: AUTO_JOIN_AFTER_DOWNLOAD });
-
-  return (
-    <ServerJoinIdleButton
-      server={server}
-      label={idle.label}
-      icon={idle.icon}
-      optionIcon={optionIcon}
-      needsMods={missingCount + arrivingCount > 0}
-      disabled={disabled}
-      showIcon={showIcon}
-      showLabel={showLabel}
-      onClick={onClick}
-      className={className}
-      style={style}
-    />
-  );
-}
-
 export function ServerJoin({
   options,
   className,
@@ -541,7 +433,6 @@ export function ServerJoin({
   className?: string;
   style?: CSSProperties;
 }) {
-  const { contextName } = useElementContext();
   const fetchesReadiness = useFetchesReadiness();
   const server = useServerSubject();
   const { op, dayzUp, verifyAndJoin } = useServerActions();
@@ -551,7 +442,6 @@ export function ServerJoin({
   const wording = (options?.wording as string) ?? "join";
   const display = (options?.display as string) ?? "iconLabel";
   const isFixAndJoin = wording === "fixAndJoin";
-  const isSelectionJoin = contextName === "selection" && wording === "join";
 
   const activeOp = op && op.addr === server.addr ? op : null;
   const showIcon = display === "iconLabel" || display === "icon";
@@ -561,23 +451,6 @@ export function ServerJoin({
     e.stopPropagation();
     void verifyAndJoin(server);
   };
-
-  if (contextName === "selection" && isFixAndJoin) {
-    return (
-      <button
-        type="button"
-        data-el="server.join"
-        data-state={activeOp ? "busy" : undefined}
-        disabled={activeOp !== null}
-        onClick={handleClick}
-        aria-label="Fix and join"
-        className={className ?? "flex items-center justify-between w-full bg-accent px-4 py-2.5 font-bold text-bg uppercase tracking-wider transition-colors hover:brightness-110"}
-        style={style}
-      >
-        <span data-part="label">{activeOp ? phaseLabel(activeOp) : "Fix and join"}</span>
-      </button>
-    );
-  }
 
   if (activeOp) {
     return (
@@ -630,21 +503,6 @@ export function ServerJoin({
       <ServerJoinIdleFetched
         server={server}
         pending={pending}
-        disabled={disabled}
-        showIcon={showIcon}
-        showLabel={showLabel}
-        optionIcon={options?.icon}
-        onClick={handleClick}
-        className={className}
-        style={style}
-      />
-    );
-  }
-
-  if (isSelectionJoin) {
-    return (
-      <ServerJoinIdleSelection
-        server={server}
         disabled={disabled}
         showIcon={showIcon}
         showLabel={showLabel}
@@ -1010,27 +868,12 @@ export function ServerAddress({
   className?: string;
   style?: CSSProperties;
 }) {
-  const { contextName } = useElementContext();
   const server = useServerSubject();
   if (!server) return null;
 
   // `addr` already carries the query port, so appending one built a three-part address.
   const showGamePort = options?.showGamePort === true;
   const states = serverStates(!server.online);
-
-  if (contextName === "selection") {
-    return (
-      <div
-        data-el="server.address"
-        data-state={states}
-        className={className ?? "mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted font-mono-data mb-3"}
-        style={style}
-      >
-        <span data-part="address">{server.addr}</span>
-        {showGamePort && server.game_port > 0 && <span data-part="gamePort">game port {server.game_port}</span>}
-      </div>
-    );
-  }
 
   return (
     <span data-el="server.address" data-state={states} className={className ?? "block truncate font-mono-data text-muted"} style={style}>
@@ -1081,7 +924,6 @@ export function ServerModCount({
   className?: string;
   style?: CSSProperties;
 }) {
-  const { contextName } = useElementContext();
   const server = useServerSubject();
   if (!server) return null;
 
@@ -1089,20 +931,6 @@ export function ServerModCount({
   const showCaption = options?.showCaption !== false;
   const unprobed = server.mod_count === null && server.modded;
   const title = unprobed ? "This server declares mods. The mod list is fetched on refresh." : undefined;
-
-  if (contextName === "selection") {
-    const value = server.mod_count !== null ? String(server.mod_count) : server.modded ? "?" : "0";
-    return (
-      <div data-el="server.modCount" data-state={serverStates(offline, unprobed && "unprobed")} className={className} style={style} title={title}>
-        <div data-part="label" className="text-[10px] text-muted uppercase font-bold tracking-wider mb-1">
-          MODS
-        </div>
-        <div data-part="value" className="text-base font-bold tabular-nums leading-none">
-          {value}
-        </div>
-      </div>
-    );
-  }
 
   let text: string;
   let state: string | false;

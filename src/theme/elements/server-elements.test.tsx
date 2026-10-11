@@ -7,11 +7,9 @@ import { formatBytes, formatGameTime, gameTimeParts } from "@/lib/utils";
 import { useServerStore } from "@/stores/server-store";
 import { useRowProbeStore } from "./row-probe-store";
 import { useThemeStore } from "../theme-store";
-import { REGISTRY } from "../registry";
 import type { ThemeFile } from "@/types/theme";
 import { ElementContextProvider, type ElementContextValue } from "./context";
 import {
-  ServerAddress,
   ServerCancel,
   ServerCheckMods,
   ServerCopyAddress,
@@ -259,36 +257,17 @@ describe("ServerJoin", () => {
     expect(html.includes("needsMods")).toBe(c.needsMods);
   });
 
-  it("selection idle label switches via joinAction based on the selected server's readiness", async () => {
-    await setReadiness(readiness([mod({ state: "not_subscribed" })]), false);
-    const html = await render({
-      subjectContext: { kind: "server", data: server },
-      contextName: "selection",
-      selectedServer: server,
-    });
-    expect(html).toContain(">Subscribe &amp; join<");
-    expect(html).toContain("needsMods");
-  });
-
-  it("selection idle label ignores readiness for a server that is not selected", async () => {
-    await setReadiness(readiness([mod({ state: "not_subscribed" })]), false);
-    const html = await render({
-      subjectContext: { kind: "server", data: server },
-      contextName: "selection",
-      selectedServer: otherServer,
-    });
-    expect(html).toContain(">Join<");
-  });
-
-  it("renders no download size text on the fix-and-join button", async () => {
-    await setReadiness(readiness([mod({ state: "not_installed", size_bytes: 2_000_000 })]), false);
+  it.each([
+    { readiness: "all mods ready", mods: [mod({ state: "ready" })], label: "Join" },
+    { readiness: "a mod needing an update", mods: [mod({ state: "needs_update" })], label: "Fix and join" },
+  ])("selection join reads $label when $readiness", async ({ mods, label }) => {
+    await setReadiness(readiness(mods), false);
+    useServerStore.setState({ modPending: {} });
     const html = await render(
       { subjectContext: { kind: "server", data: server }, contextName: "selection", selectedServer: server },
       { wording: "fixAndJoin" },
     );
-    expect(html).not.toContain('data-part="sublabel"');
-    expect(html).not.toContain(formatBytes(2_000_000));
-    expect(html).not.toContain("first");
+    expect(html).toContain(`>${label}</span>`);
   });
 
   it.each([
@@ -389,17 +368,7 @@ describe("ServerPing", () => {
     expect(html).toContain('data-part="value">—</span>');
   });
 
-  it("selection form defaults showUnit to true", async () => {
-    const html = renderNode(<ServerPing />, {
-      subjectContext: { kind: "server", data: withPing(40) },
-      contextName: "selection",
-    });
-    expect(html).toContain('data-part="unit"');
-    expect(html).toContain(">40</span>");
-    expect(html).toContain("ms</span>");
-  });
-
-  it("row form hides the unit by default", async () => {
+  it("hides the unit by default", async () => {
     const html = renderNode(<ServerPing />, { subjectContext: { kind: "server", data: withPing(40) } });
     expect(html).not.toContain('data-part="unit"');
   });
@@ -427,16 +396,6 @@ describe("ServerModCount", () => {
     const states = html.match(/data-state="([^"]*)"/)?.[1].split(" ");
     expect(states).toEqual(expect.arrayContaining(["none", "vanilla"]));
     expect(html).toContain('data-part="value">—</span>');
-  });
-
-  it("selection form shows 0 for a vanilla server instead of —", async () => {
-    const vanilla: Server = { ...server, mod_count: null, modded: false };
-    const html = renderNode(<ServerModCount />, {
-      subjectContext: { kind: "server", data: vanilla },
-      contextName: "selection",
-    });
-    expect(html).toContain('data-part="value"');
-    expect(html).toContain(">0<");
   });
 });
 
@@ -589,26 +548,6 @@ describe("ServerVersion", () => {
   });
 });
 
-describe("ServerAddress selection form", () => {
-  it("renders address and gamePort parts without a DayZ version suffix", async () => {
-    const html = renderNode(<ServerAddress options={{ showGamePort: true }} />, {
-      subjectContext: { kind: "server", data: server },
-      contextName: "selection",
-    });
-    expect(html).toContain(`data-part="address">${server.addr}</span>`);
-    expect(html).toContain(`data-part="gamePort">game port ${server.game_port}</span>`);
-    expect(html).not.toContain("DayZ");
-  });
-
-  it("omits the gamePort part when showGamePort is false", async () => {
-    const html = renderNode(<ServerAddress />, {
-      subjectContext: { kind: "server", data: server },
-      contextName: "selection",
-    });
-    expect(html).not.toContain('data-part="gamePort"');
-  });
-});
-
 describe("offline state on server elements", () => {
   it("adds offline to server.name, server.region and server.modCount for an offline server", async () => {
     const html = renderNode(
@@ -712,29 +651,6 @@ describe("ServerMenu", () => {
     mockServerActions.op = null;
     expect(captured["trigger"].disabled).toBe(true);
     expect(html).toContain('data-state="disabled"');
-  });
-});
-
-describe("selection forms emit only documented parts", () => {
-  const cases: [string, ReactNode][] = [
-    ["server.players", <ServerPlayers options={{}} />],
-    ["server.ping", <ServerPing options={{}} />],
-    ["server.gameTime", <ServerGameTime options={{}} />],
-    ["server.modCount", <ServerModCount options={{}} />],
-  ];
-
-  it("renders each part the registry lists for the element", () => {
-    for (const [id, node] of cases) {
-      const html = renderNode(node, {
-        subjectContext: { kind: "server", data: server },
-        contextName: "selection",
-      });
-      const parts = Array.from(html.matchAll(/data-part="([^"]+)"/g), (m) => m[1]);
-      expect(parts.length, id).toBeGreaterThan(0);
-      for (const part of parts) {
-        expect(REGISTRY.elements[id as keyof typeof REGISTRY.elements].parts, id).toContain(part);
-      }
-    }
   });
 });
 
