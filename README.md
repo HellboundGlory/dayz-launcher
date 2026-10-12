@@ -68,6 +68,12 @@ npx tauri build --debug
 same path, but a plain `cargo build` resolves the dev server URL instead of
 the bundled frontend, so the result opens on "localhost refused to connect."
 
+To run it with hot reload while you work:
+
+```bash
+npx tauri dev
+```
+
 To check the code without producing a binary:
 
 ```bash
@@ -79,8 +85,8 @@ npm test
 npm run lint
 ```
 
-These are exactly what CI runs on every push that touches more than `docs/` — see
-[`.github/workflows/check.yml`](.github/workflows/check.yml).
+CI runs these, plus the UI harness smoke check (`npm run harness:smoke`), on every
+push that touches more than `docs/` — see [`.github/workflows/check.yml`](.github/workflows/check.yml).
 
 ## Repository layout
 
@@ -89,6 +95,7 @@ These are exactly what CI runs on every push that touches more than `docs/` — 
 - `src/hooks/` — startup, refresh-loop, server-data, mod-list and backend-event hooks.
 - `src/stores/` — the launcher's client-side state.
 - `src/lib/` — Tauri IPC bindings, the updater and small helpers.
+- `src/types/` — shared TypeScript types for servers, filters and themes.
 - `src/theme/` — the theme engine: registry, tokens, CSS loading and settings schemas.
 - `src/theme/elements/` — the themed elements the layout renderer draws.
 - `src/theme/renderer/` — turns a theme's layout into React nodes.
@@ -108,10 +115,10 @@ These are exactly what CI runs on every push that touches more than `docs/` — 
 - `crates/tetra-indexer/` — the separate server-index backend, deployed from `deploy/`.
 - `tools/harness/` — headless screenshots and the smoke, visual and perf checks (see its README).
 - `tools/docs/` — the theme docs generator.
-- `docs/` — the website, deployed by GitHub Pages.
+- `docs/` — the website and the theme docs (`docs/docs/themes/`), deployed by GitHub Pages.
 - `deploy/` — the indexer container.
 - `index.html`, `splash.html`, `theme-guard.html` — the three window entries.
-- `.github/workflows/` — CI: the check suite, the indexer image, Pages and releases.
+- `.github/workflows/` — CI: the check suite and its shared Rust check, the indexer image, Pages and releases.
 
 It compiles and ships on both Windows and Linux — Windows-only code (Steam
 registry discovery, the `dzsa://` protocol handler on that platform) is

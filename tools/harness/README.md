@@ -86,9 +86,10 @@ try {
   `modal=` is reachable in the prod build too: `main.tsx` defines
   `window.__harness` before `App` loads.
 
-`npm run harness:smoke` exercises the driver end to end: prod build, then
-`theme=neutral` and `theme=builtin.tactical&scheme=light`, each asserting
-`[data-el="list.servers"]` renders.
+`npm run harness:smoke` exercises the driver end to end on the dev server:
+`theme=neutral` and `theme=builtin.tactical&scheme=light` each render
+`[data-el="list.servers"]`, and neither falls back to the default layout after a
+resize or with Settings open.
 
 ## Perf
 
@@ -149,7 +150,7 @@ Shots run in parallel (`HARNESS_JOBS`, default one per core up to 12), and each
 page is shot once its DOM has stopped changing and its images have decoded, so
 the full check takes about 25 s.
 
-Two things worth knowing about the matrix:
+Worth knowing about the matrix:
 
 - The prod build drives the whole matrix, `modal=` included: `App` exposes the
   modal openers whenever `window.__harness` exists, which `main.tsx` defines.
