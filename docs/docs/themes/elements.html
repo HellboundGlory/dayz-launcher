@@ -206,7 +206,7 @@
   <div class="md"><p>A notice renders only while its condition holds, and the visibility check measures it only while it is showing. Beyond these elements, three more notices are launcher-owned and never placed by a theme: the theme-fallback notice, the incompatible-theme notice and the Activation Safety Window.</p></div>
   <section class="el" id="el-notice-launch" data-el="notice.launch">
   <h3><code>notice.launch</code> <span class="el-kind">notice</span> <span class="el-since">SINCE 2.1</span></h3>
-  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Parts</dt><dd><code>tag</code>, <code>server</code>, <code>message</code>, <code>dismiss</code> · States: <code>warning</code>, <code>error</code>, <code>refused</code></dd></dl>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Parts</dt><dd><code>tag</code>, <code>server</code>, <code>message</code>, <code>dismiss</code> · States: <code>warning</code>, <code>error</code>, <code>refused</code>, <code>success</code></dd></dl>
   <div class="md el-notes"><p>A bar naming the server last acted on, carrying the same join warning or launch refusal as that server's <code>server.actionNotice</code>. A successful launch never shows here. Dismissing it clears the notice for <code>server.actionNotice</code> too. A list row never shows <code>server.actionNotice</code>; this bar is where a row's join result appears. A shell that places neither gets the bar drawn above it by the launcher.</p></div>
 </section>
   <section class="el" id="el-notice-update" data-el="notice.update">

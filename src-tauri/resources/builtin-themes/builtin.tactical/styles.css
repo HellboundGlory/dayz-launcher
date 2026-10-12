@@ -327,6 +327,15 @@
   color: var(--danger);
 }
 
+[data-el="notice.launch"][data-state~="success"] {
+  border-bottom-color: var(--success-line);
+  background-color: var(--success-soft);
+}
+
+[data-el="notice.launch"][data-state~="success"] [data-part="tag"] {
+  color: var(--success);
+}
+
 [data-el="notice.launch"] [data-part="server"] {
   max-width: 280px;
   font-size: 11px;
