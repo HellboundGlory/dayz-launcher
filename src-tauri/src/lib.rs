@@ -26,6 +26,14 @@ pub use theme::validator;
 /// `start_minimised` can apply only to an OS-triggered launch.
 const AUTOSTART_FLAG: &str = "--autostart";
 
+/// Seconds since the Unix epoch, or 0 if the clock is before it.
+pub(crate) fn unix_now() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
 /// Whether this process was started by the OS startup entry rather than by hand.
 fn launched_by_os() -> bool {
     std::env::args().any(|arg| arg == AUTOSTART_FLAG)
@@ -139,7 +147,6 @@ pub fn run() {
             commands::server::get_server_counts,
             commands::server::registry_degraded,
             commands::server::discovery::discover_servers,
-            commands::server::probe::refresh_servers,
             commands::server::probe::refresh_visible_servers,
             commands::index::server_list_source,
             commands::steam::steam_init,
@@ -150,7 +157,6 @@ pub fn run() {
             commands::steam::steam_unsubscribe_mods,
             commands::launch::launch_game,
             commands::launch::verify_server_mods,
-            commands::launch::register_protocol_handler,
             protocol::take_pending_connect,
             commands::launch::discover_steam_paths,
             commands::launch::validate_dayz_path,
@@ -171,6 +177,7 @@ pub fn run() {
             commands::mods::update_subscribed_mods,
             commands::mods::open_mod_folder,
             commands::settings::get_settings,
+            commands::settings::take_settings_recovered,
             commands::settings::save_settings,
             commands::settings::set_ui_scale,
             commands::settings::open_data_folder,

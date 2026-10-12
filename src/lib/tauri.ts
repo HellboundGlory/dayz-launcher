@@ -8,7 +8,6 @@ import type {
 } from "@/types/server";
 export type { ServerModReadiness, ModReadinessEntry, UniqueModsSummary, UnsubscribeOutcome };
 import type {
-  ActivationStatus,
   LegacyTheme,
   ManifestOverrides,
   ThemeFile,
@@ -84,13 +83,6 @@ export async function toggleFavourite(
   return invoke<void>("toggle_favourite", { addr, queryPort, favourite });
 }
 
-/** Bulk A2S refresh over the backend's own priority window; unlike {@link refreshVisibleServers}, a miss never marks a server offline. */
-export async function refreshServers(filter?: FilterParams): Promise<void> {
-  return invoke<void>("refresh_servers", {
-    filterParams: filter ?? null,
-  });
-}
-
 export interface AddrPort {
   addr: string;
   query_port: number;
@@ -99,7 +91,7 @@ export interface AddrPort {
 /** Who asked for a refresh, echoed back on `refresh-complete`. */
 export type RefreshScope = "visible" | "row";
 
-/** A2S-refreshes exactly the given servers; a miss is written back as `online: false`, unlike {@link refreshServers}. `scope` tells the completion event apart from a full pass so it doesn't stomp the spinner/timestamp. */
+/** A2S-refreshes exactly the given servers; a miss is written back as `online: false`. `scope` tells the completion event apart from a full pass so it doesn't stomp the spinner/timestamp. */
 export async function refreshVisibleServers(
   addrs: AddrPort[],
   scope: RefreshScope = "visible",
@@ -303,6 +295,11 @@ export async function getSettings(): Promise<AppSettingsDto> {
   return invoke<AppSettingsDto>("get_settings");
 }
 
+/** True once if the settings file was damaged and defaults were loaded instead. */
+export async function takeSettingsRecovered(): Promise<boolean> {
+  return invoke<boolean>("take_settings_recovered");
+}
+
 /** Applies the interface scale without persisting — the slider fires per pixel of drag, and the store's debounced save handles the actual write. */
 export async function setUiScale(scale: number): Promise<void> {
   return invoke<void>("set_ui_scale", { scale });
@@ -411,7 +408,7 @@ export async function unsubscribeUniqueMods(
 }
 
 export async function copyAddress(addr: string, gamePort: number): Promise<void> {
-  // The query port is the last `:`-separated field, so an IPv6 host survives.
+  // Swap the query port, the last `:` field, for the game port.
   const host = addr.includes(":") ? addr.slice(0, addr.lastIndexOf(":")) : addr;
   await navigator.clipboard.writeText(`${host}:${gamePort}`);
 }
@@ -722,18 +719,6 @@ export async function armActivation(
   return invoke<void>("arm_activation", { newId, deleteOnRevert });
 }
 
-export async function confirmActivation(): Promise<void> {
-  return invoke<void>("confirm_activation");
-}
-
-/** Works on an expired activation too — this is also what the timeout path calls. */
-export async function revertActivation(): Promise<void> {
-  return invoke<void>("revert_activation");
-}
-
-export async function getActivationStatus(): Promise<ActivationStatus | null> {
-  return invoke<ActivationStatus | null>("get_activation_status");
-}
 
 /** Validate a theme `.zip` and stage it for confirmation; nothing is installed yet. */
 export async function importThemePreview(zipPath: string): Promise<ThemeImportPreview> {

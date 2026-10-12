@@ -46,13 +46,6 @@ fn write_cache(path: &std::path::Path, cache: &ModsCache) {
     let _ = crate::atomic_write::write_atomically(path, json.as_bytes());
 }
 
-fn now() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
-}
-
 /// Clone the live Steam handle out of the state, or `None` when Steam is not
 /// connected.
 fn live_steam(state: &AppState) -> Option<Arc<tetra_steam::SteamHandle>> {
@@ -95,7 +88,7 @@ pub async fn get_subscribed_mods(
     };
 
     // Cheap check that the subscribed set hasn't drifted before trusting the snapshot.
-    if !force_details && now() - cached.fetched_at < CACHE_STALE_AFTER_SECS {
+    if !force_details && crate::unix_now() - cached.fetched_at < CACHE_STALE_AFTER_SECS {
         let steam_ids = Arc::clone(&steam);
         let checked = tokio::task::spawn_blocking(move || steam_ids.subscribed_ids())
             .await
@@ -145,7 +138,7 @@ pub async fn get_subscribed_mods(
     write_cache(
         &path,
         &ModsCache {
-            fetched_at: now(),
+            fetched_at: crate::unix_now(),
             rows: rows.clone(),
         },
     );

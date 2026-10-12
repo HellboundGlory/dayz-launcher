@@ -204,7 +204,8 @@ async fn poll_once(
                     crate::log::log_line(app, "discord", "process confirmed running");
                 }
                 let gave_up_waiting = !*confirmed_running
-                    && unix_now().saturating_sub(info.started_at) > CONFIRM_RUNNING_TIMEOUT_SECS;
+                    && crate::unix_now().saturating_sub(info.started_at)
+                        > CONFIRM_RUNNING_TIMEOUT_SECS;
                 if (!running && *confirmed_running) || gave_up_waiting {
                     if gave_up_waiting {
                         crate::log::log_line(
@@ -247,12 +248,4 @@ async fn poll_once(
         };
         handle.set_idle(count);
     }
-}
-
-/// Current Unix time in seconds. Falls back to `0` on a clock error.
-fn unix_now() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }

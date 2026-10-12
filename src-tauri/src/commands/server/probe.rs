@@ -3,10 +3,9 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tauri::{Emitter, Manager, State};
 use tetra_net::Prober;
-use tetra_registry::filter::{SortDir, SortKey};
 use tetra_registry::rows::ServerKey;
 
-use super::{filter_from_params, prober, rules_fanout, server_key, FilterParams};
+use super::{prober, rules_fanout, server_key};
 
 /// How many servers one refresh probes, independent of the table's display limit.
 const PROBE_WINDOW: usize = 5000;
@@ -161,13 +160,16 @@ pub(super) async fn probe_info(
     }
 }
 
+/// A rules probe's server, whether its mod list was stored, and the list (none on timeout).
+type RulesResult = (
+    ServerKey,
+    Result<(), String>,
+    Option<Vec<tetra_core::a2s::dayz::ServerMod>>,
+);
+
 /// Issue one rules probe as a task on `tasks`.
 fn spawn_rules_task(
-    tasks: &mut tokio::task::JoinSet<(
-        ServerKey,
-        bool,
-        Option<Vec<tetra_core::a2s::dayz::ServerMod>>,
-    )>,
+    tasks: &mut tokio::task::JoinSet<RulesResult>,
     prober: &Prober,
     writer: &tetra_registry::Writer,
     key: ServerKey,
@@ -181,13 +183,13 @@ fn spawn_rules_task(
             // declared nothing" as mod_count = 0, which the UI shows
             // differently from never-probed (NULL).
             Ok(rules) => {
-                let ok = writer
+                let written = writer
                     .upsert_server_mods(key, rules.mods.clone())
                     .await
-                    .is_ok();
-                (key, ok, Some(rules.mods))
+                    .map_err(|e| e.to_string());
+                (key, written, Some(rules.mods))
             }
-            Err(_) => (key, false, None),
+            Err(_) => (key, Ok(()), None),
         }
     });
 }
@@ -206,6 +208,8 @@ async fn probe_rules(
     let mut mods_updated = 0usize;
     let mut mod_lists = Vec::new();
     let mut cancelled = 0usize;
+    let mut write_failures = 0usize;
+    let mut write_error = None;
 
     let mut pending = candidates.into_iter();
     let mut tasks = tokio::task::JoinSet::new();
@@ -216,12 +220,18 @@ async fn probe_rules(
     }
 
     while let Some(joined) = tasks.join_next().await {
-        if let Ok((key, ok, mods)) = joined {
-            if ok {
-                mods_updated += 1;
-            }
+        if let Ok((key, written, mods)) = joined {
             match mods {
-                Some(m) => mod_lists.push((key, m)),
+                Some(m) => {
+                    match written {
+                        Ok(()) => mods_updated += 1,
+                        Err(e) => {
+                            write_failures += 1;
+                            write_error = Some(e);
+                        }
+                    }
+                    mod_lists.push((key, m));
+                }
                 None => cancelled += 1,
             }
         }
@@ -230,70 +240,13 @@ async fn probe_rules(
         }
     }
 
-    (mods_updated, mod_lists, cancelled)
-}
-
-/// A2S-refresh servers using the active frontend filter.
-///
-/// This is the *bulk* refresh, backing the initial post-discovery load and
-/// the DISCOVER button. The REFRESH button calls `refresh_visible_servers`
-/// instead.
-#[tauri::command]
-pub async fn refresh_servers(
-    app: tauri::AppHandle,
-    state: State<'_, AppState>,
-    window: tauri::Window,
-    filter_params: Option<FilterParams>,
-) -> Result<(), String> {
-    let filter = filter_params.map(filter_from_params).unwrap_or_default();
-
-    let addrs = {
-        let guard = state.registry.lock().map_err(|e| e.to_string())?;
-        let registry = guard.as_ref().ok_or("Registry not initialized")?;
-
-        let reader = registry.reader().map_err(|e| e.to_string())?;
-        let rows = reader
-            .list(
-                &filter,
-                SortKey::RefreshPriority,
-                SortDir::Desc,
-                PROBE_WINDOW,
-            )
-            .map_err(|e| e.to_string())?;
-
-        rows.iter()
-            .map(|r| SocketAddr::from((r.key.ip, r.key.query_port)))
-            .collect::<Vec<_>>()
-    };
-
-    let writer = {
-        let guard = state.registry.lock().map_err(|e| e.to_string())?;
-        let registry = guard.as_ref().ok_or("Registry not initialized")?;
-        registry.writer()
-    };
-
-    let prober = prober(&state)?;
-    let info = probe_info(&prober, addrs, &writer, &window, false).await;
-    let (mods_updated, _mod_lists, mods_cancelled) =
-        probe_rules(&prober, info.rules_candidates, &writer).await;
-    if mods_cancelled > 0 {
-        crate::log::log_line(
-            &app,
+    if let Some(e) = write_error {
+        crate::log::line(
             "refresh",
-            &format!("refresh_servers: {mods_cancelled} rules probes did not answer in time"),
+            &format!("storing mod lists failed for {write_failures} servers: {e}"),
         );
     }
-
-    let _ = window.emit(
-        "refresh-complete",
-        serde_json::json!({
-            "ok": info.refreshed,
-            "failed": info.failed,
-            "mods_updated": mods_updated,
-            "mods_cancelled": mods_cancelled,
-        }),
-    );
-    Ok(())
+    (mods_updated, mod_lists, cancelled)
 }
 
 /// One server the frontend wants re-probed, identified the same way the
@@ -316,10 +269,10 @@ pub struct ModsPendingEntry {
 /// currently filtered/loaded list, not just what the virtualizer has
 /// mounted. This is what the REFRESH button calls.
 ///
-/// Unlike `refresh_servers`, a non-answer here can mean the server is really
-/// offline (every address is one the user has loaded), subject to the same
-/// corroboration check as `probe_info`. Also re-asks Steam whether any
-/// declared mod has an update pending.
+/// A non-answer here can mean the server is really offline (every address is
+/// one the user has loaded), subject to the same corroboration check as
+/// `probe_info`. Also re-asks Steam whether any declared mod has an update
+/// pending.
 #[tauri::command]
 pub async fn refresh_visible_servers(
     app: tauri::AppHandle,

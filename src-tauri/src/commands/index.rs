@@ -109,7 +109,7 @@ pub async fn try_index(
         Ok(h) => h,
         Err(e) => return decline(app, state, &format!("health check failed: {e}")),
     };
-    if !health.is_fresh(now(), MAX_SNAPSHOT_AGE_SECS) {
+    if !health.is_fresh(crate::unix_now(), MAX_SNAPSHOT_AGE_SECS) {
         return decline(app, state, &stale_reason(&health));
     }
 
@@ -210,7 +210,7 @@ fn succeed(
 fn stale_reason(health: &Health) -> String {
     match health.snapshot_generated_at {
         Some(t) => {
-            let n = now();
+            let n = crate::unix_now();
             if t > n {
                 format!("snapshot is stamped {}s in the future", t - n)
             } else {
@@ -222,13 +222,6 @@ fn stale_reason(health: &Health) -> String {
         }
         None => "backend has never built a snapshot".to_string(),
     }
-}
-
-fn now() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }
 
 /// What one ingest wrote.
@@ -638,13 +631,13 @@ mod tests {
     /// A stamp ahead of the local clock must not be shown as a negative age.
     #[test]
     fn a_snapshot_stamped_in_the_future_is_reported_as_such() {
-        let reason = stale_reason(&health_at(Some(now() + 3600)));
+        let reason = stale_reason(&health_at(Some(crate::unix_now() + 3600)));
         assert!(
             reason.contains("in the future"),
             "expected a future-stamp reason, got {reason:?}"
         );
 
-        let reason = stale_reason(&health_at(Some(now() - 100)));
+        let reason = stale_reason(&health_at(Some(crate::unix_now() - 100)));
         assert!(
             reason.contains("old"),
             "a past stamp still reads as an age, got {reason:?}"
