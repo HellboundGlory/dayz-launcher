@@ -478,3 +478,56 @@ async fn favouriting_or_marking_played_an_unknown_key_reports_zero_affected_rows
     );
     assert_eq!(writer.mark_played(key()).await.expect("mark played"), 1);
 }
+
+#[tokio::test]
+async fn an_unchanged_mod_list_keeps_resolved_names_and_still_learns_new_ones() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let writer = registry.writer();
+    writer.upsert_servers(vec![live_row()]).await.expect("seed");
+    let mods = |list: &[(u64, &str)]| {
+        list.iter()
+            .map(|&(workshop_id, name)| ServerMod {
+                workshop_id,
+                name: name.into(),
+            })
+            .collect::<Vec<_>>()
+    };
+    let names = || -> Vec<String> {
+        registry
+            .reader()
+            .expect("reader")
+            .mods_for(key())
+            .expect("mods")
+            .into_iter()
+            .map(|m| m.name)
+            .collect()
+    };
+
+    writer
+        .upsert_server_mods(key(), mods(&[(1, "Expansion")]))
+        .await
+        .expect("named");
+    writer
+        .upsert_server_mods(key(), mods(&[(1, "")]))
+        .await
+        .expect("blank pull");
+    assert_eq!(
+        names(),
+        ["Expansion"],
+        "a blank incoming name must not clobber a resolved one"
+    );
+
+    writer
+        .upsert_server_mods(key(), mods(&[(1, ""), (2, "")]))
+        .await
+        .expect("new list, unnamed");
+    writer
+        .upsert_server_mods(key(), mods(&[(1, "Expansion"), (2, "Core")]))
+        .await
+        .expect("learned");
+    assert_eq!(
+        names(),
+        ["Expansion", "Core"],
+        "stored blank names are replaced when the pull has them"
+    );
+}

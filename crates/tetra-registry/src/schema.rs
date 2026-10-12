@@ -136,8 +136,9 @@ CREATE INDEX idx_servers_last_played ON servers(last_played);
 CREATE INDEX idx_server_mods_workshop ON server_mods(workshop_id);
 "#;
 
-/// `online` is written only by a targeted A2S refresh, never the upsert guard. Defaults to `1` —
-/// a server only ever discovered through Steam hasn't been shown to be down.
+/// `online` is written by a targeted A2S refresh and by the index pull, which carries the backend's
+/// verdict; the upsert guard never touches it. Defaults to `1` — a server only ever discovered
+/// through Steam hasn't been shown to be down.
 const V2: &str = r#"
 ALTER TABLE servers ADD COLUMN online INTEGER NOT NULL DEFAULT 1;
 "#;

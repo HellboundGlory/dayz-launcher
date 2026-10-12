@@ -45,6 +45,8 @@ pub struct IndexSession {
     pub retry_at: Option<Instant>,
     /// Which source last served a complete list.
     pub last_source: Option<ListSource>,
+    /// Snapshot stamp and server count of the last complete ingest.
+    pub last_ingested: Option<(i64, usize)>,
 }
 
 /// What the frontend's source indicator reads.
@@ -111,11 +113,26 @@ pub async fn try_index(
         return decline(app, state, &stale_reason(&health));
     }
 
+    // The backend rebuilds its snapshot on a full pull; the same stamp means
+    // this list is already in the registry and there is nothing to fetch.
+    if let Some((stamp, count)) = state.index.lock().ok().and_then(|s| s.last_ingested) {
+        if health.snapshot_generated_at == Some(stamp) {
+            crate::log::log_line_verbose(
+                app,
+                "index",
+                &format!("try_index: snapshot {stamp} is already stored, {count} servers"),
+            );
+            succeed(state, window, count, 0, None);
+            return Some(count);
+        }
+    }
+
     let snapshot = match client.snapshot().await {
         Ok(snapshot) => snapshot,
         Err(e) => return decline(app, state, &format!("fetch failed: {e}")),
     };
 
+    let stamp = snapshot.generated_at;
     let listed = snapshot.servers.len();
     let ingested = match ingest(
         writer,
@@ -135,7 +152,8 @@ pub async fn try_index(
     };
 
     let ms = started.elapsed().as_millis();
-    succeed(state, window, ingested.servers, ms);
+    let stored = ingested.complete.then_some((stamp, ingested.servers));
+    succeed(state, window, ingested.servers, ms, stored);
     crate::log::log_line(
         app,
         "index",
@@ -170,11 +188,21 @@ fn decline(app: &tauri::AppHandle, state: &State<'_, AppState>, reason: &str) ->
     None
 }
 
-fn succeed(state: &State<'_, AppState>, window: &tauri::Window, servers: usize, ms: u128) {
+/// `ingested` is the stamp and count of a complete ingest; `None` keeps the stored one.
+fn succeed(
+    state: &State<'_, AppState>,
+    window: &tauri::Window,
+    servers: usize,
+    ms: u128,
+    ingested: Option<(i64, usize)>,
+) {
     if let Ok(mut session) = state.index.lock() {
         session.failures = 0;
         session.retry_at = None;
         session.last_source = Some(ListSource::Index);
+        if ingested.is_some() {
+            session.last_ingested = ingested;
+        }
     }
     emit_source(window, ListSource::Index, servers, ms);
 }
@@ -210,6 +238,8 @@ pub struct Ingested {
     pub with_mods: usize,
     /// Entries dropped because their `addr` did not parse.
     pub skipped: usize,
+    /// False when a shutdown stopped the run part-way through.
+    pub complete: bool,
 }
 
 /// Write a snapshot into the registry, in batches.
@@ -234,12 +264,17 @@ where
     let mut out = Ingested::default();
     let mut rows: Vec<ServerRow> = Vec::with_capacity(SERVER_BATCH.min(servers.len()));
     let mut mods: Vec<(ServerKey, Vec<ServerMod>)> = Vec::new();
+    let mut verdicts: Vec<(ServerKey, bool)> = Vec::new();
 
     for entry in servers {
+        let verdict = entry.online;
         let Some((row, mod_ids)) = to_row(entry) else {
             out.skipped += 1;
             continue;
         };
+        if let Some(online) = verdict {
+            verdicts.push((row.key, online));
+        }
         // `None` means the backend never got an A2S_RULES answer, which must
         // leave a mod list this client probed itself alone.
         if let Some(ids) = mod_ids {
@@ -250,6 +285,7 @@ where
         if rows.len() >= SERVER_BATCH {
             // Mods reference their server row by foreign key, so the rows go first.
             out.servers += flush_rows(writer, &mut rows).await?;
+            flush_online(writer, &mut verdicts).await?;
             out.with_mods += flush_mods(writer, &mut mods).await?;
             progress(out.servers);
             if cancelled() {
@@ -259,9 +295,11 @@ where
     }
 
     out.servers += flush_rows(writer, &mut rows).await?;
+    flush_online(writer, &mut verdicts).await?;
     out.with_mods += flush_mods(writer, &mut mods).await?;
 
     progress(out.servers);
+    out.complete = true;
     Ok(out)
 }
 
@@ -300,6 +338,22 @@ async fn flush_mods(
             .map_err(|e| e.to_string())?;
     }
     Ok(total)
+}
+
+async fn flush_online(
+    writer: &Writer,
+    verdicts: &mut Vec<(ServerKey, bool)>,
+) -> Result<(), String> {
+    let (up, down): (Vec<_>, Vec<_>) = verdicts.drain(..).partition(|(_, online)| *online);
+    for (keys, online) in [(up, true), (down, false)] {
+        if !keys.is_empty() {
+            writer
+                .set_online(keys.into_iter().map(|(key, _)| key).collect(), online)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
 }
 
 /// `"ip:query_port"` — both halves required, IPv4 only, since that is what a
@@ -372,6 +426,7 @@ mod tests {
             description: None,
             mod_ids: None,
             last_responded: Some(1_700_000_000),
+            online: None,
         }
     }
 
@@ -532,6 +587,36 @@ mod tests {
             .expect("get")
             .expect("row");
         assert_eq!(row.ping_ms, 42);
+    }
+
+    /// The backend's own verdict travels with the snapshot; a backend too old
+    /// to carry one must leave whatever this client decided alone.
+    #[tokio::test]
+    async fn an_ingested_entry_applies_the_backends_online_flag() {
+        let registry = Registry::open_in_memory().expect("registry");
+        let writer = registry.writer();
+        let reader = registry.reader().expect("reader");
+
+        let online = || reader.get(KEY).expect("get").expect("row").online;
+        let mut down = entry("203.0.113.10:27016");
+        down.online = Some(false);
+        write(&writer, snapshot(vec![down], HashMap::new())).await;
+        assert!(!online());
+
+        write(
+            &writer,
+            snapshot(vec![entry("203.0.113.10:27016")], HashMap::new()),
+        )
+        .await;
+        assert!(
+            !online(),
+            "a backend that says nothing must not flip the flag"
+        );
+
+        let mut up = entry("203.0.113.10:27016");
+        up.online = Some(true);
+        write(&writer, snapshot(vec![up], HashMap::new())).await;
+        assert!(online());
     }
 
     fn health_at(stamp: Option<i64>) -> Health {
