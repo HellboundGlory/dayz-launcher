@@ -56,9 +56,8 @@ const MIN_BATCH_FOR_OFFLINE_CORROBORATION: usize = 8;
 /// rather than the server being down.
 const OFFLINE_CORROBORATION_THRESHOLD: f64 = 0.4;
 
-/// Servers probed for mods concurrently, independent of how long the backlog
-/// is. Kept within the prober's own in-flight limit (64..=1000) so a long
-/// mods backlog no longer queues twice as many waiters as there are permits.
+/// Servers probed for mods concurrently, however long the backlog: the
+/// prober's in-flight limit, clamped to 64..=1000.
 fn rules_fanout(prober: &Prober) -> usize {
     prober.config().max_in_flight.clamp(64, 1000)
 }

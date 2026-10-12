@@ -72,13 +72,13 @@ fn quoted_tokens(line: &str) -> Vec<String> {
     tokens
 }
 
-/// The library root that holds DayZ: the one with DayZ's app manifest, or
-/// failing that the one with a `common/DayZ` folder. The Steam root is
-/// checked before any declared library.
+/// The library root that holds DayZ: the one with both DayZ's app manifest and
+/// its `common/DayZ` folder, or failing that the one with the folder. The Steam
+/// root is checked before any declared library.
 fn dayz_library(steam_install: &std::path::Path, libraries: &[PathBuf]) -> Option<PathBuf> {
     let roots = || std::iter::once(steam_install).chain(libraries.iter().map(PathBuf::as_path));
     roots()
-        .find(|root| dayz_manifest(root).exists())
+        .find(|root| dayz_manifest(root).exists() && dayz_dir(root).exists())
         .or_else(|| roots().find(|root| dayz_dir(root).exists()))
         .map(std::path::Path::to_path_buf)
 }
@@ -291,5 +291,14 @@ mod tests {
             paths.workshop_dir,
             root.join("extra/steamapps/workshop/content/221100")
         );
+    }
+
+    #[test]
+    fn a_manifest_without_the_game_folder_does_not_pick_the_library() {
+        let root = ScratchDir::new();
+        touch(&root.join("steam"), "steamapps/appmanifest_221100.acf");
+        touch(&root.join("extra"), "steamapps/common/DayZ");
+        let paths = resolve_paths(&root.join("steam"), &[root.join("extra")]).unwrap();
+        assert_eq!(paths.dayz_install, root.join("extra/steamapps/common/DayZ"));
     }
 }
