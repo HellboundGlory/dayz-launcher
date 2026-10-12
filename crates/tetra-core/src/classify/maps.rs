@@ -7,6 +7,7 @@ const KNOWN: &[(&str, &str)] = &[
     ("enoch", "Livonia"),
     ("enochgloom", "Livonia (Gloom)"),
     ("sakhal", "Sakhal"),
+    ("nasdara", "Nasdara"),
     ("deerisle", "Deer Isle"),
     ("namalsk", "Namalsk"),
     ("banov", "Banov"),
@@ -48,6 +49,7 @@ mod tests {
         assert_eq!(display_name("ChernarusPlus"), "Chernarus");
         assert_eq!(display_name("enoch"), "Livonia");
         assert_eq!(display_name("sakhal"), "Sakhal");
+        assert_eq!(display_name("nasdara"), "Nasdara");
         assert_eq!(display_name("deerisle"), "Deer Isle");
         assert_eq!(display_name("namalsk"), "Namalsk");
     }
