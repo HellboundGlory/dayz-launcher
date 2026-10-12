@@ -49,6 +49,15 @@ const LAYOUTS = [
   "layout/lists/serverMods.json",
   "layout/lists/modServers.json",
   "layout/lists/modFilterResults.json",
+  "layout/popups/mapFilter.json",
+  "layout/popups/modsUnique.json",
+  "layout/popups/modsUnsubscribe.json",
+  "layout/popups/modsVerify.json",
+  "layout/popups/regionFilter.json",
+  "layout/popups/sort.json",
+  "layout/popups/tagsFilter.json",
+  "layout/popups/serverActions.json",
+  "layout/popups/serverLoad.json",
 ];
 
 async function readJson(path: string): Promise<unknown> {
@@ -77,12 +86,11 @@ async function themeFile(id: string) {
   return {
     ...manifest,
     tokens: await readJson(`${THEME_ROOT}/${id}/tokens.json`),
-    layout: null,
     // The real backend resolves the schema; no harness shot opens Dev Mode's
     // combination list, so it stays empty here.
     settings: schema ? { fields: schema.fields, combinations: [], capped: false } : null,
-    components: {},
     layouts,
+    fallbacks: [],
   };
 }
 

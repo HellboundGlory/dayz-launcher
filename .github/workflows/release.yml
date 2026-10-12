@@ -23,8 +23,17 @@ jobs:
     with:
       os: ubuntu-latest
 
+  # Fails a tag in seconds, not after the builds, when CHANGELOG.md has no section for it.
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check CHANGELOG.md has this version
+        shell: bash
+        run: grep -qE "^## ${GITHUB_REF_NAME//./\\.}([^0-9.]|$)" CHANGELOG.md
+
   release:
-    needs: check-windows
+    needs: [check-windows, changelog]
     runs-on: windows-latest
     permissions:
       contents: write
@@ -78,6 +87,7 @@ jobs:
           TETRA_INDEX_URL: ${{ vars.TETRA_INDEX_URL }}
         with:
           releaseId: ${{ steps.create.outputs.id }}
+          args: -- --locked
 
       # tauri-action only uploads the NSIS installer, so the portable build (raw
       # exe + steam_api64.dll, side by side in target/release) is packaged onto the same release.
@@ -170,7 +180,7 @@ jobs:
           TETRA_INDEX_URL: ${{ vars.TETRA_INDEX_URL }}
         with:
           releaseId: ${{ needs.release.outputs.id }}
-          args: --bundles appimage,deb,rpm
+          args: --bundles appimage,deb,rpm -- --locked
 
       # The in-app changelog reads `notes` from latest.json and the release page needs
       # a body, and the changelog lives in CHANGELOG.md rather than being duplicated
