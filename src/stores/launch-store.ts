@@ -39,9 +39,12 @@ export interface LaunchResult {
 
 /** A line under the buttons: either a coded problem or a plain result. Lives
  * here rather than in use-server-actions.ts to avoid an import cycle. */
+const SUCCESS_NOTICE_MS = 2000;
+let successTimer: ReturnType<typeof setTimeout> | undefined;
+
 export type Notice =
   | { kind: "code"; code: NoticeCode; extra?: string }
-  | { kind: "plain"; text: string };
+  | { kind: "plain"; text: string; tone?: "success" };
 
 /** The active notice, tagged with the server it belongs to. */
 export interface ServerNotice {
@@ -108,7 +111,16 @@ export const useLaunchStore = create<LaunchState>((set, get) => ({
 
   setResult: (result) => set({ result }),
 
-  setNotice: (addr, notice) => set({ notice: notice ? { addr, notice } : null }),
+  setNotice: (addr, notice) => {
+    clearTimeout(successTimer);
+    set({ notice: notice ? { addr, notice } : null });
+    // A success line says something went fine; it clears itself rather than waiting to be dismissed.
+    if (notice?.kind === "plain" && notice.tone === "success") {
+      successTimer = setTimeout(() => {
+        if (get().notice?.notice === notice) set({ notice: null });
+      }, SUCCESS_NOTICE_MS);
+    }
+  },
 
   setDayzRunning: (running) => {
     if (get().dayzRunning === running) return;

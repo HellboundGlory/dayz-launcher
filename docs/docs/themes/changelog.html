@@ -73,7 +73,7 @@
               <tr><td>has a settings field or option with an empty label, or a number default outside <code>min</code>..<code>max</code></td><td>Give every label 1 to 40 characters and keep defaults in range. Otherwise that field is left out of the settings form.</td></tr>
               <tr><td>ships <code>layout/popups/modActions.json</code> or <code>layout/popups/settingsNav.json</code></td><td>Delete them. Nothing ever loaded them, and import now refuses them.</td></tr>
               <tr><td>uses a text node <code>role</code> outside the list of ten</td><td>Use <code>display</code>, <code>heading</code>, <code>subheading</code>, <code>body</code>, <code>label</code>, <code>caption</code>, <code>micro</code>, <code>button</code>, <code>chip</code> or <code>data</code> (<code>LAY-03</code>).</td></tr>
-              <tr><td>has an SVG that links outside itself</td><td>Keep <code>href</code> to <code>#id</code> or embedded PNG, JPEG, WebP or GIF data. No <code>&lt;foreignObject&gt;</code> or stylesheet links.</td></tr>
+              <tr><td>has an SVG that links outside itself</td><td>Keep <code>href</code> to <code>#id</code> or embedded PNG, JPEG, WebP or GIF data. No <code>&lt;foreignObject&gt;</code>, stylesheet links, <code>@import</code>, outside <code>url(…)</code> or CSS escapes.</td></tr>
               <tr><td>has a CSS selector with a pseudo-class right after a space, such as <code>[data-el="x"] :hover</code></td><td>Anchor it: <code>[data-el="x"] [data-part="y"]:hover</code> or <code>&gt; :hover</code>. <code>:nth-child()</code> takes <code>An+B</code>, <code>odd</code> or <code>even</code> only. See <a href="/docs/themes/reference#css">CSS API</a>.</td></tr>
               <tr><td>declares a <code>--z-*</code> custom property</td><td>Remove it. The stacking order belongs to the launcher (<code>CSS-04</code>).</td></tr>
               <tr><td>cancels launcher spacing with <code>&gt; :not([hidden]) ~ :not([hidden])</code></td><td>Use <code>&gt; :not(:last-child)</code>. Launcher spacing now sits below or right of each child but the last.</td></tr>
@@ -86,6 +86,7 @@
               <tr><td>places <code>settings.sectionTitle</code>, <code>sectionDescription</code> or <code>sectionIcon</code> in a plain box</td><td>They are inline now. Add <code>display: block</code> or put them in a column stack if you want separate lines.</td></tr>
               <tr><td>sizes the <code>mod.thumbnail</code> placeholder as an icon</td><td>Check it: the placeholder is text now.</td></tr>
               <tr><td>ships <code>layout/popups/serverActions.json</code> or <code>serverLoad.json</code></td><td>Check them: the server menu now opens them instead of the launcher's own list.</td></tr>
+              <tr><td>styles <a href="/docs/themes/elements#el-notice-launch"><code>notice.launch</code></a></td><td>Add a <code>[data-state~="success"]</code> rule. The bar now also shows short "Done" messages, such as "Address copied", for two seconds.</td></tr>
               <tr><td>started from a starter template</td><td>Nothing breaks. New themes now start as a copy of Neutral or Tactical; the starters are gone.</td></tr>
             </tbody>
           </table>

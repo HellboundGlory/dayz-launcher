@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useLaunchStore } from "@/stores/launch-store";
 
 beforeEach(() => {
@@ -13,6 +13,22 @@ describe("notice", () => {
       addr: "1.2.3.4:2302",
       notice: { kind: "plain", text: "hi" },
     });
+  });
+
+  it("clears a success notice after two seconds, unless another notice replaced it", () => {
+    vi.useFakeTimers();
+    const { setNotice } = useLaunchStore.getState();
+    setNotice("1.2.3.4:2302", { kind: "plain", text: "Address copied", tone: "success" });
+    vi.advanceTimersByTime(1999);
+    expect(useLaunchStore.getState().notice).not.toBeNull();
+    vi.advanceTimersByTime(1);
+    expect(useLaunchStore.getState().notice).toBeNull();
+
+    setNotice("1.2.3.4:2302", { kind: "plain", text: "Address copied", tone: "success" });
+    setNotice("1.2.3.4:2302", { kind: "code", code: "E01" });
+    vi.advanceTimersByTime(2000);
+    expect(useLaunchStore.getState().notice?.notice).toEqual({ kind: "code", code: "E01" });
+    vi.useRealTimers();
   });
 
   it("begin() clears the notice, like it clears the result", () => {

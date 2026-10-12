@@ -526,7 +526,8 @@
       "states": [
         "warning",
         "error",
-        "refused"
+        "refused",
+        "success"
       ],
       "since": "2.1",
       "aliases": []

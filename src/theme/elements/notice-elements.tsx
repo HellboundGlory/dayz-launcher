@@ -274,7 +274,7 @@ function resolveActionNoticeContent(
         state: notice.code.startsWith("E") ? "error" : "warning",
       };
     }
-    return { kind: "plain", message: notice.text, state: "warning" };
+    return { kind: "plain", message: notice.text, state: notice.tone === "success" ? "success" : "warning" };
   }
 
   if (result && result.addr === addr && (result.message || result.error)) {
@@ -299,7 +299,8 @@ export function NoticeLaunch({ className, style }: { className?: string; style?:
   if (addr === null) return null;
 
   const content = resolveActionNoticeContent(addr, storeNotice, result);
-  if (!content || content.state === "success") return null;
+  // A successful launch has nothing to report; an action's success line does.
+  if (!content || (content.state === "success" && storeNotice?.addr !== addr)) return null;
 
   function dismiss() {
     const launch = useLaunchStore.getState();
@@ -308,7 +309,9 @@ export function NoticeLaunch({ className, style }: { className?: string; style?:
   }
 
   const isError = content.state === "error";
-  const tag = content.kind === "refusal" ? content.title : content.kind === "code" ? content.code : "JOIN";
+  const isSuccess = content.state === "success";
+  const tag =
+    content.kind === "refusal" ? content.title : content.kind === "code" ? content.code : isSuccess ? "Done" : "JOIN";
 
   return (
     <div
@@ -320,7 +323,7 @@ export function NoticeLaunch({ className, style }: { className?: string; style?:
         className ??
         cn(
           "flex items-center gap-[var(--t-space-inlineGapWide)] border-b bg-surface2 px-[var(--t-space-rowX)] py-[var(--t-space-controlY)]",
-          isError ? "border-danger" : "border-warn",
+          isError ? "border-danger" : isSuccess ? "border-success" : "border-warn",
         )
       }
       style={style}
@@ -330,7 +333,7 @@ export function NoticeLaunch({ className, style }: { className?: string; style?:
         title={content.kind === "code" ? content.detail : undefined}
         className={cn(
           "shrink-0 [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-label-weight)] uppercase",
-          isError ? "text-danger" : "text-warn",
+          isError ? "text-danger" : isSuccess ? "text-success" : "text-warn",
         )}
       >
         {tag}

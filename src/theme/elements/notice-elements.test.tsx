@@ -127,6 +127,13 @@ describe("ServerActionNotice", () => {
     expect(html).toContain(message);
   });
 
+  it("renders a success notice with data-state=success", () => {
+    setNotice(moddedServer.addr, { kind: "plain", text: "Address copied", tone: "success" });
+    const html = render({ contextName: "selection", selectedServer: moddedServer });
+    expect(html).toContain('data-state="success"');
+    expect(html).toContain("Address copied");
+  });
+
   it("renders nothing when the notice is tagged with a different server's addr", () => {
     setNotice(otherServer.addr, { kind: "code", code: "W02" });
     const html = render({ contextName: "selection", selectedServer: moddedServer });
@@ -175,6 +182,14 @@ describe("NoticeLaunch", () => {
   it("never reports a successful launch", () => {
     setResult({ addr: moddedServer.addr, message: "Launched DayZ with 5 mods" });
     expect(renderBar()).toBe("");
+  });
+
+  it("shows an action's success with a Done tag", () => {
+    setNotice(moddedServer.addr, { kind: "plain", text: "Address copied", tone: "success" });
+    const html = renderBar();
+    expect(html).toContain('data-state="success"');
+    expect(html).toContain(">Done<");
+    expect(html).toContain("Address copied");
   });
 
   it("shows a join warning with its code and the server it belongs to", () => {
