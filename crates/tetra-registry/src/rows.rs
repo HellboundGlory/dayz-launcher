@@ -69,6 +69,8 @@ pub struct ExportRow {
     /// succeeded here — not "declares no mods", which is `Some(vec![])`.
     pub mod_ids: Option<Vec<u64>>,
     pub last_responded: Option<i64>,
+    /// The backend's own verdict; `None` until it has probed the address.
+    pub online: Option<bool>,
 }
 
 /// [`Reader::export`](crate::Reader::export)'s result: rows plus the one copy

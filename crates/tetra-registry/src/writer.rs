@@ -80,8 +80,7 @@ impl Writer {
         self.send(|ack| Job::LastPlayed(key, ack)).await
     }
 
-    /// Flip `online` for a batch of servers — kept separate from `upsert_servers` since only a
-    /// targeted A2S refresh calls this; a bulk refresh leaves `online` alone.
+    /// Flip `online` for a batch of servers; rows already at that value are left untouched.
     pub async fn set_online(
         &self,
         keys: Vec<ServerKey>,
@@ -250,6 +249,12 @@ const INSERT_SERVER_MOD: &str =
 const SET_MOD_COUNT: &str = "UPDATE servers SET mod_count = ?3, mods_updated_at = unixepoch()
      WHERE ip = ?1 AND query_port = ?2";
 
+const STAMP_MODS: &str =
+    "UPDATE servers SET mods_updated_at = unixepoch() WHERE ip = ?1 AND query_port = ?2";
+
+const SERVER_MODS: &str = "SELECT workshop_id, name FROM server_mods
+     WHERE ip = ?1 AND query_port = ?2 ORDER BY ordinal";
+
 fn upsert_servers(conn: &Connection, rows: &[ServerRow]) -> Result<usize, RegistryError> {
     let tx = conn.unchecked_transaction()?;
     let mut n = 0;
@@ -340,8 +345,25 @@ fn upsert_server_mods_bulk(
         let mut exists = tx.prepare_cached(SERVER_EXISTS)?;
         let mut insert = tx.prepare_cached(INSERT_SERVER_MOD)?;
         let mut count = tx.prepare_cached(SET_MOD_COUNT)?;
+        let mut stored = tx.prepare_cached(SERVER_MODS)?;
+        let mut stamp = tx.prepare_cached(STAMP_MODS)?;
         for (key, mods) in batch {
             let ip = key.ip.to_string();
+            // Same non-empty ids with nothing new to learn only refresh `mods_updated_at`;
+            // a resolved name survives a blank one, a blank one yields to a name.
+            // An empty list takes the full path so a NULL `mod_count` becomes 0.
+            let stored_mods: Vec<ServerMod> = stored
+                .query_map(params![ip, key.query_port], |r| {
+                    Ok(ServerMod {
+                        workshop_id: r.get::<_, i64>(0)? as u64,
+                        name: r.get(1)?,
+                    })
+                })?
+                .collect::<Result<_, _>>()?;
+            if !mods.is_empty() && nothing_to_learn(&stored_mods, mods) {
+                stamp.execute(params![ip, key.query_port])?;
+                continue;
+            }
             clear.execute(params![ip, key.query_port])?;
             // A spoofed listing is deleted before its rules probe lands; its
             // mods must not come back without a server row to hang off.
@@ -362,6 +384,13 @@ fn upsert_server_mods_bulk(
     }
     tx.commit()?;
     Ok(())
+}
+
+fn nothing_to_learn(stored: &[ServerMod], incoming: &[ServerMod]) -> bool {
+    stored.len() == incoming.len()
+        && stored.iter().zip(incoming).all(|(s, i)| {
+            s.workshop_id == i.workshop_id && (!s.name.is_empty() || i.name.is_empty())
+        })
 }
 
 fn set_favourite(
@@ -387,8 +416,10 @@ fn mark_played(conn: &Connection, key: ServerKey) -> Result<usize, RegistryError
 fn set_online(conn: &Connection, keys: &[ServerKey], online: bool) -> Result<(), RegistryError> {
     let tx = conn.unchecked_transaction()?;
     {
-        let mut stmt =
-            tx.prepare_cached("UPDATE servers SET online = ?3 WHERE ip = ?1 AND query_port = ?2")?;
+        let mut stmt = tx.prepare_cached(
+            "UPDATE servers SET online = ?3
+             WHERE ip = ?1 AND query_port = ?2 AND online != ?3",
+        )?;
         for key in keys {
             stmt.execute(params![key.ip.to_string(), key.query_port, online])?;
         }

@@ -77,6 +77,10 @@ pub struct ServerEntry {
     /// client stores it and may still reach it itself.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_responded: Option<i64>,
+    /// The backend's last verdict from its own probes. `None` when it has
+    /// never probed this address, or predates the field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub online: Option<bool>,
 }
 
 impl ServerEntry {
@@ -154,6 +158,7 @@ mod tests {
             description: None,
             mod_ids: Some(vec![1559212036]),
             last_responded: Some(1_757_000_000),
+            online: Some(true),
         }
     }
 
