@@ -11,7 +11,7 @@ use std::time::Duration;
 /// Ceiling on a decompressed snapshot. The live index is ~270k addresses at
 /// roughly 250 bytes of JSON each, so this leaves ~4x headroom while still
 /// refusing to buffer an unbounded body into memory.
-pub const MAX_SNAPSHOT_BYTES: usize = 256 * 1024 * 1024;
+const MAX_SNAPSHOT_BYTES: usize = 256 * 1024 * 1024;
 
 /// Cap for `health`. Its real body is a few KB, so this is generous while
 /// still refusing a hostile origin.

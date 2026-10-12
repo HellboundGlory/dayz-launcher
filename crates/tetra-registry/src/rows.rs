@@ -68,7 +68,6 @@ pub struct ExportRow {
     /// Declared load order by workshop id. `None` means A2S_RULES has never
     /// succeeded here — not "declares no mods", which is `Some(vec![])`.
     pub mod_ids: Option<Vec<u64>>,
-    pub last_seen: i64,
     pub last_responded: Option<i64>,
 }
 

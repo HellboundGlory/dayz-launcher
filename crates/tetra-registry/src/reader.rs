@@ -9,7 +9,7 @@ use tetra_core::classify::maps::display_name;
 
 /// Columns [`Reader::map_export_row`] reads, positionally.
 const EXPORT_COLUMNS: &str = "ip, query_port, game_port, name, map_raw, players, max_players, bots,
-     locked, vac, version, keywords, description, mod_count, last_seen, last_responded";
+     locked, vac, version, keywords, description, mod_count, last_responded";
 
 /// Collects `query_map` results where `None` marks a row to drop, logging once if any were skipped.
 fn collect_skipping_bad_rows<T>(
@@ -297,8 +297,7 @@ impl Reader {
             keywords: r.get(11)?,
             description: r.get(12)?,
             mod_ids: probed_for_mods.map(|_| Vec::new()),
-            last_seen: r.get(14)?,
-            last_responded: r.get(15)?,
+            last_responded: r.get(14)?,
         }))
     }
 

@@ -57,13 +57,10 @@ const MIN_BATCH_FOR_OFFLINE_CORROBORATION: usize = 8;
 const OFFLINE_CORROBORATION_THRESHOLD: f64 = 0.4;
 
 /// Servers probed for mods concurrently, independent of how long the backlog
-/// is. Sized off the prober's own concurrency, as the launcher does.
+/// is. Kept within the prober's own in-flight limit (64..=1000) so a long
+/// mods backlog no longer queues twice as many waiters as there are permits.
 fn rules_fanout(prober: &Prober) -> usize {
-    prober
-        .config()
-        .max_in_flight
-        .saturating_mul(2)
-        .clamp(64, 1000)
+    prober.config().max_in_flight.clamp(64, 1000)
 }
 
 #[derive(Debug, Default)]

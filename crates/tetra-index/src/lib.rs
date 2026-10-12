@@ -17,7 +17,7 @@ use std::collections::HashMap;
 #[cfg(feature = "client")]
 mod client;
 #[cfg(feature = "client")]
-pub use client::{IndexClient, IndexError, HEALTH_BACKOFF_SECS, MAX_SNAPSHOT_BYTES};
+pub use client::{IndexClient, IndexError, HEALTH_BACKOFF_SECS};
 
 /// Incremented whenever a field changes meaning or disappears. A client that
 /// reads a different number discards the body untouched — mismatched schemas
