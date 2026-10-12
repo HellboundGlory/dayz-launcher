@@ -809,7 +809,6 @@ mod tests {
                         "[PL]SPRZYMIERZENI PvE Strefy PvP",
                     ],
                 ),
-                // German servers were shown under ENGLISH ONLY before this rule.
                 (
                     "Latin script is not the same as English",
                     &[
@@ -822,8 +821,6 @@ mod tests {
                         "[EU] Gebirgsjäger |Cherno|PVP",
                     ],
                 ),
-                // All of these were visible under ENGLISH ONLY before compound tags like
-                // `[CZ/SK]` were split.
                 (
                     "several tags sharing one bracket",
                     &[
@@ -862,7 +859,6 @@ mod tests {
                         "Выживание Chernarus PVE Trader Helis Cars Airdrop Loot",
                     ],
                 ),
-                // `é` was missing from `foreign_letter` while `è`/`ê`/`ë` were present.
                 (
                     "an acute e",
                     &[

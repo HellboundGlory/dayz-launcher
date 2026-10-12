@@ -1,4 +1,4 @@
-use crate::a2s::{strip_single_header, take_cstr};
+use crate::a2s::{expect_kind, take_cstr};
 use crate::error::ParseError;
 
 /// Decoded A2S_INFO response.
@@ -80,17 +80,7 @@ impl<'a> Reader<'a> {
 
 /// Decode an A2S_INFO response, with or without the 4-byte single-packet header.
 pub fn parse_info(buf: &[u8]) -> Result<ServerInfo, ParseError> {
-    let body = strip_single_header(buf);
-    if body.is_empty() {
-        return Err(ParseError::Truncated {
-            offset: 0,
-            needed: 1,
-            have: 0,
-        });
-    }
-    if body[0] != 0x49 {
-        return Err(ParseError::BadHeader(body[0]));
-    }
+    let body = expect_kind(buf, 0x49)?;
 
     let mut r = Reader::new(&body[1..]);
     let protocol = r.u8()?;

@@ -352,17 +352,19 @@ fn upsert_server_mods_bulk(
             // Same non-empty ids with nothing new to learn only refresh `mods_updated_at`;
             // a resolved name survives a blank one, a blank one yields to a name.
             // An empty list takes the full path so a NULL `mod_count` becomes 0.
-            let stored_mods: Vec<ServerMod> = stored
-                .query_map(params![ip, key.query_port], |r| {
-                    Ok(ServerMod {
-                        workshop_id: r.get::<_, i64>(0)? as u64,
-                        name: r.get(1)?,
-                    })
-                })?
-                .collect::<Result<_, _>>()?;
-            if !mods.is_empty() && nothing_to_learn(&stored_mods, mods) {
-                stamp.execute(params![ip, key.query_port])?;
-                continue;
+            if !mods.is_empty() {
+                let stored_mods: Vec<ServerMod> = stored
+                    .query_map(params![ip, key.query_port], |r| {
+                        Ok(ServerMod {
+                            workshop_id: r.get::<_, i64>(0)? as u64,
+                            name: r.get(1)?,
+                        })
+                    })?
+                    .collect::<Result<_, _>>()?;
+                if nothing_to_learn(&stored_mods, mods) {
+                    stamp.execute(params![ip, key.query_port])?;
+                    continue;
+                }
             }
             clear.execute(params![ip, key.query_port])?;
             // A spoofed listing is deleted before its rules probe lands; its

@@ -1,4 +1,4 @@
-use crate::a2s::{strip_single_header, take_cstr};
+use crate::a2s::{expect_kind, take_cstr};
 use crate::error::ParseError;
 
 /// Raw A2S_RULES key/value pairs, in the order the server sent them.
@@ -12,20 +12,8 @@ pub type RulePairs = Vec<(Vec<u8>, Vec<u8>)>;
 /// Keys are returned as bytes, not strings: DayZ smuggles a binary payload
 /// through this structure using two-byte keys that are not valid UTF-8.
 pub fn parse_rules(buf: &[u8]) -> Result<RulePairs, ParseError> {
-    let buf = strip_single_header(buf);
-    let mut pos = 0usize;
-    if buf.is_empty() {
-        return Err(ParseError::Truncated {
-            offset: 0,
-            needed: 1,
-            have: 0,
-        });
-    }
-    if buf[0] == 0x45 {
-        pos += 1;
-    } else {
-        return Err(ParseError::BadHeader(buf[0]));
-    }
+    let buf = expect_kind(buf, 0x45)?;
+    let mut pos = 1usize;
     if pos + 2 > buf.len() {
         return Err(ParseError::Truncated {
             offset: pos,

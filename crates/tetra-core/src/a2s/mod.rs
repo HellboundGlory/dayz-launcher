@@ -14,6 +14,20 @@ pub(crate) fn strip_single_header(buf: &[u8]) -> &[u8] {
     }
 }
 
+/// The response without its single-packet header, checked to start with `kind`.
+pub(crate) fn expect_kind(buf: &[u8], kind: u8) -> Result<&[u8], ParseError> {
+    let buf = strip_single_header(buf);
+    match buf.first() {
+        None => Err(ParseError::Truncated {
+            offset: 0,
+            needed: 1,
+            have: 0,
+        }),
+        Some(&b) if b == kind => Ok(buf),
+        Some(&b) => Err(ParseError::BadHeader(b)),
+    }
+}
+
 /// Bytes up to the next NUL, with `pos` left just past it.
 pub(crate) fn take_cstr<'a>(buf: &'a [u8], pos: &mut usize) -> Result<&'a [u8], ParseError> {
     let start = *pos;
