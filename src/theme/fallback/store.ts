@@ -6,7 +6,7 @@ export interface FallbackStore {
   fallbackNoticeDismissed: Record<string, boolean>;
   /** Files the screen check marked at runtime, as opposed to validation fall-backs. */
   runtimeFiles: Record<string, boolean>;
-  markFileFallback: (themeId: string, file: string, reason: string | string[]) => void;
+  markFileFallback: (file: string, reason: string | string[]) => void;
   markRuntimeFallback: (file: string, reason: string | string[]) => void;
   isFileFallenBack: (file: string) => boolean;
   clearFallbacks: () => void;
@@ -66,7 +66,7 @@ export const useFallbackStore = create<FallbackStore>((set, get) => ({
   fallbackNoticeDismissed: {},
   runtimeFiles: {},
 
-  markFileFallback: (_themeId, file, reason) => {
+  markFileFallback: (file, reason) => {
     set((state) => withFallback(state, file, reason));
   },
 
@@ -121,8 +121,8 @@ export const useFallbackStore = create<FallbackStore>((set, get) => ({
   },
 }));
 
-export function markFileFallback(themeId: string, file: string, reason: string | string[]): void {
-  useFallbackStore.getState().markFileFallback(themeId, file, reason);
+export function markFileFallback(file: string, reason: string | string[]): void {
+  useFallbackStore.getState().markFileFallback(file, reason);
 }
 
 export function isFileFallenBack(file: string): boolean {

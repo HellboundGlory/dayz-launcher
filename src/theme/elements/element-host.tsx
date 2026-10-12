@@ -232,7 +232,6 @@ export function ElementHost({
     case "server.map":
       return <ServerMap className={mergedClass} style={style} />;
     case "server.gameTime":
-    case "server.time":
       return <ServerGameTime options={node.options} className={mergedClass} style={style} />;
     case "server.tags":
       return <ServerTags options={node.options} className={mergedClass} style={style} />;

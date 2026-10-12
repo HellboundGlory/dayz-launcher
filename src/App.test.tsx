@@ -101,7 +101,7 @@ describe("App screen source", () => {
     "draws the shell and browser through the pipeline when a theme's %s fell back",
     (file) => {
       themed(ALL_SCREENS);
-      markFileFallback("local.aurora", file, "LAY-01: dropped");
+      markFileFallback(file, "LAY-01: dropped");
 
       const html = renderToStaticMarkup(<App />);
 
@@ -114,7 +114,7 @@ describe("App screen source", () => {
     expect(renderToStaticMarkup(<App />)).not.toContain('data-part="fallback-notice"');
 
     themed(ALL_SCREENS);
-    markFileFallback("local.aurora", "layout/views/browser.json", "LAY-01: dropped");
+    markFileFallback("layout/views/browser.json", "LAY-01: dropped");
 
     expect(renderToStaticMarkup(<App />)).toContain('data-part="fallback-notice"');
   });

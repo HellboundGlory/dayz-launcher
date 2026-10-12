@@ -391,20 +391,10 @@ export const useModsStore = create<ModsState>((set, get) => ({
   },
 
   cleanupRemoved: async () => {
-    const ids = get().rows.filter((r) => r.removed).map((r) => r.workshop_id);
-    if (ids.length === 0) return;
-    set({ op: { kind: "cleanup", note: `REMOVING ${ids.length}…` } });
-    try {
-      const outcome = await steamUnsubscribeMods(ids);
-      set({
-        mutationFailures: outcome.failures.length ? outcome.failures : null,
-        op: null,
-      });
-      invalidateReadiness();
-      void get().load(true);
-    } catch (e) {
-      set({ op: null, error: String(e) });
-    }
+    await runUnsubscribe(
+      get().rows.filter((r) => r.removed).map((r) => r.workshop_id),
+      "cleanup",
+    );
   },
 
   clearOp: () => set({ op: null }),
@@ -475,10 +465,10 @@ async function runUpdate(ids: string[]) {
   }
 }
 
-async function runUnsubscribe(ids: string[]) {
+async function runUnsubscribe(ids: string[], kind: "unsubscribe" | "cleanup" = "unsubscribe") {
   const s = useModsStore.getState();
   if (ids.length === 0 || s.op) return;
-  set({ op: { kind: "unsubscribe", note: `REMOVING ${ids.length}…` } });
+  set({ op: { kind, note: `REMOVING ${ids.length}…` } });
   try {
     const outcome = await steamUnsubscribeMods(ids);
     set({

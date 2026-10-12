@@ -41,7 +41,6 @@ export function useServerDataLoader() {
   const sortKey = useServerStore((s) => s.sortKey);
   const sortDir = useServerStore((s) => s.sortDir);
   const loadVersion = useServerStore((s) => s.loadVersion);
-  const setLoading = useServerStore((s) => s.setLoading);
   const setMaps = useServerStore((s) => s.setMaps);
   const setHasLoadedOnce = useServerStore((s) => s.setHasLoadedOnce);
 
@@ -55,7 +54,6 @@ export function useServerDataLoader() {
       return;
     }
     loadInFlight.current = true;
-    setLoading(true);
     try {
       do {
         reloadQueued.current = false;
@@ -65,10 +63,9 @@ export function useServerDataLoader() {
       } while (reloadQueued.current);
     } finally {
       loadInFlight.current = false;
-      setLoading(false);
       setHasLoadedOnce();
     }
-  }, [setLoading, setHasLoadedOnce]);
+  }, [setHasLoadedOnce]);
 
   useEffect(() => {
     queryRef.current = {
