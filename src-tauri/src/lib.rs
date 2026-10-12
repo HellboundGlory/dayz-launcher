@@ -436,7 +436,7 @@ pub fn run() {
 
                     // Linux: glibc's exit() trips heap corruption unloading
                     // NVIDIA/WebKit modules, so use _exit instead (see
-                    // local notes/src-tauri/src/lib.rs.md) — restart is replicated manually below.
+                    // local notes/native-shell.md) — restart is replicated manually below.
                     #[cfg(target_os = "linux")]
                     {
                         if restart_requested {

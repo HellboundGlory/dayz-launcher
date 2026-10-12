@@ -202,7 +202,7 @@ impl SteamHandle {
 
     /// Ask the Workshop which of `ids` is out of date on disk and start a download for
     /// each one, returning the ids it queued. Best-effort — see
-    /// `local notes/crates/tetra-steam/src/handle.rs.md` for why this differs from `mod_states`.
+    /// `local notes/steam-and-joining.md` for why this differs from `mod_states`.
     pub fn refresh_stale(&self, ids: &[u64]) -> Result<Vec<u64>, SteamError> {
         if ids.is_empty() {
             return Ok(Vec::new());
