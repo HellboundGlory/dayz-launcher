@@ -42,8 +42,11 @@ import { ModsViewHost } from "./theme/elements/mods-view-host";
 import { LayoutRenderer } from "./theme/renderer";
 import { useServerDataLoader } from "./hooks/use-server-data-loader";
 import type { Server } from "./types/server";
-import { watchActiveTheme, stopWatchingTheme } from "./lib/tauri";
+import { takeSettingsRecovered, watchActiveTheme, stopWatchingTheme } from "./lib/tauri";
 import { getVersion } from "@tauri-apps/api/app";
+
+const SETTINGS_RESET_MESSAGE =
+  "Your settings file was damaged, so default settings are in use. The old file is saved as settings.corrupt.json.";
 
 /** No urgency on release checks, so this stays infrequent. */
 const UPDATE_RECHECK_MS = 6 * 60 * 60 * 1000;
@@ -101,6 +104,14 @@ export function App() {
     }
   }, [settingsLoaded, onboardingDismissed, profileName, dayzPath]);
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!settingsLoaded) return;
+    void takeSettingsRecovered()
+      .then((reset) => {
+        if (reset) setError(SETTINGS_RESET_MESSAGE);
+      })
+      .catch(() => {});
+  }, [settingsLoaded]);
   // One-shot: the backend's registry may not be open yet when the first queries run.
   const registryReadyHandled = useRef(false);
   // A failed list load shows like a failed action.
