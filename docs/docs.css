@@ -216,6 +216,36 @@
 .prose td:first-child {
   color: var(--text);
 }
+/* Prose in both columns: let code wrap instead of scrolling, stack on phones. */
+.prose table.checks {
+  table-layout: fixed;
+}
+.prose table.checks th:first-child,
+.prose table.checks td:first-child {
+  width: 40%;
+}
+.prose table.checks code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .prose table.checks thead {
+    display: none;
+  }
+  .prose table.checks tr,
+  .prose table.checks td {
+    display: block;
+  }
+  .prose table.checks td:first-child {
+    width: auto;
+    padding-bottom: 2px;
+    border-bottom: none;
+    font-weight: 600;
+  }
+  .prose table.checks td + td {
+    padding-top: 0;
+  }
+}
 .num {
   font-family: var(--font-data);
   font-variant-numeric: tabular-nums;

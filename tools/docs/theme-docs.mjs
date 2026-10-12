@@ -314,6 +314,7 @@ function sidebar(prefixes, notes) {
             ${groups}
             ${sections}
             <li><a href="/docs/themes/reference">Manifest, tokens and rules</a></li>
+            <li><a href="/docs/themes/changelog">Theme changes</a></li>
           </ol>`;
 }
 

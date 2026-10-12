@@ -57,6 +57,7 @@
             <li><a href="#settings">Theme settings</a></li>
             <li><a href="#validation">Validation rules</a></li>
             <li><a href="#icons">Icons</a></li>
+            <li><a href="/docs/themes/changelog">Theme changes</a></li>
           </ol>
         </details>
       </aside>
@@ -935,7 +936,7 @@
             <tbody>
               <tr><td><code>number</code></td><td><code>min</code>, <code>max</code>, <code>default</code></td><td>All three are finite numbers, the minimum must not exceed the maximum, the default must lie between them, and <code>step</code>, if given, must be a positive number</td></tr>
               <tr><td><code>boolean</code></td><td><code>default</code></td><td><code>true</code> or <code>false</code></td></tr>
-              <tr><td><code>choice</code></td><td><code>options</code>, <code>default</code></td><td>At least two options, each <code>{ "value": "side", "label": "Side" }</code> with a value matching <code>[a-z0-9-]+</code> and a label up to 40 characters. The default must match one of the values</td></tr>
+              <tr><td><code>choice</code></td><td><code>options</code>, <code>default</code></td><td>At least two options, each <code>{ "value": "side", "label": "Side" }</code> with a value matching <code>[a-z0-9-]+</code> and a label of 1 to 40 characters. The default must match one of the values</td></tr>
               <tr><td><code>color</code></td><td><code>default</code></td><td><code>#rrggbb</code></td></tr>
             </tbody>
           </table>
@@ -943,7 +944,7 @@
         <p>
           Every field needs <code>id</code>, <code>type</code> and <code>label</code>.
           An id matches <code>[a-z][a-zA-Z0-9]{0,31}</code> and is unique; a label is
-          up to 40 characters. A malformed field is dropped with an issue in Dev Mode,
+          1 to 40 characters. A malformed field is dropped with an issue in Dev Mode,
           and the rest still load.
         </p>
         <div class="table-wrap">
