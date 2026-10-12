@@ -17,31 +17,13 @@ import { useConfirm } from "@/components/confirm-dialog";
 import { useThemedPopupTrigger } from "./use-themed-popup-trigger";
 import { FilterPopup, UniqueServerOptionsList, usePopupContext } from "./popup-elements";
 import { OptionIcon } from "./option-icon";
-
-function toolbarDisplayOptions(
-  options: Record<string, unknown> | undefined,
-  fallbackLabel: string,
-  defaultDisplay: "iconLabel" | "label" | "icon",
-) {
-  const display = (options?.display as string | undefined) ?? defaultDisplay;
-  const label = (options?.label as string | undefined) ?? fallbackLabel;
-  return {
-    label,
-    showIcon: display === "iconLabel" || display === "icon",
-    showLabel: display === "iconLabel" || display === "label",
-  };
-}
+import { displayOption, states } from "./element-utils";
 
 const STATUS_FILTERS: { key: ModStatusFilter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "outdated", label: "Outdated" },
   { key: "downloading", label: "Downloading" },
 ];
-
-function statesAttr(...vals: (string | false | undefined)[]): string | undefined {
-  const s = vals.filter(Boolean).join(" ");
-  return s || undefined;
-}
 
 function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n - 1) + "…" : s;
@@ -109,7 +91,7 @@ export function ModsRefresh({ options, className, style }: { options?: Record<st
   const op = useModsStore((s) => s.op);
   const load = useModsStore((s) => s.load);
   const busy = loading || !!op;
-  const { label, showIcon, showLabel } = toolbarDisplayOptions(options, "Refresh", "iconLabel");
+  const { label, showIcon, showLabel } = displayOption(options, "Refresh", "iconLabel");
 
   return (
     <button
@@ -167,7 +149,7 @@ export function ModsCount({ className, style }: { className?: string; style?: CS
 export function ModsClearSelection({ options, className, style }: { options?: Record<string, unknown>; className?: string; style?: CSSProperties }) {
   const selectedCount = useModsStore((s) => s.selectedIds.size);
   const clearSelection = useModsStore((s) => s.clearSelection);
-  const { label, showIcon, showLabel } = toolbarDisplayOptions(options, "Clear", "label");
+  const { label, showIcon, showLabel } = displayOption(options, "Clear", "label");
 
   return (
     <button
@@ -271,7 +253,7 @@ export function ModsUnsubscribe({ options, className, style }: { options?: Recor
     <button
       type="button"
       data-el="mods.unsubscribe"
-      data-state={statesAttr(busy && "busy", disabled && "disabled")}
+      data-state={states(busy && "busy", disabled && "disabled")}
       onClick={handleClick}
       disabled={disabled}
       title="Unsubscribe from the selected mods (Steam deletes them from disk)"
@@ -407,7 +389,7 @@ export function ModsActionMenu({
     <div
       ref={ref}
       data-el={menu.el}
-      data-state={statesAttr(open && "open", busy && "disabled")}
+      data-state={states(open && "open", busy && "disabled")}
       className={cn("relative", className ?? menu.defaultClass)}
       style={style}
     >
@@ -630,7 +612,7 @@ export function ModsSelectUnique({ options, className, style }: { options?: Reco
     <div
       ref={ref}
       data-el="mods.selectUnique"
-      data-state={statesAttr(open && "open", disabled && "disabled")}
+      data-state={states(open && "open", disabled && "disabled")}
       className={cn(
         "relative",
         className ??

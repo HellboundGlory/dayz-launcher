@@ -4,13 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 // The only import from src/theme/ this window may have: palette is pure data
 // with no side effects. Never theme-store or apply — no path to the live engine.
 import { PRESETS } from "@/theme/palette";
-
-/** Shape returned by the backend while an activation is pending. */
-interface ActivationStatus {
-  previousId: string | null;
-  newId: string | null;
-  remainingMs: number;
-}
+import type { ActivationStatus } from "@/types/theme";
 
 const POLL_MS = 250;
 

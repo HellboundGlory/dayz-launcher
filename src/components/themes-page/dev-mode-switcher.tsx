@@ -133,9 +133,8 @@ export function DevModeSwitcher() {
   const themeFiles = useThemeStore((s) => s.themeFiles);
   const setVariantWidth = useDevStore((s) => s.setVariantWidth);
   const setSettingsOverride = useDevStore((s) => s.setSettingsOverride);
-  const activeWidth = useDevStore((s) => s.variantWidth) ?? useDevStore.getState().variantWidth;
-  const settingsOverride =
-    useDevStore((s) => s.settingsOverride) ?? useDevStore.getState().settingsOverride;
+  const activeWidth = useDevStore((s) => s.variantWidth);
+  const settingsOverride = useDevStore((s) => s.settingsOverride);
   const activeRenderers = useDevStore((s) => s.activeRenderers);
 
   // The label of the combination this component last dispatched — matched

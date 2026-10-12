@@ -8,8 +8,6 @@ interface ServerState {
   filter: ServerFilter;
   sortKey: SortKey;
   sortDir: SortDir;
-  isLoading: boolean;
-  totalCount: number;
   loadVersion: number;
   /** Set while waiting on Steam Workshop downloads; suppresses A2S probing meanwhile. */
   downloadsActive: boolean;
@@ -36,8 +34,6 @@ interface ServerState {
   setFilter: (filter: Partial<ServerFilter>) => void;
   setSort: (key: SortKey, dir: SortDir) => void;
   resetFilter: () => void;
-  setLoading: (loading: boolean) => void;
-  setTotalCount: (count: number) => void;
   toggleFavourite: (addr: string) => void;
   triggerReload: () => void;
 }
@@ -145,8 +141,6 @@ export const useServerStore = create<ServerState>((set) => ({
   selectedServer: null,
   filter: loadFilter(),
   ...loadSort(),
-  isLoading: false,
-  totalCount: 0,
   loadVersion: 0,
   downloadsActive: false,
   modPending: {},
@@ -184,7 +178,6 @@ export const useServerStore = create<ServerState>((set) => ({
     }
     set({ sortKey, sortDir });
   },
-  setLoading: (isLoading) => set({ isLoading }),
   resetFilter: () =>
     set((state) => {
       // The sidebar tab owns these two, not the filter bar: resetting them
@@ -198,8 +191,15 @@ export const useServerStore = create<ServerState>((set) => ({
       return { filter: next };
     }),
   setDownloadsActive: (downloadsActive) => set({ downloadsActive }),
-  setTotalCount: (totalCount) => set({ totalCount }),
-  setMaps: (maps) => set({ maps, mapsLoaded: true }),
+  // Polled; an unchanged list keeps its identity, so the map filter does not re-render.
+  setMaps: (maps) =>
+    set((s) =>
+      s.mapsLoaded &&
+      s.maps.length === maps.length &&
+      s.maps.every(([id, name], i) => id === maps[i][0] && name === maps[i][1])
+        ? s
+        : { maps, mapsLoaded: true },
+    ),
   setHasLoadedOnce: () => set({ hasLoadedOnce: true }),
   setLoadError: (loadError) => set({ loadError }),
   mergeModPending: (entries) =>

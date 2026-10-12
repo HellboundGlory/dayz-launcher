@@ -23,7 +23,7 @@ import { applyTheme, DEFAULT_EXTRAS, type ThemeExtras } from "./apply";
 import { useDevStore } from "./dev/dev-store";
 import { NEUTRAL_TOKENS, parseTokens, resolveTokens, type TokensV2, type TokenValue } from "./tokens";
 import { applyThemeStylesheet } from "./css-loader";
-import { substitutePlaceholders, type SettingsField } from "./settings-schema";
+import { isHexColor, substitutePlaceholders, type SettingsField } from "./settings-schema";
 import {
   armActivation,
   deleteTheme as deleteThemeCmd,
@@ -448,7 +448,7 @@ export function mergeSettingsValues(
           : field.default;
     } else if (field.type === "color") {
       values[field.id] =
-        typeof raw === "string" && /^#[0-9a-fA-F]{6}$/.test(raw) ? raw : field.default;
+        typeof raw === "string" && isHexColor(raw) ? raw : field.default;
     }
   }
   return values;
@@ -488,7 +488,7 @@ function loadLegacyThemes(): LegacyTheme[] | null {
 function syncFallbacks(id: string): void {
   clearFallbacks();
   for (const issue of useThemeStore.getState().themeFiles[id]?.fallbacks ?? []) {
-    markFileFallback(id, issue.file, `${issue.ruleId}: ${issue.message}`);
+    markFileFallback(issue.file, `${issue.ruleId}: ${issue.message}`);
   }
 }
 

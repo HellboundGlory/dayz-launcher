@@ -718,7 +718,7 @@ describe("Theme fallback and visibility", () => {
     it("marks and checks file fallbacks", () => {
       expect(isFileFallenBack("layout/views/browser.json")).toBe(false);
 
-      markFileFallback("custom.dark", "layout/views/browser.json", "zero height");
+      markFileFallback("layout/views/browser.json", "zero height");
       expect(isFileFallenBack("layout/views/browser.json")).toBe(true);
       expect(isFileFallenBack("layout/views/mods.json")).toBe(false);
 
@@ -748,7 +748,7 @@ describe("Theme fallback and visibility", () => {
     });
 
     it("renders banner with message and dismiss button when a file has fallen back", () => {
-      markFileFallback("t1", "layout/views/browser.json", "fail");
+      markFileFallback("layout/views/browser.json", "fail");
 
       const html = renderToStaticMarkup(<FallbackNotice themeId="t1" launcherVersion="2.6.0" />);
       expect(html).toContain('data-part="fallback-notice"');
@@ -758,7 +758,7 @@ describe("Theme fallback and visibility", () => {
     });
 
     it("renders nothing after notice is dismissed", () => {
-      markFileFallback("t1", "layout/views/browser.json", "fail");
+      markFileFallback("layout/views/browser.json", "fail");
       dismissFallbackNotice("t1", "2.6.0");
 
       const html = renderToStaticMarkup(<FallbackNotice themeId="t1" launcherVersion="2.6.0" />);
