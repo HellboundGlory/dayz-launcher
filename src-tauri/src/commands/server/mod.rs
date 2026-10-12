@@ -24,9 +24,8 @@ fn rules_fanout(prober: &Prober) -> usize {
 }
 
 /// Borrow the process-wide `Prober` from application state. Every probing
-/// path must go through this — a fresh `Prober` owns its own concurrency
-/// semaphore, so two overlapping refreshes each building their own used to
-/// open far more sockets than `MAX_IN_FLIGHT` was meant to cap.
+/// path goes through this: a `Prober` owns its concurrency limit, so the
+/// process shares one limit only while it shares one `Prober`.
 fn prober(state: &AppState) -> Result<Prober, String> {
     let guard = state.prober.lock().map_err(|e| e.to_string())?;
     Ok(guard.as_ref().ok_or("Prober not initialized")?.clone())
@@ -47,8 +46,7 @@ pub(crate) fn reader(state: &AppState) -> Result<tetra_registry::Reader, String>
 
 /// The shared reader `blocking_read` uses, cloning the `Arc` so it can be
 /// moved into `spawn_blocking` without borrowing `AppState` across it.
-/// Lazily seeded on first call — every call used to open a brand-new
-/// connection on the hottest path in the app.
+/// Seeded on first use and kept, since this is the hottest read path.
 fn reader_pool(state: &AppState) -> Result<Arc<std::sync::Mutex<tetra_registry::Reader>>, String> {
     let mut pool = state.server_reader.lock().map_err(|e| e.to_string())?;
     if let Some(r) = pool.as_ref() {

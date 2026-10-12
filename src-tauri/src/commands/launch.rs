@@ -340,10 +340,7 @@ pub async fn launch_game(
 
         // Promote the Verifying presence set above to Live, reusing the row already fetched.
         if let Some(row) = discord_row {
-            let started_at = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs() as i64)
-                .unwrap_or(0);
+            let started_at = crate::unix_now();
             let info = tetra_discord::PresenceInfo {
                 server_name: row.name,
                 map: Some(row.map_display),
@@ -441,7 +438,12 @@ pub async fn verify_server_mods(
         guard.as_ref().map(|r| r.writer())
     };
     if let Some(writer) = writer {
-        let _ = writer.upsert_server_mods(key, declared.clone()).await;
+        if let Err(e) = writer.upsert_server_mods(key, declared.clone()).await {
+            crate::log::line(
+                "launch",
+                &format!("storing the mod list of {addr} failed: {e}"),
+            );
+        }
     }
 
     let ids: Vec<u64> = declared
@@ -486,7 +488,6 @@ pub async fn verify_server_mods(
 }
 
 /// Register the `dzsa://` protocol handler in the OS. Skips debug builds unless `TETRA_FORCE_PROTOCOL_REGISTER=1` is set.
-#[tauri::command]
 pub fn register_protocol_handler() -> Result<(), String> {
     if cfg!(debug_assertions) && std::env::var_os("TETRA_FORCE_PROTOCOL_REGISTER").is_none() {
         crate::log::line(
