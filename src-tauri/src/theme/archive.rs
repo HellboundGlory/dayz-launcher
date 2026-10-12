@@ -117,7 +117,7 @@ pub fn stage_for_preview(
 /// component, and Windows silently strips a trailing dot or space, so a name
 /// made only of them, or ending in one, is refused rather than resolving to a
 /// different directory there.
-fn staging_path(themes_root: &Path, staging_id: &str) -> Result<PathBuf, String> {
+pub(crate) fn staging_path(themes_root: &Path, staging_id: &str) -> Result<PathBuf, String> {
     if !crate::theme::is_usable_id(staging_id)
         || staging_id.ends_with('.')
         || staging_id.ends_with(' ')
@@ -210,8 +210,8 @@ pub fn prune_staging(themes_root: &Path) {
             let live = themes_root.join(id);
             if !live.exists() {
                 let _ = std::fs::rename(entry.path(), &live);
+                continue;
             }
-            continue;
         }
         let _ = std::fs::remove_dir_all(entry.path());
     }
@@ -523,6 +523,9 @@ fn sniff_svg(name: &str, bytes: &[u8]) -> Result<(), String> {
     let mut reader = quick_xml::Reader::from_str(text);
     let mut depth: usize = 0;
     let mut roots: usize = 0;
+    // Text of the `<style>` element being read, checked for links when it closes.
+    let mut style: Option<String> = None;
+    let mut style_depth = 0;
     loop {
         let event = match reader.read_event() {
             Ok(event) => event,
@@ -536,6 +539,35 @@ fn sniff_svg(name: &str, bytes: &[u8]) -> Result<(), String> {
             Event::Empty(element) => (element, false),
             Event::End(_) => {
                 depth = depth.saturating_sub(1);
+                if depth == style_depth {
+                    if let Some(css) = style.take() {
+                        css_links_stay_inside(name, &css)?;
+                    }
+                }
+                continue;
+            }
+            Event::Text(text) if style.is_some() => {
+                let text = text.decode().map_err(|e| malformed(&e.to_string()))?;
+                style.get_or_insert_default().push_str(&text);
+                continue;
+            }
+            Event::CData(data) if style.is_some() => {
+                let data = data.decode().map_err(|e| malformed(&e.to_string()))?;
+                style.get_or_insert_default().push_str(&data);
+                continue;
+            }
+            Event::GeneralRef(reference) if style.is_some() => {
+                let resolved = match reference.resolve_char_ref() {
+                    Ok(Some(c)) => c.to_string(),
+                    Ok(None) => {
+                        let name = reference.decode().map_err(|e| malformed(&e.to_string()))?;
+                        quick_xml::escape::resolve_predefined_entity(&name)
+                            .ok_or_else(|| malformed(&format!("unknown reference `&{name};`")))?
+                            .to_string()
+                    }
+                    Err(e) => return Err(malformed(&e.to_string())),
+                };
+                style.get_or_insert_default().push_str(&resolved);
                 continue;
             }
             Event::PI(pi) if pi.target().eq_ignore_ascii_case(b"xml-stylesheet") => {
@@ -569,6 +601,11 @@ fn sniff_svg(name: &str, bytes: &[u8]) -> Result<(), String> {
                 "`{name}` contains a `<foreignObject>` element; an SVG a theme ships must not embed web content."
             ));
         }
+        if opens && style.is_none() && element.local_name().as_ref().eq_ignore_ascii_case(b"style")
+        {
+            style = Some(String::new());
+            style_depth = depth;
+        }
         // `<set>` and `<animate>` can rewrite a link after load.
         let animates = [b"set".as_slice(), b"animate"]
             .iter()
@@ -577,6 +614,13 @@ fn sniff_svg(name: &str, bytes: &[u8]) -> Result<(), String> {
             let attribute = attribute.map_err(|e| malformed(&e.to_string()))?;
             let key = attribute.key.local_name();
             let key = key.as_ref();
+            // `style="…"` and presentation attributes such as `fill` take `url(…)`.
+            let value = attribute
+                .normalized_value(quick_xml::XmlVersion::Implicit1_0)
+                .map_err(|e| malformed(&e.to_string()))?;
+            if value.contains(['(', '@']) {
+                css_links_stay_inside(name, &value)?;
+            }
             // `onload`, `onclick`, `ONERROR` … any handler, either case.
             if key.len() >= 2
                 && key[0].eq_ignore_ascii_case(&b'o')
@@ -589,9 +633,6 @@ fn sniff_svg(name: &str, bytes: &[u8]) -> Result<(), String> {
             }
             // `href` and `xlink:href` alike: a theme SVG may only point at itself.
             if key.eq_ignore_ascii_case(b"href") {
-                let value = attribute
-                    .normalized_value(quick_xml::XmlVersion::Implicit1_0)
-                    .map_err(|e| malformed(&e.to_string()))?;
                 // URL parsing strips only ASCII whitespace and controls.
                 let value =
                     value.trim_matches(|c: char| c.is_ascii_whitespace() || c.is_ascii_control());
@@ -621,6 +662,39 @@ fn sniff_svg(name: &str, bytes: &[u8]) -> Result<(), String> {
 
 fn outside_link(name: &str, what: &str) -> String {
     format!("`{name}` links to {what}; an SVG a theme ships may only link inside itself.")
+}
+
+/// CSS in an SVG may use `url(…)` only for links that stay inside the file, and
+/// never `@import`.
+fn css_links_stay_inside(name: &str, css: &str) -> Result<(), String> {
+    // An escape can spell `url(` or `@import` without those letters.
+    if css.contains('\\') {
+        return Err(format!(
+            "`{name}` uses a CSS escape; an SVG a theme ships may only link inside itself."
+        ));
+    }
+    let css = css.to_ascii_lowercase();
+    if css.contains("@import") {
+        return Err(outside_link(name, "an @import"));
+    }
+    // `image-set()` also takes a plain string as its address.
+    if css.contains("image-set(") {
+        return Err(outside_link(name, "an image-set()"));
+    }
+    let mut rest = css.as_str();
+    while let Some(start) = rest.find("url(") {
+        let after = &rest[start + 4..];
+        let end = after.find(')').unwrap_or(after.len());
+        let target = after[..end].trim_matches(|c: char| {
+            c.is_ascii_whitespace() || c.is_ascii_control() || c == '"' || c == '\''
+        });
+        if !svg_link_stays_inside(target) {
+            let shown: String = target.chars().take(40).collect();
+            return Err(outside_link(name, &format!("`{shown}`")));
+        }
+        rest = &after[end..];
+    }
+    Ok(())
 }
 
 /// A link that stays inside the file: a fragment, or image data carried in the
@@ -2466,6 +2540,26 @@ mod tests {
                 "<svg xmlns=\"http://www.w3.org/2000/svg\"><use href=\"\u{00A0}#a\"/></svg>",
                 "may only link inside itself",
             ),
+            (
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><style>@import url(x.css);</style></svg>"#,
+                "may only link inside itself",
+            ),
+            (
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><style><![CDATA[.a{fill:URL( "https://example.com/p#g" )}]]></style></svg>"#,
+                "may only link inside itself",
+            ),
+            (
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><rect style="fill:url(https://example.com/p#g)"/></svg>"#,
+                "may only link inside itself",
+            ),
+            (
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><style><g/>.a{fill:url(https://example.com/p#g)}</style></svg>"#,
+                "may only link inside itself",
+            ),
+            (
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><rect style="fill:\75 rl(https://example.com/p#g)"/></svg>"#,
+                "may only link inside itself",
+            ),
         ] {
             let root = scratch("svg-link");
             let zip_path = fixture(&root, "svg-link", &[Entry::file("images/evil.svg", body)]);
@@ -2486,7 +2580,7 @@ mod tests {
             "svg-self-links",
             &[Entry::file(
                 "images/logo.svg",
-                r##"<svg xmlns="http://www.w3.org/2000/svg"><style>.a{fill:red}</style><use href="#a"/><image href="data:image/png;base64,iVBORw0KGgo="/></svg>"##,
+                r##"<svg xmlns="http://www.w3.org/2000/svg"><style>.a{fill:red;stroke:url(#g)}</style><rect fill="url(#g)" style="fill: url('#g')"/><use href="#a"/><image href="data:image/png;base64,iVBORw0KGgo="/></svg>"##,
             )],
         );
 
@@ -2968,6 +3062,9 @@ mod tests {
         let staging_root = root.join(STAGING_DIR);
         std::fs::create_dir_all(staging_root.join("stale-one")).unwrap();
         std::fs::create_dir_all(staging_root.join("stale-two")).unwrap();
+        // An old install set aside by a replace that did land.
+        std::fs::create_dir_all(staging_root.join("aurora.test.replaced-abc")).unwrap();
+        std::fs::create_dir_all(root.join("aurora.test")).unwrap();
 
         prune_staging(&root);
 

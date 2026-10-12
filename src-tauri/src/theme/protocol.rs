@@ -89,17 +89,8 @@ pub fn resolve_asset(
             "`{theme_id}` names the staging area itself, not a staged package"
         ));
     } else if let Some(staging_id) = theme_id.strip_prefix(&staging_prefix) {
-        // The staging id becomes a path component the same way an installed
-        // id does; a `/` inside it (e.g. a second segment) fails this check.
-        if !crate::theme::is_usable_id(staging_id) {
-            return Err(format!(
-                "`{staging_id}` is not a usable staging id — it must be a single directory name"
-            ));
-        }
         (
-            themes_root
-                .join(crate::theme::archive::STAGING_DIR)
-                .join(staging_id),
+            crate::theme::archive::staging_path(themes_root, staging_id)?,
             theme_id.to_string(),
         )
     } else {
