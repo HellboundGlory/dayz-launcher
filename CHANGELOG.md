@@ -1,5 +1,31 @@
 # Changelog
 
+## v3.0.0 — 2026-10-12
+
+Themes now reach every screen, and joining, menus and settings are steadier.
+
+### New
+
+- **Themes restyle every screen**: Settings, Mods, server info and the update window. [Theme guide](https://tetralauncher.com/docs/themes/)
+- **New theme** starts from a copy of Neutral or Tactical.
+- **Badlands' Nasdara map** shows by its proper name.
+
+### Improved
+
+- A server that goes offline, or comes back, shows it within one list update.
+- Menus and dialogs work from the keyboard, and Escape closes only the top one.
+- Every view fits the smallest window, and menus stay on screen.
+- Join results show once, in plain words; "Done" messages turn green and clear after two seconds.
+
+### Fixed
+
+- Mods are read from the Steam library DayZ is installed in, not a leftover copy elsewhere.
+- A damaged settings file is set aside and you are told, instead of losing every preference.
+- Deleting or overwriting a theme asks first.
+- A failed server list load says so instead of showing an empty list.
+
+Theme makers: see [what changed for themes in 3.0.0](https://tetralauncher.com/docs/themes/changelog).
+
 ## v2.7.0 — 2026-09-26
 
 Themes can now change the whole launcher, not just its colours.
