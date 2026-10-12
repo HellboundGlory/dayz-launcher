@@ -230,6 +230,14 @@ describe("ServerDownloadSize", () => {
       qualifier: undefined,
     },
     {
+      case: "the full size of a mod that is downloading",
+      mods: [mod({ state: "downloading", size_bytes: 1000, total_bytes: 3000 })],
+      state: undefined,
+      count: "1 mod",
+      size: "2.9 KB",
+      qualifier: undefined,
+    },
+    {
       case: "a zero download size when nothing is outstanding",
       mods: [mod({ state: "ready" })],
       state: "none",

@@ -120,7 +120,12 @@ interface CollapseState {
 /** Registers a layout's collapsible regions while it is mounted. */
 export function useCollapseRules(rules: CollapseRules) {
   const { registerCollapseRules } = useElementContext();
-  useLayoutEffect(() => registerCollapseRules(rules), [registerCollapseRules, rules]);
+  // A layout with no collapsible regions registers nothing, so opening a popup
+  // or modal does not re-render every context consumer.
+  useLayoutEffect(() => {
+    if (Object.keys(rules).length === 0) return;
+    return registerCollapseRules(rules);
+  }, [registerCollapseRules, rules]);
 }
 
 export function ElementContextProvider({

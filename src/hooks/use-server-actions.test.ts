@@ -13,6 +13,7 @@ import type { Server } from "@/types/server";
 import { useServerStore } from "@/stores/server-store";
 import { useLaunchStore } from "@/stores/launch-store";
 import { useSettingsStore } from "@/stores/settings-store";
+import { getCachedReadiness, setCachedReadiness } from "@/stores/readiness-store";
 import { useServerActions } from "./use-server-actions";
 
 const { launchGame, verifyServerMods, steamModStates, steamDownloadProgress, steamSubscribeMods } =
@@ -159,6 +160,7 @@ describe("verifyAndJoin", () => {
     steamDownloadProgress.mockResolvedValue([
       { workshop_id: "1001", downloaded: "10", total: "100" },
     ]);
+    setCachedReadiness(server.addr, server.query_port, { stale: false, mods: [] });
     renderActions();
 
     const pending = verifyAndJoin(server);
@@ -169,6 +171,7 @@ describe("verifyAndJoin", () => {
 
     expect(steamSubscribeMods).toHaveBeenCalledWith(["1001", "2002"]);
     expect(launchGame).toHaveBeenCalledOnce();
+    expect(getCachedReadiness(server.addr, server.query_port)).toBeUndefined();
   });
 
   it("stops with a notice when subscribing fails", async () => {

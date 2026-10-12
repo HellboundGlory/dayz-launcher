@@ -20,11 +20,10 @@ function useWorkshopModSubject(): ModFilterEntry | null {
 
 function WorkshopModPick({ className, style }: { className?: string; style?: CSSProperties }) {
   const entry = useWorkshopModSubject();
-  const selection = useModFilterStore((s) => s.selection);
+  const current = useModFilterStore((s) => (entry ? s.selection[entry.id] : undefined));
   const cycle = useModFilterStore((s) => s.cycle);
   if (!entry) return null;
 
-  const current = selection[entry.id];
   const label =
     current === "include"
       ? `Exclude ${entry.title} instead`
@@ -329,11 +328,10 @@ function WorkshopModInclude({
   style?: CSSProperties;
 }) {
   const entry = useWorkshopModSubject();
-  const selection = useModFilterStore((s) => s.selection);
+  const on = useModFilterStore((s) => !!entry && s.selection[entry.id] === "include");
   const setPick = useModFilterStore((s) => s.setPick);
   if (!entry) return null;
 
-  const on = selection[entry.id] === "include";
   const label = (options?.label as string | undefined) ?? (on ? "Included" : "Include");
 
   return (
@@ -366,11 +364,10 @@ function WorkshopModExclude({
   style?: CSSProperties;
 }) {
   const entry = useWorkshopModSubject();
-  const selection = useModFilterStore((s) => s.selection);
+  const on = useModFilterStore((s) => !!entry && s.selection[entry.id] === "exclude");
   const setPick = useModFilterStore((s) => s.setPick);
   if (!entry) return null;
 
-  const on = selection[entry.id] === "exclude";
   const label = (options?.label as string | undefined) ?? (on ? "Excluded" : "Exclude");
 
   return (

@@ -214,13 +214,17 @@ export function useSteamStartup({
     })();
   }, []);
 
+  // A connect already in flight is not shown as a failure while auto-retry runs.
+  const shownSteamError =
+    steamError?.kind === "already_initialising" && !autoRetryExhausted ? null : steamError;
+
   // Let "Ready" show briefly, then reveal; Steam or a post-registry list failure forces it.
   useEffect(() => {
-    if (!(startupReady || steamError || (registryReadyHandled.current && loadError)))
+    if (!(startupReady || shownSteamError || (registryReadyHandled.current && loadError)))
       return;
     const t = window.setTimeout(revealLauncherWhenReady, SPLASH_READY_MS);
     return () => clearTimeout(t);
-  }, [startupReady, steamError, loadError, revealLauncherWhenReady, registryReadyHandled]);
+  }, [startupReady, shownSteamError, loadError, revealLauncherWhenReady, registryReadyHandled]);
 
   // Fail-safe: a pathological backend must never leave the launcher hidden
   // behind a static splash, so always reveal it eventually.
@@ -303,7 +307,7 @@ export function useSteamStartup({
 
   return {
     steamConnected,
-    steamError,
+    steamError: shownSteamError,
     connecting,
     autoRetryExhausted,
     connectSteam,
