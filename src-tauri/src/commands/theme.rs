@@ -140,7 +140,7 @@ pub fn update_theme_tokens(
 /// deletable this way.
 #[tauri::command]
 pub fn delete_theme(app: AppHandle, id: String) -> Result<(), String> {
-    let active = crate::commands::settings::current(&app).active_theme_id;
+    let active = crate::commands::settings::current(&app)?.active_theme_id;
     theme::delete(&crate::paths::themes_dir(&app), &id, active.as_deref())?;
     crate::log::log_line(&app, "theme", &format!("Deleted theme `{id}`"));
     Ok(())
@@ -487,7 +487,7 @@ pub fn arm_activation(
     new_id: Option<String>,
     delete_on_revert: bool,
 ) -> Result<(), String> {
-    let previous_id = crate::commands::settings::current(&app).active_theme_id;
+    let previous_id = crate::commands::settings::current(&app)?.active_theme_id;
     let at = Instant::now();
     let displaced = {
         let state = app.state::<crate::state::AppState>();
@@ -1973,8 +1973,6 @@ mod builtin_themes {
         let _ = std::fs::remove_dir_all(&themes_root);
     }
 
-    /// A pristine installed copy with an older recorded version is replaced
-    /// by the bundled copy.
     #[test]
     fn a_tuning_backup_left_by_a_failed_refresh_is_restored_on_the_next_install() {
         let source_root = shipped();

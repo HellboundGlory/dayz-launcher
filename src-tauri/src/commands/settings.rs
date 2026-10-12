@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 
@@ -197,6 +197,15 @@ fn read_from_disk(path: &Path) -> Result<AppSettings, String> {
     Ok(settings)
 }
 
+/// Set when a damaged settings file was moved aside, until the frontend has told the player.
+static SETTINGS_RECOVERED: AtomicBool = AtomicBool::new(false);
+
+/// Whether settings were reset because the file was damaged; true once, then false.
+#[tauri::command]
+pub fn take_settings_recovered() -> bool {
+    SETTINGS_RECOVERED.swap(false, Ordering::AcqRel)
+}
+
 /// Rename a corrupt settings file so the next save cannot overwrite its bytes.
 /// If it cannot be moved, the caller must not write over it either.
 fn move_corrupt_aside(path: &Path, reason: &str) -> Result<AppSettings, String> {
@@ -216,6 +225,7 @@ fn move_corrupt_aside(path: &Path, reason: &str) -> Result<AppSettings, String> 
             corrupt.display()
         ),
     );
+    SETTINGS_RECOVERED.store(true, Ordering::Release);
     Ok(AppSettings::default())
 }
 
@@ -251,15 +261,11 @@ fn update_on_disk(
     Ok(())
 }
 
-/// The current on-disk settings, or defaults — for a caller that needs one
-/// field without going through the frontend.
-pub fn current(app: &AppHandle) -> AppSettings {
-    settings_path(app)
-        .and_then(|path| read_locked(&path))
-        .unwrap_or_else(|e| {
-            crate::log::log_line(app, "settings", &format!("{e}; using defaults"));
-            AppSettings::default()
-        })
+/// The current on-disk settings, for a caller that needs one field without
+/// going through the frontend. A read error is returned, not defaulted, so a
+/// caller never acts on a selection it could not read.
+pub fn current(app: &AppHandle) -> Result<AppSettings, String> {
+    settings_path(app).and_then(|path| read_locked(&path))
 }
 
 /// Read-modify-write `active_theme_id`, like [`persist_window_state`]. Not
@@ -402,7 +408,10 @@ pub fn set_ui_scale(app: AppHandle, scale: f64) {
 /// exists). Transport settings are consumed exactly once here to size the
 /// process-wide prober, and deliberately not re-read on save.
 pub fn load_at_startup(app: &AppHandle) -> AppSettings {
-    let mut settings = current(app);
+    let mut settings = current(app).unwrap_or_else(|e| {
+        crate::log::log_line(app, "settings", &format!("{e}; using defaults"));
+        AppSettings::default()
+    });
 
     // One-time upgrade: geometry from the retired window-state plugin's own
     // file, folded in and the file deleted. Guarded on `None` so it never
@@ -516,7 +525,10 @@ pub async fn save_settings(app: AppHandle, mut settings: AppSettings) -> Result<
 
 #[cfg(test)]
 mod tests {
-    use super::{read_from_disk, update_on_disk, AppSettings, DEFAULT_UI_SCALE, MAX_UI_SCALE};
+    use super::{
+        read_from_disk, take_settings_recovered, update_on_disk, AppSettings, DEFAULT_UI_SCALE,
+        MAX_UI_SCALE,
+    };
     use crate::atomic_write::test_support::ScratchDir;
     use std::fs;
 
@@ -539,6 +551,7 @@ mod tests {
         assert_eq!(settings.scale(), DEFAULT_UI_SCALE);
         assert_eq!(fs::read(dir.join("settings.corrupt.json")).unwrap(), raw);
         assert!(!path.exists());
+        assert!(take_settings_recovered(), "the player is told once");
     }
 
     #[test]
