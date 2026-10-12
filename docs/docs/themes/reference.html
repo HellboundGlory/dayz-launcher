@@ -227,9 +227,10 @@
           it names, a font must carry a real font header, and a stylesheet must be
           valid UTF-8 and pass the <a href="#css">CSS checks</a>. An SVG is rendered
           as an image and never inlined. It must not carry script, event handlers,
-          embedded web content (<code>foreignObject</code>) or links to other files;
-          links inside the SVG (<code>#id</code>) and embedded PNG, JPEG, WebP or GIF
-          data are fine.
+          embedded web content (<code>foreignObject</code>) or links to other files,
+          including <code>url(…)</code> and <code>@import</code> in its CSS; its CSS may
+          not use escapes. Links inside the SVG (<code>#id</code>) and embedded PNG,
+          JPEG, WebP or GIF data are fine.
         </p>
         <div class="table-wrap">
           <table>
@@ -1035,10 +1036,10 @@
               <tr><td><code>LIM-03</code></td><td>A text node longer than 120 characters, or a column label longer than 24</td></tr>
               <tr><td><code>LIM-04</code></td><td>More than four variants in one file</td></tr>
               <tr><td><code>LIM-05</code></td><td>More than 200 different theme classes in one file</td></tr>
-              <tr><td><code>SET-01</code></td><td>The settings schema is malformed: not an object, a version other than 2, no fields list, a field that is not an object or is missing its id, type or label, a label over 40 characters, or an unknown field type</td></tr>
+              <tr><td><code>SET-01</code></td><td>The settings schema is malformed: not an object, a version other than 2, no fields list, a field that is not an object or is missing its id, type or label, a label that is empty or over 40 characters, or an unknown field type</td></tr>
               <tr><td><code>SET-02</code></td><td>A setting id does not match <code>[a-z][a-zA-Z0-9]{0,31}</code>, or is used twice</td></tr>
               <tr><td><code>SET-03</code></td><td>A number field's bounds are wrong: a bound or default that is not a finite number, a minimum above the maximum, a default outside the bounds, or a step that is not a positive number</td></tr>
-              <tr><td><code>SET-04</code></td><td>A boolean, choice or colour field is wrong: a default that is not a boolean, fewer than two options, a missing, duplicated or malformed option value, an option label over 40 characters, a default that matches no option, or a colour default that is not <code>#rrggbb</code></td></tr>
+              <tr><td><code>SET-04</code></td><td>A boolean, choice or colour field is wrong: a default that is not a boolean, fewer than two options, a missing, duplicated or malformed option value, an option label that is empty or over 40 characters, a default that matches no option, or a colour default that is not <code>#rrggbb</code></td></tr>
               <tr><td><code>SET-05</code></td><td>The fields expand to more than 64 combinations</td></tr>
               <tr><td><code>CSS-01</code></td><td>A refused selector or declaration: a type selector, an id selector, the universal selector, a class that is not your own <code>t-</code> name, an attribute, pseudo-class or pseudo-element that is not allowed, a pseudo-class right after a space, an <code>:nth-child()</code> argument that is not An+B, or <code>!important</code></td></tr>
               <tr><td><code>CSS-03</code></td><td>A malformed theme class name — in particular one that is not <code>t-</code> followed by lowercase letters, digits and hyphens</td></tr>
