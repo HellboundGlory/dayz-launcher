@@ -2,7 +2,7 @@
 //! `tauri-plugin-window-state` so geometry lives in `settings.json` instead
 //! of a stray file. [`restore`] runs from `setup` before the window is
 //! shown; [`capture`] just updates an in-memory cache, written once at exit.
-//! See .ai-notes/src-tauri/src/window_state.rs.md for the full ordering rationale.
+//! See .ai-notes/native-shell.md for the full ordering rationale.
 
 use std::path::Path;
 use tauri::{Manager, PhysicalPosition, PhysicalSize, Window};

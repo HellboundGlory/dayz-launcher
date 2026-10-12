@@ -56,7 +56,7 @@ pub const MAX_TAG_DEPTH: usize = 8;
 /// Tag splits each population half starts from, before anything is known to be
 /// truncated. Asymmetric: every measured truncation is in the quiet half, and
 /// Steam only serves ~100 list requests a session, so depth goes where the
-/// servers are. See .ai-notes/crates/tetra-steam/src/plan.rs.md.
+/// servers are. See .ai-notes/steam-and-joining.md.
 const PRESPLIT_POPULATED: usize = 3;
 const PRESPLIT_QUIET: usize = 6;
 

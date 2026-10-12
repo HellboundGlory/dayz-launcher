@@ -200,7 +200,7 @@ pub struct MutationResult {
 const MUTATION_DEADLINE: Duration = Duration::from_secs(60);
 
 // Explicit-download gate: Steam otherwise auto-updates subscribed items in
-// the background on its own. See .ai-notes/crates/tetra-steam/src/actor.rs.md.
+// the background on its own. See .ai-notes/steam-and-joining.md.
 
 /// Ids explicitly queued for download, and when.
 type ActiveDownloads = HashMap<u64, Instant>;

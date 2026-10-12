@@ -6,7 +6,7 @@ use tetra_net::prober::Prober;
 use tetra_registry::Registry;
 use tetra_steam::SteamHandle;
 
-/// Application state managed by Tauri. See .ai-notes/src-tauri/src/state.rs.md
+/// Application state managed by Tauri. See .ai-notes/native-shell.md
 /// for the rationale behind each field.
 pub struct AppState {
     pub registry: Mutex<Option<Registry>>,

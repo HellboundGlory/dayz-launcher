@@ -85,7 +85,7 @@ pub fn run() {
         )
         // Explicit quit, not "last window closed": Steamworks' overlay hook
         // creates untracked native windows that can keep that count from
-        // ever reaching zero. Scoped to `main` (see .ai-notes/src-tauri/src/lib.rs.md).
+        // ever reaching zero. Scoped to `main` (see .ai-notes/native-shell.md).
         .on_window_event(|window, event| {
             if window.label() != "main" {
                 return;
@@ -387,7 +387,7 @@ pub fn run() {
         .expect("error while running tauri application")
         // The single shutdown choke point — `RunEvent::Exit` fires however the
         // process is ending. `restart_requested` bridges an updater restart's
-        // two events; Linux-only, see .ai-notes/src-tauri/src/lib.rs.md.
+        // two events; Linux-only, see .ai-notes/native-shell.md.
         .run({
             #[cfg(target_os = "linux")]
             let mut restart_requested = false;
@@ -436,7 +436,7 @@ pub fn run() {
 
                     // Linux: glibc's exit() trips heap corruption unloading
                     // NVIDIA/WebKit modules, so use _exit instead (see
-                    // .ai-notes/src-tauri/src/lib.rs.md) — restart is replicated manually below.
+                    // .ai-notes/native-shell.md) — restart is replicated manually below.
                     #[cfg(target_os = "linux")]
                     {
                         if restart_requested {

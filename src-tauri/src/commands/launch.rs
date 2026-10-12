@@ -405,7 +405,7 @@ pub struct VerifyOutcome {
 /// without launching anything — the "Verify" half of VERIFY & JOIN. Not
 /// folded into `launch_game`: verifying is slow, and the frontend needs to
 /// show progress and stay cancellable across it. `launch_game` keeps its
-/// own gate regardless. See .ai-notes/src-tauri/src/commands/launch.rs.md.
+/// own gate regardless. See .ai-notes/steam-and-joining.md.
 #[tauri::command]
 pub async fn verify_server_mods(
     state: State<'_, AppState>,

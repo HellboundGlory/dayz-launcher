@@ -183,11 +183,10 @@ pub(crate) fn build(
     }
     // Non-correlated on purpose: an `EXISTS`/`= ?` clause correlated to
     // `servers.ip`/`servers.query_port` re-runs its subquery once per outer
-    // row, which turned an 8ms query into a 2-second one at 6,000 servers —
-    // see .ai-notes/crates/tetra-registry/src/filter.rs.md. Matching by the
-    // `ip || ':' || query_port` key (same idiom `mod_usage` already uses)
-    // lets SQLite compute the qualifying-server set once and probe it with a
-    // hash/index lookup per outer row instead.
+    // row, which turned an 8ms query into a 2-second one at 6,000 servers.
+    // Matching by the `ip || ':' || query_port` key (same idiom `mod_usage`
+    // already uses) lets SQLite compute the qualifying-server set once and
+    // probe it with a hash/index lookup per outer row instead.
     if !filter.mod_ids.is_empty() {
         let mut mod_binds: Vec<Value> = Vec::new();
         let holes = std::iter::repeat_n("?", filter.mod_ids.len())

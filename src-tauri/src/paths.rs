@@ -9,7 +9,7 @@
 //! | Installed | `app_local_data_dir()` — `%LOCALAPPDATA%\com.tetra.launcher` |
 //!
 //! Portable mode is opted into by a marker file, never inferred from exe
-//! location — see .ai-notes/src-tauri/src/paths.rs.md for why.
+//! location — see .ai-notes/native-shell.md for why.
 
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;

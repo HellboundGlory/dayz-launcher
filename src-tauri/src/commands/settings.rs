@@ -29,7 +29,7 @@ pub enum OnJoin {
 }
 
 /// Retired in favour of `close_to_tray`/`minimise_to_tray`. Read once to
-/// migrate, never written — see .ai-notes/src-tauri/src/commands/settings.rs.md.
+/// migrate, never written — see .ai-notes/native-shell.md.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum OnClose {

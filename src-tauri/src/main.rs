@@ -2,7 +2,7 @@
 
 fn main() {
     // Linux: force WebKit software rendering + X11 to avoid a blank window on
-    // WebKitGTK/Wayland (see .ai-notes/src-tauri/src/main.rs.md).
+    // WebKitGTK/Wayland (see .ai-notes/native-shell.md).
     #[cfg(target_os = "linux")]
     {
         for (key, value) in [
