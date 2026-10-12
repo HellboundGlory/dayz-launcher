@@ -1,5 +1,7 @@
-import { useEffect, useRef, type KeyboardEvent } from "react";
+import { useEffect, useRef } from "react";
 import { useConfirmStore } from "@/stores/confirm-store";
+import { useEscapeLayer } from "@/theme/interaction/escape-layers";
+import { wrapTabWithin } from "@/theme/interaction/popup-keyboard";
 
 /** Ask the user to confirm before running `action`; resolved by the one launcher-owned dialog (ADR-0024). */
 export function useConfirm() {
@@ -16,36 +18,11 @@ export function ConfirmDialog() {
 
   // Focus Cancel by default (safer default for a destructive action); Escape closes.
   useEffect(() => {
-    if (!request) return;
-    cancelRef.current?.focus();
-    function onKey(e: globalThis.KeyboardEvent) {
-      if (e.key === "Escape") resolve(false);
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [request, resolve]);
+    if (request) cancelRef.current?.focus();
+  }, [request]);
+  useEscapeLayer(!!request, () => resolve(false));
 
   if (!request) return null;
-
-  /** Tab wraps within the dialog; Shift+Tab goes backwards. */
-  function trapTab(e: KeyboardEvent) {
-    if (e.key !== "Tab") return;
-    const els = Array.from(
-      wrapRef.current?.querySelectorAll<HTMLElement>(
-        "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])",
-      ) ?? [],
-    ).filter((el) => !el.hasAttribute("disabled"));
-    if (els.length === 0) return;
-    const first = els[0];
-    const last = els[els.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  }
 
   return (
     <div
@@ -57,7 +34,7 @@ export function ConfirmDialog() {
         role="dialog"
         aria-modal="true"
         aria-label={request.title}
-        onKeyDown={trapTab}
+        onKeyDown={(e) => wrapTabWithin(wrapRef.current, e)}
         className="w-80 [border-radius:var(--t-radius-confirm)] border border-line bg-surface p-3 [box-shadow:var(--t-shadow-confirm)]"
         onClick={(e) => e.stopPropagation()}
       >

@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { ExternalLink, LoaderCircle, RefreshCw, TriangleAlert } from "lucide-react";
 import { openSteam, type SteamInitError, type SteamInitFailure } from "@/lib/tauri";
+import { wrapTabWithin } from "@/theme/interaction/popup-keyboard";
 
 interface SteamRequiredModalProps {
   error: SteamInitError;
@@ -71,6 +72,7 @@ export function SteamRequiredModal({
   exhausted,
   onRetry,
 }: SteamRequiredModalProps) {
+  const titleId = useId();
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
 
@@ -100,6 +102,10 @@ export function SteamRequiredModal({
   return (
     <div className="fixed inset-0 z-[var(--z-blocking)] flex items-center justify-center [background-color:var(--t-color-scrimBlocking)] backdrop-blur-xs">
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onKeyDown={(e) => wrapTabWithin(e.currentTarget, e)}
         className="w-[440px] [border-radius:var(--t-radius-confirm)] border border-line bg-surface [box-shadow:var(--t-shadow-confirm)]"
       >
         <div className="flex items-start gap-3 px-5 pt-5">
@@ -115,7 +121,7 @@ export function SteamRequiredModal({
             )}
           </div>
           <div data-tetra-el="errorCopy">
-            <h2 className="[font-size:var(--t-type-heading-size)] font-semibold leading-5 text-ink">{copy.title}</h2>
+            <h2 id={titleId} className="[font-size:var(--t-type-heading-size)] font-semibold leading-5 text-ink">{copy.title}</h2>
             <p className="mt-1.5 [font-size:var(--t-type-body-size)] leading-relaxed text-muted2">{copy.body}</p>
           </div>
         </div>

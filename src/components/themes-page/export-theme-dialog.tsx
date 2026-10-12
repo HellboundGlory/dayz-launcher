@@ -5,6 +5,8 @@ import { useLoadableImage } from "@/hooks/use-loadable-image";
 import { cn } from "@/lib/utils";
 import { exportTheme, getTheme } from "@/lib/tauri";
 import { resolveThemeAsset } from "@/theme/asset-resolver";
+import { useEscapeLayer } from "@/theme/interaction/escape-layers";
+import { wrapTabWithin } from "@/theme/interaction/popup-keyboard";
 import { resolvedPair } from "@/theme/theme-store";
 import type { ManifestOverrides, ThemeFile } from "@/types/theme";
 import { capabilityLabels, type Capability } from "./capability-labels";
@@ -88,32 +90,7 @@ export function ExportThemeDialog({
     };
   }, [id]);
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  function trapTab(e: React.KeyboardEvent) {
-    if (e.key !== "Tab") return;
-    const els = Array.from(
-      wrapRef.current?.querySelectorAll<HTMLElement>(
-        "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])",
-      ) ?? [],
-    ).filter((el) => !el.hasAttribute("disabled"));
-    if (els.length === 0) return;
-    const first = els[0];
-    const last = els[els.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  }
+  useEscapeLayer(true, onClose);
 
   function closeIfOutside(e: React.MouseEvent) {
     if (e.target === e.currentTarget) onClose();
@@ -187,7 +164,7 @@ export function ExportThemeDialog({
         role="dialog"
         aria-modal="true"
         aria-label={`Export theme: ${loaded ? theme.name : id}`}
-        onKeyDown={trapTab}
+        onKeyDown={(e) => wrapTabWithin(wrapRef.current, e)}
         className="flex max-h-[min(620px,calc(100%-40px))] w-[min(460px,calc(100%-40px))] flex-col overflow-hidden [border-radius:var(--t-radius-modalLarge)] border border-line bg-surface [box-shadow:var(--t-shadow-xl)]"
       >
         <div className="flex shrink-0 items-start justify-between border-b border-line px-4 py-3">

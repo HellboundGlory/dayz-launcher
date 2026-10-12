@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import {
   ArrowRight,
   CircleCheck,
@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { cn } from "@/lib/utils";
+import { wrapTabWithin } from "@/theme/interaction/popup-keyboard";
 import { useSettingsStore } from "@/stores/settings-store";
 import { discoverSteamPaths, validateDayzPath } from "@/lib/tauri";
 import tetraLogo from "@/assets/tetra-logo.png";
@@ -24,6 +25,7 @@ const GHOST_BUTTON_CLASS =
 // Fires once, on the very first launch: who the player is, and where DayZ
 // lives. Runs the same registry scan the Settings "Detect" button does.
 export function OnboardingModal({ onDone }: { onDone: () => void }) {
+  const titleId = useId();
   const profileName = useSettingsStore((s) => s.profileName);
   const dayzPath = useSettingsStore((s) => s.dayzPath);
   const setSetting = useSettingsStore((s) => s.setSetting);
@@ -98,12 +100,16 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
   return (
     <div className="absolute inset-0 z-[var(--z-onboarding)] flex items-center justify-center [background-color:var(--t-color-scrim)]">
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onKeyDown={(e) => wrapTabWithin(e.currentTarget, e)}
         className="w-[min(360px,calc(100%-40px))] overflow-hidden [border-radius:var(--t-radius-modal)] border border-line bg-surface [box-shadow:var(--t-shadow-modal)]"
       >
         <div className="flex items-start gap-2.5 border-b border-line p-4">
           <img src={tetraLogo} alt="" className="size-9 shrink-0 rounded-[7px] [box-shadow:var(--t-glow-rest)]" />
           <div>
-            <h2 className="[font-size:var(--t-type-compactHeading-size)] font-bold text-ink">Set up your survivor</h2>
+            <h2 id={titleId} className="[font-size:var(--t-type-compactHeading-size)] font-bold text-ink">Set up your survivor</h2>
             <p className="mt-0.5 [font-size:var(--t-type-compactBody-size)] leading-relaxed text-muted">
               One-time setup — who you are, and where DayZ lives.
             </p>
