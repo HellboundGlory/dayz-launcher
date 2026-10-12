@@ -164,12 +164,12 @@ export function ThemeSettingsForm({ id, fields }: { id: string; fields: Settings
                 <input
                   type="color"
                   id={`theme-setting-${field.id}`}
-                  value={committedValue}
+                  value={isHexColor(text) ? text : committedValue}
                   onChange={(e) => {
                     const next = e.target.value;
-                    clearDraft(field.id);
+                    setDraft(field.id, next);
                     scheduleCommit(timers.current, field.id, () => {
-                      void setSettingsValue(id, field.id, next);
+                      void setSettingsValue(id, field.id, next).then(() => clearDraft(field.id, next));
                     });
                   }}
                   className="size-6 cursor-pointer [border-radius:var(--t-radius-controlSmall)] border-0 bg-transparent p-0"

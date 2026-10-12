@@ -215,7 +215,6 @@ export function ServerGameTime({
     </span>
   );
 }
-export const ServerTime = ServerGameTime;
 
 export function ServerTags({
   options,
@@ -227,11 +226,10 @@ export function ServerTags({
   style?: CSSProperties;
 }) {
   const server = useServerSubject();
-  const modPending = useServerStore((s) => s.modPending);
+  const hasModUpdate = useServerStore((s) => !!server && !!s.modPending[server.addr]);
   if (!server) return null;
 
   const offline = !server.online;
-  const hasModUpdate = !!modPending[server.addr];
   const officialWording = (options?.officialWording as string) ?? "vanilla";
   const showOffline = options?.showOffline !== false;
   const showOfficial = options?.showOfficial !== false;
@@ -1131,6 +1129,7 @@ export function ServerUnsubscribeUnique({
       setNotice(server.addr, {
         kind: "plain",
         text: `Unsubscribed ${outcome.count} unique mod${outcome.count === 1 ? "" : "s"} (${formatBytes(outcome.total_size_bytes, 1)})`,
+        tone: "success",
       });
       triggerReload();
     } catch (err) {
@@ -1241,7 +1240,7 @@ export function ServerCopyAddress({
         setCopied(true);
         setTimeout(() => setCopied(false), COPY_ADDRESS_RESET_MS);
         // The popup is gone, so its copied state can't show; say it in the server's notice.
-        if (popupId) setNotice(server.addr, { kind: "plain", text: "Address copied" });
+        if (popupId) setNotice(server.addr, { kind: "plain", text: "Address copied", tone: "success" });
       })
       .catch((err) => setNotice(server.addr, { kind: "plain", text: String(err) }));
   };
@@ -1277,9 +1276,8 @@ export function ServerModUpdate({
   style?: CSSProperties;
 }) {
   const server = useServerSubject();
-  const modPending = useServerStore((s) => s.modPending);
-  if (!server) return null;
-  if (!modPending[server.addr]) return null;
+  const pending = useServerStore((s) => !!server && !!s.modPending[server.addr]);
+  if (!server || !pending) return null;
 
   const label = (options?.label as string | undefined) ?? "UPDATE";
   return (

@@ -1,9 +1,11 @@
 import { serverModReadiness } from "@/lib/tauri";
 import type { ServerModReadiness } from "@/types/server";
 
-type CacheEntry = { readiness: ServerModReadiness } | { error: true };
+type CacheEntry = { readiness: ServerModReadiness } | { error: true; at: number };
 
 const DEBOUNCE_MS = 250;
+/** How long a failed fetch stands before a request for that server tries again. */
+const RETRY_AFTER_MS = 30_000;
 
 const cache = new Map<string, CacheEntry>();
 const pending = new Map<string, Promise<void>>();
@@ -47,8 +49,15 @@ export function invalidateReadiness(): void {
   notify();
 }
 
+/** A cached result, or a failure recent enough not to retry yet. */
+function hasResult(key: string): boolean {
+  const entry = cache.get(key);
+  if (entry === undefined) return false;
+  return !("error" in entry) || Date.now() - entry.at < RETRY_AFTER_MS;
+}
+
 function fetchReadiness(key: string, addr: string, queryPort: number): void {
-  if (pending.has(key) || cache.has(key)) return;
+  if (pending.has(key) || hasResult(key)) return;
 
   const request = serverModReadiness(addr, queryPort)
     .then((result) => {
@@ -58,8 +67,10 @@ function fetchReadiness(key: string, addr: string, queryPort: number): void {
     })
     .catch(() => {
       if (pending.get(key) !== request) return;
-      cache.set(key, { error: true });
+      cache.set(key, { error: true, at: Date.now() });
       notify();
+      // Wakes consumers once the wait is over, so a server left open retries.
+      setTimeout(notify, RETRY_AFTER_MS);
     })
     .finally(() => {
       if (pending.get(key) === request) pending.delete(key);
@@ -70,7 +81,7 @@ function fetchReadiness(key: string, addr: string, queryPort: number): void {
 /** Debounces one fetch for a server; consumers arriving during it share its request. */
 export function scheduleReadinessFetch(addr: string, queryPort: number): () => void {
   const key = readinessKey(addr, queryPort);
-  if (cache.has(key)) return () => {};
+  if (hasResult(key)) return () => {};
   const timer = setTimeout(() => {
     fetchReadiness(key, addr, queryPort);
   }, DEBOUNCE_MS);

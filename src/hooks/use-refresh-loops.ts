@@ -31,16 +31,15 @@ export function useRefreshLoops({
   const refreshInFlight = useRef(false);
 
   // Re-probes every server in the current filtered list (distinct from
-  // DISCOVER, which pulls new servers in).
-  const handleRefresh = useCallback(async () => {
+  // DISCOVER, which pulls new servers in). Only a refresh the player asked for
+  // touches the banner; a timed one must not hide or replace what it shows.
+  const runRefresh = useCallback(async (manual: boolean) => {
     if (!steamConnected) return;
     if (refreshInFlight.current) return;
     // An A2S refresh opens thousands of UDP sockets; don't run it against a
     // download the user is waiting on.
     if (useServerStore.getState().downloadsActive) {
-      setError(
-        "Paused while mods are downloading — try again once they finish.",
-      );
+      if (manual) setError("Paused while mods are downloading — try again once they finish.");
       return;
     }
     const { servers } = useServerStore.getState();
@@ -53,29 +52,30 @@ export function useRefreshLoops({
 
     refreshInFlight.current = true;
     setRefreshing(true);
-    setError(null);
+    if (manual) setError(null);
     try {
       await refreshVisibleServers(targets, "visible");
       triggerReload();
       setRefreshedAt(new Date().toLocaleTimeString());
     } catch (e) {
-      setError(String(e));
+      if (manual) setError(String(e));
     } finally {
       refreshInFlight.current = false;
       setRefreshing(false);
     }
   }, [steamConnected, triggerReload, setError, setRefreshing, setRefreshedAt]);
+  const handleRefresh = useCallback(() => runRefresh(true), [runRefresh]);
 
-  // Auto-refresh on a timer; reuses handleRefresh so it inherits the same guards.
+  // Auto-refresh on a timer, with the same guards as a manual refresh.
   useEffect(() => {
     if (!settingsLoaded || autoRefreshSecs <= 0 || !steamConnected) return;
     const id = window.setInterval(() => {
       // Nothing worth re-querying while hidden in the tray.
       if (document.hidden) return;
-      void handleRefresh();
+      void runRefresh(false);
     }, autoRefreshSecs * 1000);
     return () => clearInterval(id);
-  }, [settingsLoaded, autoRefreshSecs, steamConnected, handleRefresh]);
+  }, [settingsLoaded, autoRefreshSecs, steamConnected, runRefresh]);
 
   // First *populated* load triggers one immediate sweep, so a fresh launch
   // never shows a screenful of "—" pings waiting for the first interval
@@ -90,11 +90,11 @@ export function useRefreshLoops({
       const { hasLoadedOnce, servers } = useServerStore.getState();
       if (!hasLoadedOnce || servers.length === 0) return;
       sweptOnce.current = true;
-      void handleRefresh();
+      void runRefresh(false);
     };
     trySweep();
     return useServerStore.subscribe(trySweep);
-  }, [settingsLoaded, autoRefreshSecs, steamConnected, handleRefresh]);
+  }, [settingsLoaded, autoRefreshSecs, steamConnected, runRefresh]);
 
   // Periodic master re-pull. Discovery was launch-only, so servers still
   // propagating to Steam at startup stayed absent for the whole session —

@@ -430,13 +430,33 @@ describe("startVisibilityChecks", () => {
     expect(useFallbackStore.getState().fallbackReasons).toEqual(expected);
   });
 
+  it("confirms a file that first fails during a confirming pass", async () => {
+    installTheme("local.test", {
+      ...shellOnly,
+      [BROWSER]: layoutWith("filter.search"),
+      [SERVER_LIST]: layoutWith("server.join"),
+    });
+    const joinFails = { passed: false, failures: [{ element: "server.join", reason: "zero height" }] };
+    visibility.runVisibilityCheck.mockReturnValueOnce(filterFails("zero height"));
+    visibility.runVisibilityCheck.mockReturnValueOnce(joinFails);
+    visibility.runVisibilityCheck.mockReturnValueOnce(joinFails);
+    visibility.runVisibilityCheck.mockReturnValue(PASS);
+
+    startVisibilityChecks({ getEnv: () => baseEnv, root: asRoot(browserTree()) });
+    await settle();
+    await settle();
+    await settle();
+
+    expect(useFallbackStore.getState().fallbackReasons).toEqual({ [SERVER_LIST]: ["server.join: zero height"] });
+  });
+
   it("undoes a runtime fall-back on resize, even when another trigger lands first", async () => {
     installTheme("local.test", {
       ...shellOnly,
       [BROWSER]: layoutWith("filter.search"),
       [SERVER_LIST]: layoutWith("server.join"),
     });
-    markFileFallback("local.test", SERVER_LIST, "LAY-01: dropped");
+    markFileFallback(SERVER_LIST, "LAY-01: dropped");
     visibility.runVisibilityCheck.mockReturnValueOnce(filterFails("dimensions are zero or negative"));
     visibility.runVisibilityCheck.mockReturnValueOnce(filterFails("dimensions are zero or negative"));
     visibility.runVisibilityCheck.mockReturnValue(PASS);

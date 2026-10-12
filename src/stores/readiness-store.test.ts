@@ -64,13 +64,22 @@ describe("readiness store", () => {
     expect(getCachedReadiness("1.2.3.4", 27016)).toBeUndefined();
   });
 
-  it("caches a distinct error entry when the fetch rejects", async () => {
-    serverModReadiness.mockRejectedValue(new Error("steam unreachable"));
+  it("caches a distinct error entry when the fetch rejects, and retries on the next request", async () => {
+    serverModReadiness.mockRejectedValueOnce(new Error("steam unreachable"));
+    serverModReadiness.mockResolvedValue(sample);
 
     scheduleReadinessFetch("1.2.3.4", 27016);
     await vi.advanceTimersByTimeAsync(250);
+    expect(getCachedReadiness("1.2.3.4", 27016)).toMatchObject({ error: true });
 
-    expect(getCachedReadiness("1.2.3.4", 27016)).toEqual({ error: true });
+    scheduleReadinessFetch("1.2.3.4", 27016);
+    await vi.advanceTimersByTimeAsync(250);
+    expect(serverModReadiness).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    scheduleReadinessFetch("1.2.3.4", 27016);
+    await vi.advanceTimersByTimeAsync(250);
+    expect(getCachedReadiness("1.2.3.4", 27016)).toEqual({ readiness: sample });
   });
 
   it.each([

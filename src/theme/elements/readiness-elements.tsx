@@ -186,11 +186,11 @@ export function ServerDownloadSize({
   const { readiness } = useServerReadiness(server);
   if (!server?.modded || !readiness) return null;
 
-  const outstanding = readiness.mods.filter(isOutstandingMod);
-  const bytes = outstanding.reduce((sum, m) => sum + (m.size_bytes ?? 0), 0);
-  const upperBound = outstanding.some((m) => m.size_is_upper_bound);
+  const outstanding = sumOutstanding(readiness.mods);
+  const upperBound = outstanding.upperBound;
+  const bytes = outstanding.bytes ?? 0;
   const count = readiness.mods.length;
-  const dataState = outstanding.length === 0 ? "none" : upperBound ? "upperBound" : undefined;
+  const dataState = outstanding.bytes === null ? "none" : upperBound ? "upperBound" : undefined;
 
   return (
     <div data-el="server.downloadSize" data-state={states(dataState, !server.online && "offline")} className={className} style={style}>

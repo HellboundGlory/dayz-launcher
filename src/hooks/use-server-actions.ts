@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useServerStore } from "@/stores/server-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useLaunchStore, type ActiveOp, type Notice as StoreNotice } from "@/stores/launch-store";
+import { invalidateReadiness } from "@/stores/readiness-store";
 import {
   logClient,
   launchGame,
@@ -173,7 +174,7 @@ export function useServerActions() {
         .map((s) => s.workshop_id);
       if (missing.length > 0) {
         setPhase("subscribing", `SUBSCRIBING ${missing.length}…`);
-        const outcome = await steamSubscribeMods(missing);
+        const outcome = await steamSubscribeMods(missing).finally(invalidateReadiness);
         if (cancel.cancelled) return;
         if (outcome.failures.length > 0) {
           const [, reason] = outcome.failures[0];
@@ -296,7 +297,7 @@ export function useServerActions() {
       }
 
       setPhase("subscribing", `SUBSCRIBING ${missing.length}…`);
-      const outcome = await steamSubscribeMods(missing);
+      const outcome = await steamSubscribeMods(missing).finally(invalidateReadiness);
       if (cancel.cancelled) return;
       if (outcome.failures.length > 0) {
         const [, reason] = outcome.failures[0];

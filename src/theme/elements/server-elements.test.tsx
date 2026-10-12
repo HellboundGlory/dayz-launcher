@@ -832,6 +832,7 @@ describe("ServerUnsubscribeUnique", () => {
       notice: {
         kind: "plain",
         text: `Unsubscribed 2 unique mods (${formatBytes(unsubscribeOutcome.total_size_bytes, 1)})`,
+        tone: "success",
       },
     });
   });

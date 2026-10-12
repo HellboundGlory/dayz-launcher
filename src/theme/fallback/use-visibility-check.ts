@@ -260,14 +260,15 @@ export function startVisibilityChecks({
     if (disposed) return;
     onRun?.();
     const found = measureVisibilityCheck({ env: getEnv(), root });
-    if (pending) {
-      for (const [file, reasons] of found) {
-        if (pending.has(file)) markRuntimeFallback(file, reasons);
-      }
-      pending = null;
-    } else if (found.size > 0) {
+    const unconfirmed = new Map<string, string[]>();
+    for (const [file, reasons] of found) {
+      if (pending?.has(file)) markRuntimeFallback(file, reasons);
+      else unconfirmed.set(file, reasons);
+    }
+    pending = null;
+    if (unconfirmed.size > 0) {
       schedule(RESIZE_DEBOUNCE_MS);
-      pending = found;
+      pending = unconfirmed;
     }
   };
 

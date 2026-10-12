@@ -46,6 +46,7 @@ const SECONDARY_BUTTON_CLASS =
   "shrink-0 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-caption-size)] font-semibold uppercase tracking-[0.04em] text-muted2 transition-colors hover:text-ink";
 
 const ACTIVE_NAME_NOTICE = "A theme with that name is active. Pick another name.";
+const SAVE_FAILED_NOTICE = "Could not save the theme. The launcher log has the details.";
 
 // Theme accordion body. Owns only local dropdown/save-input state — every
 // colour decision writes straight to the theme store.
@@ -95,9 +96,10 @@ export function ThemeCustomiser() {
   function saveNewName() {
     const trimmed = name.trim() || "Untitled theme";
     setNotice(null);
-    setName("");
     void saveNamed(trimmed, false).then((result) => {
-      if (result === "exists") requestReplace(trimmed);
+      if (result === "saved") setName("");
+      else if (result === "exists") requestReplace(trimmed);
+      else setNotice(SAVE_FAILED_NOTICE);
     });
   }
 
@@ -123,7 +125,10 @@ export function ThemeCustomiser() {
           setNotice(ACTIVE_NAME_NOTICE);
           return;
         }
-        void saveNamed(target, true);
+        void saveNamed(target, true).then((result) => {
+          if (result === "saved") setName("");
+          else setNotice(SAVE_FAILED_NOTICE);
+        });
       },
     );
   }
