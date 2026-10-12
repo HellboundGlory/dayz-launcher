@@ -4,12 +4,12 @@ import { positionStyle, type SettingsValues } from "../renderer/props";
 import { LayoutNodeRenderer, RenderContextProvider } from "../renderer/node-renderer";
 import { useLayoutCollapseRules } from "../renderer/layout-renderer";
 import { useResolvedRoot } from "../renderer/use-resolved-root";
+import { useEscapeLayer } from "./escape-layers";
+import { FOCUSABLE, wrapTabWithin } from "./popup-keyboard";
 
-const FOCUSABLE =
-  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 const PRIMARY = '[data-primary="true"], [data-action="primary"], button[type="submit"]';
 
-// Only the topmost modal handles keys, so a confirm dialog above this one owns them even with focus on body.
+// Only the topmost modal traps Tab, so a confirm dialog above this one owns it even with focus on body.
 function isTopModal(self: HTMLElement | null) {
   const all = document.querySelectorAll('[aria-modal="true"]');
   return all[all.length - 1] === self;
@@ -40,16 +40,13 @@ export function ModalHost({
 }: ModalHostProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
-  const onCloseRef = useRef(onClose);
 
   const placement = file.placement ?? { mode: "center" };
   const backdrop = file.backdrop ?? "dim";
   const root = useResolvedRoot(file);
   useLayoutCollapseRules(root);
 
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  });
+  useEscapeLayer(isOpen, onClose);
 
   useEffect(() => {
     if (!isOpen || typeof document === "undefined") return;
@@ -71,36 +68,7 @@ export function ModalHost({
     }
 
     const onKeyDown = (e: globalThis.KeyboardEvent) => {
-      if (!isTopModal(modalRef.current)) return;
-
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onCloseRef.current();
-        return;
-      }
-
-      if (e.key === "Tab" && modalRef.current) {
-        const nodes = Array.from(modalRef.current.querySelectorAll<HTMLElement>(FOCUSABLE));
-        if (nodes.length === 0) {
-          e.preventDefault();
-          return;
-        }
-
-        const first = nodes[0];
-        const last = nodes[nodes.length - 1];
-
-        if (e.shiftKey) {
-          if (document.activeElement === first || !modalRef.current.contains(document.activeElement)) {
-            e.preventDefault();
-            last.focus();
-          }
-        } else {
-          if (document.activeElement === last || !modalRef.current.contains(document.activeElement)) {
-            e.preventDefault();
-            first.focus();
-          }
-        }
-      }
+      if (isTopModal(modalRef.current)) wrapTabWithin(modalRef.current, e);
     };
 
     window.addEventListener("keydown", onKeyDown);

@@ -6,6 +6,8 @@ import { useLoadableImage } from "@/hooks/use-loadable-image";
 import { cn } from "@/lib/utils";
 import { confirmThemeInstall, discardThemeImport, importThemePreview } from "@/lib/tauri";
 import { resolveThemeAsset } from "@/theme/asset-resolver";
+import { useEscapeLayer } from "@/theme/interaction/escape-layers";
+import { wrapTabWithin } from "@/theme/interaction/popup-keyboard";
 import type { ThemeImportPreview, ThemeManifest, ThemePreview, ThemeSummary } from "@/types/theme";
 import { capabilityLabel, capabilityLabels } from "./capability-labels";
 
@@ -157,36 +159,11 @@ export function ImportThemeDialog({
     onClose();
   }
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape" && !busy) {
-        discardStaging(stagingRef);
-        onClose();
-      }
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [busy, onClose]);
-
-  /** Tab wraps within the dialog; Shift+Tab goes backwards. */
-  function trapTab(e: React.KeyboardEvent) {
-    if (e.key !== "Tab") return;
-    const els = Array.from(
-      wrapRef.current?.querySelectorAll<HTMLElement>(
-        "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])",
-      ) ?? [],
-    ).filter((el) => !el.hasAttribute("disabled"));
-    if (els.length === 0) return;
-    const first = els[0];
-    const last = els[els.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  }
+  useEscapeLayer(true, () => {
+    if (busy) return;
+    discardStaging(stagingRef);
+    onClose();
+  });
 
   async function loadFile(path: string) {
     // A second file replaces the first; its staged copy must not be stranded.
@@ -284,7 +261,7 @@ export function ImportThemeDialog({
         role="dialog"
         aria-modal="true"
         aria-label={manifest ? `Import theme: ${manifest.name}` : "Import theme"}
-        onKeyDown={trapTab}
+        onKeyDown={(e) => wrapTabWithin(wrapRef.current, e)}
         className="max-h-[calc(100%-40px)] w-[min(430px,calc(100%-40px))] overflow-y-auto [border-radius:var(--t-radius-modal)] border border-line bg-surface [box-shadow:var(--t-shadow-modal)]"
       >
         <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">

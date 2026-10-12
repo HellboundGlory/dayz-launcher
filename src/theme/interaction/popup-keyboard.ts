@@ -3,6 +3,26 @@ import { useEffect, useRef, type RefObject } from "react";
 export const FOCUSABLE =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+/** Keep Tab and Shift+Tab inside `container`, wrapping at either end. */
+export function wrapTabWithin(
+  container: HTMLElement | null,
+  e: { key: string; shiftKey: boolean; preventDefault: () => void },
+) {
+  if (e.key !== "Tab" || !container) return;
+  const nodes = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE));
+  if (nodes.length === 0) {
+    e.preventDefault();
+    return;
+  }
+  const active = document.activeElement;
+  const outside = !container.contains(active);
+  const edge = e.shiftKey ? nodes[0] : nodes[nodes.length - 1];
+  if (outside || active === edge) {
+    e.preventDefault();
+    (e.shiftKey ? nodes[nodes.length - 1] : nodes[0]).focus();
+  }
+}
+
 const SELECTED_OPTION =
   '[aria-selected="true"], [role="menuitemradio"][aria-checked="true"], [data-part="option"][data-state~="selected"]';
 

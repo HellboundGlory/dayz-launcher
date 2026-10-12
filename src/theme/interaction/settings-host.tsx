@@ -5,6 +5,7 @@ import { type SettingsValues } from "../renderer/props";
 import { LayoutNodeRenderer, RenderContextProvider } from "../renderer/node-renderer";
 import { useLayoutCollapseRules } from "../renderer/layout-renderer";
 import { useResolvedRoot } from "../renderer/use-resolved-root";
+import { useEscapeLayer } from "./escape-layers";
 
 /** A mousedown closes the overlay only when it targets the overlay's own
  * rendered root, not a click that started inside a descendant. */
@@ -37,21 +38,7 @@ export function SettingsHost({
   const root = useResolvedRoot(file);
   useLayoutCollapseRules(root);
 
-  useEffect(() => {
-    if (!isOpen || mode !== "overlay" || !onClose || typeof window === "undefined") return;
-
-    const onKeyDown = (e: globalThis.KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [isOpen, mode, onClose]);
+  useEscapeLayer(isOpen && mode === "overlay" && !!onClose, () => onClose?.());
 
   const hostRef = useRef<HTMLDivElement>(null);
   const backdropClose = mode === "overlay" && presentation.backdropClose === true;
@@ -124,9 +111,15 @@ export function SettingsRegionPortal(props: SettingsHostProps) {
       return;
     }
     const find = () => document.querySelector<HTMLElement>(`[data-region="${regionId}"]`);
-    setRegionNode(find());
-    // Setting the same node again does not re-render.
-    const observer = new MutationObserver(() => setRegionNode(find()));
+    let current = find();
+    setRegionNode(current);
+    // Only search again once the region found last has gone; list rows mount and
+    // unmount all the time while Settings is open.
+    const observer = new MutationObserver(() => {
+      if (current?.isConnected && current.dataset.region === regionId) return;
+      current = find();
+      setRegionNode(current);
+    });
     observer.observe(document.body, {
       childList: true,
       subtree: true,
