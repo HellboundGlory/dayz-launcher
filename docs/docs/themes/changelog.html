@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Theme changes — Tetra Launcher</title>
+    <meta
+      name="description"
+      content="What changed for Tetra Launcher theme authors in each release, and what to do about it."
+    />
+    <link rel="icon" href="../../assets/tetra-logo.png" />
+    <link rel="stylesheet" href="../../style-v2.css" />
+    <link rel="stylesheet" href="../../docs.css" />
+  </head>
+  <body>
+    <header class="site-nav">
+      <div class="container">
+        <a class="brand" href="/">
+          <img src="../../assets/tetra-logo.png" alt="" />
+          <span><span class="tetra">TETRA</span> <span class="launcher">LAUNCHER</span></span>
+        </a>
+        <nav class="links">
+          <a href="/">Home</a>
+          <a href="/download">Download</a>
+          <a href="/docs/themes/" class="active">Themes</a>
+          <a href="https://github.com/HellboundGlory/dayz-launcher">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <div class="docs">
+      <aside class="docs-nav" aria-label="Theme docs">
+        <details open>
+          <summary>On this page</summary>
+          <h2>Guide</h2>
+          <ol>
+            <li><a href="/docs/themes/">Making a theme</a></li>
+          </ol>
+          <h2>Reference</h2>
+          <ol>
+            <li><a href="/docs/themes/elements">Elements</a></li>
+            <li><a href="/docs/themes/reference">Manifest, tokens and rules</a></li>
+          </ol>
+          <h2>Theme changes</h2>
+          <ol>
+            <li><a href="#v3-0-0">3.0.0: check your theme</a></li>
+            <li><a href="#v3-0-0-new">3.0.0: new and fixed</a></li>
+          </ol>
+        </details>
+      </aside>
+
+      <main class="prose">
+        <h1>Theme changes</h1>
+        <p class="lede">
+          What changed for theme authors in each release, newest first. Each release
+          starts with what you may need to do; the rest needs nothing from you.
+        </p>
+
+        <h2 id="v3-0-0">3.0.0: check your theme</h2>
+        <p>
+          Installed themes keep loading. A layout file that breaks a stricter rule falls
+          back to Neutral's on its own, and Dev Mode's check names it; a package that
+          breaks an import rule below is refused at import and export until it is fixed.
+          If a row matches your theme, do what the right column says.
+        </p>
+        <div class="table-wrap">
+          <table class="checks">
+            <thead>
+              <tr><th>If your theme…</th><th>Do this</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>has preview images outside <code>previews/</code></td><td>Move them into <code>previews/</code> and update <code>theme.json</code>. Import and export refuse any other path.</td></tr>
+              <tr><td>has a settings field or option with an empty label, or a number default outside <code>min</code>..<code>max</code></td><td>Give every label 1 to 40 characters and keep defaults in range. Otherwise that field is left out of the settings form.</td></tr>
+              <tr><td>ships <code>layout/popups/modActions.json</code> or <code>layout/popups/settingsNav.json</code></td><td>Delete them. Nothing ever loaded them, and import now refuses them.</td></tr>
+              <tr><td>uses a text node <code>role</code> outside the list of ten</td><td>Use <code>display</code>, <code>heading</code>, <code>subheading</code>, <code>body</code>, <code>label</code>, <code>caption</code>, <code>micro</code>, <code>button</code>, <code>chip</code> or <code>data</code> (<code>LAY-03</code>).</td></tr>
+              <tr><td>has an SVG that links outside itself</td><td>Keep <code>href</code> to <code>#id</code> or embedded PNG, JPEG, WebP or GIF data. No <code>&lt;foreignObject&gt;</code> or stylesheet links.</td></tr>
+              <tr><td>has a CSS selector with a pseudo-class right after a space, such as <code>[data-el="x"] :hover</code></td><td>Anchor it: <code>[data-el="x"] [data-part="y"]:hover</code> or <code>&gt; :hover</code>. <code>:nth-child()</code> takes <code>An+B</code>, <code>odd</code> or <code>even</code> only. See <a href="/docs/themes/reference#css">CSS API</a>.</td></tr>
+              <tr><td>declares a <code>--z-*</code> custom property</td><td>Remove it. The stacking order belongs to the launcher (<code>CSS-04</code>).</td></tr>
+              <tr><td>cancels launcher spacing with <code>&gt; :not([hidden]) ~ :not([hidden])</code></td><td>Use <code>&gt; :not(:last-child)</code>. Launcher spacing now sits below or right of each child but the last.</td></tr>
+              <tr><td>sets a colour, background or opacity on an element and relied on the built-in hover or disabled look</td><td>Add your own <code>:hover</code> or <code>[data-state~="disabled"]</code> rule. Your rule now wins in every state.</td></tr>
+              <tr><td>styles the <code>box</code> part in a filter popup as a checkbox</td><td>Style it as an icon column: it holds a check icon (the tag popup's ✓/✗ instead). Select picked rows with <code>[data-part="option"][data-state~="selected"]</code>; excluded tags carry <code>excluded</code> instead.</td></tr>
+              <tr><td>styles the tag popup's ✓/✗ with <code>[data-part="option"] &gt; [data-part="indicator"]</code></td><td>Use a descendant selector: the indicator now sits inside the <code>box</code> part.</td></tr>
+              <tr><td>styles <a href="/docs/themes/elements#el-update-install"><code>update.install</code></a>, <code>update.viewRelease</code> or the <code>workshopMod</code> score, subscribers, include or exclude elements as plain text</td><td>They now start with an <code>icon</code> part. Give them <code>display: inline-flex; align-items: center; gap: …</code>, or hide <code>[data-part="icon"]</code>.</td></tr>
+              <tr><td>places <a href="/docs/themes/elements#el-server-downloadSize"><code>server.downloadSize</code></a></td><td>Check its new wording ("{n} mods", then "Download size: {size}") and drop any <code>[data-state~="checking"]</code> rule.</td></tr>
+              <tr><td>places server stats inside a <code>"context": "selection"</code> container</td><td>They draw as in the server info window now, without the built-in "PLAYERS", "PING", "TIME" and "MODS" labels. Add your own text beside each element, and move <code>[data-part="label"]</code> styling to it.</td></tr>
+              <tr><td>places <code>settings.sectionTitle</code>, <code>sectionDescription</code> or <code>sectionIcon</code> in a plain box</td><td>They are inline now. Add <code>display: block</code> or put them in a column stack if you want separate lines.</td></tr>
+              <tr><td>sizes the <code>mod.thumbnail</code> placeholder as an icon</td><td>Check it: the placeholder is text now.</td></tr>
+              <tr><td>ships <code>layout/popups/serverActions.json</code> or <code>serverLoad.json</code></td><td>Check them: the server menu now opens them instead of the launcher's own list.</td></tr>
+              <tr><td>started from a starter template</td><td>Nothing breaks. New themes now start as a copy of Neutral or Tactical; the starters are gone.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="note warn">
+          <p>
+            <strong>Newly required elements are not placed for you.</strong> A screen that
+            lacks a required element falls back to Neutral's, and Dev Mode names the
+            missing element. When a release lists one, add it to your layout files.
+          </p>
+        </div>
+
+        <h2 id="v3-0-0-new">3.0.0: new and fixed</h2>
+        <p>Nothing here needs a change, but you may want to use it.</p>
+        <h3>Layout and settings</h3>
+        <ul>
+          <li>Setting conditions (<code>hidden: {"setting": …}</code>) now work. A condition on a field the settings check dropped fails <code>LAY-03</code>, and the message names the setting.</li>
+          <li>A settings combination that would hide a required element makes that file fall back, and Dev Mode names the combination.</li>
+          <li>Dev Mode's check lists settings issues beside layout issues, and shows up to 64 combinations.</li>
+          <li><code>collapsible</code> takes <code>collapseBelow</code> (for example <code>"720px"</code>) to fold a region in small windows.</li>
+          <li>A theme can ship <code>layout/popups/modsVerify.json</code> and <code>modsUnsubscribe.json</code> for the mods menus.</li>
+          <li><code>list.servers</code>, <code>list.mods</code> and <code>list.modFilterResults</code> now honour <code>header</code> and <code>rowGap</code> and emit the <code>scroller</code> and <code>rows</code> parts.</li>
+        </ul>
+        <h3>Colours and popups</h3>
+        <ul>
+          <li>Every window backdrop reads <code>color.scrim</code>. The new optional <code>color.scrimBlocking</code> darkens the Steam required screen.</li>
+          <li>An open popup can't be pushed off screen by a filter or transform on the elements around it; those pause while it is open.</li>
+          <li>Popups work from the keyboard: arrows, Home, End, Enter, Space, and Esc back to the button.</li>
+          <li>Windows open on their main action and close on a click on the backdrop. The backdrop can be styled with <code>[data-modal-host][data-backdrop="dim"]</code>.</li>
+        </ul>
+        <h3>Elements</h3>
+        <ul>
+          <li><code>server.readiness</code> gains <code>basis: "declared"</code>, which shows the server's own declared mod state.</li>
+          <li><code>server.modCount</code> has a <code>vanilla</code> state for a server that is not modded and was never checked.</li>
+          <li><code>server.region</code> shows the full region name on hover in both formats.</li>
+          <li>Filter popups end with a separator and Clear, like the launcher's own menus.</li>
+          <li><code>server.menu</code> without a popup file opens Neutral's server actions.</li>
+          <li>Wording now matches the launcher: mod states read Ready, Update or Missing; the list source reads "via index" or "via Steam".</li>
+        </ul>
+        <h3>Themes page</h3>
+        <ul>
+          <li>Every theme id the launcher creates follows the package id rule. A copy named in another script keeps its name and gets an id like <code>local.theme-2</code>. Installed themes keep their ids.</li>
+        </ul>
+
+        <nav class="next" aria-label="More theme docs">
+          <a href="/docs/themes/">Making a theme<span>The guide, from a first theme to a custom layout</span></a>
+          <a href="/docs/themes/reference">Manifest, tokens and rules<span>Every field, variable and error code</span></a>
+        </nav>
+      </main>
+    </div>
+
+    <footer>
+      <div class="container">
+        <p>
+          TETRA LAUNCHER — free and source-available.
+          <a href="https://github.com/HellboundGlory/dayz-launcher">Source on GitHub</a>.
+          Not affiliated with Bohemia Interactive.
+        </p>
+      </div>
+    </footer>
+
+    <script>
+      if (matchMedia("(max-width: 900px)").matches) {
+        document.querySelector(".docs-nav details").open = false;
+      }
+
+      const links = [...document.querySelectorAll('.docs-nav a[href^="#"]')];
+      const byId = new Map(links.map((a) => [a.getAttribute("href").slice(1), a]));
+      const spy = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (!e.isIntersecting) continue;
+            for (const a of links) a.removeAttribute("aria-current");
+            byId.get(e.target.id)?.setAttribute("aria-current", "true");
+          }
+        },
+        { rootMargin: "-80px 0px -70% 0px" },
+      );
+      for (const id of byId.keys()) {
+        const h = document.getElementById(id);
+        if (h) spy.observe(h);
+      }
+    </script>
+  </body>
+</html>
