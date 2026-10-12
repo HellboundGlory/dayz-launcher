@@ -3,7 +3,7 @@
 
 use crate::state::{AppState, Bodies};
 use axum::body::Bytes;
-use std::io::Write;
+use std::io::BufWriter;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tetra_index::{ServerEntry, Snapshot, FORMAT_VERSION};
@@ -35,7 +35,7 @@ impl From<RegistryError> for BuildError {
 }
 
 /// Floor on time between rebuilds. Every write cycle asks for a rebuild,
-/// and a rebuild is a full table scan plus gzipping ~19 MB of JSON.
+/// and a rebuild is a full table scan serialised and gzipped in one pass.
 const MIN_INTERVAL: Duration = Duration::from_secs(30);
 
 /// Rebuild whenever a write cycle says something changed, no more often than
@@ -155,17 +155,21 @@ fn entry(row: ExportRow) -> ServerEntry {
 }
 
 fn encode(snapshot: &Snapshot) -> Result<Bytes, BuildError> {
-    let json = serde_json::to_vec(snapshot).map_err(|e| BuildError::Encode(e.to_string()))?;
-    let mut encoder = flate2::write::GzEncoder::new(
-        Vec::with_capacity(json.len() / 8),
+    let encoder = flate2::write::GzEncoder::new(
+        Vec::with_capacity(4 * 1024 * 1024),
         flate2::Compression::new(6),
     );
-    encoder
-        .write_all(&json)
-        .and_then(|()| encoder.flush())
-        .map_err(|e| BuildError::Encode(e.to_string()))?;
-    let bytes = encoder
+    // serde_json writes a token at a time and the gzip writer deflates on
+    // every write, so buffer between them.
+    let mut out = BufWriter::with_capacity(64 * 1024, encoder);
+    serde_json::to_writer(&mut out, snapshot).map_err(encode_err)?;
+    out.into_inner()
+        .map_err(encode_err)?
         .finish()
-        .map_err(|e| BuildError::Encode(e.to_string()))?;
-    Ok(Bytes::from(bytes))
+        .map(Bytes::from)
+        .map_err(encode_err)
+}
+
+fn encode_err(e: impl std::fmt::Display) -> BuildError {
+    BuildError::Encode(e.to_string())
 }
