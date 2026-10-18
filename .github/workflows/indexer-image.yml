@@ -24,6 +24,8 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: dtolnay/rust-toolchain@stable
+
       # A rebuild restarts the live indexer, so a tag rebuilds only when the indexer, a crate it links,
       # or its Dockerfile changed. A dependency change only in Cargo.toml or Cargo.lock needs a dispatch.
       - name: Needs a build?
