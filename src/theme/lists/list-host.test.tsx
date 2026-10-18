@@ -9,6 +9,16 @@ import type { ColumnDef } from "./types";
 import type { LayoutNode } from "../renderer/types";
 import type { Server } from "@/types/server";
 
+// Server rendering has no scroll element to measure, so the virtualizer gets a viewport to draw rows into.
+vi.mock("@tanstack/react-virtual", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@tanstack/react-virtual")>();
+  return {
+    ...actual,
+    useVirtualizer: (options: Parameters<typeof actual.useVirtualizer>[0]) =>
+      actual.useVirtualizer({ initialRect: { width: 0, height: 500 }, ...options }),
+  };
+});
+
 const mockServer: Server = {
   addr: "192.168.1.1",
   game_port: 2302,
@@ -434,6 +444,19 @@ describe("ListHost", () => {
 
     expect(html).toContain("height:74px");
   });
+
+  it("draws a row that is not loaded yet as an empty spacer", () => {
+    const html = renderToStaticMarkup(
+      <ListHost
+        listId="list.servers"
+        items={[mockServer, undefined, { ...mockServer, addr: "192.168.1.2" }]}
+        columns={sampleColumns}
+      />,
+    );
+
+    expect(html.match(/data-row=""/g)).toHaveLength(2);
+    expect(html).toContain('<div aria-hidden="true" style="height:44px"></div>');
+  });
 });
 
 describe("ListHost column widths", () => {
@@ -444,9 +467,7 @@ describe("ListHost column widths", () => {
   it("gives the header the stored grid template and its resize handles", () => {
     setStoredWidths("neutral", "list.servers", { players: 200 });
 
-    const html = renderToStaticMarkup(
-      <ListHost listId="list.servers" items={[mockServer]} columns={sampleColumns} />,
-    );
+    const html = renderToStaticMarkup(<ListHost listId="list.servers" items={[]} columns={sampleColumns} />);
 
     expect(html.match(/grid-template-columns:40px 1fr 200px 60px/g)).toHaveLength(1);
     // fav (40px), players (80px) and ping (60px) are resizable; name (1fr) is not.

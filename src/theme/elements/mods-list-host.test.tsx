@@ -22,9 +22,7 @@ vi.mock("../lists/list-host", () => ({
     lastProps = props;
     return (
       <div data-testid="stub-list">
-        {props.items.map((item) => (
-          <span key={item.workshop_id}>{item.title}</span>
-        ))}
+        {props.items.map((item) => item && <span key={item.workshop_id}>{item.title}</span>)}
       </div>
     );
   },
