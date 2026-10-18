@@ -118,3 +118,17 @@ describe("patchServers", () => {
     expect(selectedServer).toBe(bFresh);
   });
 });
+
+describe("lookup", () => {
+  it("survives filter changes that keep the search and clears when it changes", () => {
+    const s = useServerStore.getState();
+    s.setFilter({ search: "40.160.57.146:2402" });
+    s.setLookup({ addr: "40.160.57.146:2402", state: "asking" });
+
+    s.setFilter({ max_ping: 50 });
+    expect(useServerStore.getState().lookup).toEqual({ addr: "40.160.57.146:2402", state: "asking" });
+
+    s.setFilter({ search: "40.160.57.146:2403" });
+    expect(useServerStore.getState().lookup).toBeNull();
+  });
+});

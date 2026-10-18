@@ -2,6 +2,8 @@ import { create } from "zustand";
 import type { Server } from "@/types/server";
 import type { ServerFilter, SortKey, SortDir } from "@/types/filters";
 
+export type ServerLookup = { addr: string; state: "asking" | "noanswer" };
+
 interface ServerState {
   /** One entry per row the filter matches; `undefined` is a row not loaded yet. */
   servers: (Server | undefined)[];
@@ -34,6 +36,13 @@ interface ServerState {
   setMaps: (maps: [string, string][]) => void;
   setHasLoadedOnce: () => void;
   setLoadError: (error: string | null) => void;
+
+  /** A search address being asked of the server directly, while it is asking or after no answer. */
+  lookup: ServerLookup | null;
+  setLookup: (lookup: ServerLookup | null) => void;
+  /** The search and total of the last applied page for the current query; null while a query is loading. */
+  settled: { search: string | null; total: number } | null;
+  setSettled: (settled: ServerState["settled"]) => void;
 
   setServerPage: (offset: number, rows: Server[], total: number) => void;
   patchServers: (rows: Server[]) => void;
@@ -128,6 +137,11 @@ function persistFilter(filter: ServerFilter) {
   }
 }
 
+// A lookup answers one search text; it is dropped as soon as the text changes.
+function keptLookup(state: ServerState, search: string | null): ServerLookup | null {
+  return search === state.filter.search ? state.lookup : null;
+}
+
 function loadSort(): { sortKey: SortKey; sortDir: SortDir } {
   const fallback = { sortKey: "players" as SortKey, sortDir: "desc" as SortDir };
   try {
@@ -160,6 +174,8 @@ export const useServerStore = create<ServerState>((set) => ({
   mapsLoaded: false,
   hasLoadedOnce: false,
   loadError: null,
+  lookup: null,
+  settled: null,
 
   // Writes one page and re-points the selection at its fresh row, so the
   // details panel stays live instead of showing a stale click-time snapshot.
@@ -216,7 +232,7 @@ export const useServerStore = create<ServerState>((set) => ({
     set((state) => {
       const next = { ...state.filter, ...filter };
       persistFilter(next);
-      return { filter: next };
+      return { filter: next, lookup: keptLookup(state, next.search) };
     }),
   setSort: (sortKey, sortDir) => {
     try {
@@ -236,7 +252,7 @@ export const useServerStore = create<ServerState>((set) => ({
         recent_only: state.filter.recent_only,
       };
       persistFilter(next);
-      return { filter: next };
+      return { filter: next, lookup: keptLookup(state, next.search) };
     }),
   setDownloadsActive: (downloadsActive) => set({ downloadsActive }),
   setRefreshActive: (refreshActive) => set({ refreshActive }),
@@ -251,6 +267,8 @@ export const useServerStore = create<ServerState>((set) => ({
     ),
   setHasLoadedOnce: () => set({ hasLoadedOnce: true }),
   setLoadError: (loadError) => set({ loadError }),
+  setLookup: (lookup) => set({ lookup }),
+  setSettled: (settled) => set({ settled }),
   mergeModPending: (entries) =>
     set((state) => {
       if (entries.length === 0) return state;

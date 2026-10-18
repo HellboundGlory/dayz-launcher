@@ -1,7 +1,7 @@
 import { useMemo, useRef, type CSSProperties } from "react";
 import { LoaderCircle } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
-import { useServerStore } from "@/stores/server-store";
+import { useServerStore, type ServerLookup } from "@/stores/server-store";
 import { useModsStore, effectiveModState, filterAndSortMods, type ModSortKey } from "@/stores/mods-store";
 import {
   useModFilterStore,
@@ -31,6 +31,14 @@ function listHostOptions(options: Record<string, unknown> | undefined) {
 
 const serverAddr = (s: Server) => s.addr;
 
+function emptyServersText(hasLoadedOnce: boolean, lookup: ServerLookup | null): string {
+  if (lookup?.state === "asking") return `Asking ${lookup.addr}…`;
+  if (lookup?.state === "noanswer") return `No server answered at ${lookup.addr}.`;
+  return hasLoadedOnce
+    ? "No servers match the current filters."
+    : "No servers yet — the list fills in once Steam connects.";
+}
+
 export function ServerListHost({
   className,
   style,
@@ -48,6 +56,7 @@ export function ServerListHost({
   const sortDir = useServerStore((s) => s.sortDir);
   const setSort = useServerStore((s) => s.setSort);
   const hasLoadedOnce = useServerStore((s) => s.hasLoadedOnce);
+  const lookup = useServerStore((s) => s.lookup);
 
   useLayoutSubscription();
   const listLayout = (getActiveLayout("layout/lists/servers.json") ?? SERVERS_LIST) as LayoutFile;
@@ -58,11 +67,7 @@ export function ServerListHost({
         items={servers}
         getItemKey={serverAddr}
         onRangeChange={setVisibleRange}
-        emptyText={
-          hasLoadedOnce
-            ? "No servers match the current filters."
-            : "No servers yet — the list fills in once Steam connects."
-        }
+        emptyText={emptyServersText(hasLoadedOnce, lookup)}
         {...listHostOptions(options)}
         columns={listLayout?.columns}
         rowNode={listLayout?.row}
