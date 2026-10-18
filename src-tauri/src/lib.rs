@@ -175,7 +175,7 @@ pub fn run() {
             commands::mods::open_mod_folder,
             commands::settings::get_settings,
             commands::settings::take_settings_recovered,
-            commands::settings::save_settings,
+            commands::settings::patch_settings,
             commands::settings::set_ui_scale,
             commands::settings::open_data_folder,
             commands::settings::data_folder_path,

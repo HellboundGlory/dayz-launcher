@@ -47,7 +47,7 @@ const COMMANDS: &[&str] = &[
     "open_mod_folder",
     "get_settings",
     "take_settings_recovered",
-    "save_settings",
+    "patch_settings",
     "set_ui_scale",
     "open_data_folder",
     "data_folder_path",

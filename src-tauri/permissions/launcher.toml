@@ -48,7 +48,7 @@ permissions = [
     "allow-open-mod-folder",
     "allow-get-settings",
     "allow-take-settings-recovered",
-    "allow-save-settings",
+    "allow-patch-settings",
     "allow-set-ui-scale",
     "allow-open-data-folder",
     "allow-data-folder-path",

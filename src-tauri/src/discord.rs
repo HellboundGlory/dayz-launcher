@@ -69,7 +69,7 @@ fn ensure_handle(app: &AppHandle) {
 }
 
 /// Turn the feature on for the rest of this session — called from
-/// `save_settings` when the toggle flips from off to on.
+/// `patch_settings` when the toggle flips from off to on.
 pub fn enable(app: &AppHandle) {
     let state = app.state::<crate::state::AppState>();
     state.discord_enabled.store(true, Ordering::Relaxed);

@@ -1,16 +1,11 @@
+use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 
 /// Serialises every read and read-modify-write of the settings file.
 static SETTINGS_LOCK: Mutex<()> = Mutex::new(());
-
-/// The sequence of the newest save already written to disk.
-static LAST_WRITTEN_SEQ: AtomicU64 = AtomicU64::new(0);
-
-/// Hands out a strictly increasing sequence to each settings save.
-static NEXT_SAVE_SEQ: AtomicU64 = AtomicU64::new(1);
 
 /// Take the settings lock, recovering a poisoned guard.
 fn lock_settings() -> std::sync::MutexGuard<'static, ()> {
@@ -157,16 +152,6 @@ impl AppSettings {
         self.ui_scale = self.scale();
         self.discord_rich_presence = Some(self.discord_presence_enabled());
     }
-
-    /// Keep the on-disk theme selection when a payload omits it — otherwise a
-    /// frontend that doesn't send `activeThemeId` yet would erase it on every
-    /// save. An explicit `null` reads the same as omitted, so clearing the
-    /// selection is [`set_active_theme_id`]'s job, never a side effect here.
-    fn absorb_unsent_theme_selection(&mut self, on_disk: &AppSettings) {
-        if self.active_theme_id.is_none() {
-            self.active_theme_id = on_disk.active_theme_id.clone();
-        }
-    }
 }
 
 /// The settings file's name, in one place because `paths::migrate` also has to know it.
@@ -238,27 +223,63 @@ fn read_locked(path: &Path) -> Result<AppSettings, String> {
 /// Lock, read, apply `change`, and save only when it reports a change.
 fn update_on_disk(
     path: &Path,
-    seq: Option<u64>,
     change: impl FnOnce(&mut AppSettings) -> bool,
 ) -> Result<(), String> {
     let _guard = lock_settings();
-    if let Some(seq) = seq {
-        if seq <= LAST_WRITTEN_SEQ.load(Ordering::Relaxed) {
-            return Ok(());
-        }
-    }
     let mut settings = read_from_disk(path)?;
     if !change(&mut settings) {
         return Ok(());
     }
-    let json = serde_json::to_string_pretty(&settings)
+    write_settings(path, &settings)
+}
+
+/// Replace the settings file atomically (temp file + rename).
+fn write_settings(path: &Path, settings: &AppSettings) -> Result<(), String> {
+    let json = serde_json::to_string_pretty(settings)
         .map_err(|e| format!("Could not serialise settings: {e}"))?;
     crate::atomic_write::write_atomically(path, json.as_bytes())
-        .map_err(|e| format!("Could not save {}: {e}", path.display()))?;
-    if let Some(seq) = seq {
-        LAST_WRITTEN_SEQ.store(seq, Ordering::Relaxed);
+        .map_err(|e| format!("Could not save {}: {e}", path.display()))
+}
+
+/// The settings as the file spells them: one JSON object keyed by field name.
+fn settings_fields(settings: &AppSettings) -> Result<Map<String, Value>, String> {
+    let Value::Object(fields) =
+        serde_json::to_value(settings).map_err(|e| format!("Could not serialise settings: {e}"))?
+    else {
+        return Err("Settings did not serialise as an object".into());
+    };
+    Ok(fields)
+}
+
+/// Merge the patch's top-level keys into the on-disk settings and save when a
+/// value changed. Returns the settings now on disk and the keys whose values changed.
+fn patch_on_disk(path: &Path, patch: &Value) -> Result<(AppSettings, Vec<String>), String> {
+    let Value::Object(patch) = patch else {
+        return Err("A settings patch must be a JSON object".into());
+    };
+    let _guard = lock_settings();
+    let before = read_from_disk(path)?;
+    let before_fields = settings_fields(&before)?;
+    let mut merged = before_fields.clone();
+    for (key, value) in patch {
+        let slot = merged
+            .get_mut(key)
+            .ok_or_else(|| format!("Unknown setting: {key}"))?;
+        *slot = value.clone();
     }
-    Ok(())
+    let mut after: AppSettings = serde_json::from_value(Value::Object(merged))
+        .map_err(|e| format!("Invalid setting value: {e}"))?;
+    after.migrate();
+    let after_fields = settings_fields(&after)?;
+    let changed: Vec<String> = after_fields
+        .iter()
+        .filter(|(key, value)| before_fields.get(*key) != Some(*value))
+        .map(|(key, _)| key.clone())
+        .collect();
+    if !changed.is_empty() {
+        write_settings(path, &after)?;
+    }
+    Ok((after, changed))
 }
 
 /// The current on-disk settings, for a caller that needs one field without
@@ -273,7 +294,7 @@ pub fn current(app: &AppHandle) -> Result<AppSettings, String> {
 /// running app must not make the selection unwritable.
 pub fn set_active_theme_id(app: &AppHandle, id: Option<String>) -> Result<(), String> {
     let path = settings_path(app)?;
-    update_on_disk(&path, None, |settings| {
+    update_on_disk(&path, |settings| {
         if settings.active_theme_id == id {
             return false;
         }
@@ -392,7 +413,7 @@ pub fn fit_window_to_minimum(app: &AppHandle, scale: f64) {
 }
 
 /// Apply the interface scale live, from the status-bar slider. Separate
-/// from `save_settings` so dragging is immediate; the frontend saves it
+/// from `patch_settings` so dragging is immediate; the frontend saves it
 /// debounced on each change.
 #[tauri::command]
 pub fn set_ui_scale(app: AppHandle, scale: f64) {
@@ -433,7 +454,7 @@ pub fn persist_window_state(app: &AppHandle) {
         return;
     };
 
-    if let Err(e) = update_on_disk(&path, None, |settings| {
+    if let Err(e) = update_on_disk(&path, |settings| {
         if settings.window == Some(state) {
             return false;
         }
@@ -480,57 +501,93 @@ pub async fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
         .map_err(|e| format!("Task join error: {e}"))?
 }
 
-/// Write settings to disk, atomically (temp file + rename).
+/// Write the sent top-level keys into the settings file and leave every other
+/// key as the file has it. Only the keys whose values changed run their side effects.
 #[tauri::command]
-pub async fn save_settings(app: AppHandle, mut settings: AppSettings) -> Result<(), String> {
+pub async fn patch_settings(app: AppHandle, patch: Value) -> Result<AppSettings, String> {
     let path = settings_path(&app)?;
-    let seq = NEXT_SAVE_SEQ.fetch_add(1, Ordering::Relaxed);
+    let (settings, changed) = tokio::task::spawn_blocking(move || patch_on_disk(&path, &patch))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))??;
+    apply_side_effects(&app, &settings, &changed);
+    Ok(settings)
+}
 
-    // Window geometry is not the frontend's to send — its payload always
-    // omits `window`, which would otherwise erase the remembered geometry on every save.
-    settings.window = crate::window_state::cached(&app).or(settings.window);
-
-    // Re-published before the write so a toggle takes effect on the very
-    // next close even if the disk write is slow.
+/// What each changed key drives. A key with no effect of its own is not listed.
+fn apply_side_effects(app: &AppHandle, settings: &AppSettings, changed: &[String]) {
+    let has = |key: &str| changed.iter().any(|k| k == key);
     if let Some(state) = app.try_state::<crate::state::AppState>() {
-        state
-            .close_to_tray
-            .store(settings.closes_to_tray(), Ordering::Relaxed);
-        state
-            .minimise_to_tray
-            .store(settings.minimise_to_tray, Ordering::Relaxed);
-        if let Ok(mut guard) = state.on_join.lock() {
-            *guard = settings.on_join;
+        if has("closeToTray") {
+            state
+                .close_to_tray
+                .store(settings.closes_to_tray(), Ordering::Relaxed);
+        }
+        if has("minimiseToTray") {
+            state
+                .minimise_to_tray
+                .store(settings.minimise_to_tray, Ordering::Relaxed);
+        }
+        if has("onJoin") {
+            if let Ok(mut guard) = state.on_join.lock() {
+                *guard = settings.on_join;
+            }
         }
     }
-    if settings.discord_presence_enabled() {
-        crate::discord::enable(&app);
-    } else {
-        crate::discord::disable(&app);
+    if has("discordRichPresence") {
+        if settings.discord_presence_enabled() {
+            crate::discord::enable(app);
+        } else {
+            crate::discord::disable(app);
+        }
     }
-    apply_autostart(&app, settings.start_with_windows);
-    apply_ui_scale(&app, settings.scale());
-
-    tokio::task::spawn_blocking(move || {
-        update_on_disk(&path, Some(seq), move |on_disk| {
-            // Same hazard for activeThemeId, until the Themes page sends it.
-            settings.absorb_unsent_theme_selection(on_disk);
-            *on_disk = settings;
-            true
-        })
-    })
-    .await
-    .map_err(|e| format!("Task join error: {e}"))?
+    if has("startWithWindows") {
+        apply_autostart(app, settings.start_with_windows);
+    }
+    if has("uiScale") {
+        apply_ui_scale(app, settings.scale());
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        read_from_disk, take_settings_recovered, update_on_disk, AppSettings, DEFAULT_UI_SCALE,
-        MAX_UI_SCALE,
+        patch_on_disk, read_from_disk, take_settings_recovered, update_on_disk, AppSettings,
+        DEFAULT_UI_SCALE, MAX_UI_SCALE,
     };
     use crate::atomic_write::test_support::ScratchDir;
+    use serde_json::json;
     use std::fs;
+
+    #[test]
+    fn a_patch_changes_only_the_keys_it_names() {
+        let dir = ScratchDir::new();
+        let path = dir.join("settings.json");
+        fs::write(
+            &path,
+            r#"{ "profileName": "James", "activeThemeId": "local.ember", "window": { "width": 1280, "height": 800, "x": 10, "y": 20, "maximized": false } }"#,
+        )
+        .unwrap();
+
+        patch_on_disk(&path, &json!({ "profileName": "Night Owl" })).unwrap();
+
+        let read = read_from_disk(&path).unwrap();
+        assert_eq!(read.profile_name, "Night Owl");
+        assert_eq!(read.active_theme_id.as_deref(), Some("local.ember"));
+        assert_eq!(read.window.map(|w| w.width), Some(1280));
+    }
+
+    #[test]
+    fn a_patch_naming_an_unknown_key_is_refused_and_writes_nothing() {
+        let dir = ScratchDir::new();
+        let path = dir.join("settings.json");
+        fs::write(&path, r#"{ "profileName": "James" }"#).unwrap();
+        let before = fs::read(&path).unwrap();
+
+        let result = patch_on_disk(&path, &json!({ "profileNmae": "Night Owl" }));
+
+        assert!(result.is_err());
+        assert_eq!(fs::read(&path).unwrap(), before);
+    }
 
     /// Parse the way `read_from_disk` does — migration is part of reading a file.
     fn load(raw: &str) -> AppSettings {
@@ -585,7 +642,7 @@ mod tests {
         let path = dir.join("settings.json");
         fs::write(&path, r#"{ "profileName": "James" }"#).unwrap();
 
-        update_on_disk(&path, None, |settings| {
+        update_on_disk(&path, |settings| {
             settings.active_theme_id = Some("local.ember".into());
             true
         })
@@ -603,7 +660,7 @@ mod tests {
         fs::write(&path, r#"{ "profileName": "James" }"#).unwrap();
         let before = fs::read(&path).unwrap();
 
-        update_on_disk(&path, None, |_| false).unwrap();
+        update_on_disk(&path, |_| false).unwrap();
 
         assert_eq!(fs::read(&path).unwrap(), before);
     }
@@ -616,32 +673,13 @@ mod tests {
         let path = dir.join("settings.json");
         fs::create_dir(&path).unwrap();
 
-        let result = update_on_disk(&path, None, |settings| {
+        let result = update_on_disk(&path, |settings| {
             settings.profile_name = "Overwritten".into();
             true
         });
 
         assert!(result.is_err());
         assert!(path.is_dir());
-    }
-
-    #[test]
-    fn an_older_save_landing_after_a_newer_one_does_not_overwrite_it() {
-        let dir = ScratchDir::new();
-        let path = dir.join("settings.json");
-
-        update_on_disk(&path, Some(2), |settings| {
-            settings.profile_name = "second".into();
-            true
-        })
-        .unwrap();
-        update_on_disk(&path, Some(1), |settings| {
-            settings.profile_name = "first".into();
-            true
-        })
-        .unwrap();
-
-        assert_eq!(read_from_disk(&path).unwrap().profile_name, "second");
     }
 
     /// `closeToTray` (when written) wins over the retired dropdown, and an
@@ -704,26 +742,6 @@ mod tests {
     #[test]
     fn a_file_predating_the_theme_system_reads_as_the_built_in_default() {
         assert_eq!(load("{}").active_theme_id, None);
-    }
-
-    /// A save that omits `activeThemeId` must not reset the selection, while a
-    /// sent one wins. An explicit `null` reads the same as omitted, so clearing
-    /// the selection is `set_active_theme_id`'s job, never a side effect here.
-    #[test]
-    fn a_save_keeps_the_stored_theme_selection_it_did_not_send() {
-        let on_disk = load(r#"{ "profileName": "James", "activeThemeId": "local.ember" }"#);
-
-        let mut omitted = load(r#"{ "profileName": "James II" }"#);
-        omitted.absorb_unsent_theme_selection(&on_disk);
-        assert_eq!(omitted.active_theme_id.as_deref(), Some("local.ember"));
-
-        let mut switched = load(r#"{ "activeThemeId": "dev.pack" }"#);
-        switched.absorb_unsent_theme_selection(&on_disk);
-        assert_eq!(switched.active_theme_id.as_deref(), Some("dev.pack"));
-
-        let mut nulled = load(r#"{ "activeThemeId": null }"#);
-        nulled.absorb_unsent_theme_selection(&on_disk);
-        assert_eq!(nulled.active_theme_id.as_deref(), Some("local.ember"));
     }
 
     /// A settings file written by an older build must pick up new fields at
