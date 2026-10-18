@@ -129,7 +129,6 @@ pub fn run() {
         .manage(state::AppState::new())
         .manage(protocol::PendingConnect::from_args())
         .invoke_handler(tauri::generate_handler![
-            commands::server::get_server,
             commands::server::get_server_page,
             commands::server::get_servers_by_addr,
             commands::server::lookup::lookup_server,
@@ -140,7 +139,6 @@ pub fn run() {
             commands::server::toggle_favourite,
             commands::server::get_map_list,
             commands::server::get_server_counts,
-            commands::server::registry_degraded,
             commands::startup::registry_status,
             commands::startup::launched_hidden,
             commands::server::discovery::discover_servers,
@@ -234,7 +232,7 @@ pub fn run() {
             let db_path = data_root.join("tetra.db");
 
             // Falls back to in-memory on failure rather than bricking the app;
-            // `registry_degraded` lets the frontend warn about the data loss.
+            // `registry_status` lets the frontend warn about the data loss.
             let registry = match Registry::open(&db_path) {
                 Ok(registry) => {
                     eprintln!("[setup] Registry ready at {}", db_path.display());

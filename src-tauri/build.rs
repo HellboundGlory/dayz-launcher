@@ -1,7 +1,6 @@
 // Each entry gets an `allow-*` permission. Windows may call only the commands
 // their capability lists, so this must match `invoke_handler` in src/lib.rs.
 const COMMANDS: &[&str] = &[
-    "get_server",
     "get_server_page",
     "get_servers_by_addr",
     "lookup_server",
@@ -12,7 +11,6 @@ const COMMANDS: &[&str] = &[
     "toggle_favourite",
     "get_map_list",
     "get_server_counts",
-    "registry_degraded",
     "registry_status",
     "launched_hidden",
     "discover_servers",

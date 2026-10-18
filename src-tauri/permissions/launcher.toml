@@ -2,7 +2,6 @@
 identifier = "launcher-commands"
 description = "Every app command the main window may call."
 permissions = [
-    "allow-get-server",
     "allow-get-server-page",
     "allow-get-servers-by-addr",
     "allow-lookup-server",
@@ -13,7 +12,6 @@ permissions = [
     "allow-toggle-favourite",
     "allow-get-map-list",
     "allow-get-server-counts",
-    "allow-registry-degraded",
     "allow-registry-status",
     "allow-launched-hidden",
     "allow-discover-servers",
