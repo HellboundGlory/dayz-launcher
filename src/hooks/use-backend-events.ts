@@ -37,6 +37,7 @@ export function useBackendEvents({
   setRefreshedAt: (value: string) => void;
 }) {
   const triggerReload = useServerStore((s) => s.triggerReload);
+  const requestReload = useServerStore((s) => s.requestReload);
   const [counts, setCounts] = useState({ total: 0, populated: 0 });
   // Lets scheduleReload read `discovering` without depending on it.
   const discoveringRef = useRef(false);
@@ -58,19 +59,10 @@ export function useBackendEvents({
       .catch(() => {});
   }, []);
 
-  // Coalesces backend refresh events into one throttled reload instead of
-  // re-querying on every single one.
-  const reloadTimer = useRef<number | null>(null);
+  // Coalesces a refresh sweep's row patches into one throttled read.
+  const patchTimer = useRef<number | null>(null);
   /** Last "found" count logged from `discovery-progress`, to keep the log thin. */
   const discoveryLogFloor = useRef(0);
-  // Runs `task` once after `delay`; a call while one is pending is dropped.
-  const scheduleOnce = useCallback((delay: number, task: () => void) => {
-    if (reloadTimer.current !== null) return;
-    reloadTimer.current = window.setTimeout(() => {
-      reloadTimer.current = null;
-      task();
-    }, delay);
-  }, []);
   const refreshCounts = useCallback(() => {
     getServerCounts()
       .then((next) =>
@@ -86,13 +78,12 @@ export function useBackendEvents({
     const delay = discoveringRef.current
       ? DISCOVERY_RELOAD_THROTTLE_MS
       : RELOAD_THROTTLE_MS;
-    scheduleOnce(delay, () => {
+    requestReload(delay, () => {
       void logClient("reload", "scheduleReload: dispatching reload", true);
-      triggerReload();
       setRefreshedAt(new Date().toLocaleTimeString());
       refreshCounts();
     });
-  }, [scheduleOnce, triggerReload, setRefreshedAt, refreshCounts]);
+  }, [requestReload, setRefreshedAt, refreshCounts]);
   // During a sweep, re-read the rows on screen in place; the sweep's end does the one reload.
   const patchVisibleRows = useCallback(() => {
     const { servers, visibleRange } = useServerStore.getState();
@@ -101,14 +92,17 @@ export function useBackendEvents({
       .then((rows) => useServerStore.getState().patchServers(rows))
       .catch(() => {});
   }, []);
-  const schedulePatch = useCallback(
-    () => scheduleOnce(RELOAD_THROTTLE_MS, patchVisibleRows),
-    [scheduleOnce, patchVisibleRows],
-  );
+  const schedulePatch = useCallback(() => {
+    if (patchTimer.current !== null) return;
+    patchTimer.current = window.setTimeout(() => {
+      patchTimer.current = null;
+      patchVisibleRows();
+    }, RELOAD_THROTTLE_MS);
+  }, [patchVisibleRows]);
 
   useEffect(
     () => () => {
-      if (reloadTimer.current !== null) clearTimeout(reloadTimer.current);
+      if (patchTimer.current !== null) clearTimeout(patchTimer.current);
     },
     [],
   );

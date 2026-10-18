@@ -17,7 +17,7 @@ import { useConfirm } from "@/components/confirm-dialog";
 import { useThemedPopupTrigger } from "./use-themed-popup-trigger";
 import { TriggerPopup, UniqueServerOptionsList, usePopupContext } from "./popup-elements";
 import { OptionIcon } from "./option-icon";
-import { displayOption, states } from "./element-utils";
+import { displayOption, parseDisplay, states } from "./element-utils";
 
 const STATUS_FILTERS: { key: ModStatusFilter; label: string }[] = [
   { key: "all", label: "All" },
@@ -178,9 +178,7 @@ export function ModsCleanupRemoved({ options, className, style }: { options?: Re
   const removedCount = rows.filter((r) => r.removed).length;
   const busy = !!op;
   const baseLabel = (options?.label as string | undefined) ?? "Clean up";
-  const display = (options?.display as string | undefined) ?? "iconLabel";
-  const showIcon = display === "iconLabel" || display === "icon";
-  const showLabel = display === "iconLabel" || display === "label";
+  const { showIcon, showLabel } = parseDisplay(options, "iconLabel");
 
   if (removedCount === 0) return null;
 
@@ -232,10 +230,8 @@ export function ModsUnsubscribe({ options, className, style }: { options?: Recor
     useShallow((s) => ({ selectedCount: s.selectedIds.size, op: s.op, unsubscribeSelected: s.unsubscribeSelected })),
   );
   const askConfirm = useConfirm();
-  const display = (options?.display as string) ?? "iconLabel";
+  const { showIcon, showLabel } = parseDisplay(options, "iconLabel");
   const baseLabel = (options?.label as string) ?? "Unsubscribe";
-  const showIcon = display === "iconLabel" || display === "icon";
-  const showLabel = display === "iconLabel" || display === "label";
   const busy = op?.kind === "unsubscribe";
   const disabled = !!op || selectedCount === 0;
   const labelText = busy ? op?.note ?? "Removing…" : selectedCount > 0 ? `${baseLabel} ${selectedCount}` : baseLabel;
@@ -430,10 +426,8 @@ export function ModsVerify({ options, className, style }: { options?: Record<str
       verifyAll: s.verifyAll,
     })),
   );
-  const display = (options?.display as string) ?? "iconLabel";
+  const { showIcon, showLabel } = parseDisplay(options, "iconLabel");
   const baseLabel = (options?.label as string) ?? "Verify mods";
-  const showIcon = display === "iconLabel" || display === "icon";
-  const showLabel = display === "iconLabel" || display === "label";
   const busy = op?.kind === "verify";
   const disabled = !!op || allCount === 0;
   const labelText = busy ? op?.note ?? "Verifying…" : baseLabel;
@@ -536,10 +530,8 @@ export function ModsUpdateOutdated({ options, className, style }: { options?: Re
       updateAllOutdated: s.updateAllOutdated,
     })),
   );
-  const display = (options?.display as string) ?? "iconLabel";
+  const { showIcon, showLabel } = parseDisplay(options, "iconLabel");
   const baseLabel = (options?.label as string) ?? "Update";
-  const showIcon = display === "iconLabel" || display === "icon";
-  const showLabel = display === "iconLabel" || display === "label";
   const busy = op?.kind === "update";
   if (outdatedCount === 0) return null;
   const disabled = !!op;

@@ -28,6 +28,7 @@ export {
   tagsDisplayValue,
   toggleInList,
 } from "./popup-elements";
+import { parseDisplay } from "./element-utils";
 
 
 const SEARCH_DEBOUNCE_MS = 250;
@@ -480,7 +481,7 @@ export function ServersRefresh({
   style?: CSSProperties;
 }) {
   const { onRefresh, refreshing } = useElementContext();
-  const display = (options?.display as "iconLabel" | "label" | "icon") ?? "iconLabel";
+  const { showIcon, showLabel } = parseDisplay(options, "iconLabel");
   const labelText = refreshing ? "Refreshing…" : "Refresh";
 
   return (
@@ -495,12 +496,12 @@ export function ServersRefresh({
       className={className ?? "flex items-center gap-1.5 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] border border-line bg-surface2 hover:border-accent text-muted hover:text-ink transition-colors disabled:opacity-60 disabled:cursor-not-allowed"}
       style={style}
     >
-      {display !== "label" && (
+      {showIcon && (
         <span data-part="icon">
           <OptionIcon icon={options?.icon} fallback={RefreshCw} className={cn("size-3.5", refreshing && "animate-spin")} />
         </span>
       )}
-      {display !== "icon" && (
+      {showLabel && (
         <span data-part="label" className="[font-size:var(--t-type-size-sm)] font-semibold uppercase">
           {labelText}
         </span>
@@ -626,7 +627,7 @@ export function FilterReset({
   style?: CSSProperties;
 }) {
   const resetFilter = useServerStore((s) => s.resetFilter);
-  const display = (options?.display as "iconLabel" | "label" | "icon") ?? "iconLabel";
+  const { showIcon, showLabel } = parseDisplay(options, "iconLabel");
   const label = (options?.label as string) ?? "Reset";
 
   return (
@@ -639,12 +640,12 @@ export function FilterReset({
       className={className ?? "flex items-center gap-1 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-size-lg)] leading-4 border border-line bg-surface2 hover:border-accent text-muted hover:text-ink transition-colors"}
       style={style}
     >
-      {display !== "label" && (
+      {showIcon && (
         <span data-part="icon">
           <OptionIcon icon={options?.icon} fallback={RotateCcw} className="size-3" />
         </span>
       )}
-      {display !== "icon" && (
+      {showLabel && (
         <span data-part="label" className="[font-size:var(--t-type-size-sm)] font-semibold uppercase">
           {label}
         </span>

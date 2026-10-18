@@ -10,6 +10,7 @@ import { OnboardingModal } from "./components/onboarding-modal";
 import { SteamRequiredModal } from "./components/steam-required-modal";
 import { JoinLinkDialog } from "./components/join-link-dialog";
 import { useServerStore } from "./stores/server-store";
+import { useOverlayStore } from "./stores/overlay-store";
 import { useSettingsStore } from "./stores/settings-store";
 import { useUpdateStore } from "./stores/update-store";
 import { useModsStore } from "./stores/mods-store";
@@ -65,9 +66,12 @@ function engineLayout<T extends LayoutFile = LayoutFile>(path: string): T {
 
 export function App() {
   const [activeView, setActiveView] = useState<ViewId>("servers");
+  const overlays = useOverlayStore((s) => s.stack);
+  const openOverlay = useOverlayStore((s) => s.open);
+  const closeOverlay = useOverlayStore((s) => s.close);
   /** The row whose ⋯ menu asked for "More info" — drives the M1 modal. */
-  const [infoServer, setInfoServer] = useState<Server | null>(null);
-  const [modFilterOpen, setModFilterOpen] = useState(false);
+  const infoServer = overlays.find((o) => o.id === "serverInfo")?.payload ?? null;
+  const modFilterOpen = overlays.some((o) => o.id === "modFilter");
   // The fallback notice is dismissed per launcher version (§16.1).
   const [launcherVersion, setLauncherVersion] = useState<string | undefined>(undefined);
   const setFilter = useServerStore((s) => s.setFilter);
@@ -77,13 +81,13 @@ export function App() {
   const handleViewChange = useCallback(
     (view: ViewId) => {
       setActiveView(view);
-      setSettingsOpen(false);
+      closeOverlay("settings");
       setFilter({
         favourites_only: view === "fav",
         recent_only: view === "recent",
       });
     },
-    [setFilter],
+    [closeOverlay, setFilter],
   );
   const [refreshing, setRefreshing] = useState(false);
   const settingsLoaded = useSettingsStore((s) => s.loaded);
@@ -124,12 +128,12 @@ export function App() {
   // A failed list load shows like a failed action.
   const shownError = error ?? (registryOpen ? loadError : null);
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsOpen = overlays.some((o) => o.id === "settings");
   // Session-only dev aid: the inspector must outlive the Settings overlay
   // (and a sidebar nav click) to reach the shell slots it inspects, and a
   // reload deliberately puts it back off. Not persisted anywhere.
   const [devMode, setDevMode] = useState(false);
-  const [updateOpen, setUpdateOpen] = useState(false);
+  const updateOpen = overlays.some((o) => o.id === "update");
   // Dismissed for this session only; returns next launch if still pending.
   const [updateBannerDismissed, setUpdateBannerDismissed] = useState(false);
 
@@ -207,11 +211,7 @@ export function App() {
     activeView,
     settingsOpen,
     settingsPresentation: settingsMode,
-    openModals: [
-      infoServer ? "serverInfo" : null,
-      modFilterOpen ? "modFilter" : null,
-      updateOpen ? "update" : null,
-    ].filter((id): id is string => id !== null),
+    openModals: overlays.map((o) => o.id),
   });
 
   // Dev Mode's watch: the cleanup stops the previous one, so turning Dev Mode
@@ -267,19 +267,20 @@ export function App() {
     setRefreshedAt,
   });
 
-  const onOpenSettings = useCallback(() => setSettingsOpen(true), []);
-  const onCloseSettings = useCallback(() => setSettingsOpen(false), []);
+  const onOpenSettings = useCallback(() => openOverlay("settings"), [openOverlay]);
+  const onCloseSettings = useCallback(() => closeOverlay("settings"), [closeOverlay]);
+
+  const openServerInfo = useCallback(
+    (server: Server) => openOverlay("serverInfo", server),
+    [openOverlay],
+  );
 
   const openModFilter = useCallback(() => {
     useModFilterStore.getState().begin();
-    setModFilterOpen(true);
-  }, []);
+    openOverlay("modFilter");
+  }, [openOverlay]);
 
-  const closeModal = useCallback(() => {
-    if (infoServer) setInfoServer(null);
-    else if (modFilterOpen) setModFilterOpen(false);
-    else if (updateOpen) setUpdateOpen(false);
-  }, [infoServer, modFilterOpen, updateOpen]);
+  const closeModal = useCallback(() => closeOverlay(), [closeOverlay]);
 
   const dismissError = useCallback(() => {
     // Clear only what the banner is showing.
@@ -287,7 +288,7 @@ export function App() {
     else useServerStore.getState().setLoadError(null);
   }, [error]);
   const dismissUpdateBanner = useCallback(() => setUpdateBannerDismissed(true), []);
-  const openUpdateModal = useCallback(() => setUpdateOpen(true), []);
+  const openUpdateModal = useCallback(() => openOverlay("update"), [openOverlay]);
 
   // Every field a themed element can read; rebuilt only when one changes.
   const elementContextValue = useMemo(
@@ -316,7 +317,7 @@ export function App() {
       discovering,
       devMode,
       onDevModeChange: setDevMode,
-      openServerInfo: setInfoServer,
+      openServerInfo,
       openModFilter,
       modFilterOpen,
       closeModal,
@@ -346,6 +347,7 @@ export function App() {
       refreshing,
       discovering,
       devMode,
+      openServerInfo,
       openModFilter,
       modFilterOpen,
       closeModal,
@@ -354,12 +356,11 @@ export function App() {
   );
 
   // Harness-only: the headless UI harness has no other way to reach this state.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     // Only the harness defines this, before App loads; the prod-build harness has no DEV flag.
     if (!("__harness" in window)) return;
     (window as unknown as { __harness?: Record<string, unknown> }).__harness = {
-      openServerInfo: setInfoServer,
+      openServerInfo,
       openModFilter,
       openUpdateModal,
       closeModal,
@@ -387,7 +388,7 @@ export function App() {
           initialFocus='[data-el="update.install"], [data-el="update.viewRelease"]'
           themeId={activeId}
           settings={settingsValues[activeId]}
-          onClose={() => setUpdateOpen(false)}
+          onClose={() => closeOverlay("update")}
         />
       )}
       {infoServer && (
@@ -401,7 +402,7 @@ export function App() {
             initialFocus='[data-el="server.join"]'
             themeId={activeId}
             settings={settingsValues[activeId]}
-            onClose={() => setInfoServer(null)}
+            onClose={() => closeOverlay("serverInfo")}
           />
         </SubjectContextProvider>
       )}
@@ -410,7 +411,7 @@ export function App() {
           file={modFilterModal}
           themeId={activeId}
           settings={settingsValues[activeId]}
-          onClose={() => setModFilterOpen(false)}
+          onClose={() => closeOverlay("modFilter")}
         />
       )}
       {/* Blocking: nothing works without Steam. */}

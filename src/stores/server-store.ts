@@ -14,9 +14,6 @@ interface ServerState {
   sortKey: SortKey;
   sortDir: SortDir;
   loadVersion: number;
-  /** Set while waiting on Steam Workshop downloads; suppresses A2S probing meanwhile. */
-  downloadsActive: boolean;
-  setDownloadsActive: (active: boolean) => void;
   /** True during a refresh sweep, when `server-refreshed` patches rows instead of reloading. */
   refreshActive: boolean;
   setRefreshActive: (active: boolean) => void;
@@ -55,6 +52,8 @@ interface ServerState {
   resetFilter: () => void;
   toggleFavourite: (addr: string) => void;
   triggerReload: () => void;
+  /** Runs a reload after `delayMs`, dropping the call while one is already pending. */
+  requestReload: (delayMs: number, onFire?: () => void) => void;
 }
 
 // Shallow compare over every key, not a hand-picked subset, so a field added
@@ -160,14 +159,15 @@ function loadSort(): { sortKey: SortKey; sortDir: SortDir } {
   }
 }
 
-export const useServerStore = create<ServerState>((set) => ({
+let reloadTimer: ReturnType<typeof setTimeout> | undefined;
+
+export const useServerStore = create<ServerState>((set, get) => ({
   servers: [],
   visibleRange: { start: 0, end: 0 },
   selectedServer: null,
   filter: loadFilter(),
   ...loadSort(),
   loadVersion: 0,
-  downloadsActive: false,
   refreshActive: false,
   modPending: {},
   maps: [],
@@ -254,7 +254,6 @@ export const useServerStore = create<ServerState>((set) => ({
       persistFilter(next);
       return { filter: next, lookup: keptLookup(state, next.search) };
     }),
-  setDownloadsActive: (downloadsActive) => set({ downloadsActive }),
   setRefreshActive: (refreshActive) => set({ refreshActive }),
   // Polled; an unchanged list keeps its identity, so the map filter does not re-render.
   setMaps: (maps) =>
@@ -287,4 +286,12 @@ export const useServerStore = create<ServerState>((set) => ({
           : state.selectedServer,
     })),
   triggerReload: () => set((state) => ({ loadVersion: state.loadVersion + 1 })),
+  requestReload: (delayMs, onFire) => {
+    if (reloadTimer !== undefined) return;
+    reloadTimer = setTimeout(() => {
+      reloadTimer = undefined;
+      get().triggerReload();
+      onFire?.();
+    }, delayMs);
+  },
 }));

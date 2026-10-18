@@ -1,6 +1,5 @@
 // Shared launch action path used by the row dropdown and the info modal.
 import { useEffect } from "react";
-import { useServerStore } from "@/stores/server-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useLaunchStore, type ActiveOp, type Notice as StoreNotice } from "@/stores/launch-store";
 import { invalidateReadiness } from "@/stores/readiness-store";
@@ -95,7 +94,6 @@ function isActionable(state: ModState) {
 }
 
 export function useServerActions() {
-  const setDownloadsActive = useServerStore((s) => s.setDownloadsActive);
   const profileName = useSettingsStore((s) => s.profileName);
   const dayzPath = useSettingsStore((s) => s.dayzPath);
   const launchParams = useSettingsStore((s) => s.launchParams);
@@ -145,8 +143,6 @@ export function useServerActions() {
     const gamePort = server.game_port;
 
     const cancel = beginOp(addr, server.name || addr);
-    // Stop the launcher probing servers while it waits on its own downloads.
-    setDownloadsActive(true);
     setStoreNotice(addr, null);
 
     try {
@@ -252,7 +248,6 @@ export function useServerActions() {
       if (useLaunchStore.getState().op?.cancel === cancel) {
         // A launch that reached spawning hands off to `starting`; don't erase that.
         if (useLaunchStore.getState().op?.phase !== "starting") endOp();
-        setDownloadsActive(false);
       }
     }
   }
@@ -263,7 +258,6 @@ export function useServerActions() {
     const queryPort = server.query_port;
 
     const cancel = beginOp(addr, server.name || addr);
-    setDownloadsActive(true);
     setStoreNotice(addr, null);
 
     try {
@@ -317,10 +311,7 @@ export function useServerActions() {
       setStoreNotice(addr, { kind: "plain", text: playerMessage(String(e), MOD_CHECK_FAILED) });
     } finally {
       // See the matching guard in verifyAndJoin.
-      if (useLaunchStore.getState().op?.cancel === cancel) {
-        endOp();
-        setDownloadsActive(false);
-      }
+      if (useLaunchStore.getState().op?.cancel === cancel) endOp();
     }
   }
 
@@ -328,7 +319,6 @@ export function useServerActions() {
   function cancelWait() {
     const addr = useLaunchStore.getState().op?.addr;
     cancelOp();
-    setDownloadsActive(false);
     if (addr) setStoreNotice(addr, { kind: "code", code: "W04" });
   }
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useServerStore } from "@/stores/server-store";
+import { useLaunchStore } from "@/stores/launch-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { logClient, refreshVisibleServers } from "@/lib/tauri";
 import type { Server } from "@/types/server";
@@ -61,8 +62,9 @@ export function useRefreshLoops({
       return;
     }
     // An A2S refresh opens thousands of UDP sockets; don't run it against a
-    // download the user is waiting on.
-    if (useServerStore.getState().downloadsActive) {
+    // download the user is waiting on. A starting DayZ is past the downloads.
+    const op = useLaunchStore.getState().op;
+    if (op && op.phase !== "starting") {
       if (manual) setError("Paused while mods are downloading — try again once they finish.");
       return;
     }
