@@ -147,7 +147,6 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   }),
   steam_init: () => null,
   steam_connection_state: () => true,
-  registry_degraded: () => storageDegraded,
   registry_status: () => ({ degraded: storageDegraded }),
   launched_hidden: () => false,
   discover_servers: () => null,

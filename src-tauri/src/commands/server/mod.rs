@@ -224,25 +224,6 @@ pub async fn get_server_page(
     result
 }
 
-/// Look up a single server by address, regardless of whatever filter/sort
-/// the table currently has loaded. Exists for the `dzsa://` deep-link flow,
-/// where the named server may not be in the frontend's currently-loaded rows.
-#[tauri::command]
-pub async fn get_server(
-    state: State<'_, AppState>,
-    addr: String,
-    query_port: u16,
-) -> Result<Option<Server32>, String> {
-    let key = server_key(&addr, query_port)?;
-    blocking_read(&state, move |reader| {
-        Ok(reader
-            .get(key)
-            .map_err(|e| e.to_string())?
-            .map(|row| to_server32(&row)))
-    })
-    .await
-}
-
 /// Largest number of addresses one `get_servers_by_addr` call accepts.
 const MAX_ADDRS: usize = 2_000;
 
@@ -311,17 +292,6 @@ pub async fn get_server_counts(state: State<'_, AppState>) -> Result<ServerCount
         Ok(ServerCounts { total, populated })
     })
     .await
-}
-
-/// Whether the registry fell back to in-memory storage at startup (app
-/// works, but forgets everything on exit) — see the fallback in `lib.rs`.
-#[tauri::command]
-pub fn registry_degraded(state: State<AppState>) -> Result<bool, String> {
-    state
-        .registry_degraded
-        .lock()
-        .map(|flag| *flag)
-        .map_err(|e| e.to_string())
 }
 
 /// Get map list from registry.

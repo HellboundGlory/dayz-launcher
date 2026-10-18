@@ -74,11 +74,6 @@ export interface DzsaConnect {
   favourite: boolean;
 }
 
-/** Look up a single server by address, independent of the loaded filter/sort — backs the dzsa:// deep-link flow. */
-export async function getServer(addr: string, queryPort: number): Promise<Server | null> {
-  return invoke<Server | null>("get_server", { addr, queryPort });
-}
-
 /** Find a server by `ip:port`: from the registry, else probed and stored when it answers. */
 export async function lookupServer(addr: string): Promise<Server | null> {
   return invoke<Server | null>("lookup_server", { addr });
@@ -130,11 +125,6 @@ export interface ServerCounts {
 
 export async function getServerCounts(): Promise<ServerCounts> {
   return invoke<ServerCounts>("get_server_counts");
-}
-
-/** Whether the registry fell back to in-memory storage — favourites/recent won't survive exit. */
-export async function registryDegraded(): Promise<boolean> {
-  return invoke<boolean>("registry_degraded");
 }
 
 export interface RegistryStatus {
