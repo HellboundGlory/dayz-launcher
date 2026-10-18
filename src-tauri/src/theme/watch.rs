@@ -53,11 +53,13 @@ impl Drop for ThemeWatch {
     }
 }
 
-/// What a watch reports to its caller: files under the theme changed, or the
-/// watcher stopped delivering events and says why.
+/// What a watch reports to its caller: files under the theme changed, the
+/// watcher stopped delivering events and says why, or the directory it lost came
+/// back.
 enum WatchSignal {
     Changed,
     Failed(String),
+    Returned,
 }
 
 /// Watch `id`'s directory for changes, replacing whatever was being watched.
@@ -77,6 +79,26 @@ pub fn watch(app: &AppHandle, id: &str) -> Result<(), String> {
         }
         WatchSignal::Failed(message) => {
             crate::log::log_line(&handle, "theme", &format!("Theme watch failed: {message}"));
+        }
+        WatchSignal::Returned => {
+            crate::log::log_line(&handle, "theme", &format!("Theme `{watched}` is back"));
+            // A new thread: the restart drops the watch that is running this sink,
+            // and dropping a watch joins its debounce thread.
+            let restart = handle.clone();
+            let id = watched.clone();
+            std::thread::spawn(move || {
+                if !is_watching(&restart, &id) {
+                    return;
+                }
+                if let Err(error) = watch(&restart, &id) {
+                    crate::log::log_line(
+                        &restart,
+                        "theme",
+                        &format!("Could not restart the theme watch: {error}"),
+                    );
+                }
+            });
+            let _ = handle.emit(EVENT, json!({ "id": &watched }));
         }
     })?;
 
@@ -102,6 +124,14 @@ pub fn stop(app: &AppHandle) -> Result<(), String> {
         );
     }
     Ok(())
+}
+
+/// Whether the slot holds a watch for `id`. False after a stop or a switch to
+/// another theme, so a folder that comes back later does not restart the old one.
+fn is_watching(app: &AppHandle, id: &str) -> bool {
+    let slot = &app.state::<AppState>().theme_watch;
+    slot.lock()
+        .is_ok_and(|held| held.as_ref().is_some_and(|watch| watch.id == id))
 }
 
 /// The body of [`watch`], with the themes root and the notification sink passed
@@ -194,24 +224,30 @@ fn debounce(
     sink: impl Fn(WatchSignal),
 ) {
     let mut pending = false;
+    let mut missing = false;
     loop {
         match rx.recv_timeout(DEBOUNCE) {
             Ok(WatchSignal::Changed) => pending = true,
             // A watcher error is not part of the burst: report it as it arrives.
-            Ok(WatchSignal::Failed(message)) => sink(WatchSignal::Failed(message)),
+            Ok(signal) => sink(signal),
             Err(RecvTimeoutError::Timeout) => {
                 if !stopped.load(Ordering::Relaxed) {
                     // notify can drop the watch without reporting anything —
                     // Windows unwatches silently — so liveness is checked here.
-                    if !watched.is_dir() {
+                    if watched.is_dir() {
+                        if missing {
+                            sink(WatchSignal::Returned);
+                            break;
+                        }
+                        if pending {
+                            sink(WatchSignal::Changed);
+                        }
+                    } else if !missing {
+                        missing = true;
                         sink(WatchSignal::Failed(format!(
                             "the watched directory {} is gone",
                             watched.display()
                         )));
-                        break;
-                    }
-                    if pending {
-                        sink(WatchSignal::Changed);
                     }
                 }
                 pending = false;
@@ -407,7 +443,8 @@ mod tests {
 
     /// A directory can vanish without notify reporting an event — Windows
     /// unwatches silently — so the debounce thread notices it is gone. `Failed`
-    /// is only logged; it does not wake the frontend.
+    /// is only logged; it does not wake the frontend. When the directory comes
+    /// back the thread reports `Returned` and ends.
     #[test]
     fn a_vanished_watched_directory_is_reported_without_an_event() {
         let root = scratch("vanished");
@@ -417,8 +454,9 @@ mod tests {
         let stopped = Arc::new(AtomicBool::new(false));
         let worker = std::thread::spawn({
             let stopped = Arc::clone(&stopped);
+            let watched = missing.clone();
             move || {
-                debounce(rx, stopped, missing, move |signal| {
+                debounce(rx, stopped, watched, move |signal| {
                     let _ = out_tx.send(signal);
                 })
             }
@@ -430,6 +468,22 @@ mod tests {
         assert!(
             matches!(signal, WatchSignal::Failed(_)),
             "a directory that is gone must be reported as a failure"
+        );
+
+        std::fs::create_dir_all(&missing).expect("could not recreate the directory");
+        let signal = out_rx
+            .recv_timeout(WAIT)
+            .expect("a returned directory must be reported");
+        assert!(
+            matches!(signal, WatchSignal::Returned),
+            "a directory that is back must be reported as returned"
+        );
+        assert!(
+            matches!(
+                out_rx.recv_timeout(WAIT),
+                Err(RecvTimeoutError::Disconnected)
+            ),
+            "the debounce thread must end after reporting the return"
         );
 
         drop(tx);
