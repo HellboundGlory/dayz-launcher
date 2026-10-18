@@ -187,8 +187,6 @@ pub fn run() {
             commands::theme::list_installed_themes,
             commands::theme::get_theme,
             commands::theme::validate_theme,
-            commands::theme::save_theme,
-            commands::theme::derive_theme,
             commands::theme::save_theme_copy,
             commands::theme::update_theme_tokens,
             commands::theme::delete_theme,

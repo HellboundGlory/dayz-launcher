@@ -27,19 +27,18 @@ import { isHexColor, substitutePlaceholders, type SettingsField } from "./settin
 import {
   armActivation,
   deleteTheme as deleteThemeCmd,
-  deriveTheme,
   getSettings,
   getTheme,
   getThemeSettingsValues,
   listInstalledThemes,
   migrateLegacyCustomThemes,
-  saveTheme as saveThemeCmd,
+  saveThemeCopy,
   setActiveThemeId,
   setThemeSettingsValue,
   updateThemeTokens,
   validateTheme,
 } from "@/lib/tauri";
-import type { LegacyTheme, ThemeFile, ThemeManifest, ThemeSummary, ValidationIssue } from "@/types/theme";
+import type { LegacyTheme, ThemeFile, ThemeSummary, ValidationIssue } from "@/types/theme";
 import { getNeutralLayout } from "./neutral";
 import { clearFallbacks, isFileFallenBack, markFileFallback, useFallbackStore } from "./fallback/store";
 import type { LayoutFile } from "./renderer/types";
@@ -145,39 +144,6 @@ function markIncompatibleNoticeShown(id: string): void {
     localStorage.setItem(INCOMPATIBLE_NOTICE_KEY + id, "true");
   } catch {
     // Only means the notice comes back next launch.
-  }
-}
-
-/** Lowercase ASCII letters and digits, every other run collapsed to one `-`, ends trimmed — mirrors Rust `theme::slugify`. */
-function slugify(name: string): string {
-  let slug = "";
-  for (const c of name) {
-    if (/^[A-Za-z0-9]$/.test(c)) slug += c.toLowerCase();
-    else if (slug !== "" && !slug.endsWith("-")) slug += "-";
-  }
-  return slug.replace(/^-+|-+$/g, "");
-}
-
-/** `local.` plus a slug plus `-999` has to fit the 64-byte id limit; mirrors Rust `MAX_ID_BASE`. */
-const MAX_ID_SLUG = 54;
-
-/** The id a copy of `name` gets: `local.<slug>`, or `local.theme` when the name
- * has no ASCII letters or digits. The first id with no installed theme is used;
- * an id taken by a theme of the same name (trimmed, case-insensitive) is reported
- * as a clash, so a replace is only ever offered for the theme the user named. */
-export function newThemeId(
-  name: string,
-  installedThemes: ThemeSummary[],
-): { id: string; clash: boolean } {
-  const wanted = name.trim().toLowerCase();
-  // By name, so a theme kept under an older id or a later suffix is still the one replaced.
-  const same = installedThemes.find((t) => t.id.startsWith("local.") && t.name.trim().toLowerCase() === wanted);
-  if (same) return { id: same.id, clash: true };
-  const slug = slugify(name) || "theme";
-  const base = slug.slice(0, MAX_ID_SLUG).replace(/-+$/, "");
-  for (let n = 1; ; n++) {
-    const id = n === 1 ? `local.${base}` : `local.${base}-${n}`;
-    if (activeInstalled(id, installedThemes) === undefined) return { id, clash: false };
   }
 }
 
@@ -801,25 +767,6 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 
   duplicateTheme: async (sourceId, name, { overwrite = false } = {}) => {
     const { activeId, custom, customExtras, themeFiles, bloom } = get();
-
-    const { id, clash } = newThemeId(name, get().installedThemes);
-    if (clash && !overwrite) return "exists";
-    const manifest: ThemeManifest = {
-      schemaVersion: 2,
-      id,
-      name,
-      author: "local",
-      version: "1.0.0",
-      themeApi: "2.0",
-      // No frontend-exposed app version yet; "0.0.0" means no floor.
-      minimumLauncherVersion: "0.0.0",
-      description: "",
-      preview: null,
-      license: null,
-      homepage: null,
-      tags: [],
-      capabilities: ["tokens"],
-    };
     const tokens = buildSavedTokens(
       sourceId,
       sourceId === activeId,
@@ -829,30 +776,17 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       bloom,
     );
 
-    try {
-      // Both writes are create-only, so replacing an installed theme deletes
-      // its folder first — only ever after an overwrite was asked for. The
-      // delete is refused for the active theme, in which case the write below
-      // reports the clash.
-      if (clash) {
-        await deleteThemeCmd(id);
-      }
-      // A source with a folder on disk brings its layout, CSS and settings
-      // along; a built-in preset is colours only, so `save_theme` is enough.
-      if (activeInstalled(sourceId, get().installedThemes) !== undefined) {
-        await deriveTheme(sourceId, manifest, tokens);
-      } else {
-        await saveThemeCmd(manifest, tokens);
-      }
-    } catch (e) {
+    const copy = await saveThemeCopy(name, sourceId, tokens, overwrite).catch((e) => {
       console.error(`Could not save theme "${name}":`, e);
-      return "failed";
-    }
+      return null;
+    });
+    if (copy === null) return "failed";
+    if (copy.status === "exists") return "exists";
 
     await refreshInstalledThemes();
     // Reverting an abandoned duplicate removes it, so a revert is not destructive;
     // a replacement stands in for a theme the user already had and stays put.
-    await get().pickTheme(id, !overwrite);
+    await get().pickTheme(copy.id, !overwrite);
     return "saved";
   },
 

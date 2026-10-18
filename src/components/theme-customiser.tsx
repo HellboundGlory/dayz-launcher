@@ -11,7 +11,6 @@ import {
   effective,
   effectiveRoleValues,
   isUserTheme,
-  newThemeId,
   resolvedPair,
 } from "@/theme/theme-store";
 import {
@@ -135,7 +134,8 @@ export function ThemeCustomiser() {
 
   function isActiveName(target: string): boolean {
     const { activeId, installedThemes } = useThemeStore.getState();
-    return newThemeId(target, installedThemes).id === activeId;
+    const active = activeInstalled(activeId, installedThemes);
+    return isUserTheme(activeId, installedThemes) && active?.name.trim().toLowerCase() === target.trim().toLowerCase();
   }
 
   return (

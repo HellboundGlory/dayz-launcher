@@ -12,7 +12,6 @@ import type {
   ManifestOverrides,
   ThemeFile,
   ThemeImportPreview,
-  ThemeManifest,
   ThemeSummary,
   ValidationIssue,
 } from "@/types/theme";
@@ -684,22 +683,6 @@ export async function setThemeSettingsValue(
   value: number | boolean,
 ): Promise<void> {
   return invoke<void>("set_theme_settings_value", { id, fieldId, value });
-}
-
-/** Create-only — an id that already exists is an error, never an overwrite. */
-export async function saveTheme(manifest: ThemeManifest, tokens: unknown): Promise<string> {
-  return invoke<string>("save_theme", { manifest, tokens });
-}
-
-/** Create-only, like {@link saveTheme}: a copy of an installed theme's own
- * content — layout, CSS, settings — under this manifest and palette. Refuses a
- * `sourceId` with no directory on disk. */
-export async function deriveTheme(
-  sourceId: string,
-  manifest: ThemeManifest,
-  tokens: unknown,
-): Promise<string> {
-  return invoke<string>("derive_theme", { sourceId, manifest, tokens });
 }
 
 /** Save `tokens` as a theme called `name`, copying `sourceId`'s layout, CSS and

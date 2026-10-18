@@ -62,10 +62,17 @@ export function ThemesSection({
     return [...PRESETS.map((p) => p.name), ...installedThemes.map((t) => t.name)];
   }
 
+  /** Runs a toolbar or grid action. Any action ends the copy message, which only describes the last copy. */
+  function act(run: () => void) {
+    setCopyError(null);
+    run();
+  }
+
   async function duplicate(sourceId: string, name: string): Promise<boolean> {
     setCopyError(null);
     const result = await duplicateTheme(sourceId, name).catch(() => "failed" as const);
     if (result === "failed") setCopyError("Could not copy the theme.");
+    if (result === "exists") setCopyError(`A theme named "${name}" already exists.`);
     return result === "saved";
   }
 
@@ -83,10 +90,7 @@ export function ThemesSection({
         <div className="flex gap-1.5">
           <button
             type="button"
-            onClick={() => {
-              setCopyError(null);
-              setImportOpen(true);
-            }}
+            onClick={() => act(() => setImportOpen(true))}
             className={TOOLBAR_BTN}
           >
             <Upload className="size-3" />
@@ -94,7 +98,7 @@ export function ThemesSection({
           </button>
           <button
             type="button"
-            onClick={() => setCopyOpen((open) => !open)}
+            onClick={() => act(() => setCopyOpen((open) => !open))}
             aria-expanded={copyOpen}
             className={cn(TOOLBAR_BTN, copyOpen && "border-accent-line text-accent")}
           >
@@ -132,13 +136,10 @@ export function ThemesSection({
         activeId={activeId}
         installedThemes={installedThemes}
         themeFiles={themeFiles}
-        onActivate={(id) => void pickTheme(id)}
+        onActivate={(id) => act(() => void pickTheme(id))}
         onDuplicate={(sourceId, name) => void duplicate(sourceId, name)}
-        onExport={(id) => {
-          setCopyError(null);
-          setExportId(id);
-        }}
-        onDelete={(id) => void deleteTheme(id)}
+        onExport={(id) => act(() => setExportId(id))}
+        onDelete={(id) => act(() => void deleteTheme(id))}
       />
 
       <div className="[border-radius:var(--t-radius-card)] border border-line bg-surface p-3">
@@ -156,12 +157,12 @@ export function ThemesSection({
         </div>
 
         <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-          <button type="button" onClick={() => setCustomiserOpen((o) => !o)} className={ACTION_BTN}>
+          <button type="button" onClick={() => act(() => setCustomiserOpen((o) => !o))} className={ACTION_BTN}>
             {customiserOpen ? "Hide customiser" : "Customize tokens"}
           </button>
           <button
             type="button"
-            onClick={() => setSettingsOpen((open) => !open)}
+            onClick={() => act(() => setSettingsOpen((open) => !open))}
             disabled={settingsFields.length === 0}
             title={settingsFields.length === 0 ? "Coming in a later release" : undefined}
             className={cn(ACTION_BTN, settingsOpen && "border-accent-line text-accent")}
@@ -170,7 +171,7 @@ export function ThemesSection({
           </button>
           <button
             type="button"
-            onClick={() => onDevModeChange(!devMode)}
+            onClick={() => act(() => onDevModeChange(!devMode))}
             aria-pressed={devMode}
             title="Outline the slots and elements a theme can reach"
             className={cn(ACTION_BTN, devMode && "border-accent-line text-accent")}
@@ -179,7 +180,7 @@ export function ThemesSection({
           </button>
           <button
             type="button"
-            onClick={() => void pickTheme("neutral")}
+            onClick={() => act(() => void pickTheme("neutral"))}
             disabled={activeId === "neutral"}
             className={cn(
               ACTION_BTN,
