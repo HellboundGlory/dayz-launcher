@@ -355,10 +355,10 @@ fn inspect<R: Read + Seek>(
 /// `Path::join` would let override the staging root), or a symlink (whose
 /// target is a path elsewhere). Then the canonicalised parent is checked to
 /// still be under `staging_root`, belt and braces against any other escape.
-fn safe_output_path(
+fn safe_output_path<R: Read>(
     staging_root: &Path,
     name: &str,
-    entry: &zip::read::ZipFile<'_>,
+    entry: &zip::read::ZipFile<'_, R>,
 ) -> Result<PathBuf, String> {
     let relative = Path::new(name);
     if relative
@@ -401,8 +401,8 @@ fn safe_output_path(
 /// Read one entry into memory, counting the bytes actually read so the size
 /// ceiling cannot be bypassed by a lying header. Nothing reaches the staging
 /// directory until the content has been sniffed, which needs the whole file.
-fn read_entry(
-    entry: &mut zip::read::ZipFile<'_>,
+fn read_entry<R: Read>(
+    entry: &mut zip::read::ZipFile<'_, R>,
     name: &str,
     total_bytes: &mut u64,
 ) -> Result<Vec<u8>, String> {

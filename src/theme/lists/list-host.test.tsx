@@ -479,7 +479,7 @@ describe("observeBoundedRect", () => {
   it("caps an unbounded scroller's height at the window height", () => {
     const cb = vi.fn();
     const instance = {
-      scrollElement: { offsetWidth: 900, offsetHeight: 1_480_000 },
+      scrollElement: { clientWidth: 900, clientHeight: 1_480_000 },
       targetWindow: { innerHeight: 800 },
     } as unknown as Parameters<typeof observeBoundedRect>[0];
     observeBoundedRect(instance, cb);
@@ -489,7 +489,7 @@ describe("observeBoundedRect", () => {
   it("leaves a bounded scroller's height alone", () => {
     const cb = vi.fn();
     const instance = {
-      scrollElement: { offsetWidth: 900, offsetHeight: 500 },
+      scrollElement: { clientWidth: 900, clientHeight: 500 },
       targetWindow: { innerHeight: 800 },
     } as unknown as Parameters<typeof observeBoundedRect>[0];
     observeBoundedRect(instance, cb);
