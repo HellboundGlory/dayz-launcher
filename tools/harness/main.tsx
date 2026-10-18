@@ -205,12 +205,19 @@ mockIPC(
 );
 
 // Theme assets are served over tetra-theme://localhost/<id>/ in the app; point them at the package on disk.
+// The root layer sheet has no file on disk, so a blob imports the package's styles.css into the theme layer.
+const layerSheet = (themeId: string) =>
+  URL.createObjectURL(
+    new Blob([`@import url("${location.origin}${THEME_ROOT}/${themeId}/styles.css") layer(theme);`], { type: "text/css" }),
+  );
 const rewrite = (el: Element) => {
   for (const attr of ["href", "src"]) {
     const value = el.getAttribute(attr);
     if (value?.startsWith("tetra-theme://")) {
       const [, id, ...rest] = value.replace("tetra-theme://localhost/", "/").split("/");
-      el.setAttribute(attr, `${THEME_ROOT}/${decodeURIComponent(id)}/${rest.join("/")}`);
+      const themeId = decodeURIComponent(id);
+      const path = rest.join("/");
+      el.setAttribute(attr, path === "theme-layer.css" ? layerSheet(themeId) : `${THEME_ROOT}/${themeId}/${path}`);
     }
   }
 };

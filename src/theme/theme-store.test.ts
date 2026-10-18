@@ -658,7 +658,7 @@ describe("apply() asset wiring", () => {
 
     useThemeStore.getState().apply();
     expect(themeCssHead.map((el) => el.attributes.href)).toEqual([
-      "tetra-theme://localhost/local.aurora/styles.css",
+      "tetra-theme://localhost/local.aurora/theme-layer.css",
     ]);
 
     useThemeStore.getState().setScheme("light");
