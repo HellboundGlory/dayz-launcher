@@ -18,6 +18,8 @@ pub(crate) enum Job {
     Favourite(ServerKey, bool, Ack<usize>),
     LastPlayed(ServerKey, Ack<usize>),
     SetOnline(Vec<ServerKey>, bool, Ack<()>),
+    SetOfflineUnlessAnsweredSince(Vec<ServerKey>, i64, Ack<()>),
+    MarkUnlistedOffline(Vec<ServerKey>, i64, Ack<usize>),
     ProbeAttempt(Vec<ServerKey>, Ack<()>),
     RulesUnanswered(Vec<ServerKey>, i64, Ack<()>),
     PruneStale(Ack<usize>),
@@ -92,6 +94,29 @@ impl Writer {
         self.send(|ack| Job::SetOnline(keys, online, ack)).await
     }
 
+    /// Flip `online` off for servers not answered since `cutoff`. A recent answer
+    /// outranks a verdict that comes from somewhere else.
+    pub async fn set_offline_unless_answered_since(
+        &self,
+        keys: Vec<ServerKey>,
+        cutoff: i64,
+    ) -> Result<(), RegistryError> {
+        self.send(|ack| Job::SetOfflineUnlessAnsweredSince(keys, cutoff, ack))
+            .await
+    }
+
+    /// Flip `online` off for servers outside `listed` not answered since
+    /// `answered_since`, sparing favourites and played servers. Does nothing when
+    /// that would be more than half of what is online. Returns the count.
+    pub async fn mark_unlisted_offline(
+        &self,
+        listed: Vec<ServerKey>,
+        answered_since: i64,
+    ) -> Result<usize, RegistryError> {
+        self.send(|ack| Job::MarkUnlistedOffline(listed, answered_since, ack))
+            .await
+    }
+
     fn blocking_send<T>(&self, make: impl FnOnce(Ack<T>) -> Job) -> Result<T, RegistryError> {
         let (ack, rx) = oneshot::channel();
         self.tx
@@ -158,6 +183,12 @@ pub(crate) fn run(conn: Connection, mut rx: mpsc::Receiver<Job>) {
             }
             Job::SetOnline(keys, online, ack) => {
                 let _ = ack.send(set_online(&conn, &keys, online));
+            }
+            Job::SetOfflineUnlessAnsweredSince(keys, cutoff, ack) => {
+                let _ = ack.send(set_offline_unless_answered_since(&conn, &keys, cutoff));
+            }
+            Job::MarkUnlistedOffline(listed, answered_since, ack) => {
+                let _ = ack.send(mark_unlisted_offline(&conn, &listed, answered_since));
             }
             Job::ProbeAttempt(keys, ack) => {
                 let _ = ack.send(mark_probe_attempt(&conn, &keys));
@@ -253,7 +284,9 @@ ON CONFLICT(ip, query_port) DO UPDATE SET
     day_multiplier = COALESCE(excluded.day_multiplier, servers.day_multiplier),
     night_multiplier = COALESCE(excluded.night_multiplier, servers.night_multiplier),
     mod_count      = COALESCE(excluded.mod_count,      servers.mod_count),
-    last_responded = COALESCE(excluded.last_responded, servers.last_responded),
+    last_responded = CASE WHEN excluded.last_responded IS NULL
+                          THEN servers.last_responded
+                          ELSE MAX(excluded.last_responded, COALESCE(servers.last_responded, 0)) END,
     last_played    = COALESCE(excluded.last_played,    servers.last_played),
     country_code   = COALESCE(excluded.country_code,   servers.country_code)
 "#;
@@ -305,7 +338,8 @@ fn upsert_servers(conn: &Connection, rows: &[ServerRow]) -> Result<usize, Regist
             let first_person = kw.as_ref().is_some_and(|k| k.first_person_only);
             let modded = kw.as_ref().is_some_and(|k| k.modded);
             let battleye = kw.as_ref().is_some_and(|k| k.battleye);
-            let responded_at: Option<i64> = row.responded.then(now);
+            let responded_at: Option<i64> =
+                row.responded.then(|| row.responded_at.unwrap_or_else(now));
 
             let cc = row
                 .country_code
@@ -453,6 +487,72 @@ fn set_online(conn: &Connection, keys: &[ServerKey], online: bool) -> Result<(),
     }
     tx.commit()?;
     Ok(())
+}
+
+fn set_offline_unless_answered_since(
+    conn: &Connection,
+    keys: &[ServerKey],
+    cutoff: i64,
+) -> Result<(), RegistryError> {
+    let tx = conn.unchecked_transaction()?;
+    {
+        let mut stmt = tx.prepare_cached(
+            "UPDATE servers SET online = 0
+             WHERE ip = ?1 AND query_port = ?2 AND online != 0
+               AND (last_responded IS NULL OR last_responded < ?3)",
+        )?;
+        for key in keys {
+            stmt.execute(params![key.ip.to_string(), key.query_port, cutoff])?;
+        }
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+fn mark_unlisted_offline(
+    conn: &Connection,
+    listed: &[ServerKey],
+    answered_since: i64,
+) -> Result<usize, RegistryError> {
+    const UNLISTED: &str = "online != 0
+         AND (last_responded IS NULL OR last_responded < ?1)
+         AND favourite = 0 AND last_played IS NULL
+         AND NOT EXISTS (
+             SELECT 1 FROM temp_listed t
+             WHERE t.ip = servers.ip AND t.query_port = servers.query_port
+         )";
+    let tx = conn.unchecked_transaction()?;
+    tx.execute_batch(
+        "CREATE TEMP TABLE temp_listed (
+             ip TEXT NOT NULL, query_port INTEGER NOT NULL, PRIMARY KEY (ip, query_port)
+         )",
+    )?;
+    {
+        let mut insert =
+            tx.prepare_cached("INSERT INTO temp_listed (ip, query_port) VALUES (?1, ?2)")?;
+        for key in listed {
+            insert.execute(params![key.ip.to_string(), key.query_port])?;
+        }
+    }
+    let (online, unlisted): (i64, i64) = tx.query_row(
+        &format!(
+            "SELECT COUNT(*) FILTER (WHERE online != 0), COUNT(*) FILTER (WHERE {UNLISTED}) FROM servers"
+        ),
+        params![answered_since],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
+    // Losing most of the list at once is a broken source, not dead servers.
+    let n = if unlisted * 2 > online {
+        0
+    } else {
+        tx.execute(
+            &format!("UPDATE servers SET online = 0 WHERE {UNLISTED}"),
+            params![answered_since],
+        )?
+    };
+    tx.execute_batch("DROP TABLE temp_listed")?;
+    tx.commit()?;
+    Ok(n)
 }
 
 fn mark_probe_attempt(conn: &Connection, keys: &[ServerKey]) -> Result<(), RegistryError> {

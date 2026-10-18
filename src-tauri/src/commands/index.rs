@@ -27,6 +27,9 @@ const SERVER_BATCH: usize = 4000;
 /// because each entry carries a whole mod list.
 const MODS_BATCH: usize = 500;
 
+/// A server answered this recently stays online whatever the index says.
+const RECENT_ANSWER_SECS: i64 = 600;
+
 /// Which source served the list the browser is currently showing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -158,8 +161,8 @@ pub async fn try_index(
         app,
         "index",
         &format!(
-            "try_index: {listed} listed, {} written ({} with mods, {} unparseable) in {ms}ms",
-            ingested.servers, ingested.with_mods, ingested.skipped
+            "try_index: {listed} listed, {} written ({} with mods, {} unparseable, {} marked offline) in {ms}ms",
+            ingested.servers, ingested.with_mods, ingested.skipped, ingested.marked_offline
         ),
     );
     Some(ingested.servers)
@@ -231,6 +234,8 @@ pub struct Ingested {
     pub with_mods: usize,
     /// Entries dropped because their `addr` did not parse.
     pub skipped: usize,
+    /// Servers the snapshot no longer lists, marked offline.
+    pub marked_offline: usize,
     /// False when a shutdown stopped the run part-way through.
     pub complete: bool,
 }
@@ -258,6 +263,7 @@ where
     let mut rows: Vec<ServerRow> = Vec::with_capacity(SERVER_BATCH.min(servers.len()));
     let mut mods: Vec<(ServerKey, Vec<ServerMod>)> = Vec::new();
     let mut verdicts: Vec<(ServerKey, bool)> = Vec::new();
+    let mut listed: Vec<ServerKey> = Vec::new();
 
     for entry in servers {
         let verdict = entry.online;
@@ -273,6 +279,7 @@ where
         if let Some(ids) = mod_ids {
             mods.push((row.key, named_mods(ids, &mod_names)));
         }
+        listed.push(row.key);
         rows.push(row);
 
         if rows.len() >= SERVER_BATCH {
@@ -290,6 +297,10 @@ where
     out.servers += flush_rows(writer, &mut rows).await?;
     flush_online(writer, &mut verdicts).await?;
     out.with_mods += flush_mods(writer, &mut mods).await?;
+    out.marked_offline = writer
+        .mark_unlisted_offline(listed, crate::unix_now() - RECENT_ANSWER_SECS)
+        .await
+        .map_err(|e| e.to_string())?;
 
     progress(out.servers);
     out.complete = true;
@@ -337,14 +348,22 @@ async fn flush_online(
     writer: &Writer,
     verdicts: &mut Vec<(ServerKey, bool)>,
 ) -> Result<(), String> {
+    let cutoff = crate::unix_now() - RECENT_ANSWER_SECS;
     let (up, down): (Vec<_>, Vec<_>) = verdicts.drain(..).partition(|(_, online)| *online);
-    for (keys, online) in [(up, true), (down, false)] {
-        if !keys.is_empty() {
-            writer
-                .set_online(keys.into_iter().map(|(key, _)| key).collect(), online)
-                .await
-                .map_err(|e| e.to_string())?;
-        }
+    let keys = |batch: Vec<(ServerKey, bool)>| -> Vec<ServerKey> {
+        batch.into_iter().map(|(key, _)| key).collect()
+    };
+    if !up.is_empty() {
+        writer
+            .set_online(keys(up), true)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    if !down.is_empty() {
+        writer
+            .set_offline_unless_answered_since(keys(down), cutoff)
+            .await
+            .map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -366,6 +385,11 @@ fn parse_key(addr: &str) -> Option<ServerKey> {
 /// entry so its strings move rather than clone.
 fn to_row(entry: ServerEntry) -> Option<(ServerRow, Option<Vec<u64>>)> {
     let key = parse_key(&entry.addr)?;
+    // An answer from the future or older than the prune window counts as none,
+    // so a bad stamp can't pin a row online or have it pruned and re-added.
+    let now = crate::unix_now();
+    let oldest = now - tetra_registry::schema::PRUNE_AFTER_DAYS * 86_400;
+    let responded_at = entry.last_responded.filter(|t| (oldest..=now).contains(t));
     let row = ServerRow {
         key,
         game_port: entry.game_port,
@@ -384,7 +408,8 @@ fn to_row(entry: ServerEntry) -> Option<(ServerRow, Option<Vec<u64>>)> {
         description: entry.description,
         mod_count: entry.mod_ids.as_ref().map(|m| m.len() as i32),
         last_played: None,
-        responded: entry.last_responded.is_some(),
+        responded: responded_at.is_some(),
+        responded_at,
         // Filled in by the writer's GeoIP lookup.
         country_code: None,
     };
@@ -418,7 +443,7 @@ mod tests {
             keywords: None,
             description: None,
             mod_ids: None,
-            last_responded: Some(1_700_000_000),
+            last_responded: Some(crate::unix_now() - 86_400),
             online: None,
         }
     }
@@ -610,6 +635,96 @@ mod tests {
         up.online = Some(true);
         write(&writer, snapshot(vec![up], HashMap::new())).await;
         assert!(online());
+    }
+
+    /// A server the backend last reached a day ago must not look freshly answered,
+    /// and a stamp from the future or past the prune window counts as no answer.
+    #[tokio::test]
+    async fn a_listed_server_keeps_the_answer_time_the_snapshot_reports() {
+        let registry = Registry::open_in_memory().expect("registry");
+        let writer = registry.writer();
+        let listed = entry("203.0.113.10:27016");
+        let stamp = listed.last_responded;
+        let mut future = entry("203.0.113.20:27016");
+        future.last_responded = Some(crate::unix_now() + 86_400);
+        let mut ancient = entry("203.0.113.21:27016");
+        ancient.last_responded = Some(1_000_000_000);
+        write(
+            &writer,
+            snapshot(vec![listed, future, ancient], HashMap::new()),
+        )
+        .await;
+
+        let export = registry.reader().expect("reader").export().expect("export");
+        let answered = |addr: &str| {
+            let key = parse_key(addr).expect("key");
+            export
+                .rows
+                .iter()
+                .find(|r| r.key == key)
+                .expect("row")
+                .last_responded
+        };
+        assert_eq!(answered("203.0.113.10:27016"), stamp);
+        assert_eq!(answered("203.0.113.20:27016"), None);
+        assert_eq!(answered("203.0.113.21:27016"), None);
+    }
+
+    #[tokio::test]
+    async fn offline_marks_spare_only_servers_reached_within_the_grace_period() {
+        let registry = Registry::open_in_memory().expect("registry");
+        let writer = registry.writer();
+        let now = crate::unix_now();
+        let server = |last_octet: u8| ServerKey {
+            ip: Ipv4Addr::new(203, 0, 113, last_octet),
+            query_port: 27016,
+        };
+        let probed = |last_octet: u8, answered_at: i64| ServerRow {
+            key: server(last_octet),
+            name: "Test Server".into(),
+            players: 3,
+            max_players: 60,
+            responded: true,
+            responded_at: Some(answered_at),
+            ..Default::default()
+        };
+        writer
+            .upsert_servers(vec![
+                probed(11, now - 60),   // listed, index says offline: stays online
+                probed(12, now - 3600), // listed, index says offline: goes offline
+                probed(13, now - 3600), // unlisted: goes offline
+                probed(14, now - 60),   // unlisted: stays online
+            ])
+            .await
+            .expect("seed rows");
+
+        let mut recent = entry("203.0.113.11:27016");
+        recent.online = Some(false);
+        let mut stale = entry("203.0.113.12:27016");
+        stale.online = Some(false);
+        write(&writer, snapshot(vec![recent, stale], HashMap::new())).await;
+
+        let reader = registry.reader().expect("reader");
+        let online = |last_octet: u8| {
+            reader
+                .get(server(last_octet))
+                .expect("get")
+                .expect("row")
+                .online
+        };
+        assert!(online(11), "the index must not overrule a recent answer");
+        assert!(
+            !online(12),
+            "an index offline verdict applies to a stale row"
+        );
+        assert!(
+            !online(13),
+            "an unlisted server with a stale answer goes offline"
+        );
+        assert!(
+            online(14),
+            "an unlisted server answered recently stays online"
+        );
     }
 
     fn health_at(stamp: Option<i64>) -> Health {

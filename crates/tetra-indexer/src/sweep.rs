@@ -175,6 +175,7 @@ pub async fn info(
             mod_count: None,
             last_played: None,
             responded: true,
+            responded_at: None,
             country_code: None,
         });
         if batch_rows.len() >= WRITE_BATCH {
