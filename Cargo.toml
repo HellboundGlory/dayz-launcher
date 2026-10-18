@@ -13,7 +13,7 @@ members = [
 ]
 
 [workspace.package]
-version = "3.0.0"
+version = "3.1.0"
 edition = "2021"
 # 1.90 is the floor the Tauri 2.12 crates impose.
 rust-version = "1.90"
