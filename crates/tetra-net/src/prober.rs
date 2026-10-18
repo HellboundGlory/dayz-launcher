@@ -38,6 +38,10 @@ impl Prober {
         &self.config
     }
 
+    pub fn rules_fanout(&self) -> usize {
+        self.config.max_in_flight.clamp(1, 1000)
+    }
+
     pub fn refresh(&self, addrs: Vec<SocketAddr>) -> mpsc::Receiver<ProbeOutcome> {
         let (tx, rx) = mpsc::channel(64);
 
