@@ -2,19 +2,18 @@
 
 ## v3.1.0 — 2026-10-18
 
-Every real server is in the list, fake ones are gone, and join links, search and refresh do what they say.
+Fake servers are gone from the list, and join links, search and refresh do what they say.
 
 ### New
 
-- **Join links ask first**: "Join via Tetra Launcher" opens the server with its mods and one Join button.
-- **Paste a server address** into search to find it, even one the list has never seen.
+- **Join links ask first**: a box shows the server, its mods, a favourite star and Join.
+- **Paste a server address** into search to find it, even one not in the list yet.
 - **Map filter**: official and DLC maps first, and a search box to find any map.
-- **Favourite from a join link** with the star in the join box.
 - **New theme asks for a name**; new and imported themes no longer switch over straight away.
 
 ### Improved
 
-- The list holds every real server: fake and long-dead listings are gone, and empty servers no longer go missing.
+- Fake and long-dead listings are gone from the list; empty servers stay.
 - Refresh re-checks the servers on screen, and rows stay put until it finishes.
 - Mod lists for new servers, Nasdara included, fill in instead of showing none.
 - A server that stops being listed shows as offline.
@@ -22,8 +21,8 @@ Every real server is in the list, fake ones are gone, and join links, search and
 ### Fixed
 
 - A join link that starts the launcher no longer gets lost.
-- Starting with Windows minimised stays in the tray.
-- Copying a theme over one with the same name never loses the old one if the save fails.
+- Dragging the scrollbar fast no longer leaves the list blank.
+- Copying a theme over one with the same name keeps the old one if saving fails.
 
 Theme makers: see [what changed for themes in 3.1.0](https://tetralauncher.com/docs/themes/changelog).
 
