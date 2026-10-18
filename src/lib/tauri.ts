@@ -96,6 +96,11 @@ export async function getServer(addr: string, queryPort: number): Promise<Server
   return invoke<Server | null>("get_server", { addr, queryPort });
 }
 
+/** Find a server by `ip:port`: from the registry, else probed and stored when it answers. */
+export async function lookupServer(addr: string): Promise<Server | null> {
+  return invoke<Server | null>("lookup_server", { addr });
+}
+
 /** A `dzsa://` link that started this process, for the frontend to pick up once it can listen. */
 export async function takePendingConnect(): Promise<DzsaConnect | null> {
   return invoke<DzsaConnect | null>("take_pending_connect");

@@ -1,5 +1,6 @@
 use crate::rows::ServerKey;
 use rusqlite::types::Value;
+use std::net::Ipv4Addr;
 
 /// The column list (and order) both [`build`]'s query and [`crate::reader::Reader::get`]
 /// select — kept in one place so the two queries cannot drift apart from the
@@ -227,12 +228,27 @@ pub(crate) fn where_clause(filter: &ServerFilter) -> (String, Vec<Value>) {
         clauses.push("TRIM(name) <> ''".into());
     }
     if let Some(text) = &filter.search {
-        clauses.push(
-            "(name LIKE ? ESCAPE '\\' OR COALESCE(description, '') LIKE ? ESCAPE '\\')".into(),
-        );
-        let pattern = format!("%{}%", escape_like(text));
-        binds.push(Value::Text(pattern.clone()));
-        binds.push(Value::Text(pattern));
+        match address_search(text) {
+            Some((ip, None)) => {
+                clauses.push("ip = ?".into());
+                binds.push(Value::Text(ip.to_string()));
+            }
+            Some((ip, Some(port))) => {
+                clauses.push("ip = ? AND (query_port = ? OR game_port = ?)".into());
+                binds.push(Value::Text(ip.to_string()));
+                binds.push(Value::Integer(port.into()));
+                binds.push(Value::Integer(port.into()));
+            }
+            None => {
+                clauses.push(
+                    "(name LIKE ? ESCAPE '\\' OR COALESCE(description, '') LIKE ? ESCAPE '\\')"
+                        .into(),
+                );
+                let pattern = format!("%{}%", escape_like(text));
+                binds.push(Value::Text(pattern.clone()));
+                binds.push(Value::Text(pattern));
+            }
+        }
     }
 
     let where_sql = if clauses.is_empty() {
@@ -265,6 +281,18 @@ pub(crate) fn build(
     binds.push(Value::Integer(i64::try_from(limit).unwrap_or(i64::MAX)));
     binds.push(Value::Integer(i64::try_from(offset).unwrap_or(i64::MAX)));
     (sql, binds)
+}
+
+/// An IPv4 address with an optional port (1–65535), when `text` is one.
+pub fn address_search(text: &str) -> Option<(Ipv4Addr, Option<u16>)> {
+    let text = text.trim();
+    match text.rsplit_once(':') {
+        Some((ip, port)) => {
+            let port = port.parse::<u16>().ok().filter(|&p| p != 0)?;
+            Some((ip.parse().ok()?, Some(port)))
+        }
+        None => Some((text.parse().ok()?, None)),
+    }
 }
 
 fn placeholders(items: &[String], binds: &mut Vec<Value>) -> String {
