@@ -101,6 +101,8 @@ interface ThemeState {
     opts?: { overwrite?: boolean; activate?: boolean },
   ) => Promise<ThemeSaveResult>;
   deleteTheme: (id: string) => Promise<void>;
+  /** Re-read the installed themes, e.g. after an import. */
+  refreshInstalled: () => Promise<void>;
   resetToBase: () => void;
 }
 
@@ -795,6 +797,8 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     await get().pickTheme(copy.id, !overwrite);
     return "saved";
   },
+
+  refreshInstalled: () => refreshInstalledThemes(),
 
   deleteTheme: async (id) => {
     try {

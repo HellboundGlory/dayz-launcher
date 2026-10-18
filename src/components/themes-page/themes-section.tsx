@@ -39,6 +39,7 @@ export function ThemesSection({
   const installedThemes = useThemeStore((s) => s.installedThemes);
   const themeFiles = useThemeStore((s) => s.themeFiles);
   const pickTheme = useThemeStore((s) => s.pickTheme);
+  const refreshInstalled = useThemeStore((s) => s.refreshInstalled);
   const duplicateTheme = useThemeStore((s) => s.duplicateTheme);
   const deleteTheme = useThemeStore((s) => s.deleteTheme);
 
@@ -206,7 +207,10 @@ export function ThemesSection({
       {importOpen && (
         <ImportThemeDialog
           installedThemes={installedThemes}
-          onInstalled={() => setImportOpen(false)}
+          onInstalled={() => {
+            setImportOpen(false);
+            void refreshInstalled();
+          }}
           onClose={() => setImportOpen(false)}
         />
       )}
