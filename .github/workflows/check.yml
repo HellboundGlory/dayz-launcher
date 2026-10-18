@@ -44,7 +44,7 @@ jobs:
 
       - name: Cache Playwright browsers
         id: playwright
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
@@ -62,6 +62,13 @@ jobs:
       - name: Install headless Chromium
         if: steps.playwright.outputs.cache-hit != 'true'
         run: npx playwright-core install --with-deps chromium-headless-shell
+
+      - name: Save Playwright browsers
+        if: steps.playwright.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
 
       - name: Install Chromium system dependencies
         if: steps.playwright.outputs.cache-hit == 'true'

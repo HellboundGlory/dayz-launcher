@@ -16,6 +16,7 @@ Shoot a scenario (starts Vite on port 1431 if it isn't running):
 Defaults: 1154×744 CSS px at 1.25 device scale, i.e. a 1442×930 window at the
 launcher's default interface scale. Browser console output lands next to the
 PNG as `<out>.log`; uncaught errors are also painted onto the page.
+`HARNESS_SHOT_TIMEOUT` (default 60) caps the browser run in seconds; a run that hits it exits 1.
 
 | Query | Effect |
 |---|---|

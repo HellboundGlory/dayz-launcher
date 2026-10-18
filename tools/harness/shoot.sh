@@ -10,6 +10,7 @@ WIDTH=${3:-1154}
 HEIGHT=${4:-744}
 SCALE=${HARNESS_SCALE:-1.25}
 PORT=${HARNESS_PORT:-1431}
+TIMEOUT=${HARNESS_SHOT_TIMEOUT:-60}
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 BROWSER=$(node -e '
   import(process.argv[1])
@@ -25,10 +26,17 @@ if ! curl -sf "http://localhost:$PORT/tools/harness/index.html" >/dev/null; then
   done
 fi
 
-"$BROWSER" --no-sandbox --disable-gpu --hide-scrollbars=false \
+timeout -k 10 "$TIMEOUT" "$BROWSER" --no-sandbox --disable-gpu --hide-scrollbars=false \
   --force-device-scale-factor="$SCALE" --window-size="$WIDTH,$HEIGHT" \
   --virtual-time-budget="${HARNESS_BUDGET:-10000}" --run-all-compositor-stages-before-draw \
   --enable-logging=stderr --log-level=0 \
-  --screenshot="$OUT" "http://localhost:$PORT/tools/harness/index.html?$QUERY" 2>"${OUT%.png}.log" >/dev/null
+  --screenshot="$OUT" "http://localhost:$PORT/tools/harness/index.html?$QUERY" 2>"${OUT%.png}.log" >/dev/null || {
+  status=$?
+  if [[ $status -eq 124 ]]; then
+    echo "shoot.sh: browser timed out after ${TIMEOUT}s" >&2
+    exit 1
+  fi
+  exit "$status"
+}
 grep -E "CONSOLE|harness" "${OUT%.png}.log" | grep -v "Download the React DevTools" >&2 || true
 echo "$OUT"
