@@ -10,7 +10,7 @@ Every real server is in the list, fake ones are gone, and join links, search and
 - **Paste a server address** into search to find it, even one the list has never seen.
 - **Map filter**: official and DLC maps first, and a search box to find any map.
 - **Favourite from a join link** with the star in the join box.
-- **New theme asks for a name**, and no longer switches to the copy straight away.
+- **New theme asks for a name**; new and imported themes no longer switch over straight away.
 
 ### Improved
 

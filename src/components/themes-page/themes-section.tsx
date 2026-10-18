@@ -206,10 +206,7 @@ export function ThemesSection({
       {importOpen && (
         <ImportThemeDialog
           installedThemes={installedThemes}
-          onInstalled={(id) => {
-            setImportOpen(false);
-            void pickTheme(id);
-          }}
+          onInstalled={() => setImportOpen(false)}
           onClose={() => setImportOpen(false)}
         />
       )}
