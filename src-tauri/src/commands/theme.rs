@@ -986,7 +986,11 @@ fn fingerprint_theme_dir(dir: &Path) -> Result<String, String> {
         hasher.update(b"\0");
         hasher.update(bytes);
     }
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect())
 }
 
 fn write_seed_provenance(target: &Path, version: &str) -> Result<(), String> {
