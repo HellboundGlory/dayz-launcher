@@ -34,6 +34,7 @@ pub async fn lookup_server(
     let Some((ip, port)) = parse_address(&addr)? else {
         return Ok(None);
     };
+    let writer = super::registry_writer(&state).await?;
     let known = blocking_read(&state, move |reader| {
         reader.find_by_address(ip, port).map_err(|e| e.to_string())
     })
@@ -68,10 +69,6 @@ pub async fn lookup_server(
     }
 
     let key = ServerKey { ip, query_port };
-    let writer = {
-        let guard = state.registry.lock().map_err(|e| e.to_string())?;
-        guard.as_ref().ok_or("Registry not initialized")?.writer()
-    };
     writer
         .upsert_servers(vec![info_row(key, info, rtt)])
         .await

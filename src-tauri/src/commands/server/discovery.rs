@@ -63,10 +63,7 @@ pub async fn discover_servers(
     crate::log::log_line(&app, "discovery", "discover_servers: start");
     let discovered_at = std::time::Instant::now();
 
-    let writer = {
-        let guard = state.registry.lock().map_err(|e| e.to_string())?;
-        guard.as_ref().ok_or("Registry not initialized")?.writer()
-    };
+    let writer = super::registry_writer(&state).await?;
 
     // One master pull at a time: a second `discover_servers` (periodic
     // rediscovery, retry) while one is streaming would queue a duplicate pull

@@ -23,6 +23,8 @@ pub struct AppState {
     pub registry_degraded: Mutex<bool>,
     /// Set once setup has opened the registry, to whether it fell back to in-memory.
     pub registry_ready: OnceLock<bool>,
+    /// Flips to true once `registry` and `prober` are set, for commands that arrive before setup.
+    pub registry_open: tokio::sync::watch::Sender<bool>,
     /// Whether this launch is an OS autostart that starts hidden in the tray.
     pub launched_hidden: AtomicBool,
     /// Whether the close button hides to the tray instead of quitting.
@@ -85,6 +87,7 @@ impl AppState {
             shutting_down: AtomicBool::new(false),
             registry_degraded: Mutex::new(false),
             registry_ready: OnceLock::new(),
+            registry_open: tokio::sync::watch::Sender::new(false),
             launched_hidden: AtomicBool::new(false),
             // False until `setup` overwrites from the settings file, so a close
             // during startup quits rather than hiding into a tray that may not exist yet.

@@ -21,6 +21,21 @@ fn prober(state: &AppState) -> Result<Prober, String> {
     Ok(guard.as_ref().ok_or("Prober not initialized")?.clone())
 }
 
+/// How long a command waits for setup to open the registry before giving up.
+const REGISTRY_WAIT: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// The registry's writer, once setup has opened it and made the prober. On
+/// Windows a command can arrive before setup has run.
+pub(crate) async fn registry_writer(state: &AppState) -> Result<tetra_registry::Writer, String> {
+    let mut open = state.registry_open.subscribe();
+    tokio::time::timeout(REGISTRY_WAIT, open.wait_for(|open| *open))
+        .await
+        .map_err(|_| "Registry not initialized".to_string())?
+        .map_err(|e| e.to_string())?;
+    let guard = state.registry.lock().map_err(|e| e.to_string())?;
+    Ok(guard.as_ref().ok_or("Registry not initialized")?.writer())
+}
+
 /// Open a read connection, releasing the state lock before returning. The
 /// tight scope matters twice over: the `!Send` guard can't cross an
 /// `.await`, and a `Reader` owning its own connection means handing it to a
@@ -370,6 +385,24 @@ fn sort_from_params(sort_key: &str, sort_dir: &str) -> (SortKey, SortDir) {
 #[cfg(test)]
 mod tests {
     use super::server_key;
+
+    /// On Windows a command can arrive before setup has opened the registry;
+    /// it must wait for it rather than fail.
+    #[tokio::test]
+    async fn a_writer_asked_for_before_setup_waits_for_the_registry() {
+        let state = std::sync::Arc::new(crate::state::AppState::new());
+        let early = {
+            let state = state.clone();
+            tokio::spawn(async move { super::registry_writer(&state).await.map(|_| ()) })
+        };
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        *state.registry.lock().unwrap() =
+            Some(tetra_registry::Registry::open_in_memory().expect("registry"));
+        state.registry_open.send_replace(true);
+
+        assert_eq!(early.await.expect("task"), Ok(()));
+    }
 
     /// Pins the wire convention: `addr` already carries `"IP:query_port"`, so
     /// appending the port again would build an invalid double-port string.
