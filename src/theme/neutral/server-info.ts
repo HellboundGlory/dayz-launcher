@@ -55,7 +55,7 @@ export const SERVER_INFO_MODAL: ModalLayoutFile = {
             type: "box",
             class: "t-neutral-serverinfo-identity",
             children: [
-              { element: "server.name", class: "t-neutral-serverinfo-name" },
+              { element: "server.name", class: "t-neutral-serverinfo-name", options: { heading: true } },
               {
                 element: "server.address",
                 class: "t-neutral-serverinfo-address",

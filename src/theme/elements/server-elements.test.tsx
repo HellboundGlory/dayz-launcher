@@ -342,9 +342,16 @@ describe("ServerPing", () => {
   });
 });
 
+describe("ServerName", () => {
+  it("renders an h2 with the heading option, and a span without it", () => {
+    expect(render(<ServerName options={{ heading: true }} />, serverContext(server))).toMatch(/^<h2 data-el="server\.name"/);
+    expect(render(<ServerName />, serverContext(server))).toMatch(/^<span data-el="server\.name"/);
+  });
+});
+
 describe("ServerModCount", () => {
   it.each([
-    { name: "a known count of zero", patch: { mod_count: 0 }, state: "none", text: "—", title: undefined },
+    { name: "a known count of zero", patch: { mod_count: 0 }, state: "none", text: "0", title: undefined },
     { name: "an unprobed modded server", patch: { mod_count: null, modded: true }, state: "unprobed", text: "?", title: "This server declares mods" },
     { name: "an unprobed vanilla server", patch: { mod_count: null, modded: false }, state: "none vanilla", text: "—", title: undefined },
   ])("reads $text with state $state for $name", ({ patch, state, text, title }) => {

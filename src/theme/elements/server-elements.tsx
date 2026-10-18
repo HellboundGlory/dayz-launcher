@@ -59,15 +59,29 @@ function joinParts(nodes: ReactNode[]): ReactNode[] {
   return nodes.flatMap((node, i) => (i === 0 ? [node] : [" ", node]));
 }
 
-export function ServerName({ className, style }: { className?: string; style?: CSSProperties }) {
+/** The address a server is joined by: the game port in place of the query port when it is known. */
+function joinAddress(server: Server): string {
+  if (server.game_port <= 0) return server.addr;
+  return `${server.addr.slice(0, server.addr.lastIndexOf(":"))}:${server.game_port}`;
+}
+
+export function ServerName({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
   const server = useServerSubject();
   if (!server) return null;
-  const states = serverStates(!server.online);
+  const Tag = options?.heading === true ? "h2" : "span";
 
   return (
-    <span data-el="server.name" data-state={states} className={className ?? "truncate"} style={style}>
-      <span data-part="text">{server.name}</span>
-    </span>
+    <Tag data-el="server.name" data-state={serverStates(!server.online)} className={className ?? "truncate"} style={style}>
+      <span data-part="text">{server.name || joinAddress(server)}</span>
+    </Tag>
   );
 }
 
@@ -165,7 +179,7 @@ export function ServerMap({ className, style }: { className?: string; style?: CS
   if (!server) return null;
   return (
     <span data-el="server.map" data-state={serverStates(!server.online)} className={className ?? "truncate"} style={style}>
-      <span data-part="text">{server.map_display}</span>
+      <span data-part="text">{server.map_display || "—"}</span>
     </span>
   );
 }
@@ -934,7 +948,7 @@ export function ServerModCount({
   let text: string;
   let state: string | false;
   if (server.mod_count !== null) {
-    text = server.mod_count === 0 ? "—" : String(server.mod_count);
+    text = String(server.mod_count);
     state = server.mod_count === 0 && "none";
   } else if (server.modded) {
     text = "?";

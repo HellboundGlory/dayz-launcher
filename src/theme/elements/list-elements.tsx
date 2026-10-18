@@ -142,7 +142,7 @@ export function ServerModsList({
     >
       {header && (
         <div data-part="header" className="flex items-center justify-between py-1.5 px-2 [font-size:var(--t-type-size-sm)] text-muted font-bold tracking-wider uppercase border-b border-line">
-          <span>REQUIRED MODS · SERVER ORDER</span>
+          <span>REQUIRED MODS</span>
           <span className="font-mono-data">{mods.length}</span>
         </div>
       )}

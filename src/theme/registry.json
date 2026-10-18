@@ -1598,7 +1598,12 @@
       ],
       "required": [],
       "multiplicity": "many",
-      "options": {},
+      "options": {
+        "heading": {
+          "type": "boolean",
+          "default": false
+        }
+      },
       "freeLabel": false,
       "parts": [
         "text"
