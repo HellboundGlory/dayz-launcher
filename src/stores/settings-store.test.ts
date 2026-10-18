@@ -14,7 +14,7 @@ const saved: AppSettingsDto = {
   steamPath: "/steam",
   dayzPath: "/dayz",
   workshopPath: "/workshop",
-  maxConcurrentQueries: 1024,
+  maxConcurrentQueries: 256,
   queryTimeoutMs: 1000,
   launchParams: ["-noSplash"],
   closeToTray: true,

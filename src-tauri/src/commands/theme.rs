@@ -9,7 +9,7 @@ use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::state::PendingActivation;
-use crate::theme::validator::{self, Severity, ValidationIssue};
+use crate::theme::validator::{self, ValidationIssue};
 use crate::theme::{self, LegacyTheme, ThemeFile, ThemeManifest, ThemeSummary};
 
 /// Every installed theme, for the themes grid. A directory whose manifest is
@@ -83,14 +83,12 @@ fn validate_theme_settings(
         }
         Err(error) => Ok((
             None,
-            vec![ValidationIssue {
-                rule_id: "SET-01".into(),
-                severity: Severity::Error,
-                file: theme::SETTINGS_SCHEMA_FILE.into(),
-                pointer: String::new(),
-                message: format!("Invalid settings.schema.json: {error}"),
-                hint: None,
-            }],
+            vec![ValidationIssue::error(
+                "SET-01",
+                theme::SETTINGS_SCHEMA_FILE,
+                String::new(),
+                format!("Invalid settings.schema.json: {error}"),
+            )],
         )),
     }
 }
@@ -644,7 +642,7 @@ fn copy_package_with_manifest(
 /// The source files a derived theme never inherits: the source's own identity
 /// and palette, its seed provenance, its README and its screenshots.
 fn is_derivation_excluded(relative: &Path) -> bool {
-    if relative.starts_with("previews") {
+    if relative.starts_with(theme::archive::PREVIEWS_FOLDER) {
         return true;
     }
     matches!(
@@ -1205,6 +1203,7 @@ fn seed_from(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::theme::validator::Severity;
 
     fn armed_at(at: Instant) -> Option<PendingActivation> {
         let mut slot = None;
