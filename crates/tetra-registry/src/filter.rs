@@ -132,12 +132,9 @@ pub struct ServerListRow {
     pub night_multiplier: Option<f32>,
 }
 
-pub(crate) fn build(
-    filter: &ServerFilter,
-    sort: SortKey,
-    dir: SortDir,
-    limit: usize,
-) -> (String, Vec<Value>) {
+/// The `WHERE` clause (empty when nothing filters) and its binds. The page query
+/// and the count both use it, so they always agree.
+pub(crate) fn where_clause(filter: &ServerFilter) -> (String, Vec<Value>) {
     let mut clauses: Vec<String> = Vec::new();
     let mut binds: Vec<Value> = Vec::new();
 
@@ -243,18 +240,30 @@ pub(crate) fn build(
     } else {
         format!("WHERE {}", clauses.join(" AND "))
     };
+    (where_sql, binds)
+}
 
+/// One page of the list. `ip` and `query_port` break ties after the name, so
+/// consecutive pages never repeat or skip a row that shares a sort value.
+pub(crate) fn build(
+    filter: &ServerFilter,
+    sort: SortKey,
+    dir: SortDir,
+    offset: usize,
+    limit: usize,
+) -> (String, Vec<Value>) {
+    let (where_sql, mut binds) = where_clause(filter);
     let sql = format!(
         "SELECT {SERVER_LIST_COLUMNS}
          FROM servers
          {where_sql}
-         ORDER BY {} {} , name ASC
-         LIMIT {}",
+         ORDER BY {} {} , name ASC, ip ASC, query_port ASC
+         LIMIT ? OFFSET ?",
         sort.column(),
         dir.sql(),
-        limit
     );
-
+    binds.push(Value::Integer(i64::try_from(limit).unwrap_or(i64::MAX)));
+    binds.push(Value::Integer(i64::try_from(offset).unwrap_or(i64::MAX)));
     (sql, binds)
 }
 

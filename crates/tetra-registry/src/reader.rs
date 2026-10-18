@@ -7,6 +7,9 @@ use std::str::FromStr;
 use tetra_core::a2s::dayz::ServerMod;
 use tetra_core::classify::maps::display_name;
 
+/// Keys per `get_many` statement: two bound parameters each, well under SQLite's limit.
+const GET_MANY_CHUNK: usize = 400;
+
 /// Columns [`Reader::map_export_row`] reads, positionally.
 const EXPORT_COLUMNS: &str = "ip, query_port, game_port, name, map_raw, players, max_players, bots,
      locked, vac, version, keywords, description, mod_count, last_responded,
@@ -54,6 +57,7 @@ impl Reader {
         Ok((total as usize, populated as usize))
     }
 
+    /// Rows matching `filter` in `sort` order, the first `limit`.
     pub fn list(
         &self,
         filter: &ServerFilter,
@@ -61,14 +65,76 @@ impl Reader {
         dir: SortDir,
         limit: usize,
     ) -> Result<Vec<ServerListRow>, RegistryError> {
-        let (sql, binds) = filter::build(filter, sort, dir, limit);
+        self.page(filter, sort, dir, 0, limit)
+    }
+
+    /// `limit` rows matching `filter` in `sort` order, starting at `offset`.
+    pub fn page(
+        &self,
+        filter: &ServerFilter,
+        sort: SortKey,
+        dir: SortDir,
+        offset: usize,
+        limit: usize,
+    ) -> Result<Vec<ServerListRow>, RegistryError> {
+        let (sql, binds) = filter::build(filter, sort, dir, offset, limit);
         // prepare_cached: this is the hottest read path (fires on every
         // discovery tick), and filter shapes are a small, bounded set.
         let mut stmt = self.conn.prepare_cached(&sql)?;
         let rows = collect_skipping_bad_rows(
             stmt.query_map(rusqlite::params_from_iter(binds), Self::map_row)?,
-            "list",
+            "page",
         )?;
+        Ok(rows)
+    }
+
+    /// One page plus the filter's total, read in one transaction so they agree.
+    pub fn page_with_total(
+        &self,
+        filter: &ServerFilter,
+        sort: SortKey,
+        dir: SortDir,
+        offset: usize,
+        limit: usize,
+    ) -> Result<(usize, Vec<ServerListRow>), RegistryError> {
+        let tx = self.conn.unchecked_transaction()?;
+        let total = self.count(filter)?;
+        let rows = self.page(filter, sort, dir, offset, limit)?;
+        tx.commit()?;
+        Ok((total, rows))
+    }
+
+    /// How many rows `filter` matches, ignoring any paging.
+    pub fn count(&self, filter: &ServerFilter) -> Result<usize, RegistryError> {
+        let (where_sql, binds) = filter::where_clause(filter);
+        let mut stmt = self
+            .conn
+            .prepare_cached(&format!("SELECT COUNT(*) FROM servers {where_sql}"))?;
+        let total: i64 = stmt.query_row(rusqlite::params_from_iter(binds), |r| r.get(0))?;
+        Ok(total as usize)
+    }
+
+    /// Rows for the `keys` that exist, in no particular order.
+    pub fn get_many(&self, keys: &[ServerKey]) -> Result<Vec<ServerListRow>, RegistryError> {
+        let mut rows = Vec::with_capacity(keys.len());
+        for chunk in keys.chunks(GET_MANY_CHUNK) {
+            let holes = std::iter::repeat_n("(?, ?)", chunk.len())
+                .collect::<Vec<_>>()
+                .join(", ");
+            let mut binds = Vec::with_capacity(chunk.len() * 2);
+            for key in chunk {
+                binds.push(rusqlite::types::Value::Text(key.ip.to_string()));
+                binds.push(rusqlite::types::Value::Integer(i64::from(key.query_port)));
+            }
+            let mut stmt = self.conn.prepare_cached(&format!(
+                "SELECT {SERVER_LIST_COLUMNS} FROM servers
+                 WHERE (ip, query_port) IN (VALUES {holes})"
+            ))?;
+            rows.extend(collect_skipping_bad_rows(
+                stmt.query_map(rusqlite::params_from_iter(binds), Self::map_row)?,
+                "get_many",
+            )?);
+        }
         Ok(rows)
     }
 

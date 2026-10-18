@@ -148,6 +148,21 @@ pub struct SortParams {
     pub limit: usize,
 }
 
+#[derive(serde::Deserialize)]
+pub struct PageParams {
+    pub sort_key: String,
+    pub sort_dir: String,
+    pub offset: usize,
+    pub limit: usize,
+}
+
+/// One page of the list, plus how many rows the filter matches in all.
+#[derive(serde::Serialize)]
+pub struct ServerPage {
+    pub total: usize,
+    pub rows: Vec<Server32>,
+}
+
 /// Map a registry row onto the bridge type. Classification flags come
 /// straight off the row rather than being re-derived here, since they were
 /// computed once at write time and the filter SQL matches those same columns.
@@ -193,7 +208,7 @@ pub async fn get_server_list(
     crate::log::log_line_verbose(&app, "servers", "get_server_list: start");
     let result: Result<Vec<Server32>, String> = blocking_read(&state, move |reader| {
         let filter = filter_from_params(filter_params);
-        let (sort_key, sort_dir) = sort_from_params(&sort_params);
+        let (sort_key, sort_dir) = sort_from_params(&sort_params.sort_key, &sort_params.sort_dir);
         let rows = reader
             .list(&filter, sort_key, sort_dir, sort_params.limit)
             .map_err(|e| e.to_string())?;
@@ -220,6 +235,52 @@ pub async fn get_server_list(
     result
 }
 
+/// Largest page one `get_server_page` call returns.
+const MAX_PAGE_LIMIT: usize = 2_000;
+
+/// One page of the filtered, sorted list, with the total the filter matches.
+#[tauri::command]
+pub async fn get_server_page(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    filter_params: FilterParams,
+    page: PageParams,
+) -> Result<ServerPage, String> {
+    let started = std::time::Instant::now();
+    crate::log::log_line_verbose(&app, "servers", "get_server_page: start");
+    let limit = page.limit.min(MAX_PAGE_LIMIT);
+    let result: Result<ServerPage, String> = blocking_read(&state, move |reader| {
+        let filter = filter_from_params(filter_params);
+        let (sort_key, sort_dir) = sort_from_params(&page.sort_key, &page.sort_dir);
+        let (total, rows) = reader
+            .page_with_total(&filter, sort_key, sort_dir, page.offset, limit)
+            .map_err(|e| e.to_string())?;
+        Ok(ServerPage {
+            total,
+            rows: rows.iter().map(to_server32).collect(),
+        })
+    })
+    .await;
+    match &result {
+        Ok(loaded) => crate::log::log_line_verbose(
+            &app,
+            "servers",
+            &format!(
+                "get_server_page: {} of {} rows in {:?}",
+                loaded.rows.len(),
+                loaded.total,
+                started.elapsed()
+            ),
+        ),
+        Err(e) => crate::log::log_line(
+            &app,
+            "servers",
+            &format!("get_server_page: error after {:?}: {e}", started.elapsed()),
+        ),
+    }
+    result
+}
+
 /// Look up a single server by address, regardless of whatever filter/sort
 /// the table currently has loaded. Exists for the `dzsa://` deep-link flow,
 /// where the named server may not be in the frontend's currently-loaded rows.
@@ -235,6 +296,35 @@ pub async fn get_server(
             .get(key)
             .map_err(|e| e.to_string())?
             .map(|row| to_server32(&row)))
+    })
+    .await
+}
+
+/// Largest number of addresses one `get_servers_by_addr` call accepts.
+const MAX_ADDRS: usize = 2_000;
+
+/// Rows for `"ip:query_port"` addresses, in no particular order. An entry
+/// that doesn't parse is skipped; addresses the registry doesn't hold are absent.
+#[tauri::command]
+pub async fn get_servers_by_addr(
+    state: State<'_, AppState>,
+    addrs: Vec<String>,
+) -> Result<Vec<Server32>, String> {
+    if addrs.len() > MAX_ADDRS {
+        return Err("too many addresses".into());
+    }
+    let keys: Vec<ServerKey> = addrs
+        .iter()
+        .filter_map(|addr| {
+            let (_, port) = addr.rsplit_once(':')?;
+            server_key(addr, port.parse().ok()?).ok()
+        })
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+    blocking_read(&state, move |reader| {
+        let rows = reader.get_many(&keys).map_err(|e| e.to_string())?;
+        Ok(rows.iter().map(to_server32).collect())
     })
     .await
 }
@@ -345,8 +435,8 @@ fn filter_from_params(p: FilterParams) -> ServerFilter {
     }
 }
 
-fn sort_from_params(p: &SortParams) -> (SortKey, SortDir) {
-    let key = match p.sort_key.as_str() {
+fn sort_from_params(sort_key: &str, sort_dir: &str) -> (SortKey, SortDir) {
+    let key = match sort_key {
         "players" => SortKey::Players,
         "ping" => SortKey::Ping,
         "mod_count" => SortKey::ModCount,
@@ -355,7 +445,7 @@ fn sort_from_params(p: &SortParams) -> (SortKey, SortDir) {
         "last_played" => SortKey::LastPlayed,
         _ => SortKey::Players,
     };
-    let dir = match p.sort_dir.as_str() {
+    let dir = match sort_dir {
         "asc" => SortDir::Asc,
         _ => SortDir::Desc,
     };
@@ -560,36 +650,21 @@ mod tests {
             ("map", SortKey::Map),
             ("last_played", SortKey::LastPlayed),
         ] {
-            let p = super::SortParams {
-                sort_key: key.into(),
-                sort_dir: "asc".into(),
-                limit: 0,
-            };
             assert_eq!(
-                super::sort_from_params(&p),
+                super::sort_from_params(key, "asc"),
                 (expected, SortDir::Asc),
                 "key {key}"
             );
         }
 
-        let desc = super::SortParams {
-            sort_key: "name".into(),
-            sort_dir: "desc".into(),
-            limit: 0,
-        };
         assert_eq!(
-            super::sort_from_params(&desc),
+            super::sort_from_params("name", "desc"),
             (SortKey::Name, SortDir::Desc)
         );
 
         // Anything but "asc" sorts descending, and an unknown key sorts by players.
-        let unknown = super::SortParams {
-            sort_key: "nonsense".into(),
-            sort_dir: "sideways".into(),
-            limit: 0,
-        };
         assert_eq!(
-            super::sort_from_params(&unknown),
+            super::sort_from_params("nonsense", "sideways"),
             (SortKey::Players, SortDir::Desc)
         );
     }

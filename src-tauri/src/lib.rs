@@ -138,6 +138,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::server::get_server_list,
             commands::server::get_server,
+            commands::server::get_server_page,
+            commands::server::get_servers_by_addr,
             commands::server::mod_readiness::server_mod_readiness,
             commands::server::mod_readiness::check_server_mods,
             commands::server::mod_readiness::get_unique_mods_summary,
