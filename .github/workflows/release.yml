@@ -11,6 +11,9 @@ on:
     tags:
       - "v*.*.*"
 
+permissions:
+  contents: read
+
 jobs:
   # Two calls rather than a matrix so the Windows build waits only for its own check.
   check-windows:
