@@ -274,7 +274,7 @@ pub(crate) fn where_clause(filter: &ServerFilter) -> (String, Vec<Value>) {
 pub(crate) fn visible_sql() -> String {
     let names: Vec<String> = DEFAULT_NAMES
         .iter()
-        .map(|name| format!("'{name}'"))
+        .map(|name| format!("'{}'", name.replace('\'', "''")))
         .collect();
     format!(
         "(favourite = 1 OR last_played IS NOT NULL OR \
