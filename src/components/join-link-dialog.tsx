@@ -1,10 +1,12 @@
-import { useId, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { CircleCheck, CircleX, Download, LoaderCircle, Play, TriangleAlert } from "lucide-react";
 import { lookUpJoinLink } from "@/hooks/use-join-links";
 import { useServerActions } from "@/hooks/use-server-actions";
+import { checkServerMods } from "@/lib/tauri";
 import { formatBytes } from "@/lib/utils";
 import { useJoinLinkStore, type JoinLinkPhase, type JoinLinkRequest } from "@/stores/join-link-store";
 import { useLaunchStore } from "@/stores/launch-store";
+import { setCachedReadiness } from "@/stores/readiness-store";
 import { useServerStore } from "@/stores/server-store";
 import { ServerModsListHost } from "@/theme/elements/list-elements";
 import { SubjectContextProvider } from "@/theme/elements/context";
@@ -219,6 +221,22 @@ function OpenJoinLink({ request }: { request: JoinLinkRequest }) {
   const server = selected ?? found;
   const close = useJoinLinkStore((s) => s.close);
   const { readiness, loading } = useServerReadiness(server);
+  // The stored mod list can be empty or stale for a server the list never refreshed, so ask it directly.
+  const [liveCheck, setLiveCheck] = useState(false);
+  const foundAddr = found?.addr;
+  const foundPort = found?.query_port;
+  useEffect(() => {
+    if (foundAddr === undefined || foundPort === undefined) return;
+    let current = true;
+    setLiveCheck(true);
+    checkServerMods(foundAddr, foundPort)
+      .then((res) => current && setCachedReadiness(foundAddr, foundPort, res))
+      .catch(() => {})
+      .finally(() => current && setLiveCheck(false));
+    return () => {
+      current = false;
+    };
+  }, [foundAddr, foundPort]);
   const dayzRunning = useLaunchStore((s) => s.dayzRunning);
   const { verifyAndJoin } = useServerActions();
   useEscapeLayer(true, close);
@@ -229,7 +247,7 @@ function OpenJoinLink({ request }: { request: JoinLinkRequest }) {
       phase={phase}
       server={server}
       readiness={readiness}
-      checking={loading}
+      checking={loading || liveCheck}
       dayzRunning={dayzRunning}
       onCancel={close}
       onRetry={() => lookUpJoinLink(request)}
