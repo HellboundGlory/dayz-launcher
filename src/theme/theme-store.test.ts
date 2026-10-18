@@ -13,7 +13,6 @@ import {
   getActiveLayout,
   getThemeOwnedLayout,
   mergeSettingsValues,
-  newThemeId,
   resolvedExtras,
   useThemeStore,
   watchHotReload,
@@ -33,12 +32,10 @@ const backend = vi.hoisted(() => ({
   setActiveCalls: [] as (string | null)[],
   /** What `list_installed_themes` sees. */
   installed: [] as { id: string; name: string; incompatible?: boolean }[],
-  /** The `tokens` object each `save_theme` call received, in call order. */
-  savedTokens: [] as unknown[],
-  /** The manifest each `save_theme` call received, in call order. */
-  savedManifests: [] as unknown[],
-  /** Every `derive_theme` call, in order. */
-  derived: [] as { sourceId: string; manifest: unknown; tokens: unknown }[],
+  /** Every `save_theme_copy` call, in order. */
+  copies: [] as { name: string; sourceId: string | null; tokens: unknown; replace: boolean }[],
+  /** What the next `save_theme_copy` answers: the backend picks the id and reports clashes. */
+  copyResult: { status: "saved", id: "local.copy" } as { status: "saved" | "exists"; id: string },
   /** Ids `delete_theme` was asked for, in call order. */
   deleted: [] as string[],
   /** Every `arm_activation` call's id and `deleteOnRevert`, in order. */
@@ -113,12 +110,9 @@ vi.mock("@/lib/tauri", () => ({
   migrateLegacyCustomThemes: async () => backend.migratedIds,
   armActivation: async (id: string | null, deleteOnRevert = false) =>
     void backend.armed.push({ id, deleteOnRevert }),
-  saveTheme: async (manifest: unknown, tokens: unknown) => {
-    backend.savedManifests.push(manifest);
-    backend.savedTokens.push(tokens);
-  },
-  deriveTheme: async (sourceId: string, manifest: unknown, tokens: unknown) => {
-    backend.derived.push({ sourceId, manifest, tokens });
+  saveThemeCopy: async (name: string, sourceId: string | null, tokens: unknown, replace: boolean) => {
+    backend.copies.push({ name, sourceId, tokens, replace });
+    return backend.copyResult;
   },
   updateThemeTokens: async (id: string, tokens: unknown) => {
     backend.updatedTokens.push({ id, tokens });
@@ -183,9 +177,8 @@ beforeEach(() => {
   backend.migratedIds.length = 0;
   backend.setActiveCalls.length = 0;
   backend.installed = [];
-  backend.savedTokens.length = 0;
-  backend.savedManifests.length = 0;
-  backend.derived.length = 0;
+  backend.copies.length = 0;
+  backend.copyResult = { status: "saved", id: "local.copy" };
   backend.deleted.length = 0;
   backend.armed.length = 0;
   backend.updatedTokens.length = 0;
@@ -477,9 +470,8 @@ describe("saveTheme in place", () => {
     await useThemeStore.getState().saveTheme("Renamed");
 
     expect(backend.updatedTokens.map((c) => c.id)).toEqual(["local.mine"]);
-    // Nothing is created: the in-place path never reaches `save_theme`.
-    expect(backend.savedTokens).toHaveLength(0);
-    expect(backend.savedManifests).toHaveLength(0);
+    // Nothing is created: the in-place path never reaches `save_theme_copy`.
+    expect(backend.copies).toHaveLength(0);
 
     // The tokens `duplicateTheme` would have written, aimed at the same id:
     // the live colours and bloom, and the role overrides merged into the
@@ -518,10 +510,9 @@ describe("saveTheme in place", () => {
     await useThemeStore.getState().saveTheme("Tactical copy");
 
     expect(backend.updatedTokens).toHaveLength(0);
-    // The active theme has a folder, so its layout and CSS come along.
-    expect(backend.derived.map((call) => call.sourceId)).toEqual(["builtin.tactical"]);
-    expect(backend.derived[0].manifest).toMatchObject({ id: "local.tactical-copy" });
-    expect(backend.savedManifests).toHaveLength(0);
+    // The backend copies the active theme's layout and CSS from its folder.
+    expect(backend.copies).toHaveLength(1);
+    expect(backend.copies[0]).toMatchObject({ name: "Tactical copy", sourceId: "builtin.tactical" });
   });
 });
 
@@ -535,7 +526,7 @@ describe("duplicateTheme", () => {
       layouts: {},
     }) as unknown as ThemeFile;
 
-  it("writes a v2 manifest and a v2 palette, copying the source's scales and roles", async () => {
+  it("sends a v2 palette built from the source's scales and roles and the live edits", async () => {
     const sourceTokens = {
       schemaVersion: 2,
       bloom: 0.2,
@@ -552,18 +543,11 @@ describe("duplicateTheme", () => {
 
     await useThemeStore.getState().saveTheme("Extras skin");
 
-    expect(backend.savedManifests[0]).toMatchObject({
-      schemaVersion: 2,
-      themeApi: "2.0",
-      id: "local.extras-skin",
-      author: "local",
-      capabilities: ["tokens"],
-    });
-    expect(backend.savedManifests[0]).not.toHaveProperty("tier");
+    expect(backend.copies[0]).toMatchObject({ name: "Extras skin", sourceId: "local.source", replace: false });
 
     // `parseTokens` is the same validation the backend's TokensV2 applies: a
     // shape it rejects would throw here.
-    const tokens = parseTokens(backend.savedTokens[0]);
+    const tokens = parseTokens(backend.copies[0].tokens);
     expect(tokens.schemaVersion).toBe(2);
     // The source's own scales/roles carry over...
     expect(tokens.scales).toEqual({ radius: { md: "9px" } });
@@ -583,7 +567,7 @@ describe("duplicateTheme", () => {
 
     await useThemeStore.getState().duplicateTheme("local.old", "Copy");
 
-    const tokens = parseTokens(backend.savedTokens[0]);
+    const tokens = parseTokens(backend.copies[0].tokens);
     expect(tokens.schemaVersion).toBe(2);
     expect(tokens.scales).toEqual(NEUTRAL_TOKENS.scales);
     expect(tokens.roles).toEqual(NEUTRAL_TOKENS.roles);
@@ -600,7 +584,7 @@ describe("duplicateTheme", () => {
 
     await useThemeStore.getState().saveTheme("Role skin");
 
-    const tokens = parseTokens(backend.savedTokens[0]);
+    const tokens = parseTokens(backend.copies[0].tokens);
     expect(tokens.roles).toEqual({ radius: { row: "3px", window: "2px" } });
     expect(tokens.scales?.type?.family).toEqual({
       ...NEUTRAL_TOKENS.scales.type.family,
@@ -617,153 +601,36 @@ describe("duplicateTheme", () => {
 
     await useThemeStore.getState().duplicateTheme("local.source", "Copy");
 
-    const tokens = parseTokens(backend.savedTokens[0]);
+    const tokens = parseTokens(backend.copies[0].tokens);
     expect(tokens.roles).toEqual({ radius: { row: "9px" } });
     expect(tokens.scales).toEqual(NEUTRAL_TOKENS.scales);
   });
 
-  it("derives from an installed source so its layout, CSS and settings come along", async () => {
-    backend.installed = [summary("builtin.tactical", "Tactical")];
-    useThemeStore.setState({
-      activeId: "builtin.tactical",
-      installedThemes: [summary("builtin.tactical", "Tactical")],
-      themeFiles: { "builtin.tactical": themeFile({ schemaVersion: 2, roles: { radius: { row: "9px" } } }) },
-      custom: { dark: { accent: "#00ff00" }, light: {} },
-    });
-
-    await useThemeStore.getState().duplicateTheme("builtin.tactical", "Tactical copy");
-
-    expect(backend.derived.map((call) => call.sourceId)).toEqual(["builtin.tactical"]);
-    // Nothing goes through `save_theme`: it would write a colours-only theme.
-    expect(backend.savedManifests).toHaveLength(0);
-    expect(backend.savedTokens).toHaveLength(0);
-
-    expect(backend.derived[0].manifest).toMatchObject({
-      id: "local.tactical-copy",
-      name: "Tactical copy",
-      capabilities: ["tokens"],
-    });
-    // The same tokens the save path would have built, from the live edits and
-    // the source's own roles.
-    const tokens = parseTokens(backend.derived[0].tokens);
-    expect(tokens.colors?.dark).toEqual({ ...NEUTRAL_DARK, accent: "#00ff00" });
-    expect(tokens.colors?.light).toEqual(NEUTRAL_LIGHT);
-    expect(tokens.roles).toEqual({ radius: { row: "9px" } });
-  });
-
-  it("saves a colours-only theme when the source has no folder on disk", async () => {
+  it("reports a taken name without writing or switching themes", async () => {
+    backend.copyResult = { status: "exists", id: "local.copy" };
     useThemeStore.setState({
       activeId: "neutral",
-      installedThemes: [],
       themeFiles: { "local.source": themeFile({ schemaVersion: 2 }) },
     });
-
-    await useThemeStore.getState().duplicateTheme("local.source", "Copy");
-
-    expect(backend.derived).toHaveLength(0);
-    expect(backend.savedManifests[0]).toMatchObject({ id: "local.copy" });
-    expect(backend.savedTokens).toHaveLength(1);
-  });
-
-  /** An installed `local.copy` and the palette source a name "Copy" clashes with. */
-  function installCopyClash(): void {
-    backend.installed = [summary("local.copy", "Copy")];
-    useThemeStore.setState({
-      activeId: "neutral",
-      installedThemes: [summary("local.copy", "Copy")],
-      themeFiles: { "local.source": themeFile({ schemaVersion: 2 }) },
-    });
-  }
-
-  it("reports the clash instead of replacing an installed theme's folder", async () => {
-    installCopyClash();
 
     const result = await useThemeStore.getState().duplicateTheme("local.source", "Copy");
 
     expect(result).toBe("exists");
-    expect(backend.deleted).toEqual([]);
-    expect(backend.savedManifests).toHaveLength(0);
-    expect(backend.derived).toHaveLength(0);
-  });
-
-  it("deletes the old folder and writes the new one when overwriting is asked for", async () => {
-    installCopyClash();
-
-    const result = await useThemeStore
-      .getState()
-      .duplicateTheme("local.source", "Copy", { overwrite: true });
-
-    expect(result).toBe("saved");
-    expect(backend.deleted).toEqual(["local.copy"]);
-    expect(backend.savedManifests[0]).toMatchObject({ id: "local.copy" });
-    expect(backend.savedTokens).toHaveLength(1);
-  });
-
-  it("gives a name with no ASCII letters a free local.theme id", async () => {
-    useThemeStore.setState({
-      activeId: "neutral",
-      installedThemes: [],
-      themeFiles: { "local.source": themeFile({ schemaVersion: 2 }) },
-    });
-
-    await useThemeStore.getState().duplicateTheme("local.source", "Ёлка");
-
-    expect(backend.savedManifests[0]).toMatchObject({ id: "local.theme", name: "Ёлка" });
-  });
-
-  it("steps past an installed local.theme instead of offering to replace it", async () => {
-    backend.installed = [summary("local.theme", "Theme")];
-    useThemeStore.setState({
-      activeId: "neutral",
-      installedThemes: [summary("local.theme", "Theme")],
-      themeFiles: { "local.source": themeFile({ schemaVersion: 2 }) },
-    });
-
-    const result = await useThemeStore.getState().duplicateTheme("local.source", "Звезда");
-
-    expect(result).toBe("saved");
-    expect(backend.deleted).toEqual([]);
-    expect(backend.savedManifests[0]).toMatchObject({ id: "local.theme-2" });
+    expect(backend.copies[0]).toMatchObject({ name: "Copy", replace: false });
+    expect(backend.armed).toEqual([]);
   });
 
   it("marks a fresh duplicate for deletion on revert but not a replacement", async () => {
+    backend.copyResult = { status: "saved", id: "local.fresh" };
     await useThemeStore.getState().duplicateTheme("local.source", "Fresh");
-    installCopyClash();
-    await useThemeStore
-      .getState()
-      .duplicateTheme("local.source", "Copy", { overwrite: true });
+    backend.copyResult = { status: "saved", id: "local.copy" };
+    await useThemeStore.getState().duplicateTheme("local.source", "Copy", { overwrite: true });
 
+    expect(backend.copies.map((call) => call.replace)).toEqual([false, true]);
     expect(backend.armed).toEqual([
       { id: "local.fresh", deleteOnRevert: true },
       { id: "local.copy", deleteOnRevert: false },
     ]);
-  });
-});
-
-describe("newThemeId", () => {
-  it("finds a same-named user theme by name, else takes the next free id", () => {
-    const cases = [
-      {
-        name: "Ёлка 2",
-        installed: [{ id: "local.2", name: "Звезда 2" }],
-        expected: { id: "local.2-2", clash: false },
-      },
-      {
-        name: "Ёлка 2",
-        installed: [{ id: "local.2", name: "ёлка 2" }],
-        expected: { id: "local.2", clash: true },
-      },
-      {
-        name: "Ёлка",
-        installed: [{ id: "local.ёлка", name: "Ёлка" }],
-        expected: { id: "local.ёлка", clash: true },
-      },
-    ];
-
-    for (const { name, installed, expected } of cases) {
-      const themes = installed.map((t) => summary(t.id, t.name));
-      expect(newThemeId(name, themes)).toEqual(expected);
-    }
   });
 });
 

@@ -80,9 +80,8 @@ export function buildGridEntries(installedThemes: ThemeSummary[]): GridEntry[] {
 
 /**
  * `${baseName} copy`, then `… copy 2`, `… copy 3`, … — the first candidate
- * whose name is not taken, compared trimmed and case-insensitively as
- * `newThemeId` compares them. Also used by the Settings "New theme" flow, so
- * it's exported.
+ * whose name is not taken, compared trimmed and case-insensitively as a save
+ * compares names. Also used by the Settings "New theme" flow, so it's exported.
  */
 export function nextDuplicateName(baseName: string, existingNames: string[]): string {
   const taken = new Set(existingNames.map((name) => name.trim().toLowerCase()));

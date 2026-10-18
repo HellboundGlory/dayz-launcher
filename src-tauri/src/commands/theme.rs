@@ -109,19 +109,6 @@ fn validate_theme_styles(dir: &Path) -> Result<Vec<ValidationIssue>, String> {
     ))
 }
 
-/// Install a new theme. Create-only: an id that already has a directory is an
-/// error, so an install can never overwrite a theme in place.
-#[tauri::command]
-pub fn save_theme(
-    app: AppHandle,
-    manifest: ThemeManifest,
-    tokens: serde_json::Value,
-) -> Result<String, String> {
-    let id = theme::save(&crate::paths::themes_dir(&app), &manifest, &tokens)?;
-    crate::log::log_line(&app, "theme", &format!("Installed theme `{id}`"));
-    Ok(id)
-}
-
 /// Rewrite an installed user theme's palette in place — SPEC §4.6's save for
 /// the active theme. Only `local.*` ids qualify; see [`theme::update_tokens`].
 #[tauri::command]
@@ -712,8 +699,7 @@ fn copy_derived_content(
 /// Save a copy of an installed theme under `manifest.id` in `target_root`, keeping
 /// everything the source ships beyond its colours — layout, CSS, settings — and
 /// replacing its manifest and palette with the caller's. The source is read from
-/// `themes_root`. Create-only, exactly as [`save_theme`]: an id that already has
-/// a directory is an error.
+/// `themes_root`. Create-only: an id that already has a directory is an error.
 fn derive_from_installed(
     themes_root: &Path,
     source_id: &str,
@@ -791,26 +777,6 @@ fn derive_from_installed(
             Err(e)
         }
     }
-}
-
-/// Save a copy of an installed theme under a new manifest, keeping its layout,
-/// CSS and settings — the customiser's "save as new" for a source richer than a
-/// colour palette. Create-only, exactly as [`save_theme`].
-#[tauri::command]
-pub fn derive_theme(
-    app: AppHandle,
-    source_id: String,
-    manifest: ThemeManifest,
-    tokens: serde_json::Value,
-) -> Result<String, String> {
-    let themes_root = crate::paths::themes_dir(&app);
-    let id = derive_from_installed(&themes_root, &source_id, &themes_root, &manifest, &tokens)?;
-    crate::log::log_line(
-        &app,
-        "theme",
-        &format!("Derived theme `{id}` from `{source_id}`"),
-    );
-    Ok(id)
 }
 
 /// What [`save_theme_copy`] did: `saved` with the new theme's id, or `exists`
