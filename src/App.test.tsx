@@ -158,6 +158,7 @@ describe("Themed settings surface", () => {
   const surface = (placement?: "outlet" | "overlay") => (
     <SettingsSurface
       layout={getActiveLayout("layout/settings.json") as SettingsLayoutFile}
+      themeId="local.aurora"
       placement={placement}
       onClose={noop}
     />

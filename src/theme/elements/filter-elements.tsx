@@ -11,6 +11,7 @@ import {
   PopupMapOptions,
   PopupRegionNote,
   PopupRegionOptions,
+  PopupSeparator,
   PopupSortOptions,
   PopupTagOptions,
   mapDisplayValue,
@@ -30,10 +31,6 @@ export {
 
 
 const SEARCH_DEBOUNCE_MS = 250;
-
-function PopupSeparator() {
-  return <div data-part="separator" aria-hidden className="mx-[var(--t-space-separatorX)] my-[var(--t-space-separatorY)] h-[var(--t-border-hairline)] bg-line" />;
-}
 
 function DropdownTrigger({
   label,

@@ -154,12 +154,11 @@ describe("UpdateSummary", () => {
 });
 
 describe("UpdateChangelog", () => {
-  it("states empty with the legacy wording, else renders the release notes", () => {
-    const empty = withUpdateStore({ available: null, changelog: null }, () =>
+  it("renders nothing when up to date, the notes when an update has them, and the empty wording when it has none", () => {
+    const upToDate = withUpdateStore({ available: null, changelog: null }, () =>
       renderToStaticMarkup(<UpdateChangelog />),
     );
-    expect(empty).toContain('data-state="empty"');
-    expect(empty).toContain("No changelog notes for this release.");
+    expect(upToDate).toBe("");
 
     const released = withUpdateStore(
       { available: { version: "1.2.3", date: null, body: "**hello**" } },
@@ -167,6 +166,12 @@ describe("UpdateChangelog", () => {
     );
     expect(released).toContain("hello");
     expect(released).not.toContain("No changelog notes");
+
+    const noNotes = withUpdateStore({ available: { version: "1.2.3", date: null, body: null }, changelog: null }, () =>
+      renderToStaticMarkup(<UpdateChangelog />),
+    );
+    expect(noNotes).toContain('data-state="empty"');
+    expect(noNotes).toContain("No changelog notes for this release.");
   });
 });
 

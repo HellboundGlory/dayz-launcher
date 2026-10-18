@@ -60,4 +60,12 @@
   .t-neutral-browser-dropdown [data-part="popup"] [data-el="popup.regionNote"] {
     @apply w-0 min-w-full;
   }
+
+  .t-neutral-browser-dropdown [data-part="popup"] [data-part="search"] {
+    @apply mb-1 block w-full min-w-0 [border-radius:var(--t-radius-popupItem)] border border-line bg-surface px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-label-size)] text-ink outline-hidden focus-visible:border-accent;
+  }
+
+  .t-neutral-browser-dropdown [data-part="popup"] [data-part="search"]::placeholder {
+    @apply text-muted;
+  }
 }

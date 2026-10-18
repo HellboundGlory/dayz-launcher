@@ -134,9 +134,9 @@ export function UpdateTitle({
 }) {
   const available = useUpdateStore((s) => s.available);
   return (
-    <span data-el="update.title" className={className} style={style}>
+    <h2 data-el="update.title" className={className} style={style}>
       <span data-part="text">{available ? "Update available" : "Updates"}</span>
-    </span>
+    </h2>
   );
 }
 
@@ -175,8 +175,9 @@ export function UpdateChangelog({
 }) {
   const available = useUpdateStore((s) => s.available);
   const changelog = useUpdateStore((s) => s.changelog);
-  const content = available?.body || changelog;
+  if (!available) return null;
 
+  const content = available.body || changelog;
   if (!content) {
     return (
       <div data-el="update.changelog" data-state="empty" className={className} style={style}>

@@ -446,7 +446,7 @@ export function App() {
             outlets={{
               view:
                 settingsOpen && settingsMode === "view" ? (
-                  <SettingsSurface layout={settingsLayout} placement="outlet" onClose={onCloseSettings} />
+                  <SettingsSurface layout={settingsLayout} themeId={activeId} placement="outlet" onClose={onCloseSettings} />
                 ) : activeView === "mods" ? (
                   modsView
                 ) : (
@@ -456,7 +456,7 @@ export function App() {
             }}
           />
         </div>
-        {settingsOpen && <SettingsSurface layout={settingsLayout} onClose={onCloseSettings} />}
+        {settingsOpen && <SettingsSurface layout={settingsLayout} themeId={activeId} onClose={onCloseSettings} />}
       </div>
     </ElementContextProvider>
   );
@@ -465,18 +465,19 @@ export function App() {
 export interface SettingsSurfaceProps {
   /** The active theme's `layout/settings.json`, or Neutral's when the theme's own is missing or fell back. */
   layout: SettingsLayoutFile;
+  themeId: string;
   /** `outlet` draws `view` Settings where the shell's view outlet goes; the default hosts overlay/panel Settings beside the shell. */
   placement?: "outlet" | "overlay";
   onClose: () => void;
 }
 
 /** Settings from the shell's `settings.json`: the view outlet for `view` mode, else beside the shell. */
-export function SettingsSurface({ layout, placement = "overlay", onClose }: SettingsSurfaceProps) {
+export function SettingsSurface({ layout, themeId, placement = "overlay", onClose }: SettingsSurfaceProps) {
   const mode = layout.presentation?.mode ?? "overlay";
   if (placement === "outlet") {
-    return mode === "view" ? <SettingsHost file={layout} onClose={onClose} /> : null;
+    return mode === "view" ? <SettingsHost file={layout} themeId={themeId} onClose={onClose} /> : null;
   }
-  return mode === "view" ? null : <SettingsRegionPortal file={layout} onClose={onClose} />;
+  return mode === "view" ? null : <SettingsRegionPortal file={layout} themeId={themeId} onClose={onClose} />;
 }
 
 /** Owns the mod filter's lifecycle and preview subject so typing in it re-renders only the modal. */

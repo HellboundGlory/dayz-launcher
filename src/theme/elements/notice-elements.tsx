@@ -410,8 +410,9 @@ export function ServerActionNotice({ className, style }: { className?: string; s
       className={cn("border p-3 my-2", borderClass, className)}
       style={style}
     >
-      {leading && <div className="mb-1">{leading}</div>}
+      {content.kind !== "code" && leading && <div className="mb-1">{leading}</div>}
       <div data-part="message" className="[font-size:var(--t-type-size-lg)] leading-4 text-muted2">
+        {content.kind === "code" && <>{leading} </>}
         {content.message}
       </div>
     </div>

@@ -550,6 +550,24 @@
   color: var(--danger);
 }
 
+[data-el="popup.mapOptions"] [data-part="search"] {
+  display: block;
+  box-sizing: border-box;
+  width: calc(100% - 12px);
+  margin: 6px;
+  border-radius: 0;
+  border: 1px solid var(--border);
+  background-color: var(--surface2);
+  padding: 4px 8px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text);
+}
+
+[data-el="popup.mapOptions"] [data-part="search"]:focus {
+  border-color: var(--accent);
+}
+
 [data-el="filter.map"] [data-el="popup.clear"],
 [data-el="filter.tags"] [data-el="popup.clear"],
 [data-el="filter.region"] [data-el="popup.clear"] {
