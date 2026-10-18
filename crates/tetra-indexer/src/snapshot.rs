@@ -6,6 +6,7 @@ use axum::body::Bytes;
 use std::io::BufWriter;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tetra_core::classify::names::is_default_name;
 use tetra_index::{ServerEntry, Snapshot, FORMAT_VERSION};
 use tetra_registry::{ExportRow, Registry, RegistryError};
 use tokio::sync::watch;
@@ -37,6 +38,9 @@ impl From<RegistryError> for BuildError {
 /// Floor on time between rebuilds. Every write cycle asks for a rebuild,
 /// and a rebuild is a full table scan serialised and gzipped in one pass.
 const MIN_INTERVAL: Duration = Duration::from_secs(30);
+
+/// Servers that have not answered for longer than this are left out of the served index.
+const EXPORT_MAX_SILENCE_SECS: i64 = 86_400;
 
 /// Rebuild whenever a write cycle says something changed, no more often than
 /// [`MIN_INTERVAL`].
@@ -103,10 +107,13 @@ fn build(registry: &Registry) -> Result<Bodies, BuildError> {
     let mut with_mods = 0usize;
     let mut populated = 0usize;
 
+    let served_since = generated_at - EXPORT_MAX_SILENCE_SECS;
     for row in export.rows {
-        if row.last_responded.is_some() {
-            responsive += 1;
+        let answered_lately = row.last_responded.is_some_and(|at| at >= served_since);
+        if !answered_lately || is_default_name(&row.name) {
+            continue;
         }
+        responsive += 1;
         if row.mod_ids.is_some() {
             with_mods += 1;
         }
@@ -173,4 +180,38 @@ fn encode(snapshot: &Snapshot) -> Result<Bytes, BuildError> {
 
 fn encode_err(e: impl std::fmt::Display) -> BuildError {
     BuildError::Encode(e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::Ipv4Addr;
+    use tetra_registry::{ServerKey, ServerRow};
+
+    #[tokio::test]
+    async fn stale_and_default_named_rows_are_not_served() {
+        let registry = Registry::open_in_memory().expect("registry");
+        let answered = |last_octet: u8, name: &str, age_secs: i64| ServerRow {
+            key: ServerKey {
+                ip: Ipv4Addr::new(203, 0, 113, last_octet),
+                query_port: 27016,
+            },
+            name: name.into(),
+            responded: true,
+            responded_at: Some(crate::now() - age_secs),
+            ..Default::default()
+        };
+        registry
+            .writer()
+            .upsert_servers(vec![
+                answered(1, "Survivor Haven", 3600),
+                answered(2, "Survivor Haven", EXPORT_MAX_SILENCE_SECS + 3600),
+                answered(3, "EXAMPLE NAME", 3600),
+            ])
+            .await
+            .expect("write");
+
+        let bodies = build(&registry).expect("build");
+        assert_eq!(bodies.servers, 1);
+    }
 }

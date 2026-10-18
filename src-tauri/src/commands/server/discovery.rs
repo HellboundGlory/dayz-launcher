@@ -25,14 +25,13 @@ enum ShardMsg {
     Done(Result<(), String>),
 }
 
-/// How many never-resolved rows one discovery pass asks itself, after the
-/// master pull. Measured at ~105s of A2S_INFO against a real backlog — a
-/// tenth of the master pull it follows — and it drains a fresh install's
-/// backlog over a few passes.
+/// How many silent rows one discovery pass asks itself, after the master pull.
+/// Measured at ~105s of A2S_INFO against a real backlog — a tenth of the master
+/// pull it follows — and it drains a fresh install's backlog over a few passes.
 const RESOLVE_WINDOW: usize = 8000;
 
-/// How long a never-resolved row is left alone after Tetra last asked it, so a
-/// short backlog doesn't mean re-probing the same dead addresses every pass.
+/// How long a silent row is left alone after Tetra last asked it, so a short
+/// backlog doesn't mean re-probing the same dead addresses every pass.
 const RESOLVE_RETRY_AFTER_SECS: i64 = 60 * 60;
 
 /// Clears `AppState.discovery_running` on drop, regardless of how
@@ -366,14 +365,13 @@ pub async fn discover_servers(
     Ok(())
 }
 
-/// Ask the servers Steam listed but could not resolve itself.
+/// Ask the servers that have not answered within the last day.
 ///
-/// A row Steam failed to ping arrives with `responded = false` and no name,
-/// and the upsert refuses to write live fields from it — so the row is stored
-/// nameless, and a nameless row is hidden from the browser. Nothing else would
-/// ever query it: the REFRESH button only re-probes rows the frontend has
-/// loaded, which by definition excludes hidden ones. Tetra's own prober has a
-/// different timeout and socket than Steam's, so it reaches plenty of them.
+/// The list hides them and nothing else would query them: the REFRESH button
+/// only re-probes rows the frontend has loaded, which excludes hidden ones. A
+/// row Steam failed to ping arrives nameless and unprobed, and this pass is
+/// what gives it a name. Tetra's own prober has a different timeout and socket
+/// than Steam's, so it reaches plenty of them.
 async fn resolve_unlisted(
     app: &tauri::AppHandle,
     state: &State<'_, AppState>,
@@ -381,7 +379,7 @@ async fn resolve_unlisted(
     window: &tauri::Window,
 ) {
     let backlog = reader(state).and_then(|r| {
-        r.unresolved(RESOLVE_WINDOW, RESOLVE_RETRY_AFTER_SECS)
+        r.silent(RESOLVE_WINDOW, RESOLVE_RETRY_AFTER_SECS)
             .map_err(|e| e.to_string())
     });
     let keys = match backlog {
@@ -423,7 +421,7 @@ async fn resolve_unlisted(
         app,
         "discovery",
         &format!(
-            "resolve_unlisted: asked {asked} never-resolved rows, {} answered",
+            "resolve_unlisted: asked {asked} silent rows, {} answered",
             info.refreshed
         ),
     );

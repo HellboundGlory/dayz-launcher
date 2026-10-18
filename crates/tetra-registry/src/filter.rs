@@ -1,6 +1,7 @@
 use crate::rows::ServerKey;
 use rusqlite::types::Value;
 use std::net::Ipv4Addr;
+use tetra_core::classify::names::DEFAULT_NAMES;
 
 /// The column list (and order) both [`build`]'s query and [`crate::reader::Reader::get`]
 /// select — kept in one place so the two queries cannot drift apart from the
@@ -20,6 +21,9 @@ pub enum ModMatch {
     /// Server must declare every id in `mod_ids`.
     All,
 }
+
+/// How recently a server must have answered to be listed, unless it is a favourite or was played.
+pub(crate) const ANSWERED_WITHIN_SECS: i64 = 86_400;
 
 #[derive(Debug, Clone, Default)]
 pub struct ServerFilter {
@@ -41,6 +45,9 @@ pub struct ServerFilter {
     /// Drop servers with no name at all — rows Steam listed but that have
     /// never answered a probe, so `name` was never written.
     pub hide_unnamed: bool,
+    /// Keep only servers that answered within [`ANSWERED_WITHIN_SECS`] under a
+    /// real name, plus favourites and played servers. Address searches skip it.
+    pub hide_stale: bool,
     /// Workshop ids picked in the "Filter by mod" modal. Empty means no filter.
     pub mod_ids: Vec<u64>,
     /// Whether a server must declare all of `mod_ids` or just one.
@@ -227,8 +234,12 @@ pub(crate) fn where_clause(filter: &ServerFilter) -> (String, Vec<Value>) {
     if filter.hide_unnamed {
         clauses.push("TRIM(name) <> ''".into());
     }
+    let address = filter.search.as_deref().and_then(address_search);
+    if filter.hide_stale && address.is_none() {
+        clauses.push(visible_sql());
+    }
     if let Some(text) = &filter.search {
-        match address_search(text) {
+        match address {
             Some((ip, None)) => {
                 clauses.push("ip = ?".into());
                 binds.push(Value::Text(ip.to_string()));
@@ -257,6 +268,19 @@ pub(crate) fn where_clause(filter: &ServerFilter) -> (String, Vec<Value>) {
         format!("WHERE {}", clauses.join(" AND "))
     };
     (where_sql, binds)
+}
+
+/// The rule `hide_stale` applies, also used for the footer counts.
+pub(crate) fn visible_sql() -> String {
+    let names: Vec<String> = DEFAULT_NAMES
+        .iter()
+        .map(|name| format!("'{name}'"))
+        .collect();
+    format!(
+        "(favourite = 1 OR last_played IS NOT NULL OR \
+         (last_responded >= unixepoch() - {ANSWERED_WITHIN_SECS} AND LOWER(TRIM(name)) NOT IN ({})))",
+        names.join(", ")
+    )
 }
 
 /// One page of the list. `ip` and `query_port` break ties after the name, so
