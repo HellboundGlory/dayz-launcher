@@ -8,6 +8,7 @@
 mod common;
 
 use common::key;
+use tetra_core::unix_now;
 use tetra_registry::{Registry, ServerKey, ServerRow};
 
 /// Long enough that nothing in these tests ages past it on its own.
@@ -168,5 +169,34 @@ async fn the_window_bounds_how_many_are_handed_out() {
     assert_eq!(
         reader.unresolved(3, RETRY_AFTER).expect("unresolved").len(),
         3
+    );
+}
+
+#[tokio::test]
+async fn silent_rows_include_those_not_answered_within_a_day() {
+    // The indexer's sweep keeps the never-answered queue; the launcher's
+    // resolve pass also asks rows that have gone quiet for a day.
+    let registry = Registry::open_in_memory().expect("registry");
+    let writer = registry.writer();
+
+    writer
+        .upsert_servers(vec![
+            unreachable_row(key(10)),
+            answered_row(key(11)),
+            ServerRow {
+                responded_at: Some(unix_now() - 25 * 3600),
+                ..answered_row(key(12))
+            },
+        ])
+        .await
+        .expect("write");
+
+    let reader = registry.reader().expect("reader");
+    let mut silent = reader.silent(10, RETRY_AFTER).expect("silent");
+    silent.sort_by_key(|k| k.ip);
+    assert_eq!(silent, vec![key(10), key(12)]);
+    assert_eq!(
+        reader.unresolved(10, RETRY_AFTER).expect("unresolved"),
+        vec![key(10)]
     );
 }

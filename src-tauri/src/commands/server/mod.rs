@@ -364,6 +364,8 @@ fn filter_from_params(p: FilterParams) -> ServerFilter {
         first_person: p.first_person,
         // Not a setting — a never-probed row has no name/players/map, so showing it is only noise.
         hide_unnamed: true,
+        // Not a setting: a server that has gone quiet is not listed as if it were up.
+        hide_stale: true,
         mod_ids: p.mod_ids.iter().filter_map(|id| id.parse().ok()).collect(),
         mod_match: if p.mod_match == "all" {
             ModMatch::All
@@ -560,6 +562,7 @@ mod tests {
         assert_eq!(f.mod_ids_exclude, vec![789]);
         // A never-probed row has nothing to show, so the list always hides it.
         assert!(f.hide_unnamed);
+        assert!(f.hide_stale);
     }
 
     #[test]

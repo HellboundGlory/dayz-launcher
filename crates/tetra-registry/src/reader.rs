@@ -1,5 +1,7 @@
 use crate::error::RegistryError;
-use crate::filter::{self, ServerFilter, ServerListRow, SortDir, SortKey, SERVER_LIST_COLUMNS};
+use crate::filter::{
+    self, ServerFilter, ServerListRow, SortDir, SortKey, ANSWERED_WITHIN_SECS, SERVER_LIST_COLUMNS,
+};
 use crate::rows::{Export, ExportRow, ServerKey, WorkshopCacheRow};
 use rusqlite::{params, Connection};
 use std::net::Ipv4Addr;
@@ -47,11 +49,14 @@ impl Reader {
         Ok(Self { conn })
     }
 
-    /// `(total, populated)` — every known server, and how many have a player
-    /// on them right now. One statement rather than two full scans.
+    /// `(total, populated)` — every server the list shows, and how many have a
+    /// player on them right now. One statement rather than two full scans.
     pub fn counts(&self) -> Result<(usize, usize), RegistryError> {
         let (total, populated): (i64, i64) = self.conn.query_row(
-            "SELECT COUNT(*), COUNT(*) FILTER (WHERE players > 0) FROM servers",
+            &format!(
+                "SELECT COUNT(*), COUNT(*) FILTER (WHERE players > 0) FROM servers WHERE {}",
+                filter::visible_sql()
+            ),
             [],
             |r| Ok((r.get(0)?, r.get(1)?)),
         )?;
@@ -210,14 +215,33 @@ impl Reader {
         limit: usize,
         min_age_secs: i64,
     ) -> Result<Vec<ServerKey>, RegistryError> {
-        let mut stmt = self.conn.prepare_cached(
+        self.due_probes("last_responded IS NULL", limit, min_age_secs)
+    }
+
+    /// Addresses that have not answered within [`ANSWERED_WITHIN_SECS`], never-answered
+    /// ones included, with the same rotation as [`Reader::unresolved`].
+    pub fn silent(&self, limit: usize, min_age_secs: i64) -> Result<Vec<ServerKey>, RegistryError> {
+        self.due_probes(
+            &format!("COALESCE(last_responded, 0) < unixepoch() - {ANSWERED_WITHIN_SECS}"),
+            limit,
+            min_age_secs,
+        )
+    }
+
+    fn due_probes(
+        &self,
+        condition: &str,
+        limit: usize,
+        min_age_secs: i64,
+    ) -> Result<Vec<ServerKey>, RegistryError> {
+        let mut stmt = self.conn.prepare_cached(&format!(
             "SELECT ip, query_port FROM servers
-             WHERE last_responded IS NULL
+             WHERE {condition}
                AND (last_probe_attempt IS NULL
                     OR last_probe_attempt <= unixepoch() - ?2)
              ORDER BY COALESCE(last_probe_attempt, 0) ASC, last_seen DESC
              LIMIT ?1",
-        )?;
+        ))?;
         let rows = collect_skipping_bad_rows(
             stmt.query_map(params![limit as i64, min_age_secs], |r| {
                 let ip: String = r.get(0)?;
@@ -229,7 +253,7 @@ impl Reader {
                     query_port: r.get(1)?,
                 }))
             })?,
-            "unresolved",
+            "due_probes",
         )?;
         Ok(rows)
     }
