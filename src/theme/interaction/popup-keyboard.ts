@@ -48,9 +48,16 @@ export function popupTrigger(root: HTMLElement | null): HTMLElement | null {
   return root.querySelector<HTMLElement>("[aria-haspopup]") ?? root;
 }
 
-function isTextEntry(el: Element): boolean {
-  if (el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) return true;
-  return el instanceof HTMLInputElement && el.type !== "checkbox" && el.type !== "radio";
+export function isTextEntry(el: { tagName: string; type?: string; isContentEditable?: boolean }): boolean {
+  switch (el.tagName) {
+    case "TEXTAREA":
+    case "SELECT":
+      return true;
+    case "INPUT":
+      return el.type !== "checkbox" && el.type !== "radio";
+    default:
+      return el.isContentEditable === true;
+  }
 }
 
 export function usePopupKeyboard(
@@ -87,7 +94,7 @@ export function usePopupKeyboard(
       }
 
       const target = e.target as Element | null;
-      if (!target || !popup.contains(target)) return;
+      if (!target || !popup.contains(target) || isTextEntry(target)) return;
 
       if (e.key === "Enter") {
         e.stopPropagation();
@@ -98,11 +105,8 @@ export function usePopupKeyboard(
         return;
       }
 
-      const active = document.activeElement;
-      if (!active || isTextEntry(active)) return;
-
       const items = Array.from(popup.querySelectorAll<HTMLElement>(FOCUSABLE));
-      const next = popupKeyTarget(e.key, items.indexOf(active as HTMLElement), items.length);
+      const next = popupKeyTarget(e.key, items.indexOf(target as HTMLElement), items.length);
       if (next === null) return;
 
       e.preventDefault();

@@ -997,6 +997,20 @@ export function ServerVersion({ className, style }: { className?: string; style?
   );
 }
 
+// Menu actions close their popup, which unmounts the button, so the guard cannot live in component state.
+const menuActionsInFlight = new Set<string>();
+
+export async function runMenuAction(action: string, server: Server, task: () => Promise<void>): Promise<void> {
+  const key = `${action}:${server.addr}:${server.query_port}`;
+  if (menuActionsInFlight.has(key)) return;
+  menuActionsInFlight.add(key);
+  try {
+    await task();
+  } finally {
+    menuActionsInFlight.delete(key);
+  }
+}
+
 export function ServerCheckMods({
   options,
   className,
@@ -1022,18 +1036,20 @@ export function ServerCheckMods({
     e.stopPropagation();
     if (disabled) return;
     close();
-    setBusy(true);
-    try {
-      const res = await checkServerMods(server.addr, server.query_port);
-      setCachedReadiness(server.addr, server.query_port, res);
-      const hasPending = res.mods.some((m) => m.state !== "ready" && m.state !== "not_on_workshop");
-      mergeModPending([{ addr: server.addr, pending: hasPending }]);
-      triggerReload();
-    } catch (err) {
-      setNotice(server.addr, { kind: "plain", text: String(err) });
-    } finally {
-      setBusy(false);
-    }
+    await runMenuAction("checkMods", server, async () => {
+      setBusy(true);
+      try {
+        const res = await checkServerMods(server.addr, server.query_port);
+        setCachedReadiness(server.addr, server.query_port, res);
+        const hasPending = res.mods.some((m) => m.state !== "ready" && m.state !== "not_on_workshop");
+        mergeModPending([{ addr: server.addr, pending: hasPending }]);
+        triggerReload();
+      } catch (err) {
+        setNotice(server.addr, { kind: "plain", text: String(err) });
+      } finally {
+        setBusy(false);
+      }
+    });
   };
 
   return (
@@ -1149,17 +1165,19 @@ export function ServerUnsubscribeUnique({
     e.stopPropagation();
     if (disabled) return;
     close();
-    try {
-      const summary = await getUniqueModsSummary(server.addr, server.query_port);
-      askConfirm(
-        "Unsubscribe unique mods",
-        `Unsubscribe ${summary.count} unique mod${summary.count === 1 ? "" : "s"} (${formatBytes(summary.total_size_bytes, 1)}) only used by this server?`,
-        () => void performUnsubscribe(),
-        "Unsubscribe",
-      );
-    } catch (err) {
-      setNotice(server.addr, { kind: "plain", text: String(err) });
-    }
+    await runMenuAction("unsubscribeUnique", server, async () => {
+      try {
+        const summary = await getUniqueModsSummary(server.addr, server.query_port);
+        askConfirm(
+          "Unsubscribe unique mods",
+          `Unsubscribe ${summary.count} unique mod${summary.count === 1 ? "" : "s"} (${formatBytes(summary.total_size_bytes, 1)}) only used by this server?`,
+          () => void performUnsubscribe(),
+          "Unsubscribe",
+        );
+      } catch (err) {
+        setNotice(server.addr, { kind: "plain", text: String(err) });
+      }
+    });
   };
 
   return (

@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { popupKeyTarget } from "./popup-keyboard";
+import { isTextEntry, popupKeyTarget } from "./popup-keyboard";
+
+describe("isTextEntry", () => {
+  it.each([
+    [{ tagName: "INPUT", type: "text" }, true],
+    [{ tagName: "TEXTAREA" }, true],
+    [{ tagName: "DIV", isContentEditable: true }, true],
+    [{ tagName: "INPUT", type: "checkbox" }, false],
+    [{ tagName: "BUTTON" }, false],
+  ])("keeps text entry out of popup key handling: %o is %s", (el, expected) => {
+    expect(isTextEntry(el)).toBe(expected);
+  });
+});
 
 describe("popupKeyTarget", () => {
   it.each([

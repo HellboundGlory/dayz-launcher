@@ -33,7 +33,7 @@ const REQUIRED = {
   "view:browser": "the shell + server browser composition",
   "view:mods": "the shell + Mods composition",
   settings: "the shell + Settings composition",
-  withJoin: "every subject context that places `server.join`",
+  withJoin: "every subject context that places `server.join`, except list rows",
   modal: "every themeable modal",
   "popup:region": "popups placed in a region",
   "popup:inline": "popups placed inline",

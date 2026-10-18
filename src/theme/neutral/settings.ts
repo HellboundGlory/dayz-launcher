@@ -2,6 +2,7 @@ import type { LayoutNode, SettingsLayoutFile } from "../renderer/types";
 
 const sectionHeader = (section: string): LayoutNode => ({
   type: "stack",
+  tag: "span",
   direction: "row",
   align: "center",
   class: "t-neutral-settings-section-head",
@@ -9,6 +10,7 @@ const sectionHeader = (section: string): LayoutNode => ({
     { element: "settings.sectionIcon", options: { section }, class: "t-neutral-settings-section-icon" },
     {
       type: "stack",
+      tag: "span",
       direction: "column",
       class: "t-neutral-settings-section-text",
       children: [

@@ -93,7 +93,7 @@
 .t-neutral-update-changelog [data-part="content"] code {
   background: var(--surface2);
   color: var(--muted2);
-  border-radius: 3px;
+  border-radius: var(--t-radius-badge);
   padding: 0.1em 0.3em;
   font-size: 0.9em;
   font-family: var(--t-type-family-data);
@@ -101,7 +101,7 @@
 .t-neutral-update-changelog [data-part="content"] pre {
   background: var(--surface2);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--t-radius-control);
   padding: 8px 10px;
   overflow-x: auto;
 }

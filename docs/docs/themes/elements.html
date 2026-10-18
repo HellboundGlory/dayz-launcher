@@ -324,7 +324,7 @@
 </section>
   <section class="el" id="el-server-actionNotice" data-el="server.actionNotice">
   <h3><code>server.actionNotice</code> <span class="el-kind">notice</span></h3>
-  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Required in</dt><dd>every subject context that places <code>server.join</code></dd><dt>Parts</dt><dd><code>code</code>, <code>title</code>, <code>message</code> · States: <code>warning</code>, <code>error</code>, <code>success</code>, <code>refused</code>, <code>offline</code></dd></dl>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Required in</dt><dd>every subject context that places <code>server.join</code>, except list rows</dd><dt>Parts</dt><dd><code>code</code>, <code>title</code>, <code>message</code> · States: <code>warning</code>, <code>error</code>, <code>success</code>, <code>refused</code>, <code>offline</code></dd></dl>
   <div class="md el-notes"><p>Shows this server's current join warning or error, or the last launch result; a refused launch also carries <code>refused</code>. It is required beside <code>server.join</code> in modals, popups and panels (a file that omits it there fails validation and falls back to Neutral's version of that screen). In a list row it renders nothing: a row's join result shows in <code>notice.launch</code>. It renders only while it has something to report, so the visibility check measures it only then.</p></div>
 </section>
   <section class="el" id="el-server-cancel" data-el="server.cancel">

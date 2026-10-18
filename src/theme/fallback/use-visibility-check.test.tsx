@@ -134,7 +134,8 @@ describe("resolveActiveContexts", () => {
     expect(contexts).toContain("views+settings");
     expect(contexts).toContain("view:browser");
     expect(contexts).toContain("list:servers/row");
-    expect(contexts).toContain("withJoin");
+    // A row's Join needs no notice: it draws nothing there.
+    expect(contexts).not.toContain("withJoin");
     expect(contexts).not.toContain("view:mods");
   });
 

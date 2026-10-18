@@ -115,6 +115,11 @@ describe("containers", () => {
     });
     expect(html.indexOf("first")).toBeLessThan(html.indexOf("second"));
   });
+
+  it("renders a stack or grid as the tag it names", () => {
+    expect(render({ type: "stack", tag: "span", children: [] })).toMatch(/^<span/);
+    expect(render({ type: "grid", tag: "span", children: [] })).toMatch(/^<span/);
+  });
 });
 
 describe("contexts", () => {
