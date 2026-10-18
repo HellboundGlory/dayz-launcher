@@ -1,0 +1,30 @@
+name: CodeQL (Rust)
+
+# The Rust scan takes about 8 minutes, so it runs only when Rust changes and weekly.
+on:
+  push:
+    branches: [main]
+    paths: ["**/*.rs", "**/Cargo.toml", "Cargo.lock", ".github/workflows/codeql-rust.yml"]
+  pull_request:
+    branches: [main]
+    paths: ["**/*.rs", "**/Cargo.toml", "Cargo.lock", ".github/workflows/codeql-rust.yml"]
+  schedule:
+    - cron: "34 11 * * 1"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyze (rust)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: rust
+          build-mode: none
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:rust
