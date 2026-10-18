@@ -299,11 +299,7 @@ pub async fn refresh_visible_servers(
         return Ok(());
     }
 
-    let writer = {
-        let guard = state.registry.lock().map_err(|e| e.to_string())?;
-        let registry = guard.as_ref().ok_or("Registry not initialized")?;
-        registry.writer()
-    };
+    let writer = super::registry_writer(&state).await?;
 
     let prober = prober(&state)?;
     let info = probe_info(&prober, socket_addrs, &writer, &window, true).await;
