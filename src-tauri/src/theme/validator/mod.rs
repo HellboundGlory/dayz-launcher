@@ -22,14 +22,12 @@ static REGISTRY: LazyLock<Registry> =
 pub fn validate_layout_file(file_path: &str, content: &str) -> Vec<ValidationIssue> {
     match serde_json::from_str(content) {
         Ok(value) => validate_layout_value(file_path, &value),
-        Err(error) => vec![ValidationIssue {
-            rule_id: "LAY-01".into(),
-            severity: Severity::Error,
-            file: file_path.into(),
-            pointer: String::new(),
-            message: format!("Invalid layout JSON: {error}"),
-            hint: None,
-        }],
+        Err(error) => vec![ValidationIssue::error(
+            "LAY-01",
+            file_path,
+            String::new(),
+            format!("Invalid layout JSON: {error}"),
+        )],
     }
 }
 

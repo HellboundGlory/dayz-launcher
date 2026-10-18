@@ -392,8 +392,8 @@ pub fn fit_window_to_minimum(app: &AppHandle, scale: f64) {
 }
 
 /// Apply the interface scale live, from the status-bar slider. Separate
-/// from `save_settings` so dragging is immediate; the frontend persists
-/// once the drag ends.
+/// from `save_settings` so dragging is immediate; the frontend saves it
+/// debounced on each change.
 #[tauri::command]
 pub fn set_ui_scale(app: AppHandle, scale: f64) {
     let scale = if scale.is_finite() {

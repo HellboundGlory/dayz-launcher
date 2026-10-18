@@ -17,8 +17,8 @@ use tetra_index::{
 use tetra_registry::{ServerKey, ServerRow, Writer};
 
 /// How stale the backend's snapshot may be and still be preferred over asking
-/// Steam ourselves. The backend hot-pulls every 60s and full-pulls every 15
-/// minutes, so anything older than one full pull means its crawler has stopped.
+/// Steam ourselves. The backend rebuilds it after every sweep, so a snapshot
+/// this old means its crawler has stopped.
 const MAX_SNAPSHOT_AGE_SECS: i64 = 15 * 60;
 
 /// Rows per `upsert_servers` call. One transaction each, so this trades commit
@@ -290,7 +290,7 @@ where
         rows.push(row);
 
         if rows.len() >= SERVER_BATCH {
-            // Mods reference their server row by foreign key, so the rows go first.
+            // Mod lists are skipped for servers without a row, so the rows go first.
             out.servers += flush_rows(writer, &mut rows).await?;
             flush_online(writer, &mut verdicts).await?;
             out.with_mods += flush_mods(writer, &mut mods).await?;

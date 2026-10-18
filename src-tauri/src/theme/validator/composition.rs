@@ -4,7 +4,7 @@ use super::settings::ResolvedSettings;
 use serde_json::Value;
 
 use super::ast::{Node, NodeKind};
-use super::{rules, Severity, ValidationIssue};
+use super::{rules, ValidationIssue};
 use crate::theme::registry::{Multiplicity, Registry};
 
 const SHELL: &str = "layout/shell.json";
@@ -659,12 +659,5 @@ fn issue(
     pointer: &str,
     message: String,
 ) {
-    issues.push(ValidationIssue {
-        rule_id: rule.into(),
-        severity: Severity::Error,
-        file: file.into(),
-        pointer: pointer.into(),
-        message,
-        hint: None,
-    });
+    issues.push(ValidationIssue::error(rule, file, pointer, message));
 }

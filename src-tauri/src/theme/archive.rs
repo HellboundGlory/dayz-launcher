@@ -30,20 +30,31 @@ fn package_too_large() -> String {
 const ALLOWED_EXTENSIONS: [&str; 12] = [
     "json", "css", "png", "webp", "jpg", "jpeg", "svg", "woff2", "woff", "ttf", "otf", "md",
 ];
-/// The folders a package's directory entries may use for assets.
-const ASSET_FOLDERS: [&str; 3] = ["fonts", "images", "previews"];
+pub(crate) const PREVIEWS_FOLDER: &str = "previews";
+
+/// The folders a package may use for assets, each with the extensions it accepts.
+const ASSET_FOLDERS: [(&str, &[&str]); 3] = [
+    ("fonts", &["woff2", "woff", "ttf", "otf"]),
+    ("images", &["png", "webp", "jpg", "jpeg", "svg"]),
+    (PREVIEWS_FOLDER, &["png", "webp", "jpg", "jpeg"]),
+];
+
+fn asset_extensions(folder: &str) -> Option<&'static [&'static str]> {
+    ASSET_FOLDERS
+        .iter()
+        .find(|(name, _)| *name == folder)
+        .map(|(_, extensions)| *extensions)
+}
 
 /// A directory entry may be an asset folder or any folder above a file on the
 /// layout allowlist (`layout`, `layout/views`, …).
 fn is_package_folder(name: &str) -> bool {
-    ASSET_FOLDERS.contains(&name)
+    asset_extensions(name).is_some()
         || super::LAYOUT_ALLOWLIST.iter().any(|path| {
             path.strip_prefix(name)
                 .is_some_and(|rest| rest.starts_with('/'))
         })
 }
-const FONT_EXTENSIONS: [&str; 4] = ["woff2", "woff", "ttf", "otf"];
-const IMAGE_EXTENSIONS: [&str; 5] = ["png", "webp", "jpg", "jpeg", "svg"];
 const CAPABILITIES: [&str; 6] = ["tokens", "css", "fonts", "images", "layout", "settings"];
 
 /// A theme image is chrome: a 4096 square is already a full-screen backdrop.
@@ -445,10 +456,8 @@ fn package_extension(name: &str) -> Result<&'static str, String> {
                 !file.contains('/')
                     && !file.contains('\\')
                     && basename.is_some_and(|base| !base.is_empty() && base != "." && base != "..")
-                    && match (dir, extension) {
-                        ("fonts", Some(ext)) => FONT_EXTENSIONS.contains(&ext),
-                        ("images", Some(ext)) => IMAGE_EXTENSIONS.contains(&ext),
-                        ("previews", Some(ext)) => ["png", "webp", "jpg", "jpeg"].contains(&ext),
+                    && match (asset_extensions(dir), extension) {
+                        (Some(extensions), Some(ext)) => extensions.contains(&ext),
                         _ => false,
                     }
             } else {
@@ -1020,11 +1029,16 @@ fn capability_for_path(name: &str) -> Option<usize> {
     match name {
         TOKENS_FILE => Some(0),
         STYLES_FILE => Some(1),
-        _ if name.starts_with("fonts/") => Some(2),
-        _ if name.starts_with("images/") => Some(3),
         _ if name.starts_with("layout/") => Some(4),
         SETTINGS_SCHEMA_FILE => Some(5),
-        _ => None,
+        _ => {
+            let (folder, _) = name.split_once('/')?;
+            asset_extensions(folder)?;
+            // Asset folders are named after the capability they ship.
+            CAPABILITIES
+                .iter()
+                .position(|capability| *capability == folder)
+        }
     }
 }
 

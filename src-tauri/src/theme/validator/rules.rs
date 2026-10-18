@@ -3,7 +3,7 @@ use std::collections::{BTreeSet, HashSet};
 use serde_json::{Map, Value};
 
 use super::ast::{LayoutFile, Node, NodeKind, TEXT_ROLES};
-use super::{Severity, ValidationIssue};
+use super::ValidationIssue;
 use crate::theme::registry::{EnumValue, Multiplicity, OptionDef, Registry, Subject};
 
 pub(super) fn validate(
@@ -57,14 +57,8 @@ struct Validator<'a> {
 
 impl Validator<'_> {
     fn issue(&mut self, rule: &str, pointer: &str, message: impl Into<String>) {
-        self.issues.push(ValidationIssue {
-            rule_id: rule.into(),
-            severity: Severity::Error,
-            file: self.file.into(),
-            pointer: pointer.into(),
-            message: message.into(),
-            hint: None,
-        });
+        self.issues
+            .push(ValidationIssue::error(rule, self.file, pointer, message));
     }
 
     fn file(&mut self, value: &Value) {

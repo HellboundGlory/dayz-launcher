@@ -3,19 +3,12 @@ use std::collections::HashSet;
 use serde::Serialize;
 use serde_json::Value;
 
-use super::{Severity, ValidationIssue};
+use super::ValidationIssue;
 
 const COMBINATION_CAP: usize = 64;
 
 fn issue(rule: &str, pointer: String, message: &str) -> ValidationIssue {
-    ValidationIssue {
-        rule_id: rule.into(),
-        severity: Severity::Error,
-        file: "settings.schema.json".into(),
-        pointer,
-        message: message.into(),
-        hint: None,
-    }
+    ValidationIssue::error(rule, "settings.schema.json", pointer, message)
 }
 
 /// SET-01 to SET-04 per field; SET-05 comes from the resolver, over the fields that pass.
@@ -322,7 +315,7 @@ pub fn resolve_settings_with_issues(schema: &Value) -> (ResolvedSettings, Vec<Va
         issues.push(issue(
             "SET-05",
             "/fields".into(),
-            "Settings exceed 64 discrete combinations",
+            &format!("Settings exceed {COMBINATION_CAP} discrete combinations; the list checked is the first {COMBINATION_CAP} (last field changing fastest)"),
         ));
     }
     (

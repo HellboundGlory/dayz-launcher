@@ -16,3 +16,21 @@ pub struct ValidationIssue {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hint: Option<String>,
 }
+
+impl ValidationIssue {
+    pub fn error(
+        rule: impl Into<String>,
+        file: impl Into<String>,
+        pointer: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            rule_id: rule.into(),
+            severity: Severity::Error,
+            file: file.into(),
+            pointer: pointer.into(),
+            message: message.into(),
+            hint: None,
+        }
+    }
+}

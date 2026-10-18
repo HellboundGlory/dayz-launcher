@@ -46,7 +46,7 @@ const defaults: AppSettings = {
   steamPath: null,
   dayzPath: null,
   workshopPath: null,
-  maxConcurrentQueries: 1024,
+  maxConcurrentQueries: 256,
   queryTimeoutMs: 1000,
   launchParams: [],
   closeToTray: true,

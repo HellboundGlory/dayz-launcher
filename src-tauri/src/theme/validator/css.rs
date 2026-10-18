@@ -1,6 +1,6 @@
 use cssparser::{ParseError, Parser, Token};
 
-use super::{Severity, ValidationIssue};
+use super::ValidationIssue;
 
 const BANNED_CONSTRUCTS: [&str; 6] = [
     "expression(",
@@ -39,14 +39,12 @@ pub fn validate_css_stylesheet(file_path: &str, source: &str) -> Vec<ValidationI
 
     // CSS-08: Enforce max file size of 256 KB (262,144 bytes)
     if source.len() > 262_144 {
-        issues.push(ValidationIssue {
-            rule_id: "CSS-08".into(),
-            severity: Severity::Error,
-            file: file_path.into(),
-            pointer: String::new(),
-            message: "Stylesheet file size exceeds 256 KB (262,144 bytes)".into(),
-            hint: None,
-        });
+        issues.push(ValidationIssue::error(
+            "CSS-08",
+            file_path,
+            String::new(),
+            "Stylesheet file size exceeds 256 KB (262,144 bytes)",
+        ));
         return issues;
     }
 
@@ -196,14 +194,12 @@ fn validate_at_rule(
         }
         _ => {
             // CSS-06: Refuse any other at-rule (@import, @supports, @container, @layer, etc.)
-            issues.push(ValidationIssue {
-                rule_id: "CSS-06".into(),
-                severity: Severity::Error,
-                file: file_path.into(),
-                pointer: format!("@{at_name}"),
-                message: format!("Refused at-rule: @{at_name}"),
-                hint: None,
-            });
+            issues.push(ValidationIssue::error(
+                "CSS-06",
+                file_path,
+                format!("@{at_name}"),
+                format!("Refused at-rule: @{at_name}"),
+            ));
 
             skip_at_rule(parser);
         }
@@ -238,14 +234,12 @@ fn validate_media_prelude_parser(
         if let Token::Ident(name) = token {
             let lower = name.to_ascii_lowercase();
             if !is_allowed_media_feature(&lower) {
-                issues.push(ValidationIssue {
-                    rule_id: "CSS-06".into(),
-                    severity: Severity::Error,
-                    file: file_path.into(),
-                    pointer: format!("@media ({lower})"),
-                    message: format!("Media query contains disallowed feature '{lower}'"),
-                    hint: None,
-                });
+                issues.push(ValidationIssue::error(
+                    "CSS-06",
+                    file_path,
+                    format!("@media ({lower})"),
+                    format!("Media query contains disallowed feature '{lower}'"),
+                ));
             }
         }
     }
@@ -351,14 +345,12 @@ fn parse_keyframes_block(
 }
 
 fn nesting_too_deep(file_path: &str, pointer: &str) -> ValidationIssue {
-    ValidationIssue {
-        rule_id: "CSS-01".into(),
-        severity: Severity::Error,
-        file: file_path.into(),
-        pointer: pointer.into(),
-        message: format!("Nesting depth exceeds {MAX_BLOCK_DEPTH}"),
-        hint: None,
-    }
+    ValidationIssue::error(
+        "CSS-01",
+        file_path,
+        pointer,
+        format!("Nesting depth exceeds {MAX_BLOCK_DEPTH}"),
+    )
 }
 
 fn parse_qualified_rule(
@@ -391,16 +383,9 @@ fn parse_qualified_rule(
 }
 
 fn ungrounded_pseudo_class(file_path: &str, name: &str) -> ValidationIssue {
-    ValidationIssue {
-        rule_id: "CSS-01".into(),
-        severity: Severity::Error,
-        file: file_path.into(),
-        pointer: format!(":{name}"),
-        message: format!(
+    ValidationIssue::error("CSS-01", file_path, format!(":{name}"), format!(
             "Pseudo-class ':{name}' needs an element, part, attribute or class before it after a space"
-        ),
-        hint: None,
-    }
+        ))
 }
 
 fn parse_selector_and_validate(
@@ -450,60 +435,50 @@ fn parse_selector_and_validate(
                     let name = class_name.to_string();
                     if name.starts_with("t-") {
                         if !is_valid_theme_class(&name) {
-                            issues.push(ValidationIssue {
-                                rule_id: "CSS-03".into(),
-                                severity: Severity::Error,
-                                file: file_path.into(),
-                                pointer: format!(".{name}"),
-                                message: format!("Malformed theme class '.{name}'"),
-                                hint: None,
-                            });
+                            issues.push(ValidationIssue::error(
+                                "CSS-03",
+                                file_path,
+                                format!(".{name}"),
+                                format!("Malformed theme class '.{name}'"),
+                            ));
                         }
                     } else {
-                        issues.push(ValidationIssue {
-                            rule_id: "CSS-01".into(),
-                            severity: Severity::Error,
-                            file: file_path.into(),
-                            pointer: format!(".{name}"),
-                            message: format!("Generic non-theme class '.{name}' is not allowed"),
-                            hint: None,
-                        });
+                        issues.push(ValidationIssue::error(
+                            "CSS-01",
+                            file_path,
+                            format!(".{name}"),
+                            format!("Generic non-theme class '.{name}' is not allowed"),
+                        ));
                     }
                 }
                 true
             }
             Token::Hash(ref name) | Token::IDHash(ref name) => {
-                issues.push(ValidationIssue {
-                    rule_id: "CSS-01".into(),
-                    severity: Severity::Error,
-                    file: file_path.into(),
-                    pointer: format!("#{name}"),
-                    message: format!("ID selector '#{name}' is not allowed"),
-                    hint: None,
-                });
+                issues.push(ValidationIssue::error(
+                    "CSS-01",
+                    file_path,
+                    format!("#{name}"),
+                    format!("ID selector '#{name}' is not allowed"),
+                ));
                 true
             }
             Token::Delim('*') => {
-                issues.push(ValidationIssue {
-                    rule_id: "CSS-01".into(),
-                    severity: Severity::Error,
-                    file: file_path.into(),
-                    pointer: "*".into(),
-                    message: "Universal selector '*' is not allowed".into(),
-                    hint: None,
-                });
+                issues.push(ValidationIssue::error(
+                    "CSS-01",
+                    file_path,
+                    "*",
+                    "Universal selector '*' is not allowed",
+                ));
                 true
             }
             Token::Ident(ref name) => {
                 if expect_ident_is_type {
-                    issues.push(ValidationIssue {
-                        rule_id: "CSS-01".into(),
-                        severity: Severity::Error,
-                        file: file_path.into(),
-                        pointer: name.to_string(),
-                        message: format!("Tag selector '{name}' is not allowed"),
-                        hint: None,
-                    });
+                    issues.push(ValidationIssue::error(
+                        "CSS-01",
+                        file_path,
+                        name.to_string(),
+                        format!("Tag selector '{name}' is not allowed"),
+                    ));
                 }
                 true
             }
@@ -526,14 +501,12 @@ fn parse_selector_and_validate(
 
                 let lower_attr = attr_name.to_ascii_lowercase();
                 if !is_allowed_attribute(&lower_attr) {
-                    issues.push(ValidationIssue {
-                        rule_id: "CSS-01".into(),
-                        severity: Severity::Error,
-                        file: file_path.into(),
-                        pointer: format!("[{attr_name}]"),
-                        message: format!("Disallowed attribute selector '[{attr_name}]'"),
-                        hint: None,
-                    });
+                    issues.push(ValidationIssue::error(
+                        "CSS-01",
+                        file_path,
+                        format!("[{attr_name}]"),
+                        format!("Disallowed attribute selector '[{attr_name}]'"),
+                    ));
                 }
                 true
             }
@@ -558,14 +531,12 @@ fn parse_selector_and_validate(
                                 } else {
                                     name.to_string()
                                 };
-                                issues.push(ValidationIssue {
-                                    rule_id: "CSS-01".into(),
-                                    severity: Severity::Error,
-                                    file: file_path.into(),
-                                    pointer: format!("::{shown}"),
-                                    message: format!("Disallowed pseudo-element '::{shown}'"),
-                                    hint: None,
-                                });
+                                issues.push(ValidationIssue::error(
+                                    "CSS-01",
+                                    file_path,
+                                    format!("::{shown}"),
+                                    format!("Disallowed pseudo-element '::{shown}'"),
+                                ));
                             }
                             if is_function {
                                 let _ = parser.parse_nested_block(|_| Ok::<(), ParseError<()>>(()));
@@ -579,14 +550,12 @@ fn parse_selector_and_validate(
                                 issues.push(ungrounded_pseudo_class(file_path, pseudo_cls));
                             }
                         } else {
-                            issues.push(ValidationIssue {
-                                rule_id: "CSS-01".into(),
-                                severity: Severity::Error,
-                                file: file_path.into(),
-                                pointer: format!(":{pseudo_cls}"),
-                                message: format!("Disallowed pseudo-class ':{pseudo_cls}'"),
-                                hint: None,
-                            });
+                            issues.push(ValidationIssue::error(
+                                "CSS-01",
+                                file_path,
+                                format!(":{pseudo_cls}"),
+                                format!("Disallowed pseudo-class ':{pseudo_cls}'"),
+                            ));
                         }
                     }
                     Ok(Token::Function(func_name)) => {
@@ -606,28 +575,22 @@ fn parse_selector_and_validate(
                                     .and_then(|_| args.expect_exhausted())
                                     .is_err()
                                 {
-                                    issues.push(ValidationIssue {
-                                        rule_id: "CSS-01".into(),
-                                        severity: Severity::Error,
-                                        file: file_path.into(),
-                                        pointer: ":nth-child(...)".into(),
-                                        message: "':nth-child()' takes An+B, odd or even".into(),
-                                        hint: None,
-                                    });
+                                    issues.push(ValidationIssue::error(
+                                        "CSS-01",
+                                        file_path,
+                                        ":nth-child(...)",
+                                        "':nth-child()' takes An+B, odd or even",
+                                    ));
                                 }
                                 Ok::<(), ParseError<()>>(())
                             });
                         } else {
-                            issues.push(ValidationIssue {
-                                rule_id: "CSS-01".into(),
-                                severity: Severity::Error,
-                                file: file_path.into(),
-                                pointer: format!(":{func_name}(...)"),
-                                message: format!(
-                                    "Disallowed pseudo-class function ':{func_name}(...)'"
-                                ),
-                                hint: None,
-                            });
+                            issues.push(ValidationIssue::error(
+                                "CSS-01",
+                                file_path,
+                                format!(":{func_name}(...)"),
+                                format!("Disallowed pseudo-class function ':{func_name}(...)'"),
+                            ));
                             let _ = parser.parse_nested_block(|_| Ok::<(), ParseError<()>>(()));
                         }
                     }
@@ -725,14 +688,12 @@ fn parse_declarations(
                 validate_at_rule(parser, &at_name, file_path, issues, depth, true);
             }
             Token::CurlyBracketBlock => {
-                issues.push(ValidationIssue {
-                    rule_id: "CSS-01".into(),
-                    severity: Severity::Error,
-                    file: file_path.into(),
-                    pointer: String::new(),
-                    message: "Nested block without a selector is not allowed".into(),
-                    hint: None,
-                });
+                issues.push(ValidationIssue::error(
+                    "CSS-01",
+                    file_path,
+                    String::new(),
+                    "Nested block without a selector is not allowed",
+                ));
                 let _ = parser.parse_nested_block(|_| Ok::<(), ParseError<()>>(()));
             }
             Token::Ident(prop_name) => {
@@ -767,14 +728,12 @@ fn parse_declarations(
                         parser.reset(&statement);
                         parse_qualified_rule(parser, file_path, issues, depth, true);
                     } else {
-                        issues.push(ValidationIssue {
-                            rule_id: "CSS-01".into(),
-                            severity: Severity::Error,
-                            file: file_path.into(),
-                            pointer: property_name.clone(),
-                            message: format!("Declaration '{property_name}' is missing ':'"),
-                            hint: None,
-                        });
+                        issues.push(ValidationIssue::error(
+                            "CSS-01",
+                            file_path,
+                            property_name.clone(),
+                            format!("Declaration '{property_name}' is missing ':'"),
+                        ));
                         skip_statement(parser);
                     }
                     continue;
@@ -916,17 +875,15 @@ fn collect_nested_tokens<'i>(
             | Token::CurlyBracketBlock => {
                 if let (true, Token::Function(name)) = (url_context, &v) {
                     if is_render_time_function(name) {
-                        sink.issues.push(ValidationIssue {
-                            rule_id: "CSS-07".into(),
-                            severity: Severity::Error,
-                            file: sink.file.into(),
-                            pointer: sink.property.to_string(),
-                            message: format!(
+                        sink.issues.push(ValidationIssue::error(
+                            "CSS-07",
+                            sink.file,
+                            sink.property.to_string(),
+                            format!(
                                 "{}() is not allowed inside a URL function",
                                 name.to_ascii_lowercase()
                             ),
-                            hint: None,
-                        });
+                        ));
                     }
                 }
                 let opener = v.clone();
@@ -977,26 +934,22 @@ fn scan_bad_url(raw: &str, sink: &mut TokenSink<'_, '_>) {
     let mut found_banned = false;
     for construct in BANNED_CONSTRUCTS {
         if contains_ignore_case(raw, construct) {
-            sink.issues.push(ValidationIssue {
-                rule_id: "CSS-05".into(),
-                severity: Severity::Error,
-                file: sink.file.into(),
-                pointer: sink.property.to_string(),
-                message: format!("Value contains banned construct '{construct}'"),
-                hint: None,
-            });
+            sink.issues.push(ValidationIssue::error(
+                "CSS-05",
+                sink.file,
+                sink.property.to_string(),
+                format!("Value contains banned construct '{construct}'"),
+            ));
             found_banned = true;
         }
     }
     if !found_banned {
-        sink.issues.push(ValidationIssue {
-            rule_id: "CSS-07".into(),
-            severity: Severity::Error,
-            file: sink.file.into(),
-            pointer: sink.property.to_string(),
-            message: format!("Unreadable url({raw}) in declaration"),
-            hint: None,
-        });
+        sink.issues.push(ValidationIssue::error(
+            "CSS-07",
+            sink.file,
+            sink.property.to_string(),
+            format!("Unreadable url({raw}) in declaration"),
+        ));
     }
 }
 
@@ -1010,26 +963,22 @@ fn validate_declaration(
     issues: &mut Vec<ValidationIssue>,
 ) {
     if is_important {
-        issues.push(ValidationIssue {
-            rule_id: "CSS-01".into(),
-            severity: Severity::Error,
-            file: file_path.into(),
-            pointer: prop.into(),
-            message: "!important declaration is not allowed in theme rules".into(),
-            hint: None,
-        });
+        issues.push(ValidationIssue::error(
+            "CSS-01",
+            file_path,
+            prop,
+            "!important declaration is not allowed in theme rules",
+        ));
     }
 
     // The launcher's overlay layers are `--z-*` custom properties.
     if prop == "z-index" || prop.starts_with("--z-") {
-        issues.push(ValidationIssue {
-            rule_id: "CSS-04".into(),
-            severity: Severity::Error,
-            file: file_path.into(),
-            pointer: prop.into(),
-            message: format!("Property {prop} is refused"),
-            hint: None,
-        });
+        issues.push(ValidationIssue::error(
+            "CSS-04",
+            file_path,
+            prop,
+            format!("Property {prop} is refused"),
+        ));
     }
 
     if prop == "content" {
@@ -1042,14 +991,12 @@ fn validate_declaration(
             .any(|t| matches!(t, Token::QuotedString(s) if s.is_empty()));
 
         if !is_empty_string {
-            issues.push(ValidationIssue {
-                rule_id: "CSS-05".into(),
-                severity: Severity::Error,
-                file: file_path.into(),
-                pointer: "content".into(),
-                message: "content property is only allowed with empty string \"\"".into(),
-                hint: None,
-            });
+            issues.push(ValidationIssue::error(
+                "CSS-05",
+                file_path,
+                "content",
+                "content property is only allowed with empty string \"\"",
+            ));
         }
     }
 
@@ -1058,14 +1005,12 @@ fn validate_declaration(
 
     for construct in BANNED_CONSTRUCTS {
         if contains_ignore_case(&decl_str, construct) {
-            issues.push(ValidationIssue {
-                rule_id: "CSS-05".into(),
-                severity: Severity::Error,
-                file: file_path.into(),
-                pointer: prop.into(),
-                message: format!("Value contains banned construct '{construct}'"),
-                hint: None,
-            });
+            issues.push(ValidationIssue::error(
+                "CSS-05",
+                file_path,
+                prop,
+                format!("Value contains banned construct '{construct}'"),
+            ));
         }
     }
 
@@ -1099,52 +1044,44 @@ fn check_url_string(
     }
 
     if url.starts_with("//") {
-        issues.push(ValidationIssue {
-            rule_id: "CSS-07".into(),
-            severity: Severity::Error,
-            file: file_path.into(),
-            pointer: prop.into(),
-            message: format!("URL '{url}' is a scheme-relative URL"),
-            hint: None,
-        });
+        issues.push(ValidationIssue::error(
+            "CSS-07",
+            file_path,
+            prop,
+            format!("URL '{url}' is a scheme-relative URL"),
+        ));
         return;
     }
 
     if let Some(scheme) = scheme_of(url) {
-        issues.push(ValidationIssue {
-            rule_id: "CSS-07".into(),
-            severity: Severity::Error,
-            file: file_path.into(),
-            pointer: prop.into(),
-            message: format!("URL '{url}' uses prohibited scheme '{scheme}'"),
-            hint: None,
-        });
+        issues.push(ValidationIssue::error(
+            "CSS-07",
+            file_path,
+            prop,
+            format!("URL '{url}' uses prohibited scheme '{scheme}'"),
+        ));
         return;
     }
 
     if url.split(['/', '\\']).any(|segment| segment == "..") {
-        issues.push(ValidationIssue {
-            rule_id: "CSS-07".into(),
-            severity: Severity::Error,
-            file: file_path.into(),
-            pointer: prop.into(),
-            message: format!("URL '{url}' contains path traversal '..'"),
-            hint: None,
-        });
+        issues.push(ValidationIssue::error(
+            "CSS-07",
+            file_path,
+            prop,
+            format!("URL '{url}' contains path traversal '..'"),
+        ));
         return;
     }
 
     if in_font_face && prop == "src" {
         let normalized = url.strip_prefix("./").unwrap_or(url);
         if !normalized.starts_with("fonts/") {
-            issues.push(ValidationIssue {
-                rule_id: "CSS-07".into(),
-                severity: Severity::Error,
-                file: file_path.into(),
-                pointer: prop.into(),
-                message: format!("@font-face src URL '{url}' must point to files in fonts/"),
-                hint: None,
-            });
+            issues.push(ValidationIssue::error(
+                "CSS-07",
+                file_path,
+                prop,
+                format!("@font-face src URL '{url}' must point to files in fonts/"),
+            ));
         }
     }
 }

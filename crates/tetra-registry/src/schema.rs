@@ -213,23 +213,18 @@ pub fn prune_stale(conn: &Connection) -> Result<usize, RegistryError> {
     let cutoff_secs = PRUNE_AFTER_DAYS * 86_400;
 
     let tx = conn.unchecked_transaction()?;
-    // Mods whose server row is already gone; nothing else would ever remove them.
-    tx.execute(
-        "DELETE FROM server_mods WHERE NOT EXISTS \
-         (SELECT 1 FROM servers s WHERE s.ip = server_mods.ip AND s.query_port = server_mods.query_port)",
-        [],
-    )?;
-    tx.execute(
-        &format!(
-            "DELETE FROM server_mods WHERE (ip, query_port) IN \
-             (SELECT ip, query_port FROM servers WHERE {CUTOFF_PREDICATE})"
-        ),
-        [cutoff_secs],
-    )?;
     let deleted = tx.execute(
         &format!("DELETE FROM servers WHERE {CUTOFF_PREDICATE}"),
         [cutoff_secs],
     )?;
+    if deleted > 0 {
+        // Mods whose server row is gone, including the ones just pruned; nothing else removes them.
+        tx.execute(
+            "DELETE FROM server_mods WHERE NOT EXISTS \
+             (SELECT 1 FROM servers s WHERE s.ip = server_mods.ip AND s.query_port = server_mods.query_port)",
+            [],
+        )?;
+    }
     tx.commit()?;
 
     if deleted > 0 {
@@ -383,5 +378,22 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM server_mods", [], |r| r.get(0))
             .unwrap();
         assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn prune_stale_leaves_orphaned_mods_when_it_deletes_no_server() {
+        let conn = fresh_conn();
+        conn.execute(
+            "INSERT INTO server_mods (ip, query_port, ordinal, workshop_id, name)
+             VALUES ('9.9.9.9', 2302, 0, 1559212036, 'Orphan')",
+            [],
+        )
+        .unwrap();
+        insert_server(&conn, 0, Some(10), false, None);
+        assert_eq!(prune_stale(&conn).unwrap(), 0);
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM server_mods", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
     }
 }
