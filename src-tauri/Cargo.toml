@@ -78,7 +78,7 @@ flate2 = { workspace = true }
 # Brotli also comes in through Tauri's codegen, but that is not a promise we can use.
 brotli = { version = "9", default-features = false, features = ["std"] }
 # Well-formedness and element/attribute inspection for the SVG sniff.
-quick-xml = "0.41"
+quick-xml = "0.42"
 tetra-core = { path = "../crates/tetra-core" }
 tetra-net = { path = "../crates/tetra-net" }
 tetra-registry = { path = "../crates/tetra-registry" }

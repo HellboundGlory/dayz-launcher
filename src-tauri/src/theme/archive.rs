@@ -558,12 +558,10 @@ fn sniff_svg(name: &str, bytes: &[u8]) -> Result<(), String> {
                 continue;
             }
             Event::Text(text) if style.is_some() => {
-                let text = text.decode().map_err(|e| malformed(&e.to_string()))?;
                 style.get_or_insert_default().push_str(&text);
                 continue;
             }
             Event::CData(data) if style.is_some() => {
-                let data = data.decode().map_err(|e| malformed(&e.to_string()))?;
                 style.get_or_insert_default().push_str(&data);
                 continue;
             }
@@ -571,8 +569,8 @@ fn sniff_svg(name: &str, bytes: &[u8]) -> Result<(), String> {
                 let resolved = match reference.resolve_char_ref() {
                     Ok(Some(c)) => c.to_string(),
                     Ok(None) => {
-                        let name = reference.decode().map_err(|e| malformed(&e.to_string()))?;
-                        quick_xml::escape::resolve_predefined_entity(&name)
+                        let name = &*reference;
+                        quick_xml::escape::resolve_predefined_entity(name)
                             .ok_or_else(|| malformed(&format!("unknown reference `&{name};`")))?
                             .to_string()
                     }
@@ -581,7 +579,7 @@ fn sniff_svg(name: &str, bytes: &[u8]) -> Result<(), String> {
                 style.get_or_insert_default().push_str(&resolved);
                 continue;
             }
-            Event::PI(pi) if pi.target().eq_ignore_ascii_case(b"xml-stylesheet") => {
+            Event::PI(pi) if pi.target().eq_ignore_ascii_case("xml-stylesheet") => {
                 return Err(outside_link(name, "an xml-stylesheet"));
             }
             _ => continue,
@@ -590,15 +588,11 @@ fn sniff_svg(name: &str, bytes: &[u8]) -> Result<(), String> {
             roots += 1;
             // The image sniff pins the format to the extension; do the same
             // here, so a non-SVG XML file named `.svg` fails too.
-            if roots == 1 && !element.local_name().as_ref().eq_ignore_ascii_case(b"svg") {
+            if roots == 1 && !element.local_name().as_ref().eq_ignore_ascii_case("svg") {
                 return Err(malformed("its root element is not `<svg>`"));
             }
         }
-        if element
-            .local_name()
-            .as_ref()
-            .eq_ignore_ascii_case(b"script")
-        {
+        if element.local_name().as_ref().eq_ignore_ascii_case("script") {
             return Err(format!(
                 "`{name}` contains a `<script>` element; an SVG a theme ships must not carry script."
             ));
@@ -606,19 +600,18 @@ fn sniff_svg(name: &str, bytes: &[u8]) -> Result<(), String> {
         if element
             .local_name()
             .as_ref()
-            .eq_ignore_ascii_case(b"foreignObject")
+            .eq_ignore_ascii_case("foreignObject")
         {
             return Err(format!(
                 "`{name}` contains a `<foreignObject>` element; an SVG a theme ships must not embed web content."
             ));
         }
-        if opens && style.is_none() && element.local_name().as_ref().eq_ignore_ascii_case(b"style")
-        {
+        if opens && style.is_none() && element.local_name().as_ref().eq_ignore_ascii_case("style") {
             style = Some(String::new());
             style_depth = depth;
         }
         // `<set>` and `<animate>` can rewrite a link after load.
-        let animates = [b"set".as_slice(), b"animate"]
+        let animates = ["set", "animate"]
             .iter()
             .any(|tag| element.local_name().as_ref().eq_ignore_ascii_case(tag));
         for attribute in element.attributes() {
@@ -633,17 +626,16 @@ fn sniff_svg(name: &str, bytes: &[u8]) -> Result<(), String> {
                 css_links_stay_inside(name, &value)?;
             }
             // `onload`, `onclick`, `ONERROR` … any handler, either case.
-            if key.len() >= 2
-                && key[0].eq_ignore_ascii_case(&b'o')
-                && key[1].eq_ignore_ascii_case(&b'n')
+            if key
+                .get(..2)
+                .is_some_and(|prefix| prefix.eq_ignore_ascii_case("on"))
             {
                 return Err(format!(
-                    "`{name}` uses the event handler attribute `{}`; an SVG a theme ships must not carry script.",
-                    String::from_utf8_lossy(key)
+                    "`{name}` uses the event handler attribute `{key}`; an SVG a theme ships must not carry script."
                 ));
             }
             // `href` and `xlink:href` alike: a theme SVG may only point at itself.
-            if key.eq_ignore_ascii_case(b"href") {
+            if key.eq_ignore_ascii_case("href") {
                 // URL parsing strips only ASCII whitespace and controls.
                 let value =
                     value.trim_matches(|c: char| c.is_ascii_whitespace() || c.is_ascii_control());
@@ -652,10 +644,10 @@ fn sniff_svg(name: &str, bytes: &[u8]) -> Result<(), String> {
                     return Err(outside_link(name, &format!("`{shown}`")));
                 }
             }
-            if animates && key.eq_ignore_ascii_case(b"attributeName") {
+            if animates && key.eq_ignore_ascii_case("attributeName") {
                 let target = attribute.value;
-                let local = target.rsplit(|&b| b == b':').next().unwrap_or(&target);
-                if local.eq_ignore_ascii_case(b"href") {
+                let local = target.rsplit(':').next().unwrap_or(&target);
+                if local.eq_ignore_ascii_case("href") {
                     return Err(outside_link(name, "an animated link"));
                 }
             }
@@ -2562,6 +2554,14 @@ mod tests {
             (
                 r#"<svg xmlns="http://www.w3.org/2000/svg"><rect style="fill:\75 rl(https://example.com/p#g)"/></svg>"#,
                 "may only link inside itself",
+            ),
+            (
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><style>&#64;import url(x.css);</style></svg>"#,
+                "may only link inside itself",
+            ),
+            (
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><style>.a{fill:red}&nbsp;</style></svg>"#,
+                "unknown reference",
             ),
         ] {
             let root = ScratchDir::tagged("svg-link");
