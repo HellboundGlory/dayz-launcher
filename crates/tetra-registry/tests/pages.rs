@@ -49,7 +49,7 @@ async fn pages_concatenate_to_the_unpaged_list_in_every_order() {
     ];
     for (filter, sort, dir, page_size) in cases {
         let unpaged = reader
-            .list(&filter, sort, dir, 1_000)
+            .page(&filter, sort, dir, 0, 1_000)
             .expect("unpaged list");
         let mut paged = Vec::new();
         let mut offset = 0;

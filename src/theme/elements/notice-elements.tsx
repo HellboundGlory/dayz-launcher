@@ -293,9 +293,12 @@ export function NoticeLaunch({ className, style }: { className?: string; style?:
   const storeNotice = useLaunchStore((s) => s.notice);
   const result = useLaunchStore((s) => s.result);
   const addr = storeNotice?.addr ?? result?.addr ?? null;
-  const serverName = useServerStore((s) =>
-    addr === null ? undefined : s.servers.find((server) => server.addr === addr)?.name,
-  );
+  const serverName = useServerStore((s) => {
+    if (addr === null) return undefined;
+    const row = s.servers.find((server) => server?.addr === addr);
+    if (row) return row.name;
+    return s.selectedServer?.addr === addr ? s.selectedServer.name : undefined;
+  });
   if (addr === null) return null;
 
   const content = resolveActionNoticeContent(addr, storeNotice, result);

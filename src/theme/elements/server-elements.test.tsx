@@ -498,7 +498,7 @@ describe("ServerFavourite", () => {
     render(<ServerFavourite />, serverContext(server));
     await click("server.favourite").result;
 
-    expect(useServerStore.getState().servers[0].favourite).toBe(true);
+    expect(useServerStore.getState().servers[0]?.favourite).toBe(true);
     expect(toggleFavourite).toHaveBeenCalledWith(server.addr, server.query_port, true);
   });
 
@@ -510,7 +510,7 @@ describe("ServerFavourite", () => {
     render(<ServerFavourite />, serverContext(server));
     await click("server.favourite").result;
 
-    expect(useServerStore.getState().servers[0].favourite).toBe(false);
+    expect(useServerStore.getState().servers[0]?.favourite).toBe(false);
   });
 
   it("defaults to icon-only display, adding the label part only for iconLabel", () => {

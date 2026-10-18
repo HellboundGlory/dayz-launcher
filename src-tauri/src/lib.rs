@@ -136,7 +136,6 @@ pub fn run() {
         .manage(state::AppState::new())
         .manage(protocol::PendingConnect::from_args())
         .invoke_handler(tauri::generate_handler![
-            commands::server::get_server_list,
             commands::server::get_server,
             commands::server::get_server_page,
             commands::server::get_servers_by_addr,

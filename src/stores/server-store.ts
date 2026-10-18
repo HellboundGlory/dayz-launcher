@@ -3,7 +3,10 @@ import type { Server } from "@/types/server";
 import type { ServerFilter, SortKey, SortDir } from "@/types/filters";
 
 interface ServerState {
-  servers: Server[];
+  /** One entry per row the filter matches; `undefined` is a row not loaded yet. */
+  servers: (Server | undefined)[];
+  /** Inclusive indices of the rows the list is drawing. */
+  visibleRange: { start: number; end: number };
   selectedServer: Server | null;
   filter: ServerFilter;
   sortKey: SortKey;
@@ -29,7 +32,10 @@ interface ServerState {
   setHasLoadedOnce: () => void;
   setLoadError: (error: string | null) => void;
 
-  setServers: (servers: Server[]) => void;
+  setServerPage: (offset: number, rows: Server[], total: number) => void;
+  clearRows: () => void;
+  setVisibleRange: (start: number, end: number) => void;
+  refreshSelectedServer: (fresh: Server) => void;
   setSelectedServer: (server: Server | null) => void;
   setFilter: (filter: Partial<ServerFilter>) => void;
   setSort: (key: SortKey, dir: SortDir) => void;
@@ -138,6 +144,7 @@ function loadSort(): { sortKey: SortKey; sortDir: SortDir } {
 
 export const useServerStore = create<ServerState>((set) => ({
   servers: [],
+  visibleRange: { start: 0, end: 0 },
   selectedServer: null,
   filter: loadFilter(),
   ...loadSort(),
@@ -149,19 +156,45 @@ export const useServerStore = create<ServerState>((set) => ({
   hasLoadedOnce: false,
   loadError: null,
 
-  // Replaces the table's rows and re-points the selection at its new row, so
-  // the details panel stays live instead of showing a stale click-time snapshot.
-  setServers: (servers) =>
+  // Writes one page and re-points the selection at its fresh row, so the
+  // details panel stays live instead of showing a stale click-time snapshot.
+  // A new total pads or truncates the array; rows already loaded are kept.
+  setServerPage: (offset, rows, total) =>
     set((state) => {
+      const servers = Array.from({ length: total }, (_, i) => state.servers[i]);
+      rows.forEach((row, i) => {
+        servers[offset + i] = row;
+      });
       const selected = state.selectedServer;
       if (!selected) return { servers };
-      const fresh = servers.find(
+      const fresh = rows.find(
         (s) => s.addr === selected.addr && s.query_port === selected.query_port,
       );
       // Keep the old object if unchanged, and if missing (probably filtered
       // out, not gone) — avoids repainting the panel on every reload.
       if (!fresh || sameRow(fresh, selected)) return { servers };
       return { servers, selectedServer: fresh };
+    }),
+  clearRows: () =>
+    set((state) => ({ servers: state.servers.map(() => undefined) })),
+  setVisibleRange: (start, end) =>
+    set((state) =>
+      state.visibleRange.start === start && state.visibleRange.end === end
+        ? state
+        : { visibleRange: { start, end } },
+    ),
+  refreshSelectedServer: (fresh) =>
+    set((state) => {
+      const selected = state.selectedServer;
+      if (
+        !selected ||
+        selected.addr !== fresh.addr ||
+        selected.query_port !== fresh.query_port ||
+        sameRow(fresh, selected)
+      ) {
+        return state;
+      }
+      return { selectedServer: fresh };
     }),
   setSelectedServer: (server) => set({ selectedServer: server }),
   setFilter: (filter) =>
@@ -212,7 +245,7 @@ export const useServerStore = create<ServerState>((set) => ({
   toggleFavourite: (addr) =>
     set((state) => ({
       servers: state.servers.map((s) =>
-        s.addr === addr ? { ...s, favourite: !s.favourite } : s,
+        s?.addr === addr ? { ...s, favourite: !s.favourite } : s,
       ),
       selectedServer:
         state.selectedServer?.addr === addr

@@ -57,17 +57,6 @@ impl Reader {
         Ok((total as usize, populated as usize))
     }
 
-    /// Rows matching `filter` in `sort` order, the first `limit`.
-    pub fn list(
-        &self,
-        filter: &ServerFilter,
-        sort: SortKey,
-        dir: SortDir,
-        limit: usize,
-    ) -> Result<Vec<ServerListRow>, RegistryError> {
-        self.page(filter, sort, dir, 0, limit)
-    }
-
     /// `limit` rows matching `filter` in `sort` order, starting at `offset`.
     pub fn page(
         &self,
@@ -172,7 +161,7 @@ impl Reader {
         Ok(row)
     }
 
-    /// Shared row mapping for [`Reader::list`] and [`Reader::get`]. Returns `Ok(None)` to drop a
+    /// Shared row mapping for [`Reader::page`] and [`Reader::get`]. Returns `Ok(None)` to drop a
     /// row whose `ip` doesn't parse, instead of rendering `0.0.0.0`.
     fn map_row(r: &rusqlite::Row) -> rusqlite::Result<Option<ServerListRow>> {
         let ip: String = r.get(0)?;
