@@ -37,7 +37,7 @@ export function packagedFiles(theme: Pick<ThemeFile, "layouts" | "capabilities">
 }
 
 /** Shared text-input styling (board `.field input`). */
-const INPUT_CLASS =
+export const INPUT_CLASS =
   "w-full [border-radius:var(--t-radius-control)] border border-line bg-bg px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-compactSubheading-size)] text-ink placeholder-muted outline-hidden transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:border-line-weak focus:border-accent-line";
 
 /** The four tokens the read-only swatch strip shows: background, raised surface, and the two accents. */
