@@ -92,7 +92,8 @@ type VirtualListId = Extract<ListId, "list.servers" | "list.mods" | "list.modFil
 
 export interface ListHostProps<T = unknown> {
   listId: VirtualListId;
-  items: T[];
+  // An `undefined` entry is a row whose data has not loaded yet; it draws as a spacer.
+  items: ReadonlyArray<T | undefined>;
   columns?: ColumnDef[];
   rowNode?: LayoutNode;
   emptyNode?: LayoutNode;
@@ -103,6 +104,8 @@ export interface ListHostProps<T = unknown> {
   rowGap?: string;
   selectedItem?: T | null;
   onSelect?: (item: T | null) => void;
+  onRangeChange?: (start: number, end: number) => void;
+  getItemKey?: (item: T) => string;
   sortState?: SortState;
   onSortChange?: (key: string) => void;
   computeRowStates?: (item: T, isSelected: boolean) => string[];
@@ -125,6 +128,8 @@ export function ListHost<T = unknown>({
   rowGap,
   selectedItem,
   onSelect,
+  onRangeChange,
+  getItemKey,
   sortState,
   onSortChange,
   computeRowStates,
@@ -210,19 +215,42 @@ export function ListHost<T = unknown>({
     [rowGapVar, activeThemeId],
   );
 
+  // Keys follow the item so a reordered row keeps its DOM; holes stay index-keyed.
+  const itemKey = useCallback(
+    (index: number): string => {
+      const item = items[index];
+      return item !== undefined && getItemKey ? getItemKey(item) : `#${index}`;
+    },
+    [items, getItemKey],
+  );
+
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: (index) => rowHeightPx + (index > 0 ? rowGapPx : 0),
+    getItemKey: getItemKey ? itemKey : undefined,
     overscan: 5,
     scrollMargin,
     observeElementRect: observeBoundedRect,
   });
 
-  const selectedIndex = useMemo(
-    () => (selectedItem ? items.indexOf(selectedItem) : -1),
-    [items, selectedItem],
-  );
+  // The range is only current after getVirtualItems() has run this render.
+  const virtualItems = virtualizer.getVirtualItems();
+  const rangeStart = virtualizer.range?.startIndex;
+  const rangeEnd = virtualizer.range?.endIndex;
+  const onRangeChangeRef = useRef(onRangeChange);
+  onRangeChangeRef.current = onRangeChange;
+  useEffect(() => {
+    if (rangeStart === undefined || rangeEnd === undefined) return;
+    onRangeChangeRef.current?.(rangeStart, rangeEnd);
+  }, [rangeStart, rangeEnd]);
+
+  const selectedIndex = useMemo(() => {
+    if (!selectedItem) return -1;
+    if (!getItemKey) return items.indexOf(selectedItem);
+    const key = getItemKey(selectedItem);
+    return items.findIndex((item) => item !== undefined && getItemKey(item) === key);
+  }, [items, selectedItem, getItemKey]);
 
   // Rows memoise on prop identity, so the parent's callback is read through a
   // ref: an inline arrow from the parent must not re-render every row.
@@ -238,11 +266,11 @@ export function ListHost<T = unknown>({
       itemCount: items.length,
       selectedIndex,
       onSelectIndex: (index) => {
+        if (index === selectedIndex) return;
         const target = items[index];
-        if (target && index !== selectedIndex) {
-          handleRowSelect(target);
-          virtualizer.scrollToIndex(index, { align: "auto" });
-        }
+        // A row not loaded yet is scrolled to, so its page loads; the next press selects it.
+        if (target) handleRowSelect(target);
+        virtualizer.scrollToIndex(index, { align: "auto" });
       },
       onClearSelection: () => {
         handleRowSelect(null);
@@ -299,14 +327,13 @@ export function ListHost<T = unknown>({
         position: "relative",
       }}
     >
-      {virtualizer.getVirtualItems().map((virtualRow) => {
+      {virtualItems.map((virtualRow) => {
         const item = items[virtualRow.index];
-        if (!item) return null;
-        const isSelected = item === selectedItem;
+        const isSelected = virtualRow.index === selectedIndex;
 
         return (
           <div
-            key={virtualRow.index}
+            key={virtualRow.key}
             ref={virtualizer.measureElement}
             data-index={virtualRow.index}
             style={{
@@ -318,14 +345,18 @@ export function ListHost<T = unknown>({
               paddingTop: virtualRow.index > 0 ? rowGapVar : undefined,
             }}
           >
-            <ListRow
-              rowNode={rowNode}
-              columns={effectiveColumns}
-              item={item}
-              subjectKind={subjectKind}
-              states={rowStates(item, isSelected, virtualRow.index, computeRowStates)}
-              onSelect={handleRowSelect}
-            />
+            {item === undefined ? (
+              <div aria-hidden="true" style={{ height: rowHeightPx }} />
+            ) : (
+              <ListRow
+                rowNode={rowNode}
+                columns={effectiveColumns}
+                item={item}
+                subjectKind={subjectKind}
+                states={rowStates(item, isSelected, virtualRow.index, computeRowStates)}
+                onSelect={handleRowSelect}
+              />
+            )}
           </div>
         );
       })}

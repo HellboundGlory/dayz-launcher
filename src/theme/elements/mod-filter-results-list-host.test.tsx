@@ -28,9 +28,7 @@ vi.mock("../lists/list-host", () => ({
     lastProps = props;
     return (
       <div data-testid="stub-list">
-        {props.items.map((item) => (
-          <span key={item.id}>{item.title}</span>
-        ))}
+        {props.items.map((item) => item && <span key={item.id}>{item.title}</span>)}
       </div>
     );
   },
@@ -138,7 +136,7 @@ describe("ModFilterResultsListHost", () => {
       () => renderToStaticMarkup(<ModFilterResultsListHost />),
     );
     expect(lastProps?.selectedItem?.id).toBe("1");
-    const states = lastProps?.computeRowStates?.(lastProps.items[0], true) ?? [];
+    const states = lastProps?.computeRowStates?.(lastProps.items[0]!, true) ?? [];
     expect(states).toEqual(expect.arrayContaining(["previewed", "included", "subscribed"]));
   });
 
@@ -148,7 +146,7 @@ describe("ModFilterResultsListHost", () => {
     const alpha = makeSubscribed("1", { title: "Alpha" });
     await withStores({ rows: [alpha] }, { tab: "subscribed" }, () => {
       renderToStaticMarkup(<ModFilterResultsListHost />);
-      lastProps?.onSelect?.(lastProps.items[0]);
+      lastProps?.onSelect?.(lastProps.items[0]!);
       expect(useModFilterStore.getState().previewId).toBe("1");
       lastProps?.onSelect?.(null);
       expect(useModFilterStore.getState().previewId).toBeNull();
