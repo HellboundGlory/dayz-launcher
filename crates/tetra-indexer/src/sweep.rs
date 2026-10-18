@@ -60,11 +60,8 @@ const MIN_BATCH_FOR_OFFLINE_CORROBORATION: usize = 8;
 /// rather than the server being down.
 const OFFLINE_CORROBORATION_THRESHOLD: f64 = 0.4;
 
-/// Servers probed for mods concurrently, however long the backlog: the
-/// prober's in-flight limit, clamped to 64..=1000.
-fn rules_fanout(prober: &Prober) -> usize {
-    prober.config().max_in_flight.clamp(64, 1000)
-}
+/// Steam listings older than this are not worth an A2S_INFO probe.
+const INFO_SEEN_WITHIN_SECS: i64 = 86_400;
 
 #[derive(Debug, Default)]
 pub struct InfoStats {
@@ -87,9 +84,8 @@ pub struct RulesStats {
 /// or `None` when it never answered.
 type RulesAnswer = (ServerKey, Option<(Vec<ServerMod>, String)>);
 
-/// A2S_INFO over the freshest addresses plus a rotating slice of the ones
-/// that have never answered anybody — `addresses` is ordered by sighting, so
-/// on its own it would re-probe the same head of the table forever.
+/// A2S_INFO over the least recently probed addresses Steam listed lately, plus
+/// a rotating batch of the ones that have never answered anybody.
 pub async fn info(
     cfg: &Config,
     prober: &Prober,
@@ -101,7 +97,7 @@ pub async fn info(
     let registry = Arc::clone(registry);
     let targets: Vec<ServerKey> = tokio::task::spawn_blocking(move || {
         let reader = registry.reader()?;
-        let fresh = reader.addresses(batch)?;
+        let fresh = reader.info_targets(batch, INFO_SEEN_WITHIN_SECS)?;
         let stale = reader.unresolved(batch / 4, RESOLVE_RETRY_AFTER_SECS)?;
         let mut seen: HashSet<ServerKey> = HashSet::with_capacity(fresh.len() + stale.len());
         let mut keys = Vec::with_capacity(fresh.len() + stale.len());
@@ -237,7 +233,8 @@ pub async fn rules(
         probed: backlog.len(),
         ..RulesStats::default()
     };
-    let fanout = rules_fanout(prober);
+    // Bounded by the prober's permits, so queued probes don't hold the shared gate.
+    let fanout = prober.rules_fanout();
     let mut queue = backlog.into_iter();
     let mut tasks: JoinSet<RulesAnswer> = JoinSet::new();
     let mut mods: Vec<(ServerKey, Vec<ServerMod>)> = Vec::with_capacity(WRITE_BATCH);

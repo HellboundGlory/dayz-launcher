@@ -69,6 +69,7 @@ const PRESPLIT_QUIET: usize = 6;
 /// maps is only covered by the truncated parent's own sample.
 const MAP_AXES: &[&str] = &[
     "chernarusplus",
+    "nasdara",
     "enoch",
     "namalsk",
     "deerisle",

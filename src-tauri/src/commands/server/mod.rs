@@ -12,17 +12,6 @@ pub(crate) mod probe;
 
 pub(crate) use mod_readiness::resolve_workshop_cache;
 
-/// How many rules-probe tasks may be in flight at once during phase 2,
-/// independent of how many candidates phase 1 handed over. Sized off the
-/// prober's actual concurrency (with headroom) rather than a fixed guess.
-fn rules_fanout(prober: &Prober) -> usize {
-    prober
-        .config()
-        .max_in_flight
-        .saturating_mul(2)
-        .clamp(64, 1000)
-}
-
 /// Borrow the process-wide `Prober` from application state. Every probing
 /// path goes through this: a `Prober` owns its concurrency limit, so the
 /// process shares one limit only while it shares one `Prober`.

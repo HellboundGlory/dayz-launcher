@@ -5,7 +5,7 @@ use tauri::{Emitter, Manager, State};
 use tetra_net::Prober;
 use tetra_registry::rows::ServerKey;
 
-use super::{prober, rules_fanout, server_key};
+use super::{prober, server_key};
 
 /// How many servers one refresh probes, independent of the table's display limit.
 const PROBE_WINDOW: usize = 5000;
@@ -223,7 +223,8 @@ async fn probe_rules(
     let mut pending = candidates.into_iter();
     let mut tasks = tokio::task::JoinSet::new();
 
-    let fanout = rules_fanout(prober);
+    // Bounded by the prober's permits, so queued probes don't hold the shared gate.
+    let fanout = prober.rules_fanout();
     for (key, addr) in pending.by_ref().take(fanout) {
         spawn_rules_task(&mut tasks, prober, writer, key, addr);
     }

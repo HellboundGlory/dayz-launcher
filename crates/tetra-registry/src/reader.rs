@@ -224,16 +224,22 @@ impl Reader {
         Ok(rows)
     }
 
-    /// Every address on record, newest sighting first. The index backend's
-    /// A2S sweeps walk this; `limit` bounds one sweep's fanout.
-    pub fn addresses(&self, limit: usize) -> Result<Vec<(ServerKey, u16)>, RegistryError> {
+    /// Addresses the A2S info sweep should probe, among those Steam listed or that
+    /// answered within `seen_within_secs`: populated servers every pass (their
+    /// player counts come only from this probe), the rest least recently probed first.
+    pub fn info_targets(
+        &self,
+        limit: usize,
+        seen_within_secs: i64,
+    ) -> Result<Vec<(ServerKey, u16)>, RegistryError> {
         let mut stmt = self.conn.prepare_cached(
             "SELECT ip, query_port, game_port FROM servers
-             ORDER BY last_seen DESC
+             WHERE last_seen >= unixepoch() - ?2 OR last_responded >= unixepoch() - ?2
+             ORDER BY players > 0 DESC, COALESCE(last_probe_attempt, 0) ASC
              LIMIT ?1",
         )?;
         let rows = collect_skipping_bad_rows(
-            stmt.query_map(params![limit as i64], |r| {
+            stmt.query_map(params![limit as i64, seen_within_secs], |r| {
                 let ip: String = r.get(0)?;
                 let Ok(ip) = Ipv4Addr::from_str(&ip) else {
                     return Ok(None);
@@ -246,7 +252,7 @@ impl Reader {
                     r.get(2)?,
                 )))
             })?,
-            "addresses",
+            "info_targets",
         )?;
         Ok(rows)
     }
