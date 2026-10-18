@@ -7,11 +7,12 @@ import {
   logClient,
   type FilterParams,
 } from "@/lib/tauri";
-import { PageTracker, type PageRead } from "./server-pages";
+import { PageTracker, type PageRead, type PageSpan } from "./server-pages";
 
 const MAP_LIST_REFRESH_MS = 10_000;
 const PAGE_SIZE = 200;
 const RETRY_MS = 1_000;
+const RANGE_SETTLE_MS = 80;
 
 interface ServerQuery {
   filterParams: FilterParams;
@@ -28,14 +29,20 @@ export function pagesFor(start: number, end: number, total: number, pageSize: nu
   return pages;
 }
 
-/** Pages the list needs now: page 0 while the list is empty, else the pages around the visible rows. */
-function wantedPages(): number[] {
+/**
+ * Pages the list needs now: page 0 while the list is empty, else the pages around the visible rows.
+ * `visible` is the page span the visible rows sit in.
+ */
+function wantedPages(): { pages: number[]; visible: PageSpan } {
   const { servers, visibleRange } = useServerStore.getState();
   const total = servers.length;
-  if (total === 0) return [0];
+  if (total === 0) return { pages: [0], visible: { first: 0, last: 0 } };
   const start = Math.min(visibleRange.start, total - 1);
   const end = Math.min(visibleRange.end, total - 1);
-  return pagesFor(start, end, total, PAGE_SIZE);
+  return {
+    pages: pagesFor(start, end, total, PAGE_SIZE),
+    visible: { first: Math.floor(start / PAGE_SIZE), last: Math.floor(end / PAGE_SIZE) },
+  };
 }
 
 /**
@@ -92,7 +99,8 @@ export function useServerDataLoader() {
   const loadWanted: () => void = useCallback(() => {
     const query = queryRef.current;
     if (!query) return;
-    pages.want(wantedPages());
+    const { pages: wanted, visible } = wantedPages();
+    pages.want(wanted, visible);
     for (const page of pages.next()) {
       const read: PageRead = pages.started(page);
       const offset = page * PAGE_SIZE;
@@ -179,8 +187,10 @@ export function useServerDataLoader() {
       .catch((e) => void logClient("servers", `selection refresh failed: ${String(e)}`));
   }, [loadVersion, pages, loadWanted]);
 
+  // A fast drag passes many pages; read only where it stops.
   useEffect(() => {
-    loadWanted();
+    const id = window.setTimeout(loadWanted, RANGE_SETTLE_MS);
+    return () => window.clearTimeout(id);
   }, [visibleRange, loadWanted]);
 
   useEffect(() => {

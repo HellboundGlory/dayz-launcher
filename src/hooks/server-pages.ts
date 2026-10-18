@@ -4,6 +4,20 @@ export interface PageRead {
   epoch: number;
 }
 
+/** Pages of the server list, inclusive. */
+export interface PageSpan {
+  first: number;
+  last: number;
+}
+
+// The backend reads through one SQLite reader; more reads in flight only queue behind each other.
+const MAX_READS = 2;
+
+/** Pages between `page` and `span`, zero inside it. */
+function distance(page: number, span: PageSpan): number {
+  return Math.max(0, span.first - page, page - span.last);
+}
+
 /**
  * Decides which pages of the server list to read. A wanted page is read when it
  * is not loaded yet or a reload marked it stale. A page is never read twice at
@@ -12,22 +26,30 @@ export interface PageRead {
 export class PageTracker {
   private epoch = 0;
   private wanted: number[] = [];
+  private visible: PageSpan = { first: 0, last: 0 };
   private loaded = new Set<number>();
   private stale = new Set<number>();
   private reading = new Set<number>();
   private failed = new Set<number>();
 
-  want(pages: number[]) {
+  want(pages: number[], visible: PageSpan) {
     this.wanted = pages;
+    this.visible = visible;
   }
 
+  /** Up to the free read slots, the wanted pages nearest the visible span first. */
   next(): number[] {
-    return this.wanted.filter(
-      (p) =>
-        !this.reading.has(p) &&
-        !this.failed.has(p) &&
-        (!this.loaded.has(p) || this.stale.has(p)),
-    );
+    const free = MAX_READS - this.reading.size;
+    if (free <= 0) return [];
+    return this.wanted
+      .filter(
+        (p) =>
+          !this.reading.has(p) &&
+          !this.failed.has(p) &&
+          (!this.loaded.has(p) || this.stale.has(p)),
+      )
+      .sort((a, b) => distance(a, this.visible) - distance(b, this.visible))
+      .slice(0, free);
   }
 
   started(page: number): PageRead {
