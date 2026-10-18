@@ -46,6 +46,39 @@ pub(super) struct InfoBatchResult {
     offline_marks_suppressed: bool,
 }
 
+/// The registry row for one A2S_INFO answer.
+pub(super) fn info_row(
+    key: ServerKey,
+    info: tetra_core::a2s::info::ServerInfo,
+    rtt: Option<std::time::Duration>,
+) -> tetra_registry::rows::ServerRow {
+    tetra_registry::rows::ServerRow {
+        key,
+        game_port: info.game_port.unwrap_or(0),
+        name: info.name,
+        map: info.map,
+        players: info.players as i32,
+        max_players: info.max_players as i32,
+        bots: info.bots as i32,
+        ping_ms: rtt
+            .map(|d| d.as_millis().min(i32::MAX as u128) as i32)
+            .unwrap_or(0),
+        locked: info.visibility != 0,
+        vac: info.vac != 0,
+        version: Some(info.version),
+        keywords: info.keywords,
+        description: None,
+        // `mod_count` is owned exclusively by `upsert_server_mods`.
+        // Never set it from here or the value gets clobbered with None's
+        // COALESCE fallback on every info refresh.
+        mod_count: None,
+        last_played: None,
+        responded: true,
+        responded_at: None,
+        country_code: None,
+    }
+}
+
 /// Store the answered probes waiting in `batch` and flag their servers online.
 async fn flush_answered(
     writer: &tetra_registry::Writer,
@@ -114,32 +147,7 @@ pub(super) async fn probe_info(
         // can't be trusted to flag modded servers.
         rules_candidates.push((key, outcome.addr));
 
-        batch.push(tetra_registry::rows::ServerRow {
-            key,
-            game_port: info.game_port.unwrap_or(0),
-            name: info.name,
-            map: info.map,
-            players: info.players as i32,
-            max_players: info.max_players as i32,
-            bots: info.bots as i32,
-            ping_ms: outcome
-                .rtt
-                .map(|d| d.as_millis().min(i32::MAX as u128) as i32)
-                .unwrap_or(0),
-            locked: info.visibility != 0,
-            vac: info.vac != 0,
-            version: Some(info.version),
-            keywords: info.keywords,
-            description: None,
-            // `mod_count` is owned exclusively by `upsert_server_mods`.
-            // Never set it from here or the value gets clobbered with None's
-            // COALESCE fallback on every info refresh.
-            mod_count: None,
-            last_played: None,
-            responded: true,
-            responded_at: None,
-            country_code: None,
-        });
+        batch.push(info_row(key, info, outcome.rtt));
 
         if batch.len() >= WRITE_BATCH {
             flush_answered(writer, &mut batch, &mut online_keys, &log).await;

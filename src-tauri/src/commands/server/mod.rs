@@ -7,6 +7,7 @@ use tetra_registry::filter::{ModMatch, ServerFilter, SortDir, SortKey};
 use tetra_registry::rows::ServerKey;
 
 pub(crate) mod discovery;
+pub(crate) mod lookup;
 pub(crate) mod mod_readiness;
 pub(crate) mod probe;
 

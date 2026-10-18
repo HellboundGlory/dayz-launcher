@@ -152,6 +152,26 @@ impl Reader {
         Ok(row)
     }
 
+    /// The server at `ip` whose query port is `port`, else the one whose game port is.
+    pub fn find_by_address(
+        &self,
+        ip: Ipv4Addr,
+        port: u16,
+    ) -> Result<Option<ServerListRow>, RegistryError> {
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT {SERVER_LIST_COLUMNS} FROM servers
+             WHERE ip = ?1 AND (query_port = ?2 OR game_port = ?2)
+             ORDER BY query_port = ?2 DESC
+             LIMIT 1"
+        ))?;
+        let row = stmt
+            .query_map(params![ip.to_string(), port], Self::map_row)?
+            .next()
+            .transpose()?
+            .flatten();
+        Ok(row)
+    }
+
     /// Shared row mapping for [`Reader::list`] and [`Reader::get`]. Returns `Ok(None)` to drop a
     /// row whose `ip` doesn't parse, instead of rendering `0.0.0.0`.
     fn map_row(r: &rusqlite::Row) -> rusqlite::Result<Option<ServerListRow>> {
