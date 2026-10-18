@@ -44,6 +44,18 @@ export interface SortParams {
   limit: number;
 }
 
+export interface PageParams {
+  sort_key: string;
+  sort_dir: string;
+  offset: number;
+  limit: number;
+}
+
+export interface ServerPage {
+  total: number;
+  rows: Server[];
+}
+
 export async function getServerList(
   filter: FilterParams,
   sort: SortParams,
@@ -52,6 +64,20 @@ export async function getServerList(
     filterParams: filter,
     sortParams: sort,
   });
+}
+
+export async function getServerPage(
+  filter: FilterParams,
+  page: PageParams,
+): Promise<ServerPage> {
+  return invoke<ServerPage>("get_server_page", {
+    filterParams: filter,
+    page,
+  });
+}
+
+export async function getServersByAddr(addrs: string[]): Promise<Server[]> {
+  return invoke<Server[]>("get_servers_by_addr", { addrs });
 }
 
 export async function discoverServers(): Promise<void> {
