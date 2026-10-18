@@ -110,12 +110,14 @@ pub async fn try_index(
         Err(e) => return decline(app, state, &format!("{url} is unusable: {e}")),
     };
 
-    let health = match client.health().await {
+    let (health, backend_now) = match client.health().await {
         Ok(h) => h,
         Err(e) => return decline(app, state, &format!("health check failed: {e}")),
     };
-    if !health.is_fresh(crate::unix_now(), MAX_SNAPSHOT_AGE_SECS) {
-        return decline(app, state, &stale_reason(&health));
+    let clock_offset = tetra_index::clock_offset(crate::unix_now(), backend_now);
+    let backend_now = crate::unix_now() - clock_offset;
+    if !index_is_fresh(&health, backend_now) {
+        return decline(app, state, &stale_reason(&health, backend_now));
     }
 
     // The backend rebuilds its snapshot on a full pull; the same stamp means
@@ -142,6 +144,7 @@ pub async fn try_index(
     let ingested = match ingest(
         writer,
         snapshot,
+        clock_offset,
         |found| {
             let _ = window.emit(
                 "discovery-progress",
@@ -212,8 +215,12 @@ fn succeed(
     emit_source(window, ListSource::Index, servers, ms);
 }
 
-fn stale_reason(health: &Health) -> String {
-    let now = crate::unix_now();
+/// Whether the backend's snapshot is recent enough, judged on the backend's clock.
+fn index_is_fresh(health: &Health, backend_now: i64) -> bool {
+    health.is_fresh(backend_now, MAX_SNAPSHOT_AGE_SECS)
+}
+
+fn stale_reason(health: &Health, now: i64) -> String {
     match health.snapshot_generated_at {
         None => "backend has never built a snapshot".to_string(),
         Some(t) if !health.snapshot_is_fresh(now, MAX_SNAPSHOT_AGE_SECS) => {
@@ -252,9 +259,11 @@ pub struct Ingested {
 /// `progress` is called with the running row count after each batch — the
 /// caller turns that into the `discovery-progress` event the splash reads —
 /// and `cancelled` is checked at the same points so a shutdown stops mid-way.
+/// `clock_offset` is this PC's clock minus the backend's ([`tetra_index::clock_offset`]).
 pub async fn ingest<P, C>(
     writer: &Writer,
     snapshot: Snapshot,
+    clock_offset: i64,
     progress: P,
     cancelled: C,
 ) -> Result<Ingested, String>
@@ -265,6 +274,7 @@ where
     let Snapshot {
         mod_names, servers, ..
     } = snapshot;
+    let now = crate::unix_now();
 
     let mut out = Ingested::default();
     let mut rows: Vec<ServerRow> = Vec::with_capacity(SERVER_BATCH.min(servers.len()));
@@ -274,7 +284,7 @@ where
 
     for entry in servers {
         let verdict = entry.online;
-        let Some((row, mod_ids)) = to_row(entry) else {
+        let Some((row, mod_ids)) = to_row(entry, now, clock_offset) else {
             out.skipped += 1;
             continue;
         };
@@ -390,13 +400,22 @@ fn parse_key(addr: &str) -> Option<ServerKey> {
 
 /// A wire entry as a registry row, plus its declared mod ids. Consumes the
 /// entry so its strings move rather than clone.
-fn to_row(entry: ServerEntry) -> Option<(ServerRow, Option<Vec<u64>>)> {
+fn to_row(
+    entry: ServerEntry,
+    now: i64,
+    clock_offset: i64,
+) -> Option<(ServerRow, Option<Vec<u64>>)> {
     let key = parse_key(&entry.addr)?;
-    // An answer from the future or older than the prune window counts as none,
-    // so a bad stamp can't pin a row online or have it pruned and re-added.
-    let now = crate::unix_now();
+    // Answers are stamped on the backend's clock. One from the future or older
+    // than the prune window counts as none, so a bad stamp can't pin a row
+    // online or have it pruned and re-added.
     let oldest = now - tetra_registry::schema::PRUNE_AFTER_DAYS * 86_400;
-    let responded_at = entry.last_responded.filter(|t| (oldest..=now).contains(t));
+    // A few seconds of slack: the offset is only good to about a second.
+    let responded_at = entry
+        .last_responded
+        .map(|t| t.saturating_add(clock_offset))
+        .filter(|t| (oldest..=now + 5).contains(t))
+        .map(|t| t.min(now));
     let row = ServerRow {
         key,
         game_port: entry.game_port,
@@ -466,9 +485,68 @@ mod tests {
     }
 
     async fn write(writer: &Writer, snapshot: Snapshot) -> Ingested {
-        ingest(writer, snapshot, |_| {}, || false)
+        ingest(writer, snapshot, 0, |_| {}, || false)
             .await
             .expect("ingest")
+    }
+
+    /// The backend stamps answers with its own clock. A player's PC running
+    /// minutes behind must still see a server that answered just now.
+    #[tokio::test]
+    async fn answer_times_are_shifted_onto_this_pcs_clock() {
+        let registry = Registry::open_in_memory().expect("registry");
+        let writer = registry.writer();
+        let backend_now = crate::unix_now() + 300;
+        let mut answered = entry("203.0.113.10:27016");
+        answered.name = "The Wall PVE".into();
+        answered.last_responded = Some(backend_now - 30);
+
+        ingest(
+            &writer,
+            snapshot(vec![answered], HashMap::new()),
+            -300,
+            |_| {},
+            || false,
+        )
+        .await
+        .expect("ingest");
+
+        let visible = registry
+            .reader()
+            .expect("reader")
+            .counts()
+            .expect("counts")
+            .0;
+        assert_eq!(visible, 1, "a server that answered 30 s ago is listed");
+    }
+
+    /// The offset is only good to a second or two (the `Date` header is whole
+    /// seconds and the reply takes time), so a stamp just past now still counts.
+    #[tokio::test]
+    async fn an_answer_a_second_past_now_after_the_shift_still_counts() {
+        let registry = Registry::open_in_memory().expect("registry");
+        let writer = registry.writer();
+        let mut answered = entry("203.0.113.10:27016");
+        answered.name = "The Wall PVE".into();
+        answered.last_responded = Some(crate::unix_now() + 2);
+
+        ingest(
+            &writer,
+            snapshot(vec![answered], HashMap::new()),
+            0,
+            |_| {},
+            || false,
+        )
+        .await
+        .expect("ingest");
+
+        let visible = registry
+            .reader()
+            .expect("reader")
+            .counts()
+            .expect("counts")
+            .0;
+        assert_eq!(visible, 1);
     }
 
     /// A `0.0.0.0` key would collide with every other unparseable address, so
@@ -753,16 +831,36 @@ mod tests {
     /// A stamp ahead of the local clock must not be shown as a negative age.
     #[test]
     fn a_snapshot_stamped_in_the_future_is_reported_as_such() {
-        let reason = stale_reason(&health_at(Some(crate::unix_now() + 2 * 24 * 3600)));
+        let reason = stale_reason(
+            &health_at(Some(crate::unix_now() + 2 * 24 * 3600)),
+            crate::unix_now(),
+        );
         assert!(
             reason.contains("in the future"),
             "expected a future-stamp reason, got {reason:?}"
         );
 
-        let reason = stale_reason(&health_at(Some(crate::unix_now() - 1000)));
+        let reason = stale_reason(
+            &health_at(Some(crate::unix_now() - 1000)),
+            crate::unix_now(),
+        );
         assert!(
             reason.contains("old"),
             "a past stamp still reads as an age, got {reason:?}"
         );
+    }
+
+    /// A PC clock running 20 minutes fast must not make a fresh snapshot look stale.
+    #[test]
+    fn a_fast_pc_clock_still_accepts_a_fresh_snapshot() {
+        let backend_now = crate::unix_now() - 1200;
+        let mut health = health_at(Some(backend_now - 60));
+        health.last_full_pull = Some(backend_now - 60);
+
+        assert!(
+            !index_is_fresh(&health, crate::unix_now()),
+            "on the PC clock it reads 21 min old"
+        );
+        assert!(index_is_fresh(&health, backend_now));
     }
 }

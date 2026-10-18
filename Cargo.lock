@@ -4953,6 +4953,7 @@ dependencies = [
 name = "tetra-index"
 version = "3.1.0"
 dependencies = [
+ "httpdate",
  "reqwest",
  "serde",
  "serde_json",

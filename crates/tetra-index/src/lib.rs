@@ -142,10 +142,22 @@ impl Health {
     }
 }
 
+/// Most clock skew between a player's PC and the backend that is believed.
+const CLOCK_SKEW_SECS: i64 = 24 * 60 * 60;
+
+/// This PC's clock minus the backend's, from the backend's reply time; 0 when
+/// it sent none. Backend stamps plus this offset read on this PC's clock.
+pub fn clock_offset(local_now: i64, backend_now: Option<i64>) -> i64 {
+    backend_now.map_or(0, |backend| {
+        local_now
+            .saturating_sub(backend)
+            .clamp(-CLOCK_SKEW_SECS, CLOCK_SKEW_SECS)
+    })
+}
+
 fn within_age(stamp: i64, now: i64, max_age_secs: i64) -> bool {
     // A day of forward clock skew is tolerated — a player's PC clock can
     // be hours off — but a stamp years ahead is refused.
-    const CLOCK_SKEW_SECS: i64 = 24 * 60 * 60;
     stamp <= now.saturating_add(CLOCK_SKEW_SECS) && now.saturating_sub(stamp) <= max_age_secs
 }
 
@@ -160,6 +172,15 @@ pub mod paths {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn clock_offset_is_local_minus_backend_and_capped_at_a_day() {
+        assert_eq!(clock_offset(1_000, Some(1_300)), -300);
+        assert_eq!(clock_offset(1_300, Some(1_000)), 300);
+        assert_eq!(clock_offset(1_000, None), 0);
+        assert_eq!(clock_offset(0, Some(10 * 86_400)), -86_400);
+        assert_eq!(clock_offset(i64::MAX, Some(i64::MIN)), 86_400);
+    }
 
     fn entry() -> ServerEntry {
         ServerEntry {

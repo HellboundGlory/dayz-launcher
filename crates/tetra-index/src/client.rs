@@ -74,19 +74,27 @@ impl IndexClient {
         &self.base
     }
 
-    pub async fn health(&self) -> Result<Health, IndexError> {
+    /// The backend's health, and its clock when it replied (the `Date` header).
+    pub async fn health(&self) -> Result<(Health, Option<i64>), IndexError> {
         let res = self
             .http
             .get(format!("{}{}", self.base, paths::HEALTH))
+            // A cached reply would carry an old Date and skew the clock offset.
+            .header(reqwest::header::CACHE_CONTROL, "no-cache")
             .timeout(SMALL_TIMEOUT)
             .send()
             .await?;
         let res = check_status(res)?;
+        let backend_now = res
+            .headers()
+            .get(reqwest::header::DATE)
+            .and_then(|v| v.to_str().ok())
+            .and_then(parse_date);
         let cap = small_capacity(&res);
         let buf = read_capped(res, MAX_SMALL_BYTES, cap).await?;
         let health: Health = serde_json::from_slice(&buf)?;
         check_format(health.format_version)?;
-        Ok(health)
+        Ok((health, backend_now))
     }
 
     /// The whole list.
@@ -103,6 +111,12 @@ impl IndexClient {
         check_format(snapshot.format_version)?;
         Ok(snapshot)
     }
+}
+
+fn parse_date(value: &str) -> Option<i64> {
+    let at = httpdate::parse_http_date(value).ok()?;
+    let secs = at.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs();
+    i64::try_from(secs).ok()
 }
 
 /// Read a body chunk by chunk, refusing it once past `max`. `bytes()` would
@@ -161,6 +175,15 @@ pub const HEALTH_BACKOFF_SECS: &[u64] = &[5, 15, 30, 60, 120];
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_date_header_reads_as_unix_seconds() {
+        assert_eq!(
+            parse_date("Sun, 18 Oct 2026 20:25:47 GMT"),
+            Some(1_792_355_147)
+        );
+        assert_eq!(parse_date("not a date"), None);
+    }
 
     #[test]
     fn a_base_url_must_be_http() {
