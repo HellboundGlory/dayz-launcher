@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useServerStore } from "@/stores/server-store";
+import { whenRegistryReady } from "@/lib/registry-ready";
 import {
   getServerCounts,
   getServersByAddr,
   logClient,
-  registryDegraded,
   serverListSource,
   type ListSource,
   type ModsPendingEntry,
@@ -25,7 +25,6 @@ export function useBackendEvents({
   discovering,
   revealDone,
   onDiscoveryProgress,
-  registryReadyHandled,
   setError,
   setRefreshing,
   setRefreshedAt,
@@ -33,7 +32,6 @@ export function useBackendEvents({
   discovering: boolean;
   revealDone: RefObject<boolean>;
   onDiscoveryProgress: (found: number) => void;
-  registryReadyHandled: RefObject<boolean>;
   setError: (value: string | null) => void;
   setRefreshing: (value: boolean) => void;
   setRefreshedAt: (value: string) => void;
@@ -52,9 +50,8 @@ export function useBackendEvents({
   const [listSource, setListSource] = useState<ListSource | null>(null);
 
   useEffect(() => {
-    registryDegraded()
-      .then(setStorageDegraded)
-      .catch(() => {});
+    // Asked once the registry is open: before that the backend has not decided yet.
+    void whenRegistryReady().then(({ degraded }) => setStorageDegraded(degraded));
     // Covers a remount mid-session; a fresh launch has no source yet.
     serverListSource()
       .then(setListSource)
@@ -119,23 +116,12 @@ export function useBackendEvents({
   // One-shot retry once the backend confirms its registry is actually open —
   // startup's own queries can otherwise race ahead of it.
   useEffect(() => {
-    const unlistenRegistryReady = listen<{ degraded: boolean }>(
-      "registry-ready",
-      (event) => {
-        if (registryReadyHandled.current) return;
-        registryReadyHandled.current = true;
-        // A load that failed before the registry opened says nothing; the reload below decides.
-        useServerStore.getState().setLoadError(null);
-        void logClient(
-          "startup",
-          `registry-ready received (degraded=${event.payload.degraded}) -> scheduleReload`,
-        );
-        scheduleReload();
-      },
-    );
-    return () => {
-      unlistenRegistryReady.then((fn) => fn());
-    };
+    void whenRegistryReady().then(({ degraded }) => {
+      // A load that failed before the registry opened says nothing; the reload below decides.
+      useServerStore.getState().setLoadError(null);
+      void logClient("startup", `registry ready (degraded=${degraded}) -> scheduleReload`);
+      scheduleReload();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

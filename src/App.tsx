@@ -20,6 +20,7 @@ import { useSteamStartup } from "./hooks/use-steam-startup";
 import { useBackendEvents } from "./hooks/use-backend-events";
 import { useJoinLinks } from "./hooks/use-join-links";
 import { useRefreshLoops } from "./hooks/use-refresh-loops";
+import { whenRegistryReady } from "./lib/registry-ready";
 import type { SettingsValues } from "./theme/renderer/props";
 import { watchDayz } from "./stores/launch-store";
 import {
@@ -115,10 +116,13 @@ export function App() {
       })
       .catch(() => {});
   }, [settingsLoaded]);
-  // One-shot: the backend's registry may not be open yet when the first queries run.
-  const registryReadyHandled = useRef(false);
+  // A list load that fails before the registry opens says nothing; the reload that follows decides.
+  const [registryOpen, setRegistryOpen] = useState(false);
+  useEffect(() => {
+    void whenRegistryReady().then(() => setRegistryOpen(true));
+  }, []);
   // A failed list load shows like a failed action.
-  const shownError = error ?? (registryReadyHandled.current ? loadError : null);
+  const shownError = error ?? (registryOpen ? loadError : null);
   const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Session-only dev aid: the inspector must outlive the Settings overlay
@@ -245,12 +249,11 @@ export function App() {
     runInitialLoad,
     revealDone,
     onDiscoveryProgress,
-  } = useSteamStartup({ registryReadyHandled, setRefreshedAt });
+  } = useSteamStartup({ registryOpen, setRefreshedAt });
   const { counts, listSource, storageDegraded } = useBackendEvents({
     discovering,
     revealDone,
     onDiscoveryProgress,
-    registryReadyHandled,
     setError,
     setRefreshing,
     setRefreshedAt,

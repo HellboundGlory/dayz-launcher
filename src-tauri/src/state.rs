@@ -1,5 +1,5 @@
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 use tetra_discord::{DiscordHandle, DiscordSession};
 use tetra_net::prober::Prober;
@@ -13,14 +13,18 @@ pub struct AppState {
     pub steam: Mutex<Option<Arc<SteamHandle>>>,
     pub prober: Mutex<Option<Prober>>,
     pub steam_ready: Mutex<bool>,
-    /// Guards against two overlapping `steam_init` calls both starting Steam.
-    pub steam_initialising: AtomicBool,
+    /// The `steam_init` attempt in flight, if any. A call that arrives while it runs waits on its outcome.
+    pub steam_attempt: Mutex<Option<crate::commands::steam::InitAttempt>>,
     /// Whether a `discover_servers` pass is mid-flight.
     pub discovery_running: AtomicBool,
     /// Set once `RunEvent::Exit` is handled, so in-flight discovery stops pulling.
     pub shutting_down: AtomicBool,
     /// Set when the on-disk registry failed to open and an in-memory one was substituted.
     pub registry_degraded: Mutex<bool>,
+    /// Set once setup has opened the registry, to whether it fell back to in-memory.
+    pub registry_ready: OnceLock<bool>,
+    /// Whether this launch is an OS autostart that starts hidden in the tray.
+    pub launched_hidden: AtomicBool,
     /// Whether the close button hides to the tray instead of quitting.
     /// Mirrors `AppSettings::close_to_tray` for the window-event handler.
     pub close_to_tray: AtomicBool,
@@ -76,10 +80,12 @@ impl AppState {
             steam: Mutex::new(None),
             prober: Mutex::new(None),
             steam_ready: Mutex::new(false),
-            steam_initialising: AtomicBool::new(false),
+            steam_attempt: Mutex::new(None),
             discovery_running: AtomicBool::new(false),
             shutting_down: AtomicBool::new(false),
             registry_degraded: Mutex::new(false),
+            registry_ready: OnceLock::new(),
+            launched_hidden: AtomicBool::new(false),
             // False until `setup` overwrites from the settings file, so a close
             // during startup quits rather than hiding into a tray that may not exist yet.
             close_to_tray: AtomicBool::new(false),

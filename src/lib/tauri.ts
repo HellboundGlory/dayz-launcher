@@ -137,6 +137,20 @@ export async function registryDegraded(): Promise<boolean> {
   return invoke<boolean>("registry_degraded");
 }
 
+export interface RegistryStatus {
+  degraded: boolean;
+}
+
+/** `null` until the backend has opened its registry. */
+export async function registryStatus(): Promise<RegistryStatus | null> {
+  return invoke<RegistryStatus | null>("registry_status");
+}
+
+/** Whether an OS autostart left the window in the tray, so it must not be shown. */
+export async function launchedHidden(): Promise<boolean> {
+  return invoke<boolean>("launched_hidden");
+}
+
 /** Which source served the list the browser is showing: Tetra's index, or the launcher's own Steam pass. */
 export type ListSource = "index" | "steam";
 
