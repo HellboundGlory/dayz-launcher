@@ -116,18 +116,37 @@ pub struct Health {
     pub snapshot_generated_at: Option<i64>,
 }
 
+/// Oldest full crawl the launcher accepts. Well above the default 1,200 s full
+/// interval, so a deploy that raises it to save Steam quota still passes.
+pub const MAX_CRAWL_AGE_SECS: i64 = 3 * 60 * 60;
+
 impl Health {
     /// Whether the snapshot is recent enough to prefer over a Steam pass.
     /// `now` is passed in rather than read here so callers can test it.
     pub fn is_fresh(&self, now: i64, max_age_secs: i64) -> bool {
-        // A day of forward clock skew is tolerated — a player's PC clock can
-        // be hours off — but a stamp years ahead is refused.
-        const CLOCK_SKEW_SECS: i64 = 24 * 60 * 60;
         self.format_version == FORMAT_VERSION
-            && self.snapshot_generated_at.is_some_and(|t| {
-                t <= now.saturating_add(CLOCK_SKEW_SECS) && now.saturating_sub(t) <= max_age_secs
-            })
+            && self.snapshot_is_fresh(now, max_age_secs)
+            && self.crawl_is_fresh(now)
     }
+
+    pub fn snapshot_is_fresh(&self, now: i64, max_age_secs: i64) -> bool {
+        self.snapshot_generated_at
+            .is_some_and(|t| within_age(t, now, max_age_secs))
+    }
+
+    /// A snapshot is rebuilt after every sweep, so its stamp alone cannot show
+    /// that the Steam crawl behind it is still running.
+    pub fn crawl_is_fresh(&self, now: i64) -> bool {
+        self.last_full_pull
+            .is_some_and(|t| within_age(t, now, MAX_CRAWL_AGE_SECS))
+    }
+}
+
+fn within_age(stamp: i64, now: i64, max_age_secs: i64) -> bool {
+    // A day of forward clock skew is tolerated — a player's PC clock can
+    // be hours off — but a stamp years ahead is refused.
+    const CLOCK_SKEW_SECS: i64 = 24 * 60 * 60;
+    stamp <= now.saturating_add(CLOCK_SKEW_SECS) && now.saturating_sub(stamp) <= max_age_secs
 }
 
 /// Path of each endpoint, in one place so the client and the backend's router
@@ -219,6 +238,37 @@ mod tests {
     }
 
     #[test]
+    fn a_snapshot_is_not_fresh_once_the_crawl_has_stopped() {
+        let now = 100_000;
+        let mut h = Health {
+            format_version: FORMAT_VERSION,
+            version: "test".into(),
+            servers: 1,
+            responsive: 1,
+            with_mods: 0,
+            populated: 0,
+            last_hot_pull: None,
+            last_full_pull: Some(now - MAX_CRAWL_AGE_SECS),
+            last_info_sweep: None,
+            last_rules_sweep: None,
+            snapshot_generated_at: Some(now),
+        };
+        assert!(h.is_fresh(now, 600), "a crawl at the limit is fresh");
+
+        h.last_full_pull = Some(now - MAX_CRAWL_AGE_SECS - 1);
+        assert!(
+            !h.is_fresh(now, 600),
+            "a crawl one second past the limit is stale"
+        );
+
+        h.last_full_pull = None;
+        assert!(
+            !h.is_fresh(now, 600),
+            "a snapshot with no crawl stamp is not fresh"
+        );
+    }
+
+    #[test]
     fn health_is_stale_without_a_snapshot_or_past_the_age_limit() {
         let mut h = Health {
             format_version: FORMAT_VERSION,
@@ -228,7 +278,7 @@ mod tests {
             with_mods: 0,
             populated: 0,
             last_hot_pull: None,
-            last_full_pull: None,
+            last_full_pull: Some(1000),
             last_info_sweep: None,
             last_rules_sweep: None,
             snapshot_generated_at: None,

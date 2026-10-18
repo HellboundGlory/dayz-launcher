@@ -1,7 +1,7 @@
 //! Effective configuration, entirely from the environment.
 
 use std::fmt::Display;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Duration;
@@ -23,6 +23,7 @@ pub struct Config {
     /// Addresses one IP may advertise before the whole IP is treated as an
     /// advert farm and its empty listings dropped. `0` disables.
     pub max_per_ip: usize,
+    pub trusted_proxies: Vec<IpAddr>,
 }
 
 impl Config {
@@ -42,6 +43,17 @@ impl Config {
         let bind = SocketAddr::from_str(&bind_raw)
             .map_err(|e| format!("TETRA_INDEX_BIND ({bind_raw}) is not an ip:port: {e}"))?;
 
+        let trusted_proxies = string_env("TETRA_TRUSTED_PROXIES", "")
+            .split(',')
+            .map(str::trim)
+            .filter(|ip| !ip.is_empty())
+            .map(|ip| {
+                ip.parse::<IpAddr>()
+                    .map(|ip| ip.to_canonical())
+                    .map_err(|e| format!("TETRA_TRUSTED_PROXIES ({ip}) is not an ip address: {e}"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
         Ok(Self {
             steam_api_key,
             db: PathBuf::from(string_env("TETRA_INDEX_DB", "/data/index.sqlite")),
@@ -60,6 +72,7 @@ impl Config {
             crawl_concurrency: parse_env::<usize>("TETRA_CRAWL_CONCURRENCY", 16).clamp(1, 64),
             rate_limit_per_min: parse_env("TETRA_RATE_LIMIT_PER_MIN", 60),
             max_per_ip: parse_env("TETRA_MAX_PER_IP", 50),
+            trusted_proxies,
         })
     }
 
@@ -80,6 +93,7 @@ impl Config {
             crawl_concurrency = self.crawl_concurrency,
             rate_limit_per_min = self.rate_limit_per_min,
             max_per_ip = self.max_per_ip,
+            trusted_proxies = ?self.trusted_proxies,
             "effective config"
         );
     }

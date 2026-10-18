@@ -20,14 +20,14 @@ use tetra_index::paths;
 /// than that is told to wait rather than re-download.
 const SNAPSHOT_MAX_AGE: &str = "public, max-age=30";
 
-pub fn router(state: Arc<AppState>) -> Router {
+pub fn router(state: Arc<AppState>, trusted: Arc<[IpAddr]>) -> Router {
     Router::new()
         .route(paths::HEALTH, get(health))
         .route(paths::SNAPSHOT, get(snapshot))
         // Launchers up to 2.7.0 ask for a delta; they get the full list.
         .route(paths::DELTA, get(snapshot))
         .layer(axum::middleware::from_fn_with_state(
-            Arc::clone(&state),
+            (Arc::clone(&state), trusted),
             rate_limit,
         ))
         .with_state(state)
@@ -112,30 +112,31 @@ fn accepts_gzip(headers: &HeaderMap) -> bool {
         })
 }
 
-/// Bucket key for the rate limiter. A local socket peer means a proxy is in
-/// front, so the last `X-Forwarded-For` hop is the address it appended; the
-/// client-supplied first hop is never trusted. Otherwise the peer is the
-/// client.
-fn client_key(peer: IpAddr, forwarded_for: Option<&str>) -> String {
-    if is_local(peer) {
-        if let Some(hop) = forwarded_for.and_then(|h| h.rsplit(',').next()) {
-            if let Ok(ip) = hop.trim().parse::<IpAddr>() {
-                return ip.to_string();
-            }
+/// Bucket key for the rate limiter. From a configured proxy the last
+/// `X-Forwarded-For` hop is the address it appended, so that is the client;
+/// the client-supplied first hop is never trusted. Any other peer is the
+/// client itself.
+fn client_key(peer: IpAddr, forwarded_for: Option<&str>, trusted: &[IpAddr]) -> String {
+    if trusted.contains(&peer.to_canonical()) {
+        if let Some(ip) = forwarded_for
+            .and_then(|h| h.rsplit(',').next())
+            .and_then(|hop| parse_hop(hop.trim()))
+        {
+            return ip.to_string();
         }
     }
     peer.to_string()
 }
 
-fn is_local(peer: IpAddr) -> bool {
-    match peer.to_canonical() {
-        IpAddr::V4(ip) => ip.is_loopback() || ip.is_private() || ip.is_link_local(),
-        IpAddr::V6(ip) => ip.is_loopback() || ip.is_unique_local() || ip.is_unicast_link_local(),
-    }
+/// A hop is an address, or an address with a port (`1.2.3.4:5678`, `[::1]:443`).
+fn parse_hop(hop: &str) -> Option<IpAddr> {
+    hop.parse::<IpAddr>()
+        .ok()
+        .or_else(|| hop.parse::<SocketAddr>().ok().map(|addr| addr.ip()))
 }
 
 async fn rate_limit(
-    State(state): State<Arc<AppState>>,
+    State((state, trusted)): State<(Arc<AppState>, Arc<[IpAddr]>)>,
     ConnectInfo(peer): ConnectInfo<SocketAddr>,
     request: Request,
     next: Next,
@@ -146,7 +147,7 @@ async fn rate_limit(
         .iter()
         .next_back()
         .and_then(|v| v.to_str().ok());
-    let client = client_key(peer.ip(), forwarded_for);
+    let client = client_key(peer.ip(), forwarded_for, &trusted);
 
     match state.limiter.check(&client) {
         Ok(()) => next.run(request).await,
@@ -183,30 +184,26 @@ mod tests {
     }
 
     #[test]
-    fn the_forwarded_for_key_uses_the_hop_the_proxy_appended() {
+    fn the_forwarded_for_key_is_read_only_from_a_trusted_proxy() {
+        let trusted: Vec<IpAddr> = ["127.0.0.1", "172.17.0.1", "::1"]
+            .map(|ip| ip.parse().unwrap())
+            .into();
         let cases = [
             ("127.0.0.1", Some("1.2.3.4, 9.9.9.9"), "9.9.9.9"),
-            ("10.1.2.3", Some("1.2.3.4"), "1.2.3.4"),
             ("172.17.0.1", Some("1.2.3.4, 5.6.7.8"), "5.6.7.8"),
-            ("192.168.1.1", Some("5.6.7.8"), "5.6.7.8"),
-            ("169.254.1.1", Some("5.6.7.8"), "5.6.7.8"),
-            ("::1", Some("2001:db8::1"), "2001:db8::1"),
-            ("fe80::1", Some("2001:db8::1"), "2001:db8::1"),
-            ("fd00::1", Some("2001:db8::1"), "2001:db8::1"),
             ("::ffff:127.0.0.1", Some("1.2.3.4, 9.9.9.9"), "9.9.9.9"),
-            ("::ffff:10.0.0.1", Some("5.6.7.8"), "5.6.7.8"),
+            ("127.0.0.1", Some("1.2.3.4:5678"), "1.2.3.4"),
+            ("::1", Some("[::1]:443"), "::1"),
+            ("10.1.2.3", Some("1.2.3.4"), "10.1.2.3"),
             ("8.8.8.8", Some("1.2.3.4"), "8.8.8.8"),
-            ("8.8.8.8", Some("1.2.3.4, 9.9.9.9"), "8.8.8.8"),
-            ("8.8.8.8", None, "8.8.8.8"),
             ("127.0.0.1", None, "127.0.0.1"),
             ("127.0.0.1", Some("not-an-ip"), "127.0.0.1"),
             ("127.0.0.1", Some("1.2.3.4, garbage"), "127.0.0.1"),
-            ("127.0.0.1", Some("   "), "127.0.0.1"),
             ("127.0.0.1", Some("2.2.2.2,"), "127.0.0.1"),
         ];
         for (peer, header, expected) in cases {
             assert_eq!(
-                client_key(peer.parse().unwrap(), header),
+                client_key(peer.parse().unwrap(), header, &trusted),
                 expected,
                 "peer {peer}, header {header:?}"
             );
