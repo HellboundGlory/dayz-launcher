@@ -92,4 +92,4 @@ libc = "0.2"
 
 # Windows/macOS-only acrylic compositing. Linux has no equivalent effect.
 [target.'cfg(windows)'.dependencies]
-window-vibrancy = "0.5"
+window-vibrancy = "0.8"
