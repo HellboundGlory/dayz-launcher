@@ -1,5 +1,31 @@
 # Changelog
 
+## v3.1.0 — 2026-10-18
+
+Every server is in the list again, and join links, search and refresh do what they say.
+
+### New
+
+- **Join links ask first**: "Join via Tetra Launcher" opens the server with its mods and one Join button.
+- **Paste a server address** into search to find it, even one the list has never seen.
+- **Map filter**: official and DLC maps first, and a search box to find any map.
+- **Favourite from a join link** with the star in the join box.
+
+### Improved
+
+- The list now holds every server, so empty and new servers no longer go missing.
+- Refresh re-checks the servers on screen, and rows stay put until it finishes.
+- Mod lists for new servers, Nasdara included, fill in instead of showing none.
+- A server that stops being listed shows as offline.
+
+### Fixed
+
+- A join link that starts the launcher no longer gets lost.
+- Starting with Windows minimised stays in the tray.
+- Copying a theme over one with the same name never loses the old one if the save fails.
+
+Theme makers: see [what changed for themes in 3.1.0](https://tetralauncher.com/docs/themes/changelog).
+
 ## v3.0.0 — 2026-10-12
 
 Themes now reach every screen, and joining, menus and settings are steadier.
