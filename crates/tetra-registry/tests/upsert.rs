@@ -44,13 +44,14 @@ fn live_row() -> ServerRow {
 async fn fetch(registry: &Registry) -> tetra_registry::ServerListRow {
     let reader = registry.reader().expect("reader");
     let rows = reader
-        .list(
+        .page(
             &ServerFilter::default(),
             SortKey::Players,
             SortDir::Desc,
+            0,
             10,
         )
-        .expect("list");
+        .expect("page");
     rows.into_iter().next().expect("one row")
 }
 
@@ -263,26 +264,28 @@ async fn refresh_priority_puts_never_probed_servers_first() {
     let reader = registry.reader().expect("reader");
 
     let by_players = reader
-        .list(
+        .page(
             &ServerFilter::default(),
             SortKey::Players,
             SortDir::Desc,
+            0,
             10,
         )
-        .expect("list");
+        .expect("page");
     assert_eq!(
         by_players[0].key, busy,
         "sanity: by players the busy server leads"
     );
 
     let by_priority = reader
-        .list(
+        .page(
             &ServerFilter::default(),
             SortKey::RefreshPriority,
             SortDir::Desc,
+            0,
             10,
         )
-        .expect("list");
+        .expect("page");
     assert_eq!(
         by_priority[0].key, never_probed,
         "the never-probed server must be refreshed first"
@@ -403,8 +406,8 @@ async fn list_filters_select_the_right_rows() {
     let reader = registry.reader().expect("reader");
     for case in cases {
         let got: Vec<String> = reader
-            .list(&case.filter, SortKey::Name, SortDir::Asc, 50)
-            .expect("list")
+            .page(&case.filter, SortKey::Name, SortDir::Asc, 0, 50)
+            .expect("page")
             .into_iter()
             .map(|r| r.name)
             .collect();
@@ -414,16 +417,17 @@ async fn list_filters_select_the_right_rows() {
     // The reader reads `last_played` by column index, so the row the
     // `recent_only` filter selects must carry it.
     let recent = reader
-        .list(
+        .page(
             &ServerFilter {
                 recent_only: true,
                 ..Default::default()
             },
             SortKey::Name,
             SortDir::Asc,
+            0,
             50,
         )
-        .expect("list");
+        .expect("page");
     assert_eq!(recent.len(), 1);
     assert_eq!(recent[0].name, "Second");
     assert!(recent[0].last_played.is_some());

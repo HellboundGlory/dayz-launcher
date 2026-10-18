@@ -41,13 +41,14 @@ fn row(key: ServerKey, name: &str, players: i32, max_players: i32, bots: i32) ->
 fn names(registry: &Registry) -> Vec<String> {
     let reader = registry.reader().expect("reader");
     reader
-        .list(
+        .page(
             &ServerFilter::default(),
             SortKey::Players,
             SortDir::Desc,
+            0,
             50,
         )
-        .expect("list")
+        .expect("page")
         .into_iter()
         .map(|r| r.name)
         .collect()

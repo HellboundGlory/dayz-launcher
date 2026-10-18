@@ -208,8 +208,8 @@ mod tests {
             ),
             ("a\rb\tc\u{7}d", "abcd"),
             (
-                "get_server_list: 42 rows in 12ms",
-                "get_server_list: 42 rows in 12ms",
+                "get_server_page: 42 of 42 rows in 12ms",
+                "get_server_page: 42 of 42 rows in 12ms",
             ),
         ];
         for (raw, expected) in cases {

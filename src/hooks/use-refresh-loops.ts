@@ -44,11 +44,13 @@ export function useRefreshLoops({
     }
     const { servers } = useServerStore.getState();
     if (servers.length === 0) return;
-    // The whole list, not just the rows currently mounted by the virtualizer.
-    const targets = servers.map((s) => ({
-      addr: s.addr,
-      query_port: s.query_port,
-    }));
+    // Only the rows loaded so far; pages not yet read have no address to send.
+    const targets = servers
+      .filter((s) => s !== undefined)
+      .map((s) => ({
+        addr: s.addr,
+        query_port: s.query_port,
+      }));
 
     refreshInFlight.current = true;
     setRefreshing(true);

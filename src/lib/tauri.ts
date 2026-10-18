@@ -38,12 +38,6 @@ export interface FilterParams {
   mod_ids_exclude: string[];
 }
 
-export interface SortParams {
-  sort_key: string;
-  sort_dir: string;
-  limit: number;
-}
-
 export interface PageParams {
   sort_key: string;
   sort_dir: string;
@@ -54,16 +48,6 @@ export interface PageParams {
 export interface ServerPage {
   total: number;
   rows: Server[];
-}
-
-export async function getServerList(
-  filter: FilterParams,
-  sort: SortParams,
-): Promise<Server[]> {
-  return invoke<Server[]>("get_server_list", {
-    filterParams: filter,
-    sortParams: sort,
-  });
 }
 
 export async function getServerPage(

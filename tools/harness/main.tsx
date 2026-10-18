@@ -146,7 +146,11 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   steam_connection_state: () => true,
   registry_degraded: () => storageDegraded,
   discover_servers: () => null,
-  get_server_list: (args) => serverList(args.filter as Record<string, unknown> | undefined),
+  get_server_page: (args) => {
+    const rows = serverList(args.filterParams as Record<string, unknown> | undefined);
+    const page = args.page as { offset: number; limit: number };
+    return { total: rows.length, rows: rows.slice(page.offset, page.offset + page.limit) };
+  },
   get_map_list: () => maps,
   get_server_counts: () => ({ total: servers.length, populated: servers.filter((s) => s.players > 0).length }),
   server_list_source: () => "steam",

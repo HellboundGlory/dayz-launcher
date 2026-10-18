@@ -29,6 +29,8 @@ function listHostOptions(options: Record<string, unknown> | undefined) {
   };
 }
 
+const serverAddr = (s: Server) => s.addr;
+
 export function ServerListHost({
   className,
   style,
@@ -39,6 +41,7 @@ export function ServerListHost({
   options?: Record<string, unknown>;
 }) {
   const servers = useServerStore((s) => s.servers);
+  const setVisibleRange = useServerStore((s) => s.setVisibleRange);
   const selectedServer = useServerStore((s) => s.selectedServer);
   const setSelectedServer = useServerStore((s) => s.setSelectedServer);
   const sortKey = useServerStore((s) => s.sortKey);
@@ -53,6 +56,8 @@ export function ServerListHost({
       <ListHost<Server>
         listId="list.servers"
         items={servers}
+        getItemKey={serverAddr}
+        onRangeChange={setVisibleRange}
         emptyText={
           hasLoadedOnce
             ? "No servers match the current filters."

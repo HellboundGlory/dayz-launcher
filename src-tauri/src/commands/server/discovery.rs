@@ -312,7 +312,7 @@ pub async fn discover_servers(
         }
     }
 
-    // All registry upserts are done before this returns, so a `get_server_list`
+    // All registry upserts are done before this returns, so a `get_server_page`
     // issued after it sees the full list.
     crate::log::log_line(
         &app,

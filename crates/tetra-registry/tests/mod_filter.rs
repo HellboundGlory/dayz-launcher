@@ -71,8 +71,8 @@ async fn build_three_servers(registry: &Registry) -> [ServerKey; 3] {
 async fn list(registry: &Registry, filter: &ServerFilter) -> Vec<String> {
     let reader = registry.reader().expect("reader");
     reader
-        .list(filter, SortKey::Name, SortDir::Asc, 10)
-        .expect("list")
+        .page(filter, SortKey::Name, SortDir::Asc, 0, 10)
+        .expect("page")
         .into_iter()
         .map(|r| r.name)
         .collect()

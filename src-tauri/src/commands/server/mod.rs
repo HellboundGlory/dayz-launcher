@@ -132,13 +132,6 @@ pub struct FilterParams {
 }
 
 #[derive(serde::Deserialize)]
-pub struct SortParams {
-    pub sort_key: String,
-    pub sort_dir: String,
-    pub limit: usize,
-}
-
-#[derive(serde::Deserialize)]
 pub struct PageParams {
     pub sort_key: String,
     pub sort_dir: String,
@@ -183,46 +176,6 @@ fn to_server32(r: &tetra_registry::filter::ServerListRow) -> Server32 {
         day_multiplier: r.day_multiplier,
         night_multiplier: r.night_multiplier,
     }
-}
-
-/// Query the SQLite registry for the filtered/sorted server list.
-#[tauri::command]
-pub async fn get_server_list(
-    app: tauri::AppHandle,
-    state: State<'_, AppState>,
-    filter_params: FilterParams,
-    sort_params: SortParams,
-) -> Result<Vec<Server32>, String> {
-    // Startup hangs on whether this query resolves promptly, so every call is timelogged.
-    let started = std::time::Instant::now();
-    crate::log::log_line_verbose(&app, "servers", "get_server_list: start");
-    let result: Result<Vec<Server32>, String> = blocking_read(&state, move |reader| {
-        let filter = filter_from_params(filter_params);
-        let (sort_key, sort_dir) = sort_from_params(&sort_params.sort_key, &sort_params.sort_dir);
-        let rows = reader
-            .list(&filter, sort_key, sort_dir, sort_params.limit)
-            .map_err(|e| e.to_string())?;
-        Ok(rows.iter().map(to_server32).collect())
-    })
-    .await;
-    match &result {
-        // Success is the hot path, so verbose-only; a failure stays at full volume.
-        Ok(rows) => crate::log::log_line_verbose(
-            &app,
-            "servers",
-            &format!(
-                "get_server_list: {} rows in {:?}",
-                rows.len(),
-                started.elapsed()
-            ),
-        ),
-        Err(e) => crate::log::log_line(
-            &app,
-            "servers",
-            &format!("get_server_list: error after {:?}: {e}", started.elapsed()),
-        ),
-    }
-    result
 }
 
 /// Largest page one `get_server_page` call returns.
@@ -553,8 +506,8 @@ mod tests {
         params.mod_match = "any".to_string();
         let filter = super::filter_from_params(params);
         let rows = reader
-            .list(&filter, SortKey::Name, SortDir::Asc, 10)
-            .expect("list");
+            .page(&filter, SortKey::Name, SortDir::Asc, 0, 10)
+            .expect("page");
         assert_eq!(rows.len(), 2, "mod filter alone should match both");
 
         let mut params = default_params();
@@ -563,8 +516,8 @@ mod tests {
         params.search = Some("PvP".to_string());
         let filter = super::filter_from_params(params);
         let rows = reader
-            .list(&filter, SortKey::Name, SortDir::Asc, 10)
-            .expect("list");
+            .page(&filter, SortKey::Name, SortDir::Asc, 0, 10)
+            .expect("page");
         assert_eq!(
             rows.len(),
             1,

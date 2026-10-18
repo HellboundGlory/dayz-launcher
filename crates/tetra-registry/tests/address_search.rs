@@ -26,8 +26,8 @@ fn names_matching(registry: &Registry, text: &str) -> Vec<String> {
     registry
         .reader()
         .expect("reader")
-        .list(&filter, SortKey::Name, SortDir::Asc, 10)
-        .expect("list")
+        .page(&filter, SortKey::Name, SortDir::Asc, 0, 10)
+        .expect("page")
         .into_iter()
         .map(|r| r.name)
         .collect()
