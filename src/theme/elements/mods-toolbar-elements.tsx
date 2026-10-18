@@ -15,7 +15,7 @@ import { useModsStore, visibleRows, type ModStatusFilter } from "@/stores/mods-s
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/confirm-dialog";
 import { useThemedPopupTrigger } from "./use-themed-popup-trigger";
-import { FilterPopup, UniqueServerOptionsList, usePopupContext } from "./popup-elements";
+import { TriggerPopup, UniqueServerOptionsList, usePopupContext } from "./popup-elements";
 import { OptionIcon } from "./option-icon";
 import { displayOption, states } from "./element-utils";
 
@@ -406,7 +406,7 @@ export function ModsActionMenu({
           <OptionIcon icon={options?.icon} fallback={ChevronDown} className={cn("size-3 transition-transform", open && "rotate-180")} />
         </span>
       </button>
-      <FilterPopup open={open} popupId={menu.popupId} close={close} themedPopup={themedPopup} triggerRef={ref}>
+      <TriggerPopup open={open} popupId={menu.popupId} close={close} themedPopup={themedPopup} triggerRef={ref}>
         <div
           ref={popupRef}
           style={popupStyle}
@@ -417,7 +417,7 @@ export function ModsActionMenu({
           <SelectedItem onDone={close} />
           <AllItem onDone={close} />
         </div>
-      </FilterPopup>
+      </TriggerPopup>
     </div>
   );
 }
@@ -643,7 +643,7 @@ export function ModsSelectUnique({ options, className, style }: { options?: Reco
           <ChevronDown className={cn("size-3 transition-transform", open && "rotate-180")} />
         </span>
       </button>
-      <FilterPopup
+      <TriggerPopup
         open={open}
         popupId="modsUnique"
         close={close}
@@ -660,7 +660,7 @@ export function ModsSelectUnique({ options, className, style }: { options?: Reco
             void selectUniqueTo(addr, queryPort, name);
           }}
         />
-      </FilterPopup>
+      </TriggerPopup>
     </div>
   );
 }

@@ -1,5 +1,4 @@
 import type { LayoutFile, LayoutNode } from "../renderer/types";
-import "./mods.css";
 
 function detailRow(label: string, element: string): LayoutNode {
   return {

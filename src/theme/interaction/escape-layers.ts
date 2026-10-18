@@ -1,9 +1,20 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // Escape closes only the dialog, modal or overlay opened last. A per-dialog
 // listener can't tell: the dialog above may already be gone from the DOM by
 // the time the next listener runs.
-const layers: Array<() => void> = [];
+interface Layer {
+  order: number;
+  close: () => void;
+}
+
+const layers: Layer[] = [];
+let opened = 0;
+
+// Taken while rendering: a parent renders before its children, though its effect runs after theirs.
+function nextOrder(): number {
+  return ++opened;
+}
 
 export function handleEscape(e: {
   key: string;
@@ -14,16 +25,18 @@ export function handleEscape(e: {
   // A control inside the dialog already used this Escape, or it ends text composition.
   if (e.key !== "Escape" || e.defaultPrevented || e.isComposing || layers.length === 0) return;
   e.preventDefault();
-  layers[layers.length - 1]();
+  layers[layers.length - 1].close();
 }
 
-export function openEscapeLayer(close: () => void): () => void {
+export function openEscapeLayer(close: () => void, order = nextOrder()): () => void {
   if (layers.length === 0 && typeof window !== "undefined") {
     window.addEventListener("keydown", handleEscape);
   }
-  layers.push(close);
+  const layer = { order, close };
+  const at = layers.findIndex((other) => other.order > order);
+  layers.splice(at < 0 ? layers.length : at, 0, layer);
   return () => {
-    const at = layers.lastIndexOf(close);
+    const at = layers.indexOf(layer);
     if (at >= 0) layers.splice(at, 1);
     if (layers.length === 0 && typeof window !== "undefined") {
       window.removeEventListener("keydown", handleEscape);
@@ -34,8 +47,9 @@ export function openEscapeLayer(close: () => void): () => void {
 export function useEscapeLayer(active: boolean, onEscape: () => void) {
   const latest = useRef(onEscape);
   latest.current = onEscape;
+  const [order] = useState(nextOrder);
   useEffect(() => {
     if (!active) return;
-    return openEscapeLayer(() => latest.current());
-  }, [active]);
+    return openEscapeLayer(() => latest.current(), order);
+  }, [active, order]);
 }

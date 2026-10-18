@@ -20,4 +20,17 @@ describe("escape layers", () => {
     handleEscape(escape());
     expect(closed).toEqual(["confirm", "settings"]);
   });
+
+  it("closes a child before its parent when both mount in one commit", () => {
+    const closed: string[] = [];
+    // React runs the child's effect first, so it registers before the parent.
+    const closeChild = openEscapeLayer(() => closed.push("child"), 2);
+    const closeParent = openEscapeLayer(() => closed.push("parent"), 1);
+
+    handleEscape(escape());
+    expect(closed).toEqual(["child"]);
+
+    closeChild();
+    closeParent();
+  });
 });

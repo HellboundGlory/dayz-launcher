@@ -1,5 +1,4 @@
 import type { ElementNode, LayoutNode, ModalLayoutFile } from "../renderer/types";
-import "./server-info.css";
 
 const stat = (value: ElementNode & { class: string }, label: string, suffix?: Omit<ElementNode, "class">): LayoutNode => {
   const caption: LayoutNode = { type: "text", role: "micro", value: label, class: "t-neutral-serverinfo-stat-label" };

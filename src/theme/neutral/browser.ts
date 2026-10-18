@@ -1,6 +1,4 @@
 import type { LayoutFile } from "../renderer/types";
-import "./browser.css";
-import "./filter-popups.css";
 
 export const BROWSER_LAYOUT: LayoutFile = {
   schemaVersion: 2,

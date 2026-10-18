@@ -1,5 +1,4 @@
 import type { ModalLayoutFile } from "../renderer/types";
-import "./mod-filter.css";
 
 export const MOD_FILTER_MODAL: ModalLayoutFile = {
   schemaVersion: 2,

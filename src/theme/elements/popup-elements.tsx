@@ -36,7 +36,7 @@ export function PopupContextProvider({
  * when it owns one, else `children` (the launcher's default body). Renders nothing
  * while closed. Shared by every `filter.*` popup trigger, `server.menu` and the mods menus.
  */
-export function FilterPopup({
+export function TriggerPopup({
   open,
   popupId,
   close,

@@ -6,7 +6,7 @@ import { useElementContext } from "./context";
 import { OptionIcon } from "./option-icon";
 import { useThemedPopupTrigger } from "./use-themed-popup-trigger";
 import {
-  FilterPopup,
+  TriggerPopup,
   PopupClear,
   PopupMapOptions,
   PopupRegionNote,
@@ -184,7 +184,7 @@ export function FilterMap({
         open={open}
         onClick={() => setOpen(!open)}
       />
-      <FilterPopup
+      <TriggerPopup
         open={open}
         popupId="mapFilter"
         close={close}
@@ -201,7 +201,7 @@ export function FilterMap({
           <PopupSeparator />
           <PopupClear />
         </div>
-      </FilterPopup>
+      </TriggerPopup>
     </DropdownRoot>
   );
 }
@@ -235,7 +235,7 @@ export function FilterTags({
         open={open}
         onClick={() => setOpen(!open)}
       />
-      <FilterPopup
+      <TriggerPopup
         open={open}
         popupId="tagsFilter"
         close={close}
@@ -252,7 +252,7 @@ export function FilterTags({
           <PopupSeparator />
           <PopupClear />
         </div>
-      </FilterPopup>
+      </TriggerPopup>
     </DropdownRoot>
   );
 }
@@ -287,7 +287,7 @@ export function FilterRegion({
         onClick={() => setOpen(!open)}
         title="Approximate — based on the server's IP block, not its actual location"
       />
-      <FilterPopup
+      <TriggerPopup
         open={open}
         popupId="regionFilter"
         close={close}
@@ -305,7 +305,7 @@ export function FilterRegion({
           <PopupRegionNote className="px-[var(--t-space-controlCompactX)] pb-[var(--t-space-separatorY)] pt-[var(--t-space-separatorX)] [font-size:var(--t-type-micro-size)] [line-height:var(--t-type-heading-leading)] whitespace-normal text-muted" />
           <PopupClear />
         </div>
-      </FilterPopup>
+      </TriggerPopup>
     </DropdownRoot>
   );
 }
@@ -596,7 +596,7 @@ export function FilterSort({
           </>
         }
       />
-      <FilterPopup
+      <TriggerPopup
         open={open}
         popupId="sort"
         close={close}
@@ -611,7 +611,7 @@ export function FilterSort({
         >
           <PopupSortOptions />
         </div>
-      </FilterPopup>
+      </TriggerPopup>
     </DropdownRoot>
   );
 }

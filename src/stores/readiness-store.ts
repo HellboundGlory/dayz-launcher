@@ -1,11 +1,16 @@
 import { serverModReadiness } from "@/lib/tauri";
 import type { ServerModReadiness } from "@/types/server";
 
-type CacheEntry = { readiness: ServerModReadiness } | { error: true; at: number };
+type CacheEntry = { readiness: ServerModReadiness } | { error: true; at: number; failures: number };
 
 const DEBOUNCE_MS = 250;
-/** How long a failed fetch stands before a request for that server tries again. */
-const RETRY_AFTER_MS = 30_000;
+const RETRY_BASE_MS = 30_000;
+const RETRY_CAP_MS = 300_000;
+
+/** How long a failed fetch stands before a request for that server tries again: doubles per failure, capped. */
+export function retryDelayMs(failures: number): number {
+  return Math.min(RETRY_BASE_MS * 2 ** (failures - 1), RETRY_CAP_MS);
+}
 
 const cache = new Map<string, CacheEntry>();
 const pending = new Map<string, Promise<void>>();
@@ -53,7 +58,7 @@ export function invalidateReadiness(): void {
 function hasResult(key: string): boolean {
   const entry = cache.get(key);
   if (entry === undefined) return false;
-  return !("error" in entry) || Date.now() - entry.at < RETRY_AFTER_MS;
+  return !("error" in entry) || Date.now() - entry.at < retryDelayMs(entry.failures);
 }
 
 function fetchReadiness(key: string, addr: string, queryPort: number): void {
@@ -67,10 +72,12 @@ function fetchReadiness(key: string, addr: string, queryPort: number): void {
     })
     .catch(() => {
       if (pending.get(key) !== request) return;
-      cache.set(key, { error: true, at: Date.now() });
+      const previous = cache.get(key);
+      const failures = previous && "error" in previous ? previous.failures + 1 : 1;
+      cache.set(key, { error: true, at: Date.now(), failures });
       notify();
       // Wakes consumers once the wait is over, so a server left open retries.
-      setTimeout(notify, RETRY_AFTER_MS);
+      setTimeout(notify, retryDelayMs(failures));
     })
     .finally(() => {
       if (pending.get(key) === request) pending.delete(key);

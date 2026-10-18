@@ -54,6 +54,8 @@ const backend = vi.hoisted(() => ({
   themeSettingsById: {} as Record<string, ThemeSettings>,
   /** Every `set_theme_settings_value` call, in order. */
   setSettingsCalls: [] as { id: string; fieldId: string; value: string | number | boolean }[],
+  /** When set, `set_theme_settings_value` rejects with this message. */
+  settingsSaveError: null as string | null,
   /** Ids `get_theme` was asked for, in call order. */
   themeCalls: [] as string[],
   /** `validate_theme` issues to return, by id; missing means no issues. */
@@ -122,6 +124,7 @@ vi.mock("@/lib/tauri", () => ({
   deleteTheme: async (id: string) => void backend.deleted.push(id),
   getThemeSettingsValues: async (id: string) => backend.settingsById[id] ?? {},
   setThemeSettingsValue: async (id: string, fieldId: string, value: string | number | boolean) => {
+    if (backend.settingsSaveError !== null) throw new Error(backend.settingsSaveError);
     backend.setSettingsCalls.push({ id, fieldId, value });
   },
   validateTheme: async (id: string) => {
@@ -188,6 +191,7 @@ beforeEach(() => {
   backend.settingsById = {};
   backend.themeSettingsById = {};
   backend.setSettingsCalls.length = 0;
+  backend.settingsSaveError = null;
   backend.themeCalls.length = 0;
   backend.validationIssuesById = {};
   backend.validateErrorsById = {};
@@ -796,6 +800,20 @@ describe("settings values", () => {
 
     expect(backend.setSettingsCalls).toEqual([{ id, fieldId: "accentHue", value: 42 }]);
     expect(writtenProps["--accent"]).toBe("hsl(42, 45%, 60%)");
+  });
+
+  it("reports a failed save and leaves the stored value unchanged", async () => {
+    const id = templated("local.failingSave");
+    await useThemeStore.getState().pickTheme(id);
+    const before = useThemeStore.getState().settingsValues[id];
+    backend.settingsSaveError = "disk full";
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const saved = await useThemeStore.getState().setSettingsValue(id, "accentHue", 42);
+
+    expect(saved).toBe(false);
+    expect(useThemeStore.getState().settingsValues[id]).toBe(before);
+    consoleError.mockRestore();
   });
 });
 
