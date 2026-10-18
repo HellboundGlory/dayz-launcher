@@ -242,9 +242,9 @@ describe("workshopMod.tags", () => {
 
 describe("workshopMod.serverNote", () => {
   it("names the server count when seen, and reads the not-seen note otherwise", () => {
-    expect(renderEl("workshopMod.serverNote", makeEntry({ serverCount: 4 }))).toContain(
-      "4 of the servers currently listed run this mod",
-    );
+    const seen = renderEl("workshopMod.serverNote", makeEntry({ serverCount: 4 }));
+    expect(seen).toContain('<span data-part="count">4</span>');
+    expect(seen).toContain("of the servers currently listed run this mod");
     expect(renderEl("workshopMod.serverNote", makeEntry({ serverCount: null }))).toContain(
       "Not seen on any currently listed server yet",
     );

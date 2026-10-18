@@ -179,7 +179,7 @@ function WorkshopModSize({ className, style }: { className?: string; style?: CSS
   const missing = entry.fileSize === null;
   return (
     <span data-el="workshopMod.size" data-state={missing ? "unknown" : undefined} className={className ?? "font-mono-data"} style={style}>
-      <span data-part="value">{missing ? "—" : formatBytes(entry.fileSize as number, 1)}</span>
+      <span data-part="value">{missing ? "—" : formatBytes(entry.fileSize as number)}</span>
     </span>
   );
 }
@@ -273,13 +273,16 @@ function WorkshopModServerNote({ className, style }: { className?: string; style
   const entry = useWorkshopModSubject();
   if (!entry) return null;
 
-  const text = entry.serverCount
-    ? `${entry.serverCount} of the servers currently listed run this mod`
-    : "Not seen on any currently listed server yet — you can still filter for it";
-
   return (
     <span data-el="workshopMod.serverNote" className={className} style={style}>
-      <span data-part="text">{text}</span>
+      {entry.serverCount ? (
+        <>
+          <span data-part="count">{entry.serverCount}</span>{" "}
+          <span data-part="text">of the servers currently listed run this mod</span>
+        </>
+      ) : (
+        <span data-part="text">Not seen on any currently listed server yet — you can still filter for it</span>
+      )}
     </span>
   );
 }

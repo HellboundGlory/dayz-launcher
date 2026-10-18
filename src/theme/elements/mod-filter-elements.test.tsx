@@ -204,6 +204,13 @@ describe("modFilter.summary", () => {
     expect(bare).not.toContain('data-part="thumbnails"');
     expect(bare).toContain('data-part="counts"');
   });
+
+  it("marks each thumbnail included or excluded by its pick", () => {
+    useModFilterStore.setState({ selection: { a: "include", b: "exclude" } }, false);
+    const html = renderEl("modFilter.summary");
+    expect(html).toContain('data-thumb="a" data-state="included"');
+    expect(html).toContain('data-thumb="b" data-state="excluded"');
+  });
 });
 
 describe("modFilter.matchMode", () => {

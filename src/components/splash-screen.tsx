@@ -70,7 +70,7 @@ export function SplashScreen({ status, detail, pct }: SplashScreenProps) {
           src={tetraLogo}
           alt=""
           draggable={false}
-          className="size-5 rounded-[4px] [box-shadow:var(--t-glow-rest)]"
+          className="size-5 [border-radius:var(--t-radius-chip)] [box-shadow:var(--t-glow-rest)]"
         />
         <span className="font-mono-data text-[9.5px] font-bold tracking-[0.1em] text-[#c7d2df]">
           TETRA <span className="text-accent">//</span> LAUNCHER
@@ -96,7 +96,7 @@ export function SplashScreen({ status, detail, pct }: SplashScreenProps) {
             <span
               key={i}
               className={cn(
-                "block w-[4px] rounded-[1px] transition-colors duration-300",
+                "block w-[4px] [border-radius:var(--t-radius-track)] transition-colors duration-300",
                 i < litTicks ? "bg-accent shadow-[0_0_5px_rgba(143,163,189,0.7)]" : "bg-white/15",
               )}
               style={{ height: `${8 + i * 2.5}px` }}

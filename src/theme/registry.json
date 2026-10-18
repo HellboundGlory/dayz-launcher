@@ -3498,7 +3498,9 @@
         "counts"
       ],
       "states": [
-        "empty"
+        "empty",
+        "included",
+        "excluded"
       ],
       "since": "2.0",
       "aliases": []
@@ -3827,6 +3829,7 @@
       "options": {},
       "freeLabel": false,
       "parts": [
+        "count",
         "text"
       ],
       "states": [],

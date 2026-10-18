@@ -212,8 +212,8 @@ function ModFilterSummary({
   }
 
   const picks = [
-    ...included.map((id) => ({ id, pick: "include" as const })),
-    ...excluded.map((id) => ({ id, pick: "exclude" as const })),
+    ...included.map((id) => ({ id, state: "included" as const })),
+    ...excluded.map((id) => ({ id, state: "excluded" as const })),
   ];
   const shown = picks.slice(0, 4);
   const more = total - shown.length;
@@ -222,8 +222,8 @@ function ModFilterSummary({
     <div data-el="modFilter.summary" className={className} style={style}>
       {showThumbnails && (
         <span data-part="thumbnails">
-          {shown.map(({ id }) => (
-            <span key={id} data-thumb={id}>
+          {shown.map(({ id, state }) => (
+            <span key={id} data-thumb={id} data-state={state}>
               <SummaryThumb id={id} title={meta[id]?.title ?? id} previewUrl={meta[id]?.previewUrl ?? null} />
             </span>
           ))}
