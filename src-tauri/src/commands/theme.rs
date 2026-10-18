@@ -1821,6 +1821,8 @@ mod derive_from_installed {
         assert_eq!(files_under(&root), before);
     }
 
+    // Unix only: Windows lets the folder move replace the blocking file.
+    #[cfg(unix)]
     #[test]
     fn a_replace_that_fails_to_swap_leaves_the_installed_theme_intact() {
         let root = ScratchDir::tagged("replace-failed");
