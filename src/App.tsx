@@ -8,6 +8,7 @@ import { DevModeValidationPanel } from "./components/themes-page/dev-mode-valida
 import { ConfirmDialog } from "./components/confirm-dialog";
 import { OnboardingModal } from "./components/onboarding-modal";
 import { SteamRequiredModal } from "./components/steam-required-modal";
+import { JoinLinkDialog } from "./components/join-link-dialog";
 import { useServerStore } from "./stores/server-store";
 import { useSettingsStore } from "./stores/settings-store";
 import { useUpdateStore } from "./stores/update-store";
@@ -17,6 +18,7 @@ import { useModFilterStore, activeEntries } from "./stores/mod-filter-store";
 import { useModFilterLifecycle } from "./hooks/use-mod-filter-lifecycle";
 import { useSteamStartup } from "./hooks/use-steam-startup";
 import { useBackendEvents } from "./hooks/use-backend-events";
+import { useJoinLinks } from "./hooks/use-join-links";
 import { useRefreshLoops } from "./hooks/use-refresh-loops";
 import type { SettingsValues } from "./theme/renderer/props";
 import { watchDayz } from "./stores/launch-store";
@@ -252,8 +254,8 @@ export function App() {
     setError,
     setRefreshing,
     setRefreshedAt,
-    handleViewChange,
   });
+  useJoinLinks({ handleViewChange });
   const { handleRefresh } = useRefreshLoops({
     steamConnected,
     runInitialLoad,
@@ -417,6 +419,7 @@ export function App() {
           onRetry={() => void connectSteam(true)}
         />
       )}
+      <JoinLinkDialog />
       <ConfirmDialog />
     </>
   );

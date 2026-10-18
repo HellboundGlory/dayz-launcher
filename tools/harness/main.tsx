@@ -15,6 +15,9 @@ const servers = makeServers(Number(params.get("servers") ?? 120));
 const dayzRunning = params.get("dayz") === "1";
 const storageDegraded = params.get("storage") === "degraded";
 const mixedMods = params.get("mods") === "mixed";
+const readyMods = params.get("mods") === "ready";
+// `join=asking|checking|found|noanswer` opens the join-link box in that state.
+const joinState = params.get("join");
 
 // `static=1` (the visual harness): pin the clock and kill motion and the caret,
 // so two shots of the same tree are byte-identical. Midday so a ±12h timezone
@@ -109,7 +112,7 @@ const readiness = {
     ["Community Online Tools", mixedMods ? "downloading" : "ready"],
     ["DayZ-Expansion-Bundle", "needs_update"],
     ["Trader", "not_subscribed"],
-  ].map(([name, state], i) => ({
+  ].map(([name, state]) => [name, readyMods ? "ready" : state]).map(([name, state], i) => ({
     workshop_id: String(1559212036 + i),
     name,
     state,
@@ -154,7 +157,7 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   get_map_list: () => maps,
   get_server_counts: () => ({ total: servers.length, populated: servers.filter((s) => s.players > 0).length }),
   server_list_source: () => "steam",
-  server_mod_readiness: () => readiness,
+  server_mod_readiness: () => (joinState === "checking" ? new Promise(() => {}) : readiness),
   steam_mod_states: () => [],
   steam_download_progress: () => [],
   dayz_running: () => dayzRunning,
@@ -364,6 +367,16 @@ async function runScenario() {
     } else if (modal === "update") {
       harness?.openUpdateModal();
     }
+  }
+  if (joinState) {
+    const { useJoinLinkStore } = await import("@/stores/join-link-store");
+    await waitUntil(() => useServerStore.getState().servers.length > 0, "the server list");
+    const target = useServerStore.getState().servers[Number(select ?? 0)];
+    const store = useJoinLinkStore.getState();
+    const request = { ip: target?.addr.split(":")[0] ?? "203.0.113.7", port: target?.query_port ?? 2303, favourite: false };
+    store.open(request);
+    if (joinState === "noanswer") store.noAnswer(request);
+    else if (joinState !== "asking" && target) store.found(request, target);
   }
   let last: HTMLElement | null = null;
   for (const spec of params.getAll("click")) {

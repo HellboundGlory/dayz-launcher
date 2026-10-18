@@ -2,19 +2,14 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import { listen } from "@tauri-apps/api/event";
 import { useServerStore } from "@/stores/server-store";
 import {
-  getServer,
   getServerCounts,
   getServersByAddr,
   logClient,
   registryDegraded,
   serverListSource,
-  takePendingConnect,
-  toggleFavourite,
-  type DzsaConnect,
   type ListSource,
   type ModsPendingEntry,
 } from "@/lib/tauri";
-import type { ViewId } from "@/theme/elements/context";
 import { refreshTargets } from "./use-refresh-loops";
 
 /** Debounce window for coalescing backend refresh events into one reload. */
@@ -34,7 +29,6 @@ export function useBackendEvents({
   setError,
   setRefreshing,
   setRefreshedAt,
-  handleViewChange,
 }: {
   discovering: boolean;
   revealDone: RefObject<boolean>;
@@ -43,7 +37,6 @@ export function useBackendEvents({
   setError: (value: string | null) => void;
   setRefreshing: (value: boolean) => void;
   setRefreshedAt: (value: string) => void;
-  handleViewChange: (view: ViewId) => void;
 }) {
   const triggerReload = useServerStore((s) => s.triggerReload);
   const [counts, setCounts] = useState({ total: 0, populated: 0 });
@@ -226,58 +219,6 @@ export function useBackendEvents({
       unlistenModsPending.then((fn) => fn());
       unlistenExhausted.then((fn) => fn());
       unlistenComplete.then((fn) => fn());
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // dzsa://connect/... link from the OS protocol handler (src-tauri/src/protocol.rs).
-  // Selects the server but never auto-launches — joining still needs the button.
-  useEffect(() => {
-    const handleConnect = (request: DzsaConnect) => {
-      const { ip, queryPort, favourite } = request;
-      handleViewChange("servers");
-      void getServer(`${ip}:${queryPort}`, queryPort)
-        .then((server) => {
-          if (!server) {
-            // Not an error — registry just hasn't discovered this server yet.
-            setError(
-              `${ip}:${queryPort} isn't in your server list yet — press DISCOVER, then try the link again.`,
-            );
-            return;
-          }
-          useServerStore.getState().setSelectedServer(server);
-          if (favourite && !server.favourite) {
-            useServerStore.getState().toggleFavourite(server.addr);
-            void toggleFavourite(server.addr, server.query_port, true).catch(
-              (e) => {
-                console.error(
-                  "Failed to persist favourite from dzsa:// link:",
-                  e,
-                );
-                useServerStore.getState().toggleFavourite(server.addr);
-              },
-            );
-          }
-        })
-        .catch((e) => {
-          console.error("Failed to resolve dzsa:// link target:", e);
-          setError(`Could not look up ${ip}:${queryPort}: ${String(e)}`);
-        });
-    };
-    // The link itself lives in the backend; the event only says one arrived.
-    const pullPending = () => {
-      void takePendingConnect()
-        .then((request) => {
-          if (request) handleConnect(request);
-        })
-        .catch((e) =>
-          console.error("Could not read a pending dzsa:// link:", e),
-        );
-    };
-    const unlistenConnect = listen("dzsa-connect", pullPending);
-    pullPending();
-    return () => {
-      unlistenConnect.then((fn) => fn());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
