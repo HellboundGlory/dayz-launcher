@@ -53,6 +53,7 @@ const COMMANDS: &[&str] = &[
     "get_theme",
     "validate_theme",
     "save_theme",
+    "save_theme_copy",
     "derive_theme",
     "update_theme_tokens",
     "delete_theme",

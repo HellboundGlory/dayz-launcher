@@ -482,13 +482,19 @@ pub fn delete(themes_root: &Path, id: &str, active: Option<&str>) -> Result<(), 
             dir.display()
         ));
     }
+    refuse_active(id, active)?;
+
+    std::fs::remove_dir_all(&dir).map_err(|e| format!("Could not delete {}: {e}", dir.display()))
+}
+
+/// The refusal for removing the theme the launcher is using.
+pub(crate) fn refuse_active(id: &str, active: Option<&str>) -> Result<(), String> {
     if active == Some(id) {
         return Err(format!(
             "`{id}` is the active theme; switch to another theme before deleting it"
         ));
     }
-
-    std::fs::remove_dir_all(&dir).map_err(|e| format!("Could not delete {}: {e}", dir.display()))
+    Ok(())
 }
 
 /// Lowercase ASCII letters and digits, every run of anything else collapsed to
@@ -514,7 +520,7 @@ const MAX_ID_BASE: usize = MAX_ID_LEN - "local.".len() - "-999".len();
 /// A free `local.` id for an installed theme named `name`: its slug, or `theme`
 /// when the name has none, cut to the id length limit and suffixed until no
 /// directory of that name exists.
-fn new_user_theme_id(themes_root: &Path, name: &str) -> String {
+pub(crate) fn new_user_theme_id(themes_root: &Path, name: &str) -> String {
     let slug = slugify(name);
     let slug = if slug.is_empty() {
         "theme".to_string()

@@ -153,35 +153,37 @@ pub fn confirm_theme_install(themes_root: &Path, staging_id: &str) -> Result<Str
     }
 
     let target_dir = themes_root.join(&manifest.id);
-    if !target_dir.exists() {
-        std::fs::rename(&staging_dir, &target_dir).map_err(|e| {
-            format!(
-                "Could not move {} into place at {}: {e}",
-                staging_dir.display(),
-                target_dir.display()
-            )
-        })?;
-        return Ok(manifest.id);
-    }
-
     let aside = themes_root
         .join(STAGING_DIR)
         .join(format!("{}.replaced-{staging_id}", manifest.id));
-    std::fs::rename(&target_dir, &aside)
-        .map_err(|e| format!("Could not move {} aside: {e}", target_dir.display()))?;
-    if let Err(e) = std::fs::rename(&staging_dir, &target_dir) {
+    swap_into_place(&staging_dir, &target_dir, &aside)?;
+    Ok(manifest.id)
+}
+
+/// Move `staged` to `target`. An existing `target` is parked at `aside` first and
+/// removed only once `staged` is in place, so the live theme is never missing.
+pub(crate) fn swap_into_place(staged: &Path, target: &Path, aside: &Path) -> Result<(), String> {
+    let move_error = |e: std::io::Error| {
+        format!(
+            "Could not move {} into place at {}: {e}",
+            staged.display(),
+            target.display()
+        )
+    };
+    if !target.exists() {
+        return std::fs::rename(staged, target).map_err(move_error);
+    }
+
+    std::fs::rename(target, aside)
+        .map_err(|e| format!("Could not move {} aside: {e}", target.display()))?;
+    if let Err(e) = std::fs::rename(staged, target) {
         // Put the old install back before reporting; only the new theme landing
         // in place makes deleting it safe.
-        let _ = std::fs::rename(&aside, &target_dir);
-        return Err(format!(
-            "Could not move {} into place at {}: {e}",
-            staging_dir.display(),
-            target_dir.display()
-        ));
+        let _ = std::fs::rename(aside, target);
+        return Err(move_error(e));
     }
-    let _ = std::fs::remove_dir_all(&aside);
-
-    Ok(manifest.id)
+    let _ = std::fs::remove_dir_all(aside);
+    Ok(())
 }
 
 /// Remove a stage the user chose not to install. A stage that is already gone is
