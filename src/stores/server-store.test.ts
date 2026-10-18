@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useServerStore } from "@/stores/server-store";
+import type { Server } from "@/types/server";
 
 // The store reads localStorage at module-eval time, but both loaders swallow a
 // missing/stub-free global, so importing first is safe. Stub before *using* it.
@@ -97,5 +98,23 @@ describe("resetFilter", () => {
     expect("favourites_only" in persisted).toBe(false);
     expect("recent_only" in persisted).toBe(false);
     expect("search" in persisted).toBe(false);
+  });
+});
+
+describe("patchServers", () => {
+  it("updates loaded rows by addr in place and re-points the selection", () => {
+    const a = { addr: "a", ping: 40 } as Server;
+    const b = { addr: "b", players: 2 } as Server;
+    const c = { addr: "c", players: 3 } as Server;
+    const bFresh = { ...b, players: 9 };
+    const aFresh = { ...a, ping: 30 };
+    useServerStore.setState({ servers: [a, undefined, b, c], selectedServer: b });
+
+    useServerStore.getState().patchServers([bFresh, aFresh, { addr: "x" } as Server]);
+
+    const { servers, selectedServer } = useServerStore.getState();
+    expect(servers).toEqual([aFresh, undefined, bFresh, c]);
+    expect(servers[3]).toBe(c);
+    expect(selectedServer).toBe(bFresh);
   });
 });

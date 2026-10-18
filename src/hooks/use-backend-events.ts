@@ -4,6 +4,7 @@ import { useServerStore } from "@/stores/server-store";
 import {
   getServer,
   getServerCounts,
+  getServersByAddr,
   logClient,
   registryDegraded,
   serverListSource,
@@ -14,6 +15,7 @@ import {
   type ModsPendingEntry,
 } from "@/lib/tauri";
 import type { ViewId } from "@/theme/elements/context";
+import { refreshTargets } from "./use-refresh-loops";
 
 /** Debounce window for coalescing backend refresh events into one reload. */
 const RELOAD_THROTTLE_MS = 250;
@@ -71,27 +73,48 @@ export function useBackendEvents({
   const reloadTimer = useRef<number | null>(null);
   /** Last "found" count logged from `discovery-progress`, to keep the log thin. */
   const discoveryLogFloor = useRef(0);
-  const scheduleReload = useCallback(() => {
+  // Runs `task` once after `delay`; a call while one is pending is dropped.
+  const scheduleOnce = useCallback((delay: number, task: () => void) => {
     if (reloadTimer.current !== null) return;
+    reloadTimer.current = window.setTimeout(() => {
+      reloadTimer.current = null;
+      task();
+    }, delay);
+  }, []);
+  const refreshCounts = useCallback(() => {
+    getServerCounts()
+      .then((next) =>
+        setCounts((prev) =>
+          prev.total === next.total && prev.populated === next.populated
+            ? prev
+            : next,
+        ),
+      )
+      .catch(() => {});
+  }, []);
+  const scheduleReload = useCallback(() => {
     const delay = discoveringRef.current
       ? DISCOVERY_RELOAD_THROTTLE_MS
       : RELOAD_THROTTLE_MS;
-    reloadTimer.current = window.setTimeout(() => {
-      reloadTimer.current = null;
+    scheduleOnce(delay, () => {
       void logClient("reload", "scheduleReload: dispatching reload", true);
       triggerReload();
       setRefreshedAt(new Date().toLocaleTimeString());
-      getServerCounts()
-        .then((next) =>
-          setCounts((prev) =>
-            prev.total === next.total && prev.populated === next.populated
-              ? prev
-              : next,
-          ),
-        )
-        .catch(() => {});
-    }, delay);
-  }, [triggerReload, setRefreshedAt]);
+      refreshCounts();
+    });
+  }, [scheduleOnce, triggerReload, setRefreshedAt, refreshCounts]);
+  // During a sweep, re-read the rows on screen in place; the sweep's end does the one reload.
+  const patchVisibleRows = useCallback(() => {
+    const { servers, visibleRange } = useServerStore.getState();
+    const addrs = refreshTargets(servers, visibleRange).map((s) => s.addr);
+    void getServersByAddr(addrs)
+      .then((rows) => useServerStore.getState().patchServers(rows))
+      .catch(() => {});
+  }, []);
+  const schedulePatch = useCallback(
+    () => scheduleOnce(RELOAD_THROTTLE_MS, patchVisibleRows),
+    [scheduleOnce, patchVisibleRows],
+  );
 
   useEffect(
     () => () => {
@@ -146,7 +169,8 @@ export function useBackendEvents({
     });
 
     const unlistenRefreshed = listen("server-refreshed", () => {
-      scheduleReload();
+      if (useServerStore.getState().refreshActive) schedulePatch();
+      else scheduleReload();
     });
 
     const unlistenSource = listen<{ source: ListSource; servers: number; ms: number }>(
@@ -184,8 +208,9 @@ export function useBackendEvents({
       failed: number;
       scope?: string;
     }>("refresh-complete", (event) => {
-      // Always reload — a row refresh has new data for the table too.
-      triggerReload();
+      // A sweep reloads once when it ends (runRefresh); a row refresh reloads here.
+      if (!useServerStore.getState().refreshActive) triggerReload();
+      refreshCounts();
       // But only a full pass owns the spinner and the timestamp. A row
       // refresh finishing mid-pass would otherwise report the whole refresh
       // as done and stamp a time nothing had reached.

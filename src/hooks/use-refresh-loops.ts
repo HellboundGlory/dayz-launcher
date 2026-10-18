@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useServerStore } from "@/stores/server-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { logClient, refreshVisibleServers } from "@/lib/tauri";
+import type { Server } from "@/types/server";
 
 /**
  * Master-list cadence: new/returning servers appear without a relaunch. A
@@ -10,6 +11,23 @@ import { logClient, refreshVisibleServers } from "@/lib/tauri";
  * that just means the backend no-ops on `discovery_running`.
  */
 const REDISCOVER_MS = 30 * 60 * 1000;
+
+/** The loaded rows on screen plus one screen above and below, in list order. */
+export function refreshTargets(
+  servers: (Server | undefined)[],
+  range: { start: number; end: number },
+  cap = 1000,
+): Server[] {
+  const span = range.end - range.start + 1;
+  const first = Math.max(0, range.start - span);
+  const last = Math.min(servers.length - 1, range.end + span);
+  const targets: Server[] = [];
+  for (let i = first; i <= last && targets.length < cap; i++) {
+    const server = servers[i];
+    if (server) targets.push(server);
+  }
+  return targets;
+}
 
 export function useRefreshLoops({
   steamConnected,
@@ -25,47 +43,58 @@ export function useRefreshLoops({
   setRefreshedAt: (value: string) => void;
 }) {
   const triggerReload = useServerStore((s) => s.triggerReload);
+  const setRefreshActive = useServerStore((s) => s.setRefreshActive);
   const autoRefreshSecs = useSettingsStore((s) => s.autoRefreshIntervalSecs);
   const settingsLoaded = useSettingsStore((s) => s.loaded);
   // Guards against overlapping manual/auto-refresh runs.
   const refreshInFlight = useRef(false);
+  // A manual click made during a timed run starts once that run ends.
+  const queuedManual = useRef(false);
 
-  // Re-probes every server in the current filtered list (distinct from
+  // Re-probes the rows on screen and one screen either side (distinct from
   // DISCOVER, which pulls new servers in). Only a refresh the player asked for
-  // touches the banner; a timed one must not hide or replace what it shows.
+  // touches the banner and the button; a timed one must not hide or replace what it shows.
   const runRefresh = useCallback(async (manual: boolean) => {
     if (!steamConnected) return;
-    if (refreshInFlight.current) return;
+    if (refreshInFlight.current) {
+      if (manual) queuedManual.current = true;
+      return;
+    }
     // An A2S refresh opens thousands of UDP sockets; don't run it against a
     // download the user is waiting on.
     if (useServerStore.getState().downloadsActive) {
       if (manual) setError("Paused while mods are downloading — try again once they finish.");
       return;
     }
-    const { servers } = useServerStore.getState();
+    const { servers, visibleRange } = useServerStore.getState();
     if (servers.length === 0) return;
-    // Only the rows loaded so far; pages not yet read have no address to send.
-    const targets = servers
-      .filter((s) => s !== undefined)
-      .map((s) => ({
-        addr: s.addr,
-        query_port: s.query_port,
-      }));
+    const targets = refreshTargets(servers, visibleRange).map((s) => ({
+      addr: s.addr,
+      query_port: s.query_port,
+    }));
 
     refreshInFlight.current = true;
-    setRefreshing(true);
-    if (manual) setError(null);
+    setRefreshActive(true);
+    if (manual) {
+      setRefreshing(true);
+      setError(null);
+    }
     try {
       await refreshVisibleServers(targets, "visible");
-      triggerReload();
       setRefreshedAt(new Date().toLocaleTimeString());
     } catch (e) {
       if (manual) setError(String(e));
     } finally {
       refreshInFlight.current = false;
-      setRefreshing(false);
+      setRefreshActive(false);
+      triggerReload();
+      if (manual) setRefreshing(false);
+      if (queuedManual.current) {
+        queuedManual.current = false;
+        void runRefresh(true);
+      }
     }
-  }, [steamConnected, triggerReload, setError, setRefreshing, setRefreshedAt]);
+  }, [steamConnected, triggerReload, setRefreshActive, setError, setRefreshing, setRefreshedAt]);
   const handleRefresh = useCallback(() => runRefresh(true), [runRefresh]);
 
   // Auto-refresh on a timer, with the same guards as a manual refresh.

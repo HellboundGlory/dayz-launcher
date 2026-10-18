@@ -15,6 +15,9 @@ interface ServerState {
   /** Set while waiting on Steam Workshop downloads; suppresses A2S probing meanwhile. */
   downloadsActive: boolean;
   setDownloadsActive: (active: boolean) => void;
+  /** True during a refresh sweep, when `server-refreshed` patches rows instead of reloading. */
+  refreshActive: boolean;
+  setRefreshActive: (active: boolean) => void;
 
   /** Servers with a Steam update pending, from the last targeted refresh. Merged, not replaced, per refresh. */
   modPending: Record<string, boolean>;
@@ -33,6 +36,7 @@ interface ServerState {
   setLoadError: (error: string | null) => void;
 
   setServerPage: (offset: number, rows: Server[], total: number) => void;
+  patchServers: (rows: Server[]) => void;
   clearRows: () => void;
   setVisibleRange: (start: number, end: number) => void;
   refreshSelectedServer: (fresh: Server) => void;
@@ -150,6 +154,7 @@ export const useServerStore = create<ServerState>((set) => ({
   ...loadSort(),
   loadVersion: 0,
   downloadsActive: false,
+  refreshActive: false,
   modPending: {},
   maps: [],
   mapsLoaded: false,
@@ -174,6 +179,16 @@ export const useServerStore = create<ServerState>((set) => ({
       // out, not gone) — avoids repainting the panel on every reload.
       if (!fresh || sameRow(fresh, selected)) return { servers };
       return { servers, selectedServer: fresh };
+    }),
+  // Updates rows where they sit; a re-sort waits for the next reload so rows stay under the cursor.
+  patchServers: (rows) =>
+    set((state) => {
+      const fresh = new Map(rows.map((row) => [row.addr, row]));
+      const servers = state.servers.map((s) => (s && fresh.get(s.addr)) || s);
+      const selected = state.selectedServer;
+      const next = selected ? fresh.get(selected.addr) : undefined;
+      if (!selected || !next || sameRow(next, selected)) return { servers };
+      return { servers, selectedServer: next };
     }),
   clearRows: () =>
     set((state) => ({ servers: state.servers.map(() => undefined) })),
@@ -224,6 +239,7 @@ export const useServerStore = create<ServerState>((set) => ({
       return { filter: next };
     }),
   setDownloadsActive: (downloadsActive) => set({ downloadsActive }),
+  setRefreshActive: (refreshActive) => set({ refreshActive }),
   // Polled; an unchanged list keeps its identity, so the map filter does not re-render.
   setMaps: (maps) =>
     set((s) =>
