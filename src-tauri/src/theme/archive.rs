@@ -1369,13 +1369,13 @@ fn write_package_inner(dest_path: &Path, files: &[(String, Vec<u8>)]) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::atomic_write::test_support::ScratchDir;
     use crate::theme::manifest;
-    use std::sync::atomic::{AtomicU64, Ordering};
 
     #[test]
     fn v1_manifests_are_refused_with_migration_guidance() {
         for (schema_version, theme_api) in [(1, "2.0"), (2, "1.0")] {
-            let root = scratch("v1");
+            let root = ScratchDir::tagged("v1");
             let old = ThemeManifest {
                 schema_version,
                 theme_api: theme_api.into(),
@@ -1430,7 +1430,7 @@ mod tests {
             ),
         ];
         for (field, value, expected) in cases {
-            let root = scratch("metadata");
+            let root = ScratchDir::tagged("metadata");
             let mut json = serde_json::to_value(manifest()).unwrap();
             json[field] = value;
             let changed: ThemeManifest = serde_json::from_value(json).unwrap();
@@ -1443,7 +1443,7 @@ mod tests {
     #[test]
     fn declared_capabilities_require_files_and_tiers_grant_no_exemption() {
         for capability in ["css", "fonts", "images", "layout", "settings"] {
-            let root = scratch("missing-content");
+            let root = ScratchDir::tagged("missing-content");
             let mut themed = manifest();
             themed.capabilities.push(capability.into());
             let package = fixture_with_manifest(&root, "missing", &themed);
@@ -1453,7 +1453,7 @@ mod tests {
                 "{error}"
             );
         }
-        let root = scratch("undeclared");
+        let root = ScratchDir::tagged("undeclared");
         for tier in ["", "basic", "advanced", "expert"] {
             let package = content_package(&root, "undeclared", tier, &["tokens"], &["css"]);
             let error = stage_for_preview(&root, &package, &[]).unwrap_err();
@@ -1463,7 +1463,7 @@ mod tests {
 
     #[test]
     fn previews_require_shipped_files_and_bounded_captions_and_count() {
-        let root = scratch("previews");
+        let root = ScratchDir::tagged("previews");
         let preview = crate::theme::ThemePreview {
             file: "previews/screen.png".into(),
             caption: "Browser".into(),
@@ -1518,7 +1518,7 @@ mod tests {
 
     #[test]
     fn v2_layout_and_settings_packages_do_not_require_tokens() {
-        let root = scratch("layout-only");
+        let root = ScratchDir::tagged("layout-only");
         let themed = ThemeManifest {
             theme_api: "2.x".into(),
             capabilities: vec!["layout".into(), "settings".into()],
@@ -1546,7 +1546,7 @@ mod tests {
     /// left to fail after the theme has been installed.
     #[test]
     fn a_settings_schema_the_loader_would_refuse_is_refused_at_import() {
-        let root = scratch("v3-settings");
+        let root = ScratchDir::tagged("v3-settings");
         let themed = ThemeManifest {
             capabilities: vec!["tokens".into(), "settings".into()],
             ..manifest()
@@ -1568,19 +1568,6 @@ mod tests {
             !root.join(STAGING_DIR).read_dir().unwrap().next().is_some(),
             "a refused package must leave no staging directory"
         );
-    }
-
-    /// A scratch directory unique to one test — never the real themes root.
-    fn scratch(tag: &str) -> PathBuf {
-        static N: AtomicU64 = AtomicU64::new(0);
-        let seq = N.fetch_add(1, Ordering::Relaxed);
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let dir = std::env::temp_dir().join(format!("tetra-theme-archive-{tag}-{nanos}-{seq}"));
-        std::fs::create_dir_all(&dir).expect("could not create scratch dir");
-        dir
     }
 
     /// Passes every gate, so a test only varies the field it's about.
@@ -1959,7 +1946,7 @@ mod tests {
 
     #[test]
     fn a_valid_two_file_package_is_staged_and_reported() {
-        let root = scratch("valid");
+        let root = ScratchDir::tagged("valid");
         let zip_path = fixture(&root, "valid", &[]);
 
         let preview = stage_for_preview(&root, &zip_path, &[]).expect("a valid package must stage");
@@ -1997,7 +1984,7 @@ mod tests {
 
     #[test]
     fn a_staged_package_classifies_by_version_against_installed_themes() {
-        let root = scratch("classify");
+        let root = ScratchDir::tagged("classify");
         let installed = [summary("aurora.test", "1.0.0")];
 
         let same = manifest();
@@ -2045,7 +2032,7 @@ mod tests {
 
     #[test]
     fn a_zip_slip_path_is_refused_and_leaves_nothing_behind() {
-        let root = scratch("slip");
+        let root = ScratchDir::tagged("slip");
         let zip_path = fixture(&root, "slip", &[Entry::file("../../escaped.json", "{}")]);
 
         let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
@@ -2066,7 +2053,7 @@ mod tests {
             "previews/a.svg",
             "meta/extra.json",
         ] {
-            let root = scratch("allowlist");
+            let root = ScratchDir::tagged("allowlist");
             let package = fixture(&root, "invalid", &[Entry::file(path, "{}")]);
             let error = stage_for_preview(&root, &package, &[]).unwrap_err();
             assert!(
@@ -2079,7 +2066,7 @@ mod tests {
 
     #[test]
     fn a_symlink_entry_is_refused() {
-        let root = scratch("symlink");
+        let root = ScratchDir::tagged("symlink");
         let zip_path = fixture(
             &root,
             "symlink",
@@ -2095,7 +2082,7 @@ mod tests {
     /// 65th is refused.
     #[test]
     fn the_file_count_ceiling_is_inclusive() {
-        let root = scratch("count");
+        let root = ScratchDir::tagged("count");
         let extras: Vec<Entry> = (0..62)
             .map(|n| Entry::file(format!("images/{n}.svg"), "<svg/>"))
             .collect();
@@ -2116,7 +2103,7 @@ mod tests {
 
     #[test]
     fn the_uncompressed_size_ceiling_counts_decompressed_bytes() {
-        let root = scratch("byte-boundary");
+        let root = ScratchDir::tagged("byte-boundary");
         let manifest_json = serde_json::to_string(&manifest()).unwrap();
         let tokens = tokens_json();
         let remaining = MAX_TOTAL_UNCOMPRESSED_BYTES as usize - manifest_json.len() - tokens.len();
@@ -2166,7 +2153,7 @@ mod tests {
             Entry::file("a/b/c/d/deep.json", "{}"),
             Entry::dir("a/b/c/d/"),
         ] {
-            let root = scratch("depth");
+            let root = ScratchDir::tagged("depth");
             let zip_path = fixture(&root, "depth", &[entry]);
 
             let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
@@ -2178,7 +2165,7 @@ mod tests {
         }
 
         // Zip tools write a folder entry before its files; the allowlisted ones must stage.
-        let root = scratch("folders");
+        let root = ScratchDir::tagged("folders");
         let zip_path = fixture(
             &root,
             "folders",
@@ -2199,7 +2186,7 @@ mod tests {
 
     #[test]
     fn an_extension_outside_the_allow_list_is_refused() {
-        let root = scratch("extension");
+        let root = ScratchDir::tagged("extension");
         let zip_path = fixture(&root, "extension", &[Entry::file("payload.sh", "echo hi")]);
 
         let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
@@ -2217,7 +2204,7 @@ mod tests {
 
     #[test]
     fn every_format_the_allow_list_accepts_is_staged_when_it_is_real() {
-        let root = scratch("assets-ok");
+        let root = ScratchDir::tagged("assets-ok");
         let zip_path = fixture(
             &root,
             "assets-ok",
@@ -2270,7 +2257,7 @@ mod tests {
             ("jpg", "this is definitely not a jpeg"),
             ("jpeg", "this is definitely not a jpeg"),
         ] {
-            let root = scratch("fake-image");
+            let root = ScratchDir::tagged("fake-image");
             let name = format!("images/logo.{extension}");
             let zip_path = fixture(&root, "fake-image", &[Entry::file(&name, body)]);
 
@@ -2289,7 +2276,7 @@ mod tests {
     /// this only fails if the decoder is pinned to the extension.
     #[test]
     fn an_image_declared_as_the_wrong_format_is_refused() {
-        let root = scratch("mismatched-image");
+        let root = ScratchDir::tagged("mismatched-image");
         let zip_path = fixture(
             &root,
             "mismatched-image",
@@ -2367,7 +2354,7 @@ mod tests {
             ),
             ("webp", oversized_webp),
         ] {
-            let root = scratch("oversize-each");
+            let root = ScratchDir::tagged("oversize-each");
             let name = format!("images/big.{extension}");
             let zip_path = fixture(&root, "oversize-each", &[Entry::bytes(&name, body)]);
 
@@ -2382,7 +2369,7 @@ mod tests {
 
     #[test]
     fn a_corrupt_image_body_at_an_allowed_size_is_refused() {
-        let root = scratch("corrupt-image");
+        let root = ScratchDir::tagged("corrupt-image");
         let good = encode_image(image::ImageFormat::Png, 32, 32);
         // Header intact so the size check passes; the body is gone.
         let zip_path = fixture(
@@ -2399,7 +2386,7 @@ mod tests {
     #[test]
     fn a_renamed_extension_on_non_font_bytes_is_refused() {
         for extension in ["ttf", "otf", "woff", "woff2"] {
-            let root = scratch("fake-font");
+            let root = ScratchDir::tagged("fake-font");
             let name = format!("fonts/icon.{extension}");
             let zip_path = fixture(&root, "fake-font", &[Entry::file(&name, "not a font")]);
 
@@ -2421,7 +2408,7 @@ mod tests {
             ("ttf", build_woff(&minimal_font_tables())),
             ("otf", build_woff2(&minimal_font_tables())),
         ] {
-            let root = scratch("wrong-font-container");
+            let root = ScratchDir::tagged("wrong-font-container");
             let name = format!("fonts/icon.{extension}");
             let zip_path = fixture(&root, "wrong-font-container", &[Entry::bytes(&name, body)]);
 
@@ -2437,7 +2424,7 @@ mod tests {
     #[test]
     fn an_otf_may_hold_either_outline_flavour() {
         for flavor in [0x0001_0000u32, u32::from_be_bytes(*b"OTTO")] {
-            let root = scratch("otf-flavor");
+            let root = ScratchDir::tagged("otf-flavor");
             let zip_path = fixture(
                 &root,
                 "otf-flavor",
@@ -2458,7 +2445,7 @@ mod tests {
     /// the tables the reader picks up must be the ones the container names.
     #[test]
     fn a_font_whose_tables_do_not_parse_is_refused() {
-        let root = scratch("bad-font-tables");
+        let root = ScratchDir::tagged("bad-font-tables");
         let mut tables = minimal_font_tables();
         // A `head` table too short for any parser to accept.
         tables[0].1.truncate(20);
@@ -2481,7 +2468,7 @@ mod tests {
 
     #[test]
     fn an_svg_containing_a_script_element_is_refused() {
-        let root = scratch("svg-script");
+        let root = ScratchDir::tagged("svg-script");
         let zip_path = fixture(
             &root,
             "svg-script",
@@ -2500,7 +2487,7 @@ mod tests {
     #[test]
     fn an_svg_with_an_event_handler_attribute_is_refused() {
         for attribute in ["onload=\"alert(1)\"", "ONCLICK=\"alert(1)\""] {
-            let root = scratch("svg-handler");
+            let root = ScratchDir::tagged("svg-handler");
             let body = format!(
                 r#"<svg xmlns="http://www.w3.org/2000/svg" {attribute}><rect width="4" height="4"/></svg>"#
             );
@@ -2577,7 +2564,7 @@ mod tests {
                 "may only link inside itself",
             ),
         ] {
-            let root = scratch("svg-link");
+            let root = ScratchDir::tagged("svg-link");
             let zip_path = fixture(&root, "svg-link", &[Entry::file("images/evil.svg", body)]);
 
             let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
@@ -2590,7 +2577,7 @@ mod tests {
     /// in-package and must keep staging.
     #[test]
     fn an_svg_with_self_links_and_embedded_image_data_is_staged() {
-        let root = scratch("svg-self-links");
+        let root = ScratchDir::tagged("svg-self-links");
         let zip_path = fixture(
             &root,
             "svg-self-links",
@@ -2607,7 +2594,7 @@ mod tests {
     /// what a documented example would look like, and must not be refused.
     #[test]
     fn an_svg_that_only_mentions_script_in_text_is_accepted() {
-        let root = scratch("svg-mentions-script");
+        let root = ScratchDir::tagged("svg-mentions-script");
         let zip_path = fixture(
             &root,
             "svg-mentions-script",
@@ -2625,7 +2612,7 @@ mod tests {
 
     #[test]
     fn a_malformed_svg_is_refused() {
-        let root = scratch("svg-malformed");
+        let root = ScratchDir::tagged("svg-malformed");
         let zip_path = fixture(
             &root,
             "svg-malformed",
@@ -2643,7 +2630,7 @@ mod tests {
     /// A non-SVG XML document is not a theme image, whatever it is named.
     #[test]
     fn xml_that_is_not_svg_is_refused() {
-        let root = scratch("not-svg");
+        let root = ScratchDir::tagged("not-svg");
         let zip_path = fixture(
             &root,
             "not-svg",
@@ -2661,7 +2648,7 @@ mod tests {
     /// A stylesheet with nothing `theme::css::validate_css` bans stages fine.
     #[test]
     fn a_clean_stylesheet_is_staged() {
-        let root = scratch("css-clean");
+        let root = ScratchDir::tagged("css-clean");
         let zip_path = fixture(
             &root,
             "css-clean",
@@ -2678,7 +2665,7 @@ mod tests {
     /// through what `validate_css` would otherwise refuse.
     #[test]
     fn a_stylesheet_validate_css_would_refuse_is_refused_here_too() {
-        let root = scratch("css-banned");
+        let root = ScratchDir::tagged("css-banned");
         let zip_path = fixture(
             &root,
             "css-banned",
@@ -2694,7 +2681,7 @@ mod tests {
     /// leaves nothing at all behind — not even the entries that came first.
     #[test]
     fn an_asset_refused_mid_package_leaves_no_staging_directory() {
-        let root = scratch("asset-atomic");
+        let root = ScratchDir::tagged("asset-atomic");
         let zip_path = fixture(
             &root,
             "asset-atomic",
@@ -2735,7 +2722,7 @@ mod tests {
 
     #[test]
     fn an_extension_in_a_different_case_is_still_the_format_it_names() {
-        let root = scratch("uppercase");
+        let root = ScratchDir::tagged("uppercase");
         let logo = encode_image(image::ImageFormat::Png, 8, 8);
         let zip_path = fixture(
             &root,
@@ -2753,7 +2740,7 @@ mod tests {
     /// file on a case-insensitive filesystem, so the package is refused everywhere.
     #[test]
     fn entries_that_collide_ignoring_case_are_refused() {
-        let root = scratch("collide");
+        let root = ScratchDir::tagged("collide");
         let logo = encode_image(image::ImageFormat::Png, 8, 8);
         let zip_path = fixture(
             &root,
@@ -2775,7 +2762,7 @@ mod tests {
 
     #[test]
     fn a_plain_text_asset_is_staged_without_further_checks() {
-        let root = scratch("text");
+        let root = ScratchDir::tagged("text");
         let zip_path = fixture(&root, "text", &[Entry::file("README.md", "# Aurora\n")]);
 
         let preview = stage_for_preview(&root, &zip_path, &[]).expect("notes must stage");
@@ -2792,7 +2779,7 @@ mod tests {
     /// needs imports, and each kind of content survives staging.
     #[test]
     fn an_advanced_theme_declaring_its_capabilities_is_accepted() {
-        let root = scratch("tier-advanced");
+        let root = ScratchDir::tagged("tier-advanced");
         let zip_path = content_package(
             &root,
             "tier-advanced",
@@ -2827,7 +2814,7 @@ mod tests {
             ("fonts", "fonts"),
             ("images", "images"),
         ] {
-            let root = scratch(&format!("tier-missing-{kind}"));
+            let root = ScratchDir::tagged(&format!("tier-missing-{kind}"));
             let zip_path = content_package(
                 &root,
                 &format!("tier-missing-{kind}"),
@@ -2851,7 +2838,7 @@ mod tests {
 
     #[test]
     fn an_unknown_theme_api_is_refused() {
-        let root = scratch("api");
+        let root = ScratchDir::tagged("api");
         let mut future = manifest();
         future.theme_api = "3.0".to_string();
         let zip_path = fixture_with_manifest(&root, "api", &future);
@@ -2863,7 +2850,7 @@ mod tests {
 
     #[test]
     fn a_minimum_launcher_version_ahead_of_this_build_is_refused() {
-        let root = scratch("minver");
+        let root = ScratchDir::tagged("minver");
         let running = semver::Version::parse(env!("CARGO_PKG_VERSION")).unwrap();
         let mut future = manifest();
         future.minimum_launcher_version = format!("{}.0.0", running.major + 1);
@@ -2876,7 +2863,7 @@ mod tests {
 
     #[test]
     fn a_package_with_no_manifest_is_refused() {
-        let root = scratch("nomanifest");
+        let root = ScratchDir::tagged("nomanifest");
         let zip_path = root.join("nomanifest.zip");
         build_zip(&zip_path, &[Entry::file(TOKENS_FILE, tokens_json())]);
 
@@ -2887,7 +2874,7 @@ mod tests {
 
     #[test]
     fn a_package_with_no_palette_is_refused() {
-        let root = scratch("nopalette");
+        let root = ScratchDir::tagged("nopalette");
         let zip_path = root.join("nopalette.zip");
         build_zip(
             &zip_path,
@@ -2904,7 +2891,7 @@ mod tests {
 
     #[test]
     fn a_palette_that_is_not_a_token_object_is_refused() {
-        let root = scratch("badtokens");
+        let root = ScratchDir::tagged("badtokens");
         let zip_path = root.join("badtokens.zip");
         build_zip(
             &zip_path,
@@ -2923,7 +2910,7 @@ mod tests {
 
     #[test]
     fn a_package_with_a_layout_stages_and_keeps_it_in_the_staging_directory() {
-        let root = scratch("layout");
+        let root = ScratchDir::tagged("layout");
         let zip_path = fixture(
             &root,
             "layout",
@@ -2944,7 +2931,7 @@ mod tests {
 
     #[test]
     fn a_manifest_that_is_not_json_is_refused() {
-        let root = scratch("badmanifest");
+        let root = ScratchDir::tagged("badmanifest");
         let zip_path = root.join("badmanifest.zip");
         build_zip(
             &zip_path,
@@ -2964,7 +2951,7 @@ mod tests {
 
     #[test]
     fn a_file_that_is_not_a_zip_is_refused_before_staging() {
-        let root = scratch("notzip");
+        let root = ScratchDir::tagged("notzip");
         let zip_path = root.join("theme.zip");
         std::fs::write(&zip_path, b"definitely not a zip").unwrap();
 
@@ -2982,7 +2969,7 @@ mod tests {
 
     #[test]
     fn staging_does_not_disturb_the_installed_themes_scan() {
-        let root = scratch("scansafe");
+        let root = ScratchDir::tagged("scansafe");
         // `.staging` lives inside the themes root, so `theme::scan` walks into
         // it — a staged-but-unconfirmed theme must not show up as installed.
         crate::theme::save(
@@ -3013,7 +3000,7 @@ mod tests {
 
     #[test]
     fn two_imports_of_the_same_package_do_not_share_a_staging_directory() {
-        let root = scratch("unique");
+        let root = ScratchDir::tagged("unique");
         let zip_path = fixture(&root, "unique", &[]);
 
         let first = stage_for_preview(&root, &zip_path, &[]).unwrap();
@@ -3026,7 +3013,7 @@ mod tests {
 
     #[test]
     fn confirming_a_fresh_import_installs_it_and_clears_the_staging_directory() {
-        let root = scratch("confirm-new");
+        let root = ScratchDir::tagged("confirm-new");
         let zip_path = fixture(&root, "confirm-new", &[]);
         let preview = stage_for_preview(&root, &zip_path, &[]).unwrap();
 
@@ -3043,7 +3030,7 @@ mod tests {
     /// gone is not an error.
     #[test]
     fn discarding_a_stage_removes_it_and_a_missing_one_is_ok() {
-        let root = scratch("discard");
+        let root = ScratchDir::tagged("discard");
         let zip_path = fixture(&root, "discard", &[]);
         let preview = stage_for_preview(&root, &zip_path, &[]).unwrap();
         assert!(staging_dir(&root, &preview).is_dir());
@@ -3060,7 +3047,7 @@ mod tests {
     /// platform.
     #[test]
     fn a_staging_id_windows_would_rewrite_is_refused() {
-        let root = scratch("staging-path");
+        let root = ScratchDir::tagged("staging-path");
         for id in ["...", "   ", "name.", "name ", ". . ."] {
             assert!(staging_path(&root, id).is_err(), "`{id}` must be refused");
         }
@@ -3074,7 +3061,7 @@ mod tests {
     /// flight.
     #[test]
     fn pruning_staging_removes_every_leftover_stage() {
-        let root = scratch("prune");
+        let root = ScratchDir::tagged("prune");
         let staging_root = root.join(STAGING_DIR);
         std::fs::create_dir_all(staging_root.join("stale-one")).unwrap();
         std::fs::create_dir_all(staging_root.join("stale-two")).unwrap();
@@ -3094,7 +3081,7 @@ mod tests {
     /// under `.staging`; with no live theme there, prune puts it back.
     #[test]
     fn pruning_restores_a_replaced_install_with_no_live_theme() {
-        let root = scratch("prune-replaced");
+        let root = ScratchDir::tagged("prune-replaced");
         let aside = root.join(STAGING_DIR).join("aurora.test.replaced-abc");
         std::fs::create_dir_all(&aside).unwrap();
         std::fs::write(aside.join(MANIFEST_FILE), "{}").unwrap();
@@ -3107,7 +3094,7 @@ mod tests {
 
     #[test]
     fn confirming_an_update_replaces_the_installed_theme_and_leaves_no_staging_leftovers() {
-        let root = scratch("confirm-update");
+        let root = ScratchDir::tagged("confirm-update");
         let installed = ThemeManifest {
             version: "1.0.0".to_string(),
             name: "Old Aurora".to_string(),
@@ -3151,7 +3138,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn an_install_that_cannot_move_the_old_theme_aside_leaves_it_installed() {
-        let root = scratch("confirm-swap");
+        let root = ScratchDir::tagged("confirm-swap");
         crate::theme::save(
             &root,
             &ThemeManifest {
@@ -3188,7 +3175,7 @@ mod tests {
 
     #[test]
     fn confirming_an_unknown_staging_id_errors_and_touches_nothing() {
-        let root = scratch("confirm-unknown");
+        let root = ScratchDir::tagged("confirm-unknown");
         crate::theme::save(
             &root,
             &ThemeManifest {
@@ -3216,7 +3203,7 @@ mod tests {
 
     #[test]
     fn an_exported_theme_round_trips_through_the_import_pipeline() {
-        let root = scratch("export-roundtrip");
+        let root = ScratchDir::tagged("export-roundtrip");
         install(&root, &manifest(), &tokens_json());
         let dest = root.join("aurora.zip");
 
@@ -3244,7 +3231,7 @@ mod tests {
 
     #[test]
     fn an_export_is_byte_identical_with_a_fixed_order_and_timestamp() {
-        let root = scratch("export-deterministic");
+        let root = ScratchDir::tagged("export-deterministic");
         install(&root, &manifest(), &tokens_json());
         let first = root.join("first.zip");
         let second = root.join("second.zip");
@@ -3285,8 +3272,8 @@ mod tests {
     /// reimport on a clean profile with every byte intact.
     #[test]
     fn an_advanced_theme_round_trips_through_export_and_reimport() {
-        let root = scratch("export-advanced");
-        let clean = scratch("export-advanced-clean");
+        let root = ScratchDir::tagged("export-advanced");
+        let clean = ScratchDir::tagged("export-advanced-clean");
         let tokens: serde_json::Value = serde_json::from_str(&tokens_json()).unwrap();
         let layout = serde_json::json!({ "schemaVersion": 1, "slots": { "sidebar": "aside" } });
         let advanced = ThemeManifest {
@@ -3353,7 +3340,7 @@ mod tests {
 
     #[test]
     fn an_export_refuses_files_outside_the_allowlist() {
-        let root = scratch("export-invalid");
+        let root = ScratchDir::tagged("export-invalid");
         install(&root, &manifest(), &tokens_json());
         std::fs::write(root.join("aurora.test/layout.json"), b"{}").unwrap();
         let dest = root.join("invalid.zip");
@@ -3377,7 +3364,7 @@ mod tests {
     /// even though `append_assets`' extension walk would otherwise accept it.
     #[test]
     fn an_export_leaves_the_settings_values_sidecar_behind() {
-        let root = scratch("export-values");
+        let root = ScratchDir::tagged("export-values");
         install(&root, &manifest(), &tokens_json());
         let installed = root.join("aurora.test");
         std::fs::write(
@@ -3407,7 +3394,7 @@ mod tests {
     /// can never produce a package this build would then refuse.
     #[test]
     fn an_export_over_the_file_count_ceiling_is_refused() {
-        let root = scratch("export-too-many");
+        let root = ScratchDir::tagged("export-too-many");
         let mut themed = manifest();
         themed.capabilities.push("images".to_string());
         install(&root, &themed, &tokens_json());
@@ -3435,7 +3422,7 @@ mod tests {
     /// so export runs it through the same sanitiser rather than shipping it.
     #[test]
     fn an_export_refuses_a_stylesheet_validate_css_would_reject() {
-        let root = scratch("export-bad-css");
+        let root = ScratchDir::tagged("export-bad-css");
         let mut themed = manifest();
         themed.capabilities.push("css".to_string());
         install(&root, &themed, &tokens_json());
@@ -3458,7 +3445,7 @@ mod tests {
 
     #[test]
     fn overrides_replace_named_fields_and_leave_the_rest_installed() {
-        let root = scratch("export-overrides");
+        let root = ScratchDir::tagged("export-overrides");
         install(&root, &manifest(), &tokens_json());
         let dest = root.join("overridden.zip");
 
@@ -3487,7 +3474,7 @@ mod tests {
     /// the package names it.
     #[test]
     fn an_export_is_refused_when_the_package_names_this_machines_data_folder() {
-        let root = scratch("export-leak");
+        let root = ScratchDir::tagged("export-leak");
         let dest = root.join("leaky.zip");
         install(&root, &manifest(), &tokens_json());
         let palette = root.join("aurora.test").join(TOKENS_FILE);
@@ -3526,7 +3513,7 @@ mod tests {
 
     #[test]
     fn an_export_of_a_missing_theme_is_refused() {
-        let root = scratch("export-missing");
+        let root = ScratchDir::tagged("export-missing");
         let dest = root.join("nothing.zip");
 
         let error = export(
@@ -3546,7 +3533,7 @@ mod tests {
     /// staged byte-for-byte — sniffing inspects the bytes, never rewrites them.
     #[test]
     fn a_multi_asset_theme_package_stages_every_asset_verbatim() {
-        let root = scratch("e2e-assets");
+        let root = ScratchDir::tagged("e2e-assets");
         let logo = encode_image(image::ImageFormat::Png, 12, 9);
         let hero = encode_image(image::ImageFormat::Jpeg, 12, 9);
         let backdrop = encode_image(image::ImageFormat::WebP, 12, 9);

@@ -4,21 +4,17 @@
 //! `mod_count`, everything else at `Default`) used to silently blank real
 //! rows via the unconditional `ON CONFLICT` clause — see .ai-notes.
 
+mod common;
+
+use common::key;
 use std::net::Ipv4Addr;
 use tetra_core::a2s::dayz::ServerMod;
 use tetra_registry::{Registry, ServerFilter, ServerKey, ServerRow, SortDir, SortKey};
 
-fn key() -> ServerKey {
-    ServerKey {
-        ip: Ipv4Addr::new(203, 0, 113, 10),
-        query_port: 27016,
-    }
-}
-
 /// A fully-populated row as a successful A2S_INFO probe would produce.
 fn live_row() -> ServerRow {
     ServerRow {
-        key: key(),
+        key: key(10),
         game_port: 2302,
         name: "Survivor Haven".into(),
         map: "chernarusplus".into(),
@@ -65,7 +61,7 @@ async fn a_non_responding_row_does_not_blank_a_live_one() {
     // The shape that caused the corruption: everything Default except the key.
     writer
         .upsert_servers(vec![ServerRow {
-            key: key(),
+            key: key(10),
             responded: false,
             ..Default::default()
         }])
@@ -119,7 +115,7 @@ async fn mod_probe_sets_mod_count_without_touching_live_fields() {
     writer.upsert_servers(vec![live_row()]).await.expect("live");
     writer
         .upsert_server_mods(
-            key(),
+            key(10),
             vec![
                 ServerMod {
                     workshop_id: 1559212036,
@@ -151,7 +147,7 @@ async fn an_empty_mod_list_records_zero_rather_than_leaving_null() {
     assert_eq!(fetch(&registry).await.mod_count, None, "unprobed is NULL");
 
     writer
-        .upsert_server_mods(key(), vec![])
+        .upsert_server_mods(key(10), vec![])
         .await
         .expect("empty mods");
 
@@ -166,7 +162,7 @@ async fn an_info_refresh_does_not_clear_an_existing_mod_count() {
     writer.upsert_servers(vec![live_row()]).await.expect("live");
     writer
         .upsert_server_mods(
-            key(),
+            key(10),
             vec![ServerMod {
                 workshop_id: 1559212036,
                 name: "CF".into(),
@@ -192,7 +188,10 @@ async fn favourite_persists_and_survives_a_refresh() {
     writer.upsert_servers(vec![live_row()]).await.expect("live");
     assert!(!fetch(&registry).await.favourite);
 
-    writer.set_favourite(key(), true).await.expect("favourite");
+    writer
+        .set_favourite(key(10), true)
+        .await
+        .expect("favourite");
     assert!(fetch(&registry).await.favourite);
 
     writer
@@ -205,7 +204,7 @@ async fn favourite_persists_and_survives_a_refresh() {
     );
 
     writer
-        .set_favourite(key(), false)
+        .set_favourite(key(10), false)
         .await
         .expect("unfavourite");
     assert!(!fetch(&registry).await.favourite);
@@ -400,7 +399,10 @@ async fn list_filters_select_the_right_rows() {
         ])
         .await
         .expect("rows");
-    writer.set_favourite(key(), true).await.expect("favourite");
+    writer
+        .set_favourite(key(10), true)
+        .await
+        .expect("favourite");
     writer.mark_played(other).await.expect("played");
 
     let reader = registry.reader().expect("reader");
@@ -442,7 +444,7 @@ async fn get_returns_the_same_row_list_would() {
     writer.upsert_servers(vec![live_row()]).await.expect("live");
 
     let reader = registry.reader().expect("reader");
-    let row = reader.get(key()).expect("get").expect("row present");
+    let row = reader.get(key(10)).expect("get").expect("row present");
     assert_eq!(row.name, "Survivor Haven");
     assert_eq!(row.players, 42);
     assert_eq!(row.max_players, 60);
@@ -463,12 +465,15 @@ async fn favouriting_or_marking_played_an_unknown_key_reports_zero_affected_rows
     let writer = registry.writer();
 
     assert_eq!(
-        writer.set_favourite(key(), true).await.expect("favourite"),
+        writer
+            .set_favourite(key(10), true)
+            .await
+            .expect("favourite"),
         0,
         "no row exists to favourite yet"
     );
     assert_eq!(
-        writer.mark_played(key()).await.expect("mark played"),
+        writer.mark_played(key(10)).await.expect("mark played"),
         0,
         "no row exists to mark as played yet"
     );
@@ -478,10 +483,13 @@ async fn favouriting_or_marking_played_an_unknown_key_reports_zero_affected_rows
     // reason the count could read zero.
     writer.upsert_servers(vec![live_row()]).await.expect("live");
     assert_eq!(
-        writer.set_favourite(key(), true).await.expect("favourite"),
+        writer
+            .set_favourite(key(10), true)
+            .await
+            .expect("favourite"),
         1
     );
-    assert_eq!(writer.mark_played(key()).await.expect("mark played"), 1);
+    assert_eq!(writer.mark_played(key(10)).await.expect("mark played"), 1);
 }
 
 #[tokio::test]
@@ -501,7 +509,7 @@ async fn an_unchanged_mod_list_keeps_resolved_names_and_still_learns_new_ones() 
         registry
             .reader()
             .expect("reader")
-            .mods_for(key())
+            .mods_for(key(10))
             .expect("mods")
             .into_iter()
             .map(|m| m.name)
@@ -509,11 +517,11 @@ async fn an_unchanged_mod_list_keeps_resolved_names_and_still_learns_new_ones() 
     };
 
     writer
-        .upsert_server_mods(key(), mods(&[(1, "Expansion")]))
+        .upsert_server_mods(key(10), mods(&[(1, "Expansion")]))
         .await
         .expect("named");
     writer
-        .upsert_server_mods(key(), mods(&[(1, "")]))
+        .upsert_server_mods(key(10), mods(&[(1, "")]))
         .await
         .expect("blank pull");
     assert_eq!(
@@ -523,11 +531,11 @@ async fn an_unchanged_mod_list_keeps_resolved_names_and_still_learns_new_ones() 
     );
 
     writer
-        .upsert_server_mods(key(), mods(&[(1, ""), (2, "")]))
+        .upsert_server_mods(key(10), mods(&[(1, ""), (2, "")]))
         .await
         .expect("new list, unnamed");
     writer
-        .upsert_server_mods(key(), mods(&[(1, "Expansion"), (2, "Core")]))
+        .upsert_server_mods(key(10), mods(&[(1, "Expansion"), (2, "Core")]))
         .await
         .expect("learned");
     assert_eq!(

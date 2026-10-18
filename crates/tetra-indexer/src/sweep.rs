@@ -7,7 +7,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tetra_core::a2s::dayz::ServerMod;
-use tetra_net::Prober;
+use tetra_net::{offline_marks_suppressed, Prober};
 use tetra_registry::{Registry, RegistryError, ServerKey, ServerRow, Writer};
 use tokio::task::JoinSet;
 
@@ -51,14 +51,6 @@ const RULES_DEADLINE: Duration = Duration::from_secs(8);
 /// Wait before asking a server that did not answer A2S_RULES again, instead of
 /// the full TTL.
 const RULES_RETRY_SECS: i64 = 30 * 60;
-
-/// Below this batch size a miss is written as offline unconditionally — too
-/// few data points to tell "down" from "our uplink hiccuped" by ratio.
-const MIN_BATCH_FOR_OFFLINE_CORROBORATION: usize = 8;
-
-/// Share of a batch that must fail before a miss is read as our own network
-/// rather than the server being down.
-const OFFLINE_CORROBORATION_THRESHOLD: f64 = 0.4;
 
 /// Steam listings older than this are not worth an A2S_INFO probe.
 const INFO_SEEN_WITHIN_SECS: i64 = 86_400;
@@ -188,14 +180,7 @@ pub async fn info(
         let _ = writer.set_online(chunk.to_vec(), true).await;
     }
 
-    let total = stats.answered + stats.failed;
-    let failure_rate = if total > 0 {
-        stats.failed as f64 / total as f64
-    } else {
-        0.0
-    };
-    stats.offline_marks_suppressed = total >= MIN_BATCH_FOR_OFFLINE_CORROBORATION
-        && failure_rate > OFFLINE_CORROBORATION_THRESHOLD;
+    stats.offline_marks_suppressed = offline_marks_suppressed(stats.answered, stats.failed);
     if !stats.offline_marks_suppressed {
         for chunk in offline.chunks(KEY_BATCH) {
             let _ = writer.set_online(chunk.to_vec(), false).await;

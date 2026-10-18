@@ -1,19 +1,14 @@
 //! The rules sweep's queue: a server that never answers A2S_RULES must not
 //! keep the front of the backlog on every pass.
 
-use std::net::Ipv4Addr;
-use std::time::{SystemTime, UNIX_EPOCH};
+mod common;
+
+use common::key;
+use tetra_core::unix_now;
 use tetra_registry::{Registry, ServerKey, ServerRow};
 
 const TTL: i64 = 21_600;
 const RETRY: i64 = 1_800;
-
-fn key(last_octet: u8) -> ServerKey {
-    ServerKey {
-        ip: Ipv4Addr::new(203, 0, 113, last_octet),
-        query_port: 27016,
-    }
-}
 
 fn answered_row(key: ServerKey, players: i32) -> ServerRow {
     ServerRow {
@@ -24,13 +19,6 @@ fn answered_row(key: ServerKey, players: i32) -> ServerRow {
         responded: true,
         ..ServerRow::default()
     }
-}
-
-fn now() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("clock")
-        .as_secs() as i64
 }
 
 fn queued(rows: Vec<(ServerKey, u16)>) -> Vec<ServerKey> {
@@ -63,7 +51,7 @@ async fn an_unanswered_server_steps_back_so_the_rest_of_the_backlog_is_reached()
     assert_eq!(first, vec![key(10), key(11)]);
 
     writer
-        .mark_rules_unanswered(first, now() - TTL + RETRY)
+        .mark_rules_unanswered(first, unix_now() - TTL + RETRY)
         .await
         .expect("mark");
 
@@ -75,7 +63,7 @@ async fn an_unanswered_server_steps_back_so_the_rest_of_the_backlog_is_reached()
     );
 
     writer
-        .mark_rules_unanswered(vec![key(14)], now() - TTL + RETRY)
+        .mark_rules_unanswered(vec![key(14)], unix_now() - TTL + RETRY)
         .await
         .expect("mark");
     assert!(

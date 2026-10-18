@@ -1,19 +1,14 @@
 //! The info sweep's probe order: least recently probed first, among servers
 //! Steam listed within the window.
 
+mod common;
+
+use common::key;
 use rusqlite::{params, Connection};
-use std::net::Ipv4Addr;
 use std::path::Path;
 use tetra_registry::{Registry, ServerKey, ServerRow};
 
 const DAY: i64 = 86_400;
-
-fn key(last_octet: u8) -> ServerKey {
-    ServerKey {
-        ip: Ipv4Addr::new(203, 0, 113, last_octet),
-        query_port: 27016,
-    }
-}
 
 /// Sets how long ago a row was last listed and last probed, in seconds.
 /// A `None` probe age leaves the row never probed.

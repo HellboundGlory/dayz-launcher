@@ -1007,10 +1007,7 @@ mod tests {
             .await
             .expect("upsert target mods");
 
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let now = crate::unix_now() as u64;
 
         writer
             .upsert_workshop_cache(vec![

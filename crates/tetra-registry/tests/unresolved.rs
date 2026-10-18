@@ -5,18 +5,13 @@
 //! button only re-probes rows the frontend loaded, which excludes hidden ones —
 //! so discovery asks them itself, oldest attempt first.
 
-use std::net::Ipv4Addr;
+mod common;
+
+use common::key;
 use tetra_registry::{Registry, ServerKey, ServerRow};
 
 /// Long enough that nothing in these tests ages past it on its own.
 const RETRY_AFTER: i64 = 3600;
-
-fn key(last_octet: u8, port: u16) -> ServerKey {
-    ServerKey {
-        ip: Ipv4Addr::new(203, 0, 113, last_octet),
-        query_port: port,
-    }
-}
 
 /// A row as Steam's `failed` callback produces it: an address and nothing else.
 fn unreachable_row(key: ServerKey) -> ServerRow {
@@ -59,16 +54,13 @@ async fn only_rows_that_never_answered_are_queued() {
     let writer = registry.writer();
 
     writer
-        .upsert_servers(vec![
-            unreachable_row(key(10, 27016)),
-            answered_row(key(11, 27016)),
-        ])
+        .upsert_servers(vec![unreachable_row(key(10)), answered_row(key(11))])
         .await
         .expect("write");
 
     let reader = registry.reader().expect("reader");
     let queued = reader.unresolved(10, RETRY_AFTER).expect("unresolved");
-    assert_eq!(queued, vec![key(10, 27016)]);
+    assert_eq!(queued, vec![key(10)]);
 }
 
 #[tokio::test]
@@ -77,12 +69,12 @@ async fn a_row_that_answers_leaves_the_queue() {
     let writer = registry.writer();
 
     writer
-        .upsert_servers(vec![unreachable_row(key(10, 27016))])
+        .upsert_servers(vec![unreachable_row(key(10))])
         .await
         .expect("write");
     // What the sweep's own A2S_INFO probe writes back on a hit.
     writer
-        .upsert_servers(vec![answered_row(key(10, 27016))])
+        .upsert_servers(vec![answered_row(key(10))])
         .await
         .expect("probe result");
 
@@ -100,8 +92,8 @@ async fn a_dead_address_rotates_to_the_back_once_asked() {
     let registry = Registry::open_in_memory().expect("registry");
     let writer = registry.writer();
 
-    let dead = key(10, 27016);
-    let fresh = key(11, 27016);
+    let dead = key(10);
+    let fresh = key(11);
     writer
         .upsert_servers(vec![unreachable_row(dead), unreachable_row(fresh)])
         .await
@@ -134,11 +126,11 @@ async fn a_recently_asked_row_is_not_asked_again() {
     let writer = registry.writer();
 
     writer
-        .upsert_servers(vec![unreachable_row(key(10, 27016))])
+        .upsert_servers(vec![unreachable_row(key(10))])
         .await
         .expect("write");
     writer
-        .mark_probe_attempt(vec![key(10, 27016)])
+        .mark_probe_attempt(vec![key(10)])
         .await
         .expect("mark attempt");
 
@@ -152,7 +144,7 @@ async fn a_recently_asked_row_is_not_asked_again() {
     );
     assert_eq!(
         reader.unresolved(10, 0).expect("unresolved"),
-        vec![key(10, 27016)],
+        vec![key(10)],
         "with no throttle it is due immediately"
     );
 }
@@ -163,7 +155,12 @@ async fn the_window_bounds_how_many_are_handed_out() {
     let writer = registry.writer();
 
     let rows: Vec<ServerRow> = (0..5)
-        .map(|i| unreachable_row(key(10, 27016 + i)))
+        .map(|i| {
+            unreachable_row(ServerKey {
+                query_port: 27016 + i,
+                ..key(10)
+            })
+        })
         .collect();
     writer.upsert_servers(rows).await.expect("write");
 

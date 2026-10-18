@@ -70,17 +70,12 @@ fn read_object(path: &Path) -> Result<Map<String, Value>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::atomic_write::test_support::ScratchDir;
     use serde_json::json;
 
     /// A scratch themes root holding one installed theme directory.
-    fn installed(tag: &str) -> PathBuf {
-        static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-        let seq = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let root = std::env::temp_dir().join(format!("tetra-theme-values-{tag}-{nanos}-{seq}"));
+    fn installed(tag: &str) -> ScratchDir {
+        let root = ScratchDir::tagged(tag);
         std::fs::create_dir_all(root.join("dev.values")).expect("could not create scratch dir");
         root
     }
@@ -90,7 +85,6 @@ mod tests {
         let root = installed("absent");
         assert_eq!(get_values(&root, "dev.values").unwrap(), json!({}));
         assert!(!root.join("dev.values").join(SETTINGS_VALUES_FILE).exists());
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// Each set keeps the fields already on disk, and every value reads back as
@@ -106,7 +100,6 @@ mod tests {
             get_values(&root, "dev.values").unwrap(),
             json!({ "accentHue": 210, "compactRows": true, "rowGap": 0.5 })
         );
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -119,7 +112,6 @@ mod tests {
             get_values(&root, "dev.values").unwrap(),
             json!({ "accentHue": 40 })
         );
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// The id becomes a path component, so a traversing one must never reach disk.
@@ -128,7 +120,6 @@ mod tests {
         let root = installed("bad-id");
         assert!(get_values(&root, "../../evil").is_err());
         assert!(set_value(&root, "..", "accentHue", &json!(1)).is_err());
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -136,7 +127,6 @@ mod tests {
         let root = installed("missing-theme");
         assert!(get_values(&root, "dev.other").is_err());
         assert!(set_value(&root, "dev.other", "accentHue", &json!(1)).is_err());
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -148,6 +138,5 @@ mod tests {
         )
         .unwrap();
         assert!(get_values(&root, "dev.values").is_err());
-        let _ = std::fs::remove_dir_all(&root);
     }
 }

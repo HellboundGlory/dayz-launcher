@@ -10,6 +10,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
+use tetra_core::unix_now;
 
 /// Freshness-check timeout, queue time included — above the actor's 20s query deadline.
 const REFRESH_STALE_BUDGET: std::time::Duration = std::time::Duration::from_secs(25);
@@ -301,10 +302,7 @@ impl SteamHandle {
         }
 
         const TTL_SECS: u64 = 86_400;
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs() as i64)
-            .unwrap_or(0);
+        let now = unix_now();
 
         let valid_ids: Vec<u64> = ids
             .iter()
@@ -424,16 +422,8 @@ impl SteamHandle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::{SystemTime, UNIX_EPOCH};
     use tetra_registry::rows::WorkshopCacheRow;
     use tetra_registry::Registry;
-
-    fn now() -> i64 {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as i64
-    }
 
     #[test]
     fn cache_is_used_inside_24_hours_and_refreshed_after() {
@@ -441,7 +431,7 @@ mod tests {
         let reader = registry.reader().expect("reader");
         let writer = registry.writer();
 
-        let current = now();
+        let current = unix_now();
 
         let fresh_item = WorkshopCacheRow {
             workshop_id: 100,
@@ -522,7 +512,7 @@ mod tests {
         let reader = registry.reader().expect("reader");
         let writer = registry.writer();
 
-        let current = now();
+        let current = unix_now();
         let old_item = WorkshopCacheRow {
             workshop_id: 300,
             title: "Offline Mod".into(),

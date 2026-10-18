@@ -7,6 +7,7 @@ use tetra_core::classify::fake::is_fake_listing;
 use tetra_core::classify::geoip::region_code;
 use tetra_core::classify::keywords::parse_keywords;
 use tetra_core::classify::maps::normalise_map;
+use tetra_core::unix_now;
 use tokio::sync::{mpsc, oneshot};
 
 type Ack<T> = oneshot::Sender<Result<T, RegistryError>>;
@@ -338,8 +339,9 @@ fn upsert_servers(conn: &Connection, rows: &[ServerRow]) -> Result<usize, Regist
             let first_person = kw.as_ref().is_some_and(|k| k.first_person_only);
             let modded = kw.as_ref().is_some_and(|k| k.modded);
             let battleye = kw.as_ref().is_some_and(|k| k.battleye);
-            let responded_at: Option<i64> =
-                row.responded.then(|| row.responded_at.unwrap_or_else(now));
+            let responded_at: Option<i64> = row
+                .responded
+                .then(|| row.responded_at.unwrap_or_else(unix_now));
 
             let cc = row
                 .country_code
@@ -588,13 +590,6 @@ fn mark_rules_unanswered(
     }
     tx.commit()?;
     Ok(())
-}
-
-fn now() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }
 
 const UPSERT_WORKSHOP_CACHE: &str = r#"

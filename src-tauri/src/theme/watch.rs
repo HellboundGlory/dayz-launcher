@@ -267,8 +267,8 @@ fn take(slot: &Mutex<Option<ThemeWatch>>) -> Result<Option<ThemeWatch>, String> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::atomic_write::test_support::ScratchDir;
     use std::path::PathBuf;
-    use std::sync::atomic::{AtomicU64, Ordering};
 
     /// How long a test waits for an event before calling it lost: CI machines
     /// are slow, and a missed deadline here is a false failure, not a missed
@@ -282,20 +282,6 @@ mod tests {
     /// [`DEBOUNCE`], so exceeding this means the event was lost or the watch was
     /// never armed — not that the machine was slow.
     const WITHIN: Duration = Duration::from_millis(20 * DEBOUNCE.as_millis() as u64);
-
-    /// A scratch themes root unique to one test, the way `theme` does it (no
-    /// `tempfile` dependency).
-    fn scratch(tag: &str) -> PathBuf {
-        static N: AtomicU64 = AtomicU64::new(0);
-        let seq = N.fetch_add(1, Ordering::Relaxed);
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let dir = std::env::temp_dir().join(format!("tetra-theme-watch-{tag}-{nanos}-{seq}"));
-        std::fs::create_dir_all(&dir).expect("could not create scratch dir");
-        dir
-    }
 
     /// An installed theme inside `root`.
     fn installed(root: &Path, id: &str) -> PathBuf {
@@ -338,7 +324,7 @@ mod tests {
     /// The ordinary case: a save under the watched directory reaches the caller.
     #[test]
     fn a_write_under_the_watched_directory_fires() {
-        let root = scratch("write");
+        let root = ScratchDir::tagged("write");
         let dir = installed(&root, "dev.one");
         let slot = Mutex::new(None);
         let (started, signals) = watch_via(&slot, &root, "dev.one");
@@ -359,8 +345,9 @@ mod tests {
         let (tx, rx) = std::sync::mpsc::channel();
         let (out_tx, out_rx) = std::sync::mpsc::channel();
         let stopped = Arc::new(AtomicBool::new(false));
+        let root = ScratchDir::tagged("burst");
         let worker = std::thread::spawn(move || {
-            debounce(rx, stopped, scratch("burst"), move |signal| {
+            debounce(rx, stopped, root.to_path_buf(), move |signal| {
                 let _ = out_tx.send(signal);
             })
         });
@@ -384,7 +371,7 @@ mod tests {
     /// A second watch replaces the first: the directory it left behind goes quiet.
     #[test]
     fn a_second_watch_stops_watching_the_first() {
-        let root = scratch("replace");
+        let root = ScratchDir::tagged("replace");
         let first = installed(&root, "dev.first");
         let second = installed(&root, "dev.second");
         let slot = Mutex::new(None);
@@ -408,7 +395,7 @@ mod tests {
     /// that could name a directory outside the themes root — is not an error.
     #[test]
     fn nothing_to_watch_is_not_an_error() {
-        let root = scratch("missing");
+        let root = ScratchDir::tagged("missing");
         let slot = Mutex::new(None);
 
         for id in ["neutral", "dev.deleted", "../escaped"] {
@@ -425,7 +412,7 @@ mod tests {
     /// A stopped watch stays stopped: the directory it was watching is silent.
     #[test]
     fn a_stopped_watch_reports_nothing() {
-        let root = scratch("stopped");
+        let root = ScratchDir::tagged("stopped");
         let dir = installed(&root, "dev.stopped");
         let slot = Mutex::new(None);
         let (started, signals) = watch_via(&slot, &root, "dev.stopped");
@@ -447,7 +434,7 @@ mod tests {
     /// back the thread reports `Returned` and ends.
     #[test]
     fn a_vanished_watched_directory_is_reported_without_an_event() {
-        let root = scratch("vanished");
+        let root = ScratchDir::tagged("vanished");
         let missing = root.join("dev.gone");
         let (tx, rx) = mpsc::channel();
         let (out_tx, out_rx) = mpsc::channel();

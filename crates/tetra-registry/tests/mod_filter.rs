@@ -1,17 +1,12 @@
 //! Filtering the server list by Workshop mod — the "Filter by mod" modal's
 //! backing query — and the "Seen on servers" mod pool it's populated from.
 
-use std::net::Ipv4Addr;
+mod common;
+
+use common::key;
 use tetra_core::a2s::dayz::ServerMod;
 use tetra_registry::filter::ModMatch;
 use tetra_registry::{Registry, ServerFilter, ServerKey, ServerRow, SortDir, SortKey};
-
-fn key(last_octet: u8, query_port: u16) -> ServerKey {
-    ServerKey {
-        ip: Ipv4Addr::new(203, 0, 113, last_octet),
-        query_port,
-    }
-}
 
 fn row(key: ServerKey, name: &str) -> ServerRow {
     ServerRow {
@@ -36,9 +31,9 @@ fn dayz_mod(workshop_id: u64, name: &str) -> ServerMod {
 
 async fn build_three_servers(registry: &Registry) -> [ServerKey; 3] {
     let writer = registry.writer();
-    let cf = key(10, 27016);
-    let trader = key(11, 27016);
-    let vanilla = key(12, 27016);
+    let cf = key(10);
+    let trader = key(11);
+    let vanilla = key(12);
 
     writer
         .upsert_servers(vec![

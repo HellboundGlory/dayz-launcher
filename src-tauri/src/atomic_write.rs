@@ -44,10 +44,19 @@ pub(crate) mod test_support {
 
     impl ScratchDir {
         pub(crate) fn new() -> Self {
-            static N: AtomicU64 = AtomicU64::new(0);
-            let id = N.fetch_add(1, Ordering::Relaxed);
-            let dir = std::env::temp_dir().join(format!("tetra-test-{}-{id}", std::process::id()));
-            std::fs::create_dir_all(&dir).unwrap();
+            Self::tagged("test")
+        }
+
+        /// A fresh directory under the temp root, named after `tag`.
+        pub(crate) fn tagged(tag: &str) -> Self {
+            static SEQ: AtomicU64 = AtomicU64::new(0);
+            let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+            let nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0);
+            let dir = std::env::temp_dir().join(format!("tetra-{tag}-{nanos}-{seq}"));
+            std::fs::create_dir_all(&dir).expect("could not create scratch dir");
             Self(dir)
         }
     }
@@ -56,6 +65,12 @@ pub(crate) mod test_support {
         type Target = Path;
 
         fn deref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl AsRef<Path> for ScratchDir {
+        fn as_ref(&self) -> &Path {
             &self.0
         }
     }

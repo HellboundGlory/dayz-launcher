@@ -613,18 +613,7 @@ pub fn migrate(themes_root: &Path, legacy: &[LegacyTheme]) -> Migration {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// A scratch directory unique to one test, the way `paths.rs` does it (no
-    /// `tempfile` dependency) — never the real data root.
-    fn scratch(tag: &str) -> PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let dir = std::env::temp_dir().join(format!("tetra-theme-{tag}-{nanos}"));
-        std::fs::create_dir_all(&dir).expect("could not create scratch dir");
-        dir
-    }
+    use crate::atomic_write::test_support::ScratchDir;
 
     fn manifest(id: &str) -> ThemeManifest {
         ThemeManifest {
@@ -643,7 +632,7 @@ mod tests {
 
     #[test]
     fn scan_reports_older_formats_as_incompatible_without_hiding_them() {
-        let root = scratch("incompatible");
+        let root = ScratchDir::tagged("incompatible");
         for (id, schema, api) in [
             ("old.schema", 1, "2.0"),
             ("old.api", 2, "1.3"),
@@ -666,7 +655,6 @@ mod tests {
                     .then_some("Incompatible — older theme format")
             );
         }
-        std::fs::remove_dir_all(root).unwrap();
     }
 
     fn tokens() -> Value {
@@ -685,7 +673,7 @@ mod tests {
 
     #[test]
     fn a_saved_theme_reads_back_exactly_as_written() {
-        let root = scratch("roundtrip");
+        let root = ScratchDir::tagged("roundtrip");
         let written_tokens = tokens();
 
         let id = save(&root, &manifest("dev.roundtrip"), &written_tokens).expect("save");
@@ -698,28 +686,26 @@ mod tests {
         assert_eq!(loaded.manifest.capabilities, vec!["tokens".to_string()]);
         assert_eq!(loaded.tokens, written_tokens, "tokens round-trip verbatim");
         assert!(loaded.settings.is_none(), "no settings schema was written");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// Only `theme.json` is required: a package with no palette installs, so it
     /// must load too, with the empty tokens the frontend falls back from.
     #[test]
     fn a_package_without_a_palette_still_loads() {
-        let root = scratch("no-tokens");
+        let root = ScratchDir::tagged("no-tokens");
         save(&root, &manifest("dev.notokens"), &tokens()).expect("save");
         std::fs::remove_file(root.join("dev.notokens").join(TOKENS_FILE)).unwrap();
 
         let loaded = get(&root, "dev.notokens").expect("a theme without tokens.json must load");
 
         assert_eq!(loaded.tokens, serde_json::json!({}));
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// The optional settings schema is resolved for the app when present; its
     /// absence is not an error, and a corrupt one fails the read like a corrupt `tokens.json`.
     #[test]
     fn an_optional_settings_schema_reads_back_when_present() {
-        let root = scratch("schema");
+        let root = ScratchDir::tagged("schema");
         let dir = root.join("dev.schema");
         save(&root, &manifest("dev.schema"), &tokens()).expect("save");
 
@@ -757,7 +743,6 @@ mod tests {
         std::fs::remove_file(dir.join(SETTINGS_SCHEMA_FILE)).unwrap();
         let loaded = get(&root, "dev.schema").expect("get");
         assert!(loaded.settings.is_none());
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// Fail-closed, like a corrupt `tokens.json`: a broken settings schema costs
@@ -765,7 +750,7 @@ mod tests {
     /// gate holds it to the v2 version the deep validator requires.
     #[test]
     fn a_broken_settings_schema_fails_the_read_rather_than_being_ignored() {
-        let root = scratch("badschema");
+        let root = ScratchDir::tagged("badschema");
         let dir = root.join("dev.bad");
         save(&root, &manifest("dev.bad"), &tokens()).expect("save");
 
@@ -781,14 +766,13 @@ mod tests {
         std::fs::remove_file(dir.join(SETTINGS_SCHEMA_FILE)).unwrap();
         // With it gone, the theme reads again — the failure was the file, not the theme.
         assert!(get(&root, "dev.bad").is_ok());
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// A setting condition in `hidden` resolves against the theme's own
     /// settings schema, so a setting the schema declares is not a LAY-03.
     #[test]
     fn a_hidden_setting_condition_the_schema_declares_keeps_its_layout() {
-        let root = scratch("layout-hidden");
+        let root = ScratchDir::tagged("layout-hidden");
         save(&root, &manifest("dev.hidden"), &tokens()).expect("save");
         let dir = root.join("dev.hidden");
         std::fs::write(
@@ -810,7 +794,6 @@ mod tests {
             loaded.fallbacks
         );
         assert!(loaded.fallbacks.is_empty(), "{:?}", loaded.fallbacks);
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// One list of layout files: its popups are the registry's.
@@ -836,7 +819,7 @@ mod tests {
     /// loads, the file is out of `layouts`, and `fallbacks` names why.
     #[test]
     fn a_malformed_layout_file_falls_back_without_failing_the_theme() {
-        let root = scratch("layout-parse");
+        let root = ScratchDir::tagged("layout-parse");
         save(&root, &manifest("dev.layout"), &tokens()).expect("save");
         let dir = root.join("dev.layout");
         write_layout(
@@ -858,13 +841,12 @@ mod tests {
             "{:?}",
             loaded.fallbacks
         );
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// An error issue naming a file removes that file, keeping the issue as its reason.
     #[test]
     fn a_layout_file_that_fails_a_required_element_rule_falls_back() {
-        let root = scratch("layout-req");
+        let root = ScratchDir::tagged("layout-req");
         save(&root, &manifest("dev.req"), &tokens()).expect("save");
         let dir = root.join("dev.req");
         // A servers row with no `server.join` — REQ-05.
@@ -886,7 +868,6 @@ mod tests {
             "{:?}",
             loaded.fallbacks
         );
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// No layout rule emits a warning yet, so this drives the split directly:
@@ -946,7 +927,7 @@ mod tests {
     /// Create-only: an existing id must be refused, not merged into or overwritten.
     #[test]
     fn saving_over_an_installed_id_is_refused() {
-        let root = scratch("exists");
+        let root = ScratchDir::tagged("exists");
         save(&root, &manifest("dev.taken"), &tokens()).expect("first save");
 
         let err = save(&root, &manifest("dev.taken"), &tokens()).expect_err("second save");
@@ -956,14 +937,13 @@ mod tests {
             get(&root, "dev.taken").expect("still there").manifest.name,
             "Test Theme"
         );
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// The id becomes a path component, so it can never climb out of the
     /// themes directory.
     #[test]
     fn an_id_that_is_a_path_is_refused() {
-        let root = scratch("escape");
+        let root = ScratchDir::tagged("escape");
         let escaped = manifest("../../escaped");
 
         let err = save(&root, &escaped, &tokens()).expect_err("must refuse");
@@ -972,14 +952,13 @@ mod tests {
             !root.join("..").join("escaped").exists(),
             "nothing outside the themes root may be created"
         );
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// An id the launcher creates must be a package id: lowercase ASCII in the
     /// documented shape, and never inside the reserved namespace.
     #[test]
     fn saving_a_reserved_or_malformed_id_is_refused() {
-        let root = scratch("new-id");
+        let root = ScratchDir::tagged("new-id");
         for (id, expected) in [
             ("builtin.copy", "reserved prefix 'builtin.'"),
             ("BUILTIN.copy", "reserved prefix 'builtin.'"),
@@ -990,12 +969,11 @@ mod tests {
             assert!(err.contains(expected), "{id}: {err}");
             assert!(!root.join(id).exists(), "{id} must create no directory");
         }
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn deleting_the_active_theme_is_refused() {
-        let root = scratch("active");
+        let root = ScratchDir::tagged("active");
         save(&root, &manifest("dev.active"), &tokens()).expect("save");
 
         let err = delete(&root, "dev.active", Some("dev.active")).expect_err("must refuse");
@@ -1008,12 +986,11 @@ mod tests {
         // ...and goes once the selection has moved away.
         delete(&root, "dev.active", Some("neutral")).expect("delete after switching");
         assert!(get(&root, "dev.active").is_err());
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn deleting_a_builtin_theme_is_refused() {
-        let root = scratch("builtin");
+        let root = ScratchDir::tagged("builtin");
         for id in ["builtin.tactical", "BUILTIN.tactical"] {
             let dir = root.join(id);
             std::fs::create_dir_all(&dir).unwrap();
@@ -1023,12 +1000,11 @@ mod tests {
             assert!(err.contains("can't be deleted"), "{id}: {err}");
             assert!(dir.is_dir(), "{id} must survive the refusal");
         }
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn deleting_an_id_with_no_directory_is_refused() {
-        let root = scratch("absent");
+        let root = ScratchDir::tagged("absent");
 
         // `neutral` is a built-in preset: no directory, nothing to delete.
         let err = delete(&root, "neutral", Some("neutral")).expect_err("must refuse");
@@ -1036,13 +1012,12 @@ mod tests {
         // And an active-id refusal is not what catches it: the directory is missing.
         let err = delete(&root, "neutral", None).expect_err("must refuse");
         assert!(err.contains("No installed theme"), "{err}");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// A corrupt install must cost its own card, not the whole grid.
     #[test]
     fn a_corrupt_manifest_is_skipped_rather_than_fatal() {
-        let root = scratch("corrupt");
+        let root = ScratchDir::tagged("corrupt");
         save(&root, &manifest("dev.good"), &tokens()).expect("save");
         let broken = root.join("dev.broken");
         std::fs::create_dir_all(&broken).unwrap();
@@ -1054,23 +1029,21 @@ mod tests {
         assert_eq!(scan.themes[0].id, "dev.good");
         assert_eq!(scan.skipped.len(), 1, "{:?}", scan.skipped);
         assert!(scan.skipped[0].contains("dev.broken"), "{:?}", scan.skipped);
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn a_missing_themes_directory_scans_as_empty() {
-        let root = scratch("none").join("absent");
+        let root = ScratchDir::tagged("none").join("absent");
 
         let scan = scan(&root);
 
         assert!(scan.themes.is_empty());
         assert!(scan.skipped.is_empty(), "a first run is not a problem");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn legacy_themes_migrate_one_directory_each_with_a_slugified_id() {
-        let root = scratch("migrate");
+        let root = ScratchDir::tagged("migrate");
         let legacy = vec![
             LegacyTheme {
                 name: "My Cool Theme!".to_string(),
@@ -1132,13 +1105,12 @@ mod tests {
             "{:?}",
             scanned.themes
         );
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// A name with no ASCII letters, or one too long for an id, still migrates.
     #[test]
     fn unsluggable_and_overlong_legacy_names_still_migrate() {
-        let root = scratch("migrate-ids");
+        let root = ScratchDir::tagged("migrate-ids");
         let long = "a".repeat(70);
         let palette = || serde_json::json!({ "bg": "#111111" });
         let legacy = vec![
@@ -1183,13 +1155,12 @@ mod tests {
                 "the display name is kept, up to 48 characters"
             );
         }
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// A partial/corrupt `localStorage` entry must not become a broken install.
     #[test]
     fn a_legacy_entry_without_palettes_is_reported_and_skipped() {
-        let root = scratch("migrate-bad");
+        let root = ScratchDir::tagged("migrate-bad");
         let legacy = vec![LegacyTheme {
             name: "Half Saved".to_string(),
             dark: Value::Null,
@@ -1208,7 +1179,6 @@ mod tests {
             migration.skipped
         );
         assert!(!root.join("local.half-saved").exists());
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -1245,7 +1215,7 @@ mod tests {
     /// enters — the read of an installed theme and the write of a new one.
     #[test]
     fn a_v1_tokens_file_is_rejected_on_read_and_on_save() {
-        let root = scratch("v1tokens");
+        let root = ScratchDir::tagged("v1tokens");
         save(&root, &manifest("dev.v2"), &tokens()).expect("save");
         std::fs::write(
             root.join("dev.v2").join(TOKENS_FILE),
@@ -1264,7 +1234,6 @@ mod tests {
         .expect_err("a v1 palette must not save");
         assert!(err.contains("schemaVersion"), "{err}");
         assert!(!root.join("dev.v1").exists());
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// Exactly what `duplicateTheme` puts on the wire: a v2 manifest with no
@@ -1273,7 +1242,7 @@ mod tests {
     /// backend and read as a compatible theme.
     #[test]
     fn a_frontend_duplicate_saves_and_scans_as_compatible() {
-        let root = scratch("frontend-duplicate");
+        let root = ScratchDir::tagged("frontend-duplicate");
         let manifest: ThemeManifest = serde_json::from_value(serde_json::json!({
             "schemaVersion": 2,
             "id": "local.extras-skin",
@@ -1326,14 +1295,13 @@ mod tests {
         assert_eq!(scanned.themes.len(), 1);
         assert!(!scanned.themes[0].incompatible, "{:?}", scanned.themes[0]);
         assert_eq!(scanned.themes[0].incompatible_reason, None);
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// SPEC §4.6's in-place path: a user theme's palette is rewritten, and the
     /// rewrite reads back exactly through the same `get` the runtime uses.
     #[test]
     fn a_user_themes_tokens_update_in_place() {
-        let root = scratch("update-tokens");
+        let root = ScratchDir::tagged("update-tokens");
         save(&root, &manifest("local.mine"), &tokens()).expect("save");
         let updated = serde_json::json!({
             "schemaVersion": 2,
@@ -1353,13 +1321,12 @@ mod tests {
             !root.join("local.mine").join("tokens.json.tmp").exists(),
             "the temp file is renamed away, never left behind"
         );
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// An installed id the new-id rule would refuse still updates in place.
     #[test]
     fn an_installed_non_ascii_id_still_updates_in_place() {
-        let root = scratch("update-non-ascii");
+        let root = ScratchDir::tagged("update-non-ascii");
         let dir = root.join("local.ёлка");
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(
@@ -1380,14 +1347,13 @@ mod tests {
         update_tokens(&root, "local.ёлка", &updated).expect("update");
 
         assert_eq!(get(&root, "local.ёлка").expect("loads").tokens, updated);
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// Only `local.*` ids name a theme the launcher may rewrite: an imported
     /// package, a built-in preset, a missing directory and a path all refuse.
     #[test]
     fn updating_tokens_refuses_anything_but_an_installed_user_theme() {
-        let root = scratch("update-refused");
+        let root = ScratchDir::tagged("update-refused");
         save(&root, &manifest("shared.styled"), &tokens()).expect("save an import");
 
         for id in ["shared.styled", "builtin.tactical"] {
@@ -1401,7 +1367,6 @@ mod tests {
         let err =
             update_tokens(&root, "local.escape/../../evil", &tokens()).expect_err("must refuse");
         assert!(err.contains("not a usable theme id"), "{err}");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// A refused update is a no-op: the old file survives every rejection
@@ -1409,7 +1374,7 @@ mod tests {
     /// older-format install.
     #[test]
     fn a_refused_token_update_leaves_the_old_file_untouched() {
-        let root = scratch("update-untouched");
+        let root = ScratchDir::tagged("update-untouched");
         save(&root, &manifest("local.mine"), &tokens()).expect("save");
         let path = root.join("local.mine").join(TOKENS_FILE);
         let before = std::fs::read_to_string(&path).unwrap();
@@ -1439,7 +1404,6 @@ mod tests {
         let err = update_tokens(&root, "local.old", &tokens()).expect_err("must refuse");
         assert!(err.contains("older theme format"), "{err}");
         assert_eq!(std::fs::read_to_string(&old_path).unwrap(), old_before);
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// The settings schema is held to the same rule: an object with a

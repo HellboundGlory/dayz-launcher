@@ -6,13 +6,15 @@
 //! the same server never land on the same source port.
 
 pub mod config;
+pub mod corroboration;
 pub mod error;
 pub mod prober;
 pub mod query;
 pub mod retry;
 
 pub use config::{ProbeConfig, MAX_IN_FLIGHT, MAX_IN_FLIGHT_CEILING};
+pub use corroboration::offline_marks_suppressed;
 pub use error::NetError;
 pub use prober::{ProbeOutcome, Prober};
 pub use query::{query_info, query_info_raw, query_rules, query_rules_raw};
-pub use retry::with_retries;
+pub use retry::{retry_backoff, with_retries, Verdict};
