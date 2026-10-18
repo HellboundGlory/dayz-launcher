@@ -11,7 +11,9 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 use tauri::{Emitter, State};
 use tetra_core::a2s::dayz::ServerMod;
-use tetra_index::{Health, IndexClient, ServerEntry, Snapshot, HEALTH_BACKOFF_SECS};
+use tetra_index::{
+    Health, IndexClient, ServerEntry, Snapshot, HEALTH_BACKOFF_SECS, MAX_CRAWL_AGE_SECS,
+};
 use tetra_registry::{ServerKey, ServerRow, Writer};
 
 /// How stale the backend's snapshot may be and still be preferred over asking
@@ -211,19 +213,24 @@ fn succeed(
 }
 
 fn stale_reason(health: &Health) -> String {
+    let now = crate::unix_now();
     match health.snapshot_generated_at {
-        Some(t) => {
-            let n = crate::unix_now();
-            if t > n {
-                format!("snapshot is stamped {}s in the future", t - n)
-            } else {
-                format!(
-                    "snapshot is {}s old (limit {MAX_SNAPSHOT_AGE_SECS}s)",
-                    n - t
-                )
-            }
-        }
         None => "backend has never built a snapshot".to_string(),
+        Some(t) if !health.snapshot_is_fresh(now, MAX_SNAPSHOT_AGE_SECS) => {
+            stamp_reason("snapshot", t, now, MAX_SNAPSHOT_AGE_SECS)
+        }
+        Some(_) => match health.last_full_pull {
+            Some(t) => stamp_reason("last full crawl", t, now, MAX_CRAWL_AGE_SECS),
+            None => "backend has never finished a full crawl".to_string(),
+        },
+    }
+}
+
+fn stamp_reason(what: &str, stamp: i64, now: i64, limit: i64) -> String {
+    if stamp > now {
+        format!("{what} is stamped {}s in the future", stamp - now)
+    } else {
+        format!("{what} is {}s old (limit {limit}s)", now - stamp)
     }
 }
 
@@ -746,13 +753,13 @@ mod tests {
     /// A stamp ahead of the local clock must not be shown as a negative age.
     #[test]
     fn a_snapshot_stamped_in_the_future_is_reported_as_such() {
-        let reason = stale_reason(&health_at(Some(crate::unix_now() + 3600)));
+        let reason = stale_reason(&health_at(Some(crate::unix_now() + 2 * 24 * 3600)));
         assert!(
             reason.contains("in the future"),
             "expected a future-stamp reason, got {reason:?}"
         );
 
-        let reason = stale_reason(&health_at(Some(crate::unix_now() - 100)));
+        let reason = stale_reason(&health_at(Some(crate::unix_now() - 1000)));
         assert!(
             reason.contains("old"),
             "a past stamp still reads as an age, got {reason:?}"

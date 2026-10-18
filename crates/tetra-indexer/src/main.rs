@@ -163,8 +163,11 @@ async fn serve(cfg: Config) -> ExitCode {
 
     let served = axum::serve(
         listener,
-        api::router(Arc::clone(&state))
-            .into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        api::router(
+            Arc::clone(&state),
+            Arc::from(cfg.trusted_proxies.as_slice()),
+        )
+        .into_make_service_with_connect_info::<std::net::SocketAddr>(),
     )
     .with_graceful_shutdown(signalled())
     .await;
