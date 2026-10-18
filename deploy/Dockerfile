@@ -5,8 +5,6 @@
 # every member manifest (src-tauri included) present to resolve the workspace.
 #
 #   docker build -f deploy/Dockerfile -t tetra-indexer:local .
-#
-# Requires BuildKit for the cache mounts (default in Docker >= 23).
 
 # Pinned, not floating: a reproducible backend build beats picking up new
 # compilers automatically. Move this in step with `[workspace.package]
@@ -18,18 +16,34 @@ ARG RUST_IMAGE=rust:1.90-bookworm
 FROM ${RUST_IMAGE} AS builder
 WORKDIR /app
 
-COPY . .
-
 # rusqlite is `features = ["bundled"]`, so SQLite is compiled from C here. The
 # official rust image is buildpack-deps based and already ships gcc/make/libc
 # headers — nothing to apt-install.
-#
-# The binary is written inside the /app/target cache mount, which is not part
-# of the layer, so it has to be copied out in the same RUN.
-RUN --mount=type=cache,id=tetra-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,id=tetra-cargo-git,target=/usr/local/cargo/git,sharing=locked \
-    --mount=type=cache,id=tetra-indexer-target,target=/app/target,sharing=locked \
-    cargo build --release -p tetra-indexer \
+
+# Dependency layer: manifests and stub targets only, so the registry sources and
+# the compiled dependencies stay cached until a Cargo.toml or Cargo.lock changes.
+# A cache mount would keep them out of the layers, and so out of the GHA cache.
+COPY Cargo.toml Cargo.lock ./
+COPY crates/tetra-core/Cargo.toml crates/tetra-core/
+COPY crates/tetra-net/Cargo.toml crates/tetra-net/
+COPY crates/tetra-registry/Cargo.toml crates/tetra-registry/
+COPY crates/tetra-index/Cargo.toml crates/tetra-index/
+COPY crates/tetra-indexer/Cargo.toml crates/tetra-indexer/
+COPY crates/tetra-steam/Cargo.toml crates/tetra-steam/
+COPY crates/tetra-launch/Cargo.toml crates/tetra-launch/
+COPY crates/tetra-discord/Cargo.toml crates/tetra-discord/
+COPY src-tauri/Cargo.toml src-tauri/
+RUN for d in crates/* src-tauri; do mkdir -p "$d/src" && touch "$d/src/lib.rs"; done \
+ && rm crates/tetra-indexer/src/lib.rs \
+ && echo 'fn main() {}' > crates/tetra-indexer/src/main.rs \
+ && cargo build --release -p tetra-indexer
+
+COPY . .
+
+# Cargo judges freshness by mtime, and the copied sources can be older than the
+# stub build, so the stub artifacts would be reused. Touching forces the rebuild.
+RUN find crates -name '*.rs' -exec touch {} + \
+ && cargo build --release -p tetra-indexer \
  && install -D -m 0755 target/release/tetra-indexer /out/tetra-indexer
 
 
