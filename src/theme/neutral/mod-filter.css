@@ -81,6 +81,11 @@
     @apply px-2.5 pb-2.5;
   }
 
+  .t-neutral-modfilter-list [data-part="loading"],
+  .t-neutral-modfilter-list [data-part="empty"] {
+    @apply pb-2.5;
+  }
+
   .t-neutral-modfilter-pane {
     @apply min-w-0 max-w-[300px] flex-1 overflow-y-auto px-4 pb-3 pt-1;
   }
@@ -189,6 +194,10 @@
     @apply mt-2.5 block [border-radius:var(--t-radius-row)] border border-line bg-surface2 px-2.5 py-2 [font-size:var(--t-type-compactBody-size)] leading-relaxed text-muted2;
   }
 
+  .t-neutral-modfilter-preview-note [data-part="count"] {
+    @apply font-bold text-accent2 [font-family:var(--t-type-family-data)];
+  }
+
   .t-neutral-modfilter-preview-picks {
     @apply mt-auto gap-2 pt-4;
   }
@@ -234,6 +243,10 @@
 
   .t-neutral-modfilter-summary [data-part="thumbnails"] > * {
     @apply -ml-1.5 flex size-[18px] shrink-0 items-center justify-center overflow-hidden [border-radius:var(--t-radius-controlCompact)] border-[1.5px] border-accent;
+  }
+
+  .t-neutral-modfilter-summary [data-part="thumbnails"] > [data-state~="excluded"] {
+    @apply border-danger;
   }
 
   .t-neutral-modfilter-summary [data-part="thumbnails"] > :first-child {

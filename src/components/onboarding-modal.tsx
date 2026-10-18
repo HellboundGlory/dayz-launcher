@@ -107,7 +107,7 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
         className="w-[min(360px,calc(100%-40px))] overflow-hidden [border-radius:var(--t-radius-modal)] border border-line bg-surface [box-shadow:var(--t-shadow-modal)]"
       >
         <div className="flex items-start gap-2.5 border-b border-line p-4">
-          <img src={tetraLogo} alt="" className="size-9 shrink-0 rounded-[7px] [box-shadow:var(--t-glow-rest)]" />
+          <img src={tetraLogo} alt="" className="size-9 shrink-0 [border-radius:var(--t-radius-thumb)] [box-shadow:var(--t-glow-rest)]" />
           <div>
             <h2 id={titleId} className="[font-size:var(--t-type-compactHeading-size)] font-bold text-ink">Set up your survivor</h2>
             <p className="mt-0.5 [font-size:var(--t-type-compactBody-size)] leading-relaxed text-muted">
@@ -136,7 +136,7 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
           </div>
 
           {phase === "scanning" && (
-            <div className="flex items-center gap-1.5 rounded-[7px] bg-accent-soft px-2.5 py-2 [font-size:var(--t-type-compactBody-size)] leading-relaxed text-accent">
+            <div className="flex items-center gap-1.5 [border-radius:var(--t-radius-popup)] bg-accent-soft px-2.5 py-2 [font-size:var(--t-type-compactBody-size)] leading-relaxed text-accent">
               <LoaderCircle className="size-3.5 shrink-0 animate-spin" />
               <span>Scanning your Steam library for DayZ…</span>
             </div>
@@ -171,7 +171,7 @@ export function OnboardingModal({ onDone }: { onDone: () => void }) {
               </label>
               <div
                 className={cn(
-                  "mb-1.5 flex items-center gap-1.5 rounded-[7px] px-2.5 py-2 [font-size:var(--t-type-compactBody-size)] leading-relaxed",
+                  "mb-1.5 flex items-center gap-1.5 [border-radius:var(--t-radius-popup)] px-2.5 py-2 [font-size:var(--t-type-compactBody-size)] leading-relaxed",
                   pathValid
                     ? "bg-success-soft text-success"
                     : "bg-warn-soft text-warn",

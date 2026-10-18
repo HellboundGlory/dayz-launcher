@@ -767,7 +767,14 @@ export function ServerModState({
           {view.dot}
         </span>
       )}
-      {showLabel && <span data-part="label" className={cn(view.labelClass, "font-mono-data [font-size:var(--t-type-size-lg)] leading-4")}>{wording}</span>}
+      {showLabel && (
+        <span
+          data-part="label"
+          className={cn(view.labelClass, !className && "font-mono-data [font-size:var(--t-type-size-lg)] leading-4")}
+        >
+          {wording}
+        </span>
+      )}
     </span>
   );
 }

@@ -683,6 +683,7 @@
 
 [data-el="filter.reset"]:hover {
   color: var(--text);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
 [data-el="filter.reset"] [data-part="icon"] > :first-child {
@@ -706,6 +707,7 @@
 
 [data-el="servers.refresh"]:hover {
   background-color: var(--accent2);
+  color: var(--text);
 }
 
 [data-el="servers.refresh"] [data-part="icon"] > :first-child {
@@ -1442,6 +1444,7 @@
 
 [data-el="server.menu"] [data-part="trigger"]:hover {
   background-color: var(--accent2);
+  color: var(--text);
 }
 
 [data-el="server.menu"] [data-part="icon"] > :first-child {
@@ -1669,6 +1672,7 @@
 [data-el="settings.back"]:hover {
   background-color: var(--surface2);
   color: var(--text);
+  box-shadow: 0 0 0 1px var(--accent-line);
 }
 
 [data-el="settings.back"] [data-part="icon"] > :first-child {

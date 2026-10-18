@@ -85,6 +85,11 @@
     @apply gap-2 mb-3.5;
   }
 
+  .t-neutral-settings-field-row > [data-el="settings.detectPaths"],
+  .t-neutral-settings-field-row > [data-el="settings.openDataFolder"] {
+    @apply leading-4;
+  }
+
   .t-neutral-settings-start-minimised {
     @apply flex cursor-pointer items-start gap-2 py-1;
   }
