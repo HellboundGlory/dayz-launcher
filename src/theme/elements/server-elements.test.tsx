@@ -37,6 +37,7 @@ import {
   ServerTags,
   ServerUnsubscribeUnique,
   ServerVersion,
+  runMenuAction,
 } from "./server-elements";
 
 const server: Server = {
@@ -953,5 +954,20 @@ describe("ServerAddress game port", () => {
     expect(html).toContain("1.2.3.4:2303");
     expect(html).toContain("game port 2302");
     expect(html).not.toContain(":2303:");
+  });
+});
+
+describe("runMenuAction", () => {
+  it("ignores a second run of the same action on the same server while the first is in flight", async () => {
+    const server = { addr: "1.2.3.4:2303", query_port: 2303 } as Server;
+    let finish!: () => void;
+    const first = runMenuAction("checkMods", server, () => new Promise<void>((resolve) => (finish = resolve)));
+    const second = vi.fn(async () => {});
+    await runMenuAction("checkMods", server, second);
+    expect(second).not.toHaveBeenCalled();
+    finish();
+    await first;
+    await runMenuAction("checkMods", server, second);
+    expect(second).toHaveBeenCalledTimes(1);
   });
 });

@@ -76,8 +76,8 @@ export function resolveActiveContexts(
 
   if (env.settingsOpen) contexts.add("settings");
 
-  // `withJoin` is required wherever `server.join` is, so it follows Join's own contexts.
-  const joinContexts = REGISTRY.elements["server.join"]?.required ?? [];
+  // `withJoin` follows Join's own contexts, except list rows, where the notice draws nothing.
+  const joinContexts = (REGISTRY.elements["server.join"]?.required ?? []).filter((c) => !c.startsWith("list:"));
   if (joinContexts.some((context) => contexts.has(context))) contexts.add("withJoin");
 
   const openModals = (env.openModals ?? []).filter((id) => REGISTRY.modals[id] !== undefined);
@@ -136,8 +136,8 @@ function layoutPathsForContext(context: string, active: ActiveContexts): string[
   }
   if (context === "withJoin") {
     // `withJoin` shares whatever file is required to place `server.join`.
-    const joinContexts = (REGISTRY.elements["server.join"]?.required ?? []).filter((c) =>
-      active.contexts.includes(c),
+    const joinContexts = (REGISTRY.elements["server.join"]?.required ?? []).filter(
+      (c) => !c.startsWith("list:") && active.contexts.includes(c),
     );
     return Array.from(new Set(joinContexts.flatMap((c) => layoutPathsForContext(c, active))));
   }

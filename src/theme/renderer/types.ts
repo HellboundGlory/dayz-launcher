@@ -82,6 +82,7 @@ export interface StackNode extends CommonProps {
   justify?: Justify;
   wrap?: boolean;
   gap?: SpaceToken;
+  tag?: "div" | "span";
   children: LayoutNode[];
 }
 
@@ -95,6 +96,7 @@ export interface GridNode extends CommonProps {
   rowGap?: SpaceToken;
   alignItems?: Align;
   justifyItems?: Align;
+  tag?: "div" | "span";
   children: LayoutNode[];
 }
 

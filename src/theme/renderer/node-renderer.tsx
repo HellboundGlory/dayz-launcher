@@ -136,7 +136,7 @@ function renderContainer(
       : false;
   const hostsPositioned = node.position === undefined && hasPositionedChildren;
   const attrs = withColumn(commonAttrs(node, hostsPositioned), columnStyle);
-  const As = node.landmark !== undefined ? LANDMARK_TAGS[node.landmark] : "div";
+  const As = node.landmark !== undefined ? LANDMARK_TAGS[node.landmark] : ("tag" in node && node.tag) || "div";
   const regionId = node.id ?? "";
 
   if (node.resizable && regionId) {

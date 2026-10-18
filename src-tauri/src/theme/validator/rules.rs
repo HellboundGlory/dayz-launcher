@@ -484,6 +484,9 @@ impl Validator<'_> {
                     );
                 }
             }
+            if key == "tag" && !matches!(value.as_str(), Some("div" | "span")) {
+                self.issue("LAY-03", &path, "tag must be \"div\" or \"span\"");
+            }
             if key == "role"
                 && node.kind == NodeKind::Text
                 && !value

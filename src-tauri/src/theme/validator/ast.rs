@@ -43,7 +43,7 @@ impl NodeKind {
             return true;
         }
         match self {
-            Self::Stack => matches!(prop, "direction" | "align" | "justify" | "wrap"),
+            Self::Stack => matches!(prop, "direction" | "align" | "justify" | "wrap" | "tag"),
             Self::Grid => matches!(
                 prop,
                 "columns"
@@ -53,6 +53,7 @@ impl NodeKind {
                     | "rowGap"
                     | "alignItems"
                     | "justifyItems"
+                    | "tag"
             ),
             Self::Scroll => prop == "axis",
             Self::Tabs => matches!(prop, "tabs" | "orientation"),
