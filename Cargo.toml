@@ -15,8 +15,8 @@ members = [
 [workspace.package]
 version = "3.1.0"
 edition = "2021"
-# 1.90 is the floor the Tauri 2.12 crates impose.
-rust-version = "1.90"
+# 1.95 is the floor sysinfo 0.39 imposes.
+rust-version = "1.95"
 license = "PolyForm-Noncommercial-1.0.0"
 
 [workspace.dependencies]
@@ -27,7 +27,7 @@ tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "ti
 tracing = "0.1"
 rusqlite = { version = "0.40", features = ["bundled", "functions"] }
 steamworks = "0.13"
-winreg = "0.52"
+winreg = "0.56"
 discord-rich-presence = "1.1"
 percent-encoding = "2"
 # Server-index backend and its client. `reqwest` is already in the tree via
@@ -48,7 +48,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # itself, so deflate is the only method that ever legitimately appears in one —
 # no zstd/bzip2/AES, and no default features (which would pull all of them in,
 # plus `time`).
-zip = { version = "2", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 # Compares a theme's `version` and `minimumLauncherVersion` against a real
 # version; plain string ordering would rank "1.10.0" below "1.9.0".
 semver = "1"
