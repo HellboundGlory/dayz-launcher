@@ -43,6 +43,8 @@
           </ol>
           <h2>Theme changes</h2>
           <ol>
+            <li><a href="#v3-1-0">3.1.0: check your theme</a></li>
+            <li><a href="#v3-1-0-new">3.1.0: new and fixed</a></li>
             <li><a href="#v3-0-0">3.0.0: check your theme</a></li>
             <li><a href="#v3-0-0-new">3.0.0: new and fixed</a></li>
           </ol>
@@ -55,6 +57,37 @@
           What changed for theme authors in each release, newest first. Each release
           starts with what you may need to do; the rest needs nothing from you.
         </p>
+
+        <h2 id="v3-1-0">3.1.0: check your theme</h2>
+        <p>Installed themes keep loading. If a row matches your theme, do what the right column says.</p>
+        <div class="table-wrap">
+          <table class="checks">
+            <thead>
+              <tr><th>If your theme…</th><th>Do this</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>overrides a launcher rule that keeps required elements visible or usable</td><td>Nothing to change, but those rules win now. <code>styles.css</code> loads inside the <code>theme</code> cascade layer, above Neutral and below the launcher's guarantees, as the <a href="/docs/themes/reference#css">CSS API</a> always described.</td></tr>
+              <tr><td>styles <a href="/docs/themes/elements#el-popup-mapOptions"><code>popup.mapOptions</code></a></td><td>The element is now a wrapper holding a <code>search</code> part and the <code>role="listbox"</code> list. Style the options inside the list, and give the search box a look if your popups need one.</td></tr>
+              <tr><td>hid <code>update.changelog</code>'s "No changelog notes" line in CSS</td><td>Drop the rule: the element renders nothing while there is no update.</td></tr>
+              <tr><td>styles <code>update.title</code> with a tag selector such as <code>span[data-el=…]</code></td><td>It is an <code>h2</code> now. Attribute selectors keep working.</td></tr>
+              <tr><td>gives <code>serverMod.state</code>'s label a class and relied on its built-in mono font</td><td>Add the font to your class: built-in classes on that label are now defaults your class replaces.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="v3-1-0-new">3.1.0: new and fixed</h2>
+        <p>Nothing here needs a change, but you may want to use it.</p>
+        <ul>
+          <li>Stack and grid nodes take <code>"tag": "span"</code>, so a header built from stacks can sit inside a button.</li>
+          <li><code>server.name</code> takes <code>"heading": true</code> to render as a heading; Neutral's server info uses it.</li>
+          <li><code>modFilter.summary</code> thumbnails carry <code>data-state="included"</code> or <code>"excluded"</code>.</li>
+          <li><code>workshopMod.serverNote</code> has a <code>count</code> part beside its text.</li>
+          <li>The map popup lists the official and DLC maps first, then a separator, then the rest, with a search box on top.</li>
+          <li>Blanks match the old launcher: an unknown region or map shows a dash, a checked server with no mods shows 0, a mod with no name shows its Workshop id, and a mod with no tags shows no chips.</li>
+          <li><code>server.actionNotice</code> is no longer required in server list rows, where it draws nothing.</li>
+          <li>Text boxes inside a popup receive their keys, Enter included.</li>
+          <li>The success tint tokens are a little stronger (16% instead of 14%).</li>
+        </ul>
 
         <h2 id="v3-0-0">3.0.0: check your theme</h2>
         <p>
