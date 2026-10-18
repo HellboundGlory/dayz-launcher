@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { lookupServer, takePendingConnect, toggleFavourite, type DzsaConnect } from "@/lib/tauri";
+import { whenRegistryReady } from "@/lib/registry-ready";
 import { useJoinLinkStore, type JoinLinkRequest } from "@/stores/join-link-store";
 import { useServerStore } from "@/stores/server-store";
 import type { ViewId } from "@/theme/elements/context";
@@ -39,7 +40,9 @@ export function useJoinLinks({ handleViewChange }: { handleViewChange: (view: Vi
     };
     // The link itself lives in the backend; the event only says one arrived.
     const pullPending = () => {
-      void takePendingConnect()
+      // A link taken before the registry is open would fail its lookup.
+      void whenRegistryReady()
+        .then(() => takePendingConnect())
         .then((request) => {
           if (request) handleConnect(request);
         })

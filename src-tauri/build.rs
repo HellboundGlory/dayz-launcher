@@ -13,6 +13,8 @@ const COMMANDS: &[&str] = &[
     "get_map_list",
     "get_server_counts",
     "registry_degraded",
+    "registry_status",
+    "launched_hidden",
     "discover_servers",
     "refresh_visible_servers",
     "server_list_source",

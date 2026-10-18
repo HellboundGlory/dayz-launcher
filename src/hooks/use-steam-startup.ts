@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { emit, listen } from "@tauri-apps/api/event";
 // Static import: window-resize-handles already pulls this in statically anyway.
 import { getCurrentWindow, getAllWindows } from "@tauri-apps/api/window";
@@ -6,6 +6,7 @@ import { useServerStore } from "@/stores/server-store";
 import {
   steamInit,
   asSteamInitError,
+  launchedHidden,
   steamConnectionState,
   discoverServers,
   logClient,
@@ -35,10 +36,10 @@ function splashDetail(found: number): string | undefined {
 }
 
 export function useSteamStartup({
-  registryReadyHandled,
+  registryOpen,
   setRefreshedAt,
 }: {
-  registryReadyHandled: RefObject<boolean>;
+  registryOpen: boolean;
   setRefreshedAt: (value: string) => void;
 }) {
   const triggerReload = useServerStore((s) => s.triggerReload);
@@ -198,9 +199,13 @@ export function useSteamStartup({
     revealDone.current = true;
     void (async () => {
       const self = getCurrentWindow();
+      // An OS autostart with start-minimised on leaves the window in the tray.
+      const hidden = await launchedHidden().catch(() => false);
       try {
-        await self.show();
-        await self.setFocus();
+        if (!hidden) {
+          await self.show();
+          await self.setFocus();
+        }
       } catch (e) {
         console.error("Could not reveal the launcher window:", e);
       }
@@ -214,17 +219,12 @@ export function useSteamStartup({
     })();
   }, []);
 
-  // A connect already in flight is not shown as a failure while auto-retry runs.
-  const shownSteamError =
-    steamError?.kind === "already_initialising" && !autoRetryExhausted ? null : steamError;
-
   // Let "Ready" show briefly, then reveal; Steam or a post-registry list failure forces it.
   useEffect(() => {
-    if (!(startupReady || shownSteamError || (registryReadyHandled.current && loadError)))
-      return;
+    if (!(startupReady || steamError || (registryOpen && loadError))) return;
     const t = window.setTimeout(revealLauncherWhenReady, SPLASH_READY_MS);
     return () => clearTimeout(t);
-  }, [startupReady, shownSteamError, loadError, revealLauncherWhenReady, registryReadyHandled]);
+  }, [startupReady, steamError, loadError, revealLauncherWhenReady, registryOpen]);
 
   // Fail-safe: a pathological backend must never leave the launcher hidden
   // behind a static splash, so always reveal it eventually.
@@ -307,7 +307,7 @@ export function useSteamStartup({
 
   return {
     steamConnected,
-    steamError: shownSteamError,
+    steamError,
     connecting,
     autoRetryExhausted,
     connectSteam,

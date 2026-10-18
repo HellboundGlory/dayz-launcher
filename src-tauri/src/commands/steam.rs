@@ -1,10 +1,10 @@
 use crate::state::AppState;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
+use tokio::sync::watch;
 
 /// Why Steam could not be connected, in the shape the startup modal reads.
-#[derive(serde::Serialize)]
+#[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SteamInitError {
     pub kind: tetra_steam::InitFailure,
@@ -45,72 +45,82 @@ impl From<tetra_steam::SteamError> for SteamInitError {
     }
 }
 
-/// Resets `AppState.steam_initialising` on drop, so any exit path from `steam_init` releases it.
-struct InitGuard<'a>(&'a AtomicBool);
+/// What one `steam_init` attempt ended with. Every caller that joins the attempt gets this value.
+pub type InitOutcome = Result<(), SteamInitError>;
 
-impl Drop for InitGuard<'_> {
-    fn drop(&mut self) {
-        self.0.store(false, Ordering::Release);
-    }
-}
+/// The attempt a joining caller holds; it reads `None` until the attempt settles.
+pub type InitAttempt = watch::Receiver<Option<InitOutcome>>;
 
 /// Initialize Steamworks client for DayZ (appid 221100). Steam shows
 /// "playing DayZ" while the handle lives. Safe to call repeatedly — the
-/// startup modal retries this on a timer until Steam is open.
+/// startup modal retries this on a timer until Steam is open. A call made
+/// while an attempt runs waits for that attempt and gets its outcome.
 #[tauri::command]
-pub async fn steam_init(state: State<'_, AppState>) -> Result<(), SteamInitError> {
-    {
-        let ready = state
-            .steam_ready
+pub async fn steam_init(app: AppHandle) -> Result<(), SteamInitError> {
+    let state = app.state::<AppState>();
+    let attempt = {
+        let mut in_flight = state
+            .steam_attempt
             .lock()
             .map_err(|e| SteamInitError::internal(e.to_string()))?;
-        if *ready {
+        if *state
+            .steam_ready
+            .lock()
+            .map_err(|e| SteamInitError::internal(e.to_string()))?
+        {
             return Ok(());
         }
-    }
+        match in_flight.as_ref() {
+            Some(attempt) => attempt.clone(),
+            None => {
+                let (outcome, attempt) = watch::channel(None);
+                *in_flight = Some(attempt.clone());
+                tauri::async_runtime::spawn(connect(app.clone(), outcome));
+                attempt
+            }
+        }
+    };
+    await_outcome(attempt).await
+}
 
-    // `steam_ready` alone only guards the window *before* `start()` — this closes
-    // the race where two calls arriving close together both run a real init.
-    if state
-        .steam_initialising
-        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-        .is_err()
-    {
-        return Err(tetra_steam::SteamError::Init(
-            tetra_steam::InitFailure::AlreadyInitialising,
-            "another connection attempt is already in progress".into(),
-        )
-        .into());
+/// Runs one attempt on its own task, so a caller that gives up cannot strand the callers waiting on it.
+async fn connect(app: AppHandle, outcome: watch::Sender<Option<InitOutcome>>) {
+    let result = start(&app).await;
+    if let Ok(mut in_flight) = app.state::<AppState>().steam_attempt.lock() {
+        *in_flight = None;
     }
-    let _init_guard = InitGuard(&state.steam_initialising);
+    outcome.send_replace(Some(result));
+}
 
+async fn start(app: &AppHandle) -> InitOutcome {
     let handle = tokio::task::spawn_blocking(tetra_steam::SteamHandle::start)
         .await
         .map_err(|e| SteamInitError::internal(format!("Task join error: {e}")))??;
 
-    // The loser of the race is shut down, not dropped — dropping detaches the thread instead of stopping it.
-    let mut redundant = None;
-    {
-        let mut ready = state
-            .steam_ready
-            .lock()
-            .map_err(|e| SteamInitError::internal(e.to_string()))?;
-        if *ready {
-            redundant = Some(handle);
-        } else {
-            let mut steam = state
-                .steam
-                .lock()
-                .map_err(|e| SteamInitError::internal(e.to_string()))?;
-            *steam = Some(Arc::new(handle));
-            *ready = true;
-        }
-    }
-    if let Some(extra) = redundant {
-        let _ = extra.shutdown();
-    }
-
+    let state = app.state::<AppState>();
+    *state
+        .steam
+        .lock()
+        .map_err(|e| SteamInitError::internal(e.to_string()))? = Some(Arc::new(handle));
+    *state
+        .steam_ready
+        .lock()
+        .map_err(|e| SteamInitError::internal(e.to_string()))? = true;
     Ok(())
+}
+
+/// Waits for the attempt a caller joined. An attempt always publishes an outcome, so a closed channel means it was lost.
+async fn await_outcome(mut attempt: InitAttempt) -> InitOutcome {
+    attempt
+        .wait_for(Option::is_some)
+        .await
+        .ok()
+        .and_then(|settled| (*settled).clone())
+        .unwrap_or_else(|| {
+            Err(SteamInitError::internal(
+                "the Steam connection attempt ended without a result",
+            ))
+        })
 }
 
 /// Whether the live Steam backend connection is still up (not just whether
@@ -366,5 +376,15 @@ mod tests {
                 ("221200".to_string(), "Steam said no".to_string()),
             ]
         );
+    }
+
+    #[tokio::test]
+    async fn waiter_gets_the_outcome_of_the_attempt_it_joined() {
+        let (outcome, attempt) = tokio::sync::watch::channel(None);
+        let waiter = tokio::spawn(await_outcome(attempt));
+        outcome.send_replace(Some(Err(SteamInitError::internal("boom"))));
+
+        let err = waiter.await.unwrap().unwrap_err();
+        assert_eq!(err.message, "boom");
     }
 }

@@ -148,6 +148,8 @@ pub fn run() {
             commands::server::get_map_list,
             commands::server::get_server_counts,
             commands::server::registry_degraded,
+            commands::startup::registry_status,
+            commands::startup::launched_hidden,
             commands::server::discovery::discover_servers,
             commands::server::probe::refresh_visible_servers,
             commands::index::server_list_source,
@@ -272,6 +274,8 @@ pub fn run() {
                     setup_started.elapsed().as_millis()
                 ),
             );
+            // Set before the event, so a status query made on its heels agrees with it.
+            let _ = state.registry_ready.set(degraded);
             let _ = app.handle().emit(
                 "registry-ready",
                 serde_json::json!({ "degraded": degraded }),
@@ -353,6 +357,7 @@ pub fn run() {
 
             // No splash for a silent autostart — it goes straight to the tray.
             let start_hidden = launched_by_os() && saved.start_minimised;
+            state.launched_hidden.store(start_hidden, Ordering::Relaxed);
             if !start_hidden {
                 if let Some(splash) = app.get_webview_window("splash") {
                     let _ = splash.show();
