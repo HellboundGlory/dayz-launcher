@@ -95,7 +95,11 @@ interface ThemeState {
   /** Save the active theme: in place when it is a user theme, otherwise as a new theme named `name` (SPEC §4.6). */
   saveTheme: (name: string, opts?: { overwrite?: boolean }) => Promise<ThemeSaveResult>;
   /** Save `sourceId` under a new name — the active theme's live edits apply only when `sourceId` is the active theme. */
-  duplicateTheme: (sourceId: string, name: string, opts?: { overwrite?: boolean }) => Promise<ThemeSaveResult>;
+  duplicateTheme: (
+    sourceId: string,
+    name: string,
+    opts?: { overwrite?: boolean; activate?: boolean },
+  ) => Promise<ThemeSaveResult>;
   deleteTheme: (id: string) => Promise<void>;
   resetToBase: () => void;
 }
@@ -766,7 +770,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     return get().duplicateTheme(activeId, name, { overwrite });
   },
 
-  duplicateTheme: async (sourceId, name, { overwrite = false } = {}) => {
+  duplicateTheme: async (sourceId, name, { overwrite = false, activate = true } = {}) => {
     const { activeId, custom, customExtras, themeFiles, bloom } = get();
     const tokens = buildSavedTokens(
       sourceId,
@@ -785,6 +789,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     if (copy.status === "exists") return "exists";
 
     await refreshInstalledThemes();
+    if (!activate) return "saved";
     // Reverting an abandoned duplicate removes it, so a revert is not destructive;
     // a replacement stands in for a theme the user already had and stays put.
     await get().pickTheme(copy.id, !overwrite);

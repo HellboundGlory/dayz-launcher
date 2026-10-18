@@ -7,12 +7,12 @@ import {
   activeInstalled,
   resolvedPair,
 } from "@/theme/theme-store";
-import { PRESETS } from "@/theme/palette";
 import { ThemeCustomiser } from "../theme-customiser";
-import { ThemeGrid, nextDuplicateName } from "./theme-grid";
+import { ThemeGrid } from "./theme-grid";
 import { ThemeSettingsForm } from "./theme-settings-form";
 import { ImportThemeDialog } from "./import-theme-dialog";
 import { ExportThemeDialog } from "./export-theme-dialog";
+import { NewThemeDialog, saveErrorMessage } from "./new-theme-dialog";
 import { capabilityLabel } from "./capability-labels";
 
 const TOOLBAR_BTN =
@@ -47,6 +47,7 @@ export function ThemesSection({
   const [customiserOpen, setCustomiserOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
+  const [newTheme, setNewTheme] = useState<{ id: string; name: string } | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
 
   const installed = activeInstalled(activeId, installedThemes);
@@ -57,28 +58,21 @@ export function ThemesSection({
   // list empty, which is what leaves the button disabled.
   const settingsFields = themeFiles[activeId]?.settings?.fields ?? [];
 
-  /** Names a new theme must avoid: the presets and every installed theme. */
-  function takenNames(): string[] {
-    return [...PRESETS.map((p) => p.name), ...installedThemes.map((t) => t.name)];
-  }
-
   /** Runs a toolbar or grid action. Any action ends the copy message, which only describes the last copy. */
   function act(run: () => void) {
     setCopyError(null);
     run();
   }
 
-  async function duplicate(sourceId: string, name: string): Promise<boolean> {
+  async function duplicate(sourceId: string, name: string) {
     setCopyError(null);
     const result = await duplicateTheme(sourceId, name).catch(() => "failed" as const);
-    if (result === "failed") setCopyError("Could not copy the theme.");
-    if (result === "exists") setCopyError(`A theme named "${name}" already exists.`);
-    return result === "saved";
+    setCopyError(saveErrorMessage(result, name));
   }
 
-  async function copyTheme(sourceId: string) {
+  function copyTheme(sourceId: string, sourceName: string) {
     setCopyOpen(false);
-    if (await duplicate(sourceId, nextDuplicateName("New Theme", takenNames()))) setCustomiserOpen(true);
+    setNewTheme({ id: sourceId, name: sourceName });
   }
 
   return (
@@ -120,11 +114,11 @@ export function ThemesSection({
             Start from
           </div>
           <div className="flex flex-wrap gap-1.5">
-            <button type="button" onClick={() => void copyTheme("neutral")} className={ACTION_BTN}>
+            <button type="button" onClick={() => copyTheme("neutral", "Neutral")} className={ACTION_BTN}>
               Copy Neutral
             </button>
             {installedThemes.some((t) => t.id === "builtin.tactical") && (
-              <button type="button" onClick={() => void copyTheme("builtin.tactical")} className={ACTION_BTN}>
+              <button type="button" onClick={() => copyTheme("builtin.tactical", "Tactical")} className={ACTION_BTN}>
                 Copy Tactical
               </button>
             )}
@@ -217,6 +211,16 @@ export function ThemesSection({
             void pickTheme(id);
           }}
           onClose={() => setImportOpen(false)}
+        />
+      )}
+
+      {newTheme && (
+        <NewThemeDialog
+          sourceName={newTheme.name}
+          onCreate={(name) =>
+            duplicateTheme(newTheme.id, name, { activate: false }).catch(() => "failed" as const)
+          }
+          onClose={() => setNewTheme(null)}
         />
       )}
 

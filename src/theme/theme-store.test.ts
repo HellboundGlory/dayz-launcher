@@ -636,6 +636,22 @@ describe("duplicateTheme", () => {
       { id: "local.copy", deleteOnRevert: false },
     ]);
   });
+
+  it("creates a copy without switching to it when asked", async () => {
+    useThemeStore.setState({
+      activeId: "neutral",
+      themeFiles: { "local.source": themeFile({ schemaVersion: 2 }) },
+    });
+
+    const result = await useThemeStore
+      .getState()
+      .duplicateTheme("local.source", "Copy", { activate: false });
+
+    expect(result).toBe("saved");
+    expect(backend.copies).toHaveLength(1);
+    expect(useThemeStore.getState().activeId).toBe("neutral");
+    expect(backend.setActiveCalls).toEqual([]);
+  });
 });
 
 describe("nextDuplicateName", () => {
