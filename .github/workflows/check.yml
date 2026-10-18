@@ -76,3 +76,6 @@ jobs:
 
       - name: UI harness smoke
         run: npm run harness:smoke
+
+      - name: UI harness perf
+        run: npm run harness:perf

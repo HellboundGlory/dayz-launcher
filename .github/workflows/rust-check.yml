@@ -33,6 +33,7 @@ jobs:
         uses: swatinem/rust-cache@v2
 
       - name: Format
+        if: runner.os == 'Linux'
         run: cargo fmt --all --check
 
       - name: Clippy
