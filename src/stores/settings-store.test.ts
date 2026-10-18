@@ -2,12 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppSettingsDto } from "@/lib/tauri";
 import { useSettingsStore } from "@/stores/settings-store";
 
-const { getSettings, saveSettings } = vi.hoisted(() => ({
+const { getSettings, patchSettings } = vi.hoisted(() => ({
   getSettings: vi.fn<() => Promise<AppSettingsDto>>(),
-  saveSettings: vi.fn<(settings: AppSettingsDto) => Promise<void>>(),
+  patchSettings: vi.fn<(patch: Partial<AppSettingsDto>) => Promise<AppSettingsDto>>(),
 }));
 
-vi.mock("@/lib/tauri", () => ({ getSettings, saveSettings }));
+vi.mock("@/lib/tauri", () => ({ getSettings, patchSettings }));
 
 const saved: AppSettingsDto = {
   profileName: "Survivor",
@@ -31,7 +31,7 @@ const saved: AppSettingsDto = {
 beforeEach(() => {
   vi.useFakeTimers();
   getSettings.mockReset();
-  saveSettings.mockReset().mockResolvedValue(undefined);
+  patchSettings.mockReset().mockResolvedValue(saved);
   useSettingsStore.setState({ loaded: false, profileName: "", dayzPath: null, launchParams: [] });
 });
 
@@ -50,26 +50,32 @@ describe("load", () => {
     await vi.advanceTimersByTimeAsync(500);
     await useSettingsStore.getState().flush();
 
-    expect(saveSettings).not.toHaveBeenCalled();
+    expect(patchSettings).not.toHaveBeenCalled();
   });
 });
 
 describe("setSetting", () => {
-  it("debounces a burst of changes into one save carrying every value", async () => {
+  it("debounces a burst into one patch of the keys changed since the last save", async () => {
     getSettings.mockResolvedValue(saved);
     await useSettingsStore.getState().load();
 
     useSettingsStore.getState().setSetting("profileName", "Night Owl");
     useSettingsStore.getState().setSetting("dayzPath", "/games/dayz");
     await vi.advanceTimersByTimeAsync(399);
-    expect(saveSettings).not.toHaveBeenCalled();
+    expect(patchSettings).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
 
-    expect(saveSettings).toHaveBeenCalledTimes(1);
-    expect(saveSettings.mock.calls[0][0]).toMatchObject({
+    expect(patchSettings).toHaveBeenCalledTimes(1);
+    expect(patchSettings.mock.calls[0][0]).toEqual({
       profileName: "Night Owl",
       dayzPath: "/games/dayz",
     });
+
+    useSettingsStore.getState().setSetting("profileName", "Dawn Owl");
+    await vi.advanceTimersByTimeAsync(400);
+
+    expect(patchSettings).toHaveBeenCalledTimes(2);
+    expect(patchSettings.mock.calls[1][0]).toEqual({ profileName: "Dawn Owl" });
   });
 });
 
@@ -81,10 +87,10 @@ describe("flush", () => {
     useSettingsStore.getState().setSetting("profileName", "Night Owl");
     await useSettingsStore.getState().flush();
 
-    expect(saveSettings).toHaveBeenCalledTimes(1);
-    expect(saveSettings.mock.calls[0][0]).toMatchObject({ profileName: "Night Owl" });
+    expect(patchSettings).toHaveBeenCalledTimes(1);
+    expect(patchSettings.mock.calls[0][0]).toEqual({ profileName: "Night Owl" });
 
     await vi.advanceTimersByTimeAsync(500);
-    expect(saveSettings).toHaveBeenCalledTimes(1);
+    expect(patchSettings).toHaveBeenCalledTimes(1);
   });
 });

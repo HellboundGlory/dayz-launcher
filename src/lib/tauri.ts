@@ -305,8 +305,8 @@ export interface AppSettingsDto {
   discordRichPresence: boolean;
   /**
    * Which theme is active; `null` is the built-in default. Read-only from the
-   * frontend — `save_settings` deliberately ignores an omitted/`null` value so
-   * a settings save can't clobber a confirmed theme activation.
+   * frontend: the settings store never patches it, so a settings save can't
+   * clobber a confirmed theme activation.
    */
   activeThemeId?: string | null;
 }
@@ -333,8 +333,9 @@ export async function setUiScale(scale: number): Promise<void> {
   return invoke<void>("set_ui_scale", { scale });
 }
 
-export async function saveSettings(settings: AppSettingsDto): Promise<void> {
-  return invoke<void>("save_settings", { settings });
+/** Writes only the sent keys; the rest of the settings file is left as it is. */
+export async function patchSettings(patch: Partial<AppSettingsDto>): Promise<AppSettingsDto> {
+  return invoke<AppSettingsDto>("patch_settings", { patch });
 }
 
 // ── Launch Commands ──
