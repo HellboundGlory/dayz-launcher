@@ -41,6 +41,7 @@ import {
 import { ModsViewHost } from "./theme/elements/mods-view-host";
 import { LayoutRenderer } from "./theme/renderer";
 import { useServerDataLoader } from "./hooks/use-server-data-loader";
+import { useAddressLookup } from "./hooks/use-address-lookup";
 import type { Server } from "./types/server";
 import { takeSettingsRecovered, watchActiveTheme, stopWatchingTheme } from "./lib/tauri";
 import { getVersion } from "@tauri-apps/api/app";
@@ -181,6 +182,7 @@ export function App() {
   const selectedModId = useModsStore((s) => s.selectedModId);
   const selectedModRow = modsRows.find((r) => r.workshop_id === selectedModId) ?? null;
   useServerDataLoader();
+  useAddressLookup();
   useLayoutSubscription();
 
   // Each screen's file: the active theme's own, else Neutral's.

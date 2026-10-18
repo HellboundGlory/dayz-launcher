@@ -47,7 +47,7 @@ export async function loadServerPage(
   offset: number,
   current: () => boolean,
 ): Promise<{ error: string | null; short: boolean }> {
-  const { setServerPage } = useServerStore.getState();
+  const { setServerPage, setSettled } = useServerStore.getState();
   const t0 = performance.now();
   void logClient("servers", "load: start", true);
   try {
@@ -58,7 +58,10 @@ export async function loadServerPage(
       limit: PAGE_SIZE,
     });
     const short = page.rows.length < Math.min(PAGE_SIZE, page.total - offset);
-    if (current()) setServerPage(offset, page.rows, page.total);
+    if (current()) {
+      setServerPage(offset, page.rows, page.total);
+      setSettled({ search: query.filterParams.search ?? null, total: page.total });
+    }
     void logClient(
       "servers",
       `load: ${page.rows.length} rows in ${Math.round(performance.now() - t0)}ms`,
@@ -151,7 +154,9 @@ export function useServerDataLoader() {
       sortKey,
       sortDir,
     };
-    useServerStore.getState().clearRows();
+    const { clearRows, setSettled } = useServerStore.getState();
+    clearRows();
+    setSettled(null);
     loadWanted();
   }, [filter, sortKey, sortDir, pages, loadWanted]);
 
