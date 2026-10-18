@@ -6,6 +6,7 @@ use std::net::Ipv4Addr;
 use std::str::FromStr;
 use tetra_core::a2s::dayz::ServerMod;
 use tetra_core::classify::maps::display_name;
+use tetra_core::unix_now;
 
 /// Keys per `get_many` statement: two bound parameters each, well under SQLite's limit.
 const GET_MANY_CHUNK: usize = 400;
@@ -577,10 +578,7 @@ impl Reader {
         if ids.is_empty() {
             return Ok(std::collections::HashMap::new());
         }
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs() as i64)
-            .unwrap_or(0);
+        let now = unix_now();
         let cutoff = if max_age_secs >= now as u64 {
             0
         } else {

@@ -1,13 +1,6 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use tetra_core::unix_now;
 use tetra_registry::rows::WorkshopCacheRow;
 use tetra_registry::Registry;
-
-fn now() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as i64
-}
 
 #[tokio::test]
 async fn workshop_cache_fresh_and_stale_and_upsert() {
@@ -15,7 +8,7 @@ async fn workshop_cache_fresh_and_stale_and_upsert() {
     let writer = registry.writer();
     let reader = registry.reader().expect("reader");
 
-    let current = now();
+    let current = unix_now();
 
     let fresh_item = WorkshopCacheRow {
         workshop_id: 1001,
@@ -81,7 +74,7 @@ fn workshop_cache_blocking_upsert() {
     let writer = registry.writer();
     let reader = registry.reader().expect("reader");
 
-    let current = now();
+    let current = unix_now();
     let item = WorkshopCacheRow {
         workshop_id: 2001,
         title: "Blocking Mod".into(),

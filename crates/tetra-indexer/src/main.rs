@@ -22,18 +22,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use steam::{SteamClient, SteamServer};
+use tetra_core::unix_now as now;
 use tetra_net::{ProbeConfig, Prober};
 use tetra_registry::{Registry, Writer};
 use tokio::sync::{mpsc, watch, Mutex};
 use tokio::task::JoinSet;
-
-/// Seconds since the epoch, the only clock in the wire format.
-pub fn now() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
-}
 
 /// How long shutdown waits for the background loops before giving up on them.
 /// A crawl aborts at the next request boundary when this is set, so a

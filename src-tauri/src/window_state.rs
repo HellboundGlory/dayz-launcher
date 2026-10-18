@@ -189,22 +189,13 @@ pub fn remember(window: &Window) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn scratch(tag: &str) -> std::path::PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let dir = std::env::temp_dir().join(format!("tetra-window-{tag}-{nanos}"));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
-    }
+    use crate::atomic_write::test_support::ScratchDir;
 
     /// The shape the retired plugin actually wrote: extra keys we no longer
     /// carry, keyed by window label.
     #[test]
     fn a_plugin_written_file_is_adopted_and_removed() {
-        let dir = scratch("adopt");
+        let dir = ScratchDir::tagged("adopt");
         std::fs::write(
             dir.join(crate::paths::LEGACY_WINDOW_STATE),
             r#"{"main":{"width":1600,"height":900,"x":120,"y":80,"prev_x":0,
@@ -224,26 +215,23 @@ mod tests {
             !dir.join(crate::paths::LEGACY_WINDOW_STATE).exists(),
             "the file must not survive to be adopted twice"
         );
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
     fn a_missing_legacy_file_is_the_ordinary_case_not_an_error() {
-        let dir = scratch("absent");
+        let dir = ScratchDir::tagged("absent");
         assert_eq!(adopt_legacy(&dir), None);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// A corrupt file must still be cleared, or it is re-read on every start.
     #[test]
     fn an_unparseable_legacy_file_is_dropped_without_a_value() {
-        let dir = scratch("corrupt");
+        let dir = ScratchDir::tagged("corrupt");
         let path = dir.join(crate::paths::LEGACY_WINDOW_STATE);
         std::fs::write(&path, "{ not json").unwrap();
 
         assert_eq!(adopt_legacy(&dir), None);
         assert!(!path.exists());
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// Pins the shape `settings.json` stores under `window`, so a rename or a

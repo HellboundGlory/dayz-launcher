@@ -1,7 +1,52 @@
 use crate::config::ProbeConfig;
 use crate::error::NetError;
 use crate::query::EXCHANGE_TIMEOUT_MULTIPLIER;
+use std::future::Future;
 use std::net::SocketAddr;
+use std::time::Duration;
+
+/// What a failed attempt means for the rest of the chain.
+#[derive(Debug, PartialEq)]
+pub enum Verdict {
+    /// Try again after this delay. `None` waits the current backoff; a delay
+    /// given by the failure never waits less than the backoff.
+    Retry(Option<Duration>),
+    Fatal,
+}
+
+/// Run `op` until it succeeds, the `attempts` budget is spent or `classify`
+/// calls a failure fatal. Waits `base` before the second attempt, doubling
+/// after each wait.
+pub async fn retry_backoff<T, E, F, Fut, C>(
+    attempts: u32,
+    base: Duration,
+    mut op: F,
+    classify: C,
+) -> Result<T, E>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Result<T, E>>,
+    C: Fn(&E) -> Verdict,
+{
+    let mut backoff = base;
+    let mut attempt = 1;
+    loop {
+        let err = match op().await {
+            Ok(value) => return Ok(value),
+            Err(err) => err,
+        };
+        let delay = match classify(&err) {
+            Verdict::Fatal => return Err(err),
+            Verdict::Retry(delay) => delay.map_or(backoff, |d| d.max(backoff)),
+        };
+        if attempt >= attempts {
+            return Err(err);
+        }
+        tokio::time::sleep(delay).await;
+        backoff = backoff.saturating_mul(2);
+        attempt += 1;
+    }
+}
 
 /// Run `op` until it succeeds or the attempt budget is spent. Only transport
 /// failures are retried — a parse failure means the server answered with
@@ -9,11 +54,11 @@ use std::net::SocketAddr;
 pub async fn with_retries<F, Fut, T>(
     addr: SocketAddr,
     config: &ProbeConfig,
-    mut op: F,
+    op: F,
 ) -> Result<T, NetError>
 where
     F: FnMut() -> Fut,
-    Fut: std::future::Future<Output = Result<T, NetError>>,
+    Fut: Future<Output = Result<T, NetError>>,
 {
     let attempts = config.attempts.max(1);
     // The loop sleeps backoff, 2*backoff, ... before every attempt but the
@@ -28,30 +73,16 @@ where
         .saturating_mul(attempts)
         .saturating_add(config.backoff.saturating_mul(sleeps));
 
-    let chain = async {
-        let mut backoff = config.backoff;
+    let chain = retry_backoff(attempts, config.backoff, op, |err| match err {
+        NetError::Core(_) => Verdict::Fatal,
+        _ => Verdict::Retry(None),
+    });
 
-        for attempt in 1..=attempts {
-            match op().await {
-                Ok(v) => return Ok(v),
-                Err(NetError::Core(e)) => return Err(NetError::Core(e)),
-                Err(NetError::NoResponse { .. })
-                | Err(NetError::ExchangeTimedOut { .. })
-                | Err(NetError::Io(_)) => {
-                    if attempt < attempts {
-                        tokio::time::sleep(backoff).await;
-                        backoff = backoff.saturating_mul(2);
-                    }
-                }
-            }
-        }
-
-        Err(NetError::NoResponse { addr, attempts })
-    };
-
-    tokio::time::timeout(deadline, chain)
-        .await
-        .unwrap_or(Err(NetError::NoResponse { addr, attempts }))
+    match tokio::time::timeout(deadline, chain).await {
+        Ok(Ok(value)) => Ok(value),
+        Ok(Err(err @ NetError::Core(_))) => Err(err),
+        Ok(Err(_)) | Err(_) => Err(NetError::NoResponse { addr, attempts }),
+    }
 }
 
 #[cfg(test)]

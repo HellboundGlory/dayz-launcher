@@ -2,18 +2,13 @@
 //! several times more fabricated servers than real ones, and they are not
 //! joinable. See `tetra_core::classify::fake`.
 
-use std::net::Ipv4Addr;
+mod common;
+
+use common::key;
 use tetra_core::a2s::dayz::ServerMod;
 use tetra_registry::{Registry, ServerFilter, ServerKey, ServerRow, SortDir, SortKey};
 
 const MOD_ID: u64 = 1_547_879_389;
-
-fn key(last_octet: u8) -> ServerKey {
-    ServerKey {
-        ip: Ipv4Addr::new(203, 0, 113, last_octet),
-        query_port: 27016,
-    }
-}
 
 fn row(key: ServerKey, name: &str, players: i32, max_players: i32, bots: i32) -> ServerRow {
     ServerRow {

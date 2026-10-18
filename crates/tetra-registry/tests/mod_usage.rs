@@ -1,16 +1,11 @@
 //! The Mods tab's registry aggregation: which servers declare which mods,
 //! computed against the "cared about" set of favourites + recently played.
 
-use std::net::Ipv4Addr;
+mod common;
+
+use common::key;
 use tetra_core::a2s::dayz::ServerMod;
 use tetra_registry::{Registry, ServerKey, ServerRow};
-
-fn key(n: u8) -> ServerKey {
-    ServerKey {
-        ip: Ipv4Addr::new(203, 0, 113, n),
-        query_port: 27016,
-    }
-}
 
 fn row(k: ServerKey) -> ServerRow {
     ServerRow {

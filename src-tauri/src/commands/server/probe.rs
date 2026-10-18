@@ -2,7 +2,7 @@ use crate::state::AppState;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tauri::{Emitter, Manager, State};
-use tetra_net::Prober;
+use tetra_net::{offline_marks_suppressed, Prober};
 use tetra_registry::rows::ServerKey;
 
 use super::{prober, server_key};
@@ -17,24 +17,6 @@ const WRITE_BATCH: usize = 200;
 /// permit is actually acquired — never from when the probe task was spawned.
 const RULES_DEADLINE: std::time::Duration = std::time::Duration::from_secs(8);
 
-/// Below this batch size, a failed A2S_INFO probe is written as `online =
-/// false` unconditionally — too few data points to distinguish "down" from
-/// "network hiccup" by failure ratio.
-const MIN_BATCH_FOR_OFFLINE_CORROBORATION: usize = 8;
-
-/// Share of a targeted batch that must fail before a miss is treated as "my
-/// network", not "the server is down".
-const OFFLINE_CORROBORATION_THRESHOLD: f64 = 0.4;
-
-/// Whether a failed probe batch looks like a local network problem rather than
-/// the servers being down, in which case none are written as offline.
-fn offline_marks_suppressed(mark_offline: bool, refreshed: usize, failed: usize) -> bool {
-    let total = refreshed + failed;
-    mark_offline
-        && total >= MIN_BATCH_FOR_OFFLINE_CORROBORATION
-        && (failed as f64 / total as f64) > OFFLINE_CORROBORATION_THRESHOLD
-}
-
 /// One server's A2S_INFO probe outcome, on the way into a registry write.
 pub(super) struct InfoBatchResult {
     pub(super) refreshed: usize,
@@ -42,7 +24,7 @@ pub(super) struct InfoBatchResult {
     /// Servers that answered — candidates for an A2S_RULES mod-list probe.
     rules_candidates: Vec<(ServerKey, SocketAddr)>,
     /// Whether offline marks were suppressed as likely a local network blip
-    /// — see `OFFLINE_CORROBORATION_THRESHOLD`.
+    /// — see `tetra_net::offline_marks_suppressed`.
     offline_marks_suppressed: bool,
 }
 
@@ -160,7 +142,7 @@ pub(super) async fn probe_info(
 
     // A large batch where most probes failed points at the local network, not
     // the servers, so its misses are not written as offline.
-    let offline_marks_suppressed = offline_marks_suppressed(mark_offline, refreshed, failed);
+    let offline_marks_suppressed = mark_offline && offline_marks_suppressed(refreshed, failed);
 
     if !offline_marks_suppressed && !offline_keys.is_empty() {
         if let Err(e) = writer.set_online(offline_keys, false).await {
@@ -404,25 +386,4 @@ pub async fn refresh_visible_servers(
         }),
     );
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::offline_marks_suppressed;
-
-    #[test]
-    fn offline_marks_need_eight_probes_and_a_failure_share_above_the_threshold() {
-        // Fewer than eight probes: the misses are trusted and marked offline.
-        assert!(!offline_marks_suppressed(true, 0, 7));
-        // Eight probes, most failed: suppressed.
-        assert!(offline_marks_suppressed(true, 3, 5));
-        // Exactly 0.4 failed is not above the threshold.
-        assert!(!offline_marks_suppressed(true, 6, 4));
-        // Just above 0.4 is.
-        assert!(offline_marks_suppressed(true, 599, 401));
-        // Only failures still suppress once the batch is big enough.
-        assert!(offline_marks_suppressed(true, 0, 8));
-        // A refresh that may not mark offline never suppresses.
-        assert!(!offline_marks_suppressed(false, 0, 100));
-    }
 }

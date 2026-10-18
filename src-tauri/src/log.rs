@@ -134,10 +134,7 @@ fn rotate(path: &Path, keep_bytes: u64) {
 /// Sortable timestamp without a date dependency: `unix-seconds HH:MM:SSZ`.
 /// The epoch number makes lines trivial to order, filter and diff.
 fn stamp() -> String {
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
+    let secs = crate::unix_now();
     let day = secs % 86_400;
     format!(
         "{} {:02}:{:02}:{:02}Z",

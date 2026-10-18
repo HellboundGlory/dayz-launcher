@@ -1203,6 +1203,7 @@ fn seed_from(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::atomic_write::test_support::ScratchDir;
     use crate::theme::validator::Severity;
 
     fn armed_at(at: Instant) -> Option<PendingActivation> {
@@ -1212,12 +1213,8 @@ mod tests {
     }
 
     /// A scratch themes root holding one installed theme directory.
-    fn installed(tag: &str, id: &str) -> (PathBuf, PathBuf) {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let root = std::env::temp_dir().join(format!("tetra-arm-{tag}-{nanos}"));
+    fn installed(tag: &str, id: &str) -> (ScratchDir, PathBuf) {
+        let root = ScratchDir::tagged(tag);
         let dir = root.join(id);
         std::fs::create_dir_all(&dir).expect("could not create scratch dir");
         (root, dir)
@@ -1415,7 +1412,6 @@ mod tests {
             issues.iter().all(|i| i.severity != Severity::Error),
             "{issues:?}"
         );
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -1431,23 +1427,21 @@ mod tests {
                 .any(|i| i.rule_id == "LAY-01" && i.file == "layout/shell.json"),
             "{issues:?}"
         );
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn validate_theme_refuses_an_at_import_in_styles_css() {
-        let (root, dir) = installed("validate-css", "local.css");
+        let (_root, dir) = installed("validate-css", "local.css");
         write(&dir, "styles.css", "@import \"other.css\";");
 
         let issues = validate_theme_styles(&dir).unwrap();
 
         assert!(issues.iter().any(|i| i.file == "styles.css"), "{issues:?}");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn validate_theme_reports_set01_for_a_malformed_settings_schema() {
-        let (root, dir) = installed("validate-bad-settings", "local.bad-settings");
+        let (_root, dir) = installed("validate-bad-settings", "local.bad-settings");
         write(&dir, theme::SETTINGS_SCHEMA_FILE, "{ not json");
 
         let (_, issues) = validate_theme_settings(&dir).unwrap();
@@ -1458,7 +1452,6 @@ mod tests {
                 .any(|i| i.rule_id == "SET-01" && i.file == theme::SETTINGS_SCHEMA_FILE),
             "{issues:?}"
         );
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -1476,21 +1469,7 @@ mod tests {
 #[cfg(test)]
 mod derive_from_installed {
     use super::*;
-    use std::sync::atomic::{AtomicU64, Ordering};
-
-    /// A scratch directory unique to one test (no `tempfile` dependency), the
-    /// way the rest of `theme` does it — never a real themes root.
-    fn scratch(tag: &str) -> PathBuf {
-        static N: AtomicU64 = AtomicU64::new(0);
-        let seq = N.fetch_add(1, Ordering::Relaxed);
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let dir = std::env::temp_dir().join(format!("tetra-derive-{tag}-{nanos}-{seq}"));
-        std::fs::create_dir_all(&dir).expect("could not create scratch dir");
-        dir
-    }
+    use crate::atomic_write::test_support::ScratchDir;
 
     /// Every file under `dir`, as `(name relative to `dir`, bytes)`.
     fn files_under(dir: &Path) -> Vec<(String, Vec<u8>)> {
@@ -1530,8 +1509,8 @@ mod derive_from_installed {
     /// A scratch themes root holding one installed source copied from the shipped
     /// Tactical package: real layout, CSS and settings files, plus the three files a
     /// derivation must leave behind — a README, a seed marker and screenshots.
-    fn source_theme(tag: &str, capabilities: &[&str]) -> (PathBuf, PathBuf) {
-        let root = scratch(tag);
+    fn source_theme(tag: &str, capabilities: &[&str]) -> (ScratchDir, PathBuf) {
+        let root = ScratchDir::tagged(tag);
         let source = root.join("local.source");
         let shipped = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/builtin-themes");
         copy_tree(&shipped.join("builtin.tactical"), &source);
@@ -1653,7 +1632,6 @@ mod derive_from_installed {
             source_files.len(),
             "the source's own files, unchanged"
         );
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// A source that already declares `tokens` keeps its own order, with no
@@ -1674,7 +1652,6 @@ mod derive_from_installed {
                 .capabilities,
             ["tokens", "layout"]
         );
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// Create-only, exactly as `save`: an installed id is an error, and the
@@ -1710,7 +1687,6 @@ mod derive_from_installed {
             "the installed theme survives the refusal"
         );
         assert_eq!(files_under(&root.join("local.derived")), before);
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// An id that could name a path is refused, as is a source this root does
@@ -1744,7 +1720,6 @@ mod derive_from_installed {
 
         assert!(!root.join("local.derived").exists());
         assert!(!root.join("..").join("escape").exists());
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// A palette the backend would never load is refused before the directory
@@ -1764,7 +1739,6 @@ mod derive_from_installed {
         }
 
         assert!(!root.join("local.derived").exists());
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// A palette with one colour set, enough to tell two copies apart.
@@ -1774,7 +1748,7 @@ mod derive_from_installed {
 
     #[test]
     fn a_copy_with_no_clash_takes_a_free_id_past_a_folder_without_a_manifest() {
-        let root = scratch("free-id");
+        let root = ScratchDir::tagged("free-id");
         std::fs::create_dir_all(root.join("local.blaze")).unwrap();
 
         let copy = save_copy_at(&root, "Blaze", None, &palette("#010101"), false, None)
@@ -1782,7 +1756,6 @@ mod derive_from_installed {
 
         assert_eq!((copy.status, copy.id.as_str()), ("saved", "local.blaze-2"));
         theme::get(&root, "local.blaze-2").expect("the copy loads");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// Install a local theme called `name` at `root/<id>`.
@@ -1800,7 +1773,7 @@ mod derive_from_installed {
 
     #[test]
     fn a_clash_without_replace_reports_the_existing_id_and_writes_nothing() {
-        let root = scratch("clash");
+        let root = ScratchDir::tagged("clash");
         install(&root, "local.blaze", "Blaze", &palette("#010101"));
         let before = files_under(&root);
 
@@ -1809,12 +1782,11 @@ mod derive_from_installed {
 
         assert_eq!((copy.status, copy.id.as_str()), ("exists", "local.blaze"));
         assert_eq!(files_under(&root), before);
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn replace_swaps_the_clashing_theme_and_keeps_its_id() {
-        let root = scratch("replace");
+        let root = ScratchDir::tagged("replace");
         install(&root, "local.blaze", "Blaze", &palette("#010101"));
 
         let copy = save_copy_at(&root, "Blaze", None, &palette("#020202"), true, None)
@@ -1823,12 +1795,11 @@ mod derive_from_installed {
         assert_eq!((copy.status, copy.id.as_str()), ("saved", "local.blaze"));
         let installed = theme::get(&root, "local.blaze").expect("the replacement loads");
         assert_eq!(installed.tokens, palette("#020202"));
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn replace_refuses_the_active_theme_and_leaves_it_untouched() {
-        let root = scratch("replace-active");
+        let root = ScratchDir::tagged("replace-active");
         install(&root, "local.blaze", "Blaze", &palette("#010101"));
         let before = files_under(&root);
 
@@ -1844,12 +1815,11 @@ mod derive_from_installed {
 
         assert!(error.contains("active theme"), "{error}");
         assert_eq!(files_under(&root), before);
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn a_replace_that_fails_to_swap_leaves_the_installed_theme_intact() {
-        let root = scratch("replace-failed");
+        let root = ScratchDir::tagged("replace-failed");
         install(&root, "local.blaze", "Blaze", &palette("#010101"));
         // A file where the old theme would be moved aside makes the swap fail after staging.
         let staging = root.join(theme::archive::STAGING_DIR);
@@ -1865,7 +1835,6 @@ mod derive_from_installed {
             !staging.join("local.blaze").exists(),
             "the staged copy is cleaned up"
         );
-        let _ = std::fs::remove_dir_all(&root);
     }
 }
 
@@ -1875,21 +1844,7 @@ mod derive_from_installed {
 #[cfg(test)]
 mod builtin_themes {
     use super::*;
-    use std::sync::atomic::{AtomicU64, Ordering};
-
-    /// A scratch directory unique to one test (no `tempfile` dependency), the
-    /// way the rest of `theme` does it — never a real themes root.
-    fn scratch(tag: &str) -> PathBuf {
-        static N: AtomicU64 = AtomicU64::new(0);
-        let seq = N.fetch_add(1, Ordering::Relaxed);
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let dir = std::env::temp_dir().join(format!("tetra-builtin-{tag}-{nanos}-{seq}"));
-        std::fs::create_dir_all(&dir).expect("could not create scratch dir");
-        dir
-    }
+    use crate::atomic_write::test_support::ScratchDir;
 
     /// The packages' own directory in `resources/`, unchanged from the disk —
     /// directory name is id.
@@ -1942,7 +1897,7 @@ mod builtin_themes {
     /// through.
     #[test]
     fn a_copy_of_tactical_exports_and_stages_for_import() {
-        let root = scratch("copy-roundtrip");
+        let root = ScratchDir::tagged("copy-roundtrip");
         install_builtin_theme(&shipped(), &root, "builtin.tactical").expect("install");
         let source = theme::get(&root, "builtin.tactical").expect("installed");
         let manifest = ThemeManifest {
@@ -1972,7 +1927,6 @@ mod builtin_themes {
             staged.manifest.capabilities,
             ["tokens", "css", "layout", "settings"]
         );
-        std::fs::remove_dir_all(root).unwrap();
     }
 
     /// Each builtin theme's own files, through the validators the rest of the
@@ -2039,7 +1993,7 @@ mod builtin_themes {
     #[test]
     fn seeding_an_empty_root_installs_every_builtin_theme() {
         let source_root = shipped();
-        let themes_root = scratch("empty");
+        let themes_root = ScratchDir::tagged("empty");
 
         let results = seed_from(&source_root, &themes_root, |_| {});
 
@@ -2076,7 +2030,6 @@ mod builtin_themes {
                 "`{name}` should have been copied unchanged"
             );
         }
-        let _ = std::fs::remove_dir_all(&themes_root);
     }
 
     /// The user-editability guarantee behind seeding: an already-installed
@@ -2086,7 +2039,7 @@ mod builtin_themes {
     #[test]
     fn seeding_twice_leaves_a_modified_installed_builtin_theme_untouched() {
         let source_root = shipped();
-        let themes_root = scratch("twice");
+        let themes_root = ScratchDir::tagged("twice");
 
         let first = seed_from(&source_root, &themes_root, |_| {});
         assert!(first.iter().all(Result::is_ok), "{first:?}");
@@ -2125,14 +2078,13 @@ mod builtin_themes {
             before,
             "every file is exactly as the user's copy left it"
         );
-        let _ = std::fs::remove_dir_all(&themes_root);
     }
 
     /// A pristine copy already at the bundled version is left untouched.
     #[test]
     fn seeding_twice_with_no_changes_and_no_version_gain_does_nothing() {
         let source_root = shipped();
-        let themes_root = scratch("pristine-current");
+        let themes_root = ScratchDir::tagged("pristine-current");
 
         let first = seed_from(&source_root, &themes_root, |_| {});
         assert!(first.iter().all(Result::is_ok), "{first:?}");
@@ -2150,7 +2102,6 @@ mod builtin_themes {
             before,
             "the pristine copy is untouched"
         );
-        let _ = std::fs::remove_dir_all(&themes_root);
     }
 
     /// No `.tetra-seed` at all (e.g. an install from before this file
@@ -2158,7 +2109,7 @@ mod builtin_themes {
     #[test]
     fn an_installed_builtin_with_no_provenance_file_is_kept() {
         let source_root = shipped();
-        let themes_root = scratch("no-provenance");
+        let themes_root = ScratchDir::tagged("no-provenance");
 
         let first = seed_from(&source_root, &themes_root, |_| {});
         assert!(first.iter().all(Result::is_ok), "{first:?}");
@@ -2185,13 +2136,12 @@ mod builtin_themes {
             before,
             "left exactly as it was"
         );
-        let _ = std::fs::remove_dir_all(&themes_root);
     }
 
     #[test]
     fn a_tuning_backup_left_by_a_failed_refresh_is_restored_on_the_next_install() {
         let source_root = shipped();
-        let themes_root = scratch("leftover-tuning");
+        let themes_root = ScratchDir::tagged("leftover-tuning");
         std::fs::create_dir_all(&themes_root).unwrap();
         let tuning = br#"{"space.gap": 4}"#.to_vec();
         let backup = themes_root.join(".builtin.tactical.tuning.bak");
@@ -2210,7 +2160,7 @@ mod builtin_themes {
     #[test]
     fn a_pristine_installed_builtin_with_an_older_recorded_version_is_replaced() {
         let source_root = shipped();
-        let themes_root = scratch("older-version");
+        let themes_root = ScratchDir::tagged("older-version");
 
         let first = seed_from(&source_root, &themes_root, |_| {});
         assert!(first.iter().all(Result::is_ok), "{first:?}");
@@ -2276,14 +2226,13 @@ mod builtin_themes {
         )
         .unwrap();
         assert_eq!(reloaded.version, bundled_version);
-        let _ = std::fs::remove_dir_all(&themes_root);
     }
 
     /// A deleted builtin is filled back in on the next seed.
     #[test]
     fn seeding_after_a_delete_restores_the_deleted_builtin() {
         let source_root = shipped();
-        let themes_root = scratch("gap");
+        let themes_root = ScratchDir::tagged("gap");
 
         let results = seed_from(&source_root, &themes_root, |_| {});
         assert!(results.iter().all(Result::is_ok), "{results:?}");
@@ -2303,7 +2252,6 @@ mod builtin_themes {
         for id in BUILTIN_THEME_IDS {
             theme::get(&themes_root, id).unwrap_or_else(|e| panic!("{id}: {e}"));
         }
-        let _ = std::fs::remove_dir_all(&themes_root);
     }
 
     #[test]
@@ -2316,13 +2264,12 @@ mod builtin_themes {
     /// `seed_builtin_themes` logs whatever this hands back.
     #[test]
     fn a_missing_builtin_package_is_an_error_not_a_panic() {
-        let themes_root = scratch("no-source");
+        let themes_root = ScratchDir::tagged("no-source");
 
         let error = install_builtin_theme(&shipped(), &themes_root, "builtin.no-such")
             .expect_err("a package this build does not ship must be refused");
 
         assert!(error.contains("builtin.no-such"), "{error}");
         assert!(!themes_root.join("builtin.no-such").exists());
-        let _ = std::fs::remove_dir_all(&themes_root);
     }
 }

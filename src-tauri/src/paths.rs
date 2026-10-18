@@ -221,17 +221,7 @@ fn copy_group(from: &Path, to: &Path, names: &[&str]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// A scratch directory unique to one test (no `tempfile` dependency).
-    fn scratch(tag: &str) -> PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let dir = std::env::temp_dir().join(format!("tetra-paths-{tag}-{nanos}"));
-        std::fs::create_dir_all(&dir).expect("could not create scratch dir");
-        dir
-    }
+    use crate::atomic_write::test_support::ScratchDir;
 
     fn write(dir: &Path, name: &str, body: &str) {
         std::fs::create_dir_all(dir).unwrap();
@@ -240,7 +230,7 @@ mod tests {
 
     #[test]
     fn the_registry_and_its_sidecars_move_together() {
-        let root = scratch("group");
+        let root = ScratchDir::tagged("group");
         let (legacy, dest) = (root.join("old"), root.join("new"));
         write(&legacy, "tetra.db", "db");
         write(&legacy, "tetra.db-wal", "wal");
@@ -253,14 +243,13 @@ mod tests {
             assert!(dest.join(name).is_file(), "{name} should have arrived");
             assert!(!legacy.join(name).exists(), "{name} should have left");
         }
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// A database at the destination is the live one. Overwriting it with an
     /// older copy from the previous location is silent data loss.
     #[test]
     fn an_existing_destination_database_is_never_overwritten() {
-        let root = scratch("nooverwrite");
+        let root = ScratchDir::tagged("nooverwrite");
         let (legacy, dest) = (root.join("old"), root.join("new"));
         write(&legacy, "tetra.db", "old");
         write(&dest, "tetra.db", "current");
@@ -277,13 +266,12 @@ mod tests {
         );
         assert!(report.moved.is_empty());
         assert_eq!(report.skipped, vec!["tetra.db".to_string()]);
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// Running twice must not undo the first run or report phantom work.
     #[test]
     fn migrating_twice_is_a_no_op_the_second_time() {
-        let root = scratch("idempotent");
+        let root = ScratchDir::tagged("idempotent");
         let (legacy, dest) = (root.join("old"), root.join("new"));
         write(&legacy, "tetra.db", "db");
         write(&legacy, "settings.json", "{}");
@@ -297,12 +285,11 @@ mod tests {
             std::fs::read_to_string(dest.join("tetra.db")).unwrap(),
             "db"
         );
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn settings_and_the_retired_window_state_file_come_across() {
-        let root = scratch("singles");
+        let root = ScratchDir::tagged("singles");
         let (legacy, dest) = (root.join("old"), root.join("new"));
         write(&legacy, "settings.json", r#"{"profileName":"x"}"#);
         write(&legacy, LEGACY_WINDOW_STATE, r#"{"main":{}}"#);
@@ -312,31 +299,28 @@ mod tests {
         assert!(dest.join("settings.json").is_file());
         assert!(dest.join(LEGACY_WINDOW_STATE).is_file());
         assert_eq!(report.moved.len(), 2);
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// The portable case where the exe directory *is* the old directory, and
     /// the case of a first run with nothing to bring across.
     #[test]
     fn the_same_directory_or_a_missing_source_migrates_nothing() {
-        let root = scratch("same");
+        let root = ScratchDir::tagged("same");
         write(&root, "tetra.db", "db");
 
         assert!(migrate(&root, &root).is_empty());
         assert!(migrate(&root.join("absent"), &root.join("new")).is_empty());
         assert!(root.join("tetra.db").is_file(), "nothing was disturbed");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
     fn a_writable_directory_probes_true_and_leaves_nothing_behind() {
-        let root = scratch("probe");
+        let root = ScratchDir::tagged("probe");
         assert!(is_writable(&root));
         assert_eq!(
             std::fs::read_dir(&root).unwrap().count(),
             0,
             "the probe file must be cleaned up"
         );
-        let _ = std::fs::remove_dir_all(&root);
     }
 }

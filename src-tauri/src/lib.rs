@@ -19,20 +19,13 @@ mod state;
 mod theme;
 mod window_state;
 
+pub(crate) use tetra_core::unix_now;
 pub use theme::registry;
 pub use theme::validator;
 
 /// Added to the command line registered with the OS startup entry, so
 /// `start_minimised` can apply only to an OS-triggered launch.
 const AUTOSTART_FLAG: &str = "--autostart";
-
-/// Seconds since the Unix epoch, or 0 if the clock is before it.
-pub(crate) fn unix_now() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
-}
 
 /// Whether this process was started by the OS startup entry rather than by hand.
 fn launched_by_os() -> bool {

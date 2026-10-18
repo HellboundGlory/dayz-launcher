@@ -1,19 +1,14 @@
 //! The index replication boundary: the rows `export` hands the indexer, and
 //! what `upsert_server_mods_bulk` writes back.
 
-use std::net::Ipv4Addr;
+mod common;
+
+use common::key;
 use tetra_core::a2s::dayz::ServerMod;
 use tetra_registry::{Registry, ServerKey, ServerRow};
 
 const MOD_A: u64 = 1_111_111_111;
 const MOD_B: u64 = 2_222_222_222;
-
-fn key(n: u8) -> ServerKey {
-    ServerKey {
-        ip: Ipv4Addr::new(203, 0, 113, n),
-        query_port: 27016,
-    }
-}
 
 fn row(k: ServerKey) -> ServerRow {
     ServerRow {

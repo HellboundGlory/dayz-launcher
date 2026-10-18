@@ -197,26 +197,12 @@ fn asset_type(path: &Path) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicU64, Ordering};
-
-    /// A scratch themes root unique to one test — never the real one (no
-    /// `tempfile` dependency), same as the rest of `theme`.
-    fn scratch(tag: &str) -> PathBuf {
-        static N: AtomicU64 = AtomicU64::new(0);
-        let seq = N.fetch_add(1, Ordering::Relaxed);
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let dir = std::env::temp_dir().join(format!("tetra-theme-protocol-{tag}-{nanos}-{seq}"));
-        std::fs::create_dir_all(&dir).expect("could not create scratch dir");
-        dir
-    }
+    use crate::atomic_write::test_support::ScratchDir;
 
     /// A root holding one installed theme (`aurora.theme`, with a nested asset
     /// and a palette) plus a file outside it that a test can try to reach.
-    fn installed(tag: &str) -> PathBuf {
-        let root = scratch(tag);
+    fn installed(tag: &str) -> ScratchDir {
+        let root = ScratchDir::tagged(tag);
         let theme = root.join("aurora.theme");
         std::fs::create_dir_all(theme.join("preview/dark")).unwrap();
         std::fs::write(theme.join("main.css"), b"body{}").unwrap();
@@ -235,8 +221,8 @@ mod tests {
 
     /// A root holding one staged package (under `.staging/<id>`, same shape as
     /// `installed`'s theme) plus the same escape target at the themes root.
-    fn staged(tag: &str, staging_id: &str) -> PathBuf {
-        let root = scratch(tag);
+    fn staged(tag: &str, staging_id: &str) -> ScratchDir {
+        let root = ScratchDir::tagged(tag);
         let package = root
             .join(crate::theme::archive::STAGING_DIR)
             .join(staging_id);
@@ -260,7 +246,6 @@ mod tests {
             theme.join("preview/dark/bg.png").canonicalize().unwrap()
         );
         assert!(resolve_asset(&root, "aurora.theme", "main.css").is_ok());
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// Refused before anything is joined, so the file outside the theme (which
@@ -288,8 +273,6 @@ mod tests {
             let reason = resolve_asset(root, host, escape).expect_err("must refuse");
             assert!(reason.contains(".."), "{host} {escape}: {reason}");
         }
-        let _ = std::fs::remove_dir_all(&installed_root);
-        let _ = std::fs::remove_dir_all(&staged_root);
     }
 
     #[test]
@@ -315,8 +298,6 @@ mod tests {
                 assert!(reason.contains("absolute"), "{host} {absolute}: {reason}");
             }
         }
-        let _ = std::fs::remove_dir_all(&installed_root);
-        let _ = std::fs::remove_dir_all(&staged_root);
     }
 
     #[test]
@@ -328,7 +309,6 @@ mod tests {
             let reason = resolve_asset(&root, id, "main.css").expect_err("must refuse");
             assert!(reason.contains("No installed theme"), "{id}: {reason}");
         }
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -339,7 +319,6 @@ mod tests {
             let reason = resolve_asset(&root, id, "main.css").expect_err("must refuse");
             assert!(reason.contains("usable theme id"), "{id}: {reason}");
         }
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -356,7 +335,6 @@ mod tests {
             resolved,
             package.join("previews/shot.png").canonicalize().unwrap()
         );
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -366,7 +344,6 @@ mod tests {
         let reason = resolve_asset(&root, ".staging", "main.css").expect_err("must refuse");
 
         assert!(reason.contains("staging"), "{reason}");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -377,7 +354,6 @@ mod tests {
             let reason = resolve_asset(&root, id, "main.css").expect_err("must refuse");
             assert!(reason.contains("usable staging id"), "{id}: {reason}");
         }
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// The link points at a file *inside* the theme, so the canonicalised
@@ -392,7 +368,6 @@ mod tests {
         let reason = resolve_asset(&root, "aurora.theme", "alias.css").expect_err("must refuse");
 
         assert!(reason.contains("symbolic link"), "{reason}");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// A link earlier in the path is a directory to `symlink_metadata` on the
@@ -415,7 +390,6 @@ mod tests {
 
             assert!(reason.contains("outside theme"), "{escape}: {reason}");
         }
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// A symlink loop must fail closed (an unresolvable path), not panic or
@@ -431,7 +405,6 @@ mod tests {
         let reason = resolve_asset(&root, "aurora.theme", "loop-a").expect_err("must refuse");
 
         assert!(!reason.is_empty());
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// A request path carrying a raw NUL byte cannot slip past the `..`/
@@ -444,7 +417,6 @@ mod tests {
             .expect_err("must refuse");
 
         assert!(!reason.is_empty());
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// An overlong UTF-8 encoding of `/` (`%c0%af`) must not decode into a
@@ -457,7 +429,6 @@ mod tests {
         let reason = read_asset(&root, &uri).expect_err("must refuse");
 
         assert!(!reason.is_empty());
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -481,7 +452,6 @@ mod tests {
 
         assert_eq!(content_type, "text/css");
         assert_eq!(bytes, b"body{}");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -496,7 +466,6 @@ mod tests {
 
         assert_eq!(content_type, "text/css");
         assert_eq!(bytes, br#"@import url("styles.css") layer(theme);"#);
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// Every refusal is the same 404 with no body — a request naming a file
@@ -520,7 +489,6 @@ mod tests {
             let reason = read_asset(&root, &uri).expect_err("must refuse");
             assert!(!reason.is_empty(), "{uri}");
         }
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

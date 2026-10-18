@@ -6,6 +6,7 @@ use std::collections::{HashSet, VecDeque};
 use std::fmt;
 use std::net::SocketAddrV4;
 use std::time::{Duration, Instant};
+use tetra_net::{retry_backoff, Verdict};
 use tokio::sync::mpsc;
 use tokio::task::JoinSet;
 
@@ -125,25 +126,17 @@ impl SteamClient {
         filter: &str,
         limit: usize,
     ) -> Result<Vec<SteamServer>, SteamError> {
-        let mut backoff = RETRY_BACKOFF;
-        let mut last = SteamError::Status(0);
-        for attempt in 1..=ATTEMPTS {
-            match self.request(filter, limit).await {
-                Ok(rows) => return Ok(rows),
-                Err(e) => {
-                    let Some(delay) = retry_delay(&e, backoff) else {
-                        return Err(e);
-                    };
-                    tracing::debug!(filter, attempt, error = %e, "shard request failed");
-                    last = e;
-                    if attempt < ATTEMPTS {
-                        tokio::time::sleep(delay).await;
-                        backoff *= 2;
-                    }
-                }
-            }
-        }
-        Err(last)
+        retry_backoff(
+            ATTEMPTS,
+            RETRY_BACKOFF,
+            || async {
+                self.request(filter, limit)
+                    .await
+                    .inspect_err(|e| tracing::debug!(filter, error = %e, "shard request failed"))
+            },
+            retry_verdict,
+        )
+        .await
     }
 
     async fn request(&self, filter: &str, limit: usize) -> Result<Vec<SteamServer>, SteamError> {
@@ -180,19 +173,16 @@ impl SteamClient {
     }
 }
 
-/// How long to wait before the next try, or `None` when `err` is permanent.
-fn retry_delay(err: &SteamError, backoff: Duration) -> Option<Duration> {
+/// Whether a failed shard request is worth another try, and after how long.
+fn retry_verdict(err: &SteamError) -> Verdict {
     match err {
         // A rejected key or a bad filter will be rejected again; only
         // transport, server-side and throttling faults are worth another try.
-        SteamError::Status(code) if (400..500).contains(code) => None,
-        SteamError::Throttled { retry_after, .. } => Some(
-            retry_after
-                .unwrap_or(backoff)
-                .max(backoff)
-                .min(MAX_THROTTLE_BACKOFF),
-        ),
-        _ => Some(backoff),
+        SteamError::Status(code) if (400..500).contains(code) => Verdict::Fatal,
+        SteamError::Throttled { retry_after, .. } => {
+            Verdict::Retry(retry_after.map(|d| d.min(MAX_THROTTLE_BACKOFF)))
+        }
+        _ => Verdict::Retry(None),
     }
 }
 
@@ -335,46 +325,57 @@ mod tests {
     }
 
     #[test]
-    fn retry_delay_keeps_only_backoffable_failures() {
-        let backoff = Duration::from_secs(1);
+    fn retry_verdict_keeps_only_retryable_failures() {
         let throttled = |status, retry_after| SteamError::Throttled {
             status,
             retry_after,
         };
 
-        // (case, failure, next delay, or None when the failure is permanent).
+        // (case, failure, verdict).
         for (name, err, expected) in [
-            ("a rejected request", SteamError::Status(403), None),
-            ("a missing shard", SteamError::Status(404), None),
-            ("a server fault", SteamError::Status(500), Some(backoff)),
+            (
+                "a rejected request",
+                SteamError::Status(403),
+                Verdict::Fatal,
+            ),
+            ("a missing shard", SteamError::Status(404), Verdict::Fatal),
+            (
+                "a server fault",
+                SteamError::Status(500),
+                Verdict::Retry(None),
+            ),
             (
                 "a transport fault",
                 SteamError::Http("boom".into()),
-                Some(backoff),
+                Verdict::Retry(None),
             ),
             (
                 "throttling with a wait",
                 throttled(429, Some(Duration::from_secs(5))),
-                Some(Duration::from_secs(5)),
+                Verdict::Retry(Some(Duration::from_secs(5))),
             ),
             (
                 "throttling without a wait",
                 throttled(429, None),
-                Some(backoff),
+                Verdict::Retry(None),
             ),
             (
-                "a wait below the backoff",
+                "a short wait",
                 throttled(429, Some(Duration::from_millis(500))),
-                Some(backoff),
+                Verdict::Retry(Some(Duration::from_millis(500))),
             ),
             (
                 "a wait above the cap",
                 throttled(429, Some(Duration::from_secs(120))),
-                Some(Duration::from_secs(30)),
+                Verdict::Retry(Some(Duration::from_secs(30))),
             ),
-            ("a request timeout", throttled(408, None), Some(backoff)),
+            (
+                "a request timeout",
+                throttled(408, None),
+                Verdict::Retry(None),
+            ),
         ] {
-            assert_eq!(retry_delay(&err, backoff), expected, "{name}");
+            assert_eq!(retry_verdict(&err), expected, "{name}");
         }
     }
 

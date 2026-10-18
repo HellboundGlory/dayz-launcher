@@ -6,6 +6,8 @@
 pub mod a2s;
 pub mod classify;
 pub mod error;
+mod time;
 
 pub use a2s::rules::RulePairs;
 pub use error::{CoreError, PackedError, ParseError};
+pub use time::unix_now;

@@ -237,19 +237,13 @@ pub fn prune_stale(conn: &Connection) -> Result<usize, RegistryError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tetra_core::unix_now;
 
     fn fresh_conn() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
         apply_pragmas(&conn).unwrap();
         migrate(&conn).unwrap();
         conn
-    }
-
-    fn now() -> i64 {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as i64
     }
 
     /// `responded_age_days` is `None` for a row Steam listed but that never
@@ -261,15 +255,15 @@ mod tests {
         favourite: bool,
         played_age_days: Option<i64>,
     ) {
-        let seen = now() - last_seen_age_days * 86_400;
+        let seen = unix_now() - last_seen_age_days * 86_400;
         conn.execute(
             "INSERT INTO servers (ip, query_port, first_seen, last_seen, last_responded, favourite, last_played)
              VALUES ('1.2.3.4', 2302, ?1, ?1, ?2, ?3, ?4)",
             rusqlite::params![
                 seen,
-                responded_age_days.map(|d| now() - d * 86_400),
+                responded_age_days.map(|d| unix_now() - d * 86_400),
                 favourite as i64,
-                played_age_days.map(|d| now() - d * 86_400),
+                played_age_days.map(|d| unix_now() - d * 86_400),
             ],
         )
         .unwrap();
