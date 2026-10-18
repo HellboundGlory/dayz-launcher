@@ -69,7 +69,7 @@ export function App() {
   const overlays = useOverlayStore((s) => s.stack);
   const openOverlay = useOverlayStore((s) => s.open);
   const closeOverlay = useOverlayStore((s) => s.close);
-  /** The row whose ⋯ menu asked for "More info" — drives the M1 modal. */
+  /** The row whose ⋯ menu asked for "More info". */
   const infoServer = overlays.find((o) => o.id === "serverInfo")?.payload ?? null;
   const modFilterOpen = overlays.some((o) => o.id === "modFilter");
   // The fallback notice is dismissed per launcher version (§16.1).
