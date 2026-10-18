@@ -140,6 +140,7 @@ async fn serve(cfg: Config) -> ExitCode {
         Arc::clone(&state),
         shutdown_rx.clone(),
     ));
+    loops.spawn(prune_loop(writer.clone(), shutdown_rx.clone()));
     loops.spawn(rules_loop(
         Arc::clone(&cfg),
         prober,
@@ -366,6 +367,25 @@ async fn rules_loop(
                 state.request_rebuild();
             }
             Err(e) => tracing::warn!(error = %e, "rules sweep failed"),
+        }
+    }
+}
+
+/// Startup prunes too; this covers an indexer that runs for weeks.
+const PRUNE_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
+
+async fn prune_loop(writer: Writer, mut shutdown: watch::Receiver<bool>) {
+    let start = tokio::time::Instant::now() + PRUNE_INTERVAL;
+    let mut ticker = tokio::time::interval_at(start, PRUNE_INTERVAL);
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    loop {
+        tokio::select! {
+            _ = ticker.tick() => {}
+            _ = shutdown.changed() => return,
+        }
+        match writer.prune_stale().await {
+            Ok(pruned) => tracing::info!(pruned, "prune finished"),
+            Err(e) => tracing::warn!(error = %e, "prune failed"),
         }
     }
 }
