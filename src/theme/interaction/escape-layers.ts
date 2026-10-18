@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 // Escape closes only the dialog, modal or overlay opened last. A per-dialog
 // listener can't tell: the dialog above may already be gone from the DOM by
@@ -44,12 +44,20 @@ export function openEscapeLayer(close: () => void, order = nextOrder()): () => v
   };
 }
 
+/** A layer's order, taken when it becomes active so an always-mounted dialog still opens on top. */
+export function orderWhileActive(active: boolean, held: number | null): number | null {
+  if (!active) return null;
+  return held ?? nextOrder();
+}
+
 export function useEscapeLayer(active: boolean, onEscape: () => void) {
   const latest = useRef(onEscape);
   latest.current = onEscape;
-  const [order] = useState(nextOrder);
+  const held = useRef<number | null>(null);
+  held.current = orderWhileActive(active, held.current);
+  const order = held.current;
   useEffect(() => {
-    if (!active) return;
+    if (order === null) return;
     return openEscapeLayer(() => latest.current(), order);
-  }, [active, order]);
+  }, [order]);
 }

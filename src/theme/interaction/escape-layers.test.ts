@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { handleEscape, openEscapeLayer } from "./escape-layers";
+import { handleEscape, openEscapeLayer, orderWhileActive } from "./escape-layers";
 
 const escape = () => ({ key: "Escape", preventDefault: () => {} });
 
@@ -32,5 +32,18 @@ describe("escape layers", () => {
 
     closeChild();
     closeParent();
+  });
+
+  it("puts a dialog mounted early above a modal opened before the dialog itself opens", () => {
+    const closed: string[] = [];
+    const mountedEarly = orderWhileActive(false, null);
+    const closeModal = openEscapeLayer(() => closed.push("modal"));
+    const closeConfirm = openEscapeLayer(() => closed.push("confirm"), orderWhileActive(true, mountedEarly)!);
+
+    handleEscape(escape());
+    expect(closed).toEqual(["confirm"]);
+
+    closeConfirm();
+    closeModal();
   });
 });
