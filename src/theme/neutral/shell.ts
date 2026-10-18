@@ -1,5 +1,4 @@
 import type { LayoutFile, LayoutNode } from "../renderer/types";
-import "./shell.css";
 
 function railContent(collapsed: boolean): LayoutNode[] {
   const display = collapsed ? "icon" : "iconLabel";

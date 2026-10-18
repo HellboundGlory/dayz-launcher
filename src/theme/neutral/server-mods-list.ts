@@ -1,5 +1,4 @@
 import type { LayoutFile } from "../renderer/types";
-import "./server-mods-list.css";
 
 export const SERVER_MODS_LIST: LayoutFile = {
   schemaVersion: 2,

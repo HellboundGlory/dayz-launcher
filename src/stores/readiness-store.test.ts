@@ -8,6 +8,7 @@ vi.mock("@/lib/tauri", () => ({ serverModReadiness }));
 
 import { useModsStore } from "@/stores/mods-store";
 import {
+  retryDelayMs,
   scheduleReadinessFetch,
   getCachedReadiness,
   invalidateReadiness,
@@ -179,5 +180,12 @@ describe("readiness store", () => {
     useModsStore.setState({ rows: [] });
 
     expect(getCachedReadiness("1.2.3.4", 27016)).toBeUndefined();
+  });
+});
+
+describe("retryDelayMs", () => {
+  it("doubles from 30 s per consecutive failure and caps at 5 min", () => {
+    const delays = [1, 2, 3, 4, 5, 6].map((failures) => retryDelayMs(failures));
+    expect(delays).toEqual([30_000, 60_000, 120_000, 240_000, 300_000, 300_000]);
   });
 });

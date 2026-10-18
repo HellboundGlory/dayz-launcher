@@ -1,5 +1,4 @@
 import type { LayoutNode, SettingsLayoutFile } from "../renderer/types";
-import "./settings.css";
 
 const sectionHeader = (section: string): LayoutNode => ({
   type: "stack",

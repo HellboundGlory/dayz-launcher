@@ -82,7 +82,7 @@ interface ThemeState {
   apply: () => void;
   /** Tune one field: writes it through the backend, mirrors it into
    * `settingsValues` immediately, then repaints. */
-  setSettingsValue: (id: string, fieldId: string, value: SettingsValue) => Promise<void>;
+  setSettingsValue: (id: string, fieldId: string, value: SettingsValue) => Promise<boolean>;
   setScheme: (scheme: "dark" | "light") => void;
   /** `deleteOnRevert`: `id` was just created by this same action (duplicate,
    * "New theme") — abandoning the activation deletes it too, not just the pick. */
@@ -639,7 +639,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       await setThemeSettingsValue(id, fieldId, value as unknown as number | boolean);
     } catch (e) {
       console.error(`Could not save setting "${fieldId}" for theme "${id}":`, e);
-      return;
+      return false;
     }
     // Mirror the write into the cache so the running app repaints from the
     // value just persisted, rather than waiting on a re-read of the sidecar.
@@ -653,6 +653,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       return { settingsValues: { ...state.settingsValues, [id]: { ...base, [fieldId]: value } } };
     });
     get().apply();
+    return true;
   },
 
   setScheme: (scheme) => {

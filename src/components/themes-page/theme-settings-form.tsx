@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useThemeStore } from "@/theme/theme-store";
 import { isHexColor, type SettingsField } from "@/theme/settings-schema";
+import { SAVE_FAILED_NOTICE } from "../theme-customiser";
 
 const COMMIT_DELAY_MS = 350;
 
@@ -28,6 +29,7 @@ export function ThemeSettingsForm({ id, fields }: { id: string; fields: Settings
     id,
     byField: {},
   });
+  const [saveFailed, setSaveFailed] = useState(false);
   const shown = drafts.id === id ? drafts.byField : {};
   const timers = useRef<CommitTimers>({});
 
@@ -38,13 +40,21 @@ export function ThemeSettingsForm({ id, fields }: { id: string; fields: Settings
     }));
   }
 
-  function clearDraft(fieldId: string, expected?: string | number) {
+  function clearDraft(fieldId: string, expected?: string | number | boolean) {
     setDrafts((prev) => {
       if (prev.id !== id || prev.byField[fieldId] === undefined) return prev;
       if (expected !== undefined && prev.byField[fieldId] !== expected) return prev;
       const byField = { ...prev.byField };
       delete byField[fieldId];
       return { id, byField };
+    });
+  }
+
+  /** A failed write keeps the draft on screen and says so. */
+  function save(fieldId: string, value: string | number | boolean) {
+    void setSettingsValue(id, fieldId, value).then((saved) => {
+      setSaveFailed(!saved);
+      if (saved) clearDraft(fieldId, value);
     });
   }
 
@@ -89,9 +99,7 @@ export function ThemeSettingsForm({ id, fields }: { id: string; fields: Settings
                 onChange={(e) => {
                   const next = Number(e.target.value);
                   setDraft(field.id, next);
-                  scheduleCommit(timers.current, field.id, () => {
-                    void setSettingsValue(id, field.id, next).then(() => clearDraft(field.id, next));
-                  });
+                  scheduleCommit(timers.current, field.id, () => save(field.id, next));
                 }}
                 className="h-[3px] flex-1 accent-accent"
               />
@@ -108,7 +116,7 @@ export function ThemeSettingsForm({ id, fields }: { id: string; fields: Settings
               <input
                 type="checkbox"
                 checked={current(field) as boolean}
-                onChange={(e) => void setSettingsValue(id, field.id, e.target.checked)}
+                onChange={(e) => save(field.id, e.target.checked)}
                 className="mt-0.5 size-3.5 shrink-0 accent-accent"
               />
               <span className="min-w-0 [font-size:var(--t-type-body-size)] text-ink">{field.label}</span>
@@ -132,7 +140,7 @@ export function ThemeSettingsForm({ id, fields }: { id: string; fields: Settings
               <select
                 id={`theme-setting-${field.id}`}
                 value={current(field) as string}
-                onChange={(e) => void setSettingsValue(id, field.id, e.target.value)}
+                onChange={(e) => save(field.id, e.target.value)}
                 className="flex-1 [border-radius:var(--t-radius-controlSmall)] border border-line bg-surface px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-body-size)] text-ink accent-accent"
               >
                 {field.options.map((option) => (
@@ -168,9 +176,7 @@ export function ThemeSettingsForm({ id, fields }: { id: string; fields: Settings
                   onChange={(e) => {
                     const next = e.target.value;
                     setDraft(field.id, next);
-                    scheduleCommit(timers.current, field.id, () => {
-                      void setSettingsValue(id, field.id, next).then(() => clearDraft(field.id, next));
-                    });
+                    scheduleCommit(timers.current, field.id, () => save(field.id, next));
                   }}
                   className="size-6 cursor-pointer [border-radius:var(--t-radius-controlSmall)] border-0 bg-transparent p-0"
                 />
@@ -181,9 +187,7 @@ export function ThemeSettingsForm({ id, fields }: { id: string; fields: Settings
                     const next = e.target.value;
                     setDraft(field.id, next);
                     if (!isHexColor(next)) return;
-                    scheduleCommit(timers.current, field.id, () => {
-                      void setSettingsValue(id, field.id, next).then(() => clearDraft(field.id, next));
-                    });
+                    scheduleCommit(timers.current, field.id, () => save(field.id, next));
                   }}
                   onBlur={() => {
                     if (timers.current[field.id] === undefined) clearDraft(field.id);
@@ -197,6 +201,11 @@ export function ThemeSettingsForm({ id, fields }: { id: string; fields: Settings
 
         return null;
       })}
+      {saveFailed && (
+        <p role="status" className="[font-size:var(--t-type-caption-size)] leading-[1.4] text-danger">
+          {SAVE_FAILED_NOTICE}
+        </p>
+      )}
     </div>
   );
 }

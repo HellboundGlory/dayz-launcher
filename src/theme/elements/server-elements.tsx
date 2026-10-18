@@ -37,7 +37,7 @@ import { OptionIcon } from "./option-icon";
 import { usePopupTrigger } from "../interaction/use-popup-trigger";
 import { getActiveLayout, getThemeOwnedLayout, useLayoutSubscription } from "../theme-store";
 import type { PopupLayoutFile } from "../renderer/types";
-import { FilterPopup, usePopupContext } from "./popup-elements";
+import { TriggerPopup, usePopupContext } from "./popup-elements";
 import { displayOption, formatElementTime } from "./element-utils";
 
 export function useServerSubject(): Server | null {
@@ -683,11 +683,11 @@ export function ServerMenu({
           <OptionIcon icon={options?.icon} fallback={ChevronDown} className="size-3.5" />
         </span>
       </button>
-      <FilterPopup open={open} popupId={menuKind} close={close} themedPopup={themedPopup} triggerRef={rootRef}>
+      <TriggerPopup open={open} popupId={menuKind} close={close} themedPopup={themedPopup} triggerRef={rootRef}>
         {menuKind === "serverLoad" && (
           <ServerLoadMenuPopup open={open} onLoad={handleLoad} popupRef={popupRef} style={popupStyle} />
         )}
-      </FilterPopup>
+      </TriggerPopup>
     </div>
   );
 }

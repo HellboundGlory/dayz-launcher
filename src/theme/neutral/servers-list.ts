@@ -1,5 +1,4 @@
 import type { LayoutFile } from "../renderer/types";
-import "./servers-list.css";
 
 export const SERVERS_LIST: LayoutFile = {
   schemaVersion: 2,

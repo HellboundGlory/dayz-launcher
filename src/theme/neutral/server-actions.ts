@@ -1,5 +1,4 @@
 import type { PopupLayoutFile } from "../renderer/types";
-import "./server-actions.css";
 
 export const SERVER_ACTIONS_POPUP: PopupLayoutFile = {
   schemaVersion: 2,

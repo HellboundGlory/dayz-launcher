@@ -1,6 +1,19 @@
 @layer launcher, neutral, theme, guarantees;
 
 @import "tailwindcss" layer(launcher) source(none);
+@import "./theme/neutral/shell.css" layer(neutral);
+@import "./theme/neutral/browser.css" layer(neutral);
+@import "./theme/neutral/filter-popups.css" layer(neutral);
+@import "./theme/neutral/mods.css" layer(neutral);
+@import "./theme/neutral/settings.css" layer(neutral);
+@import "./theme/neutral/server-info.css" layer(neutral);
+@import "./theme/neutral/update.css" layer(neutral);
+@import "./theme/neutral/mod-filter.css" layer(neutral);
+@import "./theme/neutral/servers-list.css" layer(neutral);
+@import "./theme/neutral/mods-list.css" layer(neutral);
+@import "./theme/neutral/server-mods-list.css" layer(neutral);
+@import "./theme/neutral/mod-filter-results.css" layer(neutral);
+@import "./theme/neutral/server-actions.css" layer(neutral);
 @source "./**/*.{ts,tsx}";
 @custom-variant hover (&:hover);
 

@@ -1,5 +1,4 @@
 import type { ModalLayoutFile } from "../renderer/types";
-import "./update.css";
 
 export const UPDATE_MODAL: ModalLayoutFile = {
   schemaVersion: 2,

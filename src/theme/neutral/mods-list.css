@@ -1,157 +1,153 @@
-@reference "../../main.css";
+.t-neutral-modrow-row {
+  @apply cursor-pointer gap-2.5 [border-radius:var(--t-radius-row)] border border-line bg-surface px-2.5 py-2 transition-[border-color,background,box-shadow] [transition-duration:var(--t-motion-hover-duration)];
+}
 
-@layer neutral {
-  .t-neutral-modrow-row {
-    @apply cursor-pointer gap-2.5 [border-radius:var(--t-radius-row)] border border-line bg-surface px-2.5 py-2 transition-[border-color,background,box-shadow] [transition-duration:var(--t-motion-hover-duration)];
+[data-row]:has(> .t-neutral-modrow-row) {
+  @apply hover:bg-transparent;
+}
+
+[data-row]:hover > .t-neutral-modrow-row {
+  @apply border-accent-line;
+}
+
+[data-row][data-state~="selected"] > .t-neutral-modrow-row {
+  @apply border-accent-line bg-accent-soft [box-shadow:var(--t-glow-selected)];
+}
+
+[data-row][data-state~="disabled"] > .t-neutral-modrow-row {
+  @apply opacity-50;
+}
+
+.t-neutral-modrow-select {
+  @apply flex items-center justify-center;
+}
+
+.t-neutral-modrow-select [data-part="box"] {
+  @apply transition-colors;
+}
+
+.t-neutral-modrow-select [data-part="box"]:hover {
+  @apply border-accent-line;
+}
+
+.t-neutral-modrow-select[data-state~="checked"] [data-part="box"] {
+  @apply border-accent bg-accent [box-shadow:var(--t-glow-selected)];
+}
+
+.t-neutral-modrow-thumb {
+  @apply block h-[30px] w-[30px] shrink-0 overflow-hidden [border-radius:var(--t-radius-thumb)] bg-surface2;
+}
+
+.t-neutral-modrow-main {
+  @apply min-w-0 flex-1;
+}
+
+.t-neutral-modrow-title {
+  @apply min-w-0 gap-1.5 [font-size:var(--t-type-body-size)] font-semibold;
+}
+
+.t-neutral-modrow-name {
+  @apply truncate text-ink;
+}
+
+.t-neutral-modrow-disabled {
+  @apply shrink-0 [border-radius:var(--t-radius-chip)] border border-muted px-1 [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-wider text-muted2;
+}
+
+.t-neutral-modrow-tags {
+  @apply block truncate [font-size:var(--t-type-micro-size)] text-muted;
+}
+
+.t-neutral-modrow-status {
+  @apply grid w-[104px] shrink-0 items-center text-muted2 [grid-template-columns:max-content_minmax(0,1fr)] [row-gap:3px];
+}
+
+.t-neutral-modrow-status::before {
+  content: "";
+  @apply col-start-1 row-start-1 self-stretch justify-self-stretch rounded-full border border-line bg-muted-soft;
+}
+
+.t-neutral-modrow-status [data-part="dot"] {
+  @apply col-start-1 row-start-1 ml-[7px] h-[5px] w-[5px] justify-self-start self-center rounded-full bg-current;
+}
+
+.t-neutral-modrow-status [data-part="label"] {
+  @apply col-start-1 row-start-1 whitespace-nowrap py-[4px] pl-[18px] pr-[7px] [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-wider;
+}
+
+.t-neutral-modrow-status[data-state~="ready"] {
+  @apply text-success;
+}
+
+.t-neutral-modrow-status[data-state~="ready"]::before {
+  @apply border-success-line bg-success-soft;
+}
+
+.t-neutral-modrow-status[data-state~="ready"] [data-part="dot"],
+.t-neutral-modrow-status[data-state~="update"] [data-part="dot"] {
+  @apply [box-shadow:var(--t-shadow-statusDot)];
+}
+
+.t-neutral-modrow-status[data-state~="update"] {
+  @apply text-warn;
+}
+
+.t-neutral-modrow-status[data-state~="update"]::before {
+  @apply border-warn-line bg-warn-soft;
+}
+
+.t-neutral-modrow-status[data-state~="downloading"] {
+  @apply text-accent;
+}
+
+.t-neutral-modrow-status[data-state~="downloading"]::before {
+  @apply border-accent-line bg-accent-soft;
+}
+
+.t-neutral-modrow-status[data-state~="downloading"] [data-part="dot"] {
+  @apply [box-shadow:var(--t-glow-rest)];
+}
+
+.t-neutral-modrow-status [data-part="progress"] {
+  @apply relative z-[1] col-span-full row-start-2 self-stretch justify-self-start rounded-full bg-accent [box-shadow:var(--t-glow-rest)];
+}
+
+.t-neutral-modrow-status:has([data-part="progress"])::after {
+  content: "";
+  @apply col-span-full row-start-2 h-[3px] rounded-full bg-line;
+}
+
+.t-neutral-modrow-size {
+  @apply block w-[64px] shrink-0 truncate text-right [font-family:var(--t-type-family-data)] [font-size:var(--t-type-caption-size)] text-accent2;
+}
+
+.t-neutral-modrow-updated {
+  @apply block w-[76px] shrink-0 truncate text-right [font-family:var(--t-type-family-data)] [font-size:var(--t-type-caption-size)] text-muted2;
+}
+
+/* Rows are about 438 px wide at the regular 975 px size, so the columns stay there. */
+@container (max-width: 419px) {
+  .t-neutral-modrow-size,
+  .t-neutral-modrow-updated {
+    @apply hidden;
   }
+}
 
-  [data-row]:has(> .t-neutral-modrow-row) {
-    @apply hover:bg-transparent;
-  }
-
-  [data-row]:hover > .t-neutral-modrow-row {
-    @apply border-accent-line;
-  }
-
-  [data-row][data-state~="selected"] > .t-neutral-modrow-row {
-    @apply border-accent-line bg-accent-soft [box-shadow:var(--t-glow-selected)];
-  }
-
-  [data-row][data-state~="disabled"] > .t-neutral-modrow-row {
-    @apply opacity-50;
-  }
-
-  .t-neutral-modrow-select {
-    @apply flex items-center justify-center;
-  }
-
-  .t-neutral-modrow-select [data-part="box"] {
-    @apply transition-colors;
-  }
-
-  .t-neutral-modrow-select [data-part="box"]:hover {
-    @apply border-accent-line;
-  }
-
-  .t-neutral-modrow-select[data-state~="checked"] [data-part="box"] {
-    @apply border-accent bg-accent [box-shadow:var(--t-glow-selected)];
-  }
-
+@container (max-width: 299px) {
   .t-neutral-modrow-thumb {
-    @apply block h-[30px] w-[30px] shrink-0 overflow-hidden [border-radius:var(--t-radius-thumb)] bg-surface2;
-  }
-
-  .t-neutral-modrow-main {
-    @apply min-w-0 flex-1;
-  }
-
-  .t-neutral-modrow-title {
-    @apply min-w-0 gap-1.5 [font-size:var(--t-type-body-size)] font-semibold;
-  }
-
-  .t-neutral-modrow-name {
-    @apply truncate text-ink;
-  }
-
-  .t-neutral-modrow-disabled {
-    @apply shrink-0 [border-radius:var(--t-radius-chip)] border border-muted px-1 [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-wider text-muted2;
-  }
-
-  .t-neutral-modrow-tags {
-    @apply block truncate [font-size:var(--t-type-micro-size)] text-muted;
+    @apply hidden;
   }
 
   .t-neutral-modrow-status {
-    @apply grid w-[104px] shrink-0 items-center text-muted2 [grid-template-columns:max-content_minmax(0,1fr)] [row-gap:3px];
+    @apply w-auto;
   }
 
   .t-neutral-modrow-status::before {
-    content: "";
-    @apply col-start-1 row-start-1 self-stretch justify-self-stretch rounded-full border border-line bg-muted-soft;
+    @apply hidden;
   }
 
-  .t-neutral-modrow-status [data-part="dot"] {
-    @apply col-start-1 row-start-1 ml-[7px] h-[5px] w-[5px] justify-self-start self-center rounded-full bg-current;
-  }
-
+  /* The label stays in the tree for screen readers. */
   .t-neutral-modrow-status [data-part="label"] {
-    @apply col-start-1 row-start-1 whitespace-nowrap py-[4px] pl-[18px] pr-[7px] [font-size:var(--t-type-micro-size)] font-bold uppercase tracking-wider;
-  }
-
-  .t-neutral-modrow-status[data-state~="ready"] {
-    @apply text-success;
-  }
-
-  .t-neutral-modrow-status[data-state~="ready"]::before {
-    @apply border-success-line bg-success-soft;
-  }
-
-  .t-neutral-modrow-status[data-state~="ready"] [data-part="dot"],
-  .t-neutral-modrow-status[data-state~="update"] [data-part="dot"] {
-    @apply [box-shadow:var(--t-shadow-statusDot)];
-  }
-
-  .t-neutral-modrow-status[data-state~="update"] {
-    @apply text-warn;
-  }
-
-  .t-neutral-modrow-status[data-state~="update"]::before {
-    @apply border-warn-line bg-warn-soft;
-  }
-
-  .t-neutral-modrow-status[data-state~="downloading"] {
-    @apply text-accent;
-  }
-
-  .t-neutral-modrow-status[data-state~="downloading"]::before {
-    @apply border-accent-line bg-accent-soft;
-  }
-
-  .t-neutral-modrow-status[data-state~="downloading"] [data-part="dot"] {
-    @apply [box-shadow:var(--t-glow-rest)];
-  }
-
-  .t-neutral-modrow-status [data-part="progress"] {
-    @apply relative z-[1] col-span-full row-start-2 self-stretch justify-self-start rounded-full bg-accent [box-shadow:var(--t-glow-rest)];
-  }
-
-  .t-neutral-modrow-status:has([data-part="progress"])::after {
-    content: "";
-    @apply col-span-full row-start-2 h-[3px] rounded-full bg-line;
-  }
-
-  .t-neutral-modrow-size {
-    @apply block w-[64px] shrink-0 truncate text-right [font-family:var(--t-type-family-data)] [font-size:var(--t-type-caption-size)] text-accent2;
-  }
-
-  .t-neutral-modrow-updated {
-    @apply block w-[76px] shrink-0 truncate text-right [font-family:var(--t-type-family-data)] [font-size:var(--t-type-caption-size)] text-muted2;
-  }
-
-  /* Rows are about 438 px wide at the regular 975 px size, so the columns stay there. */
-  @container (max-width: 419px) {
-    .t-neutral-modrow-size,
-    .t-neutral-modrow-updated {
-      @apply hidden;
-    }
-  }
-
-  @container (max-width: 299px) {
-    .t-neutral-modrow-thumb {
-      @apply hidden;
-    }
-
-    .t-neutral-modrow-status {
-      @apply w-auto;
-    }
-
-    .t-neutral-modrow-status::before {
-      @apply hidden;
-    }
-
-    /* The label stays in the tree for screen readers. */
-    .t-neutral-modrow-status [data-part="label"] {
-      @apply sr-only;
-    }
+    @apply sr-only;
   }
 }

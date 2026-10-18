@@ -33,7 +33,7 @@ vi.mock("react/jsx-dev-runtime", async (importOriginal) => {
 });
 
 import {
-  FilterPopup,
+  TriggerPopup,
   PopupClear,
   PopupClose,
   PopupContextProvider,
@@ -274,23 +274,23 @@ describe("PopupClear", () => {
   });
 });
 
-describe("FilterPopup", () => {
+describe("TriggerPopup", () => {
   const ref = { current: null };
 
   it("renders nothing while closed, themed or not", () => {
     const html = renderToStaticMarkup(
-      <FilterPopup open={false} popupId="mapFilter" close={() => {}} themedPopup={undefined} triggerRef={ref}>
+      <TriggerPopup open={false} popupId="mapFilter" close={() => {}} themedPopup={undefined} triggerRef={ref}>
         <div>default</div>
-      </FilterPopup>,
+      </TriggerPopup>,
     );
     expect(html).toBe("");
   });
 
   it("renders the default children when the theme doesn't own the popup file", () => {
     const html = renderToStaticMarkup(
-      <FilterPopup open={true} popupId="mapFilter" close={() => {}} themedPopup={undefined} triggerRef={ref}>
+      <TriggerPopup open={true} popupId="mapFilter" close={() => {}} themedPopup={undefined} triggerRef={ref}>
         <div data-testid="default-body">default</div>
-      </FilterPopup>,
+      </TriggerPopup>,
     );
     expect(html).toContain("default-body");
     expect(html).not.toContain("data-popup-host");
@@ -298,7 +298,7 @@ describe("FilterPopup", () => {
 
   it("renders the theme's PopupHost instead of the default children when it owns the popup file", () => {
     const html = renderToStaticMarkup(
-      <FilterPopup
+      <TriggerPopup
         open={true}
         popupId="mapFilter"
         close={() => {}}
@@ -306,7 +306,7 @@ describe("FilterPopup", () => {
         triggerRef={ref}
       >
         <div data-testid="default-body">default</div>
-      </FilterPopup>,
+      </TriggerPopup>,
     );
     expect(html).toContain("data-popup-host");
     expect(html).toContain("Themed");
