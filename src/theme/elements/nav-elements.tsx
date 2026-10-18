@@ -2,6 +2,7 @@ import type { CSSProperties, KeyboardEvent } from "react";
 import { Globe, Star, Clock, Package, Settings, type LucideIcon } from "lucide-react";
 import { useElementContext, type ViewId } from "./context";
 import { OptionIcon } from "./option-icon";
+import { parseDisplay } from "./element-utils";
 
 export function onNavKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
   const container = e.currentTarget.closest('nav, [data-landmark="navigation"]');
@@ -56,9 +57,7 @@ function NavItem({
   const targetView = viewMap[id];
   const isActive = isSettings ? settingsOpen : activeView === targetView;
 
-  const display = (options?.display as string) ?? "iconLabel";
-  const showIcon = display === "iconLabel" || display === "icon";
-  const showLabel = display === "iconLabel" || display === "label";
+  const { showIcon, showLabel } = parseDisplay(options, "iconLabel");
 
   const handleClick = () => {
     if (isSettings) {
@@ -83,7 +82,7 @@ function NavItem({
       // A mouse click shouldn't leave the keyboard focus ring on the tab (WebKitGTK shows it).
       onMouseDown={(e) => e.preventDefault()}
       onKeyDown={onNavKeyDown}
-      title={display === "icon" ? label : undefined}
+      title={showIcon && !showLabel ? label : undefined}
       aria-label={label}
       className={className ?? "flex items-center gap-[var(--t-space-sidebarItemGap)] px-3 py-1 [font-size:var(--t-type-size-lg)] leading-4 font-bold uppercase tracking-wider transition-colors"}
       style={style}

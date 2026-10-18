@@ -38,7 +38,7 @@ import { usePopupTrigger } from "../interaction/use-popup-trigger";
 import { getActiveLayout, getThemeOwnedLayout, useLayoutSubscription } from "../theme-store";
 import type { PopupLayoutFile } from "../renderer/types";
 import { TriggerPopup, usePopupContext } from "./popup-elements";
-import { displayOption, formatElementTime } from "./element-utils";
+import { displayOption, formatElementTime, parseDisplay } from "./element-utils";
 
 export function useServerSubject(): Server | null {
   const { subjectContext, selectedServer } = useElementContext();
@@ -453,12 +453,10 @@ export function ServerJoin({
   if (!server) return null;
 
   const wording = (options?.wording as string) ?? "join";
-  const display = (options?.display as string) ?? "iconLabel";
+  const { showIcon, showLabel } = parseDisplay(options, "iconLabel");
   const isFixAndJoin = wording === "fixAndJoin";
 
   const activeOp = op && op.addr === server.addr ? op : null;
-  const showIcon = display === "iconLabel" || display === "icon";
-  const showLabel = display === "iconLabel" || display === "label";
 
   const handleClick = (e: MouseEvent) => {
     e.stopPropagation();
@@ -706,10 +704,8 @@ export function ServerLoadToMenu({
   const { close } = usePopupContext();
   if (!server) return null;
 
-  const display = (options?.display as string) ?? "iconLabel";
+  const { showIcon, showLabel } = parseDisplay(options, "iconLabel");
   const label = (options?.label as string) ?? "Load to menu";
-  const showIcon = display === "iconLabel" || display === "icon";
-  const showLabel = display === "iconLabel" || display === "label";
   const disabled = op !== null || dayzUp;
 
   const handleClick = (e: MouseEvent) => {
@@ -756,9 +752,7 @@ export function ServerCancel({
   if (op.phase === "launching" || op.phase === "starting") return null;
 
   const label = (options?.label as string) ?? "Cancel";
-  const display = (options?.display as string) ?? "label";
-  const showIcon = display === "iconLabel" || display === "icon";
-  const showLabel = display === "iconLabel" || display === "label";
+  const { showIcon, showLabel } = parseDisplay(options, "label");
 
   const handleClick = (e: MouseEvent) => {
     e.stopPropagation();
@@ -800,10 +794,8 @@ export function ServerManageMods({
   const { readiness, loading } = useServerReadiness(server);
   if (!server) return null;
 
-  const display = (options?.display as string) ?? "iconLabel";
+  const { showIcon, showLabel } = parseDisplay(options, "iconLabel");
   const label = "Manage mods";
-  const showIcon = display === "iconLabel" || display === "icon";
-  const showLabel = display === "iconLabel" || display === "label";
 
   const count = !loading && readiness ? readiness.mods.length : server.mod_count;
 
@@ -1241,10 +1233,8 @@ export function ServerCopyAddress({
   const setNotice = useLaunchStore((s) => s.setNotice);
   if (!server) return null;
 
-  const display = (options?.display as string | undefined) ?? "iconLabel";
+  const { showIcon, showLabel } = parseDisplay(options, "iconLabel");
   const label = (options?.label as string | undefined) ?? (copied ? "Address copied" : "Copy address");
-  const showIcon = display === "iconLabel" || display === "icon";
-  const showLabel = display === "iconLabel" || display === "label";
 
   const handleClick = (e: MouseEvent) => {
     e.stopPropagation();

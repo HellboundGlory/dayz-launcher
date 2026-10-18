@@ -50,6 +50,7 @@ import {
   ModsVerifyAll,
   ModsVerifySelected,
 } from "./mods-toolbar-elements";
+import { parseDisplay } from "./element-utils";
 
 /** A list header keeps the checked/unchecked toggle; anywhere else it is the one-way "Select all" action. */
 function ModsSelectAll({
@@ -100,9 +101,7 @@ function ModsSelectAll({
   if (visible.length === 0 || allSelected) return null;
 
   const label = (options?.label as string | undefined) ?? "Select all";
-  const display = (options?.display as string | undefined) ?? "iconLabel";
-  const showIcon = display === "iconLabel" || display === "icon";
-  const showLabel = display === "iconLabel" || display === "label";
+  const { showIcon, showLabel } = parseDisplay(options, "iconLabel");
 
   return (
     <button

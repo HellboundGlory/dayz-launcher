@@ -10,7 +10,6 @@ import type {
   VerifyOutcome,
 } from "@/lib/tauri";
 import type { Server } from "@/types/server";
-import { useServerStore } from "@/stores/server-store";
 import { useLaunchStore } from "@/stores/launch-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { getCachedReadiness, setCachedReadiness } from "@/stores/readiness-store";
@@ -98,7 +97,6 @@ function stuckDownloading(id: string) {
 beforeEach(() => {
   vi.useFakeTimers();
   useLaunchStore.setState({ op: null, result: null, notice: null, dayzRunning: false });
-  useServerStore.setState({ downloadsActive: false });
   useSettingsStore.setState({ profileName: "Survivor", dayzPath: "/dayz", launchParams: ["-noSplash"] });
 
   launchGame.mockReset().mockResolvedValue({
@@ -132,7 +130,6 @@ describe("verifyAndJoin", () => {
       mainMenu: undefined,
     });
     expect(useLaunchStore.getState().op?.phase).toBe("starting");
-    expect(useServerStore.getState().downloadsActive).toBe(false);
   });
 
   it("subscribes the missing mods, waits for them, then launches", async () => {
@@ -215,7 +212,6 @@ describe("verifyAndJoin", () => {
 
     expect(launchGame).not.toHaveBeenCalled();
     expect(useLaunchStore.getState().op).toBeNull();
-    expect(useServerStore.getState().downloadsActive).toBe(false);
     expect(useLaunchStore.getState().notice).toEqual({
       addr: server.addr,
       notice: { kind: "code", code: "W02" },
@@ -234,7 +230,7 @@ describe("verifyAndJoin", () => {
     await pending;
 
     expect(launchGame).not.toHaveBeenCalled();
-    expect(useServerStore.getState().downloadsActive).toBe(false);
+    expect(useLaunchStore.getState().op).toBeNull();
     expect(useLaunchStore.getState().notice).toEqual({
       addr: server.addr,
       notice: { kind: "code", code: "W04" },
@@ -275,7 +271,6 @@ describe("verifyAndJoin", () => {
       error: "Error: boom",
     });
     expect(useLaunchStore.getState().op).toBeNull();
-    expect(useServerStore.getState().downloadsActive).toBe(false);
   });
 
   it("waits out the settle time after forcing an update before launching", async () => {

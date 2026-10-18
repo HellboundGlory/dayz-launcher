@@ -6,19 +6,26 @@ export function states(...values: (string | false | null | undefined)[]): string
   return active.length > 0 ? active.join(" ") : undefined;
 }
 
+/** Which parts of an element a `display` option shows; values it does not name show neither. */
+export function parseDisplay(
+  options: Record<string, unknown> | undefined,
+  defaultMode: string,
+): { showIcon: boolean; showLabel: boolean } {
+  const display = (options?.display as string | undefined) ?? defaultMode;
+  return {
+    showIcon: display === "iconLabel" || display === "icon",
+    showLabel: display === "iconLabel" || display === "label",
+  };
+}
+
 /** Resolves a `display` option into the label and which parts an element renders. */
 export function displayOption(
   options: Record<string, unknown> | undefined,
   fallbackLabel: string,
   fallbackDisplay: "iconLabel" | "label" | "icon" = "label",
 ) {
-  const display = (options?.display as string | undefined) ?? fallbackDisplay;
   const label = (options?.label as string | undefined) ?? fallbackLabel;
-  return {
-    label,
-    showIcon: display === "iconLabel" || display === "icon",
-    showLabel: display === "iconLabel" || display === "label",
-  };
+  return { label, ...parseDisplay(options, fallbackDisplay) };
 }
 
 /** A timestamp element's value: relative time, or a locale date for `format: "date"`. */

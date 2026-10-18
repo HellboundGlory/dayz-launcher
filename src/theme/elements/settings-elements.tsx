@@ -7,6 +7,7 @@ import { discoverSteamPaths, dataFolderPath, openDataFolder } from "@/lib/tauri"
 import { ThemesSection } from "@/components/themes-page/themes-section";
 import { SECS, REFRESH_INTERVALS, INPUT_CLASS, BUTTON_CLASS, Field, CheckboxRow } from "./settings-controls";
 import { useElementContext } from "./context";
+import { parseDisplay } from "./element-utils";
 
 interface ElementProps {
   options?: Record<string, unknown>;
@@ -20,9 +21,7 @@ function showHintOption(options?: Record<string, unknown>): boolean {
 
 export function SettingsBack({ options, className, style }: ElementProps) {
   const { onCloseSettings } = useElementContext();
-  const display = (options?.display as string) ?? "label";
-  const showIcon = display === "iconLabel" || display === "icon";
-  const showLabel = display === "iconLabel" || display === "label";
+  const { showIcon, showLabel } = parseDisplay(options, "label");
 
   return (
     <button
@@ -48,9 +47,7 @@ export function SettingsBack({ options, className, style }: ElementProps) {
 
 export function SettingsDone({ options, className, style }: ElementProps) {
   const { onCloseSettings } = useElementContext();
-  const display = (options?.display as string) ?? "label";
-  const showIcon = display === "iconLabel" || display === "icon";
-  const showLabel = display === "iconLabel" || display === "label";
+  const { showIcon, showLabel } = parseDisplay(options, "label");
 
   return (
     <button
