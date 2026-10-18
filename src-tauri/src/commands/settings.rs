@@ -251,6 +251,9 @@ fn settings_fields(settings: &AppSettings) -> Result<Map<String, Value>, String>
     Ok(fields)
 }
 
+/// Written only by the window and theme code, never by the WebView.
+const RUST_OWNED_KEYS: [&str; 2] = ["window", "activeThemeId"];
+
 /// Merge the patch's top-level keys into the on-disk settings and save when a
 /// value changed. Returns the settings now on disk and the keys whose values changed.
 fn patch_on_disk(path: &Path, patch: &Value) -> Result<(AppSettings, Vec<String>), String> {
@@ -262,6 +265,9 @@ fn patch_on_disk(path: &Path, patch: &Value) -> Result<(AppSettings, Vec<String>
     let before_fields = settings_fields(&before)?;
     let mut merged = before_fields.clone();
     for (key, value) in patch {
+        if RUST_OWNED_KEYS.contains(&key.as_str()) {
+            return Err(format!("{key} cannot be set from a patch"));
+        }
         let slot = merged
             .get_mut(key)
             .ok_or_else(|| format!("Unknown setting: {key}"))?;
@@ -586,6 +592,22 @@ mod tests {
         let result = patch_on_disk(&path, &json!({ "profileNmae": "Night Owl" }));
 
         assert!(result.is_err());
+        assert_eq!(fs::read(&path).unwrap(), before);
+    }
+
+    #[test]
+    fn a_patch_cannot_set_the_window_or_the_active_theme() {
+        let dir = ScratchDir::new();
+        let path = dir.join("settings.json");
+        fs::write(&path, r#"{ "profileName": "James" }"#).unwrap();
+        let before = fs::read(&path).unwrap();
+
+        for patch in [
+            json!({ "activeThemeId": "../outside" }),
+            json!({ "window": null }),
+        ] {
+            assert!(patch_on_disk(&path, &patch).is_err(), "accepted {patch}");
+        }
         assert_eq!(fs::read(&path).unwrap(), before);
     }
 
