@@ -1,5 +1,14 @@
 # Changelog
 
+## v3.1.1 — 2026-10-18
+
+Servers show up again on Windows, and on any PC whose clock is wrong.
+
+### Fixed
+
+- The server list fills on first start on Windows instead of staying empty.
+- Servers no longer go missing when the PC clock is off by seconds or hours.
+
 ## v3.1.0 — 2026-10-18
 
 Fake servers are gone from the list, and join links, search and refresh do what they say.

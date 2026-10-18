@@ -4935,14 +4935,14 @@ dependencies = [
 
 [[package]]
 name = "tetra-core"
-version = "3.1.0"
+version = "3.1.1"
 dependencies = [
  "thiserror 2.0.21",
 ]
 
 [[package]]
 name = "tetra-discord"
-version = "3.1.0"
+version = "3.1.1"
 dependencies = [
  "discord-rich-presence",
  "percent-encoding",
@@ -4951,7 +4951,7 @@ dependencies = [
 
 [[package]]
 name = "tetra-index"
-version = "3.1.0"
+version = "3.1.1"
 dependencies = [
  "httpdate",
  "reqwest",
@@ -4963,7 +4963,7 @@ dependencies = [
 
 [[package]]
 name = "tetra-indexer"
-version = "3.1.0"
+version = "3.1.1"
 dependencies = [
  "axum",
  "flate2",
@@ -4981,7 +4981,7 @@ dependencies = [
 
 [[package]]
 name = "tetra-launch"
-version = "3.1.0"
+version = "3.1.1"
 dependencies = [
  "sysinfo",
  "thiserror 2.0.21",
@@ -4990,7 +4990,7 @@ dependencies = [
 
 [[package]]
 name = "tetra-launcher"
-version = "3.1.0"
+version = "3.1.1"
 dependencies = [
  "brotli",
  "cssparser 0.38.0",
@@ -5027,7 +5027,7 @@ dependencies = [
 
 [[package]]
 name = "tetra-net"
-version = "3.1.0"
+version = "3.1.1"
 dependencies = [
  "tetra-core",
  "thiserror 2.0.21",
@@ -5036,7 +5036,7 @@ dependencies = [
 
 [[package]]
 name = "tetra-registry"
-version = "3.1.0"
+version = "3.1.1"
 dependencies = [
  "rusqlite",
  "serde",
@@ -5047,7 +5047,7 @@ dependencies = [
 
 [[package]]
 name = "tetra-steam"
-version = "3.1.0"
+version = "3.1.1"
 dependencies = [
  "serde",
  "serde_json",
