@@ -82,7 +82,7 @@ if (carousel) {
 // instantly.
 const serverCount = document.getElementById("server-count");
 if (serverCount) {
-  const TARGET = 25000;
+  const TARGET = 12000;
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
     serverCount.textContent = TARGET.toLocaleString();
   } else {
