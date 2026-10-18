@@ -2,7 +2,7 @@
 
 ## v3.1.0 — 2026-10-18
 
-Every server is in the list again, and join links, search and refresh do what they say.
+Every real server is in the list, fake ones are gone, and join links, search and refresh do what they say.
 
 ### New
 
@@ -10,10 +10,11 @@ Every server is in the list again, and join links, search and refresh do what th
 - **Paste a server address** into search to find it, even one the list has never seen.
 - **Map filter**: official and DLC maps first, and a search box to find any map.
 - **Favourite from a join link** with the star in the join box.
+- **New theme asks for a name**, and no longer switches to the copy straight away.
 
 ### Improved
 
-- The list now holds every server, so empty and new servers no longer go missing.
+- The list holds every real server: fake and long-dead listings are gone, and empty servers no longer go missing.
 - Refresh re-checks the servers on screen, and rows stay put until it finishes.
 - Mod lists for new servers, Nasdara included, fill in instead of showing none.
 - A server that stops being listed shows as offline.
