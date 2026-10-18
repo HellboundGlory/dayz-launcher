@@ -5,7 +5,11 @@ import { useServerActions } from "@/hooks/use-server-actions";
 import { formatBytes } from "@/lib/utils";
 import { useJoinLinkStore, type JoinLinkPhase, type JoinLinkRequest } from "@/stores/join-link-store";
 import { useLaunchStore } from "@/stores/launch-store";
+import { useServerStore } from "@/stores/server-store";
+import { ServerModsListHost } from "@/theme/elements/list-elements";
+import { SubjectContextProvider } from "@/theme/elements/context";
 import { computeReadinessView } from "@/theme/elements/readiness-elements";
+import { ServerFavourite } from "@/theme/elements/server-elements";
 import { isOutstandingMod, useServerReadiness } from "@/theme/elements/use-server-readiness";
 import { useEscapeLayer } from "@/theme/interaction/escape-layers";
 import { wrapTabWithin } from "@/theme/interaction/popup-keyboard";
@@ -125,32 +129,46 @@ export function JoinLinkBox({
           <p className="[font-size:var(--t-type-size-sm)] text-muted">Opened from a join link</p>
         </div>
 
-        <div className="grid gap-3 px-4 py-3.5">
-          <div className="grid min-w-0 gap-1.5 border border-line bg-surface2 p-3 [border-radius:var(--t-radius-control)]">
-            <p className={`break-words font-semibold ${server ? "text-ink" : "text-muted2"}`}>
-              {server ? server.name : phase === "asking" ? "Looking up the server…" : "Unknown server"}
-            </p>
-            <div className="flex flex-wrap gap-x-3.5 gap-y-1 font-mono tabular-nums text-muted2 [font-size:var(--t-type-data-size)]">
-              {server && <span>Map <span className="text-ink">{server.map_display}</span></span>}
-              {server && <span>Players <span className="text-ink">{server.players}/{server.max_players}</span></span>}
-              {server && <span>Ping <span className="text-ink">{ping}</span></span>}
-              <span>{server && server.game_port > 0 ? `${request.ip}:${server.game_port}` : addr}</span>
-            </div>
-          </div>
-
-          {status && (
-            <div
-              role="status"
-              className={`flex items-start gap-2.5 px-3 py-2.5 [border-radius:var(--t-radius-control)] [font-size:var(--t-type-body-size)] ${TONE[status.tone]}`}
-            >
-              {status.icon}
-              <div>
-                {status.head}
-                {status.sub && <small className="block text-muted2 [font-size:var(--t-type-size-sm)]">{status.sub}</small>}
+        <SubjectContextProvider subject={server && { kind: "server", data: server }} contextName="modal">
+          <div className="grid gap-3 px-4 py-3.5">
+            <div className="grid min-w-0 gap-1.5 border border-line bg-surface2 p-3 [border-radius:var(--t-radius-control)]">
+              <div className="flex min-w-0 items-start gap-2">
+                <p className={`min-w-0 flex-1 break-words font-semibold ${server ? "text-ink" : "text-muted2"}`}>
+                  {server ? server.name : phase === "asking" ? "Looking up the server…" : "Unknown server"}
+                </p>
+                {server && (
+                  <ServerFavourite className="flex shrink-0 items-center justify-center text-muted hover:text-warn" />
+                )}
+              </div>
+              <div className="flex flex-wrap gap-x-3.5 gap-y-1 font-mono tabular-nums text-muted2 [font-size:var(--t-type-data-size)]">
+                {server && <span>Map <span className="text-ink">{server.map_display}</span></span>}
+                {server && <span>Players <span className="text-ink">{server.players}/{server.max_players}</span></span>}
+                {server && <span>Ping <span className="text-ink">{ping}</span></span>}
+                <span>{server && server.game_port > 0 ? `${request.ip}:${server.game_port}` : addr}</span>
               </div>
             </div>
-          )}
-        </div>
+
+            {status && (
+              <div
+                role="status"
+                className={`flex items-start gap-2.5 px-3 py-2.5 [border-radius:var(--t-radius-control)] [font-size:var(--t-type-body-size)] ${TONE[status.tone]}`}
+              >
+                {status.icon}
+                <div>
+                  {status.head}
+                  {status.sub && <small className="block text-muted2 [font-size:var(--t-type-size-sm)]">{status.sub}</small>}
+                </div>
+              </div>
+            )}
+
+            {server?.modded && (
+              <ServerModsListHost
+                options={{ header: false }}
+                className="flex min-h-0 max-h-56 flex-col overflow-hidden"
+              />
+            )}
+          </div>
+        </SubjectContextProvider>
 
         <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 border-t border-line px-4 py-3">
           {phase !== "noanswer" && (
@@ -195,7 +213,10 @@ export function JoinLinkDialog() {
 
 function OpenJoinLink({ request }: { request: JoinLinkRequest }) {
   const phase = useJoinLinkStore((s) => s.phase);
-  const server = useJoinLinkStore((s) => s.server);
+  const found = useJoinLinkStore((s) => s.server);
+  // The selection is the copy the star toggles, so it keeps the favourite flag current.
+  const selected = useServerStore((s) => (s.selectedServer?.addr === found?.addr ? s.selectedServer : null));
+  const server = selected ?? found;
   const close = useJoinLinkStore((s) => s.close);
   const { readiness, loading } = useServerReadiness(server);
   const dayzRunning = useLaunchStore((s) => s.dayzRunning);
