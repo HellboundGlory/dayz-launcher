@@ -46,6 +46,25 @@ pub(super) struct InfoBatchResult {
     offline_marks_suppressed: bool,
 }
 
+/// Store the answered probes waiting in `batch` and flag their servers online.
+async fn flush_answered(
+    writer: &tetra_registry::Writer,
+    batch: &mut Vec<tetra_registry::rows::ServerRow>,
+    online_keys: &mut Vec<ServerKey>,
+    log: &impl Fn(String),
+) {
+    if !batch.is_empty() {
+        if let Err(e) = writer.upsert_servers(std::mem::take(batch)).await {
+            log(format!("storing probed servers failed: {e}"));
+        }
+    }
+    if !online_keys.is_empty() {
+        if let Err(e) = writer.set_online(std::mem::take(online_keys), true).await {
+            log(format!("marking servers online failed: {e}"));
+        }
+    }
+}
+
 /// Phase 1 of a refresh: A2S_INFO every address, writing results in batches.
 /// `mark_offline` flips `online` on a non-answer for the targeted refresh,
 /// but not the bulk refresh (whose window doesn't cover the whole registry).
@@ -118,28 +137,18 @@ pub(super) async fn probe_info(
             mod_count: None,
             last_played: None,
             responded: true,
+            responded_at: None,
             country_code: None,
         });
 
         if batch.len() >= WRITE_BATCH {
-            if let Err(e) = writer.upsert_servers(std::mem::take(&mut batch)).await {
-                log(format!("storing probed servers failed: {e}"));
-            }
+            flush_answered(writer, &mut batch, &mut online_keys, &log).await;
             let _ = window.emit("server-refreshed", serde_json::json!({ "phase": "info" }));
             batch.reserve(WRITE_BATCH);
         }
     }
 
-    if !batch.is_empty() {
-        if let Err(e) = writer.upsert_servers(batch).await {
-            log(format!("storing probed servers failed: {e}"));
-        }
-    }
-    if !online_keys.is_empty() {
-        if let Err(e) = writer.set_online(online_keys, true).await {
-            log(format!("marking servers online failed: {e}"));
-        }
-    }
+    flush_answered(writer, &mut batch, &mut online_keys, &log).await;
 
     // A large batch where most probes failed points at the local network, not
     // the servers, so its misses are not written as offline.

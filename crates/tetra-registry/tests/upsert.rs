@@ -36,6 +36,7 @@ fn live_row() -> ServerRow {
         mod_count: None,
         last_played: None,
         responded: true,
+        responded_at: None,
         country_code: None,
     }
 }

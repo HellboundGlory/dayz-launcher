@@ -92,6 +92,7 @@ fn to_row(row: SteamServer) -> Option<ServerRow> {
         mod_count: None,
         last_played: None,
         responded: false,
+        responded_at: None,
         country_code: None,
     })
 }

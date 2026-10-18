@@ -198,7 +198,7 @@ CREATE TABLE workshop_cache (
 
 /// How long a server may go unresponsive, in days, before it's pruned —
 /// unless the user has favourited or played it. See [`prune_stale`].
-const PRUNE_AFTER_DAYS: i64 = 60;
+pub const PRUNE_AFTER_DAYS: i64 = 60;
 
 /// Delete servers unresponsive past [`PRUNE_AFTER_DAYS`] with no favourite/play history, plus
 /// their mod rows. Only `VACUUM`s if something was actually deleted.

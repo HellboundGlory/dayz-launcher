@@ -37,6 +37,8 @@ pub struct ServerRow {
     /// `true` records a successful A2S response now. Steam-sourced rows that
     /// were never directly queried set this `false`.
     pub responded: bool,
+    /// The answer time to store when `responded` is `true`; `None` means now.
+    pub responded_at: Option<i64>,
     /// Two-letter ISO country code derived from the IP address via GeoIP.
     /// Populated automatically by the writer during upsert; callers should
     /// leave this `None`.
