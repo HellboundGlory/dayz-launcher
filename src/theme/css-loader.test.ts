@@ -1,4 +1,4 @@
-/** Stylesheet `<link>` lifecycle across theme switches. Runs against a hand-rolled DOM stub:
+/** Theme stylesheet `<link>` lifecycle across theme switches. Runs against a hand-rolled DOM stub:
  * the project's vitest environment is `node`, and this module only touches a narrow slice of it. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -57,8 +57,7 @@ describe("applyThemeStylesheet", () => {
     expect(head[0].attributes).toMatchObject({
       id: "tetra-theme-css",
       rel: "stylesheet",
-      href: "tetra-theme://localhost/aurora/styles.css",
-      layer: "theme",
+      href: "tetra-theme://localhost/aurora/theme-layer.css",
     });
   });
 
@@ -77,8 +76,7 @@ describe("applyThemeStylesheet", () => {
 
     applyThemeStylesheet("aurora", ["css"]);
     expect(head).toHaveLength(1);
-    expect(head[0].attributes.href).toBe("tetra-theme://localhost/aurora/styles.css");
-    expect(head[0].attributes.layer).toBe("theme");
+    expect(head[0].attributes.href).toBe("tetra-theme://localhost/aurora/theme-layer.css");
 
     applyThemeStylesheet(null, []);
     expect(head).toHaveLength(0);
@@ -97,16 +95,7 @@ describe("applyThemeStylesheet", () => {
 
     expect(head).toHaveLength(1);
     expect(head[0]).toBe(first);
-    expect(first.attributes.href).toBe("tetra-theme://localhost/borealis/styles.css");
-    expect(first.attributes.layer).toBe("theme");
-  });
-
-  it("ensures layer='theme' is present when updating an existing link missing the attribute", () => {
-    applyThemeStylesheet("aurora", ["css"]);
-    delete head[0].attributes.layer;
-
-    applyThemeStylesheet("borealis", ["css"]);
-    expect(head[0].attributes.layer).toBe("theme");
+    expect(first.attributes.href).toBe("tetra-theme://localhost/borealis/theme-layer.css");
   });
 });
 

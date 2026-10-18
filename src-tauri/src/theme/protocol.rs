@@ -37,10 +37,20 @@ pub fn handle(app: &AppHandle, request: Request<Vec<u8>>, responder: UriSchemeRe
     });
 }
 
+/// The root sheet that loads a theme's CSS into the `theme` cascade layer. It is
+/// served from here and never read from disk: a package cannot ship a root file
+/// of this name (see `package_extension` in `archive.rs`).
+const LAYER_SHEET: &str = "theme-layer.css";
+const LAYER_SHEET_BODY: &str = r#"@import url("styles.css") layer(theme);"#;
+
 /// One request end to end: URL -> theme-relative path -> the bytes and the
 /// content type to serve them as.
 fn read_asset(themes_root: &Path, uri: &Uri) -> Result<(&'static str, Vec<u8>), String> {
     let (theme_id, rel_path) = split_uri(uri)?;
+    if rel_path == LAYER_SHEET {
+        resolve_asset(themes_root, &theme_id, crate::theme::STYLES_FILE)?;
+        return Ok(("text/css", LAYER_SHEET_BODY.as_bytes().to_vec()));
+    }
     let path = resolve_asset(themes_root, &theme_id, &rel_path)?;
     // A theme directory also holds the manifest and the palette; the webview
     // has no reason to be served either, so only known asset types are read.
@@ -471,6 +481,21 @@ mod tests {
 
         assert_eq!(content_type, "text/css");
         assert_eq!(bytes, b"body{}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn the_layer_sheet_imports_the_theme_css_and_needs_one() {
+        let root = installed("layer-sheet");
+        let uri = request("aurora.theme", "theme-layer.css");
+
+        assert!(read_asset(&root, &uri).is_err());
+
+        std::fs::write(root.join("aurora.theme/styles.css"), b"body{}").unwrap();
+        let (content_type, bytes) = read_asset(&root, &uri).expect("must serve");
+
+        assert_eq!(content_type, "text/css");
+        assert_eq!(bytes, br#"@import url("styles.css") layer(theme);"#);
         let _ = std::fs::remove_dir_all(&root);
     }
 
