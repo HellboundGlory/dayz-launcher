@@ -186,7 +186,8 @@ export function ModTags({
 
   const limitOpt = options?.limit;
   const limit = limitOpt === "all" ? undefined : typeof limitOpt === "number" ? limitOpt : 3;
-  const source = mod.tags && mod.tags.length > 0 ? mod.tags : [mod.workshop_id];
+  const source = mod.tags ?? [];
+  if (source.length === 0) return null;
   const tags = limit !== undefined ? source.slice(0, limit) : source;
   const chips = options?.style === "chips";
 
@@ -777,7 +778,7 @@ export function ServerModName({ className, style }: { className?: string; style?
 
   return (
     <span data-el="serverMod.name" className={className ?? "truncate [font-size:var(--t-type-size-lg)] leading-4 font-medium text-ink"} style={style}>
-      {mod.name ?? "Unknown mod"}
+      {mod.name ?? mod.workshop_id}
     </span>
   );
 }

@@ -356,14 +356,14 @@ const MODS_ACTION_MENUS = {
     el: "mods.unsubscribeMenu",
     popupId: "modsUnsubscribe",
     defaultClass:
-      "flex items-center justify-center [border-top-right-radius:var(--t-radius-control)] [border-bottom-right-radius:var(--t-radius-control)] border border-l-0 border-danger-line bg-danger-soft px-1.5 text-danger transition-colors hover:brightness-110 data-[state~=disabled]:opacity-40",
+      "flex items-center justify-center [border-top-right-radius:var(--t-radius-control)] [border-bottom-right-radius:var(--t-radius-control)] border border-l-0 border-danger-line bg-danger-soft px-1.5 text-danger transition-colors hover:text-ink data-[state~=disabled]:opacity-40",
     items: [ModsUnsubscribeSelected, ModsUnsubscribeAll],
   },
   verify: {
     el: "mods.verifyMenu",
     popupId: "modsVerify",
     defaultClass:
-      "flex items-center justify-center [border-top-right-radius:var(--t-radius-control)] [border-bottom-right-radius:var(--t-radius-control)] bg-accent px-1.5 [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 data-[state~=disabled]:opacity-50",
+      "flex items-center justify-center [border-top-right-radius:var(--t-radius-control)] [border-bottom-right-radius:var(--t-radius-control)] bg-accent px-1.5 [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:text-ink data-[state~=disabled]:opacity-50",
     items: [ModsVerifySelected, ModsVerifyAll],
   },
 } as const;

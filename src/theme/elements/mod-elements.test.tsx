@@ -207,14 +207,14 @@ describe("ModDisabledBadge", () => {
 });
 
 describe("ModTags", () => {
-  it("joins up to three tags as text, falls back to the workshop id, and renders chips for limit: all", async () => {
+  it("joins up to three tags as text, renders nothing without tags, and renders chips for limit: all", async () => {
     const { ModTags } = await import("./mod-elements");
     const tags = makeMod("1", { tags: ["alpha", "bravo", "charlie", "delta"] });
     const text = renderWithMod(<ModTags />, tags);
     expect(text).toContain("alpha · bravo · charlie");
     expect(text).not.toContain("delta");
 
-    expect(renderWithMod(<ModTags />, makeMod("42", { tags: [] }))).toContain("42");
+    expect(renderWithMod(<ModTags />, makeMod("42", { tags: [] }))).toBe("");
 
     const chips = renderWithMod(<ModTags options={{ style: "chips", limit: "all" }} />, tags);
     expect(chips.match(/data-part="chip"/g)?.length).toBe(4);

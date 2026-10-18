@@ -224,7 +224,7 @@ export function ElementHost({
       return <ServerActionNotice className={mergedClass} style={style} />;
 
     case "server.name":
-      return <ServerName className={mergedClass} style={style} />;
+      return <ServerName options={node.options} className={mergedClass} style={style} />;
     case "server.players":
       return <ServerPlayers options={node.options} className={mergedClass} style={style} />;
     case "server.ping":

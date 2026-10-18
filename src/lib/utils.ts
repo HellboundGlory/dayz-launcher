@@ -92,7 +92,7 @@ export function formatGameTime(
 
 /** Region code (EU/NA/OC/SA/AS) to a full name for tooltips. */
 export function regionName(code: string | null): string {
-  if (!code) return "Unknown region";
+  if (!code) return "—";
   return (
     {
       EU: "Europe",
