@@ -45,7 +45,7 @@
     @apply mt-3;
   }
 
-  .t-neutral-update:has([data-el="update.summary"][data-state~="upToDate"]) :is(.t-neutral-update-changelog, .t-neutral-update-progress) {
+  .t-neutral-update:has([data-el="update.summary"][data-state~="upToDate"]) .t-neutral-update-progress {
     @apply hidden;
   }
 

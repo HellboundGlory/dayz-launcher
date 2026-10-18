@@ -1,8 +1,9 @@
-import { createContext, useContext, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { createContext, useContext, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { Check, ChevronRight, X } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useServerStore } from "@/stores/server-store";
 import { useModsStore } from "@/stores/mods-store";
+import { OFFICIAL_MAP_IDS } from "@/lib/official-maps";
 import { cn } from "@/lib/utils";
 import type { ServerFilter, SortDir, SortKey } from "@/types/filters";
 import type { ElementNode, PopupLayoutFile } from "../renderer/types";
@@ -125,6 +126,7 @@ function OptionRow({
   selected,
   mark,
   state,
+  ariaLabel,
   onClick,
   children,
 }: {
@@ -132,6 +134,7 @@ function OptionRow({
   /** Drawn in the check column in place of the tick. */
   mark?: ReactNode;
   state?: string | false;
+  ariaLabel?: string;
   onClick: () => void;
   children: ReactNode;
 }) {
@@ -140,6 +143,7 @@ function OptionRow({
       type="button"
       role="option"
       aria-selected={selected}
+      aria-label={ariaLabel}
       data-part="option"
       data-state={[selected && "selected", state].filter(Boolean).join(" ") || undefined}
       onClick={onClick}
@@ -153,25 +157,59 @@ function OptionRow({
   );
 }
 
+export function mapMatchesQuery(query: string, [norm, disp]: [string, string]): boolean {
+  const q = query.trim().toLowerCase();
+  return norm.toLowerCase().includes(q) || disp.toLowerCase().includes(q);
+}
+
+export function PopupSeparator() {
+  return <div data-part="separator" aria-hidden className="mx-[var(--t-space-separatorX)] my-[var(--t-space-separatorY)] h-[var(--t-border-hairline)] bg-line" />;
+}
+
 export function PopupMapOptions({ className, style }: { className?: string; style?: CSSProperties }) {
   const filter = useServerStore((s) => s.filter);
   const setFilter = useServerStore((s) => s.setFilter);
   const maps = useServerStore((s) => s.maps);
+  const [query, setQuery] = useState("");
+  const listRef = useRef<HTMLDivElement>(null);
   const selected = filter.maps ?? [];
   const toggle = (norm: string) => setFilter({ maps: toggleInList(selected, norm) });
 
+  const matching = (entries: [string, string][]) => entries.filter((m) => mapMatchesQuery(query, m));
+  const official = matching(OFFICIAL_MAP_IDS.flatMap((id) => maps.filter(([norm]) => norm === id)));
+  const rest = matching(maps.filter(([norm]) => !OFFICIAL_MAP_IDS.includes(norm)));
+  const status = maps.length === 0 ? "Loading maps..." : official.length + rest.length === 0 ? "No maps match" : null;
+
+  const option = ([norm, disp]: [string, string]) => (
+    <OptionRow key={norm} selected={selected.includes(norm)} onClick={() => toggle(norm)}>
+      <span className="truncate">{disp}</span>
+    </OptionRow>
+  );
+
   return (
-    <div data-el="popup.mapOptions" role="listbox" aria-multiselectable className={className} style={style}>
-      {maps.length === 0 && (
-        <div data-part="empty" className="px-2 py-1.5 [font-size:var(--t-type-size-sm)] text-muted">
-          Loading maps...
+    <div data-el="popup.mapOptions" className={className} style={style}>
+      <input
+        data-part="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key !== "ArrowDown") return;
+          e.preventDefault();
+          listRef.current?.querySelector<HTMLElement>('[role="option"]')?.focus();
+        }}
+        placeholder="Search maps"
+        aria-label="Search maps"
+      />
+      {status && (
+        <div role="status" data-part="empty" className="px-2 py-1.5 [font-size:var(--t-type-size-sm)] text-muted">
+          {status}
         </div>
       )}
-      {maps.map(([norm, disp]) => (
-        <OptionRow key={norm} selected={selected.includes(norm)} onClick={() => toggle(norm)}>
-          <span className="truncate">{disp}</span>
-        </OptionRow>
-      ))}
+      <div ref={listRef} role="listbox" aria-multiselectable>
+        {official.map(option)}
+        {official.length > 0 && rest.length > 0 && <PopupSeparator />}
+        {rest.map(option)}
+      </div>
     </div>
   );
 }
@@ -199,6 +237,7 @@ export function PopupTagOptions({ className, style }: { className?: string; styl
             key={opt.field}
             selected={val === true}
             state={indicatorState(val)}
+            ariaLabel={val === false ? `${opt.label}, excluded` : undefined}
             mark={
               <span data-part="indicator" className="font-mono-data [font-size:var(--t-type-size-sm)]">
                 {indicatorText(val)}

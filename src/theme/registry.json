@@ -4844,7 +4844,8 @@
       "parts": [
         "option",
         "empty",
-        "box"
+        "box",
+        "search"
       ],
       "states": [
         "selected"

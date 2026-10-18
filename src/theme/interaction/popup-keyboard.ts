@@ -67,8 +67,11 @@ export function usePopupKeyboard(
 
     // An anchored popup is visibility:hidden until its placement is applied, and hidden elements can't take focus.
     const frame = requestAnimationFrame(() => {
+      // A popup with a search box opens ready to type.
+      const search = popup.querySelector<HTMLElement>('[data-part="search"]');
       const selected = popup.querySelector<HTMLElement>(SELECTED_OPTION);
       const initial =
+        search ??
         (selected?.matches(FOCUSABLE) ? selected : selected?.querySelector<HTMLElement>(FOCUSABLE)) ??
         popup.querySelector<HTMLElement>(FOCUSABLE);
       initial?.focus();

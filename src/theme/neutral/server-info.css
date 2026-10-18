@@ -219,7 +219,11 @@
   }
 
   .t-neutral-serverinfo-notice {
-    @apply mt-0 mb-2 border-0 p-0 text-center cursor-help [font-size:var(--t-type-label-size)];
+    @apply mt-0 mb-2 border-0 p-0 text-center [font-size:var(--t-type-label-size)];
+  }
+
+  .t-neutral-serverinfo-notice [data-part="code"] {
+    @apply cursor-help;
   }
 
   .t-neutral-serverinfo-notice [data-part="message"] {

@@ -44,6 +44,7 @@ import {
   PopupTagOptions,
   PopupUniqueServerOptions,
   UniqueServerOptionsList,
+  mapMatchesQuery,
   nextSortDir,
   sortValueLabel,
 } from "./popup-elements";
@@ -122,6 +123,47 @@ describe("PopupMapOptions", () => {
     expect(html).toContain('data-part="option" data-state="selected"');
     expect(html).toContain('role="option" aria-selected="true"');
     expect(html).toContain('role="option" aria-selected="false"');
+  });
+
+  it.each([
+    {
+      name: "official maps first, then a separator, then the rest",
+      maps: [
+        ["namalsk", "Namalsk"],
+        ["enoch", "Livonia"],
+        ["chernarusplus", "Chernarus"],
+        ["banov", "Banov"],
+      ],
+      labels: ["Chernarus", "Livonia", "|", "Namalsk", "Banov"],
+    },
+    {
+      name: "no separator when every map is official",
+      maps: [["sakhal", "Sakhal"], ["chernarusplus", "Chernarus"]],
+      labels: ["Chernarus", "Sakhal"],
+    },
+    {
+      name: "no separator when no map is official",
+      maps: [["namalsk", "Namalsk"]],
+      labels: ["Namalsk"],
+    },
+  ])("orders the listbox: $name", async ({ maps, labels }) => {
+    const html = await withServerStore({ maps, filter: { maps: [] } }, () =>
+      renderToStaticMarkup(<PopupMapOptions />),
+    );
+    const sequence = [...html.matchAll(/data-part="separator"|<span class="truncate">([^<]+)<\/span>/g)].map(
+      (m) => m[1] ?? "|",
+    );
+    expect(sequence).toEqual(labels);
+  });
+});
+
+describe("mapMatchesQuery", () => {
+  it.each([
+    { query: "  CHER ", id: "chernarusplus", name: "Chernarus", match: true },
+    { query: "gloom", id: "enochgloom", name: "Livonia (Gloom)", match: true },
+    { query: "enoch", id: "chernarusplus", name: "Chernarus", match: false },
+  ])("matches $query against $name by name or id: $match", ({ query, id, name, match }) => {
+    expect(mapMatchesQuery(query, [id, name])).toBe(match);
   });
 });
 
