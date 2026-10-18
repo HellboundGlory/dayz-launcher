@@ -1,5 +1,6 @@
 use crate::error::RegistryError;
 use crate::rows::{ServerKey, ServerRow, WorkshopCacheRow};
+use crate::schema;
 use rusqlite::{params, Connection};
 use tetra_core::a2s::dayz::ServerMod;
 use tetra_core::classify::fake::is_fake_listing;
@@ -18,6 +19,8 @@ pub(crate) enum Job {
     LastPlayed(ServerKey, Ack<usize>),
     SetOnline(Vec<ServerKey>, bool, Ack<()>),
     ProbeAttempt(Vec<ServerKey>, Ack<()>),
+    RulesUnanswered(Vec<ServerKey>, i64, Ack<()>),
+    PruneStale(Ack<usize>),
     WorkshopCache(Vec<WorkshopCacheRow>, Ack<usize>),
 }
 
@@ -104,6 +107,22 @@ impl Writer {
         self.send(|ack| Job::ProbeAttempt(keys, ack)).await
     }
 
+    /// Stamp the mod list of a server that did not answer RULES, so it comes due
+    /// again after a retry rather than the full TTL. A newer stamp is kept.
+    pub async fn mark_rules_unanswered(
+        &self,
+        keys: Vec<ServerKey>,
+        stamp: i64,
+    ) -> Result<(), RegistryError> {
+        self.send(|ack| Job::RulesUnanswered(keys, stamp, ack))
+            .await
+    }
+
+    /// Delete stale servers and their mod rows, as the registry does on open.
+    pub async fn prune_stale(&self) -> Result<usize, RegistryError> {
+        self.send(Job::PruneStale).await
+    }
+
     pub async fn upsert_workshop_cache(
         &self,
         items: Vec<WorkshopCacheRow>,
@@ -142,6 +161,12 @@ pub(crate) fn run(conn: Connection, mut rx: mpsc::Receiver<Job>) {
             }
             Job::ProbeAttempt(keys, ack) => {
                 let _ = ack.send(mark_probe_attempt(&conn, &keys));
+            }
+            Job::RulesUnanswered(keys, stamp, ack) => {
+                let _ = ack.send(mark_rules_unanswered(&conn, &keys, stamp));
+            }
+            Job::PruneStale(ack) => {
+                let _ = ack.send(schema::prune_stale(&conn));
             }
             Job::WorkshopCache(items, ack) => {
                 let _ = ack.send(upsert_workshop_cache(&conn, &items));
@@ -439,6 +464,26 @@ fn mark_probe_attempt(conn: &Connection, keys: &[ServerKey]) -> Result<(), Regis
         )?;
         for key in keys {
             stmt.execute(params![key.ip.to_string(), key.query_port])?;
+        }
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+fn mark_rules_unanswered(
+    conn: &Connection,
+    keys: &[ServerKey],
+    stamp: i64,
+) -> Result<(), RegistryError> {
+    let tx = conn.unchecked_transaction()?;
+    {
+        let mut stmt = tx.prepare_cached(
+            "UPDATE servers SET mods_updated_at = ?3
+             WHERE ip = ?1 AND query_port = ?2
+               AND (mods_updated_at IS NULL OR mods_updated_at < ?3)",
+        )?;
+        for key in keys {
+            stmt.execute(params![key.ip.to_string(), key.query_port, stamp])?;
         }
     }
     tx.commit()?;

@@ -48,6 +48,10 @@ const RESOLVE_RETRY_AFTER_SECS: i64 = 60 * 60;
 /// permit is acquired rather than from when the task was spawned.
 const RULES_DEADLINE: Duration = Duration::from_secs(8);
 
+/// Wait before asking a server that did not answer A2S_RULES again, instead of
+/// the full TTL.
+const RULES_RETRY_SECS: i64 = 30 * 60;
+
 /// Below this batch size a miss is written as offline unconditionally — too
 /// few data points to tell "down" from "our uplink hiccuped" by ratio.
 const MIN_BATCH_FOR_OFFLINE_CORROBORATION: usize = 8;
@@ -237,6 +241,7 @@ pub async fn rules(
     let mut tasks: JoinSet<RulesAnswer> = JoinSet::new();
     let mut mods: Vec<(ServerKey, Vec<ServerMod>)> = Vec::with_capacity(WRITE_BATCH);
     let mut descriptions: Vec<ServerRow> = Vec::with_capacity(WRITE_BATCH);
+    let mut unanswered: Vec<ServerKey> = Vec::new();
 
     loop {
         while tasks.len() < fanout {
@@ -257,6 +262,7 @@ pub async fn rules(
         };
         let Ok((key, answer)) = joined else { continue };
         let Some((server_mods, description)) = answer else {
+            unanswered.push(key);
             continue;
         };
         stats.answered += 1;
@@ -283,6 +289,10 @@ pub async fn rules(
     }
 
     flush_mods(writer, mods).await;
+    if !unanswered.is_empty() {
+        let stamp = crate::now() - ttl + RULES_RETRY_SECS.min(ttl);
+        let _ = writer.mark_rules_unanswered(unanswered, stamp).await;
+    }
     if !descriptions.is_empty() {
         let _ = writer.upsert_servers(descriptions).await;
     }
