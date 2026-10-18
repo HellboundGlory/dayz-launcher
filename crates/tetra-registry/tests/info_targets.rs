@@ -50,5 +50,8 @@ async fn least_recently_probed_first_and_stale_rows_are_left_out() {
         .collect();
     assert_eq!(targets, vec![key(10), key(11), key(12)]);
 
-    std::fs::remove_dir_all(&dir).expect("cleanup");
+    // Windows refuses to delete the file while the writer thread may still hold it.
+    drop(reader);
+    drop(registry);
+    let _ = std::fs::remove_dir_all(&dir);
 }
