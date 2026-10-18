@@ -702,6 +702,23 @@ export async function deriveTheme(
   return invoke<string>("derive_theme", { sourceId, manifest, tokens });
 }
 
+/** Save `tokens` as a theme called `name`, copying `sourceId`'s layout, CSS and
+ * settings when that theme is installed. A local theme already called `name` comes
+ * back as `exists` and nothing is written, unless `replace` swaps it out. */
+export async function saveThemeCopy(
+  name: string,
+  sourceId: string | null,
+  tokens: unknown,
+  replace: boolean,
+): Promise<{ status: "saved" | "exists"; id: string }> {
+  return invoke<{ status: "saved" | "exists"; id: string }>("save_theme_copy", {
+    name,
+    sourceId,
+    tokens,
+    replace,
+  });
+}
+
 /** Rewrite an installed user theme's (`local.*`) palette in place — SPEC §4.6's
  * save for the active theme. Refuses an id that is not a `local.*` install. */
 export async function updateThemeTokens(id: string, tokens: unknown): Promise<void> {

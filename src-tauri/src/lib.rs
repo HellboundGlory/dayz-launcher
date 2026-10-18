@@ -189,6 +189,7 @@ pub fn run() {
             commands::theme::validate_theme,
             commands::theme::save_theme,
             commands::theme::derive_theme,
+            commands::theme::save_theme_copy,
             commands::theme::update_theme_tokens,
             commands::theme::delete_theme,
             commands::theme::get_theme_settings_values,

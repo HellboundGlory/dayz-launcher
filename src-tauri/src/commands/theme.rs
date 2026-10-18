@@ -709,13 +709,15 @@ fn copy_derived_content(
     Ok(())
 }
 
-/// Save a copy of an installed theme under `manifest.id`, keeping everything
-/// the source ships beyond its colours — layout, CSS, settings — and replacing
-/// its manifest and palette with the caller's. Create-only, exactly as
-/// [`save_theme`]: an id that already has a directory is an error.
+/// Save a copy of an installed theme under `manifest.id` in `target_root`, keeping
+/// everything the source ships beyond its colours — layout, CSS, settings — and
+/// replacing its manifest and palette with the caller's. The source is read from
+/// `themes_root`. Create-only, exactly as [`save_theme`]: an id that already has
+/// a directory is an error.
 fn derive_from_installed(
     themes_root: &Path,
     source_id: &str,
+    target_root: &Path,
     manifest: &ThemeManifest,
     tokens: &serde_json::Value,
 ) -> Result<String, String> {
@@ -761,9 +763,9 @@ fn derive_from_installed(
     let tokens_json = serde_json::to_vec_pretty(tokens)
         .map_err(|e| format!("Could not serialise tokens: {e}"))?;
 
-    std::fs::create_dir_all(themes_root)
-        .map_err(|e| format!("Could not create {}: {e}", themes_root.display()))?;
-    let target = themes_root.join(&manifest.id);
+    std::fs::create_dir_all(target_root)
+        .map_err(|e| format!("Could not create {}: {e}", target_root.display()))?;
+    let target = target_root.join(&manifest.id);
     // create_dir, not create_dir_all: an installed theme must fail, not merge.
     std::fs::create_dir(&target).map_err(|e| match e.kind() {
         std::io::ErrorKind::AlreadyExists => format!(
@@ -782,7 +784,7 @@ fn derive_from_installed(
 
     // Only a theme that loads is a theme; a copy this build cannot read must
     // not be left in the grid either.
-    match theme::get(themes_root, &manifest.id) {
+    match theme::get(target_root, &manifest.id) {
         Ok(_) => Ok(manifest.id.clone()),
         Err(e) => {
             let _ = std::fs::remove_dir_all(&target);
@@ -801,18 +803,161 @@ pub fn derive_theme(
     manifest: ThemeManifest,
     tokens: serde_json::Value,
 ) -> Result<String, String> {
-    let id = derive_from_installed(
-        &crate::paths::themes_dir(&app),
-        &source_id,
-        &manifest,
-        &tokens,
-    )?;
+    let themes_root = crate::paths::themes_dir(&app);
+    let id = derive_from_installed(&themes_root, &source_id, &themes_root, &manifest, &tokens)?;
     crate::log::log_line(
         &app,
         "theme",
         &format!("Derived theme `{id}` from `{source_id}`"),
     );
     Ok(id)
+}
+
+/// What [`save_theme_copy`] did: `saved` with the new theme's id, or `exists`
+/// with the id of the local theme already carrying the name.
+#[derive(Debug, serde::Serialize)]
+pub struct SaveCopy {
+    status: &'static str,
+    id: String,
+}
+
+/// Save `tokens` as a theme called `name`. A copy of `source_id` keeps its layout,
+/// CSS and settings when that theme is installed. A local theme already called
+/// `name` is reported as `exists` unless `replace` swaps it out.
+#[tauri::command]
+pub fn save_theme_copy(
+    app: AppHandle,
+    name: String,
+    source_id: Option<String>,
+    tokens: serde_json::Value,
+    replace: bool,
+) -> Result<SaveCopy, String> {
+    let active = crate::commands::settings::current(&app)?.active_theme_id;
+    let copy = save_copy_at(
+        &crate::paths::themes_dir(&app),
+        &name,
+        source_id.as_deref(),
+        &tokens,
+        replace,
+        active.as_deref(),
+    )?;
+    if copy.status == "saved" {
+        crate::log::log_line(
+            &app,
+            "theme",
+            &format!("Saved theme `{}` as a copy", copy.id),
+        );
+    }
+    Ok(copy)
+}
+
+/// [`save_theme_copy`]'s body over a plain root, so it is testable without an `AppHandle`.
+fn save_copy_at(
+    themes_root: &Path,
+    name: &str,
+    source_id: Option<&str>,
+    tokens: &serde_json::Value,
+    replace: bool,
+    active: Option<&str>,
+) -> Result<SaveCopy, String> {
+    let name = name.trim();
+    if name.is_empty() || name.chars().count() > 64 {
+        return Err("A theme name must be 1 to 64 characters.".to_string());
+    }
+    // A source that is not installed, such as a built-in preset, contributes its palette only.
+    let source_id = source_id.filter(|id| theme::is_usable_id(id) && themes_root.join(id).is_dir());
+    let mut clashes = theme::scan(themes_root)
+        .themes
+        .into_iter()
+        .filter(|installed| {
+            theme::is_user_theme_id(&installed.id)
+                && installed.name.trim().to_lowercase() == name.to_lowercase()
+        });
+    let clash = clashes.next();
+    if replace && clash.is_some() && clashes.next().is_some() {
+        return Err(format!(
+            "More than one theme is named \"{name}\". Rename one of them first."
+        ));
+    }
+    let copy_manifest = |id: &str| ThemeManifest {
+        id: id.to_string(),
+        name: name.to_string(),
+        author: "local".to_string(),
+        version: "1.0.0".to_string(),
+        // "0.0.0" means no launcher version floor.
+        minimum_launcher_version: "0.0.0".to_string(),
+        capabilities: vec!["tokens".to_string()],
+        ..ThemeManifest::default()
+    };
+    match clash {
+        Some(existing) if !replace => Ok(SaveCopy {
+            status: "exists",
+            id: existing.id,
+        }),
+        Some(existing) => {
+            theme::refuse_active(&existing.id, active)?;
+            replace_theme(themes_root, source_id, &copy_manifest(&existing.id), tokens)
+        }
+        None => {
+            let id = theme::new_user_theme_id(themes_root, name);
+            let id = write_copy(
+                themes_root,
+                themes_root,
+                source_id,
+                &copy_manifest(&id),
+                tokens,
+            )?;
+            Ok(SaveCopy {
+                status: "saved",
+                id,
+            })
+        }
+    }
+}
+
+/// Replace the installed theme `manifest.id` with the copy. The copy is written
+/// under `.staging/` first and only then swapped over the installed directory, so
+/// a failed write leaves the installed theme as it was.
+fn replace_theme(
+    themes_root: &Path,
+    source_id: Option<&str>,
+    manifest: &ThemeManifest,
+    tokens: &serde_json::Value,
+) -> Result<SaveCopy, String> {
+    let id = &manifest.id;
+    let staging_root = themes_root.join(theme::archive::STAGING_DIR);
+    let staged = staging_root.join(id);
+    let installed = themes_root.join(id);
+    let aside = staging_root.join(format!("{id}.replaced-{id}"));
+    // Leftovers from an earlier replace that failed after the swap would block this one.
+    let _ = std::fs::remove_dir_all(&staged);
+    let _ = std::fs::remove_dir_all(&aside);
+    let swapped = write_copy(themes_root, &staging_root, source_id, manifest, tokens)
+        .and_then(|_| theme::archive::swap_into_place(&staged, &installed, &aside));
+    if swapped.is_err() {
+        let _ = std::fs::remove_dir_all(&staged);
+    }
+    swapped.map(|()| SaveCopy {
+        status: "saved",
+        id: id.clone(),
+    })
+}
+
+/// Write a theme into `target_root`: a copy of `source_id` when there is one,
+/// otherwise the palette alone.
+fn write_copy(
+    themes_root: &Path,
+    target_root: &Path,
+    source_id: Option<&str>,
+    manifest: &ThemeManifest,
+    tokens: &serde_json::Value,
+) -> Result<String, String> {
+    match source_id {
+        Some(source_id) => {
+            derive_from_installed(themes_root, source_id, target_root, manifest, tokens)
+        }
+        None => theme::save(target_root, manifest, tokens),
+    }
 }
 
 // ── Builtin Showcase Themes ─────────────────────────────────────────────────
@@ -1475,7 +1620,7 @@ mod derive_from_installed {
             "colors": { "dark": { "bg": "#010101" }, "light": {} },
         });
 
-        let id = derive_from_installed(&root, "local.source", &derived_manifest(), &tokens)
+        let id = derive_from_installed(&root, "local.source", &root, &derived_manifest(), &tokens)
             .expect("derive");
 
         assert_eq!(id, "local.derived");
@@ -1554,7 +1699,8 @@ mod derive_from_installed {
         let tokens =
             serde_json::json!({ "schemaVersion": 2, "colors": { "dark": {}, "light": {} } });
 
-        derive_from_installed(&root, "local.source", &derived_manifest(), &tokens).expect("derive");
+        derive_from_installed(&root, "local.source", &root, &derived_manifest(), &tokens)
+            .expect("derive");
 
         assert_eq!(
             theme::get(&root, "local.derived")
@@ -1586,6 +1732,7 @@ mod derive_from_installed {
         let error = derive_from_installed(
             &root,
             "local.source",
+            &root,
             &derived_manifest(),
             &serde_json::json!({ "schemaVersion": 2, "colors": { "dark": {}, "light": {} } }),
         )
@@ -1609,24 +1756,25 @@ mod derive_from_installed {
         let tokens =
             serde_json::json!({ "schemaVersion": 2, "colors": { "dark": {}, "light": {} } });
 
-        let error = derive_from_installed(&root, "../escape", &derived_manifest(), &tokens)
+        let error = derive_from_installed(&root, "../escape", &root, &derived_manifest(), &tokens)
             .expect_err("a path is not a source id");
         assert!(error.contains("not a usable theme id"), "{error}");
 
         let mut escaping = derived_manifest();
         escaping.id = "../escape".to_string();
-        let error = derive_from_installed(&root, "local.source", &escaping, &tokens)
+        let error = derive_from_installed(&root, "local.source", &root, &escaping, &tokens)
             .expect_err("a path is not a derived id");
         assert!(error.contains("not a usable theme id"), "{error}");
 
         let mut reserved = derived_manifest();
         reserved.id = "builtin.copy".to_string();
-        let error = derive_from_installed(&root, "local.source", &reserved, &tokens)
+        let error = derive_from_installed(&root, "local.source", &root, &reserved, &tokens)
             .expect_err("a reserved id is not a derived id");
         assert!(error.contains("reserved prefix 'builtin.'"), "{error}");
 
-        let error = derive_from_installed(&root, "local.missing", &derived_manifest(), &tokens)
-            .expect_err("this root holds no such theme");
+        let error =
+            derive_from_installed(&root, "local.missing", &root, &derived_manifest(), &tokens)
+                .expect_err("this root holds no such theme");
         assert!(error.contains("local.missing"), "{error}");
 
         assert!(!root.join("local.derived").exists());
@@ -1644,12 +1792,114 @@ mod derive_from_installed {
             serde_json::json!({ "schemaVersion": 1 }),
             serde_json::json!({ "colors": { "dark": {}, "light": {} } }),
         ] {
-            let error = derive_from_installed(&root, "local.source", &derived_manifest(), &tokens)
-                .expect_err("an invalid palette must be refused");
+            let error =
+                derive_from_installed(&root, "local.source", &root, &derived_manifest(), &tokens)
+                    .expect_err("an invalid palette must be refused");
             assert!(error.contains("tokens.json"), "{error}");
         }
 
         assert!(!root.join("local.derived").exists());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A palette with one colour set, enough to tell two copies apart.
+    fn palette(bg: &str) -> serde_json::Value {
+        serde_json::json!({ "schemaVersion": 2, "colors": { "dark": { "bg": bg }, "light": {} } })
+    }
+
+    #[test]
+    fn a_copy_with_no_clash_takes_a_free_id_past_a_folder_without_a_manifest() {
+        let root = scratch("free-id");
+        std::fs::create_dir_all(root.join("local.blaze")).unwrap();
+
+        let copy = save_copy_at(&root, "Blaze", None, &palette("#010101"), false, None)
+            .expect("a copy with no clash saves");
+
+        assert_eq!((copy.status, copy.id.as_str()), ("saved", "local.blaze-2"));
+        theme::get(&root, "local.blaze-2").expect("the copy loads");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Install a local theme called `name` at `root/<id>`.
+    fn install(root: &Path, id: &str, name: &str, tokens: &serde_json::Value) {
+        let manifest = ThemeManifest {
+            id: id.to_string(),
+            name: name.to_string(),
+            author: "local".to_string(),
+            version: "1.0.0".to_string(),
+            capabilities: vec!["tokens".to_string()],
+            ..ThemeManifest::default()
+        };
+        theme::save(root, &manifest, tokens).expect("the installed theme saves");
+    }
+
+    #[test]
+    fn a_clash_without_replace_reports_the_existing_id_and_writes_nothing() {
+        let root = scratch("clash");
+        install(&root, "local.blaze", "Blaze", &palette("#010101"));
+        let before = files_under(&root);
+
+        let copy = save_copy_at(&root, " blaze ", None, &palette("#020202"), false, None)
+            .expect("a clash is not an error");
+
+        assert_eq!((copy.status, copy.id.as_str()), ("exists", "local.blaze"));
+        assert_eq!(files_under(&root), before);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn replace_swaps_the_clashing_theme_and_keeps_its_id() {
+        let root = scratch("replace");
+        install(&root, "local.blaze", "Blaze", &palette("#010101"));
+
+        let copy = save_copy_at(&root, "Blaze", None, &palette("#020202"), true, None)
+            .expect("a replace saves");
+
+        assert_eq!((copy.status, copy.id.as_str()), ("saved", "local.blaze"));
+        let installed = theme::get(&root, "local.blaze").expect("the replacement loads");
+        assert_eq!(installed.tokens, palette("#020202"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn replace_refuses_the_active_theme_and_leaves_it_untouched() {
+        let root = scratch("replace-active");
+        install(&root, "local.blaze", "Blaze", &palette("#010101"));
+        let before = files_under(&root);
+
+        let error = save_copy_at(
+            &root,
+            "Blaze",
+            None,
+            &palette("#020202"),
+            true,
+            Some("local.blaze"),
+        )
+        .expect_err("the active theme must not be replaced");
+
+        assert!(error.contains("active theme"), "{error}");
+        assert_eq!(files_under(&root), before);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_replace_that_fails_to_swap_leaves_the_installed_theme_intact() {
+        let root = scratch("replace-failed");
+        install(&root, "local.blaze", "Blaze", &palette("#010101"));
+        // A file where the old theme would be moved aside makes the swap fail after staging.
+        let staging = root.join(theme::archive::STAGING_DIR);
+        std::fs::create_dir_all(&staging).expect("staging");
+        std::fs::write(staging.join("local.blaze.replaced-local.blaze"), "x").expect("blocker");
+        let before = files_under(&root);
+
+        save_copy_at(&root, "Blaze", None, &palette("#020202"), true, None)
+            .expect_err("a swap that cannot move the old theme aside must fail");
+
+        assert_eq!(files_under(&root), before);
+        assert!(
+            !staging.join("local.blaze").exists(),
+            "the staged copy is cleaned up"
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 }
@@ -1736,7 +1986,7 @@ mod builtin_themes {
             author: "local".to_string(),
             ..source.manifest
         };
-        derive_from_installed(&root, "builtin.tactical", &manifest, &source.tokens)
+        derive_from_installed(&root, "builtin.tactical", &root, &manifest, &source.tokens)
             .expect("derive");
         let copy = theme::get(&root, "local.tactical-copy").expect("the copy loads");
         assert!(copy.fallbacks.is_empty(), "{:?}", copy.fallbacks);
