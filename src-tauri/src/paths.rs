@@ -1,15 +1,7 @@
-//! Where the launcher keeps its data, and how it got there.
-//!
-//! Everything the launcher persists (the registry and `settings.json`) lives
-//! in one directory, resolved only through [`data_root`].
-//!
-//! | Mode | Root |
-//! |---|---|
-//! | Portable | the directory holding the exe |
-//! | Installed | `app_local_data_dir()` — `%LOCALAPPDATA%\com.tetra.launcher` |
-//!
-//! Portable mode is opted into by a marker file, never inferred from exe
-//! location.
+//! Where the launcher keeps its data: the registry and `settings.json`, both resolved
+//! only through [`data_root`]. Portable mode (the exe's folder) is opted into by a
+//! marker file, never inferred from the exe location. A marker in a folder that is not
+//! writable is ignored, and the data goes to the per-user directory.
 
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;

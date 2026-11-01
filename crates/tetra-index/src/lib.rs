@@ -1,15 +1,11 @@
 #![forbid(unsafe_code)]
 
-//! The wire format between `tetra-indexer` (the backend that crawls Steam and
-//! A2S-probes every address it finds) and the launcher, plus the HTTP client
+//! The wire format between `tetra-indexer` and the launcher, plus the HTTP client
 //! the launcher uses to speak it.
 //!
-//! The backend is an accelerator, never a dependency: everything here is
-//! designed so a client that gets no answer, a stale answer, or an answer in a
-//! format it doesn't know falls back to its own Steam pass with no special
-//! casing. That is why [`Snapshot::format_version`] is checked before the body
-//! is trusted and why [`Health`] carries sweep timestamps rather than a bare
-//! "ok".
+//! The backend is an accelerator, never a dependency: a client that gets no answer,
+//! a stale one, or one in an unknown format falls back to its own Steam pass. That is
+//! why [`Snapshot::format_version`] is checked before the body is trusted.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

@@ -401,9 +401,8 @@ pub fn save(
     Ok(manifest.id.clone())
 }
 
-/// Rewrite one user theme's `tokens.json` in place — the theme rules "the edited
-/// values are written to the active theme when it is a user theme". Only a
-/// `local.*` id qualifies: an imported package or a bundled built-in is never
+/// Rewrite one user theme's `tokens.json` in place. Only a `local.*` id qualifies: an
+/// imported package or a bundled built-in is never
 /// rewritten, and a `local.*` install must still exist and be current-format.
 pub fn update_tokens(themes_root: &Path, id: &str, tokens: &Value) -> Result<(), String> {
     if !is_user_theme_id(id) {
@@ -1297,7 +1296,7 @@ mod tests {
         assert_eq!(scanned.themes[0].incompatible_reason, None);
     }
 
-    /// the theme rules in-place path: a user theme's palette is rewritten, and the
+    /// A user theme's palette is rewritten in place, and the
     /// rewrite reads back exactly through the same `get` the runtime uses.
     #[test]
     fn a_user_themes_tokens_update_in_place() {

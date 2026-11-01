@@ -2,7 +2,7 @@
 //!
 //! These exist because a partial write (a `ServerRow` carrying only a
 //! `mod_count`, everything else at `Default`) used to silently blank real
-//! rows via the unconditional `ON CONFLICT` clause
+//! rows via the unconditional `ON CONFLICT` clause.
 
 mod common;
 

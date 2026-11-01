@@ -1,7 +1,7 @@
 use crate::error::PackedError;
 
 /// Reverse Bohemia's escaping: `0x01 0x01` -> `0x01`, `0x01 0x02` -> `0x00`,
-/// `0x01 0x03` -> `0xFF`..
+/// `0x01 0x03` -> `0xFF`.
 fn unescape(src: &[u8]) -> Result<Vec<u8>, PackedError> {
     let mut out = Vec::with_capacity(src.len());
     let mut i = 0;

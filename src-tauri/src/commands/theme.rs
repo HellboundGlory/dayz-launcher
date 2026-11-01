@@ -107,8 +107,8 @@ fn validate_theme_styles(dir: &Path) -> Result<Vec<ValidationIssue>, String> {
     ))
 }
 
-/// Rewrite an installed user theme's palette in place — the theme rules save for
-/// the active theme. Only `local.*` ids qualify; see [`theme::update_tokens`].
+/// Rewrite an installed user theme's palette in place. Only `local.*` ids qualify;
+/// see [`theme::update_tokens`].
 #[tauri::command]
 pub fn update_theme_tokens(
     app: AppHandle,

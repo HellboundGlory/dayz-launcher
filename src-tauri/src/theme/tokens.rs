@@ -627,7 +627,7 @@ token_group! {
     }
 }
 
-/// the theme rules `glow`: whether the launcher's own buttons glow at rest, only
+/// `glow`: whether the launcher's own buttons glow at rest, only
 /// when selected, or never. Decorative glows read `shadow.glow` regardless.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

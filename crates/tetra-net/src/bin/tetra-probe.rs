@@ -1,12 +1,9 @@
-//! CLI probe tool — query a single server and print what it answers.
+//! Query one server and print what it answers, through the same `tetra_net`
+//! transport the launcher uses, so results match what the app sees.
 //!
 //! ```text
-//! cargo run -p tetra-net --bin tetra-probe -- 127.0.0.1:2302 info
-//! cargo run -p tetra-net --bin tetra-probe -- 127.0.0.1:2302 rules
+//! cargo run -p tetra-net --bin tetra-probe -- 127.0.0.1:2302 <info|rules>
 //! ```
-//!
-//! Drives the same `tetra_net` transport the launcher uses, so results match
-//! what the app sees.
 
 use std::net::SocketAddr;
 use std::process::ExitCode;

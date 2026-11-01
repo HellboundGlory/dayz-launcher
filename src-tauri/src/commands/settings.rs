@@ -24,7 +24,7 @@ pub enum OnJoin {
 }
 
 /// Retired in favour of `close_to_tray`/`minimise_to_tray`. Read once to
-/// migrate, never written
+/// migrate, never written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum OnClose {

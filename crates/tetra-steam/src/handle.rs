@@ -34,7 +34,7 @@ const MUTATION_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
 /// List requests Steam will answer for one process. Past this it accepts the
 /// request and never completes it: measured 96 served then 4 more in a second
 /// pass, with the 32 after those all stalling. Not per pass, and it does not
-/// refill
+/// refill.
 pub const LIST_REQUEST_BUDGET: usize = 96;
 
 /// How long [`SteamHandle::shutdown`] waits for the actor to acknowledge a
@@ -114,8 +114,7 @@ impl SteamHandle {
     }
 
     /// Like [`Self::dispatch`], but gives up waiting rather than sitting queued
-    /// behind a slow command indefinitely. Abandoning the wait doesn't cancel it —
-    ///.
+    /// behind a slow command indefinitely. Abandoning the wait doesn't cancel it.
     fn dispatch_within<T>(
         &self,
         timeout: std::time::Duration,
@@ -202,8 +201,9 @@ impl SteamHandle {
     }
 
     /// Ask the Workshop which of `ids` is out of date on disk and start a download for
-    /// each one, returning the ids it queued. Best-effort — see
-    /// `local notes/steam-and-joining.md` for why this differs from `mod_states`.
+    /// each one, returning the ids it queued. Reports only what it queued, not a
+    /// verdict per id; [`Self::verify_mods`] does that. Best-effort: unanswered ids are
+    /// skipped. It asks the Workshop because `mod_states` can lag it.
     pub fn refresh_stale(&self, ids: &[u64]) -> Result<Vec<u64>, SteamError> {
         if ids.is_empty() {
             return Ok(Vec::new());

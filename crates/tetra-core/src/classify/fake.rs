@@ -1,16 +1,9 @@
 //! Telling a real DayZ server from a spoofed listing.
 //!
-//! The DayZ master list is full of servers that publish a fabricated player
-//! count so they sort to the top of a browser ordered by players. They are not
-//! joinable and they outnumber the real thing: of 195,659 rows one pass
-//! collected, only 34,137 came from a server that answered honestly.
-//!
-//! The tell is `bots`. DayZ has no bot slots, so a real server reports zero
-//! — verified against official Bohemia servers and community ones alike —
-//! while a spoofer mirrors its fake player count into `bots` too (162,392 of
-//! the 162,466 rows with a nonzero `bots` had `bots == players`). The rest of
-//! the checks catch the same servers by their other lies: counts saturated at
-//! a `u8`, more players than slots, and names built from control characters.
+//! Spoofers publish a fake player count so they sort to the top of the browser.
+//! DayZ has no bot slots, so a real server reports `bots = 0`; a spoofer mirrors
+//! its fake count into `bots`. Other checks catch the rest: counts that saturate a
+//! `u8`, more players than slots, and names built from control characters.
 
 /// Highest player/slot count DayZ can actually run. Anything at or above the
 /// `u8` ceiling is a saturated sentinel, not a measurement.

@@ -1,22 +1,9 @@
 //! Which master-list requests one discovery pass is made of.
 //!
-//! Steam answers a single `RequestInternetServerList` with at most
-//! [`LIST_CAP`] rows and silently drops the rest, so asking once — the launcher
-//! used to ask once, with `empty=1` — can only ever see a slice of the DayZ
-//! browser. A pass therefore asks for disjoint slices and subdivides any slice
-//! that comes back at the cap.
-//!
-//! Both split axes are exact complements, so the union of a shard's children
-//! is the shard itself:
-//! - population: `empty=1` (has players) against `noplayers=1` (has none);
-//! - tags: `gametagsand=T` (declares `T`) against `gametagsnor=T` (doesn't).
-//!
-//! Steam paces each request by pinging the servers it lists (~80 rows/s) but
-//! paces concurrent requests independently, so the plan is *pre-expanded*: it
-//! starts at the cells a pass would otherwise discover one truncation at a
-//! time, and every cell is asked at once. Interior requests are pure waste,
-//! since their rows are re-listed by their children, so pre-expansion skips
-//! them entirely.
+//! Steam returns at most [`LIST_CAP`] rows per request and drops the rest, so a
+//! pass asks for disjoint parts of the browser and subdivides any at the cap.
+//! Population and tag splits are exact complements (`empty=1` vs `noplayers=1`,
+//! `gametagsand=T` vs `gametagsnor=T`); every cell is asked at once.
 
 use crate::source::Filters;
 
@@ -110,7 +97,8 @@ impl Shard {
             .collect()
     }
 
-    /// One half, split `depth` tag axes deep, without asking Steam anything.
+    /// One half, split `depth` tag axes deep, without asking Steam anything. Parents are
+    /// skipped because their children re-list all their rows.
     fn pre_expand(half: Shard, depth: usize) -> Vec<Shard> {
         let mut cells = vec![half];
         for _ in 0..depth {

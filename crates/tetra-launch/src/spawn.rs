@@ -244,18 +244,9 @@ pub fn find_dayz_exe(dayz_dir: &std::path::Path) -> Option<PathBuf> {
 
 /// Build the full argument list for a DayZ launch.
 ///
-/// # Arguments
-///
-/// - `main_menu` — `true` launches DayZ to the main menu with the mods loaded
-///   instead of joining the server: the connection arguments are omitted.
-/// - `server_ip` — The server to connect to (game port, not query port).
-/// - `server_port` — Game port.
-/// - `password` — Optional server password.
-/// - `mod_arg` — The full `-mod=...` string (or empty for vanilla).
-/// - `extra_params` — User-configured launch parameters (e.g. `-noSplash`).
-///
-/// The mod argument is always last in the list so the user's parameters
-/// cannot accidentally truncate or interfere with it.
+/// `main_menu` launches to the main menu with the mods loaded and omits the connection
+/// arguments. `server_port` is the game port, not the query port. `mod_arg` is the whole
+/// `-mod=...` string, or empty for vanilla. It goes last so user parameters cannot truncate or interfere with it.
 pub fn build_launch_args(
     main_menu: bool,
     server_ip: &str,

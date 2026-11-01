@@ -2,7 +2,7 @@ use std::time::Duration;
 
 /// Default max simultaneous in-flight A2S queries; overridden by
 /// `AppSettings::max_concurrent_queries` and capped by `MAX_IN_FLIGHT_CEILING`.
-/// Kept well under consumer router NAT-table limits
+/// Kept well under consumer router NAT-table limits.
 pub const MAX_IN_FLIGHT: usize = 256;
 
 /// Hard bound on `max_concurrent_queries`, however high a hand-edited

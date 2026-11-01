@@ -516,7 +516,7 @@ fn sniff_raster_image(name: &str, extension: &str, bytes: &[u8]) -> Result<(), S
     Ok(())
 }
 
-/// this change gate: a reject-list plus a `url()` check (see `theme::css`).
+/// Stylesheet gate: a reject-list plus a `url()` check (see `theme::css`).
 fn sniff_css(name: &str, bytes: &[u8]) -> Result<(), String> {
     let text =
         std::str::from_utf8(bytes).map_err(|e| format!("`{name}` is not valid UTF-8: {e}"))?;
@@ -1238,9 +1238,8 @@ pub fn export(
 
 /// The files an export writes from named sources rather than by walking the
 /// install directory; the walk skips them so nothing is packaged twice.
-/// `settings.values.json` is listed although no named source writes it: it is
-/// this user's own tuning of their installed copy, not the theme's portable
-/// content.
+/// `settings.values.json` is listed although no named source writes it: it is this
+/// user's own tuning of their installed copy, not the theme's portable content.
 const EXPORTED_FILES: [&str; 2] = [
     MANIFEST_FILE,
     crate::theme::settings_values::SETTINGS_VALUES_FILE,
@@ -2664,7 +2663,7 @@ mod tests {
         stage_for_preview(&root, &zip_path, &[]).expect("a clean stylesheet must stage");
     }
 
-    /// The same gate this change ships runs here too — a theme cannot smuggle
+    /// The same stylesheet gate runs here too — a theme cannot smuggle
     /// through what `validate_css` would otherwise refuse.
     #[test]
     fn a_stylesheet_validate_css_would_refuse_is_refused_here_too() {
@@ -3270,9 +3269,8 @@ mod tests {
         }
     }
 
-    /// this change: an installed advanced theme carrying a
-    /// palette, a layout, a stylesheet and a font must survive export →
-    /// reimport on a clean profile with every byte intact.
+    /// An installed advanced theme carrying a palette, a layout, a stylesheet and a
+    /// font must survive export → reimport on a clean profile with every byte intact.
     #[test]
     fn an_advanced_theme_round_trips_through_export_and_reimport() {
         let root = ScratchDir::tagged("export-advanced");

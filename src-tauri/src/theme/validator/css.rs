@@ -33,7 +33,7 @@ fn is_render_time_function(name: &str) -> bool {
         .any(|candidate| name.eq_ignore_ascii_case(candidate))
 }
 
-/// Validate a CSS stylesheet string according to the theme rules
+/// Validate a CSS stylesheet string.
 pub fn validate_css_stylesheet(file_path: &str, source: &str) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
 

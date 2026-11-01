@@ -20,7 +20,7 @@ pub struct ModReadinessEntry {
     pub state: ModState,
     /// File size in bytes: None if already ready or unknown.
     pub size_bytes: Option<u64>,
-    /// True if this size is an upper bound.
+    /// True if this size is an upper bound (the mod needs an update).
     pub size_is_upper_bound: bool,
     pub preview_url: Option<String>,
     pub is_unique: bool,

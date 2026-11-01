@@ -7,7 +7,6 @@ use tetra_registry::Registry;
 use tetra_steam::SteamHandle;
 
 /// Application state managed by Tauri.
-/// for the rationale behind each field.
 pub struct AppState {
     pub registry: Mutex<Option<Registry>>,
     pub steam: Mutex<Option<Arc<SteamHandle>>>,

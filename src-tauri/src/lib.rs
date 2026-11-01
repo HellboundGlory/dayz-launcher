@@ -393,7 +393,7 @@ pub fn run() {
         .expect("error while running tauri application")
         // The single shutdown choke point — `RunEvent::Exit` fires however the
         // process is ending. `restart_requested` bridges an updater restart's
-        // two events; Linux-only,
+        // two events; Linux-only.
         .run({
             #[cfg(target_os = "linux")]
             let mut restart_requested = false;
@@ -441,8 +441,8 @@ pub fn run() {
                     );
 
                     // Linux: glibc's exit() trips heap corruption unloading
-                    // NVIDIA/WebKit modules, so use _exit instead (see
-                    // local notes/native-shell.md) — restart is replicated manually below.
+                    // NVIDIA/WebKit modules, so use _exit instead; restart is replicated
+                    // manually below.
                     #[cfg(target_os = "linux")]
                     {
                         if restart_requested {
