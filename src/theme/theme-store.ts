@@ -372,8 +372,8 @@ export function effectiveRoleValues(
  * Re-read what's installed, plus every theme's full `tokens.json` — the latter
  * a deliberate tradeoff: `list_installed_themes` itself never reads
  * `tokens.json`, but the picker's two-colour swatch dots need each palette,
- * and at this scale that's negligible. A paginated grid should
- * revisit lazy-loading if it starts to matter.
+ * and at this scale that's negligible. The paginated theme grid
+ * could lazy-load these if it starts to matter.
  */
 async function refreshInstalledThemes(): Promise<void> {
   const installedThemes = await listInstalledThemes();
