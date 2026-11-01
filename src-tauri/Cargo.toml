@@ -87,7 +87,7 @@ tetra-steam = { path = "../crates/tetra-steam" }
 tetra-launch = { path = "../crates/tetra-launch" }
 tetra-discord = { path = "../crates/tetra-discord" }
 # Only used for `_exit` on Linux: terminate without glibc's atexit/dlclose pass
-# (see `RunEvent::Exit` in lib.rs and the Linux exit-crash note in the notes).
+# (see `RunEvent::Exit` in lib.rs).
 libc = "0.2"
 
 # Windows/macOS-only acrylic compositing. Linux has no equivalent effect.
