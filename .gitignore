@@ -24,6 +24,10 @@ tetra.db-wal
 # Backend deployment secrets — holds the Steam Web API key
 deploy/.env
 
+# Local secrets anywhere in the tree
+.env
+.env.local
+
 # Local backend index URL for debug builds — the host is not published here
 /src-tauri/.cargo/
 
