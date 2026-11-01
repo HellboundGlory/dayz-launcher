@@ -23,7 +23,6 @@ deploy/.env
 .env
 .env.local
 
-
 # Windows-only Steam redistributable, and local launcher databases
 src-tauri/steam_api64.dll
 tetra.db

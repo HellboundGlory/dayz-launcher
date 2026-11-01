@@ -12,10 +12,8 @@ tetra.db
 tetra.db-shm
 tetra.db-wal
 
-
 # Editor / tooling
 *.log
-
 
 # Harness scratch output (prod build, server logs) — regenerable
 /tools/harness/.out/
