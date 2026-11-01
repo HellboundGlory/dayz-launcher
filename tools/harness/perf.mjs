@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// `npm run harness:perf` — the theme rules performance budgets, measured in the headless
+// `npm run harness:perf` — the performance budgets, measured in the headless
 // harness (see README.md). Headless Chromium is not the WebKitGTK build the
 // launcher ships, so these numbers are indicative, not release figures.
 import { mkdir, writeFile } from "node:fs/promises";
@@ -125,7 +125,7 @@ async function measureActivation(page) {
   return { runs, medianMs: median(runs), maxMs: highest(runs) };
 }
 
-/** Time the fallback visibility check, or reuse `tetra:visibility-check` measures when a package emits them. */
+/** Time the fallback visibility check, or reuse `tetra:visibility-check` measures when the app has emitted them. */
 async function measureVisibility(page) {
   const measured = await page.evaluate(() =>
     performance.getEntriesByName("tetra:visibility-check").map((entry) => entry.duration),

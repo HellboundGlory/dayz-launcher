@@ -1,4 +1,4 @@
-// The four container primitives (§5.3). Each takes its node, the already-built
+// The four container primitives. Each takes its node, the already-built
 // children, and the shared attrs the node-renderer computed, and folds in its
 // own layout style. `as` is the element tag, which a landmark can change.
 

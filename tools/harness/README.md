@@ -95,7 +95,7 @@ resize or with Settings open.
 
 ## Perf
 
-`npm run harness:perf` measures the theme rules budgets in a prod harness build at
+`npm run harness:perf` measures the performance budgets in a prod harness build at
 1400×800: servers-list scroll at 27,000 rows (Tactical and Neutral), theme
 activation apply-to-first-paint, the fallback visibility check, and the
 Tactical-vs-Neutral JS heap. It prints a pass/fail table, writes

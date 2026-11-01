@@ -53,7 +53,7 @@
 }
 
 @layer launcher {
-  /* ── V4 Glow neutral base (canonical, from final-integrated-board.html) ──
+  /* ── Glow neutral base ──
      These are the static dark-neutral defaults. The theme engine
      (src/theme/apply.ts) overrides every token at runtime on <html>. The two
      family steps are here so the frame before `hydrate()` paints — it is not
@@ -111,8 +111,8 @@
       height: 100%;
     }
     body {
-      /* Transparent so the window's own rounded corners (App root has the
-         board's `.win` border-radius + overflow clip) show through. The app
+      /* Transparent so the window's own rounded corners (App root has its
+         border-radius + overflow clip) show through. The app
          paints its own background on the root element. */
       background: transparent;
       color: var(--text);
@@ -225,7 +225,7 @@
     box-shadow: var(--t-shadow-glow);
   }
 
-  /* ── Theme-styled scrollbars (board §246–261) ─────────────────────
+  /* ── Theme-styled scrollbars ─────────────────────
      `width` sizes the vertical bar and `height` the horizontal one. Only `width`
      was set in the old stylesheet, and styling `::-webkit-scrollbar` at all opts
      out of the platform defaults for both — so the horizontal bar rendered with

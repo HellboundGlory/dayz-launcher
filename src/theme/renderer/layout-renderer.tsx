@@ -49,7 +49,7 @@ export function collectCollapseRules(node: LayoutNode | undefined, rules: Collap
 
 export interface LayoutRendererProps {
   file: LayoutFile;
-  /** The window's CSS width, used to pick a variant (§5.2). Defaults to the
+  /** The window's CSS width, used to pick a variant. Defaults to the
    * measured viewport. */
   width?: number;
   outlets?: Record<string, ReactNode>;

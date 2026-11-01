@@ -107,7 +107,7 @@ export async function loadServerMods(
   }
   try {
     const res = await serverModReadiness(server.addr, server.query_port);
-    // the theme rules: an offline server keeps its last known list, marked stale.
+    // An offline server keeps its last known list, marked stale.
     const state = res.stale ? "stale" : res.mods.length > 0 ? undefined : "empty";
     return { state, mods: res.mods };
   } catch {

@@ -707,8 +707,8 @@ export async function saveThemeCopy(
   });
 }
 
-/** Rewrite an installed user theme's (`local.*`) palette in place — the theme rules
- * save for the active theme. Refuses an id that is not a `local.*` install. */
+/** Rewrite an installed user theme's (`local.*`) palette in place, as saving the active theme does.
+ * Refuses an id that is not a `local.*` install. */
 export async function updateThemeTokens(id: string, tokens: unknown): Promise<void> {
   return invoke<void>("update_theme_tokens", { id, tokens });
 }

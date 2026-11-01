@@ -1,4 +1,4 @@
-// the theme rules / an earlier decision: one batched read-only pass over the current screen's
+// One batched read-only pass over the current screen's
 // required elements, on layout events only — never on data updates.
 import { useEffect, useRef } from "react";
 import { useDevStore } from "../dev/dev-store";
@@ -9,11 +9,11 @@ import { isElementInLayout } from "../layout-query";
 import { clearRuntimeFallbacks, isFileFallenBack, markRuntimeFallback } from "./store";
 import { MISSING_ELEMENT_REASON, runVisibilityCheck } from "./visibility";
 
-/** Perf entry the harness reads (§24). */
+/** Perf entry the harness reads. */
 export const VISIBILITY_CHECK_MEASURE = "tetra:visibility-check";
 const START_MARK = `${VISIBILITY_CHECK_MEASURE}:start`;
 
-/** §15: window resize is debounced. */
+/** Window resize is debounced. */
 export const RESIZE_DEBOUNCE_MS = 150;
 
 /** Disclosure and tab changes re-run the check: accordion headers, popup
@@ -101,7 +101,7 @@ export function resolveActiveContexts(
   return { contexts: [...contexts], openModals, openPopups };
 }
 
-/** Element id -> the active contexts that require it (REGISTRY §6.1). */
+/** Element id -> the active contexts that require it. */
 export function resolveRequiredElements(
   contexts: readonly string[],
 ): Map<string, string[]> {
@@ -114,7 +114,7 @@ export function resolveRequiredElements(
   return required;
 }
 
-/** The layout files a context is attributed to (§5.1's path convention). */
+/** The layout files a context is attributed to, by path convention. */
 function layoutPathsForContext(context: string, active: ActiveContexts): string[] {
   if (context === "views" || context === "views+settings") return [SHELL_FILE];
   if (context === "settings") return ["layout/settings.json"];
@@ -234,7 +234,7 @@ export interface VisibilityCheckTargets {
 }
 
 /**
- * Wires the §15 triggers: an initial pass, a debounced resize, and
+ * Wires the triggers: an initial pass, a debounced resize, and
  * aria-expanded/aria-selected changes on tabs, accordion headers and popup
  * triggers. Passes are scheduled after paint — fonts, then two frames.
  * Returns the teardown.
@@ -340,7 +340,7 @@ export function startVisibilityChecks({
 }
 
 /**
- * Mounts the §15 check once in `App`. The effect re-runs — and so re-checks —
+ * Mounts the check once in `App`. The effect re-runs — and so re-checks —
  * on theme activation and hot reload, variant switch, view change, and
  * modal/Settings open; resize and tab/accordion/popup changes are handled by
  * the scheduler itself.

@@ -111,7 +111,7 @@ export function checkElementVisibility(
   }
 
   // 3. Geometry. An element scrolled out of its pane is reachable by scrolling,
-  // so a pane that passes stands in for it (§15 judges what the user can reach).
+  // so a pane that passes stands in for it: the check judges what the user can reach.
   const geometryFailure = (reason: string): ElementVisibilityResult => {
     const pane = scrolledOutPane(element, rect);
     return pane ? checkElementVisibility(pane, windowBounds) : { visible: false, reason };
@@ -323,7 +323,7 @@ export function runVisibilityCheck(options: VisibilityCheckOptions = {}): Visibi
         if (isSkipped(el)) continue;
         const res = checkElementVisibility(el, options.windowBounds);
         if (!res.visible) {
-          // Joining the selected server always works (§15), so the selection panel's
+          // Joining the selected server always works, so the selection panel's
           // own Join covers the selected row's. A focused-but-unselected row still
           // needs its own.
           if (

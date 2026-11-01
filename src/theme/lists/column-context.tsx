@@ -5,7 +5,7 @@ import { ALIGN } from "../renderer/props";
 
 export const ListColumnsContext = createContext<ColumnDef[] | undefined>(undefined);
 
-/** Resolves a row child's `column` id against the active row's column list (§7.5).
+/** Resolves a row child's `column` id against the active row's column list.
  * The cell fills its track (grid default); alignment moves to its content so a
  * long value clips instead of shrink-wrapping past the track width. */
 export function useColumnPlacement(column: string | undefined): CSSProperties | undefined {

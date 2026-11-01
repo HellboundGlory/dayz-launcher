@@ -372,7 +372,7 @@
   flex-shrink: 0;
 }
 
-/* The wrapped bar (§5.2 narrow variant). The 1400px variant has no r-filterbar-bottom. */
+/* The wrapped bar (narrow variant). The 1400px variant has no r-filterbar-bottom. */
 [data-region="r-filterbar-top"],
 [data-region="r-filterbar-bottom"] {
   gap: 8px;

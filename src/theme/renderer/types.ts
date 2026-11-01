@@ -30,12 +30,12 @@ export interface PositionDef {
 
 export type Landmark = "navigation" | "main" | "complementary" | "banner" | "contentinfo";
 
-/** Launcher glow on an element: always, only while its `data-state` says selected, or never (§5.5). */
+/** Launcher glow on an element: always, only while its `data-state` says selected, or never. */
 export type GlowMode = "always" | "selected" | "never";
 
 export type SettingValue = string | number | boolean;
 
-/** `true` always hides; the object forms hide on a settings match (§5.8). */
+/** `true` always hides; the object forms hide on a settings match. */
 export type HiddenCondition =
   | true
   | { setting: string; equals: SettingValue }
@@ -44,7 +44,7 @@ export type HiddenCondition =
 export type Align = "start" | "center" | "end" | "stretch" | "baseline";
 export type Justify = "start" | "center" | "end" | "stretch" | "spaceBetween" | "spaceAround";
 
-/** Props every node accepts (§5.5). */
+/** Props every node accepts. */
 export interface CommonProps {
   id?: string;
   class?: string;
@@ -133,7 +133,7 @@ export interface ImageNode extends CommonProps {
   type: "image";
   /** A package image path; mutually exclusive with `icon`. */
   src?: string;
-  /** A launcher icon name from the §6.5 allowlist. */
+  /** A launcher icon name from the allowlist. */
   icon?: string;
   fit?: "cover" | "contain";
 }

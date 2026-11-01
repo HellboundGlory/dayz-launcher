@@ -2,7 +2,7 @@ import type { LayoutFile, LayoutNode } from "./types";
 
 /** Picks the responsive root for a width: the variant with the highest
  * `minWidth <= width` from the ascending list, or `file.root` when the file
- * declares no variants (§5.2). */
+ * declares no variants. */
 export function resolveVariant(file: LayoutFile, width: number): LayoutNode {
   if (file.variants !== undefined && file.variants.length > 0) {
     let chosen = file.variants[0];

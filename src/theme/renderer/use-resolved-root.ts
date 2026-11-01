@@ -4,7 +4,7 @@ import { resolveVariant } from "./variant";
 import { useViewportWidth } from "./use-viewport-width";
 import type { LayoutFile, LayoutNode } from "./types";
 
-/** The root a layout file draws at the current width (§5.2): Dev Mode's picked
+/** The root a layout file draws at the current width: Dev Mode's picked
  * width, else an explicit width, else the measured viewport. */
 export function useResolvedRoot(file: LayoutFile, width?: number): LayoutNode {
   // The selector subscribes so an unrelated dev-store field doesn't re-render

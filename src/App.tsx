@@ -72,7 +72,7 @@ export function App() {
   /** The row whose ⋯ menu asked for "More info". */
   const infoServer = overlays.find((o) => o.id === "serverInfo")?.payload ?? null;
   const modFilterOpen = overlays.some((o) => o.id === "modFilter");
-  // The fallback notice is dismissed per launcher version (§16.1).
+  // The fallback notice is dismissed per launcher version.
   const [launcherVersion, setLauncherVersion] = useState<string | undefined>(undefined);
   const setFilter = useServerStore((s) => s.setFilter);
   const loadError = useServerStore((s) => s.loadError);
@@ -206,7 +206,7 @@ export function App() {
   const browserPlaces = (element: string) => isElementInLayout(browserLayout, element);
   const settingsMode = settingsLayout.presentation?.mode ?? "overlay";
 
-  // the theme rules runs the visibility check whenever the screen composition changes.
+  // Runs the visibility check whenever the screen composition changes.
   useVisibilityCheck({
     activeView,
     settingsOpen,

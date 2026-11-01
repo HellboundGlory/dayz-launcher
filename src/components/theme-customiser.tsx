@@ -85,7 +85,7 @@ export function ThemeCustomiser() {
   const roles = effectiveRoleValues(activeId, themeFiles, customExtras);
   const saved = activeInstalled(activeId, myThemes);
   const displayName = saved?.name ?? activePreset(activeId)?.name ?? "Neutral";
-  // the theme rules only an installed `local.*` theme can be written in place; an
+  // Only an installed `local.*` theme can be written in place; an
   // import or a bundled built-in is saved as a new theme instead.
   const userTheme = isUserTheme(activeId, myThemes);
 

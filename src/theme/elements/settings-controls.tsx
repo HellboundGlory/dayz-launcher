@@ -24,7 +24,7 @@ export const REFRESH_INTERVALS: { value: number; label: string }[] = [
   { value: 600, label: "Every 10 minutes" },
 ];
 
-/** The shared text-input / select styling (board `.field input`). */
+/** The shared text-input / select styling. */
 export const INPUT_CLASS =
   "w-full [border-radius:var(--t-radius-input)] border border-line bg-bg px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-size-lg)] leading-4 text-ink placeholder-muted outline-hidden transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:border-line-weak focus:border-accent-line";
 

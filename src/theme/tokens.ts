@@ -51,7 +51,7 @@ export interface RolesV2 {
   shadow: Steps<"panel" | "modal" | "popup" | "drawer" | "glow" | "popupFilter" | "stateWarning" | "confirm" | "readinessWarning" | "readinessSuccess" | "statusDot" | "update" | "inspector">;
   motion: Partial<Record<"hover" | "expand" | "overlay", MotionRoleV2>>;
 }
-/** the theme rules `glow`: whether the launcher's own buttons glow at rest, only when selected, or never. */
+/** `glow`: whether the launcher's own buttons glow at rest, only when selected, or never. */
 export type GlowPolicy = "always" | "selected" | "never";
 export interface TokensV2 {
   schemaVersion: 2;

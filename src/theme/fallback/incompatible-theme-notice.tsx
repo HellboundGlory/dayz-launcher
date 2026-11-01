@@ -1,6 +1,6 @@
 import { useThemeStore } from "../theme-store";
 
-/** the theme rules shown once, launcher-owned, while Neutral is active because a v1 theme was switched off. */
+/** Shown once, launcher-owned, while Neutral is active because a v1 theme was switched off. */
 export function IncompatibleThemeNotice() {
   const replaced = useThemeStore((s) => s.incompatibleSwitch);
   const dismiss = useThemeStore((s) => s.dismissIncompatibleSwitch);

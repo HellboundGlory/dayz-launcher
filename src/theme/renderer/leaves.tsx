@@ -1,4 +1,4 @@
-// The leaf primitives a theme composes directly (§5.4): plain text, a
+// The leaf primitives a theme composes directly: plain text, a
 // decorative image or launcher icon, and the shell's named outlets.
 
 import type { CSSProperties, ReactNode } from "react";
@@ -54,7 +54,7 @@ import { resolveThemeAsset } from "../asset-resolver";
 import type { RenderedAttrs } from "./props";
 import type { ImageNode, OutletNode, TextNode, TextRole } from "./types";
 
-/** The §6.5 allowlist, keyed by the launcher icon name a theme writes. */
+/** The allowed icons, keyed by the launcher icon name a theme writes. */
 export const ICONS: Record<string, LucideIcon> = {
   alertTriangle: TriangleAlert,
   appWindow: AppWindow,

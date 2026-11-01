@@ -17,11 +17,11 @@ export type ReadinessState =
   | "stale";
 
 export interface ReadinessView {
-  /** What the theme sees on `data-state` — `stale` wins over the content state, per the theme rules */
+  /** What the theme sees on `data-state` — `stale` wins over the content state. */
   dataState: ReadinessState;
   label: string;
   sizeBytes: number | null;
-  /** True when any summed mod is only an update estimate. */
+  /** True when any summed mod is only an update estimate, shown as "up to {size}". */
   sizeIsUpperBound: boolean;
 }
 

@@ -40,7 +40,7 @@ export interface ModReadinessEntry {
   state: import("../lib/tauri").ModState;
   /** File size in bytes: null if already ready or unknown. */
   size_bytes: number | null;
-  /** True if this size is an upper bound. */
+  /** True if this size is an upper bound: the mod needs an update. */
   size_is_upper_bound: boolean;
   preview_url: string | null;
   is_unique: boolean;

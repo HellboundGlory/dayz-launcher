@@ -73,7 +73,7 @@ interface ThemeState {
    * theme's own schema defaults when written, so `apply()` only ever reads a
    * complete set and never has to know about defaults itself. */
   settingsValues: Record<string, Record<string, SettingsValue>>;
-  /** the theme rules the v1 theme hydrate found active and switched off, or `null`. */
+  /** The v1 theme hydrate found active and switched off, or `null`. */
   incompatibleSwitch: IncompatibleSwitch | null;
 
   /** Clears `incompatibleSwitch` and records that its notice was dismissed. */
@@ -134,7 +134,7 @@ function saveActive(active: { scheme: "dark" | "light"; bloom: number }): void {
   localStorage.setItem(ACTIVE_KEY, JSON.stringify(active));
 }
 
-// the theme rules one-time notice, per switched-off theme id.
+// One-time notice, per switched-off theme id.
 const INCOMPATIBLE_NOTICE_KEY = "tetra.incompatibleNoticeShown.";
 
 function incompatibleNoticeShown(id: string): boolean {
@@ -181,7 +181,7 @@ export function activeInstalled(activeId: string, installedThemes: ThemeSummary[
   return installedThemes.find((t) => t.id === activeId);
 }
 
-/** the theme rules "user theme": an installed theme this launcher created (`local.*`),
+/** A "user theme": an installed theme this launcher created (`local.*`),
  * and so the only kind [`ThemeState.saveTheme`] may rewrite in place. */
 export function isUserTheme(id: string, installedThemes: ThemeSummary[]): boolean {
   return id.startsWith("local.") && activeInstalled(id, installedThemes) !== undefined;
@@ -372,7 +372,7 @@ export function effectiveRoleValues(
  * Re-read what's installed, plus every theme's full `tokens.json` — the latter
  * a deliberate tradeoff: `list_installed_themes` itself never reads
  * `tokens.json`, but the picker's two-colour swatch dots need each palette,
- * and at this scale that's negligible — this change paginated grid should
+ * and at this scale that's negligible. A paginated grid should
  * revisit lazy-loading if it starts to matter.
  */
 async function refreshInstalledThemes(): Promise<void> {
@@ -464,7 +464,7 @@ function syncFallbacks(id: string): void {
   }
 }
 
-/** the theme rules a hot reload keeps a broken file's last valid version on screen instead of falling back. */
+/** A hot reload keeps a broken file's last valid version on screen instead of falling back. */
 function holdLastValidLayouts(file: ThemeFile, previous: ThemeFile | undefined): ThemeFile {
   const fallbacks = file.fallbacks ?? [];
   if (fallbacks.length === 0 || previous?.layouts === undefined) return file;
@@ -746,7 +746,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 
   saveTheme: async (name, { overwrite = false } = {}) => {
     const { activeId, installedThemes, custom, customExtras, themeFiles, bloom } = get();
-    // the theme rules the edits land in the active theme when it is a user theme —
+    // The edits land in the active theme when it is a user theme —
     // one this launcher made (`local.*`). An imported package or a bundled
     // built-in is never rewritten, so saving over one duplicates instead.
     if (isUserTheme(activeId, installedThemes)) {

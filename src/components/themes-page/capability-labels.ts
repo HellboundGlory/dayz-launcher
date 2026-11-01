@@ -33,7 +33,7 @@ export function capabilityLabels(
   return only.filter((raw) => declared.has(raw)).map((raw) => CAPABILITY_LABELS[raw]);
 }
 
-/** The single grid label for a theme, per the theme rules */
+/** The single grid label for a theme. */
 export function capabilityLabel(
   capabilities: readonly string[],
 ): "Custom layout" | "Styled" | "Colours" {

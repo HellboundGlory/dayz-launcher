@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-/** Resize settles for this long before the width is re-read (§5.2, §15). */
+/** Resize settles for this long before the width is re-read. */
 const DEBOUNCE_MS = 100;
 
 /** The window's CSS width, or 0 where there is no window (SSR, tests). Page zoom
@@ -24,7 +24,7 @@ export function subscribeViewportWidth(onChange: () => void): () => void {
   };
 }
 
-/** The width a layout file's variants are picked against (§5.2). */
+/** The width a layout file's variants are picked against. */
 export function useViewportWidth(): number {
   const [width, setWidth] = useState(readViewportWidth);
   useEffect(() => subscribeViewportWidth(() => setWidth(readViewportWidth())), []);
