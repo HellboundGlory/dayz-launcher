@@ -227,6 +227,59 @@ async fn classification_flags_reach_the_list_row() {
     assert_eq!(row.version.as_deref(), Some("1.28"));
 }
 
+/// DayZ 1.30 servers send `no3rd` backwards: official "1st Person Only"
+/// servers leave it out and third-person ones send it.
+#[tokio::test]
+async fn no3rd_reads_backwards_from_dayz_1_30() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let writer = registry.writer();
+    for (version, keywords, first_person) in [
+        ("1.30.164289", "battleye,shard0,privHive,no3rd", false),
+        ("1.30.164289", "battleye,shard0,privHive", true),
+    ] {
+        let mut row = live_row();
+        row.version = Some(version.into());
+        row.keywords = Some(keywords.into());
+        writer.upsert_servers(vec![row]).await.expect("upsert");
+        assert_eq!(
+            fetch(&registry).await.first_person,
+            first_person,
+            "{version} {keywords}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn no3rd_without_a_version_uses_the_stored_one() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let writer = registry.writer();
+    let mut row = live_row();
+    row.version = Some("1.30.164289".into());
+    row.keywords = Some("battleye".into());
+    writer
+        .upsert_servers(vec![row.clone()])
+        .await
+        .expect("first");
+    row.version = None;
+    row.keywords = Some("battleye,no3rd".into());
+    writer
+        .upsert_servers(vec![row])
+        .await
+        .expect("keywords only");
+    assert!(!fetch(&registry).await.first_person);
+}
+
+#[tokio::test]
+async fn empty_keywords_on_1_30_are_not_first_person() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let writer = registry.writer();
+    let mut row = live_row();
+    row.version = Some("1.30.164289".into());
+    row.keywords = Some(" ".into());
+    writer.upsert_servers(vec![row]).await.expect("upsert");
+    assert!(!fetch(&registry).await.first_person);
+}
+
 /// Never-probed servers must be first in line for the next refresh —
 /// sorting by `players DESC` alone would starve them permanently.
 #[tokio::test]

@@ -1,7 +1,7 @@
 use crate::error::RegistryError;
 use crate::rows::{ServerKey, ServerRow, WorkshopCacheRow};
 use crate::schema;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use tetra_core::a2s::dayz::ServerMod;
 use tetra_core::classify::fake::is_fake_listing;
 use tetra_core::classify::geoip::region_code;
@@ -296,6 +296,8 @@ ON CONFLICT(ip, query_port) DO UPDATE SET
 /// a `servers` row does not cascade.
 const DELETE_SERVER_MODS: &str = "DELETE FROM server_mods WHERE ip = ?1 AND query_port = ?2";
 
+const SELECT_VERSION: &str = "SELECT version FROM servers WHERE ip = ?1 AND query_port = ?2";
+
 /// Removes a row that turned out to be a spoofed listing.
 const DELETE_SERVER: &str = "DELETE FROM servers WHERE ip = ?1 AND query_port = ?2";
 
@@ -321,6 +323,7 @@ fn upsert_servers(conn: &Connection, rows: &[ServerRow]) -> Result<usize, Regist
         let mut stmt = tx.prepare_cached(UPSERT_SERVER)?;
         let mut drop_mods = tx.prepare_cached(DELETE_SERVER_MODS)?;
         let mut drop_fake = tx.prepare_cached(DELETE_SERVER)?;
+        let mut select_version = tx.prepare_cached(SELECT_VERSION)?;
         for row in rows {
             // Spoofed listings are dropped at the boundary, so no read path
             // has to know about them. A row that starts lying after it was
@@ -330,13 +333,31 @@ fn upsert_servers(conn: &Connection, rows: &[ServerRow]) -> Result<usize, Regist
                 drop_fake.execute(params![row.key.ip.to_string(), row.key.query_port])?;
                 continue;
             }
-            let kw = row.keywords.as_deref().map(parse_keywords);
+            // Whitespace-only keywords say nothing, and on 1.30 an absent
+            // `no3rd` would otherwise read as first person.
+            let kw = row
+                .keywords
+                .as_deref()
+                .filter(|k| !k.trim().is_empty())
+                .map(parse_keywords);
             let in_game_time = kw.as_ref().and_then(|k| k.in_game_time.clone());
             let queue = kw.as_ref().and_then(|k| k.queue).map(i64::from);
             let day_multiplier = kw.as_ref().and_then(|k| k.day_multiplier).map(f64::from);
             let night_multiplier = kw.as_ref().and_then(|k| k.night_multiplier).map(f64::from);
             let official = kw.as_ref().is_some_and(|k| k.official);
-            let first_person = kw.as_ref().is_some_and(|k| k.first_person_only);
+            // `no3rd` means the opposite from 1.30 on, so a row that carries
+            // keywords without a version is read against the stored version.
+            let stored_version: Option<String> = match (&kw, &row.version) {
+                (Some(_), None) => select_version
+                    .query_row(params![row.key.ip.to_string(), row.key.query_port], |r| {
+                        r.get(0)
+                    })
+                    .optional()?
+                    .flatten(),
+                _ => None,
+            };
+            let version = row.version.as_deref().or(stored_version.as_deref());
+            let first_person = kw.as_ref().is_some_and(|k| k.first_person_only(version));
             let modded = kw.as_ref().is_some_and(|k| k.modded);
             let battleye = kw.as_ref().is_some_and(|k| k.battleye);
             let responded_at: Option<i64> = row

@@ -5,7 +5,8 @@ pub struct Keywords {
     /// A shard token with no `privHive`/`external` marker indicates a
     /// Bohemia official server.
     pub official: bool,
-    pub first_person_only: bool,
+    /// The raw `no3rd` tag; read it through [`Keywords::first_person_only`].
+    pub no3rd: bool,
     pub modded: bool,
     pub battleye: bool,
     pub shard: Option<String>,
@@ -15,6 +16,33 @@ pub struct Keywords {
     pub night_multiplier: Option<f32>,
     /// `lqs` — players currently waiting in the join queue.
     pub queue: Option<u32>,
+}
+
+impl Keywords {
+    pub fn first_person_only(&self, version: Option<&str>) -> bool {
+        self.no3rd != sends_no3rd_backwards(version)
+    }
+}
+
+/// DayZ 1.30 and later send `no3rd` on third-person servers and leave it off
+/// first-person ones (checked against the live server list, 2026-11-09).
+fn sends_no3rd_backwards(version: Option<&str>) -> bool {
+    let mut parts = version.unwrap_or_default().trim().split('.');
+    let (Some(major), Some(minor)) = (
+        parts.next().and_then(leading_number),
+        parts.next().and_then(leading_number),
+    ) else {
+        return false;
+    };
+    (major, minor) >= (1, 30)
+}
+
+/// Reads "30" out of "30-rc1"; a part that does not start with a digit is unreadable.
+fn leading_number(part: &str) -> Option<u32> {
+    let end = part
+        .find(|c: char| !c.is_ascii_digit())
+        .unwrap_or(part.len());
+    part[..end].parse().ok()
 }
 
 fn is_clock(token: &str) -> bool {
@@ -41,7 +69,7 @@ pub fn parse_keywords(raw: &str) -> Keywords {
     for token in raw.split(',').map(str::trim).filter(|t| !t.is_empty()) {
         match token {
             "battleye" => k.battleye = true,
-            "no3rd" => k.first_person_only = true,
+            "no3rd" => k.no3rd = true,
             "mod" => k.modded = true,
             "privHive" | "external" => private_hive = true,
             _ => {
@@ -87,7 +115,7 @@ mod tests {
         );
         assert_eq!(k.in_game_time.as_deref(), Some("15:39"));
         assert!(!k.official);
-        assert!(k.first_person_only);
+        assert!(k.no3rd);
         assert!(k.modded);
         assert!(k.battleye);
         assert_eq!(k.shard.as_deref(), Some("ABC123"));
@@ -108,7 +136,7 @@ mod tests {
     #[test]
     fn third_person_server_is_not_first_person_only() {
         let k = parse_keywords("battleye,external,privHive,shardABC123,lqs0,12:00");
-        assert!(!k.first_person_only);
+        assert!(!k.no3rd);
         assert!(!k.official);
     }
 
@@ -157,6 +185,27 @@ mod tests {
         assert_eq!(k.night_multiplier, Some(6.0));
         assert_eq!(parse_keywords("battleye,etmXYZ").day_multiplier, None);
         assert_eq!(parse_keywords("battleye,entmXYZ").night_multiplier, None);
+    }
+
+    #[test]
+    fn no3rd_is_read_backwards_from_1_30_on() {
+        let tagged = parse_keywords("battleye,no3rd");
+        let untagged = parse_keywords("battleye");
+        for v in ["1.30", "1.30.164289", " 1.30.1 ", "1.30-rc1", "1.31", "2.0"] {
+            assert!(!tagged.first_person_only(Some(v)), "{v}");
+            assert!(untagged.first_person_only(Some(v)), "{v}");
+        }
+        for v in [
+            None,
+            Some("1.29.999"),
+            Some("1.0"),
+            Some(""),
+            Some("1.x"),
+            Some("+1.+30"),
+        ] {
+            assert!(tagged.first_person_only(v), "{v:?}");
+            assert!(!untagged.first_person_only(v), "{v:?}");
+        }
     }
 
     #[test]
