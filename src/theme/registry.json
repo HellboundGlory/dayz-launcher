@@ -293,6 +293,41 @@
       "since": "2.0",
       "aliases": []
     },
+    "nav.lan": {
+      "kind": "nav",
+      "where": [
+        "app"
+      ],
+      "required": [
+        "views"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon",
+        "label",
+        "badge"
+      ],
+      "states": [
+        "current"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
     "nav.mods": {
       "kind": "nav",
       "where": [
@@ -1171,6 +1206,38 @@
       ],
       "states": [
         "busy"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "servers.addServer": {
+      "kind": "action",
+      "where": [
+        "browser"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "icon"
+        },
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "open"
       ],
       "since": "2.0",
       "aliases": []
@@ -5407,6 +5474,7 @@
         "nav.servers",
         "nav.favourites",
         "nav.recent",
+        "nav.lan",
         "nav.mods",
         "nav.settings",
         "app.collapseToggle"
@@ -5431,6 +5499,7 @@
         "filter.hideLocked",
         "filter.hideOffline",
         "filter.reset",
+        "servers.addServer",
         "servers.refresh"
       ]
     },

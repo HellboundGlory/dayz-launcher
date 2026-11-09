@@ -33,6 +33,12 @@
                 "minWidth": "80px"
               },
               {
+                "element": "servers.addServer",
+                "options": {
+                  "display": "icon"
+                }
+              },
+              {
                 "element": "servers.refresh",
                 "options": {
                   "display": "iconLabel"
@@ -386,6 +392,12 @@
                 "element": "filter.chips",
                 "grow": 1,
                 "minWidth": "80px"
+              },
+              {
+                "element": "servers.addServer",
+                "options": {
+                  "display": "icon"
+                }
               },
               {
                 "element": "servers.refresh",

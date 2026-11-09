@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { useServerStore } from "@/stores/server-store";
 import type { ServerFilter } from "@/types/filters";
 import { useInstalledDayzVersion } from "@/hooks/use-filter-facets";
+import { isSavedTab } from "@/lib/saved-tab";
 import { useViewportWidth } from "../renderer/use-viewport-width";
 import { countryDisplayValue, mapDisplayValue } from "./popup-elements";
 import { modsFilterValue } from "./filter-elements";
@@ -179,7 +180,7 @@ export function FilterChips({ className, style }: { className?: string; style?: 
     );
   }, []);
 
-  const tabNote = filter.favourites_only || filter.recent_only;
+  const tabNote = isSavedTab(filter);
   const narrow = viewportWidth > 0 && viewportWidth < NARROW_MENU_WIDTH;
   const present = chips.length > 0 && !tabNote && !narrow;
 

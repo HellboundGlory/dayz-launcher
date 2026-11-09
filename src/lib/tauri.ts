@@ -29,6 +29,8 @@ export interface FilterParams {
   search: string | null;
   favourites_only: boolean;
   recent_only: boolean;
+  /** The LAN tab's addresses, or null for every other tab. */
+  lan_addrs: string[] | null;
   official: boolean | null;
   modded: boolean | null;
   first_person: boolean | null;
@@ -80,6 +82,20 @@ export interface DzsaConnect {
 /** Find a server by `ip:port`: from the registry, else probed and stored when it answers. */
 export async function lookupServer(addr: string): Promise<Server | null> {
   return invoke<Server | null>("lookup_server", { addr });
+}
+
+/** Sweep the networks this PC is on for DayZ servers; resolves with their `ip:query_port` addresses. */
+export async function scanLan(): Promise<string[]> {
+  return invoke<string[]>("scan_lan");
+}
+
+/**
+ * Find a server by host name or IP, with or without a port. Unlike
+ * {@link lookupServer}, a host name is accepted here; a name that does not
+ * resolve or answer rejects with the command's message.
+ */
+export async function findServer(input: string): Promise<Server | null> {
+  return invoke<Server | null>("find_server", { input });
 }
 
 /** A `dzsa://` link that started this process, for the frontend to pick up once it can listen. */

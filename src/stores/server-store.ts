@@ -68,8 +68,9 @@ function sameRow(a: Server, b: Server): boolean {
 const SORT_KEY_STORAGE = "tetra.sort.v1";
 
 // What every launch starts from, and the base "Reset filters" restores.
-// search/favourites_only/recent_only don't survive a restart — see persistFilter;
-// resetFilter still carries the latter two over so the active tab keeps its scope.
+// search/favourites_only/recent_only/lan_addrs don't survive a restart — see
+// persistFilter; resetFilter still carries the latter three over so the active
+// tab keeps its scope.
 export const DEFAULT_FILTER: ServerFilter = {
   maps: [],
   countries: [],
@@ -81,6 +82,7 @@ export const DEFAULT_FILTER: ServerFilter = {
   search: null,
   favourites_only: false,
   recent_only: false,
+  lan_addrs: null,
   official: null,
   modded: null,
   first_person: null,
@@ -125,8 +127,8 @@ function loadCountries(saved: unknown, scheme: unknown): string[] {
 }
 
 // Validates each field; a corrupt/hand-edited value falls back to defaults
-// rather than crashing the table. search/favourites_only/recent_only are
-// never restored, so the app always opens on the All tab with an empty search.
+// rather than crashing the table. search/favourites_only/recent_only/lan_addrs
+// are never restored, so the app always opens on the All tab with an empty search.
 function loadFilter(): ServerFilter {
   try {
     const raw = localStorage.getItem(FILTER_STORAGE);
@@ -148,6 +150,7 @@ function loadFilter(): ServerFilter {
       search: null,
       favourites_only: false,
       recent_only: false,
+      lan_addrs: null,
       official: tri(saved.official),
       modded: tri(saved.modded),
       first_person: tri(saved.first_person),
@@ -165,12 +168,12 @@ function loadFilter(): ServerFilter {
   }
 }
 
-// Strips the transient fields (search, favourites_only, recent_only) and the
-// version, which is re-chosen per session, before saving. `country_scheme`
-// marks `countries` as real country codes, so an older save's regions are not
-// read as countries.
+// Strips the transient fields (search, favourites_only, recent_only, lan_addrs)
+// and the version, which is re-chosen per session, before saving.
+// `country_scheme` marks `countries` as real country codes, so an older save's
+// regions are not read as countries.
 function persistFilter(filter: ServerFilter) {
-  const { search, favourites_only, recent_only, version, ...kept } = filter;
+  const { search, favourites_only, recent_only, lan_addrs, version, ...kept } = filter;
   try {
     localStorage.setItem(FILTER_STORAGE, JSON.stringify({ ...kept, country_scheme: 2 }));
   } catch {
@@ -291,12 +294,13 @@ export const useServerStore = create<ServerState>((set, get) => ({
   },
   resetFilter: () =>
     set((state) => {
-      // The sidebar tab owns these two, not the filter bar: resetting them
-      // here would silently widen a Favourites/Recent tab to every server.
+      // The sidebar tab owns these three, not the filter bar: resetting them
+      // here would silently widen a Favourites/Recent/LAN tab to every server.
       const next: ServerFilter = {
         ...DEFAULT_FILTER,
         favourites_only: state.filter.favourites_only,
         recent_only: state.filter.recent_only,
+        lan_addrs: state.filter.lan_addrs,
       };
       persistFilter(next);
       return { filter: next, lookup: keptLookup(state, next.search) };

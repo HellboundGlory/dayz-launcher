@@ -7,12 +7,15 @@ import { DevModeInspector } from "./components/themes-page/dev-mode-inspector";
 import { DevModeValidationPanel } from "./components/themes-page/dev-mode-validation-panel";
 import { ConfirmDialog } from "./components/confirm-dialog";
 import { PasswordDialog } from "./components/password-dialog";
+import { AddServerDialog } from "./components/add-server-dialog";
 import { MemoryMapDialog } from "./components/memory-map-dialog";
 import { StartWindow } from "./components/start-window";
 import { OnboardingModal } from "./components/onboarding-modal";
 import { SteamRequiredModal } from "./components/steam-required-modal";
 import { JoinLinkDialog } from "./components/join-link-dialog";
 import { useServerStore } from "./stores/server-store";
+import { filterForView } from "@/lib/saved-tab";
+import { useLanStore } from "./stores/lan-store";
 import { useOverlayStore } from "./stores/overlay-store";
 import { useSettingsStore } from "./stores/settings-store";
 import { useUpdateStore } from "./stores/update-store";
@@ -80,15 +83,15 @@ export function App() {
   const setFilter = useServerStore((s) => s.setFilter);
   const loadError = useServerStore((s) => s.loadError);
 
-  // Each tab is a filter preset, not just a highlight toggle.
+  // Each tab is a filter preset, not just a highlight toggle. The LAN tab
+  // points the list at its stored addresses at once, then asks the network
+  // again in the background; leaving it hands the list back to All servers.
   const handleViewChange = useCallback(
     (view: ViewId) => {
       setActiveView(view);
       closeOverlay("settings");
-      setFilter({
-        favourites_only: view === "fav",
-        recent_only: view === "recent",
-      });
+      setFilter(filterForView(view, useLanStore.getState().addrs));
+      if (view === "lan") void useLanStore.getState().scan();
     },
     [closeOverlay, setFilter],
   );
@@ -429,6 +432,7 @@ export function App() {
       <JoinLinkDialog />
       <ConfirmDialog />
       <PasswordDialog />
+      <AddServerDialog />
       <MemoryMapDialog />
       <StartWindow />
     </>

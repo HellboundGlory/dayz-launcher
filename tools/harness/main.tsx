@@ -102,9 +102,17 @@ async function themeFile(id: string) {
   };
 }
 
+// The LAN tab's addresses, and the server Add server finds, both taken from
+// the fixture list so the shots show real rows.
+const lanRows = servers.slice(0, 3);
+const lanAddrs = lanRows.map((s) => s.addr);
+const addServerResult = servers[1] ?? servers[0];
+
 function serverList(filter: Record<string, unknown> | undefined): Server[] {
   if (filter?.favourites_only) return servers.filter((s) => s.favourite);
   if (filter?.recent_only) return servers.filter((s) => s.last_played !== null);
+  const lan = filter?.lan_addrs as string[] | null | undefined;
+  if (Array.isArray(lan)) return lanRows.filter((row) => lan.includes(row.addr));
   return servers;
 }
 
@@ -185,6 +193,14 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   ],
   get_server_counts: () => ({ total: servers.length, populated: servers.filter((s) => s.players > 0).length }),
   server_list_source: () => "steam",
+  // `lan=empty` looks on a network with nothing on it.
+  scan_lan: () => (params.get("lan") === "empty" ? [] : lanAddrs),
+  find_server: (args) => {
+    const input = String(args.input ?? "");
+    if (input === "nothing.example.com") return null;
+    if (input === "bad address") throw "That is not an address";
+    return addServerResult;
+  },
   server_mod_readiness: () => (joinState === "checking" ? new Promise(() => {}) : readiness),
   verify_server_mods: () =>
     startState === "check"

@@ -21,7 +21,7 @@ function railContent(collapsed: boolean): LayoutNode[] {
       direction: "column",
       landmark: "navigation",
       class: "t-neutral-shell-nav",
-      children: [item("nav.servers"), item("nav.favourites"), item("nav.recent"), item("nav.mods")],
+      children: [item("nav.servers"), item("nav.favourites"), item("nav.recent"), item("nav.lan"), item("nav.mods")],
     },
     {
       type: "stack",

@@ -68,6 +68,19 @@
   @apply flex shrink-0 items-center justify-center gap-[var(--t-space-inlineGapSmall)] [border-radius:var(--t-radius-control)] border border-accent-line bg-accent-soft px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-label-size)] [font-weight:var(--t-type-button-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-accent transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] [box-shadow:var(--t-glow-rest)];
 }
 
+.t-neutral-browser-add {
+  @apply flex shrink-0 items-center justify-center [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:border-accent-line hover:text-ink;
+}
+
+.t-neutral-browser-add [data-part="icon"],
+.t-neutral-browser-add [data-part="icon"] svg {
+  @apply size-[var(--t-space-iconSmall)];
+}
+
+.t-neutral-browser-add[data-state~="open"] {
+  @apply border-accent-line bg-accent-soft text-accent [box-shadow:var(--t-glow-selected)];
+}
+
 .t-neutral-browser-refresh [data-part="icon"] {
   @apply flex shrink-0;
 }

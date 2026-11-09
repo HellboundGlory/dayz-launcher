@@ -7,6 +7,7 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   type MouseEvent,
+  type ReactNode,
   type WheelEvent,
 } from "react";
 import { observeElementRect, useVirtualizer, type Virtualizer } from "@tanstack/react-virtual";
@@ -176,6 +177,8 @@ export interface ListHostProps<T = unknown> {
   rowNode?: LayoutNode;
   emptyNode?: LayoutNode;
   emptyText?: string;
+  /** Draws in place of `emptyNode`/`emptyText` when the list has no rows. */
+  emptySlot?: ReactNode;
   loading?: boolean;
   loadingText?: string;
   header?: boolean;
@@ -200,6 +203,7 @@ export function ListHost<T = unknown>({
   rowNode,
   emptyNode,
   emptyText,
+  emptySlot,
   loading = false,
   loadingText,
   header = true,
@@ -457,6 +461,8 @@ export function ListHost<T = unknown>({
       <LoaderCircle className="size-3.5 animate-spin" />
       {loadingText}
     </div>
+  ) : emptySlot ? (
+    emptySlot
   ) : (
     <div data-part="empty" className="flex flex-1 items-center justify-center p-8 text-muted">
       {emptyNode ? <LayoutNodeRenderer node={emptyNode} /> : emptyText}

@@ -1,5 +1,7 @@
 import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils";
+import { useServerStore } from "@/stores/server-store";
+import { useLanStore } from "@/stores/lan-store";
 import { useElementContext } from "./context";
 
 export function StatusSteam({
@@ -51,10 +53,22 @@ export function StatusServerTotal({
   style?: CSSProperties;
 }) {
   const { steamConnected, serverCounts } = useElementContext();
+  const onLanTab = useServerStore((s) => s.filter.lan_addrs !== null);
+  const lanCount = useLanStore((s) => s.addrs.length);
   if (!steamConnected) return null;
 
   const showLabel = options?.showLabel !== false;
   const label = (options?.label as string | undefined) ?? "servers";
+
+  // The LAN tab has its own list, so a world total there would be a lie.
+  if (onLanTab) {
+    return (
+      <span data-el="status.serverTotal" className={className} style={style}>
+        <span data-part="value">{lanCount.toLocaleString()}</span>
+        {showLabel && <span data-part="label"> on your network</span>}
+      </span>
+    );
+  }
 
   return (
     <span data-el="status.serverTotal" className={className} style={style}>

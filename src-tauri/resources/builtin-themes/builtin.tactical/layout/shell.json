@@ -55,6 +55,12 @@
                     }
                   },
                   {
+                    "element": "nav.lan",
+                    "options": {
+                      "display": "icon"
+                    }
+                  },
+                  {
                     "element": "nav.mods",
                     "options": {
                       "display": "icon"
@@ -211,6 +217,12 @@
                   },
                   {
                     "element": "nav.recent",
+                    "options": {
+                      "display": "iconLabel"
+                    }
+                  },
+                  {
+                    "element": "nav.lan",
                     "options": {
                       "display": "iconLabel"
                     }

@@ -15,6 +15,7 @@ const makeFilter = (overrides: Partial<ServerFilter> = {}): ServerFilter => ({
   search: null,
   favourites_only: false,
   recent_only: false,
+  lan_addrs: null,
   official: null,
   modded: null,
   first_person: null,

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { filterParamsFor } from "@/hooks/use-server-data-loader";
+import { isSavedTab } from "@/lib/saved-tab";
 import { getSearchSuggestions, type FilterParams, type SearchSuggestion } from "@/lib/tauri";
 import type { ServerFilter } from "@/types/filters";
 
@@ -80,7 +81,7 @@ export function useSearchSuggestions(
   const loader = useRef<SuggestionLoader | null>(null);
   if (!loader.current) loader.current = createSuggestionLoader(getSearchSuggestions, setResult);
   const current = loader.current;
-  const allServers = !filter.favourites_only && !filter.recent_only;
+  const allServers = !isSavedTab(filter);
   // The box's own text is sent separately, so only a change to another filter asks again.
   const restKey = JSON.stringify({ ...filter, search: null });
   // eslint-disable-next-line react-hooks/exhaustive-deps

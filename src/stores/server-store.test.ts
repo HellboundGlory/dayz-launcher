@@ -43,6 +43,7 @@ const NEUTRAL_FILTER = {
   search: null,
   favourites_only: false,
   recent_only: false,
+  lan_addrs: null,
   official: null,
   modded: null,
   first_person: null,
@@ -82,6 +83,7 @@ describe("resetFilter", () => {
       search: null,
       favourites_only: true,
       recent_only: false,
+      lan_addrs: null,
       official: null,
       modded: null,
       first_person: null,
@@ -105,6 +107,15 @@ describe("resetFilter", () => {
     expect(f.search).toBe(null);
     expect(f.max_ping).toBe(null);
     expect(f.maps).toEqual([]);
+  });
+
+  it("keeps lan_addrs when the LAN tab is the active one", () => {
+    const s = useServerStore.getState();
+    const lan_addrs = ["10.0.0.2:27016"];
+    s.setFilter({ ...EVERYTHING_ON, favourites_only: false, recent_only: false, lan_addrs });
+    s.resetFilter();
+
+    expect(useServerStore.getState().filter.lan_addrs).toEqual(lan_addrs);
   });
 
   it("still persists the resulting filter, minus the transient fields", () => {
@@ -136,6 +147,7 @@ describe("resetFilter", () => {
     });
     expect("favourites_only" in persisted).toBe(false);
     expect("recent_only" in persisted).toBe(false);
+    expect("lan_addrs" in persisted).toBe(false);
     expect("search" in persisted).toBe(false);
     expect("version" in persisted).toBe(false);
   });

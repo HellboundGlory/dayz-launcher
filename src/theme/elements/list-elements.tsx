@@ -18,6 +18,7 @@ import { serverModReadiness, type ModState, type SubscribedMod } from "@/lib/tau
 import { useServerReadiness } from "./use-server-readiness";
 import { readinessKey } from "@/stores/readiness-store";
 import { useServerSubject } from "./server-elements";
+import { LanEmpty } from "@/components/lan-empty";
 import type { Server, ModReadinessEntry, ServerModReadiness } from "@/types/server";
 import type { LayoutFile } from "../renderer/types";
 
@@ -55,8 +56,10 @@ export function ServerListHost({
   const sortKey = useServerStore((s) => s.sortKey);
   const sortDir = useServerStore((s) => s.sortDir);
   const setSort = useServerStore((s) => s.setSort);
-  const hasLoadedOnce = useServerStore((s) => s.hasLoadedOnce);
+  const hasLoad = useServerStore((s) => s.hasLoadedOnce);
   const lookup = useServerStore((s) => s.lookup);
+  const onLanTab = useServerStore((s) => s.filter.lan_addrs !== null);
+  const searching = useServerStore((s) => (s.filter.search ?? "").trim() !== "");
 
   useLayoutSubscription();
   const listLayout = (getActiveLayout("layout/lists/servers.json") ?? SERVERS_LIST) as LayoutFile;
@@ -67,7 +70,8 @@ export function ServerListHost({
         items={servers}
         getItemKey={serverAddr}
         onRangeChange={setVisibleRange}
-        emptyText={emptyServersText(hasLoadedOnce, lookup)}
+        emptyText={emptyServersText(hasLoad, lookup)}
+        emptySlot={onLanTab && !searching && !lookup ? <LanEmpty /> : undefined}
         {...listHostOptions(options)}
         columns={listLayout?.columns}
         rowNode={listLayout?.row}

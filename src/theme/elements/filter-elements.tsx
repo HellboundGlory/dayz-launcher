@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type RefObject } from "react";
-import { Search, RefreshCw, RotateCcw, ChevronDown, Check, X } from "lucide-react";
+import { Search, RefreshCw, RotateCcw, ChevronDown, Check, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useServerStore } from "@/stores/server-store";
+import { useAddServerStore } from "@/stores/add-server-store";
 import type { SearchSuggestion } from "@/lib/tauri";
 import { useSearchSuggestions } from "@/hooks/use-search-suggestions";
 import { useElementContext } from "./context";
@@ -605,6 +606,46 @@ export function ServersRefresh({
       {showLabel && (
         <span data-part="label" className="[font-size:var(--t-type-size-sm)] font-semibold uppercase">
           {labelText}
+        </span>
+      )}
+    </button>
+  );
+}
+
+export function AddServer({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const open = useAddServerStore((s) => s.open);
+  const show = useAddServerStore((s) => s.show);
+  const { showIcon, showLabel } = parseDisplay(options, "icon");
+
+  return (
+    <button
+      type="button"
+      data-el="servers.addServer"
+      data-state={open ? "open" : undefined}
+      onClick={show}
+      aria-label="Add server"
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      title="Add server"
+      className={className ?? "flex items-center gap-1.5 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] border border-line bg-surface2 hover:border-accent text-muted hover:text-ink transition-colors"}
+      style={style}
+    >
+      {showIcon && (
+        <span data-part="icon">
+          <OptionIcon icon={options?.icon} fallback={Plus} className="size-3.5" />
+        </span>
+      )}
+      {showLabel && (
+        <span data-part="label" className="[font-size:var(--t-type-size-sm)] font-semibold uppercase">
+          Add server
         </span>
       )}
     </button>

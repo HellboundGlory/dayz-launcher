@@ -156,6 +156,10 @@
   <h3><code>nav.recent</code> <span class="el-kind">nav</span></h3>
   <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Required in</dt><dd>every composition of the shell with the server browser, and of the shell with Mods</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>current</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
 </section>
+  <section class="el" id="el-nav-lan" data-el="nav.lan">
+  <h3><code>nav.lan</code> <span class="el-kind">nav</span></h3>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Required in</dt><dd>every composition of the shell with the server browser, and of the shell with Mods</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code>, <code>badge</code> · States: <code>current</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+</section>
   <section class="el" id="el-nav-mods" data-el="nav.mods">
   <h3><code>nav.mods</code> <span class="el-kind">nav</span></h3>
   <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Required in</dt><dd>every composition of the shell with the server browser, and of the shell with Mods</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>current</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
@@ -316,6 +320,10 @@
   <h3><code>servers.refresh</code> <span class="el-kind">action</span></h3>
   <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Required in</dt><dd>the shell + server browser composition</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>busy</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
   <div class="md el-notes"><p>Re-probes the first 5,000 servers in the list's current order. It reads &quot;Refresh&quot;, or &quot;Refreshing…&quot; while <code>busy</code>, when it is disabled and its icon spins.</p></div>
+</section>
+  <section class="el" id="el-servers-addServer" data-el="servers.addServer">
+  <h3><code>servers.addServer</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>open</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>icon</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
 </section>
 </section>
 
@@ -1108,11 +1116,11 @@
 </section>
   <section class="el">
   <h3><code>surface.navRail</code></h3>
-  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings</dd><dt>Contains</dt><dd><code>app.logo</code>, <code>nav.servers</code>, <code>nav.favourites</code>, <code>nav.recent</code>, <code>nav.mods</code>, <code>nav.settings</code>, <code>app.collapseToggle</code></dd></dl>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings</dd><dt>Contains</dt><dd><code>app.logo</code>, <code>nav.servers</code>, <code>nav.favourites</code>, <code>nav.recent</code>, <code>nav.lan</code>, <code>nav.mods</code>, <code>nav.settings</code>, <code>app.collapseToggle</code></dd></dl>
 </section>
   <section class="el">
   <h3><code>surface.filterBar</code></h3>
-  <dl><dt>Placed in</dt><dd>the server browser view</dd><dt>Contains</dt><dd><code>filter.search</code>, <code>filter.menu</code>, <code>filter.chips</code>, <code>filter.map</code>, <code>filter.tags</code>, <code>filter.mods</code>, <code>filter.region</code>, <code>filter.sort</code>, <code>filter.maxPing</code>, <code>filter.hideEmpty</code>, <code>filter.hideFull</code>, <code>filter.hideLocked</code>, <code>filter.hideOffline</code>, <code>filter.reset</code>, <code>servers.refresh</code></dd></dl>
+  <dl><dt>Placed in</dt><dd>the server browser view</dd><dt>Contains</dt><dd><code>filter.search</code>, <code>filter.menu</code>, <code>filter.chips</code>, <code>filter.map</code>, <code>filter.tags</code>, <code>filter.mods</code>, <code>filter.region</code>, <code>filter.sort</code>, <code>filter.maxPing</code>, <code>filter.hideEmpty</code>, <code>filter.hideFull</code>, <code>filter.hideLocked</code>, <code>filter.hideOffline</code>, <code>filter.reset</code>, <code>servers.addServer</code>, <code>servers.refresh</code></dd></dl>
 </section>
   <section class="el">
   <h3><code>surface.footerStatus</code></h3>

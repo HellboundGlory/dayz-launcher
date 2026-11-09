@@ -82,10 +82,10 @@ describe("builtin.tactical browser view", () => {
     expect(placements(narrowBrowser)).toEqual(placements(wideBrowser));
   });
 
-  it("carries search, Filters, chips, then Refresh in the bar, with no old controls", () => {
+  it("carries search, Filters, chips, Add server, then Refresh in the bar, with no old controls", () => {
     for (const root of [narrowBrowser, wideBrowser]) {
       const ids = elements(bar(root));
-      expect(ids).toEqual(["filter.search", "filter.menu", "filter.chips", "servers.refresh"]);
+      expect(ids).toEqual(["filter.search", "filter.menu", "filter.chips", "servers.addServer", "servers.refresh"]);
     }
   });
 
@@ -123,8 +123,10 @@ describe("builtin.tactical shell", () => {
       { display: "icon" },
       { display: "icon" },
       { display: "icon" },
+      { display: "icon" },
     ]);
     expect((headerChild(wideShell, "r-nav") as StackNode).children.map(nodeOptions)).toEqual([
+      { display: "iconLabel" },
       { display: "iconLabel" },
       { display: "iconLabel" },
       { display: "iconLabel" },

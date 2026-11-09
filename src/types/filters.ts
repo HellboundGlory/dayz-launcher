@@ -9,6 +9,8 @@ export interface ServerFilter {
   search: string | null;
   favourites_only: boolean;
   recent_only: boolean;
+  /** The addresses the LAN tab lists, or null on every other tab. Never restored after a restart. */
+  lan_addrs: string[] | null;
   official: boolean | null;
   modded: boolean | null;
   first_person: boolean | null;

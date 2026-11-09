@@ -92,6 +92,7 @@ describe("filterParamsFor", () => {
     search: null as string | null,
     favourites_only: false,
     recent_only: false,
+    lan_addrs: null as string[] | null,
     official: null as boolean | null,
     modded: null as boolean | null,
     first_person: null as boolean | null,
@@ -114,6 +115,7 @@ describe("filterParamsFor", () => {
     search: "abc",
     favourites_only: true,
     recent_only: false,
+    lan_addrs: null,
     official: true,
     modded: false,
     first_person: true,
@@ -136,6 +138,25 @@ describe("filterParamsFor", () => {
     }
   });
 
+  it("ignores every other filter on the LAN tab and sends its addresses", () => {
+    const addrs = ["192.168.1.5:27016", "10.0.0.9:2303"];
+    const filter = {
+      ...everythingOn,
+      favourites_only: false,
+      recent_only: false,
+      lan_addrs: addrs,
+    };
+    expect(filterParamsFor(filter)).toEqual({
+      ...neutral,
+      search: "abc",
+      lan_addrs: addrs,
+    });
+  });
+
+  it("sends lan_addrs as null off the LAN tab", () => {
+    expect(filterParamsFor({ ...everythingOn, favourites_only: false, recent_only: false }).lan_addrs).toBeNull();
+  });
+
   it("passes every filter through on the All-servers tab", () => {
     const filter = { ...everythingOn, favourites_only: false, recent_only: false };
     expect(filterParamsFor(filter)).toEqual({
@@ -149,6 +170,7 @@ describe("filterParamsFor", () => {
       search: "abc",
       favourites_only: false,
       recent_only: false,
+      lan_addrs: null,
       official: true,
       modded: false,
       first_person: true,

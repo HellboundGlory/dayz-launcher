@@ -80,6 +80,7 @@
 [data-el="nav.servers"],
 [data-el="nav.favourites"],
 [data-el="nav.recent"],
+[data-el="nav.lan"],
 [data-el="nav.mods"] {
   position: relative;
   height: 100%;
@@ -98,6 +99,7 @@
 [data-el="nav.servers"]:hover,
 [data-el="nav.favourites"]:hover,
 [data-el="nav.recent"]:hover,
+[data-el="nav.lan"]:hover,
 [data-el="nav.mods"]:hover {
   color: var(--muted2);
 }
@@ -105,6 +107,7 @@
 [data-el="nav.servers"][data-state~="current"],
 [data-el="nav.favourites"][data-state~="current"],
 [data-el="nav.recent"][data-state~="current"],
+[data-el="nav.lan"][data-state~="current"],
 [data-el="nav.mods"][data-state~="current"] {
   color: var(--text);
 }
@@ -112,6 +115,7 @@
 [data-el="nav.servers"][data-state~="current"]::after,
 [data-el="nav.favourites"][data-state~="current"]::after,
 [data-el="nav.recent"][data-state~="current"]::after,
+[data-el="nav.lan"][data-state~="current"]::after,
 [data-el="nav.mods"][data-state~="current"]::after {
   content: "";
   position: absolute;
@@ -126,9 +130,15 @@
 [data-el="nav.servers"] [data-part="icon"] > :first-child,
 [data-el="nav.favourites"] [data-part="icon"] > :first-child,
 [data-el="nav.recent"] [data-part="icon"] > :first-child,
+[data-el="nav.lan"] [data-part="icon"] > :first-child,
 [data-el="nav.mods"] [data-part="icon"] > :first-child {
   width: 14px;
   height: 14px;
+}
+
+/* This tab carries no tag here. */
+[data-el="nav.lan"] [data-part="badge"] {
+  display: none;
 }
 
 [data-el="app.dragRegion"] {
@@ -734,6 +744,32 @@
   background-color: transparent;
   color: color-mix(in srgb, var(--border) 40%, var(--muted));
   cursor: not-allowed;
+}
+
+[data-el="servers.addServer"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0;
+  padding: 4px 8px;
+  border: none;
+  background-color: var(--surface2);
+  color: var(--muted2);
+}
+
+[data-el="servers.addServer"]:hover {
+  background-color: var(--surface);
+  color: var(--text);
+}
+
+[data-el="servers.addServer"][data-state~="open"] {
+  background-color: var(--accent);
+  color: var(--bg);
+}
+
+[data-el="servers.addServer"] [data-part="icon"] > :first-child {
+  width: 12px;
+  height: 12px;
 }
 
 /* Server list */

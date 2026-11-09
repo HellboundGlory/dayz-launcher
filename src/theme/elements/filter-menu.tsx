@@ -14,6 +14,7 @@ import { Check, ChevronDown, ChevronRight } from "lucide-react";
 import { DEFAULT_FILTER, useServerStore } from "@/stores/server-store";
 import { PING_PRESETS, type ServerFilter } from "@/types/filters";
 import { activeFilterCount } from "@/lib/filter-summary";
+import { isSavedTab } from "@/lib/saved-tab";
 import type { FilterFacets } from "@/lib/tauri";
 import { useFilterFacets } from "@/hooks/use-filter-facets";
 import type { ElementNode } from "../renderer/types";
@@ -131,9 +132,11 @@ export function pickVersion(
 
 /** Clears every filter but keeps what was typed in the search box. */
 export function resetKeepingSearch(): void {
-  const { search, favourites_only, recent_only } = useServerStore.getState().filter;
+  const { search, favourites_only, recent_only, lan_addrs } = useServerStore.getState().filter;
   // One update with the search unchanged, so its lookup survives.
-  useServerStore.getState().setFilter({ ...DEFAULT_FILTER, search, favourites_only, recent_only });
+  useServerStore
+    .getState()
+    .setFilter({ ...DEFAULT_FILTER, search, favourites_only, recent_only, lan_addrs });
 }
 
 function countText(count: number | undefined): string {
@@ -846,7 +849,7 @@ export function FilterMenu({
   );
   const { facets, facetError, installedVersion } = useFilterFacets(open);
   const count = activeFilterCount(filter);
-  const tabNote = filter.favourites_only || filter.recent_only;
+  const tabNote = isSavedTab(filter);
 
   if (tabNote) {
     return (

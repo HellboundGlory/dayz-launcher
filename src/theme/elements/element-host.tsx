@@ -11,6 +11,7 @@ import {
 } from "./app-elements";
 import {
   NavFavourites,
+  NavLan,
   NavMods,
   NavRecent,
   NavServers,
@@ -76,6 +77,7 @@ import {
   FilterSort,
   FilterTags,
   ServersRefresh,
+  AddServer,
 } from "./filter-elements";
 import { ModalClose } from "./modal-elements";
 import { ServerCopyJoinLink, ServerForgetPassword } from "./row-menu-elements";
@@ -189,6 +191,8 @@ export function ElementHost({
       return <NavFavourites options={node.options} className={mergedClass} style={style} />;
     case "nav.recent":
       return <NavRecent options={node.options} className={mergedClass} style={style} />;
+    case "nav.lan":
+      return <NavLan options={node.options} className={mergedClass} style={style} />;
     case "nav.mods":
       return <NavMods options={node.options} className={mergedClass} style={style} />;
     case "nav.settings":
@@ -317,6 +321,8 @@ export function ElementHost({
       return <FilterHideOffline options={node.options} className={mergedClass} style={style} />;
     case "servers.refresh":
       return <ServersRefresh options={node.options} className={mergedClass} style={style} />;
+    case "servers.addServer":
+      return <AddServer options={node.options} className={mergedClass} style={style} />;
     case "filter.reset":
       return <FilterReset options={node.options} className={mergedClass} style={style} />;
     case "filter.mods":

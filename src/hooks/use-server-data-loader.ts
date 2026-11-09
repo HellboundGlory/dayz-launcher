@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useServerStore, DEFAULT_FILTER } from "@/stores/server-store";
 import type { ServerFilter } from "@/types/filters";
+import { isSavedTab } from "@/lib/saved-tab";
 import {
   getMapList,
   getServerPage,
@@ -22,12 +23,12 @@ interface ServerQuery {
 }
 
 /**
- * The filters a query should carry. The Favourites and Recent tabs list what the
- * user saved or played, so only the search box narrows them; every other filter
- * belongs to the All-servers tab and applies there alone.
+ * The filters a query should carry. The Favourites, Recent and LAN tabs list
+ * servers the user saved or looked up, so only the search box narrows them;
+ * every other filter belongs to the All-servers tab and applies there alone.
  */
 export function filterParamsFor(filter: ServerFilter): FilterParams {
-  const source = filter.favourites_only || filter.recent_only ? DEFAULT_FILTER : filter;
+  const source = isSavedTab(filter) ? DEFAULT_FILTER : filter;
   return {
     maps: source.maps,
     countries: source.countries,
@@ -39,6 +40,7 @@ export function filterParamsFor(filter: ServerFilter): FilterParams {
     search: filter.search,
     favourites_only: filter.favourites_only,
     recent_only: filter.recent_only,
+    lan_addrs: filter.lan_addrs,
     official: source.official,
     modded: source.modded,
     first_person: source.first_person,

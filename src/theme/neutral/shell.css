@@ -67,6 +67,14 @@
   @apply size-[var(--t-space-iconLarge)] [stroke-width:1.6];
 }
 
+.t-neutral-shell-item [data-part="badge"] {
+  @apply ml-auto [border-radius:var(--t-radius-badge)] border border-accent-line px-1.5 py-px [font-size:var(--t-type-micro-size)] [letter-spacing:var(--t-type-button-tracking)] uppercase text-accent;
+}
+
+.t-neutral-shell-rail-body[data-state~="collapsed"] .t-neutral-shell-item [data-part="badge"] {
+  @apply hidden;
+}
+
 .t-neutral-shell-toggle {
   @apply absolute bottom-[var(--t-space-sidebarToggleOffset)] right-0 z-[5] flex h-[var(--t-space-sidebarToggleHeight)] w-[var(--t-space-iconLarge)] items-center justify-center [border-top-left-radius:var(--t-radius-controlSmall)] [border-bottom-left-radius:var(--t-radius-controlSmall)] border border-line border-r-0 bg-surface2 text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)] hover:bg-accent-soft hover:text-accent;
 }

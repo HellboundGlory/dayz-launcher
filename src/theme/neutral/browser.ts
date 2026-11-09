@@ -17,6 +17,7 @@ export const BROWSER_LAYOUT: LayoutFile = {
           { element: "filter.menu", class: "t-neutral-browser-menu" },
           { element: "filter.chips", class: "t-neutral-browser-chips" },
           { element: "filter.sort", class: "t-neutral-browser-dropdown" },
+          { element: "servers.addServer", class: "t-neutral-browser-add", options: { display: "icon" } },
           { element: "servers.refresh", class: "t-neutral-browser-refresh" },
         ],
       },

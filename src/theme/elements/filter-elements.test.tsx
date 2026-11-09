@@ -1,7 +1,19 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ServerFilter } from "@/types/filters";
+import type * as AddServerModule from "@/stores/add-server-store";
+import { useAddServerStore } from "@/stores/add-server-store";
 import { ElementContextProvider } from "./context";
+
+// SSR takes zustand's initial snapshot, so route the hook through the live state.
+function liveHook<T extends { getState: () => S }, S>(store: T) {
+  return Object.assign(<R,>(sel: (s: S) => R) => sel(store.getState()), store);
+}
+
+vi.mock("@/stores/add-server-store", async (importOriginal) => {
+  const actual = await importOriginal<typeof AddServerModule>();
+  return { ...actual, useAddServerStore: liveHook(actual.useAddServerStore) };
+});
 
 function makeFilter(overrides: Partial<ServerFilter> = {}): ServerFilter {
   return {
@@ -15,6 +27,7 @@ function makeFilter(overrides: Partial<ServerFilter> = {}): ServerFilter {
     search: null,
     favourites_only: false,
     recent_only: false,
+    lan_addrs: null,
     official: null,
     modded: null,
     first_person: null,
@@ -89,6 +102,7 @@ import {
   FilterHideOffline,
   FilterReset,
   ServersRefresh,
+  AddServer,
   CONTINENTS,
   countryDisplayValue,
   mapDisplayValue,
@@ -108,6 +122,7 @@ beforeEach(() => {
   mockStore.sortDir = "desc";
   capturedProps = null;
   captureDataEl = null;
+  useAddServerStore.setState({ open: false });
 });
 
 describe("mapDisplayValue", () => {
@@ -464,5 +479,25 @@ describe("ServersRefresh", () => {
       </ElementContextProvider>,
     );
     expect(html).toContain("lucide-check");
+  });
+});
+
+describe("AddServer", () => {
+  it("renders an icon button named Add server and opens the dialog when clicked", () => {
+    captureDataEl = "servers.addServer";
+    const html = renderToStaticMarkup(<AddServer />);
+
+    expect(html).toContain('data-el="servers.addServer"');
+    expect(html).toContain('aria-label="Add server"');
+    expect(html).toContain('title="Add server"');
+    expect(html).toContain("lucide-plus");
+
+    (capturedProps?.onClick as () => void)();
+    expect(useAddServerStore.getState().open).toBe(true);
+  });
+
+  it("reads open while the dialog is up", () => {
+    useAddServerStore.setState({ open: true });
+    expect(renderToStaticMarkup(<AddServer />)).toContain('data-state="open"');
   });
 });
