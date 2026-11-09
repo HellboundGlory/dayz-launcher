@@ -14,6 +14,7 @@ import { useLaunchStore } from "@/stores/launch-store";
 import { usePasswordStore } from "@/stores/password-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { getCachedReadiness, setCachedReadiness } from "@/stores/readiness-store";
+import { useStartWindowStore } from "@/stores/start-window-store";
 import { useServerActions } from "./use-server-actions";
 
 const {
@@ -94,11 +95,13 @@ const server: Server = {
 
 let verifyAndJoin!: (target: Server, toMenu?: boolean) => Promise<void>;
 let cancelWait!: () => void;
+let subscribeOnly!: (target: Server) => Promise<void>;
 
 function Probe() {
   const actions = useServerActions();
   verifyAndJoin = actions.verifyAndJoin;
   cancelWait = actions.cancelWait;
+  subscribeOnly = actions.subscribeOnly;
   return null;
 }
 
@@ -118,6 +121,7 @@ function stuckDownloading(id: string) {
 beforeEach(() => {
   vi.useFakeTimers();
   useLaunchStore.setState({ op: null, result: null, notice: null, dayzRunning: false });
+  useStartWindowStore.getState().close();
   useSettingsStore.setState({ profileName: "Survivor", dayzPath: "/dayz", launchParams: ["-noSplash"] });
   checkMemoryMap.mockReset().mockResolvedValue(true);
 
@@ -465,6 +469,37 @@ describe("verifyAndJoin", () => {
 
     expect(useConfirmStore.getState().request).toBeNull();
     expect(launchGame).toHaveBeenCalledOnce();
+  });
+});
+
+describe("the starting window", () => {
+  it("opens for the op a Join begins", async () => {
+    renderActions();
+
+    await verifyAndJoin(server);
+
+    const op = useLaunchStore.getState().op;
+    expect(op).not.toBeNull();
+    expect(useStartWindowStore.getState().forOp).toBe(op?.cancel);
+  });
+
+  it("stays shut when the setting is off", async () => {
+    useSettingsStore.setState({ startWindow: false });
+    renderActions();
+
+    await verifyAndJoin(server);
+
+    expect(useStartWindowStore.getState().forOp).toBeNull();
+  });
+
+  it("never opens for Download mods only", async () => {
+    declareMods({ workshop_id: "1001", name: "Community Framework" });
+    steamModStates.mockResolvedValue([{ workshop_id: "1001", state: "not_subscribed" }]);
+    renderActions();
+
+    await subscribeOnly(server);
+
+    expect(useStartWindowStore.getState().forOp).toBeNull();
   });
 });
 

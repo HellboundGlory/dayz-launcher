@@ -286,10 +286,12 @@ export function SettingsLaunchParams({ options, className, style }: ElementProps
 
 export function SettingsOnJoin({ options, className, style }: ElementProps) {
   const onJoin = useSettingsStore((s) => s.onJoin);
+  const startWindow = useSettingsStore((s) => s.startWindow);
   const setSetting = useSettingsStore((s) => s.setSetting);
   const showHint = showHintOption(options);
   const id = useId();
   const hintId = `${id}-hint`;
+  const startWindowHintId = `${id}-start-window-hint`;
 
   return (
     <Field
@@ -313,6 +315,17 @@ export function SettingsOnJoin({ options, className, style }: ElementProps) {
         <option value="tray">Hide the launcher to the tray</option>
         <option value="close">Close the launcher</option>
       </select>
+      <div className="mt-1.5">
+        <CheckboxRow
+          id={`${id}-start-window`}
+          hintId={startWindowHintId}
+          showHint={showHint}
+          checked={startWindow}
+          onChange={(v) => setSetting("startWindow", v)}
+          label="Show the starting window"
+          hint="Lists each step of the join as it runs, and closes itself once DayZ is running."
+        />
+      </div>
     </Field>
   );
 }

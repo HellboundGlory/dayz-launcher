@@ -20,6 +20,8 @@ const readyMods = params.get("mods") === "ready";
 const joinState = params.get("join");
 // `mmc=1` makes the Join ask for the memory map fix first.
 const memoryMapLow = params.get("mmc") === "1";
+// A join held at its mod check (`check`) or mid-download (`dl`), for the starting window.
+const startState = params.get("start");
 
 // `static=1` (the visual harness): pin the clock and kill motion and the caret,
 // so two shots of the same tree are byte-identical. Midday so a ±12h timezone
@@ -172,6 +174,7 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     same_as_mine: servers.length,
   }),
   get_installed_dayz_version: () => "1.29.163709",
+  password_status: () => ({ saved: false, keyring: true }),
   get_memory_map_status: () =>
     memoryMapLow ? { current: 65530, recommended: 1048576 } : null,
   get_search_suggestions: () => [
@@ -182,8 +185,18 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   get_server_counts: () => ({ total: servers.length, populated: servers.filter((s) => s.players > 0).length }),
   server_list_source: () => "steam",
   server_mod_readiness: () => (joinState === "checking" ? new Promise(() => {}) : readiness),
-  steam_mod_states: () => [],
-  steam_download_progress: () => [],
+  verify_server_mods: () =>
+    startState === "check"
+      ? new Promise(() => {})
+      : { mods: [{ workshop_id: "1", name: "CF" }, { workshop_id: "2", name: "Trader" }], checked_workshop: true, refreshed: [], differing: [] },
+  steam_mod_states: (args) =>
+    startState === "dl"
+      ? ((args.workshopIds ?? args.ids ?? ["1", "2"]) as string[]).map((id) => ({ workshop_id: id, state: "downloading" }))
+      : [],
+  steam_download_progress: (args) =>
+    startState === "dl"
+      ? ((args.workshopIds ?? args.ids ?? ["1", "2"]) as string[]).map((id) => ({ workshop_id: id, downloaded: "734003200", total: "1503238553" }))
+      : [],
   dayz_running: () => dayzRunning,
   list_installed_themes: async () => (themeId === "neutral" ? [] : [await themeSummary(themeId)]),
   get_theme: async (args) => themeFile(String(args.id)),

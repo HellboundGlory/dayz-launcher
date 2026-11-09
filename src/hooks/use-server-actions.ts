@@ -13,6 +13,7 @@ import {
   type ModState,
 } from "@/lib/tauri";
 import { useConfirmStore } from "@/stores/confirm-store";
+import { useStartWindowStore } from "@/stores/start-window-store";
 import { confirmGameVersion } from "@/lib/join-gates/game-version";
 import { differingWording, fixDifferingMods, SIGNATURE_ERROR } from "@/hooks/fix-differing-mods";
 import { formatBytes } from "@/lib/utils";
@@ -189,6 +190,9 @@ export function useServerActions() {
     const joinPassword = pw;
 
     const cancel = beginOp(addr, server.name || addr);
+    if (useSettingsStore.getState().startWindow) {
+      useStartWindowStore.getState().show(cancel, toMenu, !!resumed);
+    }
     setStoreNotice(addr, null);
 
     try {

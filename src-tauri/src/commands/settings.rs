@@ -89,6 +89,8 @@ pub struct AppSettings {
     pub active_theme_id: Option<String>,
     /// Warn before a Join when the Linux memory map limit is too low for DayZ.
     pub memory_map_warning: bool,
+    /// Show the window that lists each step of a join while it runs.
+    pub start_window: bool,
 }
 
 impl Default for AppSettings {
@@ -120,6 +122,7 @@ impl Default for AppSettings {
             window: None,
             active_theme_id: None,
             memory_map_warning: true,
+            start_window: true,
         }
     }
 }
@@ -792,6 +795,10 @@ mod tests {
         );
         assert!(
             parsed.discord_presence_enabled(),
+            "an older file predating this setting must not read as opted out"
+        );
+        assert!(
+            parsed.start_window,
             "an older file predating this setting must not read as opted out"
         );
     }

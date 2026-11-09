@@ -27,6 +27,7 @@ const saved: AppSettingsDto = {
   onboardingDismissed: false,
   discordRichPresence: true,
   memoryMapWarning: true,
+  startWindow: true,
 };
 
 beforeEach(() => {

@@ -365,6 +365,8 @@ export interface AppSettingsDto {
   discordRichPresence: boolean;
   /** Warn before a Join when the Linux memory map limit is too low for DayZ. */
   memoryMapWarning: boolean;
+  /** Show the window that lists each step of a join while it runs. */
+  startWindow: boolean;
   /**
    * Which theme is active; `null` is the built-in default. Read-only from the
    * frontend: the settings store never patches it, so a settings save can't

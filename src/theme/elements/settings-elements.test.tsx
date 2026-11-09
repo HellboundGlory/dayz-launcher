@@ -38,6 +38,7 @@ const storeState = {
   startMinimised: false,
   onJoin: "stay" as "stay" | "tray" | "close",
   discordRichPresence: true,
+  startWindow: true,
   setSetting: vi.fn((key: string, value: unknown) => {
     (storeState as unknown as Record<string, unknown>)[key] = value;
   }),
@@ -59,6 +60,20 @@ vi.mock("@/components/themes-page/themes-section", () => ({
   ),
 }));
 
+// Captures props by data-part since renderToStaticMarkup drops event handlers.
+const captured: Record<string, Record<string, unknown>> = {};
+vi.mock("react/jsx-dev-runtime", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, (...args: unknown[]) => unknown>>();
+  return {
+    ...actual,
+    jsxDEV: (type: unknown, props: Record<string, unknown>, ...rest: unknown[]) => {
+      const part = props?.["data-part"];
+      if (typeof part === "string") captured[part] = props;
+      return actual.jsxDEV(type, props, ...rest);
+    },
+  };
+});
+
 function reset() {
   storeState.profileName = "";
   storeState.steamPath = null;
@@ -72,6 +87,9 @@ function reset() {
   storeState.startMinimised = false;
   storeState.onJoin = "stay";
   storeState.discordRichPresence = true;
+  storeState.startWindow = true;
+  storeState.setSetting.mockClear();
+  for (const key of Object.keys(captured)) delete captured[key];
 }
 
 afterEach(reset);
@@ -236,6 +254,24 @@ describe("SettingsStartMinimised", () => {
     const enabled = render(<SettingsStartMinimised />);
     expect(enabled).not.toContain("disabled=\"\"");
     expect(enabled).toContain('data-state="checked"');
+  });
+});
+
+describe("SettingsOnJoin", () => {
+  it("offers the starting window checkbox below the select", () => {
+    const html = render(<SettingsOnJoin />);
+    expect(html).toContain('data-el="settings.onJoin"');
+    expect(html).toContain("Show the starting window");
+    expect(captured["box"]?.checked).toBe(true);
+  });
+
+  it("writes the checkbox through to the setting", () => {
+    render(<SettingsOnJoin />);
+    (captured["box"]?.onChange as (e: { target: { checked: boolean } }) => void)({
+      target: { checked: false },
+    });
+
+    expect(storeState.setSetting).toHaveBeenCalledWith("startWindow", false);
   });
 });
 

@@ -33,6 +33,8 @@ export interface AppSettings {
   discordRichPresence: boolean;
   /** Warn before a Join when the Linux memory map limit is too low for DayZ. */
   memoryMapWarning: boolean;
+  /** Show the window that lists each step of a join while it runs. */
+  startWindow: boolean;
 }
 
 interface SettingsState extends AppSettings {
@@ -65,6 +67,7 @@ const defaults: AppSettings = {
   onboardingDismissed: false,
   discordRichPresence: true,
   memoryMapWarning: true,
+  startWindow: true,
 };
 
 /** Keys changed since the last patch. Only these are sent, so a save never rewrites a field this store did not touch. */

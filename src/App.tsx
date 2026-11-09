@@ -8,6 +8,7 @@ import { DevModeValidationPanel } from "./components/themes-page/dev-mode-valida
 import { ConfirmDialog } from "./components/confirm-dialog";
 import { PasswordDialog } from "./components/password-dialog";
 import { MemoryMapDialog } from "./components/memory-map-dialog";
+import { StartWindow } from "./components/start-window";
 import { OnboardingModal } from "./components/onboarding-modal";
 import { SteamRequiredModal } from "./components/steam-required-modal";
 import { JoinLinkDialog } from "./components/join-link-dialog";
@@ -429,6 +430,7 @@ export function App() {
       <ConfirmDialog />
       <PasswordDialog />
       <MemoryMapDialog />
+      <StartWindow />
     </>
   );
 
