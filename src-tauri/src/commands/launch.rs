@@ -1,4 +1,5 @@
 use crate::commands::settings::OnJoin;
+use crate::credentials::SecretStore;
 use crate::state::AppState;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -175,6 +176,8 @@ pub async fn launch_game(
     addr: String,
     game_port: u16,
     password: Option<String>,
+    remember: Option<bool>,
+    use_saved: Option<bool>,
     profile_name: Option<String>,
     dayz_path_override: Option<String>,
     launch_params: Option<Vec<String>>,
@@ -194,6 +197,11 @@ pub async fn launch_game(
     let query_addr: SocketAddr = addr
         .parse()
         .map_err(|e| format!("Invalid query address: {e}"))?;
+    let user = query_addr.to_string();
+    if let (false, Some(pw)) = (main_menu, &password) {
+        crate::credentials::validate_password(pw)?;
+    }
+    let typed_password = password.clone();
 
     // Look the row up now so "Checking mods" can appear immediately, and
     // stash it for reuse once the launch succeeds. Best-effort throughout.
@@ -279,11 +287,27 @@ pub async fn launch_game(
 
         // The user's own launchParams go ahead of -mod=, which build_launch_args keeps last.
         let extra_params = launch_params.unwrap_or_default();
+        let resolved_password = if main_menu {
+            None
+        } else {
+            let keyring_user = user.clone();
+            let typed = password.clone();
+            tokio::task::spawn_blocking(move || {
+                crate::credentials::resolve_password(
+                    &crate::credentials::SystemKeyring,
+                    &keyring_user,
+                    typed,
+                    use_saved == Some(true),
+                )
+            })
+            .await
+            .map_err(|e| format!("Task join error: {e}"))??
+        };
         let args = build_launch_args(
             main_menu,
             ip,
             game_port,
-            password.as_deref(),
+            resolved_password.as_deref(),
             &mod_arg,
             &extra_params,
             profile_name.as_deref(),
@@ -354,6 +378,24 @@ pub async fn launch_game(
     // Deliberately after mark_played: closing the launcher must not cost the RECENT entry.
     let on_join = state.on_join.lock().map(|g| *g).unwrap_or_default();
     apply_on_join(&app, on_join);
+
+    // Saved only once the game started, and in the background: a keyring that
+    // waits on an unlock prompt must not hold up the launch. A refusal is
+    // worth a log line, nothing more.
+    let remember_it =
+        crate::credentials::should_save(typed_password.is_some(), remember, main_menu);
+    if let (true, Some(pw)) = (remember_it, typed_password) {
+        let log_app = app.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            if let Err(e) = crate::credentials::SystemKeyring.set(&user, &pw) {
+                crate::log::log_line(
+                    &log_app,
+                    "credentials",
+                    &format!("could not save the password: {}", e.0),
+                );
+            }
+        });
+    }
 
     Ok(LaunchOutcome {
         status: "launched".into(),

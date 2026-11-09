@@ -430,6 +430,10 @@ export interface LaunchOutcome {
 
 export interface LaunchOptions {
   password?: string;
+  /** Save the typed password in the OS keyring once the game starts. */
+  rememberPassword?: boolean;
+  /** Launch with the password saved for this server (Rust reads it; it never comes here). */
+  useSavedPassword?: boolean;
   profileName?: string;
   dayzPath?: string;
   /** Extra DayZ command-line flags, e.g. `-noSplash`. Placed before `-mod=`. */
@@ -451,11 +455,28 @@ export async function launchGame(
     addr,
     gamePort,
     password: options.password ?? null,
+    remember: options.rememberPassword ?? null,
+    useSaved: options.useSavedPassword ?? null,
     profileName: options.profileName ?? null,
     dayzPathOverride: options.dayzPath ?? null,
     launchParams: options.launchParams ?? null,
     mainMenu: options.mainMenu ?? null,
   });
+}
+
+export interface PasswordStatus {
+  saved: boolean;
+  keyring: boolean;
+}
+
+/** Whether this server's password is saved, and whether a keyring exists at all. */
+export async function passwordStatus(addr: string): Promise<PasswordStatus> {
+  return invoke<PasswordStatus>("password_status", { addr });
+}
+
+/** Drop this server's saved password. Nothing happens when none was saved. */
+export async function forgetPassword(addr: string): Promise<void> {
+  return invoke<void>("forget_password", { addr });
 }
 
 export async function serverModReadiness(

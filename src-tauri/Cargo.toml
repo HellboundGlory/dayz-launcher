@@ -90,7 +90,17 @@ tetra-discord = { path = "../crates/tetra-discord" }
 # Only used for `_exit` on Linux: terminate without glibc's atexit/dlclose pass
 # (see `RunEvent::Exit` in lib.rs).
 libc = "0.2"
+# Saved server passwords live in the OS keyring. The platform store that
+# keyring-core talks to is chosen per OS below; without one there is no keyring
+# and the launcher simply asks every time.
+keyring-core = "1.0.1"
 
 # Windows/macOS-only acrylic compositing. Linux has no equivalent effect.
 [target.'cfg(windows)'.dependencies]
 window-vibrancy = "0.8"
+windows-native-keyring-store = { version = "1.1.0", default-features = false }
+
+# Secret Service (GNOME Keyring, KWallet and the like) over D-Bus. The Rust
+# crypto avoids pulling in OpenSSL, matching the rest of the tree.
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus-secret-service-keyring-store = { version = "1.0.1", features = ["crypto-rust"] }

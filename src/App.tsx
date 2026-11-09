@@ -6,6 +6,7 @@ import type { LayoutFile, ModalLayoutFile, SettingsLayoutFile } from "./theme/re
 import { DevModeInspector } from "./components/themes-page/dev-mode-inspector";
 import { DevModeValidationPanel } from "./components/themes-page/dev-mode-validation-panel";
 import { ConfirmDialog } from "./components/confirm-dialog";
+import { PasswordDialog } from "./components/password-dialog";
 import { MemoryMapDialog } from "./components/memory-map-dialog";
 import { OnboardingModal } from "./components/onboarding-modal";
 import { SteamRequiredModal } from "./components/steam-required-modal";
@@ -426,6 +427,7 @@ export function App() {
       )}
       <JoinLinkDialog />
       <ConfirmDialog />
+      <PasswordDialog />
       <MemoryMapDialog />
     </>
   );

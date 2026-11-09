@@ -34,6 +34,8 @@ const COMMANDS: &[&str] = &[
     "open_steam",
     "dayz_running",
     "open_workshop_in_steam",
+    "password_status",
+    "forget_password",
     "log_client",
     "get_subscribed_mods",
     "verify_subscribed_mods",

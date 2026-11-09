@@ -11,21 +11,30 @@ import type {
 } from "@/lib/tauri";
 import type { Server } from "@/types/server";
 import { useLaunchStore } from "@/stores/launch-store";
+import { usePasswordStore } from "@/stores/password-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { getCachedReadiness, setCachedReadiness } from "@/stores/readiness-store";
 import { useServerActions } from "./use-server-actions";
 
-const { launchGame, verifyServerMods, steamModStates, steamDownloadProgress, steamSubscribeMods } =
-  vi.hoisted(() => ({
-    launchGame: vi.fn<(addr: string, gamePort: number, options: unknown) => Promise<LaunchOutcome>>(),
-    verifyServerMods: vi.fn<(addr: string, queryPort: number) => Promise<VerifyOutcome>>(),
-    steamModStates: vi.fn<(ids: string[]) => Promise<ModStateEntry[]>>(),
-    steamDownloadProgress: vi.fn<(ids: string[]) => Promise<DownloadProgress[]>>(),
-    steamSubscribeMods: vi.fn<(ids: string[]) => Promise<MutationOutcome>>(),
-  }));
+const {
+  launchGame,
+  passwordStatus,
+  verifyServerMods,
+  steamModStates,
+  steamDownloadProgress,
+  steamSubscribeMods,
+} = vi.hoisted(() => ({
+  passwordStatus: vi.fn<(addr: string) => Promise<{ saved: boolean; keyring: boolean }>>(),
+  launchGame: vi.fn<(addr: string, gamePort: number, options: unknown) => Promise<LaunchOutcome>>(),
+  verifyServerMods: vi.fn<(addr: string, queryPort: number) => Promise<VerifyOutcome>>(),
+  steamModStates: vi.fn<(ids: string[]) => Promise<ModStateEntry[]>>(),
+  steamDownloadProgress: vi.fn<(ids: string[]) => Promise<DownloadProgress[]>>(),
+  steamSubscribeMods: vi.fn<(ids: string[]) => Promise<MutationOutcome>>(),
+}));
 
 vi.mock("@/lib/tauri", () => ({
   logClient: vi.fn(),
+  passwordStatus,
   launchGame,
   verifyServerMods,
   steamModStates,
@@ -117,6 +126,8 @@ beforeEach(() => {
   steamModStates.mockReset().mockResolvedValue([]);
   steamDownloadProgress.mockReset().mockResolvedValue([]);
   steamSubscribeMods.mockReset().mockResolvedValue({ succeeded: 0, failures: [] });
+  passwordStatus.mockReset().mockResolvedValue({ saved: false, keyring: true });
+  usePasswordStore.getState().cancel();
 });
 
 afterEach(() => {
@@ -307,5 +318,58 @@ describe("verifyAndJoin", () => {
     await pending;
 
     expect(launchGame).toHaveBeenCalledOnce();
+  });
+});
+
+describe("locked servers", () => {
+  const locked: Server = { ...server, locked: true };
+
+  it("asks for the password before anything else happens", async () => {
+    renderActions();
+
+    const pending = verifyAndJoin(locked);
+    await vi.waitFor(() => expect(usePasswordStore.getState().request).not.toBeNull());
+
+    expect(launchGame).not.toHaveBeenCalled();
+    expect(verifyServerMods).not.toHaveBeenCalled();
+    expect(useLaunchStore.getState().op).toBeNull();
+
+    usePasswordStore.getState().cancel();
+    await pending;
+
+    expect(launchGame).not.toHaveBeenCalled();
+    expect(useLaunchStore.getState().op).toBeNull();
+  });
+
+  it("launches with the password the user typed", async () => {
+    renderActions();
+
+    const pending = verifyAndJoin(locked);
+    await vi.waitFor(() => expect(usePasswordStore.getState().request).not.toBeNull());
+    usePasswordStore.getState().setDraft("hunter2");
+    usePasswordStore.getState().submit();
+    await pending;
+
+    expect(launchGame).toHaveBeenCalledOnce();
+    expect(launchGame).toHaveBeenCalledWith(
+      locked.addr,
+      locked.game_port,
+      expect.objectContaining({ password: "hunter2", rememberPassword: true }),
+    );
+  });
+
+  it("joins a saved password without asking", async () => {
+    passwordStatus.mockResolvedValue({ saved: true, keyring: true });
+    renderActions();
+
+    await verifyAndJoin(locked);
+
+    expect(usePasswordStore.getState().request).toBeNull();
+    expect(launchGame).toHaveBeenCalledOnce();
+    expect(launchGame).toHaveBeenCalledWith(
+      locked.addr,
+      locked.game_port,
+      expect.objectContaining({ password: undefined }),
+    );
   });
 });

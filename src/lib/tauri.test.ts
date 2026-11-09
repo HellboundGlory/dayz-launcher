@@ -8,6 +8,9 @@ import {
   getFilterFacets,
   getSearchSuggestions,
   getInstalledDayzVersion,
+  passwordStatus,
+  forgetPassword,
+  launchGame,
   getMemoryMapStatus,
   type FilterParams,
 } from "./tauri";
@@ -154,5 +157,43 @@ describe("facet and suggestion calls send the filter as filterParams", () => {
     const result = await call();
     expect(invoke).toHaveBeenCalledWith(command, args);
     expect(result).toEqual(resolved);
+  });
+});
+
+describe("saved password commands", () => {
+  it("passwordStatus invokes password_status with the address", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({ saved: true, keyring: true });
+    await expect(passwordStatus("1.2.3.4:27016")).resolves.toEqual({
+      saved: true,
+      keyring: true,
+    });
+    expect(invoke).toHaveBeenCalledWith("password_status", { addr: "1.2.3.4:27016" });
+  });
+
+  it("forgetPassword invokes forget_password with the address", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce(undefined);
+    await forgetPassword("1.2.3.4:27016");
+    expect(invoke).toHaveBeenCalledWith("forget_password", { addr: "1.2.3.4:27016" });
+  });
+
+  it("launchGame asks Rust to use the saved password only when told to", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({ status: "launched" });
+    await launchGame("1.2.3.4:27016", 2302, { useSavedPassword: true });
+    expect(invoke).toHaveBeenCalledWith(
+      "launch_game",
+      expect.objectContaining({ useSaved: true }),
+    );
+  });
+
+  it("launchGame sends the typed password and whether to remember it", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({ status: "launched" });
+    await launchGame("1.2.3.4:27016", 2302, {
+      password: "hunter2",
+      rememberPassword: true,
+    });
+    expect(invoke).toHaveBeenCalledWith(
+      "launch_game",
+      expect.objectContaining({ password: "hunter2", remember: true }),
+    );
   });
 });

@@ -14,6 +14,7 @@ import {
 } from "@/lib/tauri";
 import { formatBytes } from "@/lib/utils";
 import { playerMessage } from "@/lib/player-message";
+import { passwordGate, type JoinPassword } from "@/lib/join-password";
 import { checkMemoryMap } from "@/lib/memory-map-gate";
 import type { Server } from "@/types/server";
 
@@ -113,10 +114,15 @@ export function useServerActions() {
   // `addr` is passed in rather than read from `selectedServer`, so the result
   // is tagged with the server actually launched, not whatever's selected once
   // the promise resolves.
-  async function launch(addr: string, gamePort: number, toMenu = false) {
+  async function launch(
+    addr: string,
+    gamePort: number,
+    toMenu = false,
+    pw: JoinPassword = { remember: false },
+  ) {
     setPhase("launching");
     try {
-      const outcome = await launchGame(addr, gamePort, launchOptions(toMenu));
+      const outcome = await launchGame(addr, gamePort, launchOptions(toMenu, pw));
       useLaunchStore.getState().setResult({ addr, message: outcome.message });
       setPhase("starting");
     } catch (e) {
@@ -126,8 +132,11 @@ export function useServerActions() {
   }
 
   /** The launch-affecting settings, in the shape {@link launchGame} wants. */
-  function launchOptions(toMenu: boolean) {
+  function launchOptions(toMenu: boolean, pw: JoinPassword) {
     return {
+      password: pw.password,
+      rememberPassword: pw.remember || undefined,
+      useSavedPassword: pw.useSaved || undefined,
       profileName: profileName || undefined,
       dayzPath: dayzPath || undefined,
       launchParams: launchParams.length > 0 ? launchParams : undefined,
@@ -143,6 +152,8 @@ export function useServerActions() {
     const queryPort = server.query_port;
     const gamePort = server.game_port;
 
+    const pw = await passwordGate(server, toMenu);
+    if (!pw) return;
     if (!(await checkMemoryMap())) return;
 
     const cancel = beginOp(addr, server.name || addr);
@@ -160,7 +171,7 @@ export function useServerActions() {
 
       const ids = verified.mods.map((m) => m.workshop_id);
       if (ids.length === 0) {
-        await launch(addr, gamePort, toMenu);
+        await launch(addr, gamePort, toMenu, pw);
         return;
       }
 
@@ -241,7 +252,7 @@ export function useServerActions() {
 
       setNote(null);
 
-      await launch(addr, gamePort, toMenu);
+      await launch(addr, gamePort, toMenu, pw);
     } catch (e) {
       void logClient("launch", `join check failed: ${String(e)}`);
       setStoreNotice(addr, { kind: "plain", text: playerMessage(String(e), MOD_CHECK_FAILED) });

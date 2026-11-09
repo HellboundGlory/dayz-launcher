@@ -11,6 +11,7 @@ use window_vibrancy::apply_acrylic;
 
 mod atomic_write;
 mod commands;
+mod credentials;
 mod discord;
 mod log;
 mod paths;
@@ -162,6 +163,8 @@ pub fn run() {
             commands::launch::open_steam,
             commands::launch::dayz_running,
             commands::launch::open_workshop_in_steam,
+            credentials::password_status,
+            credentials::forget_password,
             commands::log::log_client,
             commands::mods::get_subscribed_mods,
             commands::mods::verify_subscribed_mods,

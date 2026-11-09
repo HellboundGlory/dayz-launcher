@@ -35,6 +35,8 @@ permissions = [
     "allow-open-steam",
     "allow-dayz-running",
     "allow-open-workshop-in-steam",
+    "allow-password-status",
+    "allow-forget-password",
     "allow-log-client",
     "allow-get-subscribed-mods",
     "allow-verify-subscribed-mods",
