@@ -916,7 +916,8 @@
 </section>
   <section class="el" id="el-settings-launchParams" data-el="settings.launchParams">
   <h3><code>settings.launchParams</code> <span class="el-kind">input</span></h3>
-  <dl><dt>Placed in</dt><dd>Settings · once per composition</dd><dt>Required in</dt><dd>the shell + Settings composition</dd><dt>Parts</dt><dd><code>label</code>, <code>hint</code>, <code>control</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showHint</code> (on or off, default on)</li></ul></dd></dl>
+  <dl><dt>Placed in</dt><dd>Settings · once per composition</dd><dt>Required in</dt><dd>the shell + Settings composition</dd><dt>Parts</dt><dd><code>label</code>, <code>hint</code>, <code>control</code>, <code>toggles</code>, <code>toggles-label</code>, <code>toggle</code>, <code>box</code>, <code>name</code>, <code>flag</code> · States: <code>checked</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showHint</code> (on or off, default on)</li></ul></dd></dl>
+  <div class="md el-notes"><p><code>toggles</code> holds a <code>toggles-label</code> reading &quot;Launch options&quot; and one <code>toggle</code> per flag (Skip intro, No splash screen, Keep running in the background, Windowed), each with a <code>box</code>, a <code>name</code> and its <code>flag</code>. Ticking a toggle appends its line to the same list the text box shows, and typing the line ticks the box. Each <code>toggle</code> carries <code>data-state=&quot;checked&quot;</code> while its flag is in the list; the whole line matches, so <code>-window=1</code> doesn't tick Windowed.</p></div>
 </section>
   <section class="el" id="el-settings-minimiseToTray" data-el="settings.minimiseToTray">
   <h3><code>settings.minimiseToTray</code> <span class="el-kind">input</span></h3>

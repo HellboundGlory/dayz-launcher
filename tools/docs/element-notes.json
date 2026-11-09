@@ -161,6 +161,7 @@
     "settings.themeManagement": "The launcher-owned theme management block: installed themes, Import, New theme and pagination; the active theme strip, the token customiser and theme settings; Dev Mode and Reset to Default.",
     "settings.detectPaths": "Reads \"Detect\", or \"…\" while `busy`, and fills in the Steam, DayZ and Workshop paths.",
     "settings.workshopPath": "A read-only field showing the Workshop folder.",
+    "settings.launchParams": "`toggles` holds a `toggles-label` reading \"Launch options\" and one `toggle` per flag (Skip intro, No splash screen, Keep running in the background, Windowed), each with a `box`, a `name` and its `flag`. Ticking a toggle appends its line to the same list the text box shows, and typing the line ticks the box. Each `toggle` carries `data-state=\"checked\"` while its flag is in the list; the whole line matches, so `-window=1` doesn't tick Windowed.",
     "settings.dataFolder": "A read-only field; it shows \"Locating…\" until its path is known.",
     "settings.openDataFolder": "Reads \"Open\" and is disabled until the path is known.",
     "settings.startWithWindows": "Its `note` part is the always-shown debug-build note.",

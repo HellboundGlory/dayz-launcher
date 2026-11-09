@@ -6,6 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+serde.workspace = true
 sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 thiserror.workspace = true
 

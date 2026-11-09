@@ -200,6 +200,37 @@ mod imp {
         find_in_path("steam")
     }
 
+    /// Which Steam the launcher hands a launch to, given the root that exists
+    /// and whatever `steam` binary was found. Flatpak Steam owns everything
+    /// under `~/.var/app/com.valvesoftware.Steam`.
+    pub fn install_kind(
+        home: &std::path::Path,
+        first_root: Option<&std::path::Path>,
+        steam_exe: Option<&std::path::Path>,
+    ) -> Option<SteamInstall> {
+        if let Some(root) = first_root {
+            let flatpak = home.join(".var/app/com.valvesoftware.Steam");
+            // A root can be a link into the Flatpak's data.
+            let real = |p: &std::path::Path| p.canonicalize().unwrap_or_else(|_| p.to_path_buf());
+            if root.starts_with(&flatpak) || real(root).starts_with(real(&flatpak)) {
+                return Some(SteamInstall::Flatpak);
+            }
+            return Some(SteamInstall::Native(
+                steam_exe
+                    .map(std::path::Path::to_path_buf)
+                    .unwrap_or_else(|| PathBuf::from("steam")),
+            ));
+        }
+        steam_exe.map(|exe| SteamInstall::Native(exe.to_path_buf()))
+    }
+
+    /// The Steam install a launch can be handed to, if any.
+    pub fn find_steam_install() -> Option<SteamInstall> {
+        let home = home_dir()?;
+        let root = paths_from_first_root(&existing(linux_steam_roots)).map(|p| p.steam_install);
+        install_kind(&home, root.as_deref(), find_steam_exe().as_deref())
+    }
+
     /// Roots of a normal user install, in search order. Only these can run
     /// their `steam.sh` or Proton from outside a sandbox.
     pub(super) fn linux_plain_roots(
@@ -283,6 +314,21 @@ pub fn find_steam_paths() -> Option<SteamPaths> {
 /// Locate the Steam launcher binary so the app can offer to start it.
 pub fn find_steam_exe() -> Option<PathBuf> {
     imp::find_steam_exe()
+}
+
+/// The Steam a launch can be handed to on Linux: a native install's own
+/// launcher, or the Flatpak app when Steam lives in its sandbox.
+#[cfg(target_os = "linux")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SteamInstall {
+    Native(PathBuf),
+    Flatpak,
+}
+
+/// The Steam install a launch can be handed to, if any.
+#[cfg(target_os = "linux")]
+pub fn find_steam_install() -> Option<SteamInstall> {
+    imp::find_steam_install()
 }
 
 #[cfg(test)]
@@ -424,5 +470,45 @@ mod tests {
                 "root: {holding}"
             );
         }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn the_install_kind_follows_the_root_steam_keeps_its_data_under() {
+        let home = PathBuf::from("/home/u");
+        let flatpak_root = home.join(".var/app/com.valvesoftware.Steam/.local/share/Steam");
+        let world_of_steam = home.join("World of Steam/Steam");
+        let exe = PathBuf::from("/usr/bin/steam");
+
+        let flatpak = imp::install_kind(&home, Some(&flatpak_root), None);
+        assert_eq!(flatpak, Some(SteamInstall::Flatpak));
+
+        let native = imp::install_kind(&home, Some(&world_of_steam), Some(&exe));
+        assert_eq!(native, Some(SteamInstall::Native(exe.clone())));
+
+        // A root without a `steam.sh` still starts the client through `PATH`.
+        let fallback = imp::install_kind(&home, Some(&world_of_steam), None);
+        assert_eq!(fallback, Some(SteamInstall::Native(PathBuf::from("steam"))));
+
+        let path_only = imp::install_kind(&home, None, Some(&exe));
+        assert_eq!(path_only, Some(SteamInstall::Native(exe)));
+
+        assert_eq!(imp::install_kind(&home, None, None), None);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_root_linked_into_flatpak_steam_is_flatpak() {
+        let home = ScratchDir::new();
+        let real = home.join(".var/app/com.valvesoftware.Steam/.local/share/Steam");
+        std::fs::create_dir_all(&real).unwrap();
+        let link = home.join(".steam/steam");
+        std::fs::create_dir_all(link.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+
+        assert_eq!(
+            imp::install_kind(&home, Some(&link), Some(Path::new("/usr/bin/steam"))),
+            Some(SteamInstall::Flatpak)
+        );
     }
 }

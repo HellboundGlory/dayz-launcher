@@ -9,6 +9,7 @@
 
 pub mod error;
 pub mod exe_version;
+pub mod memory_map;
 pub mod modline;
 pub mod protocol;
 pub mod registry_discovery;

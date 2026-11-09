@@ -14,6 +14,7 @@ import {
 } from "@/lib/tauri";
 import { formatBytes } from "@/lib/utils";
 import { playerMessage } from "@/lib/player-message";
+import { checkMemoryMap } from "@/lib/memory-map-gate";
 import type { Server } from "@/types/server";
 
 /** Short codes for anything that went sideways. `W` = join went ahead anyway, `E` = stopped it. */
@@ -141,6 +142,8 @@ export function useServerActions() {
     const addr = server.addr;
     const queryPort = server.query_port;
     const gamePort = server.game_port;
+
+    if (!(await checkMemoryMap())) return;
 
     const cancel = beginOp(addr, server.name || addr);
     setStoreNotice(addr, null);

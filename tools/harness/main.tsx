@@ -18,6 +18,8 @@ const mixedMods = params.get("mods") === "mixed";
 const readyMods = params.get("mods") === "ready";
 // `join=asking|checking|found|noanswer` opens the join-link box in that state.
 const joinState = params.get("join");
+// `mmc=1` makes the Join ask for the memory map fix first.
+const memoryMapLow = params.get("mmc") === "1";
 
 // `static=1` (the visual harness): pin the clock and kill motion and the caret,
 // so two shots of the same tree are byte-identical. Midday so a ±12h timezone
@@ -143,6 +145,7 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     onJoin: "tray",
     onboardingDismissed: true,
     discordRichPresence: true,
+    memoryMapWarning: true,
     activeThemeId: themeId === "neutral" ? null : themeId,
   }),
   steam_init: () => null,
@@ -169,6 +172,8 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     same_as_mine: servers.length,
   }),
   get_installed_dayz_version: () => "1.29.163709",
+  get_memory_map_status: () =>
+    memoryMapLow ? { current: 65530, recommended: 1048576 } : null,
   get_search_suggestions: () => [
     { kind: "map", label: "Namalsk", count: Math.max(1, Math.round(servers.length / 3)), values: ["namalsk"] },
     { kind: "mod", label: "Namalsk Survival", count: Math.max(1, Math.round(servers.length / 4)), values: ["1"] },

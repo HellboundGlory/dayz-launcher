@@ -3950,3 +3950,74 @@ the smallest window the launcher can compose. */
   font-size: 11px;
   color: var(--muted);
 }
+
+/* The toggles come before the text box, so the shared first-child rule styles
+   the group instead. This puts the box's own look on the last child. */
+[data-region="r-settings-body"] [data-el="settings.launchParams"] [data-part="toggles"] {
+  min-height: 0;
+  margin: 0 0 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+  font-family: var(--t-type-family-ui);
+}
+
+[data-region="r-settings-body"] [data-el="settings.launchParams"] [data-part="control"] > :last-child {
+  width: 100%;
+  min-height: 32px;
+  border: none;
+  border-radius: 0;
+  background-color: color-mix(in srgb, var(--bg) 75%, var(--surface2));
+  box-shadow: 0 0 0 1px var(--border);
+  padding: 7px 10px;
+  font-family: var(--t-type-family-data);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text);
+}
+
+[data-region="r-settings-body"] [data-el="settings.launchParams"] [data-part="control"] > :last-child:hover {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--border) 78%, var(--muted));
+}
+
+[data-region="r-settings-body"] [data-el="settings.launchParams"] [data-part="control"] > :last-child:focus {
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+[data-el="settings.launchParams"] [data-part="toggles-label"] {
+  margin: 8px 0 0;
+  font-size: 10px;
+  line-height: 15px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted2);
+}
+
+[data-el="settings.launchParams"] [data-part="toggle"] {
+  gap: 10px;
+  margin: 0 -8px;
+  padding: 8px;
+  border-radius: 0;
+  align-items: center;
+}
+
+[data-el="settings.launchParams"] [data-part="toggle"]:hover {
+  background-color: color-mix(in srgb, var(--surface2) 60%, transparent);
+}
+
+[data-el="settings.launchParams"] [data-part="toggle"] [data-part="box"] {
+  margin-top: 0;
+}
+
+[data-el="settings.launchParams"] [data-part="toggle"] [data-part="name"] {
+  font-size: 12px;
+  color: var(--text);
+}
+
+[data-el="settings.launchParams"] [data-part="toggle"] [data-part="flag"] {
+  font-family: var(--t-type-family-data);
+  font-size: 11px;
+  color: var(--muted2);
+}

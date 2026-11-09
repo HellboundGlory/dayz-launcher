@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, type CSSProperties } from "react";
 import { Check, ChevronLeft, Folder } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LAUNCH_TOGGLES, hasLaunchFlag, setLaunchFlag } from "@/lib/launch-toggles";
 import { OptionIcon } from "./option-icon";
 import { useSettingsStore } from "@/stores/settings-store";
 import { discoverSteamPaths, dataFolderPath, openDataFolder } from "@/lib/tauri";
@@ -218,7 +219,7 @@ export function SettingsLaunchParams({ options, className, style }: ElementProps
       dataEl="settings.launchParams"
       label="Custom Launch Parameters"
       hint={
-        "Passed to DayZ ahead of the mod list. One per line — e.g. -noPause and -profiles=C:\\My Documents\\DayZ each on their own line."
+        "One per line, passed to DayZ ahead of the mod list. The boxes above add and remove their own lines here."
       }
       showHint={showHint}
       htmlFor={id}
@@ -226,6 +227,44 @@ export function SettingsLaunchParams({ options, className, style }: ElementProps
       className={className}
       style={style}
     >
+      <div data-part="toggles" className="mb-2">
+        <div
+          data-part="toggles-label"
+          className="mb-1 [font-size:var(--t-type-label-size)] font-semibold text-ink"
+        >
+          Launch options
+        </div>
+        {LAUNCH_TOGGLES.map((toggle) => {
+          const checked = hasLaunchFlag(launchParams, toggle.flag);
+          return (
+            <label
+              key={toggle.id}
+              data-part="toggle"
+              data-state={checked ? "checked" : undefined}
+              className="flex cursor-pointer items-center gap-2 py-1"
+            >
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={(e) =>
+                  setSetting(
+                    "launchParams",
+                    setLaunchFlag(launchParams, toggle.flag, e.target.checked),
+                  )
+                }
+                data-part="box"
+                className="size-3.5 shrink-0 accent-accent"
+              />
+              <span data-part="name" className="[font-size:var(--t-type-body-size)] text-ink">
+                {toggle.name}
+              </span>
+              <span data-part="flag" className="font-mono [font-size:var(--t-type-caption-size)] text-muted">
+                {toggle.flag}
+              </span>
+            </label>
+          );
+        })}
+      </div>
       <textarea
         id={id}
         value={launchParams.join("\n")}

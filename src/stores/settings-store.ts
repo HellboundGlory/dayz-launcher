@@ -31,6 +31,8 @@ export interface AppSettings {
   onboardingDismissed: boolean;
   /** Show "Playing on {server}" / "Browsing servers" in Discord. */
   discordRichPresence: boolean;
+  /** Warn before a Join when the Linux memory map limit is too low for DayZ. */
+  memoryMapWarning: boolean;
 }
 
 interface SettingsState extends AppSettings {
@@ -62,6 +64,7 @@ const defaults: AppSettings = {
   onJoin: "stay",
   onboardingDismissed: false,
   discordRichPresence: true,
+  memoryMapWarning: true,
 };
 
 /** Keys changed since the last patch. Only these are sent, so a save never rewrites a field this store did not touch. */

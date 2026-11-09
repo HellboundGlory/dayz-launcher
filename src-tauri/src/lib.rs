@@ -158,6 +158,7 @@ pub fn run() {
             commands::launch::discover_steam_paths,
             commands::launch::validate_dayz_path,
             commands::launch::get_installed_dayz_version,
+            commands::memory_map::get_memory_map_status,
             commands::launch::open_steam,
             commands::launch::dayz_running,
             commands::launch::open_workshop_in_steam,

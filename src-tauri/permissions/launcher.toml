@@ -31,6 +31,7 @@ permissions = [
     "allow-discover-steam-paths",
     "allow-validate-dayz-path",
     "allow-get-installed-dayz-version",
+    "allow-get-memory-map-status",
     "allow-open-steam",
     "allow-dayz-running",
     "allow-open-workshop-in-steam",

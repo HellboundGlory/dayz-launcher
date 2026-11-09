@@ -26,6 +26,7 @@ const saved: AppSettingsDto = {
   onJoin: "stay",
   onboardingDismissed: false,
   discordRichPresence: true,
+  memoryMapWarning: true,
 };
 
 beforeEach(() => {

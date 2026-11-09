@@ -154,6 +154,20 @@ export async function getInstalledDayzVersion(
   }
 }
 
+export interface MemoryMapStatus {
+  current: number;
+  recommended: number;
+}
+
+/** The Linux `vm.max_map_count` limit when it is too low for DayZ, else null. */
+export async function getMemoryMapStatus(): Promise<MemoryMapStatus | null> {
+  try {
+    return await invoke<MemoryMapStatus | null>("get_memory_map_status");
+  } catch {
+    return null;
+  }
+}
+
 export async function getFilterFacets(
   filter: FilterParams,
   myVersion: string | null = null,
@@ -349,6 +363,8 @@ export interface AppSettingsDto {
   onboardingDismissed: boolean;
   /** Show "Playing on {server}" / "Browsing servers" in Discord. */
   discordRichPresence: boolean;
+  /** Warn before a Join when the Linux memory map limit is too low for DayZ. */
+  memoryMapWarning: boolean;
   /**
    * Which theme is active; `null` is the built-in default. Read-only from the
    * frontend: the settings store never patches it, so a settings save can't

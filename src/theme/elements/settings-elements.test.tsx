@@ -156,6 +156,32 @@ describe("SettingsLaunchParams", () => {
     const html = render(<SettingsLaunchParams />);
     expect(html).toContain("-noPause\n-cpuCount=4");
   });
+
+  it("renders the four toggles with their names and flags above the text box", () => {
+    const html = render(<SettingsLaunchParams />);
+    expect(html).toContain('data-part="toggles-label"');
+    expect(html).toContain("Launch options");
+    const rows = html.match(/data-part="toggle"/g) ?? [];
+    expect(rows).toHaveLength(4);
+    for (const [name, flag] of [
+      ["Skip intro", "-skipIntro"],
+      ["No splash screen", "-nosplash"],
+      ["Keep running in the background", "-noPause"],
+      ["Windowed", "-window"],
+    ]) {
+      expect(html).toContain(name);
+      expect(html).toContain(flag);
+    }
+    expect(html.indexOf('data-part="toggles-label"')).toBeLessThan(html.indexOf("<textarea"));
+  });
+
+  it("ticks the toggle whose flag is typed in the box", () => {
+    storeState.launchParams = ["-window"];
+    const html = render(<SettingsLaunchParams />);
+    expect(html.match(/data-state="checked"/g) ?? []).toHaveLength(1);
+    expect(html).toMatch(/data-state="checked"[^>]*>[\s\S]*?data-part="name"[^>]*>Windowed</);
+    expect(html).toContain('checked=""');
+  });
 });
 
 describe("SettingsOnJoin", () => {

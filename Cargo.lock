@@ -4878,6 +4878,7 @@ dependencies = [
 name = "tetra-launch"
 version = "3.1.1"
 dependencies = [
+ "serde",
  "sysinfo",
  "thiserror 2.0.21",
  "winreg",

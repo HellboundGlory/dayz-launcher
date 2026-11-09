@@ -33,6 +33,12 @@ vi.mock("@/lib/tauri", () => ({
   steamSubscribeMods,
 }));
 
+const { checkMemoryMap } = vi.hoisted(() => ({
+  checkMemoryMap: vi.fn<() => Promise<boolean>>(),
+}));
+
+vi.mock("@/lib/memory-map-gate", () => ({ checkMemoryMap }));
+
 // SSR reads zustand's initial snapshot, so route the settings hook through the
 // live state the test sets before rendering.
 function liveHook<T extends { getState: () => S }, S>(store: T) {
@@ -98,6 +104,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   useLaunchStore.setState({ op: null, result: null, notice: null, dayzRunning: false });
   useSettingsStore.setState({ profileName: "Survivor", dayzPath: "/dayz", launchParams: ["-noSplash"] });
+  checkMemoryMap.mockReset().mockResolvedValue(true);
 
   launchGame.mockReset().mockResolvedValue({
     status: "ok",
@@ -117,6 +124,17 @@ afterEach(() => {
 });
 
 describe("verifyAndJoin", () => {
+  it("starts nothing when the memory map warning stops the join", async () => {
+    checkMemoryMap.mockResolvedValue(false);
+    renderActions();
+
+    await verifyAndJoin(server);
+
+    expect(verifyServerMods).not.toHaveBeenCalled();
+    expect(launchGame).not.toHaveBeenCalled();
+    expect(useLaunchStore.getState().op).toBeNull();
+  });
+
   it("launches with the settings' options when the server has no mods", async () => {
     renderActions();
 

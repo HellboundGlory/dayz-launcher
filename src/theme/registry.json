@@ -4341,9 +4341,17 @@
       "parts": [
         "label",
         "hint",
-        "control"
+        "control",
+        "toggles",
+        "toggles-label",
+        "toggle",
+        "box",
+        "name",
+        "flag"
       ],
-      "states": [],
+      "states": [
+        "checked"
+      ],
       "since": "2.0",
       "aliases": []
     },

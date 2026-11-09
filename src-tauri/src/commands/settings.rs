@@ -87,6 +87,8 @@ pub struct AppSettings {
     /// default) is distinguishable from an empty id; built-in vs. file-backed
     /// is the frontend's distinction, not this backend's.
     pub active_theme_id: Option<String>,
+    /// Warn before a Join when the Linux memory map limit is too low for DayZ.
+    pub memory_map_warning: bool,
 }
 
 impl Default for AppSettings {
@@ -117,6 +119,7 @@ impl Default for AppSettings {
             discord_rich_presence: None,
             window: None,
             active_theme_id: None,
+            memory_map_warning: true,
         }
     }
 }
@@ -783,6 +786,10 @@ mod tests {
             "existing values are preserved"
         );
         assert_eq!(parsed.dayz_path.as_deref(), Some("C:\\DayZ"));
+        assert!(
+            parsed.memory_map_warning,
+            "an older file predating this setting must not read as opted out"
+        );
         assert!(
             parsed.discord_presence_enabled(),
             "an older file predating this setting must not read as opted out"

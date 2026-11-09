@@ -8,6 +8,7 @@ import {
   getFilterFacets,
   getSearchSuggestions,
   getInstalledDayzVersion,
+  getMemoryMapStatus,
   type FilterParams,
 } from "./tauri";
 import { invoke } from "@tauri-apps/api/core";
@@ -87,6 +88,23 @@ describe("getInstalledDayzVersion", () => {
   it("returns null when the command rejects", async () => {
     vi.mocked(invoke).mockRejectedValueOnce(new Error("folder unreadable"));
     await expect(getInstalledDayzVersion(null)).resolves.toBeNull();
+  });
+});
+
+describe("getMemoryMapStatus", () => {
+  it("returns the limit the command reports", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({ current: 65530, recommended: 1048576 });
+    await expect(getMemoryMapStatus()).resolves.toEqual({ current: 65530, recommended: 1048576 });
+    expect(invoke).toHaveBeenCalledWith("get_memory_map_status");
+  });
+
+  it.each([
+    { name: "no warning is needed", resolved: null },
+    { name: "the command rejects", resolved: new Error("unreadable") },
+  ])("returns null when $name", async ({ resolved }) => {
+    if (resolved instanceof Error) vi.mocked(invoke).mockRejectedValueOnce(resolved);
+    else vi.mocked(invoke).mockResolvedValueOnce(resolved);
+    await expect(getMemoryMapStatus()).resolves.toBeNull();
   });
 });
 
