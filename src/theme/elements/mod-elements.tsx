@@ -682,6 +682,7 @@ export interface ServerModData {
   order?: number;
   downloaded_bytes?: number | null;
   total_bytes?: number | null;
+  differs?: boolean;
 }
 
 function useServerModSubject(): ServerModData | null {
@@ -695,6 +696,7 @@ function useServerModSubject(): ServerModData | null {
 type ServerModStateName =
   | "checking"
   | "ready"
+  | "differs"
   | "needsUpdate"
   | "downloading"
   | "notInstalled"
@@ -711,6 +713,7 @@ interface ServerModView {
 
 const SERVER_MOD_VIEWS: Record<string, ServerModView> = {
   ready: { name: "ready", label: "Ready", dot: "✓", dotClass: "text-success", labelClass: "text-muted" },
+  differs: { name: "differs", label: "Differs", dot: "!", dotClass: "text-warn", labelClass: "text-warn font-semibold" },
   needs_update: { name: "needsUpdate", label: "Needs update", dot: "↓", dotClass: "text-warn", labelClass: "text-warn font-semibold" },
   downloading: { name: "downloading", label: "Downloading", dot: "↓", dotClass: "text-muted", labelClass: "text-muted" },
   not_installed: { name: "notInstalled", label: "Not installed", dot: "·", dotClass: "text-muted", labelClass: "text-muted" },
@@ -728,6 +731,7 @@ const SERVER_MOD_CHECKING: ServerModView = {
 
 /** An unknown or absent backend state reads as still checking. */
 function serverModView(mod: ServerModData): ServerModView {
+  if (mod.state === "ready" && mod.differs) return SERVER_MOD_VIEWS.differs;
   return SERVER_MOD_VIEWS[mod.state ?? ""] ?? SERVER_MOD_CHECKING;
 }
 
@@ -786,6 +790,24 @@ export function ServerModName({ className, style }: { className?: string; style?
   return (
     <span data-el="serverMod.name" className={className ?? "truncate [font-size:var(--t-type-size-lg)] leading-4 font-medium text-ink"} style={style}>
       {mod.name ?? mod.workshop_id}
+    </span>
+  );
+}
+
+const DIFFERS_NOTE =
+  "Your copy doesn't match the server's. You may be kicked on join with a signature error.";
+
+export function ServerModNote({ className, style }: { className?: string; style?: CSSProperties }) {
+  const mod = useServerModSubject();
+  if (!mod?.differs) return null;
+
+  return (
+    <span
+      data-el="serverMod.note"
+      className={className ?? "[font-size:var(--t-type-size-sm)] leading-4 text-muted2"}
+      style={style}
+    >
+      <span data-part="text">{DIFFERS_NOTE}</span>
     </span>
   );
 }

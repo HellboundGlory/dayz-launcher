@@ -2232,7 +2232,8 @@
         "downloading",
         "notInstalled",
         "notSubscribed",
-        "serverSide"
+        "serverSide",
+        "differs"
       ],
       "since": "2.0",
       "aliases": []
@@ -5252,6 +5253,60 @@
       ],
       "states": [],
       "since": "2.0",
+      "aliases": []
+    },
+    "serverMod.note": {
+      "kind": "display",
+      "subject": "serverMod",
+      "where": [
+        "serverMod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [],
+      "since": "2.1",
+      "aliases": []
+    },
+    "server.modDiffers": {
+      "kind": "display",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "text",
+        "fix"
+      ],
+      "states": [
+        "busy"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
+    "server.versionWarning": {
+      "kind": "display",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "icon"
+      ],
+      "states": [],
+      "since": "2.1",
       "aliases": []
     }
   },

@@ -432,6 +432,10 @@ pub struct VerifyOutcome {
     /// means `refreshed` is empty because nothing was asked, not because
     /// everything was current.
     pub checked_workshop: bool,
+    /// Workshop ids of ready mods whose local copy hashes differently from the
+    /// server's, stringified for JS. Empty when Steam couldn't be asked.
+    #[serde(default)]
+    pub differing: Vec<String>,
 }
 
 /// Re-read a server's mod list and bring the local copies up to date,
@@ -469,6 +473,11 @@ pub async fn verify_server_mods(
     })?;
     let declared = rules.mods;
 
+    let server_hashes: std::collections::HashMap<u64, u32> = declared
+        .iter()
+        .filter_map(|m| m.hash.map(|hash| (m.workshop_id, hash)))
+        .collect();
+
     let writer = {
         let guard = state.registry.lock().map_err(|e| e.to_string())?;
         guard.as_ref().map(|r| r.writer())
@@ -494,19 +503,45 @@ pub async fn verify_server_mods(
     };
 
     // Steam being absent is not a failure — the mod list was still refreshed.
-    let (refreshed, checked_workshop) = match steam {
-        None => (Vec::new(), false),
+    let (refreshed, checked_workshop, differing) = match steam {
+        None => (Vec::new(), false, Vec::new()),
         Some(steam) => {
-            let queued = tokio::task::spawn_blocking(move || steam.refresh_stale(&ids))
+            let refresh_ids = ids.clone();
+            let handle = Arc::clone(&steam);
+            let queued = tokio::task::spawn_blocking(move || handle.refresh_stale(&refresh_ids))
                 .await
                 .map_err(|e| format!("Task join error: {e}"))?;
-            match queued {
+            let (refreshed, checked_workshop) = match queued {
                 Ok(ids) => (ids, true),
                 Err(e) => {
                     crate::log::line("verify", &format!("Workshop freshness check failed: {e}"));
                     (Vec::new(), false)
                 }
-            }
+            };
+
+            let updating = refreshed.clone();
+            let differing = tokio::task::spawn_blocking(move || {
+                let states = match steam.mod_states(&ids) {
+                    Ok(states) => states,
+                    Err(e) => {
+                        crate::log::line("verify", &format!("Reading mod state failed: {e}"));
+                        return Vec::new();
+                    }
+                };
+                crate::commands::server::mod_readiness::differing_ids(
+                    states.into_iter(),
+                    &server_hashes,
+                    &updating,
+                    |id| steam.mod_folder(id).ok().flatten(),
+                )
+            })
+            .await
+            .unwrap_or_else(|e| {
+                crate::log::line("verify", &format!("Comparing mod copies failed: {e}"));
+                Vec::new()
+            });
+
+            (refreshed, checked_workshop, differing)
         }
     };
 
@@ -520,6 +555,7 @@ pub async fn verify_server_mods(
             .collect(),
         refreshed: refreshed.into_iter().map(|id| id.to_string()).collect(),
         checked_workshop,
+        differing: differing.into_iter().map(|id| id.to_string()).collect(),
     })
 }
 

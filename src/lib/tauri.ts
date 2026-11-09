@@ -410,6 +410,8 @@ export interface VerifyOutcome {
   refreshed: string[];
   /** Whether Steam was reachable to check freshness — `false` means unchecked, not "already current". */
   checked_workshop: boolean;
+  /** Workshop ids of ready mods whose local copy differs from the server's. */
+  differing?: string[];
 }
 
 /** Re-reads a server's mod list and refreshes any stale local copy. Does not launch anything. */

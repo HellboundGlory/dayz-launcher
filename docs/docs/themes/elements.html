@@ -457,6 +457,16 @@
   <dl><dt>Placed in</dt><dd>the server info modal, a selection container, or the server actions popup, not a row · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code>, <code>count</code> · States: <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;, default <code>externalLink</code>)</li></ul></dd></dl>
   <div class="md el-notes"><p>Reads &quot;Manage mods&quot;; once the mod count is known, its <code>count</code> part reads &quot;· {n} declared&quot;. Opens the Mods view.</p></div>
 </section>
+  <section class="el" id="el-server-modDiffers" data-el="server.modDiffers">
+  <h3><code>server.modDiffers</code> <span class="el-kind">display</span> <span class="el-since">SINCE 2.1</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Parts</dt><dd><code>text</code>, <code>fix</code> · States: <code>busy</code></dd></dl>
+  <div class="md el-notes"><p>The warning above Join: how many of this server's mods differ, with a Fix and join button that re-downloads them first. It needs a live Check mods to have run (the plain readiness read carries no hashes), and renders nothing in a list row, where readiness is never fetched.</p></div>
+</section>
+  <section class="el" id="el-server-versionWarning" data-el="server.versionWarning">
+  <h3><code>server.versionWarning</code> <span class="el-kind">display</span> <span class="el-since">SINCE 2.1</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>icon</code></dd></dl>
+  <div class="md el-notes"><p>A small triangle naming both builds, for a server on another DayZ version. It renders nothing when the versions match or the installed one can't be read.</p></div>
+</section>
 </section>
 
 <section class="el-group">
@@ -476,9 +486,10 @@
 </section>
   <section class="el" id="el-serverMod-state" data-el="serverMod.state">
   <h3><code>serverMod.state</code> <span class="el-kind">display</span></h3>
-  <dl><dt>Placed in</dt><dd>a server's mod row · any number of times</dd><dt>Parts</dt><dd><code>dot</code>, <code>label</code> · States: <code>checking</code>, <code>ready</code>, <code>needsUpdate</code>, <code>downloading</code>, <code>notInstalled</code>, <code>notSubscribed</code>, <code>serverSide</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>dotLabel</code>, <code>dot</code>, <code>label</code>, default <code>dotLabel</code>)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <dl><dt>Placed in</dt><dd>a server's mod row · any number of times</dd><dt>Parts</dt><dd><code>dot</code>, <code>label</code> · States: <code>checking</code>, <code>ready</code>, <code>needsUpdate</code>, <code>downloading</code>, <code>notInstalled</code>, <code>notSubscribed</code>, <code>serverSide</code>, <code>differs</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>dotLabel</code>, <code>dot</code>, <code>label</code>, default <code>dotLabel</code>)</li><li><code>label</code> (text)</li></ul></dd></dl>
   <div class="md el-notes"><p><strong>Wording</strong></p>
-<div class="table-wrap"><table><thead><tr><th>State</th><th>Wording</th></tr></thead><tbody><tr><td><code>ready</code></td><td>&quot;Ready&quot;</td></tr><tr><td><code>needsUpdate</code></td><td>&quot;Needs update&quot;</td></tr><tr><td><code>downloading</code></td><td>&quot;Downloading&quot;</td></tr><tr><td><code>notInstalled</code></td><td>&quot;Not installed&quot;</td></tr><tr><td><code>notSubscribed</code></td><td>&quot;Not subscribed&quot;</td></tr><tr><td><code>serverSide</code></td><td>&quot;Unlisted&quot;</td></tr><tr><td><code>checking</code></td><td>&quot;Checking…&quot;</td></tr></tbody></table></div></div>
+<div class="table-wrap"><table><thead><tr><th>State</th><th>Wording</th></tr></thead><tbody><tr><td><code>ready</code></td><td>&quot;Ready&quot;</td></tr><tr><td><code>differs</code></td><td>&quot;Differs&quot;</td></tr><tr><td><code>needsUpdate</code></td><td>&quot;Needs update&quot;</td></tr><tr><td><code>downloading</code></td><td>&quot;Downloading&quot;</td></tr><tr><td><code>notInstalled</code></td><td>&quot;Not installed&quot;</td></tr><tr><td><code>notSubscribed</code></td><td>&quot;Not subscribed&quot;</td></tr><tr><td><code>serverSide</code></td><td>&quot;Unlisted&quot;</td></tr><tr><td><code>checking</code></td><td>&quot;Checking…&quot;</td></tr></tbody></table></div>
+<p>A mod reads <code>differs</code> only when it is ready and the live check found its local copy hashes differently from the server's.</p></div>
 </section>
   <section class="el" id="el-serverMod-size" data-el="serverMod.size">
   <h3><code>serverMod.size</code> <span class="el-kind">display</span></h3>
@@ -499,6 +510,11 @@
   <h3><code>serverMod.openInSteam</code> <span class="el-kind">action</span></h3>
   <dl><dt>Placed in</dt><dd>a server's mod row · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>disabled</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>icon</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
   <div class="md el-notes"><p>Is disabled for server-side mods, which have no Workshop page.</p></div>
+</section>
+  <section class="el" id="el-serverMod-note" data-el="serverMod.note">
+  <h3><code>serverMod.note</code> <span class="el-kind">display</span> <span class="el-since">SINCE 2.1</span></h3>
+  <dl><dt>Placed in</dt><dd>a server's mod row · any number of times</dd><dt>Parts</dt><dd><code>text</code></dd></dl>
+  <div class="md el-notes"><p>One line saying the local copy doesn't match the server's and that a join may be refused with a signature error. It renders nothing unless that mod's state is <code>ready</code> and its copy differs, so the plain registry read never shows it.</p></div>
 </section>
 </section>
 

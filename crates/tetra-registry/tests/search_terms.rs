@@ -27,6 +27,7 @@ fn mods(list: &[(&str, u64)]) -> Vec<ServerMod> {
         .map(|&(name, workshop_id)| ServerMod {
             workshop_id,
             name: name.into(),
+            hash: None,
         })
         .collect()
 }
@@ -185,15 +186,18 @@ async fn searching_a_registry_of_twenty_seven_thousand_servers() {
         .map(|m| ServerMod {
             workshop_id: u64::from(m) + 1,
             name: format!("Filler Mod {m}"),
+            hash: None,
         })
         .chain([
             ServerMod {
                 workshop_id: 9_998,
                 name: "Namalsk Islands".into(),
+                hash: None,
             },
             ServerMod {
                 workshop_id: 9_999,
                 name: "Expansion Core".into(),
+                hash: None,
             },
         ])
         .collect();

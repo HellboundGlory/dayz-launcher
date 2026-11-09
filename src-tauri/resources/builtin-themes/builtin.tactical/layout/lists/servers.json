@@ -103,6 +103,7 @@
         "column": "name",
         "children": [
           { "element": "server.name" },
+          { "element": "server.versionWarning" },
           { "element": "server.tags" }
         ]
       },

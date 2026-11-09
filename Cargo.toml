@@ -55,3 +55,5 @@ semver = "1"
 # Fingerprints an installed builtin theme so a pristine copy can be told from
 # an edited one. Must stay stable across toolchains, which DefaultHasher is not.
 sha2 = "0.11"
+# The publisher's mod short hash is built on SHA-1 over sorted PBO trailers.
+sha1 = "0.11"

@@ -9,6 +9,7 @@
 mod actor;
 pub mod error;
 pub mod handle;
+pub mod mod_hash;
 pub mod plan;
 pub mod rows;
 pub mod source;
@@ -16,7 +17,7 @@ pub mod workshop;
 
 pub use actor::{
     Command, DownloadRow, MutationResult, StaleOutcome, StreamChunk, SubscribedModInfo,
-    WorkshopSearchRow, DAYZ_APP_ID,
+    UgcInstallInfo, WorkshopSearchRow, DAYZ_APP_ID,
 };
 pub use error::{InitFailure, SteamError};
 pub use handle::{SteamHandle, LIST_REQUEST_BUDGET};

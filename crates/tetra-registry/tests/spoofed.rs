@@ -88,6 +88,7 @@ async fn a_row_that_starts_lying_is_dropped_with_its_mods() {
             vec![ServerMod {
                 workshop_id: MOD_ID,
                 name: "Some Mod".into(),
+                hash: None,
             }],
         )
         .await
@@ -124,6 +125,7 @@ async fn a_row_that_starts_lying_is_dropped_with_its_mods() {
             vec![ServerMod {
                 workshop_id: MOD_ID,
                 name: "Some Mod".into(),
+                hash: None,
             }],
         )
         .await

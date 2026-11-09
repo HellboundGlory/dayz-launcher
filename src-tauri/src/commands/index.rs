@@ -332,6 +332,7 @@ fn named_mods(ids: Vec<u64>, names: &std::collections::HashMap<u64, String>) -> 
         .map(|workshop_id| ServerMod {
             workshop_id,
             name: names.get(&workshop_id).cloned().unwrap_or_default(),
+            hash: None,
         })
         .collect()
 }
@@ -610,6 +611,7 @@ mod tests {
                 vec![ServerMod {
                     workshop_id: 1559212036,
                     name: "CF".into(),
+                    hash: None,
                 }],
             )
             .await

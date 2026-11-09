@@ -60,6 +60,7 @@
   @apply bg-success-soft text-success;
 }
 
+.t-neutral-servermods-state[data-state~="differs"],
 .t-neutral-servermods-state[data-state~="needsUpdate"],
 .t-neutral-servermods-state[data-state~="notInstalled"] {
   @apply bg-warn-soft text-warn;
@@ -75,4 +76,8 @@
 
 .t-neutral-servermods-state [data-part="label"] {
   @apply [font-family:inherit] [font-size:inherit] [font-weight:inherit] [line-height:inherit] [color:inherit];
+}
+
+.t-neutral-servermods-note {
+  @apply mt-0.5 block [font-size:var(--t-type-label-size)] leading-snug text-muted2;
 }

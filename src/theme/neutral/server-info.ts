@@ -129,6 +129,7 @@ export const SERVER_INFO_MODAL: ModalLayoutFile = {
         direction: "column",
         class: "t-neutral-serverinfo-actions",
         children: [
+          { element: "server.modDiffers", class: "t-neutral-serverinfo-differs" },
           { element: "server.actionNotice", class: "t-neutral-serverinfo-notice" },
           {
             type: "stack",

@@ -93,8 +93,11 @@ import { renderPopupElement } from "./popup-elements";
 import { FilterMenu, renderFilterMenuElement } from "./filter-menu";
 import { FilterChips } from "./filter-chips";
 import { ServerDownloadSize, ServerReadiness } from "./readiness-elements";
+import { ServerModDiffers } from "./mod-differs";
+import { ServerVersionWarning } from "./version-warning";
 import {
   ServerModName,
+  ServerModNote,
   ServerModOpenInSteam,
   ServerModOrder,
   ServerModProgress,
@@ -227,6 +230,10 @@ export function ElementHost({
       return <NoticeModsOutdated className={mergedClass} style={style} />;
     case "server.actionNotice":
       return <ServerActionNotice className={mergedClass} style={style} />;
+    case "server.modDiffers":
+      return <ServerModDiffers className={mergedClass} style={style} />;
+    case "server.versionWarning":
+      return <ServerVersionWarning className={mergedClass} style={style} />;
 
     case "server.name":
       return <ServerName options={node.options} className={mergedClass} style={style} />;
@@ -355,6 +362,8 @@ export function ElementHost({
       return <ServerModProgress className={mergedClass} style={style} />;
     case "serverMod.unique":
       return <ServerModUnique options={node.options} className={mergedClass} style={style} />;
+    case "serverMod.note":
+      return <ServerModNote className={mergedClass} style={style} />;
     case "serverMod.openInSteam":
       return <ServerModOpenInSteam options={node.options} className={mergedClass} style={style} />;
 

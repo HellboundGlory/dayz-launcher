@@ -120,10 +120,12 @@ async fn mod_probe_sets_mod_count_without_touching_live_fields() {
                 ServerMod {
                     workshop_id: 1559212036,
                     name: "CF".into(),
+                    hash: None,
                 },
                 ServerMod {
                     workshop_id: 2545327648,
                     name: "Dabs Framework".into(),
+                    hash: None,
                 },
             ],
         )
@@ -166,6 +168,7 @@ async fn an_info_refresh_does_not_clear_an_existing_mod_count() {
             vec![ServerMod {
                 workshop_id: 1559212036,
                 name: "CF".into(),
+                hash: None,
             }],
         )
         .await
@@ -493,6 +496,32 @@ async fn favouriting_or_marking_played_an_unknown_key_reports_zero_affected_rows
 }
 
 #[tokio::test]
+async fn mods_read_back_from_the_registry_carry_no_server_hash() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let writer = registry.writer();
+    writer.upsert_servers(vec![live_row()]).await.expect("seed");
+    writer
+        .upsert_server_mods(
+            key(10),
+            vec![ServerMod {
+                workshop_id: 1,
+                name: "Expansion".into(),
+                hash: Some(0x4433_2211),
+            }],
+        )
+        .await
+        .expect("named");
+
+    let stored = registry
+        .reader()
+        .expect("reader")
+        .mods_for(key(10))
+        .expect("mods");
+    assert_eq!(stored.len(), 1);
+    assert_eq!(stored[0].hash, None);
+}
+
+#[tokio::test]
 async fn an_unchanged_mod_list_keeps_resolved_names_and_still_learns_new_ones() {
     let registry = Registry::open_in_memory().expect("registry");
     let writer = registry.writer();
@@ -502,6 +531,7 @@ async fn an_unchanged_mod_list_keeps_resolved_names_and_still_learns_new_ones() 
             .map(|&(workshop_id, name)| ServerMod {
                 workshop_id,
                 name: name.into(),
+                hash: None,
             })
             .collect::<Vec<_>>()
     };

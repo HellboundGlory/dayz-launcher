@@ -84,6 +84,10 @@
   @apply min-w-0 truncate text-ink;
 }
 
+.t-neutral-servers-version-warning {
+  @apply shrink-0 text-warn;
+}
+
 .t-neutral-servers-details {
   @apply mt-0.5 flex items-center gap-2.5 whitespace-nowrap [font-size:var(--t-type-rowMeta-size)] text-muted;
 }

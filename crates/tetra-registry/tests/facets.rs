@@ -36,6 +36,7 @@ fn mods(list: &[(&str, u64)]) -> Vec<ServerMod> {
         .map(|&(name, workshop_id)| ServerMod {
             workshop_id,
             name: name.into(),
+            hash: None,
         })
         .collect()
 }
@@ -882,6 +883,7 @@ async fn counting_the_lists_for_twenty_seven_thousand_servers() {
                 ServerMod {
                     workshop_id: u64::from(id),
                     name: format!("Mod {id}"),
+                    hash: None,
                 }
             })
             .collect();

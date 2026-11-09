@@ -115,6 +115,9 @@ use crate::a2s::rules::parse_rules;
 pub struct ServerMod {
     pub workshop_id: u64,
     pub name: String,
+    /// The publisher's short hash as the server sent it; `None` when the list
+    /// came from the registry.
+    pub hash: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -197,7 +200,8 @@ pub fn parse_packed(payload: &[u8]) -> Result<PackedPayload, PackedError> {
 
     let mut mods = Vec::with_capacity(mod_count);
     for n in 0..mod_count {
-        let _hash = p.take(4)?;
+        let h = p.take(4)?;
+        let hash = u32::from_le_bytes([h[0], h[1], h[2], h[3]]);
         // Only the low nibble carries the workshop-id width; top bits are
         // unrelated flags.
         let id_len = p.u8()? & 0x0F;
@@ -218,7 +222,11 @@ pub fn parse_packed(payload: &[u8]) -> Result<PackedPayload, PackedError> {
             }
         };
         let name = p.lp_string(&format!("mod {n} name"))?;
-        mods.push(ServerMod { workshop_id, name });
+        mods.push(ServerMod {
+            workshop_id,
+            name,
+            hash: Some(hash),
+        });
     }
 
     let key_count = p.u8()? as usize;
@@ -431,6 +439,7 @@ mod tests {
         assert_eq!(parsed.mods.len(), 1);
         assert_eq!(parsed.mods[0].workshop_id, 0x33221100);
         assert_eq!(parsed.mods[0].name, "test");
+        assert_eq!(parsed.mods[0].hash, Some(0x44332211));
     }
 
     fn payload_with(flag_bits: u8, tail: &[u8]) -> Vec<u8> {
@@ -488,6 +497,7 @@ mod tests {
         assert_eq!(p.mods.len(), 1);
         assert_eq!(p.mods[0].workshop_id, 0x33221100);
         assert_eq!(p.mods[0].name, "test");
+        assert_eq!(p.mods[0].hash, Some(0x44332211));
     }
 
     #[test]
@@ -501,5 +511,9 @@ mod tests {
         assert!(names.contains(&"Community Framework"));
         assert!(names.contains(&"DayZ-Expansion-Core"));
         assert!(names.contains(&"BaseBuildingPlus"));
+        assert!(
+            payload.mods.iter().all(|m| m.hash.is_some()),
+            "every mod in the real reply carries its hash"
+        );
     }
 }

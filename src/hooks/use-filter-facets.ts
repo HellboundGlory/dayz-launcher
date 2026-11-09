@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerStore } from "@/stores/server-store";
 import { useSettingsStore } from "@/stores/settings-store";
+import { loadInstalledVersion, useLoadedVersion } from "@/stores/installed-version-store";
 import { filterParamsFor } from "@/hooks/use-server-data-loader";
-import { getFilterFacets, getInstalledDayzVersion, type FilterFacets } from "@/lib/tauri";
+import { getFilterFacets, type FilterFacets } from "@/lib/tauri";
 import type { ServerFilter } from "@/types/filters";
 
 const DEBOUNCE_MS = 250;
@@ -85,17 +86,10 @@ export function loadFilterFacets(
 /** The installed DayZ version, read once per DayZ folder setting; null while unknown. */
 export function useInstalledDayzVersion(): string | null {
   const dayzPath = useSettingsStore((s) => s.dayzPath);
-  const [version, setVersion] = useState<string | null>(null);
+  const version = useLoadedVersion(dayzPath);
 
   useEffect(() => {
-    let live = true;
-    setVersion(null);
-    void getInstalledDayzVersion(dayzPath).then((found) => {
-      if (live) setVersion(found);
-    });
-    return () => {
-      live = false;
-    };
+    void loadInstalledVersion(dayzPath);
   }, [dayzPath]);
 
   return version;

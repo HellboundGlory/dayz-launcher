@@ -318,6 +318,9 @@
                     "direction": "column",
                     "children": [
                       {
+                        "element": "server.modDiffers"
+                      },
+                      {
                         "element": "server.actionNotice"
                       },
                       {
@@ -661,6 +664,9 @@
                     "id": "r-actions",
                     "direction": "column",
                     "children": [
+                      {
+                        "element": "server.modDiffers"
+                      },
                       {
                         "element": "server.actionNotice"
                       },

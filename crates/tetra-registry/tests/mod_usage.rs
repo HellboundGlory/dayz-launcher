@@ -48,6 +48,7 @@ async fn usage_counts_every_server_and_the_cared_subset() {
                     .map(|id| ServerMod {
                         workshop_id: id,
                         name: id.to_string(),
+                        hash: None,
                     })
                     .collect(),
             )
@@ -109,6 +110,7 @@ async fn unique_mods_are_those_no_other_cared_server_declares() {
                     .map(|id| ServerMod {
                         workshop_id: id,
                         name: id.to_string(),
+                        hash: None,
                     })
                     .collect(),
             )
@@ -158,6 +160,7 @@ async fn servers_needing_only_lists_favourites_in_played_order() {
                 vec![ServerMod {
                     workshop_id: MOD_A,
                     name: MOD_A.to_string(),
+                    hash: None,
                 }],
             )
             .await

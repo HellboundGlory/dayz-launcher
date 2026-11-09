@@ -23,6 +23,8 @@ const {
   steamModStates,
   steamDownloadProgress,
   steamSubscribeMods,
+  getInstalledDayzVersion,
+  reinstallSubscribedMod,
 } = vi.hoisted(() => ({
   passwordStatus: vi.fn<(addr: string) => Promise<{ saved: boolean; keyring: boolean }>>(),
   launchGame: vi.fn<(addr: string, gamePort: number, options: unknown) => Promise<LaunchOutcome>>(),
@@ -30,6 +32,8 @@ const {
   steamModStates: vi.fn<(ids: string[]) => Promise<ModStateEntry[]>>(),
   steamDownloadProgress: vi.fn<(ids: string[]) => Promise<DownloadProgress[]>>(),
   steamSubscribeMods: vi.fn<(ids: string[]) => Promise<MutationOutcome>>(),
+  getInstalledDayzVersion: vi.fn<(path: string | null) => Promise<string | null>>(),
+  reinstallSubscribedMod: vi.fn<(id: string) => Promise<void>>(),
 }));
 
 vi.mock("@/lib/tauri", () => ({
@@ -40,6 +44,8 @@ vi.mock("@/lib/tauri", () => ({
   steamModStates,
   steamDownloadProgress,
   steamSubscribeMods,
+  getInstalledDayzVersion,
+  reinstallSubscribedMod,
 }));
 
 const { checkMemoryMap } = vi.hoisted(() => ({
@@ -128,6 +134,8 @@ beforeEach(() => {
   steamSubscribeMods.mockReset().mockResolvedValue({ succeeded: 0, failures: [] });
   passwordStatus.mockReset().mockResolvedValue({ saved: false, keyring: true });
   usePasswordStore.getState().cancel();
+  getInstalledDayzVersion.mockReset().mockResolvedValue(null);
+  reinstallSubscribedMod.mockReset().mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -319,6 +327,145 @@ describe("verifyAndJoin", () => {
 
     expect(launchGame).toHaveBeenCalledOnce();
   });
+
+  it("stops at Cancel when the game versions differ", async () => {
+    const { useConfirmStore } = await import("@/stores/confirm-store");
+    useSettingsStore.setState({ dayzPath: "/dayz-cancel" });
+    getInstalledDayzVersion.mockResolvedValue("1.30.164289");
+    renderActions();
+
+    const pending = verifyAndJoin({ ...server, version: "1.28.161464" });
+    await vi.advanceTimersByTimeAsync(0);
+
+    const request = useConfirmStore.getState().request;
+    expect(request?.title).toBe("Different game version");
+    useConfirmStore.getState().resolve(false);
+    await pending;
+
+    expect(verifyServerMods).not.toHaveBeenCalled();
+    expect(launchGame).not.toHaveBeenCalled();
+    expect(useLaunchStore.getState().op).toBeNull();
+  });
+
+  it("joins normally after Join anyway on a version mismatch", async () => {
+    const { useConfirmStore } = await import("@/stores/confirm-store");
+    useSettingsStore.setState({ dayzPath: "/dayz-anyway" });
+    getInstalledDayzVersion.mockResolvedValue("1.30.164289");
+    renderActions();
+
+    const pending = verifyAndJoin({ ...server, version: "1.28.161464" });
+    await vi.advanceTimersByTimeAsync(0);
+
+    useConfirmStore.getState().resolve(true);
+    await pending;
+
+    expect(verifyServerMods).toHaveBeenCalledOnce();
+    expect(launchGame).toHaveBeenCalledOnce();
+  });
+
+  it("asks before joining when a mod copy differs", async () => {
+    const { useConfirmStore } = await import("@/stores/confirm-store");
+    verifyServerMods.mockResolvedValue({
+      mods: [{ workshop_id: "1001", name: "Community Framework" }],
+      refreshed: [],
+      checked_workshop: true,
+      differing: ["1001"],
+    });
+    renderActions();
+
+    const pending = verifyAndJoin(server);
+    await vi.advanceTimersByTimeAsync(0);
+
+    const request = useConfirmStore.getState().request;
+    expect(request?.title).toBe("Mod differs from the server's copy");
+    expect(request?.confirmLabel).toBe("Fix and join");
+    expect(request?.altLabel).toBe("Join anyway");
+    useConfirmStore.getState().resolveAlt();
+    await pending;
+
+    expect(launchGame).toHaveBeenCalledOnce();
+  });
+
+  it("runs Fix and join without launching in that call", async () => {
+    const { useConfirmStore } = await import("@/stores/confirm-store");
+    const declared = [{ workshop_id: "1001", name: "Community Framework" }];
+    verifyServerMods
+      .mockResolvedValueOnce({ mods: declared, refreshed: [], checked_workshop: true, differing: ["1001"] })
+      .mockRejectedValue(new Error("Steam went away"));
+    steamModStates
+      .mockResolvedValueOnce([{ workshop_id: "1001", state: "downloading" }])
+      .mockResolvedValue([{ workshop_id: "1001", state: "ready" }]);
+    renderActions();
+
+    const pending = verifyAndJoin(server);
+    await vi.advanceTimersByTimeAsync(0);
+    useConfirmStore.getState().resolve(true);
+    await vi.advanceTimersByTimeAsync(2000);
+    await pending;
+
+    expect(reinstallSubscribedMod).toHaveBeenCalledWith("1001");
+    expect(launchGame).not.toHaveBeenCalled();
+  });
+
+  it("never joins when the wait is cancelled during Fix and join", async () => {
+    const { useConfirmStore } = await import("@/stores/confirm-store");
+    const declared = [{ workshop_id: "1001", name: "Community Framework" }];
+    verifyServerMods.mockResolvedValue({
+      mods: declared,
+      refreshed: [],
+      checked_workshop: true,
+      differing: ["1001"],
+    });
+    let finishReinstall!: () => void;
+    reinstallSubscribedMod.mockImplementation(() => new Promise<void>((r) => (finishReinstall = r)));
+    renderActions();
+
+    const pending = verifyAndJoin(server);
+    await vi.waitFor(() => expect(useConfirmStore.getState().request).not.toBeNull());
+    useConfirmStore.getState().resolve(true);
+    await vi.waitFor(() => expect(reinstallSubscribedMod).toHaveBeenCalled());
+    cancelWait();
+    finishReinstall();
+    await vi.advanceTimersByTimeAsync(6000);
+    await pending;
+
+    expect(verifyServerMods).toHaveBeenCalledOnce();
+    expect(launchGame).not.toHaveBeenCalled();
+  });
+
+  it("launches nothing when the differing-mod prompt is cancelled", async () => {
+    const { useConfirmStore } = await import("@/stores/confirm-store");
+    verifyServerMods.mockResolvedValue({
+      mods: [{ workshop_id: "1001", name: "Community Framework" }],
+      refreshed: [],
+      checked_workshop: true,
+      differing: ["1001"],
+    });
+    renderActions();
+
+    const pending = verifyAndJoin(server);
+    await vi.advanceTimersByTimeAsync(0);
+    useConfirmStore.getState().resolve(false);
+    await pending;
+
+    expect(launchGame).not.toHaveBeenCalled();
+  });
+
+  it("never asks about differing mods when loading to the menu", async () => {
+    const { useConfirmStore } = await import("@/stores/confirm-store");
+    verifyServerMods.mockResolvedValue({
+      mods: [{ workshop_id: "1001", name: "Community Framework" }],
+      refreshed: [],
+      checked_workshop: true,
+      differing: ["1001"],
+    });
+    renderActions();
+
+    await verifyAndJoin(server, true);
+
+    expect(useConfirmStore.getState().request).toBeNull();
+    expect(launchGame).toHaveBeenCalledOnce();
+  });
 });
 
 describe("locked servers", () => {
@@ -355,6 +502,45 @@ describe("locked servers", () => {
       locked.addr,
       locked.game_port,
       expect.objectContaining({ password: "hunter2", rememberPassword: true }),
+    );
+  });
+
+  it("asks nothing twice after Fix and join and keeps the typed password", async () => {
+    const { useConfirmStore } = await import("@/stores/confirm-store");
+    getInstalledDayzVersion.mockResolvedValue("1.30.164289");
+    const declared = [{ workshop_id: "1001", name: "Community Framework" }];
+    // The copy still differs after the download: the server runs an older version.
+    verifyServerMods.mockResolvedValue({
+      mods: declared,
+      refreshed: [],
+      checked_workshop: true,
+      differing: ["1001"],
+    });
+    steamModStates
+      .mockResolvedValueOnce([{ workshop_id: "1001", state: "downloading" }])
+      .mockResolvedValue([{ workshop_id: "1001", state: "ready" }]);
+    renderActions();
+
+    const pending = verifyAndJoin(locked);
+    await vi.waitFor(() => expect(usePasswordStore.getState().request).not.toBeNull());
+    usePasswordStore.getState().setDraft("hunter2");
+    usePasswordStore.getState().submit();
+    await vi.waitFor(() =>
+      expect(useConfirmStore.getState().request?.title).toBe("Different game version"),
+    );
+    useConfirmStore.getState().resolve(true);
+    await vi.waitFor(() => expect(useConfirmStore.getState().request).not.toBeNull());
+    useConfirmStore.getState().resolve(true);
+    await vi.advanceTimersByTimeAsync(6000);
+    await pending;
+
+    expect(passwordStatus).toHaveBeenCalledOnce();
+    expect(useConfirmStore.getState().request).toBeNull();
+    expect(launchGame).toHaveBeenCalledOnce();
+    expect(launchGame).toHaveBeenCalledWith(
+      locked.addr,
+      locked.game_port,
+      expect.objectContaining({ password: "hunter2" }),
     );
   });
 

@@ -38,6 +38,7 @@ export const SERVER_MODS_LIST: LayoutFile = {
               { element: "serverMod.progress", class: "t-neutral-servermods-progress" },
             ],
           },
+          { element: "serverMod.note", class: "t-neutral-servermods-note" },
         ],
       },
       {

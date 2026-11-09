@@ -48,6 +48,8 @@ export interface ModReadinessEntry {
   is_unique: boolean;
   downloaded_bytes: number | null;
   total_bytes: number | null;
+  /** The local copy differs from the server's; only a live check can tell. */
+  differs?: boolean;
 }
 
 export interface UniqueModsSummary {

@@ -587,6 +587,37 @@ describe("serverMod elements", () => {
       const custom = renderWithServerMod(<ServerModState options={{ label: "Ready to go" }} />, { state: "ready" });
       expect(custom).toContain("Ready to go");
     });
+
+    it("reads Differs for a ready mod whose copy differs", async () => {
+      const { ServerModState } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModState />, { state: "ready", differs: true });
+      expect(html).toContain('data-state="differs"');
+      expect(html).toContain("Differs");
+      expect(html).not.toContain("Ready");
+    });
+
+    it("keeps the plain state for a differing mod that is not ready", async () => {
+      const { ServerModState } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModState />, { state: "needs_update", differs: true });
+      expect(html).toContain('data-state="needsUpdate"');
+      expect(html).toContain("Needs update");
+    });
+  });
+
+  describe("ServerModNote", () => {
+    it("says nothing for a mod that matches the server's copy", async () => {
+      const { ServerModNote } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModNote />, { state: "ready" });
+      expect(html).toBe("");
+    });
+
+    it("explains the signature error when the copy differs", async () => {
+      const { ServerModNote } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModNote />, { state: "ready", differs: true });
+      expect(html).toContain('data-el="serverMod.note"');
+      expect(html).toContain("Your copy doesn&#x27;t match the server&#x27;s.");
+      expect(html).toContain("signature error");
+    });
   });
 
   describe("ServerModSize", () => {

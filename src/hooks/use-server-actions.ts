@@ -12,6 +12,9 @@ import {
   steamSubscribeMods,
   type ModState,
 } from "@/lib/tauri";
+import { useConfirmStore } from "@/stores/confirm-store";
+import { confirmGameVersion } from "@/lib/join-gates/game-version";
+import { differingWording, fixDifferingMods, SIGNATURE_ERROR } from "@/hooks/fix-differing-mods";
 import { formatBytes } from "@/lib/utils";
 import { playerMessage } from "@/lib/player-message";
 import { passwordGate, type JoinPassword } from "@/lib/join-password";
@@ -95,6 +98,28 @@ function isActionable(state: ModState) {
   return state !== "not_on_workshop";
 }
 
+/**
+ * Asks what to do about mods whose local copy differs from the server's.
+ * "fix" re-downloads them first, "join" carries on, "cancel" stops the join.
+ */
+function askDifferingMods(ids: string[]): Promise<"fix" | "join" | "cancel"> {
+  return new Promise((resolve) => {
+    useConfirmStore.getState().ask(
+      "Mod differs from the server's copy",
+      `${differingWording(ids.length)} ${SIGNATURE_ERROR}`,
+      () => resolve("fix"),
+      "Fix and join",
+      {
+        altLabel: "Join anyway",
+        onAlt: () => resolve("join"),
+        onCancel: () => resolve("cancel"),
+        destructive: false,
+        warning: true,
+      },
+    );
+  });
+}
+
 export function useServerActions() {
   const profileName = useSettingsStore((s) => s.profileName);
   const dayzPath = useSettingsStore((s) => s.dayzPath);
@@ -147,14 +172,21 @@ export function useServerActions() {
   // Verify, fix, then join — the one path behind JOIN / Load to menu.
   // `server` is always the caller's explicit target, never the table's
   // global selection (which can differ from the row/modal that was clicked).
-  async function verifyAndJoin(server: Server, toMenu = false) {
+  // `resumed` is the join coming back after Fix and join: its questions were
+  // already answered, so it carries the password and asks nothing again.
+  async function verifyAndJoin(server: Server, toMenu = false, resumed?: JoinPassword) {
     const addr = server.addr;
     const queryPort = server.query_port;
     const gamePort = server.game_port;
 
-    const pw = await passwordGate(server, toMenu);
-    if (!pw) return;
-    if (!(await checkMemoryMap())) return;
+    let pw = resumed;
+    if (!pw) {
+      pw = (await passwordGate(server, toMenu)) ?? undefined;
+      if (!pw) return;
+      if (!(await confirmGameVersion(server, toMenu))) return;
+      if (!(await checkMemoryMap())) return;
+    }
+    const joinPassword = pw;
 
     const cancel = beginOp(addr, server.name || addr);
     setStoreNotice(addr, null);
@@ -164,6 +196,23 @@ export function useServerActions() {
       const verified = await verifyServerMods(addr, queryPort);
       if (cancel.cancelled) return;
 
+      if (!resumed && !toMenu && (verified.differing?.length ?? 0) > 0) {
+        const differing = verified.differing ?? [];
+        const choice = await askDifferingMods(differing);
+        if (cancel.cancelled) return;
+        if (choice === "cancel") return;
+        if (choice === "fix") {
+          setPhase("downloading", "DOWNLOADING AGAIN…");
+          await fixDifferingMods(
+            server,
+            differing,
+            (s) => verifyAndJoin(s, false, joinPassword),
+            () => cancel.cancelled,
+          );
+          return;
+        }
+      }
+
       // Flag it rather than silently proceeding on Steam's cached opinion.
       if (!verified.checked_workshop) {
         setStoreNotice(addr, { kind: "code", code: "W01" });
@@ -171,7 +220,7 @@ export function useServerActions() {
 
       const ids = verified.mods.map((m) => m.workshop_id);
       if (ids.length === 0) {
-        await launch(addr, gamePort, toMenu, pw);
+        await launch(addr, gamePort, toMenu, joinPassword);
         return;
       }
 
@@ -252,7 +301,7 @@ export function useServerActions() {
 
       setNote(null);
 
-      await launch(addr, gamePort, toMenu, pw);
+      await launch(addr, gamePort, toMenu, joinPassword);
     } catch (e) {
       void logClient("launch", `join check failed: ${String(e)}`);
       setStoreNotice(addr, { kind: "plain", text: playerMessage(String(e), MOD_CHECK_FAILED) });

@@ -107,7 +107,7 @@
     "server.deselect": "Reads \"Close details\" and clears the selection.",
     "server.tags": "Renders chips in the order offline, official (VANILLA or OFFICIAL), modded, first person (1PP), BattlEye, locked, mod update.",
     "server.modUpdate": "Renders \"UPDATE\" only while a declared mod has a pending Steam update.",
-    "serverMod.state": "**Wording**\n\n| State | Wording |\n|---|---|\n| `ready` | \"Ready\" |\n| `needsUpdate` | \"Needs update\" |\n| `downloading` | \"Downloading\" |\n| `notInstalled` | \"Not installed\" |\n| `notSubscribed` | \"Not subscribed\" |\n| `serverSide` | \"Unlisted\" |\n| `checking` | \"Checking…\" |",
+    "serverMod.state": "**Wording**\n\n| State | Wording |\n|---|---|\n| `ready` | \"Ready\" |\n| `differs` | \"Differs\" |\n| `needsUpdate` | \"Needs update\" |\n| `downloading` | \"Downloading\" |\n| `notInstalled` | \"Not installed\" |\n| `notSubscribed` | \"Not subscribed\" |\n| `serverSide` | \"Unlisted\" |\n| `checking` | \"Checking…\" |\n\nA mod reads `differs` only when it is ready and the live check found its local copy hashes differently from the server's.",
     "serverMod.size": "Shows nothing for `ready` (the state already says so), \"up to {size}\" when the size is an upper bound, else the size to one decimal place, or \"—\" when unknown.",
     "serverMod.progress": "Renders only while downloading, and is `indeterminate` until Steam reports a total.",
     "serverMod.unique": "Reads \"Only this server\" when no other cared-about server needs the mod.",
@@ -168,7 +168,10 @@
     "settings.startMinimised": "Disabled unless Start with Windows is on.",
     "popup.regionNote": "Reads \"Approximate — based on IP block, not confirmed location\".",
     "popup.clear": "Reads \"Clear\" and resets that filter.",
-    "popup.close": "Required only where a popup can't be dismissed by clicking outside an anchored panel, so a region or inline popup always has a way out."
+    "popup.close": "Required only where a popup can't be dismissed by clicking outside an anchored panel, so a region or inline popup always has a way out.",
+    "serverMod.note": "One line saying the local copy doesn't match the server's and that a join may be refused with a signature error. It renders nothing unless that mod's state is `ready` and its copy differs, so the plain registry read never shows it.",
+    "server.modDiffers": "The warning above Join: how many of this server's mods differ, with a Fix and join button that re-downloads them first. It needs a live Check mods to have run (the plain readiness read carries no hashes), and renders nothing in a list row, where readiness is never fetched.",
+    "server.versionWarning": "A small triangle naming both builds, for a server on another DayZ version. It renders nothing when the versions match or the installed one can't be read."
   },
   "sections": {
     "surfaces": "A surface is placed whole. Its elements keep their own ids, states and parts, so CSS still reaches them; only its arrangement is fixed. Placing a surface satisfies the requirements of every required element inside it, and counts as one placement of each element inside it — so placing `surface.filterBar` and a separate `filter.search` in the same composition is a multiplicity error.",

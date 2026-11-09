@@ -552,6 +552,7 @@ impl Reader {
                 Ok(ServerMod {
                     workshop_id: r.get::<_, i64>(0)? as u64,
                     name: r.get(1)?,
+                    hash: None,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;

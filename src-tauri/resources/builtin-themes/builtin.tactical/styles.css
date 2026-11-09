@@ -2688,6 +2688,21 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   gap: 8px;
 }
 
+[data-el="serverMod.note"] {
+  color: var(--muted2);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+[data-el="server.versionWarning"] {
+  flex: none;
+  color: var(--warn);
+}
+
+[data-region="r-actions"] [data-el="server.modDiffers"] {
+  margin-bottom: 8px;
+}
+
 [data-el="serverMod.progress"] {
   position: relative;
   flex: 1 1 auto;

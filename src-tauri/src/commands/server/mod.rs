@@ -514,6 +514,7 @@ mod tests {
                 vec![ServerMod {
                     workshop_id: 1,
                     name: "CF".into(),
+                    hash: None,
                 }],
             )
             .await
@@ -524,6 +525,7 @@ mod tests {
                 vec![ServerMod {
                     workshop_id: 1,
                     name: "CF".into(),
+                    hash: None,
                 }],
             )
             .await

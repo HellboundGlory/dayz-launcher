@@ -28,6 +28,7 @@ fn mods(entries: &[(u64, &str)]) -> Vec<ServerMod> {
         .map(|&(workshop_id, name)| ServerMod {
             workshop_id,
             name: name.into(),
+            hash: None,
         })
         .collect()
 }
