@@ -59,7 +59,7 @@
    }
   ],
   "security": {
-   "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost https://api.github.com; img-src 'self' data: https://images.steamusercontent.com tetra-theme: http://tetra-theme.localhost; style-src 'self' tetra-theme: http://tetra-theme.localhost; font-src 'self' tetra-theme: http://tetra-theme.localhost; object-src 'none'"
+   "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost; img-src 'self' data: https://images.steamusercontent.com tetra-theme: http://tetra-theme.localhost; style-src 'self' tetra-theme: http://tetra-theme.localhost; font-src 'self' tetra-theme: http://tetra-theme.localhost; object-src 'none'"
   }
  },
  "bundle": {
@@ -96,6 +96,7 @@
  "plugins": {
   "updater": {
    "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlERjQ1QjlEODYxNUNBREMKUldUY3loV0duVnYwblJSMjBySTA5VFJ3bkphTWJ2NEpveHA4NEJBcW1wYUYwdnNMdnFZL0ZSdkcK",
+   "requireSignedVersion": true,
    "endpoints": [
     "https://github.com/HellboundGlory/dayz-launcher/releases/latest/download/latest.json"
    ]

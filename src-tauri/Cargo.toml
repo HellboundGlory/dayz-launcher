@@ -19,7 +19,6 @@ tauri = { version = "2", features = ["tray-icon"] }
 # registered here (and permissioned in capabilities/default.json) without
 # a single call site: settings are read/written by commands::settings through
 # std::fs.
-tauri-plugin-shell = "2"
 tauri-plugin-process = "2"
 # The first-launch setup modal's Browse button — everywhere else, path
 # discovery still goes through commands::launch, not a dialog.
@@ -40,6 +39,8 @@ tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
 serde = { workspace = true }
 serde_json = { workspace = true }
+# Release-notes fetch from the GitHub API.
+reqwest = { workspace = true }
 tokio = { workspace = true }
 # Reading a theme `.zip` for import — validation and staging only, never
 # extraction into the themes directory (see `theme::archive`).

@@ -57,17 +57,11 @@ export async function installUpdate(
   await relaunch();
 }
 
-// Fallback for the update dialog's changelog when latest.json has no notes —
-// pulls the release body from the GitHub API instead.
+// Fallback for the update dialog's changelog when latest.json has no notes.
+// The fetch runs in Rust, which caps the body and returns null on any failure.
 export async function fetchReleaseNotes(version: string): Promise<string | null> {
   try {
-    const res = await fetch(
-      `https://api.github.com/repos/HellboundGlory/dayz-launcher/releases/tags/v${encodeURIComponent(version)}`,
-    );
-    if (!res.ok) return null;
-    const data = (await res.json()) as { body?: string };
-    const body = (data.body ?? "").trim();
-    return body || null;
+    return await invoke<string | null>("fetch_release_notes", { version });
   } catch {
     return null;
   }

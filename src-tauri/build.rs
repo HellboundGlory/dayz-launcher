@@ -70,6 +70,8 @@ const COMMANDS: &[&str] = &[
     "watch_active_theme",
     "stop_watching_theme",
     "is_installed_copy",
+    "open_external_url",
+    "fetch_release_notes",
 ];
 
 fn main() {

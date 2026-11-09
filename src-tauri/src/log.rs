@@ -73,6 +73,68 @@ fn write_line(app: &AppHandle, line: &str) {
     append(&mut slot, &path(app), line, MAX_LOG_BYTES);
 }
 
+/// Install a panic hook that appends one line to the log file, then runs the
+/// previous hook so stderr output and exit behaviour are unchanged. A panic
+/// before `init` runs, or one taken while the log's lock is held, reaches
+/// stderr only.
+pub fn install_panic_hook() {
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let line = panic_line(
+            std::thread::current().name(),
+            &payload_text(info.payload()),
+            info.location(),
+        );
+        write_panic(&line);
+        previous(info);
+    }));
+}
+
+/// Best-effort append from inside the hook. Nothing here may panic or unwrap:
+/// a panic inside a panic hook aborts the process.
+fn write_panic(line: &str) {
+    let Some(app) = APP.get() else {
+        return eprint!("{line}");
+    };
+    let Some(state) = app.try_state::<crate::state::AppState>() else {
+        return eprint!("{line}");
+    };
+    // A held lock means we panicked inside the writer that took it.
+    let Ok(mut slot) = state.log_file.try_lock() else {
+        return eprint!("{line}");
+    };
+    append(&mut slot, &path(app), line, MAX_LOG_BYTES);
+}
+
+/// The text of a panic payload when it is a string, else a fixed stand-in.
+fn payload_text(payload: &(dyn std::any::Any + Send)) -> String {
+    if let Some(text) = payload.downcast_ref::<&str>() {
+        (*text).to_string()
+    } else if let Some(text) = payload.downcast_ref::<String>() {
+        text.clone()
+    } else {
+        "non-text panic payload".to_string()
+    }
+}
+
+/// One log line for a panic: thread, location and sanitised message.
+fn panic_line(
+    thread: Option<&str>,
+    message: &str,
+    location: Option<&std::panic::Location<'_>>,
+) -> String {
+    let thread = sanitise(thread.unwrap_or("unnamed"));
+    let at = match location {
+        Some(location) => format!(" at {location}"),
+        None => String::new(),
+    };
+    format!(
+        "[{}] [PANIC] thread '{thread}' panicked{at}: {}\n",
+        stamp(),
+        sanitise(message)
+    )
+}
+
 /// Append `line` through the handle in `slot`, opening it on first use, and
 /// rotate in place once the file passes `max_bytes`. The caller holds the lock
 /// for the whole call, so no other writer can append mid-rotation.
@@ -147,11 +209,65 @@ fn stamp() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{append, sanitise, MAX_FIELD_LEN};
+    use super::{append, panic_line, payload_text, sanitise, MAX_FIELD_LEN, MAX_LOG_BYTES};
     use std::fs::File;
     use std::sync::Mutex;
 
     const BODY: &str = "xxxxxxxxxxxxxxxxxxxx";
+
+    #[test]
+    fn a_panic_on_another_thread_reaches_the_log_file() {
+        let dir = std::env::temp_dir().join(format!("tetra-log-panic-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("tetra-launcher.log");
+        let _ = std::fs::remove_file(&path);
+
+        let payload = std::thread::Builder::new()
+            .name("worker-x".into())
+            .spawn(|| panic!("boom 7"))
+            .unwrap()
+            .join()
+            .expect_err("the thread must panic");
+
+        let message = payload_text(&*payload);
+        let location = std::panic::Location::caller();
+        let line = panic_line(Some("worker-x"), &message, Some(location));
+
+        let mut slot: Option<File> = None;
+        append(&mut slot, &path, &line, MAX_LOG_BYTES);
+        let text = std::fs::read_to_string(&path).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+
+        for needle in ["[PANIC]", "worker-x", "boom 7", "log.rs"] {
+            assert!(text.contains(needle), "{needle} missing from {text:?}");
+        }
+        assert!(text.ends_with('\n'), "{text:?}");
+        assert_eq!(text.matches('\n').count(), 1, "{text:?}");
+    }
+
+    #[test]
+    fn payload_text_reads_the_text_payloads_and_names_anything_else() {
+        let owned: Box<dyn std::any::Any + Send> = Box::new(String::from("owned text"));
+        assert_eq!(payload_text(&*owned), "owned text");
+
+        let borrowed: Box<dyn std::any::Any + Send> = Box::new("borrowed text");
+        assert_eq!(payload_text(&*borrowed), "borrowed text");
+
+        let number: Box<dyn std::any::Any + Send> = Box::new(42_i32);
+        assert_eq!(payload_text(&*number), "non-text panic payload");
+    }
+
+    #[test]
+    fn a_panic_message_with_a_newline_stays_on_one_line() {
+        let line = panic_line(
+            Some("main"),
+            "first\nsecond",
+            Some(std::panic::Location::caller()),
+        );
+        assert_eq!(line.matches('\n').count(), 1, "{line:?}");
+        assert!(line.contains("firstsecond"), "{line:?}");
+        assert!(line.contains("thread 'main' panicked at"), "{line:?}");
+    }
 
     #[test]
     fn writers_sharing_the_handle_across_rotation_keep_whole_lines() {

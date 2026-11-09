@@ -272,13 +272,24 @@ pub fn spawn_steam_with_url(exe_path: &std::path::Path, url: &str) -> Result<(),
 
 /// Show a file or folder in the desktop's own file manager, without waiting.
 pub fn open_with_desktop(target: &OsStr) -> Result<(), SpawnError> {
+    // The system copy by full path: a bare name is looked up next to the
+    // launcher first, where a planted explorer.exe would run instead.
     #[cfg(target_os = "windows")]
-    let mut cmd = Command::new("explorer");
+    let mut cmd = Command::new(
+        std::env::var_os("SystemRoot")
+            .map(|root| PathBuf::from(root).join("explorer.exe"))
+            .unwrap_or_else(|| PathBuf::from(r"C:\Windows\explorer.exe")),
+    );
     #[cfg(not(target_os = "windows"))]
     let mut cmd = Command::new("xdg-open");
     cmd.arg(target);
     without_appimage_env(&mut cmd);
-    cmd.spawn().map(|_child| ()).map_err(SpawnError::Launch)
+    let mut child = cmd.spawn().map_err(SpawnError::Launch)?;
+    // Reap it in the background so each click leaves no zombie behind.
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
 }
 
 /// Locate the DayZ executable — prefers `DayZ_BE.exe`, falls back to `DayZ_x64.exe`.

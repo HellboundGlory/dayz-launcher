@@ -59,6 +59,7 @@ fn reveal_main_window(app: &AppHandle) {
 }
 
 pub fn run() {
+    crate::log::install_panic_hook();
     tauri::Builder::default()
         // First, ahead of every other plugin: a duplicate launch must die
         // before it opens the registry or starts a second Steam session.
@@ -68,7 +69,6 @@ pub fn run() {
             protocol::handle_argv(app, &argv);
             reveal_main_window(app);
         }))
-        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -198,6 +198,8 @@ pub fn run() {
             commands::theme::watch_active_theme,
             commands::theme::stop_watching_theme,
             commands::update::is_installed_copy,
+            commands::update::open_external_url,
+            commands::update::fetch_release_notes,
         ])
         .setup(|app| {
             crate::log::init(app.handle());

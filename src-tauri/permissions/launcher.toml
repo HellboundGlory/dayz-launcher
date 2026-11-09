@@ -71,4 +71,6 @@ permissions = [
     "allow-watch-active-theme",
     "allow-stop-watching-theme",
     "allow-is-installed-copy",
+    "allow-open-external-url",
+    "allow-fetch-release-notes",
 ]
