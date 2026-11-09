@@ -4,7 +4,7 @@ import { useServerStore } from "@/stores/server-store";
 import type { ServerFilter } from "@/types/filters";
 import { useInstalledDayzVersion } from "@/hooks/use-filter-facets";
 import { useViewportWidth } from "../renderer/use-viewport-width";
-import { mapDisplayValue, regionDisplayValue } from "./popup-elements";
+import { countryDisplayValue, mapDisplayValue } from "./popup-elements";
 import { modsFilterValue } from "./filter-elements";
 import { NARROW_MENU_WIDTH, resetKeepingSearch } from "./filter-menu";
 
@@ -38,7 +38,7 @@ export function activeFilterChips(
     chips.push({
       key: "countries",
       prefix: "Country",
-      value: regionDisplayValue(filter.countries),
+      value: countryDisplayValue(filter.countries),
       clear: { countries: [] },
     });
   }

@@ -130,10 +130,10 @@ describe("activeFilterChips", () => {
     },
     {
       name: "country",
-      patch: { countries: ["EU"] },
+      patch: { countries: ["DE"] },
       key: "countries",
       prefix: "Country",
-      value: "Europe",
+      value: "Germany",
       clear: { countries: [] },
     },
     { name: "official", patch: { official: true }, key: "official", prefix: "", value: "Official", clear: { official: null } },

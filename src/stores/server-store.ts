@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { Server } from "@/types/server";
 import type { ServerFilter, SortKey, SortDir } from "@/types/filters";
 import { PING_PRESETS } from "@/types/filters";
+import { legacyRegionCountries } from "@/lib/countries";
 
 export type ServerLookup = { addr: string; state: "asking" | "noanswer" };
 
@@ -110,6 +111,19 @@ export function snapPing(v: unknown): number | null {
   return best;
 }
 
+// A save from before countries were real country codes holds region codes;
+// expand those so the same part of the world stays selected.
+function loadCountries(saved: unknown, scheme: unknown): string[] {
+  const values = Array.isArray(saved)
+    ? saved.filter((x): x is string => typeof x === "string")
+    : [];
+  if (scheme !== 2) {
+    const codes = values.flatMap((value) => legacyRegionCountries(value));
+    return [...new Set(codes)].sort();
+  }
+  return [...new Set(values.filter((value) => /^[A-Z]{2}$/.test(value)))];
+}
+
 // Validates each field; a corrupt/hand-edited value falls back to defaults
 // rather than crashing the table. search/favourites_only/recent_only are
 // never restored, so the app always opens on the All tab with an empty search.
@@ -117,7 +131,7 @@ function loadFilter(): ServerFilter {
   try {
     const raw = localStorage.getItem(FILTER_STORAGE);
     if (!raw) return DEFAULT_FILTER;
-    const saved = JSON.parse(raw) as Partial<ServerFilter>;
+    const saved = JSON.parse(raw) as Partial<ServerFilter> & { country_scheme?: number };
     const bool = (v: unknown, d: boolean) => (typeof v === "boolean" ? v : d);
     const tri = (v: unknown): boolean | null =>
       v === true || v === false ? v : null;
@@ -125,7 +139,7 @@ function loadFilter(): ServerFilter {
       Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
     return {
       maps: strings(saved.maps),
-      countries: strings(saved.countries),
+      countries: loadCountries(saved.countries, saved.country_scheme),
       hide_empty: bool(saved.hide_empty, DEFAULT_FILTER.hide_empty),
       hide_full: bool(saved.hide_full, DEFAULT_FILTER.hide_full),
       hide_locked: bool(saved.hide_locked, DEFAULT_FILTER.hide_locked),
@@ -152,11 +166,13 @@ function loadFilter(): ServerFilter {
 }
 
 // Strips the transient fields (search, favourites_only, recent_only) and the
-// version, which is re-chosen per session, before saving.
+// version, which is re-chosen per session, before saving. `country_scheme`
+// marks `countries` as real country codes, so an older save's regions are not
+// read as countries.
 function persistFilter(filter: ServerFilter) {
   const { search, favourites_only, recent_only, version, ...kept } = filter;
   try {
-    localStorage.setItem(FILTER_STORAGE, JSON.stringify(kept));
+    localStorage.setItem(FILTER_STORAGE, JSON.stringify({ ...kept, country_scheme: 2 }));
   } catch {
     // Non-fatal: the filter just won't survive a restart.
   }
@@ -173,7 +189,7 @@ function loadSort(): { sortKey: SortKey; sortDir: SortDir } {
     const raw = localStorage.getItem(SORT_KEY_STORAGE);
     if (!raw) return fallback;
     const saved = JSON.parse(raw) as { sortKey?: string; sortDir?: string };
-    const validKeys = ["players", "ping", "mod_count", "name", "map", "last_played"];
+    const validKeys = ["players", "ping", "mod_count", "name", "map", "last_played", "country"];
     return {
       sortKey: validKeys.includes(saved.sortKey ?? "")
         ? (saved.sortKey as SortKey)

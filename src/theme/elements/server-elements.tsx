@@ -17,7 +17,10 @@ import {
   House,
 } from "lucide-react";
 import type { Server } from "@/types/server";
-import { cn, formatBytes, formatMultiplier, gameTimeParts, regionName } from "@/lib/utils";
+import { cn, formatBytes, formatMultiplier, gameTimeParts } from "@/lib/utils";
+import { CountryFlag } from "@/components/country-flag";
+import { flagUrl } from "@/lib/country-flag";
+import { countryName } from "@/lib/countries";
 import { useElementContext } from "./context";
 import { useServerActions, phaseLabel } from "@/hooks/use-server-actions";
 import { isOutstandingMod, useFetchesReadiness, useServerReadiness } from "./use-server-readiness";
@@ -984,7 +987,8 @@ export function ServerRegion({
   const server = useServerSubject();
   if (!server) return null;
   const isCode = options?.format === "code";
-  const unknown = !server.country_code;
+  const code = server.country_code;
+  const unknown = !code;
   const states = serverStates(!server.online, unknown && "unknown");
 
   return (
@@ -993,9 +997,12 @@ export function ServerRegion({
       data-state={states}
       className={className ?? "text-muted font-mono-data"}
       style={style}
-      title={unknown ? undefined : regionName(server.country_code)}
+      title={unknown ? undefined : countryName(code)}
     >
-      <span data-part="text">{isCode ? (server.country_code ?? "—") : regionName(server.country_code)}</span>
+      <CountryFlag code={code} />
+      <span className={flagUrl(code) ? "ms-[0.35em]" : undefined} data-part="text">
+        {unknown ? "—" : isCode ? code : countryName(code)}
+      </span>
     </span>
   );
 }

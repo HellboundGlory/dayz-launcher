@@ -30,5 +30,5 @@ export interface ServerFilter {
 /** The ping limits the filter menu offers, in ms. */
 export const PING_PRESETS = [50, 100, 150] as const;
 
-export type SortKey = 'players' | 'ping' | 'mod_count' | 'name' | 'map' | 'last_played';
+export type SortKey = 'players' | 'ping' | 'mod_count' | 'name' | 'map' | 'last_played' | 'country';
 export type SortDir = 'asc' | 'desc';

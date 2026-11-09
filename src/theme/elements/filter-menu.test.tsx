@@ -87,6 +87,7 @@ vi.mock("react/jsx-dev-runtime", async (importOriginal) => {
 });
 
 import {
+  CountryOptions,
   FilterMenu,
   FilterMenuDataContext,
   FilterMenuPopup,
@@ -405,5 +406,91 @@ describe("PopupMapOptions counts", () => {
     mockStore.maps = [["chernarusplus", "Chernarus"]];
     const html = renderToStaticMarkup(<PopupMapOptions counts={undefined} />);
     expect(html).not.toContain('data-part="count"');
+  });
+});
+
+describe("CountryOptions", () => {
+  const countryFacets: FilterFacets = {
+    ...facets,
+    countries: [
+      { name: "DE", count: 9, values: ["DE"] },
+      { name: "FR", count: 4, values: ["FR"] },
+      { name: "US", count: 20, values: ["US"] },
+      { name: "BR", count: 2, values: ["BR"] },
+    ],
+  };
+
+  const list = (selected: string[] = [], onChange = vi.fn()) =>
+    renderToStaticMarkup(<CountryOptions facets={countryFacets} selected={selected} onChange={onChange} />);
+
+  it("lists the six continents, then the countries A to Z", () => {
+    const html = list();
+    expect(html.indexOf("Continents")).toBeLessThan(html.indexOf("Countries"));
+    const names = ["Brazil", "France", "Germany", "United States"];
+    const order = names.map((name) => html.indexOf(name));
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(html).toContain('data-part="flag"');
+  });
+
+  it("shows each continent's count as the sum of its countries' counts", () => {
+    const html = list();
+    // Europe's facet rows here are Germany (9) and France (4).
+    expect(html).toMatch(/aria-label="Europe"[\s\S]*?>13<\/span>/);
+  });
+
+  it("adds a picked country that is not in the facets with a count of zero", () => {
+    const html = list(["PL"]);
+    expect(html).toContain("Poland");
+    expect(html).toMatch(/Poland<\/span><span[^>]*>0<\/span>/);
+  });
+
+  it("marks the Europe box mixed with only one of its countries picked", () => {
+    list(["DE"]);
+    const europe = parts("option").find((o) => o["aria-label"] === "Europe");
+    expect(europe?.["aria-checked"]).toBe("mixed");
+  });
+});
+
+describe("country picker actions", () => {
+  const countryFacets: FilterFacets = {
+    ...facets,
+    countries: [
+      { name: "DE", count: 9, values: ["DE"] },
+      { name: "FR", count: 4, values: ["FR"] },
+      { name: "US", count: 20, values: ["US"] },
+      { name: "BR", count: 2, values: ["BR"] },
+    ],
+  };
+
+  const renderWith = (selected: string[]) => {
+    const onChange = vi.fn();
+    renderToStaticMarkup(<CountryOptions facets={countryFacets} selected={selected} onChange={onChange} />);
+    return { onChange, options: parts("option") };
+  };
+
+  it("selects every listed European country when Europe is clicked", () => {
+    const { onChange, options } = renderWith(["US"]);
+    const europe = options.find((o) => o.children && (o.children as unknown[]).some((c) => (c as { props?: { children?: string } })?.props?.children === "Europe"));
+    (europe!.onClick as () => void)();
+    expect(onChange.mock.calls[0][0].sort()).toEqual(["DE", "FR", "US"]);
+  });
+
+  it("clears Europe's countries when every listed one was picked", () => {
+    const { onChange, options } = renderWith(["DE", "FR"]);
+    const europe = options.find((o) => o.children && (o.children as unknown[]).some((c) => (c as { props?: { children?: string } })?.props?.children === "Europe"));
+    (europe!.onClick as () => void)();
+    expect(onChange).toHaveBeenCalledWith([]);
+  });
+
+  it("puts the country rows inside a labelled multi-select listbox", () => {
+    const html = renderToStaticMarkup(<CountryOptions facets={countryFacets} selected={[]} onChange={vi.fn()} />);
+    expect(html).toMatch(/role="listbox" aria-label="Countries" aria-multiselectable="true"/);
+  });
+
+  it("clears the whole filter from Clear selection", () => {
+    const { onChange } = renderWith(["DE"]);
+    const clear = captured.get("clearSelection")?.[0];
+    (clear!.onClick as () => void)();
+    expect(onChange).toHaveBeenCalledWith([]);
   });
 });

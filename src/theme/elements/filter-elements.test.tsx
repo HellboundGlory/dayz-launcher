@@ -89,11 +89,11 @@ import {
   FilterHideOffline,
   FilterReset,
   ServersRefresh,
-  REGIONS,
+  CONTINENTS,
+  countryDisplayValue,
   mapDisplayValue,
   tagsDisplayValue,
   cycleTagValue,
-  regionDisplayValue,
   toggleInList,
   pingDisplayValue,
   pingSliderValue,
@@ -138,23 +138,23 @@ describe("tagsDisplayValue and cycleTagValue", () => {
   });
 });
 
-describe("regionDisplayValue and toggleInList", () => {
-  it("uses EU/NA/AS/OC/SA region codes, not country codes", () => {
-    expect(REGIONS.map((r) => r.code)).toEqual(["EU", "NA", "AS", "OC", "SA"]);
+describe("countryDisplayValue and toggleInList", () => {
+  it("lists the six continents", () => {
+    expect(CONTINENTS.map((c) => c.id)).toEqual(["EU", "NA", "AS", "OC", "SA", "AF"]);
   });
 
   it.each([
     { selected: [] as string[], value: "Any" },
-    { selected: ["EU"], value: "Europe" },
-    { selected: ["EU", "NA"], value: "2 regions" },
+    { selected: ["DE"], value: "Germany" },
+    { selected: ["DE", "FR"], value: "2 countries" },
   ])("reads $value with $selected.length selected", ({ selected, value }) => {
-    expect(regionDisplayValue(selected)).toBe(value);
+    expect(countryDisplayValue(selected)).toBe(value);
   });
 
   it("toggles a code into and out of the list", () => {
-    expect(toggleInList([], "EU")).toEqual(["EU"]);
-    expect(toggleInList(["EU"], "EU")).toEqual([]);
-    expect(toggleInList(["EU"], "NA")).toEqual(["EU", "NA"]);
+    expect(toggleInList([], "DE")).toEqual(["DE"]);
+    expect(toggleInList(["DE"], "DE")).toEqual([]);
+    expect(toggleInList(["DE"], "FR")).toEqual(["DE", "FR"]);
   });
 });
 

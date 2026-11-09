@@ -132,6 +132,7 @@ describe("resetFilter", () => {
       mod_ids_exclude: [],
       time_of_day: null,
       battleye: null,
+      country_scheme: 2,
     });
     expect("favourites_only" in persisted).toBe(false);
     expect("recent_only" in persisted).toBe(false);
@@ -209,6 +210,40 @@ describe("loadFilter", () => {
   it("starts with every filter off", async () => {
     stored.value = null;
     expect(await freshStoreFilter()).toEqual(NEUTRAL_FILTER);
+  });
+
+  it("expands a saved region code into that continent's countries", async () => {
+    const { countriesOf } = await import("@/lib/countries");
+    stored.value = JSON.stringify({ countries: ["EU"] });
+    expect((await freshStoreFilter()).countries).toEqual(countriesOf("EU"));
+  });
+
+  it("keeps the countries of the regions an old save holds and drops the rest", async () => {
+    const { countriesOf } = await import("@/lib/countries");
+    stored.value = JSON.stringify({ countries: ["NA", "ZZZ"] });
+    expect((await freshStoreFilter()).countries).toEqual(countriesOf("NA"));
+  });
+
+  it("leaves a marked save's codes alone, so NA stays Namibia", async () => {
+    stored.value = JSON.stringify({ countries: ["NA"], country_scheme: 2 });
+    expect((await freshStoreFilter()).countries).toEqual(["NA"]);
+  });
+
+  it("drops values that are not two-letter capitals from a marked save", async () => {
+    stored.value = JSON.stringify({ countries: ["DE", "de", "ZZZ", 7], country_scheme: 2 });
+    expect((await freshStoreFilter()).countries).toEqual(["DE"]);
+  });
+
+  it("keeps each country once from a marked save", async () => {
+    stored.value = JSON.stringify({ countries: ["DE", "FR", "DE"], country_scheme: 2 });
+    expect((await freshStoreFilter()).countries).toEqual(["DE", "FR"]);
+  });
+
+  it("writes the marker on the next filter change", () => {
+    const s = useServerStore.getState();
+    s.setFilter({ hide_empty: true });
+    const persisted: Record<string, unknown> = JSON.parse(writes[writes.length - 1][1]);
+    expect(persisted.country_scheme).toBe(2);
   });
 });
 

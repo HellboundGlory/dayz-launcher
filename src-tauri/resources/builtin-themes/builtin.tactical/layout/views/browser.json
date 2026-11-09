@@ -235,12 +235,13 @@
                             "children": [
                               {
                                 "type": "text",
-                                "value": "Region",
+                                "value": "Country",
                                 "role": "label",
                                 "class": "t-prop-label"
                               },
                               {
-                                "element": "server.region"
+                                "element": "server.region",
+                                "options": { "format": "name" }
                               }
                             ]
                           },
@@ -584,12 +585,13 @@
                         "children": [
                           {
                             "type": "text",
-                            "value": "Region",
+                            "value": "Country",
                             "role": "label",
                             "class": "t-prop-label"
                           },
                           {
-                            "element": "server.region"
+                            "element": "server.region",
+                            "options": { "format": "name" }
                           }
                         ]
                       },

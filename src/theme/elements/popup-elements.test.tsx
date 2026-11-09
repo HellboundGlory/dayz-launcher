@@ -180,12 +180,22 @@ describe("PopupTagOptions", () => {
 });
 
 describe("PopupRegionOptions", () => {
-  it("marks selected regions", async () => {
+  it("marks a continent selected when all its countries are", async () => {
+    const { countriesOf } = await import("@/lib/countries");
     const html = await withServerStore(
-      { filter: { countries: ["EU"] } },
+      { filter: { countries: countriesOf("EU") } },
       () => renderToStaticMarkup(<PopupRegionOptions />),
     );
     expect(html).toContain('data-state="selected"');
+    expect(html).toContain("Europe");
+  });
+
+  it("leaves a partly picked continent unmarked", async () => {
+    const html = await withServerStore(
+      { filter: { countries: ["DE"] } },
+      () => renderToStaticMarkup(<PopupRegionOptions />),
+    );
+    expect(html).not.toContain('data-state="selected"');
   });
 });
 

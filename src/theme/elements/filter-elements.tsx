@@ -17,17 +17,17 @@ import {
   PopupSeparator,
   PopupSortOptions,
   PopupTagOptions,
+  countryDisplayValue,
   mapDisplayValue,
-  regionDisplayValue,
   sortValueLabel,
   tagsDisplayValue,
 } from "./popup-elements";
 
 export {
-  REGIONS,
+  CONTINENTS,
+  countryDisplayValue,
   cycleTagValue,
   mapDisplayValue,
-  regionDisplayValue,
   tagsDisplayValue,
   toggleInList,
 } from "./popup-elements";
@@ -374,7 +374,7 @@ export function FilterRegion({
   const { themedPopup, open, setOpen, close, ref, popupRef, popupStyle } = useThemedPopupTrigger("regionFilter", { side: "bottom", align: "start" });
 
   const selected = filter.countries ?? [];
-  const value = regionDisplayValue(selected);
+  const value = countryDisplayValue(selected);
   const active = selected.length > 0;
 
   const states = [active && "active", open && "open"].filter(Boolean) as string[];

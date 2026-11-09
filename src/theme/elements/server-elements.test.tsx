@@ -478,14 +478,36 @@ describe("ServerVersion", () => {
 });
 
 describe("server.region", () => {
-  it.each([
-    ["name", "NA", "North America"],
-    ["code", "NA", "North America"],
-    ["code", null, null],
-  ])("hover title for format %s, country %s", (format, code, title) => {
-    const html = render(<ServerRegion options={{ format }} />, serverContext({ ...server, country_code: code }));
-    if (title) expect(html).toContain(`title="${title}"`);
-    else expect(html).not.toContain("title=");
+  it("shows the code, its flag and the country name on hover", () => {
+    const html = render(<ServerRegion options={{ format: "code" }} />, serverContext({ ...server, country_code: "DE" }));
+    expect(html).toContain('data-part="text">DE</span>');
+    expect(html).toContain('data-part="flag"');
+    expect(html).toContain('title="Germany"');
+  });
+
+  it("shows the country name with format name", () => {
+    const html = render(<ServerRegion options={{ format: "name" }} />, serverContext({ ...server, country_code: "DE" }));
+    expect(html).toContain('data-part="text">Germany</span>');
+  });
+
+  it("spaces the name from its flag, and not when there is no flag", () => {
+    const withFlag = render(<ServerRegion />, serverContext({ ...server, country_code: "DE" }));
+    expect(withFlag).toMatch(/<span class="ms-\[0\.35em\]" data-part="text">/);
+    const without = render(<ServerRegion />, serverContext({ ...server, country_code: null }));
+    expect(without).toContain('<span data-part="text">');
+  });
+
+  it("shows a dash and no flag for a server with no country", () => {
+    const html = render(<ServerRegion options={{ format: "code" }} />, serverContext({ ...server, country_code: null }));
+    expect(html).toContain('data-part="text">—</span>');
+    expect(html).not.toContain('data-part="flag"');
+    expect(html).not.toContain("title=");
+  });
+
+  it("shows the text of a country with no flag image and no flag", () => {
+    const html = render(<ServerRegion options={{ format: "code" }} />, serverContext({ ...server, country_code: "QQ" }));
+    expect(html).toContain('data-part="text">QQ</span>');
+    expect(html).not.toContain('data-part="flag"');
   });
 });
 

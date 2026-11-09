@@ -52,7 +52,8 @@
       "id": "region",
       "width": "112px",
       "align": "start",
-      "label": "REGION",
+      "sort": "country",
+      "label": "COUNTRY",
       "minWidth": "70px"
     },
     {
@@ -127,7 +128,7 @@
       {
         "element": "server.region",
         "column": "region",
-        "options": { "format": "name" }
+        "options": { "format": "code" }
       },
       {
         "element": "server.players",

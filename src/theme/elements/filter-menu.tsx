@@ -27,12 +27,12 @@ import {
   OptionRow,
   PopupMapOptions,
   PopupSeparator,
-  REGIONS,
   TriggerPopup,
   mapDisplayValue,
-  regionDisplayValue,
   toggleInList,
 } from "./popup-elements";
+import { CONTINENTS, continentState, countriesOf, countryDisplayValue, countryName, toggleContinent } from "@/lib/countries";
+import { CountryFlag } from "@/components/country-flag";
 
 export const NARROW_MENU_WIDTH = 720;
 const MENU_WIDE_WIDTH = 600;
@@ -462,9 +462,124 @@ export function VersionOptions({
   );
 }
 
+/** A tri-state continent box: all of its countries picked, some, or none. */
+function ContinentRow({
+  name,
+  state,
+  count,
+  onToggle,
+}: {
+  name: string;
+  state: "all" | "some" | "none";
+  count: number;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={state === "some" ? "mixed" : state === "all"}
+      aria-label={name}
+      data-part="option"
+      data-state={state === "none" ? undefined : state}
+      onClick={onToggle}
+      className="flex w-full items-center gap-[var(--t-space-controlCompactX)] px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] text-left hover:bg-surface transition-colors"
+    >
+      <span
+        data-part="box"
+        data-state={state === "none" ? undefined : state}
+        className="grid size-[15px] shrink-0 place-items-center border border-muted bg-bg data-[state=all]:border-accent data-[state=all]:bg-accent data-[state=all]:text-bg data-[state=some]:border-accent data-[state=some]:bg-accent data-[state=some]:text-bg"
+      >
+        {state === "all" ? (
+          <Check className="size-3" strokeWidth={3} />
+        ) : state === "some" ? (
+          <span aria-hidden="true" className="block h-px w-2 bg-current" />
+        ) : null}
+      </span>
+      <span className="min-w-0 flex-1 truncate">{name}</span>
+      <span data-part="count" className="[font-family:var(--t-type-family-data)] text-muted">
+        {countText(count)}
+      </span>
+    </button>
+  );
+}
+
+/** The country list's body: continents over the same box, then every country A to Z with its flag and count. */
+export function CountryOptions({
+  facets,
+  selected,
+  onChange,
+}: {
+  facets: FilterFacets | null;
+  selected: string[];
+  onChange: (countries: string[]) => void;
+}) {
+  const facetCount = (code: string) => {
+    const row = facets?.countries.find((c) => c.values.includes(code));
+    return row?.count ?? 0;
+  };
+  const codes = new Set((facets?.countries ?? []).flatMap((row) => row.values).filter((code) => /^[A-Z]{2}$/.test(code)));
+  // Continents tick only the countries listed below, so a continent can be completed from the list.
+  const listed = [...codes];
+  for (const code of selected) codes.add(code);
+  const countries = [...codes]
+    .map((code) => ({ code, name: countryName(code), count: facetCount(code) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  return (
+    <>
+      <div className="flex items-center justify-between px-2 pb-1 pt-1.5 text-muted">
+        <span data-part="heading" className="font-semibold uppercase [font-size:var(--t-type-micro-size)] [letter-spacing:0.1em]">
+          Continents
+        </span>
+        <button
+          type="button"
+          data-part="clearSelection"
+          disabled={selected.length === 0}
+          onClick={() => onChange([])}
+          className="uppercase font-semibold text-ink disabled:opacity-50 [font-size:var(--t-type-micro-size)]"
+        >
+          Clear selection
+        </button>
+      </div>
+      {CONTINENTS.map((continent) => (
+        <ContinentRow
+          key={continent.id}
+          name={continent.name}
+          state={continentState(selected, continent.id, listed)}
+          count={countriesOf(continent.id).reduce((sum, code) => sum + facetCount(code), 0)}
+          onToggle={() => onChange(toggleContinent(selected, continent.id, listed))}
+        />
+      ))}
+      <PopupSeparator />
+      <div className="px-2 pb-1 pt-1.5 text-muted">
+        <span data-part="heading" className="font-semibold uppercase [font-size:var(--t-type-micro-size)] [letter-spacing:0.1em]">
+          Countries
+        </span>
+      </div>
+      <div role="listbox" aria-label="Countries" aria-multiselectable>
+        {countries.map((country) => (
+          <OptionRow
+            key={country.code}
+            selected={selected.includes(country.code)}
+            onClick={() => onChange(toggleInList(selected, country.code))}
+          >
+            <CountryFlag code={country.code} />
+            <span className="min-w-0 flex-1 truncate">{country.name}</span>
+            <span data-part="count" className="[font-family:var(--t-type-family-data)] text-muted">
+              {countText(country.count)}
+            </span>
+          </OptionRow>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function CountrySelect() {
   const filter = useServerStore((s) => s.filter);
   const setFilter = useServerStore((s) => s.setFilter);
+  const { facets } = useContext(FilterMenuDataContext);
   const { anchorRef, open, setOpen, close } = useSelectList();
   const selected = filter.countries ?? [];
 
@@ -472,23 +587,15 @@ function CountrySelect() {
     <>
       <SelectRow
         label="Country"
-        value={regionDisplayValue(selected)}
+        value={countryDisplayValue(selected)}
         active={selected.length > 0}
         open={open}
         onClick={() => setOpen(!open)}
         anchorRef={anchorRef}
       />
       {open && (
-        <SelectList anchorRef={anchorRef} label="Countries" multiselect onClose={close}>
-          {REGIONS.map((region) => (
-            <OptionRow
-              key={region.code}
-              selected={selected.includes(region.code)}
-              onClick={() => setFilter({ countries: toggleInList(selected, region.code) })}
-            >
-              <span className="truncate">{region.label}</span>
-            </OptionRow>
-          ))}
+        <SelectList anchorRef={anchorRef} label="Countries" multiselect ownListbox onClose={close}>
+          <CountryOptions facets={facets} selected={selected} onChange={(countries) => setFilter({ countries })} />
         </SelectList>
       )}
     </>

@@ -92,7 +92,7 @@ export const SERVER_INFO_MODAL: ModalLayoutFile = {
                 children: [
                   prop("Map", { element: "server.map" }),
                   prop("Version", { element: "server.version" }),
-                  prop("Region", { element: "server.region" }),
+                  prop("Country", { element: "server.region" }),
                   prop("Mods", { element: "server.modCount", options: { showCaption: false } }),
                 ],
               },

@@ -980,6 +980,28 @@
   white-space: nowrap;
 }
 
+.t-row [data-el="server.region"] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.t-row [data-el="server.region"] [data-part="text"] {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.t-row [data-el="server.region"] [data-part="flag"] {
+  height: 0.9em;
+  width: auto;
+  border-radius: 0;
+  border: 1px solid var(--border);
+  flex: none;
+}
+
 .t-row [data-el="server.players"] {
   font-family: var(--t-type-family-data);
   font-size: 11px;
