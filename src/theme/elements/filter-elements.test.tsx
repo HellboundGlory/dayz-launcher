@@ -54,6 +54,7 @@ vi.mock("../theme-store", () => ({
 // discards event handlers from its HTML output.
 let capturedProps: Record<string, unknown> | null = null;
 let captureDataEl: string | null = null;
+const capturedParts = new Map<string, Record<string, unknown>[]>();
 
 vi.mock("react/jsx-dev-runtime", async (importOriginal) => {
   const actual = await importOriginal<Record<string, (...args: unknown[]) => unknown>>();
@@ -63,6 +64,11 @@ vi.mock("react/jsx-dev-runtime", async (importOriginal) => {
       if (captureDataEl && props["data-el"] === captureDataEl) {
         capturedProps = props;
       }
+      const part = props?.["data-part"];
+      if (typeof part === "string") {
+        if (!capturedParts.has(part)) capturedParts.set(part, []);
+        capturedParts.get(part)!.push(props);
+      }
       return actual.jsxDEV(type, props, ...rest);
     },
   };
@@ -70,6 +76,7 @@ vi.mock("react/jsx-dev-runtime", async (importOriginal) => {
 
 import {
   FilterSearch,
+  syncedSearchText,
   FilterMap,
   FilterTags,
   FilterRegion,
@@ -163,6 +170,12 @@ describe("ping helpers", () => {
 });
 
 describe("FilterSearch", () => {
+  it("keeps a trailing space the debounced search dropped", () => {
+    expect(syncedSearchText("dead ", "dead")).toBe("dead ");
+    expect(syncedSearchText("dead", null)).toBe("");
+    expect(syncedSearchText("", "namalsk")).toBe("namalsk");
+  });
+
   it("renders the icon and input parts, and the filled state with a search term", () => {
     const empty = renderToStaticMarkup(<FilterSearch />);
     expect(empty).toContain('data-el="filter.search"');
@@ -179,6 +192,23 @@ describe("FilterSearch", () => {
     expect(noIcon).not.toContain('data-part="icon"');
 
     expect(renderToStaticMarkup(<FilterSearch options={{ icon: "globe" }} />)).toContain("lucide-globe");
+  });
+
+  it("shows the clear button only while the box has text", () => {
+    expect(renderToStaticMarkup(<FilterSearch />)).not.toContain('data-part="clear"');
+
+    mockStore.filter.search = "namalsk";
+    expect(renderToStaticMarkup(<FilterSearch />)).toContain('data-part="clear"');
+  });
+
+  it("empties the box and sets the search to null at once when cleared", () => {
+    mockStore.filter.search = "namalsk";
+    capturedParts.clear();
+    renderToStaticMarkup(<FilterSearch />);
+    const clear = capturedParts.get("clear")?.[0];
+    expect(clear).toBeDefined();
+    (clear!.onClick as () => void)();
+    expect(mockStore.setFilter).toHaveBeenCalledWith({ search: null });
   });
 });
 

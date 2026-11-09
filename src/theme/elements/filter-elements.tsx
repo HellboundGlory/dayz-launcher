@@ -1,10 +1,13 @@
-import { useEffect, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
-import { Search, RefreshCw, RotateCcw, ChevronDown, Check } from "lucide-react";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import { Search, RefreshCw, RotateCcw, ChevronDown, Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useServerStore } from "@/stores/server-store";
+import type { SearchSuggestion } from "@/lib/tauri";
+import { useSearchSuggestions } from "@/hooks/use-search-suggestions";
 import { useElementContext } from "./context";
 import { OptionIcon } from "./option-icon";
 import { useThemedPopupTrigger } from "./use-themed-popup-trigger";
+import { SearchSuggestions, nextActive, suggestionId, suggestionPatch } from "./search-suggestions";
 import {
   TriggerPopup,
   PopupClear,
@@ -102,6 +105,11 @@ function DropdownRoot({
   );
 }
 
+/** The box's text after the store's search changes; the store drops a trailing space the box still holds. */
+export function syncedSearchText(current: string, search: string | null): string {
+  return current.trim() === (search ?? "") ? current : search ?? "";
+}
+
 export function FilterSearch({
   options,
   className,
@@ -114,10 +122,17 @@ export function FilterSearch({
   const filter = useServerStore((s) => s.filter);
   const setFilter = useServerStore((s) => s.setFilter);
   const [text, setText] = useState(filter.search ?? "");
+  const [focused, setFocused] = useState(false);
+  const [active, setActive] = useState(-1);
+  const [dismissed, setDismissed] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const showIcon = options?.showIcon !== false;
+  const suggestions = useSearchSuggestions(filter, text, focused && !dismissed);
+  const open = !dismissed && focused && (suggestions?.length ?? 0) > 0;
 
   useEffect(() => {
-    setText((current) => (current === (filter.search ?? "") ? current : filter.search ?? ""));
+    setText((current) => syncedSearchText(current, filter.search));
   }, [filter.search]);
 
   useEffect(() => {
@@ -128,12 +143,68 @@ export function FilterSearch({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text]);
 
+  useEffect(() => {
+    setActive(-1);
+    setDismissed(false);
+  }, [text]);
+
+  useEffect(() => {
+    setActive(-1);
+  }, [suggestions]);
+
   const filled = text.trim().length > 0;
+  const rows = suggestions ?? [];
+
+  const clear = () => {
+    setText("");
+    setFilter({ search: null });
+    setFocused(true);
+    inputRef.current?.focus();
+  };
+
+  const pick = (suggestion: SearchSuggestion) => {
+    setFilter(suggestionPatch(filter, suggestion));
+    setText("");
+    setDismissed(true);
+    setActive(-1);
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (!open || event.nativeEvent.isComposing) return;
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      setActive(nextActive(active, event.key, rows.length));
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (active >= 0 && rows[active]) pick(rows[active]);
+      else setDismissed(true);
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setDismissed(true);
+      setActive(-1);
+    }
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (rootRef.current?.contains(target) || target.closest?.('[data-part="suggestions"]')) return;
+      setDismissed(true);
+    };
+    window.addEventListener("mousedown", onDown, true);
+    return () => window.removeEventListener("mousedown", onDown, true);
+  }, [open]);
 
   return (
     <div
+      ref={rootRef}
       data-el="filter.search"
-      data-state={filled ? "filled" : undefined}
+      data-state={[filled && "filled", open && "open"].filter(Boolean).join(" ") || undefined}
       className={className ?? "flex items-center gap-2 border border-line bg-surface2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-size-2xl)] leading-5 text-ink"}
       style={style}
     >
@@ -143,14 +214,44 @@ export function FilterSearch({
         </span>
       )}
       <input
+        ref={inputRef}
         data-part="input"
         type="text"
+        role="combobox"
         placeholder="Search servers…"
         aria-label="Search servers"
+        aria-expanded={open}
+        aria-controls={open ? "filter-search-suggestions" : undefined}
+        aria-autocomplete="list"
+        aria-activedescendant={open && active >= 0 ? suggestionId(active) : undefined}
         value={text}
         onChange={(e) => setText(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onKeyDown={onKeyDown}
         className="bg-transparent outline-hidden text-ink placeholder:text-muted min-w-[180px] [font-size:var(--t-type-size-lg)] leading-4"
       />
+      {filled && (
+        <button
+          type="button"
+          data-part="clear"
+          aria-label="Clear search"
+          onClick={clear}
+          className="grid size-4 shrink-0 place-items-center text-muted"
+        >
+          <X aria-hidden="true" className="size-3" />
+        </button>
+      )}
+      {open && (
+        <SearchSuggestions
+          id="filter-search-suggestions"
+          triggerRef={rootRef}
+          text={text}
+          suggestions={rows}
+          activeIndex={active}
+          onPick={pick}
+        />
+      )}
     </div>
   );
 }

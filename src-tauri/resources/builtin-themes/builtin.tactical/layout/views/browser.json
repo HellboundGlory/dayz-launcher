@@ -13,82 +13,30 @@
           {
             "type": "stack",
             "id": "r-filterbar",
-            "direction": "column",
+            "direction": "row",
+            "align": "center",
+            "wrap": true,
+            "minWidth": "0px",
             "children": [
               {
-                "type": "stack",
-                "id": "r-filterbar-top",
-                "direction": "row",
-                "align": "center",
-                "minWidth": "0px",
-                "children": [
-                  {
-                    "element": "filter.search",
-                    "options": {
-                      "showIcon": true
-                    }
-                  },
-                  {
-                    "element": "filter.menu"
-                  },
-                  {
-                    "element": "filter.map"
-                  },
-                  {
-                    "element": "filter.tags"
-                  },
-                  {
-                    "element": "filter.mods"
-                  },
-                  {
-                    "element": "filter.region"
-                  },
-                  {
-                    "element": "filter.maxPing"
-                  }
-                ],
-                "wrap": true
+                "element": "filter.search",
+                "options": {
+                  "showIcon": true
+                }
               },
               {
-                "type": "stack",
-                "id": "r-filterbar-bottom",
-                "direction": "row",
-                "align": "center",
-                "minWidth": "0px",
-                "children": [
-                  {
-                    "type": "stack",
-                    "id": "r-hides",
-                    "direction": "row",
-                    "align": "center",
-                    "children": [
-                      {
-                        "element": "filter.hideEmpty"
-                      },
-                      {
-                        "element": "filter.hideFull"
-                      },
-                      {
-                        "element": "filter.hideLocked"
-                      },
-                      {
-                        "element": "filter.hideOffline"
-                      }
-                    ]
-                  },
-                  {
-                    "element": "filter.reset",
-                    "options": {
-                      "display": "iconLabel"
-                    }
-                  },
-                  {
-                    "element": "servers.refresh",
-                    "options": {
-                      "display": "iconLabel"
-                    }
-                  }
-                ]
+                "element": "filter.menu"
+              },
+              {
+                "element": "filter.chips",
+                "grow": 1,
+                "minWidth": "80px"
+              },
+              {
+                "element": "servers.refresh",
+                "options": {
+                  "display": "iconLabel"
+                }
               }
             ],
             "shrink": 0
@@ -431,45 +379,9 @@
                 "element": "filter.menu"
               },
               {
-                "element": "filter.map"
-              },
-              {
-                "element": "filter.tags"
-              },
-              {
-                "element": "filter.mods"
-              },
-              {
-                "element": "filter.region"
-              },
-              {
-                "element": "filter.maxPing"
-              },
-              {
-                "type": "stack",
-                "id": "r-hides",
-                "direction": "row",
-                "align": "center",
-                "children": [
-                  {
-                    "element": "filter.hideEmpty"
-                  },
-                  {
-                    "element": "filter.hideFull"
-                  },
-                  {
-                    "element": "filter.hideLocked"
-                  },
-                  {
-                    "element": "filter.hideOffline"
-                  }
-                ]
-              },
-              {
-                "element": "filter.reset",
-                "options": {
-                  "display": "iconLabel"
-                }
+                "element": "filter.chips",
+                "grow": 1,
+                "minWidth": "80px"
               },
               {
                 "element": "servers.refresh",

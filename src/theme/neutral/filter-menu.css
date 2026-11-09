@@ -1,3 +1,68 @@
+[data-el="filter.search"] [data-part="clear"] {
+  @apply grid size-4 shrink-0 place-items-center [border-radius:var(--t-radius-popupItem)] text-muted transition-colors hover:text-ink;
+}
+
+[data-el="filter.search"] [data-part="suggestions"] {
+  @apply flex flex-col overflow-hidden [border-radius:var(--t-radius-popup)] border border-line bg-surface [box-shadow:var(--t-shadow-popupFilter)] [font-size:var(--t-type-label-size)] [line-height:var(--t-type-heading-leading)] text-ink;
+}
+
+[data-el="filter.search"] [data-part="suggestion"] {
+  @apply grid grid-cols-[52px_1fr_auto] items-center gap-2.5 px-3 py-1.5 text-left transition-colors hover:bg-surface2;
+}
+
+[data-el="filter.search"] [data-part="suggestion"][data-state~="active"] {
+  @apply bg-accent-soft;
+}
+
+[data-el="filter.search"] [data-part="kind"] {
+  @apply [font-size:var(--t-type-micro-size)] [font-weight:var(--t-type-button-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-muted;
+}
+
+[data-el="filter.search"] [data-part="match"] {
+  @apply bg-transparent font-semibold text-accent;
+}
+
+[data-el="filter.search"] [data-part="count"] {
+  @apply [font-family:var(--t-type-family-data)] text-muted2;
+}
+
+[data-el="filter.search"] [data-part="hint"] {
+  @apply border-t border-line px-3 py-2 text-muted;
+}
+
+/* The chip strip under the Filters button. */
+[data-el="filter.chips"] {
+  @apply relative flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden whitespace-nowrap [font-size:var(--t-type-label-size)];
+}
+
+[data-el="filter.chips"] [data-part="chip"] {
+  @apply flex h-6 min-w-0 max-w-[260px] shrink-0 items-center gap-1 overflow-hidden [border-radius:var(--t-radius-pill)] border border-line bg-surface2 pl-2 pr-1 text-ink;
+}
+
+[data-el="filter.chips"] [data-part="prefix"] {
+  @apply shrink-0 text-muted2;
+}
+
+[data-el="filter.chips"] [data-part="value"] {
+  @apply min-w-0 truncate;
+}
+
+[data-el="filter.chips"] [data-part="remove"] {
+  @apply grid size-[18px] shrink-0 place-items-center [border-radius:var(--t-radius-popupItem)] text-muted transition-colors hover:text-accent;
+}
+
+[data-el="filter.chips"] [data-part="remove"] svg {
+  @apply size-3;
+}
+
+[data-el="filter.chips"] [data-part="more"] {
+  @apply h-6 shrink-0 whitespace-nowrap [border-radius:var(--t-radius-pill)] border border-accent-line px-2 text-accent transition-colors hover:bg-accent-soft;
+}
+
+[data-el="filter.chips"] [data-part="clearAll"] {
+  @apply shrink-0 whitespace-nowrap text-muted2 underline [text-underline-offset:3px] transition-colors hover:text-ink;
+}
+
 /* The Filters button in the browser bar. */
 .t-neutral-browser-menu {
   @apply flex shrink-0 items-center whitespace-nowrap px-[var(--t-space-separatorX)] [font-size:var(--t-type-label-size)] text-muted;

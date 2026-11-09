@@ -169,6 +169,11 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     same_as_mine: servers.length,
   }),
   get_installed_dayz_version: () => "1.29.163709",
+  get_search_suggestions: () => [
+    { kind: "map", label: "Namalsk", count: Math.max(1, Math.round(servers.length / 3)), values: ["namalsk"] },
+    { kind: "mod", label: "Namalsk Survival", count: Math.max(1, Math.round(servers.length / 4)), values: ["1"] },
+    { kind: "mod", label: "Namalsk Island", count: Math.max(1, Math.round(servers.length / 5)), values: ["2"] },
+  ],
   get_server_counts: () => ({ total: servers.length, populated: servers.filter((s) => s.players > 0).length }),
   server_list_source: () => "steam",
   server_mod_readiness: () => (joinState === "checking" ? new Promise(() => {}) : readiness),

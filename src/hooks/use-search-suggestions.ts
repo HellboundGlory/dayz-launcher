@@ -1,0 +1,96 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { filterParamsFor } from "@/hooks/use-server-data-loader";
+import { getSearchSuggestions, type FilterParams, type SearchSuggestion } from "@/lib/tauri";
+import type { ServerFilter } from "@/types/filters";
+
+const DEBOUNCE_MS = 250;
+const MIN_TEXT = 2;
+
+/** A list and the text it answers. */
+export interface SuggestionResult {
+  query: string;
+  list: SearchSuggestion[];
+}
+
+export interface SuggestionLoader {
+  update(focused: boolean, allServers: boolean, params: FilterParams, text: string): void;
+  stop(): void;
+}
+
+/** Suggestion lookup that waits for the typing to settle and drops stale replies. */
+export function createSuggestionLoader(
+  fetcher: (params: FilterParams, text: string) => Promise<SearchSuggestion[]>,
+  onResult: (result: SuggestionResult | null) => void,
+): SuggestionLoader {
+  let newest = 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const clear = () => {
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      timer = undefined;
+    }
+  };
+
+  const run = (params: FilterParams, query: string) => {
+    const id = ++newest;
+    fetcher(params, query).then(
+      (list) => {
+        if (id === newest) onResult({ query, list });
+      },
+      () => {
+        if (id === newest) onResult(null);
+      },
+    );
+  };
+
+  return {
+    update(focused, allServers, params, text) {
+      clear();
+      const query = text.trim();
+      if (!focused || !allServers || query.length < MIN_TEXT) {
+        newest++;
+        onResult(null);
+        return;
+      }
+      timer = setTimeout(() => {
+        timer = undefined;
+        run(params, query);
+      }, DEBOUNCE_MS);
+    },
+    stop() {
+      clear();
+      newest++;
+    },
+  };
+}
+
+/** The rows to show for the text in the box: none while the list answers older text. */
+export function listForText(text: string, result: SuggestionResult | null): SearchSuggestion[] | null {
+  return result && result.query === text.trim() ? result.list : null;
+}
+
+/** Suggestions for the typed text, or null while there are none to show. */
+export function useSearchSuggestions(
+  filter: ServerFilter,
+  text: string,
+  focused: boolean,
+): SearchSuggestion[] | null {
+  const [result, setResult] = useState<SuggestionResult | null>(null);
+  const loader = useRef<SuggestionLoader | null>(null);
+  if (!loader.current) loader.current = createSuggestionLoader(getSearchSuggestions, setResult);
+  const current = loader.current;
+  const allServers = !filter.favourites_only && !filter.recent_only;
+  // The box's own text is sent separately, so only a change to another filter asks again.
+  const restKey = JSON.stringify({ ...filter, search: null });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const rest = useMemo(() => ({ ...filterParamsFor(filter), search: null }), [restKey]);
+
+  useEffect(() => {
+    current.update(focused, allServers, rest, text);
+  }, [current, focused, allServers, rest, text]);
+
+  useEffect(() => () => current.stop(), [current]);
+
+  return listForText(text, result);
+}

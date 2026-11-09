@@ -3764,3 +3764,189 @@ the smallest window the launcher can compose. */
   padding: 4px 8px;
   color: var(--muted);
 }
+
+/* Filter chips, the search clear button and the suggestion list. */
+[data-region="r-filterbar"] > [data-el="filter.chips"] {
+  flex: 1 1 0;
+  min-width: 80px;
+}
+
+[data-el="filter.chips"] {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+[data-el="filter.chips"] [data-part="chip"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  height: 24px;
+  max-width: 260px;
+  border: none;
+  padding: 0 2px 0 8px;
+  border-radius: 0;
+  background-color: var(--surface2);
+  box-shadow: 0 0 0 1px var(--border);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+[data-el="filter.chips"] [data-part="prefix"] {
+  flex: none;
+  color: var(--muted);
+}
+
+[data-el="filter.chips"] [data-part="value"] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-el="filter.chips"] [data-part="remove"] {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--muted);
+}
+
+[data-el="filter.chips"] [data-part="remove"]:hover {
+  color: var(--accent);
+}
+
+[data-el="filter.chips"] [data-part="remove"] > :first-child {
+  width: 11px;
+  height: 11px;
+}
+
+[data-el="filter.chips"] [data-part="more"] {
+  flex: none;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 0;
+  border: 1px solid var(--accent);
+  background-color: transparent;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+[data-el="filter.chips"] [data-part="more"]:hover {
+  background-color: var(--surface2);
+}
+
+[data-el="filter.chips"] [data-part="clearAll"] {
+  flex: none;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--muted);
+}
+
+[data-el="filter.chips"] [data-part="clearAll"]:hover {
+  color: var(--text);
+}
+
+[data-el="filter.search"] [data-part="clear"] {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--muted);
+}
+
+[data-el="filter.search"][data-state~="filled"] [data-part="input"] {
+  padding-right: 26px;
+}
+
+[data-el="filter.search"] [data-part="clear"]:hover {
+  color: var(--accent);
+}
+
+[data-el="filter.search"] [data-part="clear"] > :first-child {
+  width: 11px;
+  height: 11px;
+}
+
+[data-el="filter.search"] [data-part="suggestions"] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 0;
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  font-size: 12px;
+}
+
+[data-el="filter.search"] [data-part="suggestion"] {
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 12px;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 12px;
+  color: var(--text);
+}
+
+[data-el="filter.search"] [data-part="suggestion"]:hover,
+[data-el="filter.search"] [data-part="suggestion"][data-state~="active"] {
+  background-color: var(--surface2);
+}
+
+[data-el="filter.search"] [data-part="kind"] {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+[data-el="filter.search"] [data-part="match"] {
+  background: none;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+[data-el="filter.search"] [data-part="count"] {
+  font-family: var(--t-type-family-data);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+[data-el="filter.search"] [data-part="hint"] {
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted);
+}

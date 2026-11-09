@@ -688,10 +688,18 @@
       "freeLabel": false,
       "parts": [
         "icon",
-        "input"
+        "input",
+        "clear",
+        "suggestions",
+        "suggestion",
+        "kind",
+        "match",
+        "count",
+        "hint"
       ],
       "states": [
-        "filled"
+        "filled",
+        "open"
       ],
       "since": "2.0",
       "aliases": []
@@ -866,6 +874,29 @@
         "active",
         "open",
         "tabNote"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
+    "filter.chips": {
+      "kind": "display",
+      "where": [
+        "browser"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "chip",
+        "prefix",
+        "value",
+        "remove",
+        "more",
+        "clearAll"
+      ],
+      "states": [
+        "folded"
       ],
       "since": "2.1",
       "aliases": []
@@ -5247,6 +5278,8 @@
       ],
       "contains": [
         "filter.search",
+        "filter.menu",
+        "filter.chips",
         "filter.map",
         "filter.tags",
         "filter.mods",

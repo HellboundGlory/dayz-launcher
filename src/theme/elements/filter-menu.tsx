@@ -34,7 +34,7 @@ import {
   toggleInList,
 } from "./popup-elements";
 
-const NARROW_MENU_WIDTH = 720;
+export const NARROW_MENU_WIDTH = 720;
 const MENU_WIDE_WIDTH = 600;
 const MENU_SCREEN_PAD = 16;
 

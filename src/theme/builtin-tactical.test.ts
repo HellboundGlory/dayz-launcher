@@ -74,12 +74,19 @@ describe("builtin.tactical browser view", () => {
   });
 
   it("lets the filters row wrap at the narrowest window", () => {
-    expect((bar(narrowBrowser).children[0] as StackNode).wrap).toBe(true);
+    expect(bar(narrowBrowser).wrap).toBe(true);
     expect(bar(wideBrowser).wrap).toBeUndefined();
   });
 
   it("places the same elements with the same options in both variants", () => {
     expect(placements(narrowBrowser)).toEqual(placements(wideBrowser));
+  });
+
+  it("carries search, Filters, chips, then Refresh in the bar, with no old controls", () => {
+    for (const root of [narrowBrowser, wideBrowser]) {
+      const ids = elements(bar(root));
+      expect(ids).toEqual(["filter.search", "filter.menu", "filter.chips", "servers.refresh"]);
+    }
   });
 
   it.each(VARIANTS)("%s: keeps the list area shrinkable", (_variant, root) => {
