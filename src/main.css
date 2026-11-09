@@ -4,6 +4,7 @@
 @import "./theme/neutral/shell.css" layer(neutral);
 @import "./theme/neutral/browser.css" layer(neutral);
 @import "./theme/neutral/filter-popups.css" layer(neutral);
+@import "./theme/neutral/filter-menu.css" layer(neutral);
 @import "./theme/neutral/mods.css" layer(neutral);
 @import "./theme/neutral/settings.css" layer(neutral);
 @import "./theme/neutral/server-info.css" layer(neutral);

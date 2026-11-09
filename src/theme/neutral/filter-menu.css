@@ -1,0 +1,172 @@
+/* The Filters button in the browser bar. */
+.t-neutral-browser-menu {
+  @apply flex shrink-0 items-center whitespace-nowrap px-[var(--t-space-separatorX)] [font-size:var(--t-type-label-size)] text-muted;
+}
+
+.t-neutral-browser-menu [data-part="trigger"] {
+  @apply flex items-center gap-[var(--t-space-inlineGap)] [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:inherit] [font-weight:var(--t-type-button-weight)] text-muted transition-colors [transition-duration:var(--t-motion-hover-duration)] [transition-timing-function:var(--t-motion-hover-easing)];
+}
+
+.t-neutral-browser-menu[data-state~="active"] [data-part="trigger"],
+.t-neutral-browser-menu[data-state~="open"] [data-part="trigger"] {
+  @apply border-accent-line bg-accent-soft text-accent [box-shadow:var(--t-glow-selected)];
+}
+
+.t-neutral-browser-menu [data-part="trigger"]:hover {
+  @apply border-accent-line text-ink;
+}
+
+.t-neutral-browser-menu [data-part="label"] {
+  @apply [font-size:inherit] [font-weight:inherit] [color:inherit];
+}
+
+.t-neutral-browser-menu [data-part="badge"] {
+  @apply h-[18px] min-w-[18px] [border-radius:var(--t-radius-pill)] bg-accent px-1.5 text-bg [font-family:var(--t-type-family-data)] [font-size:var(--t-type-size-sm)] [font-weight:var(--t-type-label-weight)] [letter-spacing:0];
+}
+
+.t-neutral-browser-menu [data-part="chevron"] {
+  @apply ml-0 size-[var(--t-space-iconTiny)] text-muted;
+}
+
+.t-neutral-browser-menu [data-part="note"] {
+  @apply px-[var(--t-space-controlCompactX)] [font-size:var(--t-type-label-size)] text-muted;
+}
+
+/* The menu body and its grouped lists. */
+.t-neutral-browser-menu [data-part="popup"],
+[data-el="filter.menu"] [data-part="popup"] {
+  @apply flex flex-col overflow-hidden [border-radius:var(--t-radius-popup)] border border-line bg-surface [box-shadow:var(--t-shadow-popupFilter)] [font-size:var(--t-type-label-size)] [line-height:var(--t-type-heading-leading)] text-ink;
+}
+
+[data-el="filter.menu"] [data-part="body"] {
+  @apply min-h-0 overflow-y-auto;
+}
+
+[data-el="filter.menu"] [data-part="column"] {
+  @apply grid content-start;
+}
+
+[data-el="filter.menu"] [data-part="column"] + [data-part="column"] {
+  @apply border-l border-line;
+}
+
+[data-el="filter.menu"] [data-part="body"][data-state~="narrow"] [data-part="column"] + [data-part="column"] {
+  @apply border-l-0 border-t border-line;
+}
+
+[data-el="popup.filterServer"],
+[data-el="popup.filterConnection"],
+[data-el="popup.filterGameplay"],
+[data-el="popup.filterMods"],
+[data-el="popup.filterAccess"],
+[data-el="popup.filterPlayers"] {
+  @apply grid gap-2.5 px-4 py-3;
+}
+
+[data-el="popup.filterServer"] + [data-el="popup.filterConnection"],
+[data-el="popup.filterGameplay"] + [data-el="popup.filterMods"],
+[data-el="popup.filterMods"] + [data-el="popup.filterAccess"],
+[data-el="popup.filterAccess"] + [data-el="popup.filterPlayers"] {
+  @apply border-t border-line;
+}
+
+[data-el="filter.menu"] [data-part="heading"] {
+  @apply m-0 [font-size:var(--t-type-micro-size)] [font-weight:var(--t-type-label-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-muted;
+}
+
+[data-el="filter.menu"] [data-part="row"] {
+  @apply grid gap-1.5;
+}
+
+[data-el="filter.menu"] [data-part="checkbox"] {
+  @apply grid grid-cols-[15px_1fr] items-start gap-x-2.5 text-left text-ink;
+}
+
+[data-el="filter.menu"] [data-part="checkbox"] [data-part="box"] {
+  @apply mt-px grid size-[15px] place-items-center [border-radius:var(--t-radius-track)] border border-muted bg-bg;
+}
+
+[data-el="filter.menu"] [data-part="checkbox"] [data-part="box"][data-state~="on"] {
+  @apply border-accent bg-accent text-bg;
+}
+
+[data-el="filter.menu"] [data-part="select"] {
+  @apply flex h-7 items-center gap-1.5 border border-line bg-surface2 px-2.5 text-left text-ink transition-colors [border-radius:var(--t-radius-popupItem)] hover:border-accent;
+}
+
+[data-el="filter.menu"] [data-part="select"][data-state~="on"] {
+  @apply border-accent-line;
+}
+
+[data-el="filter.menu"] [data-part="select"][data-state~="open"] {
+  @apply border-accent;
+}
+
+[data-el="filter.menu"] [data-part="count"] {
+  @apply [font-family:var(--t-type-family-data)] text-muted;
+}
+
+[data-el="filter.menu"] [data-part="segments"] {
+  @apply flex overflow-hidden border border-line bg-bg [border-radius:var(--t-radius-popupItem)];
+}
+
+[data-el="filter.menu"] [data-part="segment"] {
+  @apply flex-1 px-1 py-1.5 text-center whitespace-nowrap text-muted2 transition-colors hover:text-ink;
+}
+
+[data-el="filter.menu"] [data-part="segment"] + [data-part="segment"] {
+  @apply border-l border-line;
+}
+
+[data-el="filter.menu"] [data-part="segment"][data-state~="selected"] {
+  @apply bg-surface2 font-semibold text-ink [box-shadow:inset_0_0_0_1px_var(--accent-line)];
+}
+
+[data-el="filter.menu"] [data-part="footer"] {
+  @apply flex flex-none items-center justify-between gap-[var(--t-space-footerGap)] border-t border-line px-4 py-2 text-muted2;
+}
+
+[data-el="filter.menu"] [data-part="total"] [data-part="count"] {
+  @apply [font-family:var(--t-type-family-data)] [font-size:var(--t-type-size-lg)] [font-weight:var(--t-type-label-weight)] text-ink;
+}
+
+[data-el="filter.menu"] [data-part="reset"] {
+  @apply [border-radius:var(--t-radius-popupItem)] border border-transparent px-2.5 py-1 [font-size:var(--t-type-micro-size)] [font-weight:var(--t-type-button-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-ink transition-colors hover:border-line hover:bg-surface2;
+}
+
+/* The three lists open under their own select row, over the menu. */
+[data-el="filter.menu"] [data-part="list"] {
+  @apply z-[var(--z-popup)] flex flex-col overflow-y-auto [border-radius:var(--t-radius-popup)] border border-line bg-surface2 p-[var(--t-space-popupFilterPad)] [box-shadow:var(--t-shadow-popupFilter)] [font-size:var(--t-type-label-size)];
+}
+
+[data-el="filter.menu"] [data-part="list"] [data-part="option"] {
+  @apply flex w-full items-center gap-[var(--t-space-inlineGapWide)] whitespace-nowrap [border-radius:var(--t-radius-popupItem)] px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] text-muted2 transition-colors hover:bg-surface hover:text-ink;
+}
+
+[data-el="filter.menu"] [data-part="list"] [data-part="option"][data-state~="selected"] {
+  @apply bg-accent-soft text-accent;
+}
+
+[data-el="filter.menu"] [data-part="list"] [data-part="option"][data-state~="selected"]:hover {
+  @apply bg-surface text-ink;
+}
+
+[data-el="filter.menu"] [data-part="list"] [data-part="search"] {
+  @apply mb-1 block w-full min-w-0 [border-radius:var(--t-radius-popupItem)] border border-line bg-surface px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] text-ink outline-hidden focus-visible:border-accent;
+}
+
+[data-el="filter.menu"] [data-part="list"] [data-part="option"] > :nth-child(2) {
+  @apply min-w-0 flex-1;
+}
+
+[data-el="filter.menu"] [data-part="list"] [data-part="separator"] {
+  @apply my-[var(--t-space-separatorY)];
+}
+
+[data-el="filter.menu"] [data-part="list"] [data-part="clear"] {
+  @apply flex w-full items-center gap-[var(--t-space-popupClearGap)] [border-radius:var(--t-radius-popupItem)] px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-micro-size)] [font-weight:var(--t-type-button-weight)] uppercase [letter-spacing:var(--t-type-button-tracking)] text-muted transition-colors hover:bg-surface hover:text-ink disabled:opacity-50;
+}
+
+[data-el="filter.menu"] [data-part="list"] [data-part="empty"] {
+  @apply px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlY)] text-muted;
+}

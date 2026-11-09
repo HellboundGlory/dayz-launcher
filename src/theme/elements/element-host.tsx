@@ -90,6 +90,7 @@ import {
 } from "./update-elements";
 import { ServerListHost, ServerModsListHost, ModFilterResultsListHost } from "./list-elements";
 import { renderPopupElement } from "./popup-elements";
+import { FilterMenu, renderFilterMenuElement } from "./filter-menu";
 import { ServerDownloadSize, ServerReadiness } from "./readiness-elements";
 import {
   ServerModName,
@@ -153,6 +154,9 @@ export function ElementHost({
   if (modFilterElement !== undefined) return modFilterElement;
   const popupElement = renderPopupElement(node, { className: mergedClass, style });
   if (popupElement !== undefined) return popupElement;
+
+  const menuElement = renderFilterMenuElement(node, { className: mergedClass, style });
+  if (menuElement !== undefined) return menuElement;
 
   switch (node.element) {
     case "app.minimize":
@@ -304,6 +308,8 @@ export function ElementHost({
       return <FilterReset options={node.options} className={mergedClass} style={style} />;
     case "filter.mods":
       return <FilterMods options={node.options} className={mergedClass} style={style} />;
+    case "filter.menu":
+      return <FilterMenu options={node.options} className={mergedClass} style={style} />;
 
     case "modal.close":
       return <ModalClose options={node.options} className={mergedClass} style={style} />;

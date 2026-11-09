@@ -156,6 +156,19 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     return { total: rows.length, rows: rows.slice(page.offset, page.offset + page.limit) };
   },
   get_map_list: () => maps,
+  get_filter_facets: () => ({
+    total: servers.length,
+    maps: maps.map(([key, name]) => ({
+      name,
+      count: servers.filter((s) => s.map_display === name).length,
+      values: [key],
+    })),
+    versions: [{ name: "1.29.163709", count: servers.length, values: ["1.29.163709"] }],
+    countries: [],
+    mods: [],
+    same_as_mine: servers.length,
+  }),
+  get_installed_dayz_version: () => "1.29.163709",
   get_server_counts: () => ({ total: servers.length, populated: servers.filter((s) => s.players > 0).length }),
   server_list_source: () => "steam",
   server_mod_readiness: () => (joinState === "checking" ? new Promise(() => {}) : readiness),

@@ -7,6 +7,7 @@ import {
   unsubscribeUniqueMods,
   getFilterFacets,
   getSearchSuggestions,
+  getInstalledDayzVersion,
   type FilterParams,
 } from "./tauri";
 import { invoke } from "@tauri-apps/api/core";
@@ -73,6 +74,19 @@ describe("server mods tauri command wrappers", () => {
       queryPort: 27016,
     });
     expect(res).toEqual({ count: 2, total_size_bytes: 9999 });
+  });
+});
+
+describe("getInstalledDayzVersion", () => {
+  it("passes the folder override and returns the reported version", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce("1.29.163709");
+    await expect(getInstalledDayzVersion("/games/DayZ")).resolves.toBe("1.29.163709");
+    expect(invoke).toHaveBeenCalledWith("get_installed_dayz_version", { dayzPathOverride: "/games/DayZ" });
+  });
+
+  it("returns null when the command rejects", async () => {
+    vi.mocked(invoke).mockRejectedValueOnce(new Error("folder unreadable"));
+    await expect(getInstalledDayzVersion(null)).resolves.toBeNull();
   });
 });
 

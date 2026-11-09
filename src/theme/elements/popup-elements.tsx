@@ -122,7 +122,7 @@ export function nextSortDir(currentKey: SortKey, currentDir: SortDir, picked: So
 }
 
 /** A filter option: the check column, then its label. Shared by the map, tag, region and sort popups. */
-function OptionRow({
+export function OptionRow({
   selected,
   mark,
   state,
@@ -166,7 +166,16 @@ export function PopupSeparator() {
   return <div data-part="separator" aria-hidden className="mx-[var(--t-space-separatorX)] my-[var(--t-space-separatorY)] h-[var(--t-border-hairline)] bg-line" />;
 }
 
-export function PopupMapOptions({ className, style }: { className?: string; style?: CSSProperties }) {
+export function PopupMapOptions({
+  className,
+  style,
+  counts,
+}: {
+  className?: string;
+  style?: CSSProperties;
+  /** Server counts per map key, shown on the right when given. */
+  counts?: Record<string, number>;
+}) {
   const filter = useServerStore((s) => s.filter);
   const setFilter = useServerStore((s) => s.setFilter);
   const maps = useServerStore((s) => s.maps);
@@ -183,6 +192,11 @@ export function PopupMapOptions({ className, style }: { className?: string; styl
   const option = ([norm, disp]: [string, string]) => (
     <OptionRow key={norm} selected={selected.includes(norm)} onClick={() => toggle(norm)}>
       <span className="truncate">{disp}</span>
+      {counts && (
+        <span data-part="count" className="[font-family:var(--t-type-family-data)] text-muted">
+          {(counts[norm] ?? 0).toLocaleString("en")}
+        </span>
+      )}
     </OptionRow>
   );
 

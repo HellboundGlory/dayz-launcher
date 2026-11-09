@@ -835,6 +835,41 @@
       "since": "2.0",
       "aliases": []
     },
+    "filter.menu": {
+      "kind": "input",
+      "where": [
+        "browser"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "showLabel": {
+          "type": "boolean",
+          "default": true
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "trigger",
+        "label",
+        "badge",
+        "chevron",
+        "note",
+        "popup",
+        "body",
+        "column"
+      ],
+      "states": [
+        "active",
+        "open",
+        "tabNote"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
     "filter.sort": {
       "kind": "input",
       "where": [
@@ -4937,6 +4972,183 @@
       "since": "2.0",
       "aliases": []
     },
+    "popup.filterServer": {
+      "kind": "input",
+      "where": [
+        "popup:filterMenu"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "group",
+        "heading",
+        "row",
+        "label",
+        "select",
+        "value",
+        "chevron",
+        "list",
+        "option",
+        "box",
+        "count",
+        "search",
+        "empty",
+        "separator",
+        "clear",
+        "segments",
+        "segment"
+      ],
+      "states": [
+        "selected",
+        "on",
+        "open"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
+    "popup.filterConnection": {
+      "kind": "input",
+      "where": [
+        "popup:filterMenu"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "group",
+        "heading",
+        "row",
+        "label",
+        "segments",
+        "segment",
+        "checkbox",
+        "box"
+      ],
+      "states": [
+        "selected",
+        "on"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
+    "popup.filterGameplay": {
+      "kind": "input",
+      "where": [
+        "popup:filterMenu"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "group",
+        "heading",
+        "row",
+        "label",
+        "segments",
+        "segment"
+      ],
+      "states": [
+        "selected"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
+    "popup.filterMods": {
+      "kind": "input",
+      "where": [
+        "popup:filterMenu"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "group",
+        "heading",
+        "row",
+        "label",
+        "segments",
+        "segment",
+        "select",
+        "count",
+        "chevron"
+      ],
+      "states": [
+        "selected",
+        "on"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
+    "popup.filterAccess": {
+      "kind": "input",
+      "where": [
+        "popup:filterMenu"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "group",
+        "heading",
+        "row",
+        "checkbox",
+        "box"
+      ],
+      "states": [
+        "on"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
+    "popup.filterPlayers": {
+      "kind": "input",
+      "where": [
+        "popup:filterMenu"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "group",
+        "heading",
+        "row",
+        "checkbox",
+        "box"
+      ],
+      "states": [
+        "on"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
+    "popup.filterFooter": {
+      "kind": "display",
+      "where": [
+        "popup:filterMenu"
+      ],
+      "required": [
+        "popup:filterMenu"
+      ],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "footer",
+        "total",
+        "count",
+        "reset"
+      ],
+      "states": [],
+      "since": "2.1",
+      "aliases": []
+    },
     "popup.uniqueServerOptions": {
       "kind": "input",
       "where": [
@@ -5305,6 +5517,12 @@
       "openedBy": "mods.selectUnique",
       "requiredContents": [
         "popup.uniqueServerOptions"
+      ]
+    },
+    "filterMenu": {
+      "openedBy": "filter.menu",
+      "requiredContents": [
+        "popup.filterFooter"
       ]
     }
   },

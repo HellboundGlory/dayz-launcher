@@ -29,6 +29,9 @@
                     }
                   },
                   {
+                    "element": "filter.menu"
+                  },
+                  {
                     "element": "filter.map"
                   },
                   {
@@ -423,6 +426,9 @@
                 "options": {
                   "showIcon": true
                 }
+              },
+              {
+                "element": "filter.menu"
               },
               {
                 "element": "filter.map"

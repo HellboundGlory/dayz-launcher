@@ -98,6 +98,7 @@ pub const LAYOUT_ALLOWLIST: &[&str] = &[
     "layout/lists/serverMods.json",
     "layout/lists/modServers.json",
     "layout/popups/mapFilter.json",
+    "layout/popups/filterMenu.json",
     "layout/popups/modsUnique.json",
     "layout/popups/modsUnsubscribe.json",
     "layout/popups/modsVerify.json",

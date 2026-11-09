@@ -143,6 +143,17 @@ export interface SearchSuggestion {
   values: string[];
 }
 
+/** The installed DayZ build's version string, or null when the folder can't be read. */
+export async function getInstalledDayzVersion(
+  dayzPathOverride: string | null,
+): Promise<string | null> {
+  try {
+    return await invoke<string | null>("get_installed_dayz_version", { dayzPathOverride });
+  } catch {
+    return null;
+  }
+}
+
 export async function getFilterFacets(
   filter: FilterParams,
   myVersion: string | null = null,

@@ -14,6 +14,7 @@ export const BROWSER_LAYOUT: LayoutFile = {
         class: "t-neutral-browser-filters",
         children: [
           { element: "filter.search", class: "t-neutral-browser-search" },
+          { element: "filter.menu", class: "t-neutral-browser-menu" },
           { element: "filter.map", class: "t-neutral-browser-dropdown" },
           { element: "filter.tags", class: "t-neutral-browser-dropdown" },
           { element: "filter.mods", class: "t-neutral-browser-mods" },
