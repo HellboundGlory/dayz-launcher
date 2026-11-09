@@ -424,7 +424,7 @@ pub(crate) fn clean_version(v: &str) -> Option<String> {
 
 /// The dotted prefixes of a clean version, itself last: `"1.29.161000"` gives
 /// `"1"`, `"1.29"`, `"1.29.161000"`.
-fn version_prefixes(v: &str) -> Vec<String> {
+pub(crate) fn version_prefixes(v: &str) -> Vec<String> {
     let parts: Vec<&str> = v.split('.').collect();
     (1..=parts.len()).map(|n| parts[..n].join(".")).collect()
 }

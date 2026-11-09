@@ -112,6 +112,8 @@ fn listed(
 /// strings, a long map label, and a stale, an unnamed and a favourite server.
 async fn contract_seed(registry: &Registry) {
     let long_map = "x".repeat(120);
+    let long_mod = "y".repeat(120);
+    let long_version = format!("1.29.{}", "9".repeat(40));
     let writer = registry.writer();
     writer
         .upsert_servers(vec![
@@ -131,6 +133,13 @@ async fn contract_seed(registry: &Registry) {
                 ..listed(key(9), "Hotel", "deerisle", "1.29.100", "AS", 2)
             },
             listed(key(10), "India", &long_map, "1.29.100", "EU", 1),
+            listed(key(11), "Juliet", "chernarusplus", "1.29.100", "EU", 1),
+            listed(key(12), "Kilo", "chernarusplus", "1.29.100", "EU", 1),
+            listed(key(13), "Lima", "enoch", "1.29.rc1", "EU", 1),
+            listed(key(14), "Mike", "enoch", "1.29.RC1.5", "EU", 1),
+            listed(key(15), "November", "enoch", "1.29.1_a", "EU", 1),
+            listed(key(16), "Oscar", "enoch", &long_version, "EU", 1),
+            listed(key(17), "Papa", "enoch", "1.29.100", "EU", 1),
         ])
         .await
         .expect("servers");
@@ -154,6 +163,37 @@ async fn contract_seed(registry: &Registry) {
         .upsert_server_mods(key(6), mods(&[("Namalsk Survival", 30)]))
         .await
         .expect("mods 6");
+    // A name with more ids than a row carries: 1025 is the one Kilo shares, so
+    // it must survive the cut and the 20 kept ids must be the widest.
+    let wide: Vec<(&str, u64)> = (0..25).map(|i| ("Wide Mod", 1001 + i)).collect();
+    writer
+        .upsert_server_mods(key(11), mods(&wide))
+        .await
+        .expect("mods 11");
+    writer
+        .upsert_server_mods(
+            key(12),
+            mods(&[
+                ("Wide Mod", 1025),
+                (&long_mod, 7),
+                ("Big Id Mod", u64::MAX - 5),
+                ("100%_Real", 8),
+                ("100xxReal", 9),
+            ]),
+        )
+        .await
+        .expect("mods 12");
+    // More ids than one counting statement binds.
+    let names: Vec<String> = (0..30).map(|i| format!("Pack {i}")).collect();
+    let many: Vec<(&str, u64)> = names
+        .iter()
+        .enumerate()
+        .flat_map(|(i, name)| (0..20).map(move |j| (name.as_str(), 5000 + (i * 20 + j) as u64)))
+        .collect();
+    writer
+        .upsert_server_mods(key(17), mods(&many))
+        .await
+        .expect("mods 17");
     writer.set_favourite(key(9), true).await.expect("favourite");
 }
 
@@ -231,6 +271,41 @@ async fn every_row_counts_what_picking_it_returns() {
                 row.name
             );
         }
+        for (text, expected) in [
+            ("wide", "Wide Mod"),
+            ("big", "Big Id Mod"),
+            ("100%_", "100%_Real"),
+        ] {
+            let found = reader.suggestions(filter, text).expect("suggestions");
+            assert!(
+                found.iter().any(|row| row.label == expected),
+                "{text:?} did not suggest {expected}: {:?}",
+                found.iter().map(|row| &row.label).collect::<Vec<_>>()
+            );
+            for row in found {
+                let picked = match row.kind {
+                    SuggestionKind::Map => ServerFilter {
+                        maps: row.values.clone(),
+                        ..filter.clone()
+                    },
+                    SuggestionKind::Mod => ServerFilter {
+                        mod_ids: row.values.iter().filter_map(|id| id.parse().ok()).collect(),
+                        mod_match: ModMatch::Any,
+                        ..filter.clone()
+                    },
+                    SuggestionKind::Version => ServerFilter {
+                        version: Some(row.values[0].clone()),
+                        ..filter.clone()
+                    },
+                };
+                assert_eq!(
+                    reader.count(&picked).expect("count"),
+                    row.count,
+                    "suggestion {} for {text:?}",
+                    row.label
+                );
+            }
+        }
     }
 
     for my_version in ["1.29", "1.29.100", "1.28.50"] {
@@ -258,6 +333,29 @@ async fn every_row_counts_what_picking_it_returns() {
             row.name
         );
     }
+    let cut = "y".repeat(80);
+    assert_eq!(values_of(&long.mods, &cut).len(), 1);
+
+    let all = reader.facets(&empty, None).expect("facets");
+    let wide = values_of(&all.mods, "Wide Mod");
+    assert_eq!(wide.len(), 20, "a row carries 20 ids");
+    assert!(wide.contains(&"1025".to_string()), "kept {wide:?}");
+    assert_eq!(
+        named(&all.mods)
+            .iter()
+            .find(|(n, _)| n == "Wide Mod")
+            .unwrap()
+            .1,
+        2
+    );
+
+    let big = (u64::MAX - 5).to_string();
+    assert_eq!(values_of(&all.mods, "Big Id Mod"), strings(&[&big]));
+
+    // `_` is a LIKE wildcard: unescaped, `100%_` would also match `100xxReal`.
+    let percent = reader.suggestions(&empty, "100%_").expect("suggestions");
+    let labels: Vec<&str> = percent.iter().map(|row| row.label.as_str()).collect();
+    assert_eq!(labels, ["100%_Real"]);
 }
 
 /// A word-start match past a full scan of mid-word matches still surfaces.
@@ -299,6 +397,55 @@ async fn a_mod_suggestion_finds_word_starts_past_other_matches() {
         "word start crowded out: {:?}",
         found.iter().map(|row| &row.label).collect::<Vec<_>>()
     );
+}
+
+/// A word start is also anything after `-`, `_`, `[`, `(`, `.` or `/`.
+#[tokio::test]
+async fn a_mod_suggestion_finds_word_starts_after_punctuation() {
+    let filler: Vec<(String, u64)> = (0..600).map(|i| (format!("Mudexp{i}"), 1000 + i)).collect();
+    // Each label sorts after the filler, so only the separator test can keep it
+    // inside the names read.
+    for label in [
+        "Zz-Expansion",
+        "Zz_Expansion",
+        "Zz[Expansion",
+        "Zz(Expansion",
+        "Zz.Expansion",
+        "Zz/Expansion",
+    ] {
+        let registry = Registry::open_in_memory().expect("registry");
+        let writer = registry.writer();
+        writer
+            .upsert_servers(vec![listed(
+                key(1),
+                "Alpha",
+                "chernarusplus",
+                "1.29.100",
+                "EU",
+                1,
+            )])
+            .await
+            .expect("servers");
+        let mut declared: Vec<(&str, u64)> = filler
+            .iter()
+            .map(|(name, id)| (name.as_str(), *id))
+            .collect();
+        declared.push((label, 30));
+        writer
+            .upsert_server_mods(key(1), mods(&declared))
+            .await
+            .expect("mods");
+
+        let found = registry
+            .reader()
+            .expect("reader")
+            .suggestions(&ServerFilter::default(), "exp")
+            .expect("suggestions");
+        assert!(
+            found.iter().any(|row| row.label == label),
+            "{label} crowded out"
+        );
+    }
 }
 
 fn pairs(items: &[(&str, usize)]) -> Vec<(String, usize)> {

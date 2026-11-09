@@ -7,7 +7,7 @@
 //! clause `filter::where_clause` builds.
 
 use crate::error::RegistryError;
-use crate::filter::{self, clean_version, escape_like, ModMatch, ServerFilter};
+use crate::filter::{self, clean_version, escape_like, version_prefixes, ModMatch, ServerFilter};
 use rusqlite::types::Value;
 use rusqlite::Connection;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -29,6 +29,18 @@ const MAX_LABEL_CHARS: usize = 80;
 
 /// Candidate names the mod suggestion query reads before the word test.
 const MOD_SUGGESTION_SCAN: usize = 500;
+
+/// Groups a suggestion counts ids for, after the word test keeps them.
+const MOD_SUGGESTION_GROUPS: usize = 20;
+
+/// Ids of one name that are counted before the widest are kept. Real mods
+/// have a handful; a server-made name with thousands would otherwise cost a
+/// counting statement per 500.
+const MAX_MOD_ID_CANDIDATES: usize = 200;
+
+/// Workshop ids one statement may bind to count servers: with the filter's own
+/// binds this stays well under SQLite's limit of 32766.
+const ID_COUNT_CHUNK: usize = 500;
 
 const SUGGESTED_MAPS: usize = 3;
 const SUGGESTED_MODS: usize = 4;
@@ -158,39 +170,53 @@ pub(crate) fn version_counts(
 ) -> Result<Vec<FacetCount>, RegistryError> {
     let (where_sql, binds) = filter::where_clause(filter);
     let sql = format!(
-        "SELECT version FROM servers {} \
-         GROUP BY version ORDER BY COUNT(*) DESC, version LIMIT {MAX_VERSION_ROWS}",
-        and_where(
-            &where_sql,
-            "version IS NOT NULL AND length(version) BETWEEN 1 AND 32"
-        )
+        "SELECT version, COUNT(*) FROM servers {} \
+         GROUP BY version ORDER BY COUNT(*) DESC, version",
+        and_where(&where_sql, "version IS NOT NULL")
     );
     let mut stmt = conn.prepare_cached(&sql)?;
-    let versions = stmt
-        .query_map(rusqlite::params_from_iter(binds), |r| r.get::<_, String>(0))?
+    let stored = stmt
+        .query_map(rusqlite::params_from_iter(binds), |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)? as usize))
+        })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
+    drop(stmt);
 
     // Only offer values the version filter accepts. The count is what picking
-    // the row returns, so it runs the filter's own clause: "1.29" includes
+    // the row returns, so it follows the filter's own rule: "1.29" includes
     // "1.29.100", and a row's count can exceed the servers stored with exactly
     // that string.
     let mut rows: Vec<FacetCount> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
-    for version in versions {
-        let Some(name) = clean_version(&version) else {
+    for (version, _) in &stored {
+        if rows.len() == MAX_VERSION_ROWS {
+            break;
+        }
+        let Some(name) = clean_version(version) else {
             continue;
         };
         if !seen.insert(name.clone()) {
             continue;
         }
-        let mut picked = filter.clone();
-        picked.version = Some(name.clone());
-        let count = count_servers(conn, &picked)?;
         rows.push(FacetCount {
             values: vec![name.clone()],
             name,
-            count,
+            count: 0,
         });
+    }
+
+    let lowered: Vec<String> = stored.iter().map(|(v, _)| v.to_ascii_lowercase()).collect();
+    for row in &mut rows {
+        let prefixes = version_prefixes(&row.name);
+        let dotted = format!("{}.", row.name.to_ascii_lowercase());
+        row.count = stored
+            .iter()
+            .zip(&lowered)
+            .filter(|((version, _), lower)| {
+                prefixes.contains(version) || lower.starts_with(&dotted)
+            })
+            .map(|((_, count), _)| *count)
+            .sum();
     }
     rows.sort_by(|a, b| newest_first(&a.name, &b.name));
     Ok(rows)
@@ -256,12 +282,25 @@ fn mods_named_like(
     );
     if let Some(text) = word_start {
         // Narrow to names a word of which starts with the text, so a common
-        // letter cannot fill the scan with mid-word matches. The full rule
-        // (any non-alphanumeric separator) is applied in Rust afterwards.
+        // letter cannot fill the scan with mid-word matches. A word start
+        // always contains the text, so the substring test first keeps the
+        // separator tests off rows that cannot match. This covers the common
+        // separators only; the final rule is applied in Rust.
         let escaped = escape_like(text);
-        sql.push_str(" AND (sm.name LIKE ? ESCAPE '\\' OR sm.name LIKE ? ESCAPE '\\')");
+        binds.push(Value::Text(format!("%{escaped}%")));
+        let mut parts = vec!["sm.name LIKE ? ESCAPE '\\'".to_string()];
         binds.push(Value::Text(format!("{escaped}%")));
-        binds.push(Value::Text(format!("% {escaped}%")));
+        for separator in [' ', '-', '_', '[', '(', '.', '/'] {
+            parts.push("sm.name LIKE ? ESCAPE '\\'".to_string());
+            binds.push(Value::Text(format!(
+                "%{}{escaped}%",
+                escape_like(&separator.to_string())
+            )));
+        }
+        sql.push_str(&format!(
+            " AND sm.name LIKE ? ESCAPE '\\' AND ({})",
+            parts.join(" OR ")
+        ));
     }
     // Inside the subquery `name`, `ip` and `query_port` are the servers table's,
     // so the shared clause keeps its meaning.
@@ -285,8 +324,24 @@ fn mods_named_like(
     let mut groups: Vec<(String, Vec<u64>)> = grouped
         .into_iter()
         .map(|(name, ids)| (truncate_label(name), workshop_ids(&ids)))
+        .filter(|(_, ids)| !ids.is_empty())
         .collect();
-    let id_servers = id_server_counts(conn, filter)?;
+    for (_, ids) in &mut groups {
+        ids.truncate(MAX_MOD_ID_CANDIDATES);
+    }
+    if let Some(text) = word_start {
+        let lower = text.to_ascii_lowercase();
+        groups.retain(|(name, _)| matches_word_start(name, &lower));
+        groups.truncate(MOD_SUGGESTION_GROUPS);
+    }
+
+    let mut wanted: Vec<u64> = groups
+        .iter()
+        .flat_map(|(_, ids)| ids.iter().copied())
+        .collect();
+    wanted.sort_unstable();
+    wanted.dedup();
+    let id_servers = id_server_counts(conn, filter, &wanted)?;
     for (_, ids) in &mut groups {
         keep_widest_ids(ids, &id_servers);
     }
@@ -308,27 +363,41 @@ fn mods_named_like(
     Ok(rows)
 }
 
-/// How many servers under `filter` declare each Workshop id. A server naming
-/// an id twice counts once.
+/// How many servers under `filter` declare each of `ids`. A server naming an
+/// id twice counts once. Chunked because each id is a bound parameter.
 fn id_server_counts(
     conn: &Connection,
     filter: &ServerFilter,
+    ids: &[u64],
 ) -> Result<HashMap<u64, usize>, RegistryError> {
-    let (where_sql, binds) = filter::where_clause(filter);
-    let sql = format!(
-        "SELECT sm.workshop_id, COUNT(DISTINCT sm.ip || ':' || sm.query_port) \
-         FROM server_mods sm \
-         WHERE (sm.ip || ':' || sm.query_port) IN \
-         (SELECT ip || ':' || query_port FROM servers {where_sql}) \
-         GROUP BY sm.workshop_id"
-    );
-    let mut stmt = conn.prepare_cached(&sql)?;
-    let counts = stmt
-        .query_map(rusqlite::params_from_iter(binds), |r| {
-            Ok((r.get::<_, i64>(0)? as u64, r.get::<_, i64>(1)? as usize))
-        })?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-    Ok(counts.into_iter().collect())
+    let mut counts = HashMap::with_capacity(ids.len());
+    if ids.is_empty() {
+        return Ok(counts);
+    }
+    let (where_sql, filter_binds) = filter::where_clause(filter);
+    for chunk in ids.chunks(ID_COUNT_CHUNK) {
+        let holes = std::iter::repeat_n("?", chunk.len())
+            .collect::<Vec<_>>()
+            .join(", ");
+        let sql = format!(
+            "SELECT sm.workshop_id, COUNT(DISTINCT sm.ip || ':' || sm.query_port) \
+             FROM server_mods sm \
+             WHERE sm.workshop_id IN ({holes}) \
+             AND (sm.ip || ':' || sm.query_port) IN \
+             (SELECT ip || ':' || query_port FROM servers {where_sql}) \
+             GROUP BY sm.workshop_id"
+        );
+        let mut binds: Vec<Value> = chunk.iter().map(|&id| Value::Integer(id as i64)).collect();
+        binds.extend(filter_binds.iter().cloned());
+        let mut stmt = conn.prepare_cached(&sql)?;
+        let found = stmt
+            .query_map(rusqlite::params_from_iter(binds), |r| {
+                Ok((r.get::<_, i64>(0)? as u64, r.get::<_, i64>(1)? as usize))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        counts.extend(found);
+    }
+    Ok(counts)
 }
 
 /// Cuts `ids` to [`MAX_MOD_IDS`], keeping the ids carried by the most servers
@@ -361,12 +430,15 @@ fn count_servers(conn: &Connection, filter: &ServerFilter) -> Result<usize, Regi
     Ok(total as usize)
 }
 
+/// The ids in a `GROUP_CONCAT` result. Workshop ids are stored as `i64`, so a
+/// value at or past 2^63 comes back negative and reads back the same way.
 fn workshop_ids(concatenated: &Option<String>) -> Vec<u64> {
     let mut ids: Vec<u64> = concatenated
         .as_deref()
         .unwrap_or_default()
         .split(',')
-        .filter_map(|id| id.parse().ok())
+        .filter_map(|id| id.parse::<i64>().ok())
+        .map(|id| id as u64)
         .collect();
     ids.sort_unstable();
     ids.dedup();
@@ -433,6 +505,7 @@ pub(crate) fn suggestions(
     }
 
     if base.modded != Some(false) {
+        // `mods_named_like` already applies the word test for a suggestion.
         for row in mods_named_like(
             conn,
             &without(&base, Facet::Mods),
@@ -440,7 +513,6 @@ pub(crate) fn suggestions(
             MOD_SUGGESTION_SCAN,
         )?
         .into_iter()
-        .filter(|row| matches_word_start(&row.name, &lower))
         .take(SUGGESTED_MODS)
         {
             out.push(Suggestion {
