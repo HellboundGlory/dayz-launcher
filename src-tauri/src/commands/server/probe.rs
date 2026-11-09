@@ -265,9 +265,9 @@ pub struct ModsPendingEntry {
     pub pending: bool,
 }
 
-/// A2S-refresh exactly the servers the frontend passes in — the whole
-/// currently filtered/loaded list, not just what the virtualizer has
-/// mounted. This is what the REFRESH button calls.
+/// A2S-refresh the servers the frontend passes in, capped at PROBE_WINDOW.
+/// The REFRESH button and the timed refresh send the rows on screen plus one
+/// screen either side; a row's own probe button sends just that row.
 ///
 /// A non-answer here can mean the server is really offline (every address is
 /// one the user has loaded), subject to the same corroboration check as
@@ -284,11 +284,11 @@ pub async fn refresh_visible_servers(
 ) -> Result<(), String> {
     // Unparseable entries are skipped, not fatal — one bad address shouldn't fail the whole click.
     //
-    // Capped at PROBE_WINDOW: the frontend loads the whole filtered list,
-    // which is now the whole browser rather than a 5000-row slice of it, and
-    // one click must not turn into tens of thousands of INFO+RULES round
-    // trips. The list arrives in the table's sort order, so the cap keeps the
-    // first 5,000 rows of that order.
+    // Capped at PROBE_WINDOW: the frontend sends at most 1,000 rows around the
+    // ones on screen, but the list comes from the WebView, and one call must
+    // not turn into tens of thousands of INFO+RULES round trips. The list
+    // arrives in the table's sort order, so the cap keeps the first 5,000 rows
+    // of that order.
     let socket_addrs: Vec<SocketAddr> = addrs
         .iter()
         .take(PROBE_WINDOW)
