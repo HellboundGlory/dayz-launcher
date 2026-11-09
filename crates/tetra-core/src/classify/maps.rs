@@ -32,6 +32,17 @@ pub fn display_name(raw: &str) -> String {
         .unwrap_or_else(|| raw.trim().to_string())
 }
 
+/// Engine keys whose player-facing label contains `term`, ASCII case-insensitive,
+/// so a search for a map's common name finds the servers running it.
+pub fn engine_names_matching(term: &str) -> Vec<&'static str> {
+    let needle = term.to_ascii_lowercase();
+    KNOWN
+        .iter()
+        .filter(|(_, label)| label.to_ascii_lowercase().contains(&needle))
+        .map(|(key, _)| *key)
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

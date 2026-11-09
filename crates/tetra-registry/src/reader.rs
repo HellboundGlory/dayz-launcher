@@ -44,6 +44,46 @@ pub struct Reader {
     conn: Connection,
 }
 
+/// The first declared mod whose name contains a search word that the row's own
+/// name, map or address did not. Names are compared ASCII-lowercased, as the
+/// search SQL does. Only called for rows a word search already selected.
+fn matched_mod(
+    row: &ServerListRow,
+    terms: &[String],
+    stmt: &mut rusqlite::Statement<'_>,
+) -> rusqlite::Result<Option<String>> {
+    let name = row.name.to_ascii_lowercase();
+    let map = row.map_display.to_ascii_lowercase();
+    let addr = format!("{}:{}", row.key.ip, row.key.query_port);
+    let mut mod_names: Option<Vec<(String, String)>> = None;
+
+    for term in terms {
+        let term = term.to_ascii_lowercase();
+        if name.contains(&term) || map.contains(&term) || addr.contains(&term) {
+            continue;
+        }
+        let mods = match &mod_names {
+            Some(mods) => mods,
+            None => {
+                let mods = stmt
+                    .query_map(params![row.key.ip.to_string(), row.key.query_port], |r| {
+                        r.get::<_, String>(0)
+                    })?
+                    .collect::<rusqlite::Result<Vec<String>>>()?
+                    .into_iter()
+                    .filter(|name| !name.is_empty())
+                    .map(|name| (name.to_ascii_lowercase(), name))
+                    .collect::<Vec<_>>();
+                mod_names.insert(mods)
+            }
+        };
+        if let Some((_, original)) = mods.iter().find(|(lower, _)| lower.contains(&term)) {
+            return Ok(Some(original.clone()));
+        }
+    }
+    Ok(None)
+}
+
 impl Reader {
     pub(crate) fn new(conn: Connection) -> Result<Self, RegistryError> {
         Ok(Self { conn })
@@ -76,11 +116,40 @@ impl Reader {
         // prepare_cached: this is the hottest read path (fires on every
         // discovery tick), and filter shapes are a small, bounded set.
         let mut stmt = self.conn.prepare_cached(&sql)?;
-        let rows = collect_skipping_bad_rows(
+        let mut rows = collect_skipping_bad_rows(
             stmt.query_map(rusqlite::params_from_iter(binds), Self::map_row)?,
             "page",
         )?;
+        self.fill_matched_mods(filter, &mut rows)?;
         Ok(rows)
+    }
+
+    /// For a word search that is not an exact-address lookup, note on each row
+    /// which declared mod made it match when no cheaper field did. One primary-key
+    /// probe per row, and only for a page the search already narrowed.
+    fn fill_matched_mods(
+        &self,
+        filter: &ServerFilter,
+        rows: &mut [ServerListRow],
+    ) -> Result<(), RegistryError> {
+        let Some(text) = filter.search.as_deref() else {
+            return Ok(());
+        };
+        if filter::address_search(text).is_some() {
+            return Ok(());
+        }
+        let terms = filter::search_terms(text);
+        if terms.is_empty() {
+            return Ok(());
+        }
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT name FROM server_mods WHERE ip = ?1 AND query_port = ?2 ORDER BY ordinal",
+        )?;
+        for row in rows.iter_mut() {
+            let matched = matched_mod(row, &terms, &mut stmt)?;
+            row.matched_mod = matched;
+        }
+        Ok(())
     }
 
     /// One page plus the filter's total, read in one transaction so they agree.
@@ -202,6 +271,7 @@ impl Reader {
             queue: r.get(21)?,
             day_multiplier: r.get(22)?,
             night_multiplier: r.get(23)?,
+            matched_mod: None,
         }))
     }
 

@@ -27,6 +27,8 @@ export interface Server {
   battleye: boolean;
   /** `false` only after a targeted REFRESH misses this server. */
   online: boolean;
+  /** The mod whose name made a word search match this row, when no other field did. */
+  matched_mod?: string | null;
 }
 
 export interface ServerModReadiness {

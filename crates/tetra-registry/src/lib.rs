@@ -13,7 +13,7 @@ pub mod schema;
 pub mod writer;
 
 pub use error::RegistryError;
-pub use filter::{ModMatch, ServerFilter, ServerListRow, SortDir, SortKey};
+pub use filter::{ModMatch, ServerFilter, ServerListRow, SortDir, SortKey, TimeOfDay};
 pub use reader::Reader;
 pub use rows::{Export, ExportRow, ServerKey, ServerRow, WorkshopCacheRow};
 pub use writer::Writer;

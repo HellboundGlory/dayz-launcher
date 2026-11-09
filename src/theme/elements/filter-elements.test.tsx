@@ -21,6 +21,9 @@ function makeFilter(overrides: Partial<ServerFilter> = {}): ServerFilter {
     mod_ids: [],
     mod_match: "any",
     mod_ids_exclude: [],
+    version: null,
+    time_of_day: null,
+    battleye: null,
     ...overrides,
   };
 }

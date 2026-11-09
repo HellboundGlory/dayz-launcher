@@ -5,6 +5,7 @@ use tauri::State;
 use tetra_net::Prober;
 use tetra_registry::filter::{ModMatch, ServerFilter, SortDir, SortKey};
 use tetra_registry::rows::ServerKey;
+use tetra_registry::TimeOfDay;
 
 pub(crate) mod discovery;
 pub(crate) mod lookup;
@@ -113,6 +114,9 @@ pub struct Server32 {
     /// Day/night time-acceleration multipliers, for the `Nx` shown next to the in-game time.
     pub day_multiplier: Option<f32>,
     pub night_multiplier: Option<f32>,
+    /// The mod whose name made a word search match this row, when no other
+    /// field did. `None` when the search matched the server's own fields.
+    pub matched_mod: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -144,6 +148,15 @@ pub struct FilterParams {
     /// one of these is dropped, independent of `mod_match`.
     #[serde(default)]
     pub mod_ids_exclude: Vec<String>,
+    /// A game version string to match on; `null` (or absent) means any version.
+    #[serde(default)]
+    pub version: Option<String>,
+    /// `"day"` or `"night"`; anything else means any hour.
+    #[serde(default)]
+    pub time_of_day: Option<String>,
+    /// `true` for BattlEye only, `false` for the rest, `null` for both.
+    #[serde(default)]
+    pub battleye: Option<bool>,
 }
 
 #[derive(serde::Deserialize)]
@@ -190,6 +203,7 @@ fn to_server32(r: &tetra_registry::filter::ServerListRow) -> Server32 {
         queue: r.queue,
         day_multiplier: r.day_multiplier,
         night_multiplier: r.night_multiplier,
+        matched_mod: r.matched_mod.clone(),
     }
 }
 
@@ -362,6 +376,13 @@ fn filter_from_params(p: FilterParams) -> ServerFilter {
             .iter()
             .filter_map(|id| id.parse().ok())
             .collect(),
+        version: p.version,
+        time_of_day: match p.time_of_day.as_deref() {
+            Some("day") => Some(TimeOfDay::Day),
+            Some("night") => Some(TimeOfDay::Night),
+            _ => None,
+        },
+        battleye: p.battleye,
     }
 }
 
@@ -447,6 +468,9 @@ mod tests {
             mod_ids: vec![],
             mod_match: String::new(),
             mod_ids_exclude: vec![],
+            version: None,
+            time_of_day: None,
+            battleye: None,
         }
     }
 

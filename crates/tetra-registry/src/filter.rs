@@ -1,6 +1,7 @@
 use crate::rows::ServerKey;
 use rusqlite::types::Value;
 use std::net::Ipv4Addr;
+use tetra_core::classify::maps::engine_names_matching;
 use tetra_core::classify::names::DEFAULT_NAMES;
 
 /// The column list (and order) both [`build`]'s query and [`crate::reader::Reader::get`]
@@ -20,6 +21,12 @@ pub enum ModMatch {
     Any,
     /// Server must declare every id in `mod_ids`.
     All,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TimeOfDay {
+    Day,
+    Night,
 }
 
 /// How recently a server must have answered to be listed, unless it is a favourite or was played.
@@ -56,6 +63,12 @@ pub struct ServerFilter {
     /// of these is dropped, regardless of `mod_match`. Independent of
     /// `mod_ids`: a mod can be required, excluded, or neither, never both.
     pub mod_ids_exclude: Vec<u64>,
+    /// A dayz build string like `"1.29.161000"`; `None` matches any version.
+    pub version: Option<String>,
+    /// In-game clock half of the day; `None` matches any hour.
+    pub time_of_day: Option<TimeOfDay>,
+    /// `Some(true)` keeps only BattlEye servers, `Some(false)` only the rest.
+    pub battleye: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -138,6 +151,10 @@ pub struct ServerListRow {
     /// A2S_INFO keywords. Used with `in_game_time` to show sun/moon + "Nx".
     pub day_multiplier: Option<f32>,
     pub night_multiplier: Option<f32>,
+    /// The first declared mod whose name matched a search word, when no other
+    /// field did. Filled by [`crate::Reader::page`], which is the only caller
+    /// that has the mods at hand.
+    pub matched_mod: Option<String>,
 }
 
 /// The `WHERE` clause (empty when nothing filters) and its binds. The page query
@@ -180,11 +197,22 @@ pub(crate) fn where_clause(filter: &ServerFilter) -> (String, Vec<Value>) {
         (filter.official, "official"),
         (filter.modded, "modded"),
         (filter.first_person, "first_person"),
+        (filter.battleye, "battleye"),
     ] {
         if let Some(v) = want {
             clauses.push(format!("{column} = ?"));
             binds.push(Value::Integer(v as i64));
         }
+    }
+    if let Some(day) = filter.time_of_day {
+        clauses.push(time_of_day_sql(day).into());
+    }
+    if let Some(version) = filter.version.as_deref().and_then(clean_version) {
+        let holes = placeholders(&version_prefixes(&version), &mut binds);
+        clauses.push(format!(
+            "(version IN ({holes}) OR version LIKE ? ESCAPE '\\')"
+        ));
+        binds.push(Value::Text(format!("{}.%", escape_like(&version))));
     }
     // Non-correlated on purpose: an `EXISTS`/`= ?` clause correlated to
     // `servers.ip`/`servers.query_port` re-runs its subquery once per outer
@@ -251,13 +279,9 @@ pub(crate) fn where_clause(filter: &ServerFilter) -> (String, Vec<Value>) {
                 binds.push(Value::Integer(port.into()));
             }
             None => {
-                clauses.push(
-                    "(name LIKE ? ESCAPE '\\' OR COALESCE(description, '') LIKE ? ESCAPE '\\')"
-                        .into(),
-                );
-                let pattern = format!("%{}%", escape_like(text));
-                binds.push(Value::Text(pattern.clone()));
-                binds.push(Value::Text(pattern));
+                for term in search_terms(text) {
+                    push_search_term(&term, &mut clauses, &mut binds);
+                }
             }
         }
     }
@@ -317,6 +341,92 @@ pub fn address_search(text: &str) -> Option<(Ipv4Addr, Option<u16>)> {
         }
         None => Some((text.parse().ok()?, None)),
     }
+}
+
+/// Most words a single search is split into; beyond this the rest are ignored.
+const MAX_SEARCH_TERMS: usize = 8;
+/// Longest word kept from a search, in chars.
+const MAX_TERM_CHARS: usize = 64;
+
+/// The words of a search, at most [`MAX_SEARCH_TERMS`] of them, each capped at
+/// [`MAX_TERM_CHARS`] chars. Blank text gives no words, so it filters nothing.
+pub(crate) fn search_terms(text: &str) -> Vec<String> {
+    text.split_whitespace()
+        .filter_map(|word| {
+            let capped: String = word.chars().take(MAX_TERM_CHARS).collect();
+            (!capped.is_empty()).then_some(capped)
+        })
+        .take(MAX_SEARCH_TERMS)
+        .collect()
+}
+
+/// One word's clause: it must appear somewhere on the server. Cheap string
+/// tests come first so SQLite rarely has to run the `server_mods` subquery.
+fn push_search_term(term: &str, clauses: &mut Vec<String>, binds: &mut Vec<Value>) {
+    let pattern = format!("%{}%", escape_like(term));
+    let mut parts = Vec::new();
+    for column in ["name", "COALESCE(description, '')", "map_raw"] {
+        parts.push(format!("{column} LIKE ? ESCAPE '\\'"));
+        binds.push(Value::Text(pattern.clone()));
+    }
+    let map_keys: Vec<String> = engine_names_matching(term)
+        .into_iter()
+        .map(String::from)
+        .collect();
+    if !map_keys.is_empty() {
+        parts.push(format!(
+            "map_normalised IN ({})",
+            placeholders(&map_keys, binds)
+        ));
+    }
+    for address in ["(ip || ':' || query_port)", "(ip || ':' || game_port)"] {
+        parts.push(format!("{address} LIKE ? ESCAPE '\\'"));
+        binds.push(Value::Text(pattern.clone()));
+    }
+    parts.push(
+        "(ip || ':' || query_port) IN (SELECT sm.ip || ':' || sm.query_port \
+         FROM server_mods sm WHERE sm.name LIKE ? ESCAPE '\\')"
+            .to_string(),
+    );
+    binds.push(Value::Text(pattern));
+    clauses.push(format!("({})", parts.join(" OR ")));
+}
+
+/// Day is in-game hour 5 through 19; night is every other hour. A row without a
+/// readable clock matches neither. The `instr > 1` guard keeps a stray string
+/// with no `:` (which would cast to 0) from counting as night.
+fn time_of_day_sql(t: TimeOfDay) -> &'static str {
+    match t {
+        TimeOfDay::Day => {
+            "(in_game_time IS NOT NULL AND instr(in_game_time, ':') > 1 \
+             AND CAST(substr(in_game_time, 1, instr(in_game_time, ':') - 1) AS INTEGER) \
+             BETWEEN 5 AND 19)"
+        }
+        TimeOfDay::Night => {
+            "(in_game_time IS NOT NULL AND instr(in_game_time, ':') > 1 \
+             AND CAST(substr(in_game_time, 1, instr(in_game_time, ':') - 1) AS INTEGER) \
+             NOT BETWEEN 5 AND 19)"
+        }
+    }
+}
+
+/// A version string worth matching on, trimmed and checked; anything else means
+/// "no version filter" rather than "hide everything".
+fn clean_version(v: &str) -> Option<String> {
+    let v = v.trim();
+    let ok = (1..=32).contains(&v.len())
+        && v.chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'));
+    let edges_ok = !v.starts_with('.') && !v.ends_with('.');
+    let no_empty_parts = v.split('.').all(|part| !part.is_empty());
+    (ok && edges_ok && no_empty_parts).then(|| v.to_string())
+}
+
+/// The dotted prefixes of a clean version, itself last: `"1.29.161000"` gives
+/// `"1"`, `"1.29"`, `"1.29.161000"`.
+fn version_prefixes(v: &str) -> Vec<String> {
+    let parts: Vec<&str> = v.split('.').collect();
+    (1..=parts.len()).map(|n| parts[..n].join(".")).collect()
 }
 
 fn placeholders(items: &[String], binds: &mut Vec<Value>) -> String {

@@ -35,6 +35,9 @@ export interface FilterParams {
   mod_ids: string[];
   mod_match: "any" | "all";
   mod_ids_exclude: string[];
+  version: string | null;
+  time_of_day: "day" | "night" | null;
+  battleye: boolean | null;
 }
 
 export interface PageParams {

@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Server } from "@/types/server";
+import type { ServerFilter } from "@/types/filters";
 import { useServerStore } from "@/stores/server-store";
-import { loadServerPage, pagesFor } from "./use-server-data-loader";
+import { filterParamsFor, loadServerPage, pagesFor } from "./use-server-data-loader";
 
 const { getServerPage } = vi.hoisted(() => ({
   getServerPage: vi.fn<() => Promise<{ total: number; rows: Server[] }>>(),
@@ -76,5 +77,87 @@ describe("server store pages", () => {
     expect(servers[2]).toEqual({ ...c, favourite: true });
     expect(servers.slice(3).every((s) => s === undefined)).toBe(true);
     expect(selectedServer).toBe(aUpdated);
+  });
+});
+
+describe("filterParamsFor", () => {
+  const neutral = {
+    maps: [],
+    countries: [],
+    hide_empty: false,
+    hide_full: false,
+    hide_locked: false,
+    hide_offline: false,
+    max_ping: null as number | null,
+    search: null as string | null,
+    favourites_only: false,
+    recent_only: false,
+    official: null as boolean | null,
+    modded: null as boolean | null,
+    first_person: null as boolean | null,
+    mod_ids: [] as string[],
+    mod_match: "any" as const,
+    mod_ids_exclude: [] as string[],
+    version: null as string | null,
+    time_of_day: null as "day" | "night" | null,
+    battleye: null as boolean | null,
+  };
+
+  const everythingOn: ServerFilter = {
+    maps: ["chernarus"],
+    countries: ["DE"],
+    hide_empty: true,
+    hide_full: true,
+    hide_locked: true,
+    hide_offline: true,
+    max_ping: 50,
+    search: "abc",
+    favourites_only: true,
+    recent_only: false,
+    official: true,
+    modded: false,
+    first_person: true,
+    mod_ids: ["123"],
+    mod_match: "all",
+    mod_ids_exclude: ["456"],
+    version: "1.29",
+    time_of_day: "night",
+    battleye: true,
+  };
+
+  it("keeps only the search on the Favourites and Recent tabs", () => {
+    for (const tab of ["favourites_only", "recent_only"] as const) {
+      const filter = { ...everythingOn, favourites_only: false, recent_only: false, [tab]: true };
+      expect(filterParamsFor(filter)).toEqual({
+        ...neutral,
+        search: "abc",
+        [tab]: true,
+      });
+    }
+  });
+
+  it("passes every filter through on the All-servers tab", () => {
+    const filter = { ...everythingOn, favourites_only: false, recent_only: false };
+    expect(filterParamsFor(filter)).toEqual({
+      maps: ["chernarus"],
+      countries: ["DE"],
+      hide_empty: true,
+      hide_full: true,
+      hide_locked: true,
+      hide_offline: true,
+      max_ping: 50,
+      search: "abc",
+      favourites_only: false,
+      recent_only: false,
+      official: true,
+      modded: false,
+      first_person: true,
+      mod_ids: ["123"],
+      mod_match: "all",
+      mod_ids_exclude: ["456"],
+      version: "1.29",
+      time_of_day: "night",
+      battleye: true,
+    });
   });
 });

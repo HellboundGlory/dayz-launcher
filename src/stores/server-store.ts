@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Server } from "@/types/server";
 import type { ServerFilter, SortKey, SortDir } from "@/types/filters";
+import { PING_PRESETS } from "@/types/filters";
 
 export type ServerLookup = { addr: string; state: "asking" | "noanswer" };
 
@@ -68,7 +69,7 @@ const SORT_KEY_STORAGE = "tetra.sort.v1";
 // What every launch starts from, and the base "Reset filters" restores.
 // search/favourites_only/recent_only don't survive a restart — see persistFilter;
 // resetFilter still carries the latter two over so the active tab keeps its scope.
-const DEFAULT_FILTER: ServerFilter = {
+export const DEFAULT_FILTER: ServerFilter = {
   maps: [],
   countries: [],
   hide_empty: false,
@@ -85,10 +86,29 @@ const DEFAULT_FILTER: ServerFilter = {
   mod_ids: [],
   mod_match: "any",
   mod_ids_exclude: [],
+  version: null,
+  time_of_day: null,
+  battleye: null,
 };
 
 /** Persisted filters use their own key — the opposite choice from settings. */
 const FILTER_STORAGE = "tetra.filter.v1";
+
+/**
+ * An old slider value as one of the ping presets: the nearest, ties rounding up
+ * to the tighter limit. Over 175 becomes "any", because no preset is close to a
+ * limit that loose and keeping it would filter by something the control cannot show.
+ */
+export function snapPing(v: unknown): number | null {
+  if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) return null;
+  if (v > 175) return null;
+  let best: number = PING_PRESETS[0];
+  for (const preset of PING_PRESETS) {
+    // `<=` so an exactly midway value rounds up to the larger (tighter) limit.
+    if (Math.abs(preset - v) <= Math.abs(best - v)) best = preset;
+  }
+  return best;
+}
 
 // Validates each field; a corrupt/hand-edited value falls back to defaults
 // rather than crashing the table. search/favourites_only/recent_only are
@@ -110,7 +130,7 @@ function loadFilter(): ServerFilter {
       hide_full: bool(saved.hide_full, DEFAULT_FILTER.hide_full),
       hide_locked: bool(saved.hide_locked, DEFAULT_FILTER.hide_locked),
       hide_offline: bool(saved.hide_offline, DEFAULT_FILTER.hide_offline),
-      max_ping: typeof saved.max_ping === "number" ? saved.max_ping : null,
+      max_ping: snapPing(saved.max_ping),
       search: null,
       favourites_only: false,
       recent_only: false,
@@ -120,15 +140,21 @@ function loadFilter(): ServerFilter {
       mod_ids: strings(saved.mod_ids),
       mod_match: saved.mod_match === "all" ? "all" : "any",
       mod_ids_exclude: strings(saved.mod_ids_exclude),
+      // Not restored: a DayZ update would otherwise silently hide every server.
+      version: null,
+      time_of_day:
+        saved.time_of_day === "day" || saved.time_of_day === "night" ? saved.time_of_day : null,
+      battleye: tri(saved.battleye),
     };
   } catch {
     return DEFAULT_FILTER;
   }
 }
 
-// Strips the transient fields (search, favourites_only, recent_only) before saving.
+// Strips the transient fields (search, favourites_only, recent_only) and the
+// version, which is re-chosen per session, before saving.
 function persistFilter(filter: ServerFilter) {
-  const { search, favourites_only, recent_only, ...kept } = filter;
+  const { search, favourites_only, recent_only, version, ...kept } = filter;
   try {
     localStorage.setItem(FILTER_STORAGE, JSON.stringify(kept));
   } catch {
@@ -200,9 +226,14 @@ export const useServerStore = create<ServerState>((set, get) => ({
   patchServers: (rows) =>
     set((state) => {
       const fresh = new Map(rows.map((row) => [row.addr, row]));
-      const servers = state.servers.map((s) => (s && fresh.get(s.addr)) || s);
+      // A refresh reads rows outside the search, so it can't say which mod matched; keep the old answer.
+      const merged = (old: Server): Server | undefined => {
+        const row = fresh.get(old.addr);
+        return row && old.matched_mod && !row.matched_mod ? { ...row, matched_mod: old.matched_mod } : row;
+      };
+      const servers = state.servers.map((s) => (s && merged(s)) || s);
       const selected = state.selectedServer;
-      const next = selected ? fresh.get(selected.addr) : undefined;
+      const next = selected ? merged(selected) : undefined;
       if (!selected || !next || sameRow(next, selected)) return { servers };
       return { servers, selectedServer: next };
     }),
