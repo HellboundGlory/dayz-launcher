@@ -121,6 +121,48 @@ export async function getMapList(): Promise<[string, string][]> {
   return invoke<[string, string][]>("get_map_list");
 }
 
+export interface FacetCount {
+  name: string;
+  count: number;
+  values: string[];
+}
+
+export interface FilterFacets {
+  total: number;
+  maps: FacetCount[];
+  versions: FacetCount[];
+  countries: FacetCount[];
+  mods: FacetCount[];
+  same_as_mine: number | null;
+}
+
+export interface SearchSuggestion {
+  kind: "map" | "mod" | "version";
+  label: string;
+  count: number;
+  values: string[];
+}
+
+export async function getFilterFacets(
+  filter: FilterParams,
+  myVersion: string | null = null,
+): Promise<FilterFacets> {
+  return invoke<FilterFacets>("get_filter_facets", {
+    filterParams: filter,
+    myVersion,
+  });
+}
+
+export async function getSearchSuggestions(
+  filter: FilterParams,
+  text: string,
+): Promise<SearchSuggestion[]> {
+  return invoke<SearchSuggestion[]>("get_search_suggestions", {
+    filterParams: filter,
+    text,
+  });
+}
+
 export interface ServerCounts {
   total: number;
   populated: number;

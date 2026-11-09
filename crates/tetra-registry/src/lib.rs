@@ -6,6 +6,7 @@
 //! replaceable and the filter semantics testable in one place.
 
 pub mod error;
+pub mod facets;
 pub mod filter;
 pub mod reader;
 pub mod rows;
@@ -13,6 +14,7 @@ pub mod schema;
 pub mod writer;
 
 pub use error::RegistryError;
+pub use facets::{FacetCount, Facets, Suggestion, SuggestionKind};
 pub use filter::{ModMatch, ServerFilter, ServerListRow, SortDir, SortKey, TimeOfDay};
 pub use reader::Reader;
 pub use rows::{Export, ExportRow, ServerKey, ServerRow, WorkshopCacheRow};

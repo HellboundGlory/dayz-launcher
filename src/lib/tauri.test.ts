@@ -5,6 +5,9 @@ import {
   checkServerMods,
   getUniqueModsSummary,
   unsubscribeUniqueMods,
+  getFilterFacets,
+  getSearchSuggestions,
+  type FilterParams,
 } from "./tauri";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -70,5 +73,54 @@ describe("server mods tauri command wrappers", () => {
       queryPort: 27016,
     });
     expect(res).toEqual({ count: 2, total_size_bytes: 9999 });
+  });
+});
+
+describe("facet and suggestion calls send the filter as filterParams", () => {
+  const filter = {} as FilterParams;
+
+  it.each([
+    {
+      name: "getFilterFacets without a version",
+      call: () => getFilterFacets(filter),
+      command: "get_filter_facets",
+      args: { filterParams: filter, myVersion: null },
+      resolved: {
+        total: 8,
+        maps: [],
+        versions: [],
+        countries: [],
+        mods: [],
+        same_as_mine: null,
+      },
+    },
+    {
+      name: "getFilterFacets with a version",
+      call: () => getFilterFacets(filter, "1.29.1"),
+      command: "get_filter_facets",
+      args: { filterParams: filter, myVersion: "1.29.1" },
+      resolved: {
+        total: 2,
+        maps: [],
+        versions: [],
+        countries: [],
+        mods: [],
+        same_as_mine: 2,
+      },
+    },
+    {
+      name: "getSearchSuggestions",
+      call: () => getSearchSuggestions(filter, "nam"),
+      command: "get_search_suggestions",
+      args: { filterParams: filter, text: "nam" },
+      resolved: [
+        { kind: "map", label: "Namalsk", count: 1, values: ["namalsk"] },
+      ],
+    },
+  ])("$name invokes $command and returns what it resolved", async ({ call, command, args, resolved }) => {
+    vi.mocked(invoke).mockResolvedValueOnce(resolved);
+    const result = await call();
+    expect(invoke).toHaveBeenCalledWith(command, args);
+    expect(result).toEqual(resolved);
   });
 });

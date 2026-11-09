@@ -412,7 +412,7 @@ fn time_of_day_sql(t: TimeOfDay) -> &'static str {
 
 /// A version string worth matching on, trimmed and checked; anything else means
 /// "no version filter" rather than "hide everything".
-fn clean_version(v: &str) -> Option<String> {
+pub(crate) fn clean_version(v: &str) -> Option<String> {
     let v = v.trim();
     let ok = (1..=32).contains(&v.len())
         && v.chars()
@@ -438,7 +438,7 @@ fn placeholders(items: &[String], binds: &mut Vec<Value>) -> String {
         .join(", ")
 }
 
-fn escape_like(input: &str) -> String {
+pub(crate) fn escape_like(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
     for ch in input.chars() {
         if matches!(ch, '\\' | '%' | '_') {

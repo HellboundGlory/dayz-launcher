@@ -138,6 +138,8 @@ pub fn run() {
             commands::server::mod_readiness::unsubscribe_unique_mods,
             commands::server::toggle_favourite,
             commands::server::get_map_list,
+            commands::server::facets::get_filter_facets,
+            commands::server::facets::get_search_suggestions,
             commands::server::get_server_counts,
             commands::startup::registry_status,
             commands::startup::launched_hidden,

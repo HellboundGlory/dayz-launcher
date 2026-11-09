@@ -8,6 +8,7 @@ use tetra_registry::rows::ServerKey;
 use tetra_registry::TimeOfDay;
 
 pub(crate) mod discovery;
+pub(crate) mod facets;
 pub(crate) mod lookup;
 pub(crate) mod mod_readiness;
 pub(crate) mod probe;

@@ -10,6 +10,8 @@ const COMMANDS: &[&str] = &[
     "unsubscribe_unique_mods",
     "toggle_favourite",
     "get_map_list",
+    "get_filter_facets",
+    "get_search_suggestions",
     "get_server_counts",
     "registry_status",
     "launched_hidden",

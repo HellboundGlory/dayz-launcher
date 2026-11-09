@@ -1,4 +1,5 @@
 use crate::error::RegistryError;
+use crate::facets::{self, Facet, Facets, Suggestion};
 use crate::filter::{
     self, ServerFilter, ServerListRow, SortDir, SortKey, ANSWERED_WITHIN_SECS, SERVER_LIST_COLUMNS,
 };
@@ -176,6 +177,50 @@ impl Reader {
             .prepare_cached(&format!("SELECT COUNT(*) FROM servers {where_sql}"))?;
         let total: i64 = stmt.query_row(rusqlite::params_from_iter(binds), |r| r.get(0))?;
         Ok(total as usize)
+    }
+
+    /// The total, the counts for each map, version, country and mod, and the
+    /// count on `my_version`, all read in one transaction so they agree.
+    pub fn facets(
+        &self,
+        filter: &ServerFilter,
+        my_version: Option<&str>,
+    ) -> Result<Facets, RegistryError> {
+        let tx = self.conn.unchecked_transaction()?;
+        let total = self.count(filter)?;
+        let maps = facets::map_counts(&self.conn, &facets::without(filter, Facet::Maps))?;
+        let versions =
+            facets::version_counts(&self.conn, &facets::without(filter, Facet::Versions))?;
+        let countries =
+            facets::country_counts(&self.conn, &facets::without(filter, Facet::Countries))?;
+        let mods = facets::mod_counts(&self.conn, &facets::without(filter, Facet::Mods))?;
+        let same_as_mine = match my_version.and_then(filter::clean_version) {
+            Some(version) => {
+                let mut on_version = facets::without(filter, Facet::Versions);
+                on_version.version = Some(version);
+                Some(self.count(&on_version)?)
+            }
+            None => None,
+        };
+        tx.commit()?;
+        Ok(Facets {
+            total,
+            maps,
+            versions,
+            countries,
+            mods,
+            same_as_mine,
+        })
+    }
+
+    /// What the search box offers for `text`: up to 3 maps, 4 mods and 2
+    /// versions, in that order.
+    pub fn suggestions(
+        &self,
+        filter: &ServerFilter,
+        text: &str,
+    ) -> Result<Vec<Suggestion>, RegistryError> {
+        facets::suggestions(&self.conn, filter, text)
     }
 
     /// Rows for the `keys` that exist, in no particular order.

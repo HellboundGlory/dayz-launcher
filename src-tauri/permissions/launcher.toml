@@ -11,6 +11,8 @@ permissions = [
     "allow-unsubscribe-unique-mods",
     "allow-toggle-favourite",
     "allow-get-map-list",
+    "allow-get-filter-facets",
+    "allow-get-search-suggestions",
     "allow-get-server-counts",
     "allow-registry-status",
     "allow-launched-hidden",
