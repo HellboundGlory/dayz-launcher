@@ -6,6 +6,7 @@ import {
   useState,
   type CSSProperties,
   type KeyboardEvent,
+  type MouseEvent,
   type WheelEvent,
 } from "react";
 import { observeElementRect, useVirtualizer, type Virtualizer } from "@tanstack/react-virtual";
@@ -15,10 +16,16 @@ import { ListRow } from "./list-row";
 import { handleListKeyDown } from "./keyboard";
 import { fitColumns, useColumnWidths } from "./use-column-widths";
 import type { ColumnDef, ListId, SortState } from "./types";
-import type { LayoutNode } from "../renderer/types";
+import type { LayoutNode, PopupLayoutFile } from "../renderer/types";
 import { LayoutNodeRenderer } from "../renderer/node-renderer";
 import { resolveSpace } from "../renderer/props";
-import { resolveLengthPx } from "../interaction/use-anchored-popup";
+import { resolveLengthPx, useAnchoredPopup } from "../interaction/use-anchored-popup";
+import { useEscapeLayer } from "../interaction/escape-layers";
+import { usePopupKeyboard } from "../interaction/popup-keyboard";
+import { SubjectContextProvider } from "../elements/context";
+import { PopupContextProvider } from "../elements/popup-elements";
+import { getActiveLayout, useLayoutSubscription } from "../theme-store";
+import type { Server } from "@/types/server";
 import { REGISTRY } from "../registry";
 import { useThemeStore } from "../theme-store";
 
@@ -90,6 +97,77 @@ export function rowStates<T>(
 /** Every list a theme draws with `ListHost` is virtualised. */
 type VirtualListId = Extract<ListId, "list.servers" | "list.mods" | "list.modFilterResults">;
 
+/** A right-click's place in the window, or a row's chosen spot for the keyboard. */
+export interface MenuPoint {
+  x: number;
+  y: number;
+}
+
+/**
+ * The server row menu, anchored to a zero-size point so the shared popup
+ * placement can keep it inside the window and flip it at an edge.
+ */
+export function ServerRowMenu({
+  server,
+  point,
+  onClose,
+}: {
+  server: Server;
+  point: MenuPoint;
+  onClose: () => void;
+}) {
+  useLayoutSubscription();
+  const popupRef = useRef<HTMLDivElement>(null);
+  const pointRef = useRef<HTMLDivElement>(null);
+  const style = useAnchoredPopup(true, pointRef, popupRef, {
+    side: "bottom",
+    align: "start",
+    offset: 0,
+  });
+  usePopupKeyboard(true, popupRef, onClose);
+  useEscapeLayer(true, onClose);
+
+  useEffect(() => {
+    const onPointerDown = (e: globalThis.PointerEvent) => {
+      const target = e.target as Node | null;
+      if (target && popupRef.current?.contains(target)) return;
+      onClose();
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, [onClose]);
+
+  const layout = getActiveLayout("layout/popups/serverRow.json") as PopupLayoutFile | undefined;
+  const root = layout?.root;
+
+  return (
+    <>
+      <div
+        ref={pointRef}
+        aria-hidden
+        style={{ position: "fixed", left: point.x, top: point.y, width: 0, height: 0 }}
+      />
+      {/* Keys stay in the menu: the grid around it would move the selection or reopen it. Tab leaves and closes it. */}
+      <div
+        ref={popupRef}
+        style={style}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === "Tab") onClose();
+        }}
+      >
+        <SubjectContextProvider subject={{ kind: "server", data: server }} contextName="popup">
+          <PopupContextProvider popupId="serverRow" close={onClose}>
+            <div role="menu" aria-label={`Actions for ${server.name || server.addr}`}>
+              {root && <LayoutNodeRenderer node={root} />}
+            </div>
+          </PopupContextProvider>
+        </SubjectContextProvider>
+      </div>
+    </>
+  );
+}
+
 export interface ListHostProps<T = unknown> {
   listId: VirtualListId;
   // An `undefined` entry is a row whose data has not loaded yet; it draws as a spacer.
@@ -140,6 +218,7 @@ export function ListHost<T = unknown>({
 }: ListHostProps<T>) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   const rowHeightPx = resolveRowHeight(estimatedRowHeight);
   const isScroll = overflowX === "scroll";
 
@@ -260,6 +339,71 @@ export function ListHost<T = unknown>({
     onSelectRef.current?.(item as T | null);
   }, []);
 
+  const [menu, setMenu] = useState<{ server: Server; point: MenuPoint } | null>(null);
+  // Escape closes the menu with focus still in it; the grid takes focus back so keys keep working.
+  const closeMenu = useCallback(() => {
+    const active = typeof document === "undefined" ? null : document.activeElement;
+    setMenu(null);
+    if (!active || active === document.body || active.closest('[role="menu"]')) {
+      gridRef.current?.focus();
+    }
+  }, []);
+  const serverRows = subjectKind === "server";
+
+  const openMenuAtRow = useCallback(
+    (item: unknown, point: MenuPoint) => {
+      setMenu({ server: item as Server, point });
+    },
+    [],
+  );
+
+  // A right-click on a server row: select it (selecting toggles, so never the selected row again)
+  // and open the menu where the pointer is.
+  const selectedIndexRef = useRef(selectedIndex);
+  selectedIndexRef.current = selectedIndex;
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const handleRowContextMenu = useCallback(
+    (item: unknown, e: MouseEvent<HTMLDivElement>) => {
+      if (itemsRef.current[selectedIndexRef.current] !== item) handleRowSelect(item);
+      openMenuAtRow(item, { x: e.clientX, y: e.clientY });
+    },
+    [openMenuAtRow, handleRowSelect],
+  );
+
+  // Shift+F10 or the Menu key: the row's spot, a third of the way in and at its middle.
+  const openMenuForSelected = useCallback(() => {
+    const item = items[selectedIndex];
+    if (item === undefined) return;
+    const row = scrollRef.current?.querySelector<HTMLElement>(
+      `[data-index="${selectedIndex}"] [data-row]`,
+    );
+    if (!row) {
+      // Scrolled out of the virtual window: bring it back; the next press opens the menu.
+      virtualizer.scrollToIndex(selectedIndex, { align: "auto" });
+      return;
+    }
+    const rect = row.getBoundingClientRect();
+    openMenuAtRow(item, {
+      x: rect.left + Math.min(360, rect.width * 0.35),
+      y: rect.top + rect.height / 2,
+    });
+  }, [items, selectedIndex, openMenuAtRow, virtualizer]);
+
+  // Scrolling the list, or resizing the window, moves the row out from under the menu.
+  // A scroll inside the menu itself leaves it where it is.
+  useEffect(() => {
+    if (!menu) return;
+    const el = scrollRef.current;
+    const close = closeMenu;
+    el?.addEventListener("scroll", close);
+    window.addEventListener("resize", close);
+    return () => {
+      el?.removeEventListener("scroll", close);
+      window.removeEventListener("resize", close);
+    };
+  }, [menu, closeMenu]);
+
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     handleListKeyDown({
       event: e,
@@ -275,6 +419,7 @@ export function ListHost<T = unknown>({
       onClearSelection: () => {
         handleRowSelect(null);
       },
+      onOpenMenu: serverRows ? openMenuForSelected : undefined,
     });
   };
 
@@ -355,6 +500,7 @@ export function ListHost<T = unknown>({
                 subjectKind={subjectKind}
                 states={rowStates(item, isSelected, virtualRow.index, computeRowStates)}
                 onSelect={handleRowSelect}
+                onContextMenu={serverRows ? handleRowContextMenu : undefined}
               />
             )}
           </div>
@@ -365,6 +511,7 @@ export function ListHost<T = unknown>({
 
   return (
     <div
+      ref={gridRef}
       data-list={listName}
       role="grid"
       tabIndex={0}
@@ -414,6 +561,7 @@ export function ListHost<T = unknown>({
           )}
         </>
       )}
+      {menu && <ServerRowMenu server={menu.server} point={menu.point} onClose={closeMenu} />}
     </div>
   );
 }

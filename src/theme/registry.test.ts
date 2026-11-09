@@ -47,8 +47,8 @@ describe("shared v2 registry", () => {
   });
 
   it("keeps the registry's own sizes and icon allowlist", () => {
-    expect(Object.keys(REGISTRY.elements)).toHaveLength(196);
-    expect(new Set(REGISTRY.icons).size).toBe(45);
-    expect(REGISTRY.icons).toHaveLength(45);
+    expect(Object.keys(REGISTRY.elements)).toHaveLength(198);
+    expect(new Set(REGISTRY.icons).size).toBe(47);
+    expect(REGISTRY.icons).toHaveLength(47);
   });
 });

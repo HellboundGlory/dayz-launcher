@@ -360,7 +360,7 @@
 </section>
   <section class="el" id="el-server-favourite" data-el="server.favourite">
   <h3><code>server.favourite</code> <span class="el-kind">action</span></h3>
-  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>on</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>icon</code>, <code>iconLabel</code>, default <code>icon</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>on</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>icon</code>, <code>iconLabel</code>, default <code>icon</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li><li><code>labelOn</code> (text)</li></ul></dd></dl>
   <div class="md el-notes"><p>Reads &quot;Add to favourites&quot; or &quot;Remove from favourites&quot;. The change is applied optimistically and reverted if saving fails.</p></div>
 </section>
   <section class="el" id="el-server-refresh" data-el="server.refresh">
@@ -387,6 +387,14 @@
   <h3><code>server.copyAddress</code> <span class="el-kind">action</span></h3>
   <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>copied</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li></ul></dd></dl>
   <div class="md el-notes"><p>Reads &quot;Copy address&quot;, or &quot;Address copied&quot; for 2 s after copying <code>ip:gamePort</code>.</p></div>
+</section>
+  <section class="el" id="el-server-copyJoinLink" data-el="server.copyJoinLink">
+  <h3><code>server.copyJoinLink</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;, default <code>link</code>)</li><li><code>label</code> (text)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-server-forgetPassword" data-el="server.forgetPassword">
+  <h3><code>server.forgetPassword</code> <span class="el-kind">action</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;, default <code>keyRound</code>)</li><li><code>label</code> (text)</li></ul></dd></dl>
 </section>
   <section class="el" id="el-server-deselect" data-el="server.deselect">
   <h3><code>server.deselect</code> <span class="el-kind">action</span></h3>
@@ -1204,6 +1212,10 @@
   <dl><dt>Opened by</dt><dd><code>server.menu</code></dd><dt>Required contents</dt><dd>none: the popup holds an action menu</dd></dl>
 </section>
   <section class="el">
+  <h3><code>serverRow</code></h3>
+  <dl><dt>Opened by</dt><dd><code>list.servers</code></dd><dt>Required contents</dt><dd>none: the popup holds an action menu</dd></dl>
+</section>
+  <section class="el">
   <h3><code>modsUnsubscribe</code></h3>
   <dl><dt>Opened by</dt><dd><code>mods.unsubscribeMenu</code></dd><dt>Required contents</dt><dd>none: the popup holds an action menu</dd></dl>
 </section>
@@ -1222,7 +1234,7 @@
 
         <h2 id="icons">Icons</h2>
         <p>The names the <code>icon</code> option accepts.</p>
-        <p><code>alertTriangle</code>, <code>appWindow</code>, <code>arrowRight</code>, <code>ban</code>, <code>check</code>, <code>checkCircle</code>, <code>chevronDown</code>, <code>chevronLeft</code>, <code>chevronRight</code>, <code>chevronsLeft</code>, <code>chevronsRight</code>, <code>clock</code>, <code>copy</code>, <code>download</code>, <code>externalLink</code>, <code>fileArchive</code>, <code>fileOutput</code>, <code>filter</code>, <code>folder</code>, <code>folderOpen</code>, <code>gamepad</code>, <code>globe</code>, <code>inbox</code>, <code>info</code>, <code>listTree</code>, <code>loader</code>, <code>minus</code>, <code>moon</code>, <code>moreHorizontal</code>, <code>package</code>, <code>palette</code>, <code>play</code>, <code>plus</code>, <code>refresh</code>, <code>rotateCcw</code>, <code>search</code>, <code>settings</code>, <code>square</code>, <code>star</code>, <code>sun</code>, <code>thumbsUp</code>, <code>trash</code>, <code>upload</code>, <code>users</code>, <code>x</code></p>
+        <p><code>alertTriangle</code>, <code>appWindow</code>, <code>arrowRight</code>, <code>ban</code>, <code>check</code>, <code>checkCircle</code>, <code>chevronDown</code>, <code>chevronLeft</code>, <code>chevronRight</code>, <code>chevronsLeft</code>, <code>chevronsRight</code>, <code>clock</code>, <code>copy</code>, <code>download</code>, <code>externalLink</code>, <code>fileArchive</code>, <code>fileOutput</code>, <code>filter</code>, <code>folder</code>, <code>folderOpen</code>, <code>gamepad</code>, <code>globe</code>, <code>inbox</code>, <code>info</code>, <code>keyRound</code>, <code>link</code>, <code>listTree</code>, <code>loader</code>, <code>minus</code>, <code>moon</code>, <code>moreHorizontal</code>, <code>package</code>, <code>palette</code>, <code>play</code>, <code>plus</code>, <code>refresh</code>, <code>rotateCcw</code>, <code>search</code>, <code>settings</code>, <code>square</code>, <code>star</code>, <code>sun</code>, <code>thumbsUp</code>, <code>trash</code>, <code>upload</code>, <code>users</code>, <code>x</code></p>
 
         <h2 id="not-placeable">Not placeable</h2>
         <div class="md"><p>These are launcher-owned and never appear in a layout file:</p>

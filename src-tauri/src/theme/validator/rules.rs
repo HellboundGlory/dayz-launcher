@@ -102,17 +102,24 @@ impl Validator<'_> {
         {
             context.subject = modal.subject;
         }
-        if let Some(id) = self
+        if let Some(popup) = self
             .file
             .strip_prefix("layout/popups/")
             .and_then(|name| name.strip_suffix(".json"))
+            .and_then(|id| self.registry.popups.get(id))
         {
+            // A popup takes the subject of whatever opens it: an element, or a list's rows.
             context.subject = self
                 .registry
-                .popups
-                .get(id)
-                .and_then(|popup| self.registry.elements.get(&popup.opened_by))
-                .and_then(|element| element.subject);
+                .elements
+                .get(&popup.opened_by)
+                .and_then(|element| element.subject)
+                .or_else(|| {
+                    self.registry
+                        .lists
+                        .get(&popup.opened_by)
+                        .map(|list| list.subject)
+                });
         }
         let mut roots = Vec::new();
         if list_file {

@@ -23,9 +23,9 @@ describe("Neutral layouts", () => {
       expect(getNeutralLayout("unknown.json")).toBeUndefined();
     });
 
-    it("registers all 13 compiled-in layout files", () => {
+    it("registers all 14 compiled-in layout files", () => {
       const keys = Object.keys(NEUTRAL_LAYOUTS);
-      expect(keys).toHaveLength(13);
+      expect(keys).toHaveLength(14);
       expect(keys).toContain("layout/shell.json");
       expect(keys).toContain("layout/views/browser.json");
       expect(keys).toContain("layout/views/mods.json");
@@ -38,6 +38,7 @@ describe("Neutral layouts", () => {
       expect(keys).toContain("layout/lists/modFilterResults.json");
       expect(keys).toContain("layout/lists/modServers.json");
       expect(keys).toContain("layout/lists/serverMods.json");
+      expect(keys).toContain("layout/popups/serverRow.json");
     });
   });
 

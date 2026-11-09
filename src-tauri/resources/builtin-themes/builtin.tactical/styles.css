@@ -4036,3 +4036,60 @@ the smallest window the launcher can compose. */
   font-size: 11px;
   color: var(--muted2);
 }
+
+/* Server row menu */
+.t-tactical-serverrow-panel {
+  width: 236px;
+  padding: 4px 0;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  background-color: var(--surface);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+}
+
+.t-tactical-serverrow-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  border-radius: 0;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: var(--text);
+  text-align: left;
+}
+
+.t-tactical-serverrow-item:hover,
+.t-tactical-serverrow-item:focus-visible {
+  background-color: var(--surface2);
+}
+
+.t-tactical-serverrow-item [data-part="icon"] {
+  display: flex;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted2);
+}
+
+.t-tactical-serverrow-item [data-part="label"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.t-tactical-serverrow-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background-color: var(--border);
+}
+
+.t-tactical-serverrow-notice {
+  margin-top: 4px;
+  padding: 6px 10px 2px;
+  border-top: 1px solid var(--border-weak);
+  font-size: 11px;
+  color: var(--muted);
+}

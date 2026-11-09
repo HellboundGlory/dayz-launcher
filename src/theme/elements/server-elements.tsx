@@ -40,6 +40,12 @@ import type { PopupLayoutFile } from "../renderer/types";
 import { TriggerPopup, usePopupContext } from "./popup-elements";
 import { displayOption, formatElementTime, parseDisplay } from "./element-utils";
 
+/** Inside the row menu every action is a menu item, so the arrow keys move between them. */
+export function useMenuItemRole(): "menuitem" | undefined {
+  const { popupId } = usePopupContext();
+  return popupId === "serverRow" ? "menuitem" : undefined;
+}
+
 export function useServerSubject(): Server | null {
   const { subjectContext, selectedServer } = useElementContext();
   if (subjectContext?.kind === "server") {
@@ -302,12 +308,15 @@ export function ServerFavourite({
 }) {
   const server = useServerSubject();
   const toggleFavouriteLocal = useServerStore((s) => s.toggleFavourite);
+  const role = useMenuItemRole();
   if (!server) return null;
 
   const on = server.favourite;
   const display = (options?.display as string) ?? "icon";
   const showLabel = display === "iconLabel";
-  const label = (options?.label as string) ?? (on ? "Favourited" : "Favourite");
+  const offLabel = (options?.label as string | undefined) ?? (on ? "Favourited" : "Favourite");
+  const onLabel = options?.labelOn as string | undefined;
+  const label = on && onLabel !== undefined ? onLabel : offLabel;
 
   // Optimistic: flip locally so the star responds instantly, revert on failure.
   const handleClick = async (e: MouseEvent) => {
@@ -328,6 +337,7 @@ export function ServerFavourite({
     <button
       type="button"
       data-el="server.favourite"
+      role={role}
       data-state={serverStates(!server.online, on && "on")}
       aria-label={accessibleLabel}
       title={showLabel ? undefined : accessibleLabel}
@@ -369,10 +379,12 @@ function ServerJoinIdleButton({
   className?: string;
   style?: CSSProperties;
 }) {
+  const role = useMenuItemRole();
   return (
     <button
       type="button"
       data-el="server.join"
+      role={role}
       data-state={serverStates(!server.online, disabled && "disabled", server.modded && "modded", needsMods && "needsMods")}
       disabled={disabled}
       onClick={onClick}
@@ -555,6 +567,7 @@ export function ServerInfo({
   const server = useServerSubject();
   const { openServerInfo } = useElementContext();
   const { close } = usePopupContext();
+  const role = useMenuItemRole();
   if (!server) return null;
 
   const { label, showIcon, showLabel } = displayOption(options, "Server information", "icon");
@@ -569,6 +582,7 @@ export function ServerInfo({
     <button
       type="button"
       data-el="server.info"
+      role={role}
       onClick={handleClick}
       aria-label={label}
       title={showLabel ? undefined : label}
@@ -1086,6 +1100,7 @@ export function ServerSubscribeAll({
   const server = useServerSubject();
   const { op, subscribeOnly } = useServerActions();
   const { close } = usePopupContext();
+  const role = useMenuItemRole();
   if (!server) return null;
 
   const { label, showIcon, showLabel } = displayOption(options, "Download mods", "label");
@@ -1103,6 +1118,7 @@ export function ServerSubscribeAll({
     <button
       type="button"
       data-el="server.subscribeAll"
+      role={role}
       data-state={serverStates(!server.online, busy ? "busy" : disabled && "disabled")}
       disabled={disabled}
       onClick={handleClick}
@@ -1249,6 +1265,7 @@ export function ServerCopyAddress({
   const [copied, setCopied] = useState(false);
   const { popupId, close } = usePopupContext();
   const setNotice = useLaunchStore((s) => s.setNotice);
+  const role = useMenuItemRole();
   if (!server) return null;
 
   const { showIcon, showLabel } = parseDisplay(options, "iconLabel");
@@ -1271,6 +1288,7 @@ export function ServerCopyAddress({
     <button
       type="button"
       data-el="server.copyAddress"
+      role={role}
       data-state={serverStates(!server.online, copied && "copied")}
       onClick={handleClick}
       aria-label={label}

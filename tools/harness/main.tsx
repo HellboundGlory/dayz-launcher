@@ -54,6 +54,7 @@ const LAYOUTS = [
   "layout/lists/servers.json",
   "layout/lists/mods.json",
   "layout/lists/serverMods.json",
+  "layout/popups/serverRow.json",
   "layout/lists/modServers.json",
   "layout/lists/modFilterResults.json",
   "layout/popups/mapFilter.json",
@@ -174,7 +175,7 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     same_as_mine: servers.length,
   }),
   get_installed_dayz_version: () => "1.29.163709",
-  password_status: () => ({ saved: false, keyring: true }),
+  password_status: () => ({ saved: params.get("pw") === "saved", keyring: true }),
   get_memory_map_status: () =>
     memoryMapLow ? { current: 65530, recommended: 1048576 } : null,
   get_search_suggestions: () => [

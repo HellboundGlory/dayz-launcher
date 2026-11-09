@@ -2,12 +2,44 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { KeyboardEvent } from "react";
 import { ListRow, listRowPropsEqual, type ListRowProps } from "./list-row";
-import { ListHost, observeBoundedRect, rowStates, sameColumns } from "./list-host";
+import { ListHost, observeBoundedRect, rowStates, sameColumns, ServerRowMenu } from "./list-host";
 import { handleListKeyDown } from "./keyboard";
+import { handleEscape, openEscapeLayer } from "../interaction/escape-layers";
 import { clearColumnWidthMemory, setStoredWidths } from "./use-column-widths";
 import type { ColumnDef } from "./types";
 import type { LayoutNode } from "../renderer/types";
 import type { Server } from "@/types/server";
+
+// Server rendering drops event handlers from its HTML, so capture them by `data-row`.
+const captured: Record<string, Record<string, unknown>> = {};
+vi.mock("react/jsx-dev-runtime", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, (...args: unknown[]) => unknown>>();
+  return {
+    ...actual,
+    jsxDEV: (type: unknown, props: Record<string, unknown>, ...rest: unknown[]) => {
+      const key = props?.["data-row"] === "" ? "row" : undefined;
+      if (key) captured[key] = props;
+      return actual.jsxDEV(type, props, ...rest);
+    },
+  };
+});
+
+// Effects never run under server rendering, so record what a menu hands the Escape layer.
+const escapeLayer = vi.hoisted(() => ({
+  active: null as boolean | null,
+  close: null as (() => void) | null,
+}));
+vi.mock("../interaction/escape-layers", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../interaction/escape-layers")>();
+  return {
+    ...actual,
+    useEscapeLayer: (active: boolean, close: () => void) => {
+      escapeLayer.active = active;
+      escapeLayer.close = close;
+      return actual.useEscapeLayer(active, close);
+    },
+  };
+});
 
 // Server rendering has no scroll element to measure, so the virtualizer gets a viewport to draw rows into.
 vi.mock("@tanstack/react-virtual", async (importOriginal) => {
@@ -269,6 +301,81 @@ describe("row memoisation", () => {
   });
 });
 
+describe("row context menu", () => {
+  it("asks for a server row's menu on right-click and leaves selecting to the list", () => {
+    const onSelect = vi.fn();
+    const onContextMenu = vi.fn();
+    renderToStaticMarkup(
+      <ListRow
+        item={mockServer}
+        subjectKind="server"
+        states={[]}
+        onSelect={onSelect}
+        onContextMenu={onContextMenu}
+      />,
+    );
+
+    const event = { preventDefault: vi.fn(), clientX: 40, clientY: 120 };
+    (captured["row"]?.onContextMenu as (e: typeof event) => void)(event);
+
+    expect(event.preventDefault).toHaveBeenCalled();
+    // The list's select toggles, so a right-click on the selected row would deselect it.
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onContextMenu).toHaveBeenCalledWith(mockServer, event);
+  });
+
+  it("leaves a mod row alone on right-click", () => {
+    const onSelect = vi.fn();
+    const onContextMenu = vi.fn();
+    renderToStaticMarkup(
+      <ListRow item={mockServer} subjectKind="mod" states={[]} onSelect={onSelect} onContextMenu={onContextMenu} />,
+    );
+
+    const event = { preventDefault: vi.fn(), clientX: 40, clientY: 120 };
+    (captured["row"]?.onContextMenu as (e: typeof event) => void)(event);
+
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onContextMenu).not.toHaveBeenCalled();
+  });
+});
+
+describe("ServerRowMenu", () => {
+  it("labels the menu for the row's server and closes it on Escape", () => {
+    const onClose = vi.fn();
+    const html = renderToStaticMarkup(
+      <ServerRowMenu server={mockServer} point={{ x: 40, y: 120 }} onClose={onClose} />,
+    );
+
+    expect(html).toContain('role="menu"');
+    expect(html).toContain('aria-label="Actions for DayZ Epoch Test"');
+    expect(html).toContain('data-el="server.copyJoinLink"');
+    expect(escapeLayer.active).toBe(true);
+
+    // Every action the menu places is a menu item, including the ones it reuses.
+    // Forget stays hidden until a saved password is known.
+    for (const el of [
+      "server.join",
+      "server.subscribeAll",
+      "server.favourite",
+      "server.copyAddress",
+      "server.copyJoinLink",
+      "server.info",
+    ]) {
+      const at = html.indexOf(`data-el="${el}"`);
+      expect(at, el).toBeGreaterThan(-1);
+      const tagStart = html.lastIndexOf("<button", at);
+      expect(html.slice(tagStart, at + 200), el).toContain('role="menuitem"');
+    }
+
+    const release = openEscapeLayer(escapeLayer.close!);
+    handleEscape({ key: "Escape", preventDefault() {} });
+    release();
+
+    expect(onClose).toHaveBeenCalled();
+  });
+});
+
 describe("rowStates", () => {
   it("merges selection first and the stripe last, joined for the data-state attribute", () => {
     expect(rowStates(mockServer, false, 0)).toBe("");
@@ -361,6 +468,46 @@ describe("keyboard navigation", () => {
       onClearSelection,
     });
     expect(ev.preventDefault).toHaveBeenCalled();
+  });
+
+  it.each<{ label: string; key: string; shiftKey?: boolean }>([
+    { label: "Shift+F10", key: "F10", shiftKey: true },
+    { label: "the ContextMenu key", key: "ContextMenu" },
+  ])("opens the row menu on $label with a selected row", ({ key, shiftKey }) => {
+    const onOpenMenu = vi.fn();
+    const ev = { key, shiftKey, preventDefault: vi.fn() } as unknown as KeyboardEvent<HTMLElement>;
+
+    handleListKeyDown({
+      event: ev,
+      itemCount: 5,
+      selectedIndex: 2,
+      onSelectIndex: vi.fn(),
+      onClearSelection: vi.fn(),
+      onOpenMenu,
+    });
+
+    expect(onOpenMenu).toHaveBeenCalledOnce();
+    expect(ev.preventDefault).toHaveBeenCalled();
+  });
+
+  it.each<{ label: string; key: string; shiftKey?: boolean; selectedIndex: number }>([
+    { label: "Shift+F10 with nothing selected", key: "F10", shiftKey: true, selectedIndex: -1 },
+    { label: "the ContextMenu key with nothing selected", key: "ContextMenu", selectedIndex: -1 },
+    { label: "a plain F10", key: "F10", selectedIndex: 2 },
+    { label: "Enter", key: "Enter", selectedIndex: 2 },
+  ])("leaves the row menu shut on $label", ({ key, shiftKey, selectedIndex }) => {
+    const onOpenMenu = vi.fn();
+
+    handleListKeyDown({
+      event: { key, shiftKey, preventDefault: vi.fn() } as unknown as KeyboardEvent<HTMLElement>,
+      itemCount: 5,
+      selectedIndex,
+      onSelectIndex: vi.fn(),
+      onClearSelection: vi.fn(),
+      onOpenMenu,
+    });
+
+    expect(onOpenMenu).not.toHaveBeenCalled();
   });
 });
 

@@ -1430,6 +1430,9 @@
         },
         "label": {
           "type": "text"
+        },
+        "labelOn": {
+          "type": "text"
         }
       },
       "freeLabel": true,
@@ -1625,6 +1628,80 @@
       ],
       "states": [
         "copied",
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.copyJoinLink": {
+      "kind": "action",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon",
+          "default": "link"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "offline"
+      ],
+      "since": "2.0",
+      "aliases": []
+    },
+    "server.forgetPassword": {
+      "kind": "action",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon",
+          "default": "keyRound"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
         "offline"
       ],
       "since": "2.0",
@@ -5601,6 +5678,10 @@
       "openedBy": "server.menu",
       "requiredContents": []
     },
+    "serverRow": {
+      "openedBy": "list.servers",
+      "requiredContents": []
+    },
     "modsUnsubscribe": {
       "openedBy": "mods.unsubscribeMenu",
       "requiredContents": []
@@ -5654,6 +5735,8 @@
     "globe",
     "inbox",
     "info",
+    "keyRound",
+    "link",
     "listTree",
     "loader",
     "minus",

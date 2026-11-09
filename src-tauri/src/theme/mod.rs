@@ -107,6 +107,7 @@ pub const LAYOUT_ALLOWLIST: &[&str] = &[
     "layout/popups/tagsFilter.json",
     "layout/popups/serverActions.json",
     "layout/popups/serverLoad.json",
+    "layout/popups/serverRow.json",
 ];
 
 /// One theme, fully: its manifest flattened with its optional content —

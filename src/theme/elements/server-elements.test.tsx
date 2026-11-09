@@ -531,6 +531,25 @@ describe("ServerFavourite", () => {
     expect(html).toContain('data-state="on"');
     expect(html).toContain('aria-pressed="true"');
   });
+
+  it.each<{ label: string; favourite: boolean; expected: string }>([
+    { label: "not a favourite", favourite: false, expected: ">Add to favourites<" },
+    { label: "a favourite", favourite: true, expected: ">Remove from favourites<" },
+  ])("shows the on-state label when the server is $label", ({ favourite, expected }) => {
+    const html = render(
+      <ServerFavourite options={{ display: "iconLabel", label: "Add to favourites", labelOn: "Remove from favourites" }} />,
+      serverContext({ ...server, favourite }),
+    );
+    expect(html).toContain(expected);
+  });
+
+  it("keeps one label for both states when no on-state label is given", () => {
+    const html = render(
+      <ServerFavourite options={{ display: "iconLabel", label: "Favourite" }} />,
+      serverContext({ ...server, favourite: true }),
+    );
+    expect(html).toContain(">Favourite<");
+  });
 });
 
 describe("ServerMenu", () => {

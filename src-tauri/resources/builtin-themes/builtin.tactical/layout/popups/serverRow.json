@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 2,
+  "placement": {
+    "mode": "anchored",
+    "side": "bottom",
+    "align": "start",
+    "offset": "0px"
+  },
+  "root": {
+    "type": "stack",
+    "direction": "column",
+    "class": "t-tactical-serverrow-panel",
+    "children": [
+      {
+        "element": "server.join",
+        "class": "t-tactical-serverrow-item",
+        "options": {
+          "display": "iconLabel"
+        }
+      },
+      {
+        "element": "server.subscribeAll",
+        "class": "t-tactical-serverrow-item",
+        "options": {
+          "display": "iconLabel",
+          "label": "Download mods only"
+        }
+      },
+      {
+        "element": "server.favourite",
+        "class": "t-tactical-serverrow-item",
+        "options": {
+          "display": "iconLabel",
+          "label": "Add to favourites",
+          "labelOn": "Remove from favourites"
+        }
+      },
+      {
+        "type": "stack",
+        "direction": "row",
+        "class": "t-tactical-serverrow-separator",
+        "children": []
+      },
+      {
+        "element": "server.copyAddress",
+        "class": "t-tactical-serverrow-item",
+        "options": {
+          "display": "iconLabel",
+          "label": "Copy address"
+        }
+      },
+      {
+        "element": "server.copyJoinLink",
+        "class": "t-tactical-serverrow-item",
+        "options": {
+          "display": "iconLabel"
+        }
+      },
+      {
+        "element": "server.forgetPassword",
+        "class": "t-tactical-serverrow-item",
+        "options": {
+          "display": "iconLabel"
+        }
+      },
+      {
+        "element": "server.actionNotice",
+        "class": "t-tactical-serverrow-notice"
+      }
+    ]
+  }
+}

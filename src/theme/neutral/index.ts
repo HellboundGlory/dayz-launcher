@@ -11,6 +11,7 @@ import { MODS_LIST, MOD_SERVERS_LIST } from "./mods-list";
 import { SERVER_MODS_LIST } from "./server-mods-list";
 import { MOD_FILTER_RESULTS_LIST } from "./mod-filter-results";
 import { SERVER_ACTIONS_POPUP } from "./server-actions";
+import { SERVER_ROW_POPUP } from "./server-row";
 
 export {
   SHELL_LAYOUT,
@@ -26,6 +27,7 @@ export {
   SERVER_MODS_LIST,
   MOD_FILTER_RESULTS_LIST,
   SERVER_ACTIONS_POPUP,
+  SERVER_ROW_POPUP,
 };
 
 export const NEUTRAL_LAYOUTS: Record<string, LayoutFile> = {
@@ -42,6 +44,7 @@ export const NEUTRAL_LAYOUTS: Record<string, LayoutFile> = {
   "layout/lists/modServers.json": MOD_SERVERS_LIST,
   "layout/lists/serverMods.json": SERVER_MODS_LIST,
   "layout/popups/serverActions.json": SERVER_ACTIONS_POPUP,
+  "layout/popups/serverRow.json": SERVER_ROW_POPUP,
 };
 
 export function getNeutralLayout(file: string): LayoutFile | undefined {

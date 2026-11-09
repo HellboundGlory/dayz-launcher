@@ -78,6 +78,7 @@ import {
   ServersRefresh,
 } from "./filter-elements";
 import { ModalClose } from "./modal-elements";
+import { ServerCopyJoinLink, ServerForgetPassword } from "./row-menu-elements";
 import {
   UpdateChangelog,
   UpdateInstall,
@@ -287,6 +288,10 @@ export function ElementHost({
       return <ServerDownloadSize className={mergedClass} style={style} />;
     case "server.copyAddress":
       return <ServerCopyAddress options={node.options} className={mergedClass} style={style} />;
+    case "server.copyJoinLink":
+      return <ServerCopyJoinLink options={node.options} className={mergedClass} style={style} />;
+    case "server.forgetPassword":
+      return <ServerForgetPassword options={node.options} className={mergedClass} style={style} />;
     case "server.modUpdate":
       return <ServerModUpdate options={node.options} className={mergedClass} style={style} />;
 
