@@ -3,6 +3,7 @@ use rusqlite::types::Value;
 use std::net::Ipv4Addr;
 use tetra_core::classify::maps::engine_names_matching;
 use tetra_core::classify::names::DEFAULT_NAMES;
+use tetra_core::PingKind;
 
 /// The column list (and order) both [`build`]'s query and [`crate::reader::Reader::get`]
 /// select — kept in one place so the two queries cannot drift apart from the
@@ -12,7 +13,7 @@ pub(crate) const SERVER_LIST_COLUMNS: &str =
                 mod_count, ping_ms, locked, in_game_time, country_code,
                 last_played, favourite,
                 official, first_person, modded, battleye, vac, version, online,
-                queue, day_multiplier, night_multiplier";
+                queue, day_multiplier, night_multiplier, ping_kind";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ModMatch {
@@ -126,6 +127,8 @@ pub struct ServerListRow {
     pub max_players: i32,
     pub mod_count: Option<i32>,
     pub ping_ms: i32,
+    /// Where [`Self::ping_ms`] came from; the row shows a mark for anything but `Measured`.
+    pub ping_kind: PingKind,
     pub locked: bool,
     pub in_game_time: Option<String>,
     pub country_code: Option<String>,

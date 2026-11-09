@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { useId, useState, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from "react";
 import {
   Star,
   Play,
@@ -13,6 +13,7 @@ import {
   Trash,
   Sun,
   Moon,
+  Shield,
   X,
   House,
 } from "lucide-react";
@@ -156,17 +157,24 @@ export function ServerPing({
   style?: CSSProperties;
 }) {
   const server = useServerSubject();
+  const tipId = useId();
   if (!server) return null;
 
   const offline = !server.online;
   const unknown = offline || server.ping === null;
   const pingState = unknown ? "unknown" : server.ping! <= 80 ? "good" : server.ping! <= 120 ? "fair" : "poor";
-  const states = serverStates(offline, pingState);
+  const estimate = unknown ? null : (server.ping_estimate ?? null);
+  const states = serverStates(offline, pingState, estimate);
   const pingClass =
     pingState === "unknown" ? "text-muted" : pingState === "poor" ? "text-danger" : pingState === "fair" ? "text-warn" : "text-success";
   const text = unknown ? "—" : String(server.ping);
   const showUnit = options?.showUnit === true;
   const showCaption = options?.showCaption !== false;
+  const title = offline
+    ? "Server did not respond to the last refresh"
+    : estimate === "estimated"
+      ? "Estimated: this server doesn't answer pings."
+      : undefined;
 
   return (
     <span
@@ -174,10 +182,23 @@ export function ServerPing({
       data-state={states}
       className={className ?? pingClass}
       style={style}
-      title={offline ? "Server did not respond to the last refresh" : undefined}
+      title={title}
+      aria-describedby={estimate === "protected" ? tipId : undefined}
     >
+      {estimate === "protected" && (
+        // The title is the fallback for themes whose rows clip the card.
+        <span data-part="shield" aria-hidden="true" title="Estimated ping: behind DDoS protection, may be off by up to about 50 ms.">
+          <Shield className="size-3" />
+        </span>
+      )}
       <span data-part="value">{text}</span>
       {showUnit && !unknown && <span data-part="unit"> ms</span>}
+      {estimate === "protected" && (
+        <span data-part="tip" role="tooltip" id={tipId}>
+          <b>Estimated ping</b>
+          This server is behind DDoS protection, which hides its real ping. The number comes from its query replies and may be off by up to about 50 ms.
+        </span>
+      )}
       {showCaption && <span data-part="caption"> ping</span>}
     </span>
   );

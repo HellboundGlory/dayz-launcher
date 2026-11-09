@@ -1,7 +1,7 @@
 use crate::error::NetError;
 use std::collections::BTreeMap;
 use std::net::SocketAddr;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tetra_core::a2s::dayz::{parse_dayz_rules, PackedPayload};
 use tetra_core::a2s::info::{parse_info, ServerInfo};
 use tetra_core::a2s::packet::{classify_packet, reassemble_split, PacketKind};
@@ -18,6 +18,17 @@ const INFO_PAYLOAD: &[u8] = b"Source Engine Query\0";
 /// resetting `recv_once`'s per-read timeout without ever completing.
 pub(crate) const EXCHANGE_TIMEOUT_MULTIPLIER: u32 = 8;
 
+/// The payload of one exchange plus how long the reply that answered it took.
+#[derive(Debug, Clone)]
+struct Exchange {
+    payload: Vec<u8>,
+    /// Time from the final request to its first datagram — the challenge round
+    /// trip is excluded.
+    reply_time: Duration,
+    /// Whether the server demanded a challenge echo before answering.
+    challenged: bool,
+}
+
 /// One request/response exchange on a socket of its own, bounded by
 /// [`EXCHANGE_TIMEOUT_MULTIPLIER`] regardless of how the inner reads behave.
 async fn request(
@@ -25,7 +36,7 @@ async fn request(
     kind: u8,
     payload: &[u8],
     timeout: Duration,
-) -> Result<Vec<u8>, NetError> {
+) -> Result<Exchange, NetError> {
     let deadline = timeout.saturating_mul(EXCHANGE_TIMEOUT_MULTIPLIER);
     match tokio::time::timeout(deadline, request_inner(addr, kind, payload, timeout)).await {
         Ok(result) => result,
@@ -40,7 +51,7 @@ async fn request_inner(
     kind: u8,
     payload: &[u8],
     timeout: Duration,
-) -> Result<Vec<u8>, NetError> {
+) -> Result<Exchange, NetError> {
     let sock = UdpSocket::bind("0.0.0.0:0").await?;
     sock.connect(addr).await?;
 
@@ -48,6 +59,7 @@ async fn request_inner(
     packet.extend_from_slice(&HEADER);
     packet.push(kind);
     packet.extend_from_slice(payload);
+    let mut started = Instant::now();
     sock.send(&packet).await?;
 
     // Sized for the largest possible single A2S datagram (65507 bytes) — a
@@ -55,8 +67,10 @@ async fn request_inner(
     // (e.g. a large mod list) rather than error.
     let mut buf = vec![0u8; 65536];
     let mut first = recv_once(&sock, &mut buf, timeout).await?;
+    let mut challenged = false;
 
     if let PacketKind::Challenge(challenge) = classify_packet(&first).map_err(CoreError::from)? {
+        challenged = true;
         let mut retry = Vec::with_capacity(payload.len() + 9);
         retry.extend_from_slice(&HEADER);
         retry.push(kind);
@@ -64,9 +78,13 @@ async fn request_inner(
             retry.extend_from_slice(payload);
         }
         retry.extend_from_slice(&challenge);
+        // The challenge round trip is a server's own price of admission, not
+        // the trip being measured, so the clock restarts here.
+        started = Instant::now();
         sock.send(&retry).await?;
         first = recv_once(&sock, &mut buf, timeout).await?;
     }
+    let reply_time = started.elapsed();
 
     let mut packets = vec![first];
     if let PacketKind::Split { id, total, index } =
@@ -108,7 +126,11 @@ async fn request_inner(
         packets = seen.into_values().collect();
     }
 
-    Ok(reassemble_split(&packets).map_err(CoreError::from)?)
+    Ok(Exchange {
+        payload: reassemble_split(&packets).map_err(CoreError::from)?,
+        reply_time,
+        challenged,
+    })
 }
 
 async fn recv_once(
@@ -122,17 +144,40 @@ async fn recv_once(
     Ok(buf[..n].to_vec())
 }
 
+/// One A2S_INFO answer with how long the answering reply took and whether the
+/// server demanded a challenge first.
+#[derive(Debug, Clone)]
+pub struct TimedInfo {
+    pub info: ServerInfo,
+    pub reply_time: Duration,
+    pub challenged: bool,
+}
+
 pub async fn query_info_raw(addr: SocketAddr, timeout: Duration) -> Result<Vec<u8>, NetError> {
-    request(addr, A2S_INFO, INFO_PAYLOAD, timeout).await
+    Ok(request(addr, A2S_INFO, INFO_PAYLOAD, timeout)
+        .await?
+        .payload)
 }
 
 pub async fn query_rules_raw(addr: SocketAddr, timeout: Duration) -> Result<Vec<u8>, NetError> {
-    request(addr, A2S_RULES, &[0xff, 0xff, 0xff, 0xff], timeout).await
+    Ok(request(addr, A2S_RULES, &[0xff, 0xff, 0xff, 0xff], timeout)
+        .await?
+        .payload)
 }
 
 pub async fn query_info(addr: SocketAddr, timeout: Duration) -> Result<ServerInfo, NetError> {
-    let raw = query_info_raw(addr, timeout).await?;
-    Ok(parse_info(&raw).map_err(CoreError::from)?)
+    Ok(query_info_timed(addr, timeout).await?.info)
+}
+
+/// [`query_info`] with the timing of the reply that answered, for estimating a
+/// ping from a server that does not answer pings.
+pub async fn query_info_timed(addr: SocketAddr, timeout: Duration) -> Result<TimedInfo, NetError> {
+    let exchange = request(addr, A2S_INFO, INFO_PAYLOAD, timeout).await?;
+    Ok(TimedInfo {
+        info: parse_info(&exchange.payload).map_err(CoreError::from)?,
+        reply_time: exchange.reply_time,
+        challenged: exchange.challenged,
+    })
 }
 
 pub async fn query_rules(addr: SocketAddr, timeout: Duration) -> Result<PackedPayload, NetError> {
@@ -143,6 +188,88 @@ pub async fn query_rules(addr: SocketAddr, timeout: Duration) -> Result<PackedPa
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A successful A2S_INFO response.
+    fn info_response() -> Vec<u8> {
+        let mut v = vec![0xff, 0xff, 0xff, 0xff, 0x49, 17];
+        for s in ["Test", "chernarusplus", "dayz", "DayZ"] {
+            v.extend_from_slice(s.as_bytes());
+            v.push(0);
+        }
+        v.extend_from_slice(&1u16.to_le_bytes());
+        v.extend_from_slice(&[0, 60, 0, b'd', b'l', 0, 1]);
+        v.extend_from_slice(b"1.0\0");
+        v
+    }
+
+    fn challenge_response() -> Vec<u8> {
+        vec![0xff, 0xff, 0xff, 0xff, 0x41, 0xde, 0xad, 0xbe, 0xef]
+    }
+
+    /// The challenge round trip is the server's cost of answering, not the
+    /// trip being measured, so it must not land in `reply_time`.
+    #[tokio::test]
+    async fn a_challenged_reply_is_timed_from_the_second_request() {
+        let server = UdpSocket::bind("127.0.0.1:0")
+            .await
+            .expect("bind fake server");
+        let addr = server.local_addr().expect("local addr");
+
+        let responder = tokio::spawn(async move {
+            let mut buf = [0u8; 64];
+            let (_, client) = server.recv_from(&mut buf).await.expect("first request");
+            tokio::time::sleep(Duration::from_millis(80)).await;
+            let _ = server.send_to(&challenge_response(), client).await;
+
+            let (_, client) = server
+                .recv_from(&mut buf)
+                .await
+                .expect("challenged request");
+            tokio::time::sleep(Duration::from_millis(40)).await;
+            let _ = server.send_to(&info_response(), client).await;
+        });
+
+        let timed = query_info_timed(addr, Duration::from_millis(500))
+            .await
+            .expect("the fake answers");
+
+        assert!(timed.challenged, "the server demanded a challenge");
+        assert!(
+            timed.reply_time >= Duration::from_millis(40),
+            "reply_time {:?} is under the 40ms the server waited",
+            timed.reply_time
+        );
+        let whole_exchange = Duration::from_millis(80 + 40);
+        assert!(
+            timed.reply_time < whole_exchange - Duration::from_millis(20),
+            "reply_time {:?} should exclude the 80ms challenge wait of the {whole_exchange:?} exchange",
+            timed.reply_time
+        );
+
+        responder.abort();
+    }
+
+    #[tokio::test]
+    async fn an_unchallenged_reply_is_timed_from_the_first_request() {
+        let server = UdpSocket::bind("127.0.0.1:0")
+            .await
+            .expect("bind fake server");
+        let addr = server.local_addr().expect("local addr");
+
+        let responder = tokio::spawn(async move {
+            let mut buf = [0u8; 64];
+            let (_, client) = server.recv_from(&mut buf).await.expect("request");
+            let _ = server.send_to(&info_response(), client).await;
+        });
+
+        let timed = query_info_timed(addr, Duration::from_millis(500))
+            .await
+            .expect("the fake answers");
+        assert!(!timed.challenged, "an immediate answer needs no challenge");
+        assert_eq!(timed.info.name, "Test");
+
+        responder.abort();
+    }
 
     fn split_header(id: u32, total: u8, index: u8, body: &[u8]) -> Vec<u8> {
         let mut v = vec![0xff, 0xff, 0xff, 0xfe];

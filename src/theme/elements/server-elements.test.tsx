@@ -341,6 +341,45 @@ describe("ServerPing", () => {
   it("hides the unit by default", () => {
     expect(render(<ServerPing />, serverContext({ ...server, ping: 40 }))).not.toContain('data-part="unit"');
   });
+
+  it("gives an estimate the plain title and no marker text, and a measured ping neither", () => {
+    const measured = render(<ServerPing options={{ showCaption: false }} />, serverContext(server));
+    expect(measured).toContain('data-part="value">40</span>');
+    expect(measured).not.toContain('data-part="estimate"');
+    expect(measured).not.toContain("title=");
+
+    const estimated = render(
+      <ServerPing options={{ showCaption: false }} />,
+      serverContext({ ...server, ping_estimate: "estimated" }),
+    );
+    expect(estimated).toContain('data-state="good estimated"');
+    expect(estimated).toContain('data-part="value">40</span>');
+    expect(estimated).not.toContain("est.<");
+    expect(estimated).toContain("title=\"Estimated: this server doesn&#x27;t answer pings.\"");
+  });
+
+  it("marks a DDoS-protected estimate with a shield and a tooltip card", () => {
+    const html = render(<ServerPing options={{ showCaption: false }} />, serverContext({ ...server, ping_estimate: "protected" }));
+    expect(html).toContain('data-state="good protected"');
+    expect(html).toContain('data-part="shield"');
+    expect(html).not.toContain('data-part="estimate"');
+    expect(html).toContain('data-part="tip" role="tooltip"');
+    expect(html).toContain("Estimated ping");
+    expect(html).toContain("This server is behind DDoS protection");
+    expect(html).toMatch(/aria-describedby="([^"]+)"/);
+    const id = html.match(/aria-describedby="([^"]+)"/)?.[1];
+    expect(html).toContain(`id="${id}"`);
+    expect(html).toMatch(/<span data-part="shield" aria-hidden="true" title="Estimated ping: behind DDoS protection, may be off by up to about 50 ms\.">/);
+  });
+
+  it("shows no marker on an offline row even when flagged", () => {
+    const html = render(<ServerPing />, serverContext({ ...server, online: false, ping_estimate: "protected" }));
+    expect(html).toContain('data-part="value">—</span>');
+    expect(html).not.toContain('data-part="estimate"');
+    expect(html).not.toContain('data-part="shield"');
+    expect(html).not.toContain('data-part="tip"');
+    expect(html).toContain('data-state="unknown offline"');
+  });
 });
 
 describe("ServerName", () => {

@@ -1,4 +1,5 @@
 use std::net::Ipv4Addr;
+use tetra_core::PingKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ServerKey {
@@ -27,6 +28,8 @@ pub struct ServerRow {
     pub max_players: i32,
     pub bots: i32,
     pub ping_ms: i32,
+    /// Where `ping_ms` came from, so a row can be marked as an estimate.
+    pub ping_kind: PingKind,
     pub locked: bool,
     pub vac: bool,
     pub version: Option<String>,

@@ -5,10 +5,14 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+icmp = ["dep:ping-async"]
+
 [dependencies]
 tetra-core = { path = "../tetra-core" }
 thiserror.workspace = true
 tokio.workspace = true
+ping-async = { version = "=1.0.2", optional = true }
 
 # The A2S CLI probe. Lives here rather than in tetra-core because the queries it
 # issues are this crate's — tetra-core is parsing only and has no transport.

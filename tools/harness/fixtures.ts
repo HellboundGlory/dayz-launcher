@@ -42,6 +42,7 @@ export function makeServers(count: number): Server[] {
       players,
       max_players: max,
       ping: i % 9 === 0 ? null : 20 + ((i * 37) % 230),
+      ping_estimate: i % 9 === 0 ? null : i % 7 === 3 ? "estimated" : i % 7 === 4 ? "protected" : null,
       locked: i % 13 === 0,
       vac: i % 3 === 0,
       version: "1.29.163709",

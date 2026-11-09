@@ -214,14 +214,14 @@ INSERT INTO servers (
     version, keywords, description, in_game_time, mod_count,
     official, first_person, modded, battleye,
     first_seen, last_seen, last_responded, last_played, country_code,
-    queue, day_multiplier, night_multiplier
+    queue, day_multiplier, night_multiplier, ping_kind
 ) VALUES (
     ?1, ?2, ?3, ?4, ?5, ?6,
     ?7, ?8, ?9, ?10, ?11, ?12,
     ?13, ?14, ?15, ?16, ?17,
     ?18, ?19, ?20, ?21,
     unixepoch(), unixepoch(), ?22, ?23, ?24,
-    ?25, ?26, ?27
+    ?25, ?26, ?27, ?28
 )
 ON CONFLICT(ip, query_port) DO UPDATE SET
     game_port      = CASE WHEN excluded.game_port > 0
@@ -258,6 +258,12 @@ ON CONFLICT(ip, query_port) DO UPDATE SET
                            AND excluded.ping_ms > 0
                           THEN excluded.ping_ms
                           ELSE servers.ping_ms END,
+    -- The flag travels with the number, so a row without a fresh measurement
+    -- keeps the flag its number was measured under.
+    ping_kind      = CASE WHEN excluded.last_responded IS NOT NULL
+                           AND excluded.ping_ms > 0
+                          THEN excluded.ping_kind
+                          ELSE servers.ping_kind END,
     locked         = CASE WHEN excluded.last_responded IS NOT NULL
                           THEN excluded.locked
                           ELSE servers.locked END,
@@ -398,6 +404,7 @@ fn upsert_servers(conn: &Connection, rows: &[ServerRow]) -> Result<usize, Regist
                 queue,
                 day_multiplier,
                 night_multiplier,
+                row.ping_kind.to_db(),
             ])?;
         }
     }

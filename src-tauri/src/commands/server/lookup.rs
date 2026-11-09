@@ -53,7 +53,7 @@ pub async fn lookup_server(
     let (mut typed, mut next) = (None, None);
     while let Some(outcome) = answers.recv().await {
         if let Ok(info) = outcome.result {
-            let found = (outcome.addr.port(), info, outcome.rtt);
+            let found = (outcome.addr.port(), info, outcome.ping);
             if found.0 == port {
                 typed = Some(found);
                 break;
@@ -61,7 +61,7 @@ pub async fn lookup_server(
             next = Some(found);
         }
     }
-    let Some((query_port, mut info, rtt)) = typed.or(next) else {
+    let Some((query_port, mut info, ping)) = typed.or(next) else {
         return Ok(None);
     };
     if query_port != port && info.game_port.is_none() {
@@ -70,7 +70,7 @@ pub async fn lookup_server(
 
     let key = ServerKey { ip, query_port };
     writer
-        .upsert_servers(vec![info_row(key, info, rtt)])
+        .upsert_servers(vec![info_row(key, info, ping)])
         .await
         .map_err(|e| e.to_string())?;
     writer

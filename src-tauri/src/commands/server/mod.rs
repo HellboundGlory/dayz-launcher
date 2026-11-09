@@ -95,6 +95,9 @@ pub struct Server32 {
     pub players: i32,
     pub max_players: i32,
     pub ping: Option<i32>,
+    /// Why the number is not a measured ping: `"estimated"` when it comes from
+    /// query replies, `"protected"` when a DDoS service answered for the server.
+    pub ping_estimate: Option<&'static str>,
     pub locked: bool,
     pub vac: bool,
     pub version: String,
@@ -188,6 +191,11 @@ fn to_server32(r: &tetra_registry::filter::ServerListRow) -> Server32 {
         players: r.players,
         max_players: r.max_players,
         ping: (r.ping_ms > 0).then_some(r.ping_ms),
+        ping_estimate: match r.ping_kind {
+            tetra_core::PingKind::Measured => None,
+            tetra_core::PingKind::Estimated => Some("estimated"),
+            tetra_core::PingKind::Protected => Some("protected"),
+        },
         locked: r.locked,
         vac: r.vac,
         version: r.version.clone().unwrap_or_default(),
@@ -449,6 +457,49 @@ mod tests {
     fn a_malformed_address_is_rejected_rather_than_guessed_at() {
         assert!(server_key("not-an-ip:2303", 2303).is_err());
         assert!(server_key("", 2303).is_err());
+    }
+
+    #[test]
+    fn a_ping_flag_crosses_the_bridge_as_a_marker_name() {
+        use std::net::Ipv4Addr;
+        for (kind, expected) in [
+            (tetra_core::PingKind::Measured, None),
+            (tetra_core::PingKind::Estimated, Some("estimated")),
+            (tetra_core::PingKind::Protected, Some("protected")),
+        ] {
+            let registry = tetra_registry::Registry::open_in_memory().expect("registry");
+            let writer = registry.writer();
+            tokio::runtime::Runtime::new()
+                .expect("runtime")
+                .block_on(async {
+                    writer
+                        .upsert_servers(vec![tetra_registry::ServerRow {
+                            key: tetra_registry::ServerKey {
+                                ip: Ipv4Addr::new(203, 0, 113, 5),
+                                query_port: 27016,
+                            },
+                            name: "Row".into(),
+                            ping_ms: 40,
+                            ping_kind: kind,
+                            responded: true,
+                            ..Default::default()
+                        }])
+                        .await
+                        .expect("row");
+                });
+
+            let reader = registry.reader().expect("reader");
+            let row = reader
+                .get(tetra_registry::ServerKey {
+                    ip: Ipv4Addr::new(203, 0, 113, 5),
+                    query_port: 27016,
+                })
+                .expect("get")
+                .expect("a row");
+            let bridged = super::to_server32(&row);
+            assert_eq!(bridged.ping, Some(40));
+            assert_eq!(bridged.ping_estimate, expected, "{kind:?}");
+        }
     }
 
     fn default_params() -> super::FilterParams {

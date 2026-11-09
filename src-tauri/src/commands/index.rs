@@ -428,6 +428,7 @@ fn to_row(
         // Someone else's round trip says nothing about this user's; the
         // upsert refuses to overwrite a measured ping with this zero.
         ping_ms: 0,
+        ping_kind: tetra_core::PingKind::Measured,
         locked: entry.locked,
         vac: entry.vac,
         version: entry.version,

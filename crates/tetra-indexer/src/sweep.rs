@@ -154,6 +154,7 @@ pub async fn info(
                 .rtt
                 .map(|d| d.as_millis().min(i32::MAX as u128) as i32)
                 .unwrap_or(0),
+            ping_kind: tetra_core::PingKind::Measured,
             locked: info.visibility != 0,
             vac: info.vac != 0,
             version: Some(info.version),

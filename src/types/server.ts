@@ -7,6 +7,8 @@ export interface Server {
   players: number;
   max_players: number;
   ping: number | null;
+  /** Why `ping` is not a measured ping: estimated from query replies, or a DDoS service's answer. */
+  ping_estimate?: "estimated" | "protected" | null;
   locked: boolean;
   vac: boolean;
   version: string;

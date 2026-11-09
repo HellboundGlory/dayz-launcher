@@ -1075,11 +1075,37 @@
 }
 
 .t-row [data-el="server.ping"] {
+  position: relative;
   font-family: var(--t-type-family-data);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
+
+.t-row [data-el="server.ping"] {
+  white-space: nowrap;
+}
+
+
+.t-row [data-el="server.ping"] [data-part="shield"] {
+  display: inline-flex;
+  margin-right: 3px;
+  vertical-align: -2px;
+  color: var(--warn);
+}
+
+.t-row [data-el="server.ping"] [data-part="shield"] > :first-child {
+  width: 12px;
+  height: 12px;
+}
+
+/* Tactical rows clip anything that sticks out, so the card stays out of the
+   layout here; the shield's title carries the same text. */
+.t-row [data-el="server.ping"] [data-part="tip"] {
+  display: none;
+}
+
+
 
 .t-row [data-el="server.ping"][data-state~="good"] {
   color: var(--success);

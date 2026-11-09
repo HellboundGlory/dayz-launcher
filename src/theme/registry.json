@@ -1997,6 +1997,8 @@
       "parts": [
         "value",
         "unit",
+        "shield",
+        "tip",
         "caption"
       ],
       "states": [
@@ -2004,7 +2006,9 @@
         "fair",
         "poor",
         "unknown",
-        "offline"
+        "offline",
+        "estimated",
+        "protected"
       ],
       "since": "2.0",
       "aliases": []

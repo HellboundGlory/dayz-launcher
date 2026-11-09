@@ -304,7 +304,10 @@ pub fn run() {
                 ),
                 ..ProbeConfig::default()
             };
-            *state.prober.lock().unwrap() = Some(tetra_net::Prober::new(probe_config));
+            *state.prober.lock().unwrap() = Some(
+                tetra_net::Prober::new(probe_config)
+                    .with_pinger(std::sync::Arc::new(tetra_net::IcmpPinger::new())),
+            );
             // Registry and prober are both set: commands waiting in `registry_writer` may go.
             state.registry_open.send_replace(true);
 

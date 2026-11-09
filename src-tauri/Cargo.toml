@@ -81,7 +81,7 @@ brotli = { version = "9", default-features = false, features = ["std"] }
 # Well-formedness and element/attribute inspection for the SVG sniff.
 quick-xml = "0.42"
 tetra-core = { path = "../crates/tetra-core" }
-tetra-net = { path = "../crates/tetra-net" }
+tetra-net = { path = "../crates/tetra-net", features = ["icmp"] }
 tetra-registry = { path = "../crates/tetra-registry" }
 tetra-index = { path = "../crates/tetra-index", features = ["client"] }
 tetra-steam = { path = "../crates/tetra-steam" }

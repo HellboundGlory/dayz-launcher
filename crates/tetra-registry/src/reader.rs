@@ -10,6 +10,7 @@ use std::str::FromStr;
 use tetra_core::a2s::dayz::ServerMod;
 use tetra_core::classify::maps::display_name;
 use tetra_core::unix_now;
+use tetra_core::PingKind;
 
 /// Keys per `get_many` statement: two bound parameters each, well under SQLite's limit.
 const GET_MANY_CHUNK: usize = 400;
@@ -316,6 +317,7 @@ impl Reader {
             queue: r.get(21)?,
             day_multiplier: r.get(22)?,
             night_multiplier: r.get(23)?,
+            ping_kind: PingKind::from_db(r.get(24)?),
             matched_mod: None,
         }))
     }

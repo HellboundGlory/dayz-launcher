@@ -1,7 +1,7 @@
 use crate::error::RegistryError;
 use rusqlite::Connection;
 
-pub const LATEST_VERSION: u32 = 7;
+pub const LATEST_VERSION: u32 = 8;
 
 struct Migration {
     version: u32,
@@ -36,6 +36,10 @@ const MIGRATIONS: &[Migration] = &[
     Migration {
         version: 7,
         sql: V7,
+    },
+    Migration {
+        version: 8,
+        sql: V8,
     },
 ];
 
@@ -194,6 +198,13 @@ CREATE TABLE workshop_cache (
     time_updated  INTEGER NOT NULL,
     cached_at     INTEGER NOT NULL
 );
+"#;
+
+/// Where a row's `ping_ms` came from: 0 measured, 1 estimated, 2 estimated
+/// behind DDoS protection. Every row written before this carried a measured
+/// ping, so the default fits.
+const V8: &str = r#"
+ALTER TABLE servers ADD COLUMN ping_kind INTEGER NOT NULL DEFAULT 0;
 "#;
 
 /// How long a server may go unresponsive, in days, before it's pruned —

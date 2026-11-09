@@ -35,6 +35,7 @@ pub fn to_server_row(g: &GameServerRow) -> ServerRow {
         max_players: g.max_players,
         bots: g.bots,
         ping_ms: g.ping_ms,
+        ping_kind: tetra_core::PingKind::Measured,
         locked: g.locked,
         vac: g.vac,
         version: (g.server_version != 0).then(|| g.server_version.to_string()),

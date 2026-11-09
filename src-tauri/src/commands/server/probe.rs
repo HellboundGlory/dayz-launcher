@@ -32,7 +32,7 @@ pub(super) struct InfoBatchResult {
 pub(super) fn info_row(
     key: ServerKey,
     info: tetra_core::a2s::info::ServerInfo,
-    rtt: Option<std::time::Duration>,
+    ping: Option<tetra_net::PingReading>,
 ) -> tetra_registry::rows::ServerRow {
     tetra_registry::rows::ServerRow {
         key,
@@ -42,9 +42,8 @@ pub(super) fn info_row(
         players: info.players as i32,
         max_players: info.max_players as i32,
         bots: info.bots as i32,
-        ping_ms: rtt
-            .map(|d| d.as_millis().min(i32::MAX as u128) as i32)
-            .unwrap_or(0),
+        ping_ms: ping.map(|p| p.ms.min(i32::MAX as u32) as i32).unwrap_or(0),
+        ping_kind: ping.map(|p| p.kind).unwrap_or_default(),
         locked: info.visibility != 0,
         vac: info.vac != 0,
         version: Some(info.version),
@@ -59,6 +58,30 @@ pub(super) fn info_row(
         responded_at: None,
         country_code: None,
     }
+}
+
+/// Says once a session that ICMP is blocked here, so pings are estimates.
+fn report_blocked_icmp(prober: &Prober, log: &impl Fn(String)) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static REPORTED: AtomicBool = AtomicBool::new(false);
+
+    if prober.icmp_status() != tetra_net::IcmpStatus::Unavailable {
+        return;
+    }
+    if REPORTED.swap(true, Ordering::Relaxed) {
+        return;
+    }
+    #[cfg(target_os = "linux")]
+    log(
+        "ICMP ping is not allowed for this user, so pings are estimated from query replies. \
+         To allow it: sudo sysctl -w net.ipv4.ping_group_range=\"0 2147483647\""
+            .to_string(),
+    );
+    #[cfg(windows)]
+    log(
+        "ICMP ping is blocked on this machine, so pings are estimated from query replies."
+            .to_string(),
+    );
 }
 
 /// Store the answered probes waiting in `batch` and flag their servers online.
@@ -129,7 +152,7 @@ pub(super) async fn probe_info(
         // can't be trusted to flag modded servers.
         rules_candidates.push((key, outcome.addr));
 
-        batch.push(info_row(key, info, outcome.rtt));
+        batch.push(info_row(key, info, outcome.ping));
 
         if batch.len() >= WRITE_BATCH {
             flush_answered(writer, &mut batch, &mut online_keys, &log).await;
@@ -139,6 +162,8 @@ pub(super) async fn probe_info(
     }
 
     flush_answered(writer, &mut batch, &mut online_keys, &log).await;
+
+    report_blocked_icmp(prober, &log);
 
     // A large batch where most probes failed points at the local network, not
     // the servers, so its misses are not written as offline.
@@ -382,4 +407,73 @@ pub async fn refresh_visible_servers(
         }),
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::info_row;
+    use tetra_core::a2s::info::ServerInfo;
+    use tetra_core::PingKind;
+    use tetra_net::PingReading;
+    use tetra_registry::ServerKey;
+
+    fn info() -> ServerInfo {
+        ServerInfo {
+            protocol: 17,
+            name: "Test".into(),
+            map: "chernarusplus".into(),
+            folder: "dayz".into(),
+            game: "DayZ".into(),
+            app_id: 1,
+            players: 10,
+            max_players: 60,
+            bots: 0,
+            server_type: b'd',
+            environment: b'l',
+            visibility: 0,
+            vac: 1,
+            version: "1.28".into(),
+            game_port: Some(2302),
+            steam_id: None,
+            keywords: None,
+            game_id: None,
+        }
+    }
+
+    fn key() -> ServerKey {
+        ServerKey {
+            ip: std::net::Ipv4Addr::new(203, 0, 113, 7),
+            query_port: 27016,
+        }
+    }
+
+    #[test]
+    fn an_info_row_carries_the_ping_and_its_flag() {
+        let row = info_row(
+            key(),
+            info(),
+            Some(PingReading {
+                ms: 42,
+                kind: PingKind::Estimated,
+            }),
+        );
+        assert_eq!(row.ping_ms, 42);
+        assert_eq!(row.ping_kind, PingKind::Estimated);
+    }
+
+    #[test]
+    fn a_huge_ping_is_capped_rather_than_wrapping_negative() {
+        let reading = PingReading {
+            ms: u32::MAX,
+            kind: PingKind::Measured,
+        };
+        assert_eq!(info_row(key(), info(), Some(reading)).ping_ms, i32::MAX);
+    }
+
+    #[test]
+    fn an_info_row_without_a_ping_stores_none_and_reads_as_measured() {
+        let row = info_row(key(), info(), None);
+        assert_eq!(row.ping_ms, 0);
+        assert_eq!(row.ping_kind, PingKind::Measured);
+    }
 }

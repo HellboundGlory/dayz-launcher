@@ -9,6 +9,7 @@ mod common;
 use common::key;
 use std::net::Ipv4Addr;
 use tetra_core::a2s::dayz::ServerMod;
+use tetra_core::PingKind;
 use tetra_registry::{Registry, ServerFilter, ServerKey, ServerRow, SortDir, SortKey};
 
 /// A fully-populated row as a successful A2S_INFO probe would produce.
@@ -22,6 +23,7 @@ fn live_row() -> ServerRow {
         max_players: 60,
         bots: 0,
         ping_ms: 35,
+        ping_kind: PingKind::Measured,
         locked: false,
         vac: true,
         version: Some("1.28".into()),
@@ -626,4 +628,88 @@ async fn an_unchanged_mod_list_keeps_resolved_names_and_still_learns_new_ones() 
         ["Expansion", "Core"],
         "stored blank names are replaced when the pull has them"
     );
+}
+
+#[tokio::test]
+async fn a_ping_flag_follows_its_number_and_survives_a_row_without_one() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let writer = registry.writer();
+
+    let mut estimated = live_row();
+    estimated.ping_ms = 55;
+    estimated.ping_kind = PingKind::Estimated;
+    writer
+        .upsert_servers(vec![estimated])
+        .await
+        .expect("estimated");
+    let row = fetch(&registry).await;
+    assert_eq!(row.ping_ms, 55);
+    assert_eq!(row.ping_kind, PingKind::Estimated);
+
+    // Neither a miss nor a row that carries no measurement may touch either.
+    writer
+        .upsert_servers(vec![ServerRow {
+            key: key(10),
+            responded: false,
+            ..Default::default()
+        }])
+        .await
+        .expect("unanswered");
+    let row = fetch(&registry).await;
+    assert_eq!(row.ping_ms, 55, "a miss must keep the last ping");
+    assert_eq!(row.ping_kind, PingKind::Estimated, "and its flag");
+
+    writer
+        .upsert_servers(vec![ServerRow {
+            key: key(10),
+            responded: true,
+            ..Default::default()
+        }])
+        .await
+        .expect("no measurement");
+    let row = fetch(&registry).await;
+    assert_eq!(row.ping_ms, 55, "a zero ping leaves the number alone");
+    assert_eq!(row.ping_kind, PingKind::Estimated, "and its flag");
+
+    let mut measured = live_row();
+    measured.ping_ms = 30;
+    measured.ping_kind = PingKind::Measured;
+    writer
+        .upsert_servers(vec![measured])
+        .await
+        .expect("measured");
+    let row = fetch(&registry).await;
+    assert_eq!(row.ping_ms, 30);
+    assert_eq!(row.ping_kind, PingKind::Measured);
+}
+
+/// A database written before the ping flag existed reads every stored ping as
+/// measured, since that is all it could have been.
+#[tokio::test]
+async fn a_version_seven_database_reads_its_pings_as_measured() {
+    let dir = std::env::temp_dir().join(format!("tetra-ping-kind-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let path = dir.join("registry.sqlite");
+
+    {
+        let registry = Registry::open(&path).expect("registry");
+        registry
+            .writer()
+            .upsert_servers(vec![live_row()])
+            .await
+            .expect("live");
+    }
+    {
+        let conn = rusqlite::Connection::open(&path).expect("open");
+        conn.execute_batch("ALTER TABLE servers DROP COLUMN ping_kind; PRAGMA user_version = 7;")
+            .expect("downgrade");
+    }
+
+    let registry = Registry::open(&path).expect("reopen");
+    let row = fetch(&registry).await;
+    assert_eq!(row.ping_ms, 35, "the stored ping survives the migration");
+    assert_eq!(row.ping_kind, PingKind::Measured);
+
+    let _ = std::fs::remove_dir_all(&dir);
 }

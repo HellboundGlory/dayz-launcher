@@ -20,6 +20,7 @@ fn row(key: ServerKey, name: &str, players: i32, max_players: i32, bots: i32) ->
         max_players,
         bots,
         ping_ms: 35,
+        ping_kind: tetra_core::PingKind::Measured,
         locked: false,
         vac: true,
         version: Some("1.28".into()),
