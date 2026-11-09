@@ -77,13 +77,14 @@ pub fn register_dzsa_protocol(exe_path: &std::path::Path) -> Result<(), Protocol
     );
     std::fs::write(&desktop_file, content)?;
 
-    let _ = std::process::Command::new("xdg-mime")
-        .args([
-            "default",
-            "tetra-launcher-dzsa.desktop",
-            "x-scheme-handler/dzsa",
-        ])
-        .status();
+    let mut mime = std::process::Command::new("xdg-mime");
+    mime.args([
+        "default",
+        "tetra-launcher-dzsa.desktop",
+        "x-scheme-handler/dzsa",
+    ]);
+    crate::spawn::without_appimage_env(&mut mime);
+    let _ = mime.status();
     Ok(())
 }
 

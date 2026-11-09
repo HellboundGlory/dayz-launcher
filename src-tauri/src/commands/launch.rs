@@ -232,24 +232,18 @@ pub async fn launch_game(
         };
 
         // Discover DayZ install path — use manual override if provided
-        let dayz_dir = if let Some(ref manual_path) = dayz_path_override {
-            let path = std::path::PathBuf::from(manual_path);
-            if !path.exists() {
-                return Err(format!("DayZ path does not exist: {manual_path}"));
-            }
-            path
+        let dayz_exe = if let Some(ref manual_path) = dayz_path_override {
+            dayz_exe_in(manual_path)?
         } else {
             let paths = tetra_launch::registry_discovery::find_steam_paths()
                 .ok_or_else(|| "Could not find Steam/DayZ installation. Check registry or set path manually in Settings.".to_string())?;
-            paths.dayz_install.clone()
+            find_dayz_exe(&paths.dayz_install).ok_or_else(|| {
+                format!(
+                    "DayZ executable not found at {}. Try verifying game files in Steam.",
+                    paths.dayz_install.display()
+                )
+            })?
         };
-
-        let dayz_exe = find_dayz_exe(&dayz_dir).ok_or_else(|| {
-            format!(
-                "DayZ executable not found at {}. Try verifying game files in Steam.",
-                dayz_dir.display()
-            )
-        })?;
 
         // Get the Steam handle for Workshop operations
         let steam = {
@@ -530,13 +524,7 @@ pub fn open_workshop_in_steam(workshop_id: String) -> Result<(), String> {
         "steam",
         "No Steam executable found; falling back to the OS opener",
     );
-    #[cfg(target_os = "windows")]
-    let mut cmd = std::process::Command::new("explorer");
-    #[cfg(not(target_os = "windows"))]
-    let mut cmd = std::process::Command::new("xdg-open");
-    cmd.arg(&url)
-        .spawn()
-        .map(|_| ())
+    tetra_launch::spawn::open_with_desktop(std::ffi::OsStr::new(&url))
         .map_err(|e| format!("Could not open {url}: {e}"))
 }
 
@@ -551,12 +539,28 @@ pub fn discover_steam_paths() -> Result<Option<SteamPaths>, String> {
     }))
 }
 
+/// The DayZ executable in `dir`, requiring an absolute path to an existing
+/// directory: a relative one from the WebView would resolve against the
+/// launcher's own working directory.
+pub(crate) fn dayz_exe_in(dir: &str) -> Result<std::path::PathBuf, String> {
+    let path = std::path::Path::new(dir);
+    if !path.is_absolute() {
+        return Err(format!("DayZ path must be absolute: {dir}"));
+    }
+    if !path.is_dir() {
+        return Err(format!("DayZ path does not exist: {dir}"));
+    }
+    find_dayz_exe(path).ok_or_else(|| {
+        format!("DayZ executable not found at {dir}. Try verifying game files in Steam.")
+    })
+}
+
 /// Whether `path` looks like a real DayZ install — i.e. `find_dayz_exe` would
 /// find something to launch there. Backs the setup modal's inline "found it"
 /// check for both Browse and a hand-pasted path.
 #[tauri::command]
 pub fn validate_dayz_path(path: String) -> bool {
-    find_dayz_exe(std::path::Path::new(&path)).is_some()
+    dayz_exe_in(&path).is_ok()
 }
 
 /// Whether a DayZ session is running right now. Called once on mount for an
@@ -607,4 +611,42 @@ pub fn start_dayz_watcher(app: &AppHandle) {
             let _ = app.emit("dayz-running", running);
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::atomic_write::test_support::ScratchDir;
+
+    /// A DayZ folder is only accepted when it is absolute, exists, and holds
+    /// one of the two executables.
+    #[test]
+    fn a_dayz_folder_must_be_absolute_and_hold_the_exe() {
+        let root = ScratchDir::new();
+        let empty = root.join("empty");
+        let x64 = root.join("x64");
+        let both = root.join("both");
+        let missing = root.join("missing");
+        std::fs::create_dir_all(&empty).unwrap();
+        std::fs::create_dir_all(&x64).unwrap();
+        std::fs::create_dir_all(&both).unwrap();
+        std::fs::write(x64.join("DayZ_x64.exe"), b"").unwrap();
+        std::fs::write(both.join("DayZ_x64.exe"), b"").unwrap();
+        std::fs::write(both.join("DayZ_BE.exe"), b"").unwrap();
+
+        let cases: &[(&std::path::Path, Option<&str>)] = &[
+            (std::path::Path::new("relative/DayZ"), None),
+            (&missing, None),
+            (&empty, None),
+            (&x64, Some("DayZ_x64.exe")),
+            (&both, Some("DayZ_BE.exe")),
+        ];
+        for (dir, expected) in cases {
+            let result = dayz_exe_in(dir.to_str().unwrap());
+            match expected {
+                Some(exe) => assert_eq!(result.unwrap(), dir.join(exe)),
+                None => assert!(result.is_err(), "dir: {dir:?}"),
+            }
+        }
+    }
 }

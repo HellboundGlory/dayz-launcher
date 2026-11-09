@@ -646,9 +646,10 @@ export async function openWorkshopInSteam(workshopId: string): Promise<void> {
   return invoke<void>("open_workshop_in_steam", { workshopId: workshopId });
 }
 
-/** Reveal a mod's install folder in the system file manager. */
-export async function openModFolder(folder: string): Promise<void> {
-  return invoke<void>("open_mod_folder", { folder: folder });
+/** Reveal a mod's install folder in the system file manager, looked up by
+    Workshop id. */
+export async function openModFolder(workshopId: string): Promise<void> {
+  return invoke<void>("open_mod_folder", { workshopId: workshopId });
 }
 
 /** Append a line from the frontend to `tetra-launcher.log` (see `crate::log`).

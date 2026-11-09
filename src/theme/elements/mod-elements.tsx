@@ -487,7 +487,7 @@ export function ModOpenFolder({
 
   const handleClick = (e: MouseEvent) => {
     e.stopPropagation();
-    if (mod.folder) void openModFolder(mod.folder);
+    if (mod.folder) void openModFolder(mod.workshop_id).catch((err) => console.error(err));
   };
 
   return (

@@ -1,5 +1,6 @@
 use crate::error::SpawnError;
-use std::path::PathBuf;
+use std::ffi::{OsStr, OsString};
+use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 
 /// The BattlEye stub the game is launched through, and the game itself.
@@ -55,7 +56,7 @@ pub fn spawn_dayz(exe_path: &std::path::Path, args: &[String]) -> Result<(), Spa
 /// `<SteamLinuxRuntime_*>/run -- <Proton>/proton run <dayz_exe> <args...>`
 #[cfg(target_os = "linux")]
 pub fn spawn_dayz(exe_path: &std::path::Path, args: &[String]) -> Result<(), SpawnError> {
-    let steam_root = crate::registry_discovery::find_steam_paths()
+    let steam_root = crate::registry_discovery::find_native_steam_paths()
         .map(|p| p.steam_install)
         .unwrap_or_else(|| {
             std::env::var_os("XDG_DATA_HOME")
@@ -100,18 +101,13 @@ pub fn spawn_dayz(exe_path: &std::path::Path, args: &[String]) -> Result<(), Spa
         cmd.current_dir(dir);
     }
 
+    without_appimage_env(&mut cmd);
+
     // Proton needs these or it aborts with a KeyError.
     cmd.env("STEAM_COMPAT_DATA_PATH", &compat_data);
     cmd.env("STEAM_COMPAT_CLIENT_INSTALL_PATH", &steam_root);
     cmd.env("SteamAppId", "221100");
     cmd.env("SteamGameId", "221100");
-
-    // Strip AppImage/leaked Python env vars that break the Steam-runtime child.
-    cmd.env_remove("LD_LIBRARY_PATH");
-    cmd.env_remove("APPIMAGE");
-    cmd.env_remove("APPDIR");
-    cmd.env_remove("PYTHONHOME");
-    cmd.env_remove("PYTHONPATH");
 
     cmd.spawn().map(|_child| ()).map_err(SpawnError::Launch)
 }
@@ -211,22 +207,78 @@ fn runtime_rank(run_binary: &std::path::Path) -> u8 {
     }
 }
 
+/// Remove the environment an AppImage adds, so programs it starts use the
+/// machine's own libraries and data directories instead of the mount point's.
+pub fn without_appimage_env(cmd: &mut Command) -> &mut Command {
+    for name in [
+        "LD_LIBRARY_PATH",
+        "APPIMAGE",
+        "APPDIR",
+        "PYTHONHOME",
+        "PYTHONPATH",
+    ] {
+        cmd.env_remove(name);
+    }
+
+    let appdir = std::env::var_os("APPDIR").filter(|value| !value.is_empty());
+    let appdir_path = appdir.as_deref().map(Path::new);
+    for name in ["PATH", "XDG_DATA_DIRS"] {
+        let Some(value) = std::env::var_os(name) else {
+            continue;
+        };
+        if std::env::split_paths(&value).any(|entry| is_appimage_entry(&entry, appdir_path)) {
+            cmd.env(name, strip_appimage_entries(&value, appdir.as_deref()));
+        }
+    }
+    cmd
+}
+
+/// [`without_appimage_env`] for one `PATH`-style value: drop the entries
+/// under `appdir` and those inside an AppImage mount point.
+fn strip_appimage_entries(value: &OsStr, appdir: Option<&OsStr>) -> OsString {
+    let appdir = appdir.filter(|dir| !dir.is_empty()).map(Path::new);
+    let kept: Vec<PathBuf> = std::env::split_paths(value)
+        .filter(|entry| !is_appimage_entry(entry, appdir))
+        .collect();
+    std::env::join_paths(&kept).unwrap_or_else(|_| value.to_owned())
+}
+
+fn is_appimage_entry(entry: &Path, appdir: Option<&Path>) -> bool {
+    appdir.is_some_and(|dir| entry.starts_with(dir)) || in_appimage_mount(entry)
+}
+
+fn in_appimage_mount(entry: &Path) -> bool {
+    entry.components().any(|component| match component {
+        Component::Normal(name) => name.to_string_lossy().starts_with(".mount_"),
+        _ => false,
+    })
+}
+
 /// Start the Steam client — doesn't wait, since its process stays alive for the whole session.
 pub fn spawn_steam(exe_path: &std::path::Path) -> Result<(), SpawnError> {
-    Command::new(exe_path)
-        .spawn()
-        .map(|_child| ())
-        .map_err(SpawnError::Launch)
+    let mut cmd = Command::new(exe_path);
+    without_appimage_env(&mut cmd);
+    cmd.spawn().map(|_child| ()).map_err(SpawnError::Launch)
 }
 
 /// Start Steam handed a `steam://…` URL to open — a second instance forwards
 /// it to the already-running client rather than starting twice.
 pub fn spawn_steam_with_url(exe_path: &std::path::Path, url: &str) -> Result<(), SpawnError> {
-    Command::new(exe_path)
-        .arg(url)
-        .spawn()
-        .map(|_child| ())
-        .map_err(SpawnError::Launch)
+    let mut cmd = Command::new(exe_path);
+    cmd.arg(url);
+    without_appimage_env(&mut cmd);
+    cmd.spawn().map(|_child| ()).map_err(SpawnError::Launch)
+}
+
+/// Show a file or folder in the desktop's own file manager, without waiting.
+pub fn open_with_desktop(target: &OsStr) -> Result<(), SpawnError> {
+    #[cfg(target_os = "windows")]
+    let mut cmd = Command::new("explorer");
+    #[cfg(not(target_os = "windows"))]
+    let mut cmd = Command::new("xdg-open");
+    cmd.arg(target);
+    without_appimage_env(&mut cmd);
+    cmd.spawn().map(|_child| ()).map_err(SpawnError::Launch)
 }
 
 /// Locate the DayZ executable — prefers `DayZ_BE.exe`, falls back to `DayZ_x64.exe`.
@@ -327,6 +379,60 @@ mod tests {
     fn vanilla_launch_no_extra_params() {
         let args = build_launch_args(false, "127.0.0.1", 2302, None, "", &[], None);
         assert_eq!(args, vec!["-connect=127.0.0.1", "-port=2302"]);
+    }
+
+    /// Every child runs without the AppImage's own environment, or Steam and
+    /// the desktop opener try to use the launcher's mount point.
+    #[test]
+    fn without_appimage_env_clears_the_appimage_variables() {
+        let mut cmd = Command::new("true");
+        without_appimage_env(&mut cmd);
+
+        let envs: Vec<(OsString, Option<OsString>)> = cmd
+            .get_envs()
+            .map(|(key, value)| (key.to_owned(), value.map(OsStr::to_owned)))
+            .collect();
+        for name in [
+            "LD_LIBRARY_PATH",
+            "APPIMAGE",
+            "APPDIR",
+            "PYTHONHOME",
+            "PYTHONPATH",
+        ] {
+            assert!(
+                envs.contains(&(OsString::from(name), None)),
+                "{name} must be removed from the child"
+            );
+        }
+    }
+
+    /// AppImage entries are the mount point's own paths and anything under
+    /// `$APPDIR`; a normal `PATH` is left exactly as it was.
+    #[test]
+    fn strip_appimage_entries_drops_only_the_appimage_paths() {
+        type Case<'a> = (&'a [&'a str], Option<&'a str>, Option<&'a [&'a str]>);
+        let cases: &[Case<'_>] = &[
+            (
+                &["/tmp/.mount_TetraXyz/usr/bin", "/usr/bin", "/bin"],
+                None,
+                Some(&["/usr/bin", "/bin"]),
+            ),
+            (
+                &["/opt/app/usr/lib", "/usr/lib"],
+                Some("/opt/app"),
+                Some(&["/usr/lib"]),
+            ),
+            (&["/usr/bin", "/bin"], Some("/opt/app"), None),
+        ];
+        for (entries, appdir, expected) in cases {
+            let value = std::env::join_paths(entries.iter()).unwrap();
+            let stripped = strip_appimage_entries(&value, appdir.map(OsStr::new));
+            let want = match expected {
+                Some(kept) => std::env::join_paths(kept.iter()).unwrap(),
+                None => value.clone(),
+            };
+            assert_eq!(stripped, want, "entries: {entries:?}, appdir: {appdir:?}");
+        }
     }
 
     #[test]

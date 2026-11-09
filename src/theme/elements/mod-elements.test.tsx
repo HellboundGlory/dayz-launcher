@@ -369,7 +369,7 @@ describe("ModOpenInSteam", () => {
 });
 
 describe("ModOpenFolder", () => {
-  it("is disabled without a folder, and opens the mod's folder when present", async () => {
+  it("is disabled without a folder, and opens the mod's folder by workshop id when present", async () => {
     const { ModOpenFolder } = await import("./mod-elements");
     resetCaptured();
     const missing = renderWithMod(<ModOpenFolder />, makeMod("1", { folder: null }));
@@ -381,7 +381,7 @@ describe("ModOpenFolder", () => {
     const present = renderWithMod(<ModOpenFolder />, makeMod("1", { folder: "@MyMod" }));
     expect(present).not.toContain("disabled");
     (captured["mod.openFolder"].onClick as (e: { stopPropagation: () => void }) => void)({ stopPropagation: vi.fn() });
-    expect(tauriMocks.openModFolder).toHaveBeenCalledWith("@MyMod");
+    expect(tauriMocks.openModFolder).toHaveBeenCalledWith("1");
   });
 });
 

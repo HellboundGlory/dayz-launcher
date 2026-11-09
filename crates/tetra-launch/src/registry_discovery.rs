@@ -94,6 +94,14 @@ fn resolve_paths(steam_install: &std::path::Path, libraries: &[PathBuf]) -> Opti
     })
 }
 
+/// The first root whose libraries hold DayZ. A stale root that Steam still
+/// creates but that holds no game must not hide a second install elsewhere.
+fn paths_from_first_root(roots: &[PathBuf]) -> Option<SteamPaths> {
+    roots
+        .iter()
+        .find_map(|root| resolve_paths(root, &declared_libraries(root)))
+}
+
 /// Library roots declared beside a Steam root, if `libraryfolders.vdf` exists.
 fn declared_libraries(steam_install: &std::path::Path) -> Vec<PathBuf> {
     let vdf = steam_install.join("steamapps").join("libraryfolders.vdf");
@@ -109,16 +117,32 @@ mod imp {
     use winreg::enums::*;
 
     pub fn find_steam_paths() -> Option<SteamPaths> {
-        let hklm = winreg::RegKey::predef(HKEY_LOCAL_MACHINE);
-        let steam_key = hklm
+        paths_from_first_root(&steam_roots())
+    }
+
+    /// The per-user key first: Steam writes it for every install, while the
+    /// machine-wide key is absent when only that user has Steam.
+    fn steam_roots() -> Vec<PathBuf> {
+        let mut roots = Vec::new();
+
+        let from_user = winreg::RegKey::predef(HKEY_CURRENT_USER)
+            .open_subkey("Software\\Valve\\Steam")
+            .ok()
+            .and_then(|key| key.get_value::<String, _>("SteamPath").ok())
+            .filter(|dir| !dir.is_empty());
+        if let Some(dir) = from_user {
+            roots.push(PathBuf::from(dir));
+        }
+
+        let from_machine = winreg::RegKey::predef(HKEY_LOCAL_MACHINE)
             .open_subkey("SOFTWARE\\WOW6432Node\\Valve\\Steam")
-            .ok()?;
+            .ok()
+            .and_then(|key| key.get_value::<String, _>("InstallPath").ok());
+        if let Some(dir) = from_machine {
+            roots.push(PathBuf::from(dir));
+        }
 
-        let steam_install: String = steam_key.get_value("InstallPath").ok()?;
-        let steam_install = PathBuf::from(steam_install);
-
-        let libraries = declared_libraries(&steam_install);
-        resolve_paths(&steam_install, &libraries)
+        roots
     }
 
     /// Locate `steam.exe` so the launcher can offer to start Steam for the user.
@@ -141,21 +165,33 @@ mod imp {
     }
 }
 
-/// Discover Steam/DayZ/Workshop paths on Linux (native Steam, under
-/// `$XDG_DATA_HOME/Steam`).
+/// Discover Steam/DayZ/Workshop paths on Linux. Same native root as before,
+/// plus the places a packaged Steam keeps its data.
 #[cfg(target_os = "linux")]
 mod imp {
     use super::*;
 
     pub fn find_steam_paths() -> Option<SteamPaths> {
-        let steam_install = steam_root()?;
-        let libraries = declared_libraries(&steam_install);
-        resolve_paths(&steam_install, &libraries)
+        paths_from_first_root(&existing(linux_steam_roots))
+    }
+
+    /// Like [`find_steam_paths`], but only a plain-home install: Proton and
+    /// its runtime cannot run from a sandboxed Steam's folders.
+    pub fn find_native_steam_paths() -> Option<SteamPaths> {
+        paths_from_first_root(&existing(linux_plain_roots))
     }
 
     /// Locate the native `steam` launcher so the launcher can start Steam.
     pub fn find_steam_exe() -> Option<PathBuf> {
-        if let Some(root) = steam_root() {
+        // Start the same Steam whose games we read. A sandboxed Steam's
+        // `steam.sh` cannot run outside its sandbox, so then use `PATH`.
+        let plain = existing(linux_plain_roots);
+        let candidates = match paths_from_first_root(&existing(linux_steam_roots)) {
+            Some(paths) if plain.contains(&paths.steam_install) => vec![paths.steam_install],
+            Some(_) => Vec::new(),
+            None => plain,
+        };
+        for root in candidates {
             let sh = root.join("steam.sh");
             if sh.exists() {
                 return Some(sh);
@@ -164,22 +200,61 @@ mod imp {
         find_in_path("steam")
     }
 
-    /// Resolve the native Steam root from the filesystem.
-    fn steam_root() -> Option<PathBuf> {
-        let base = std::env::var_os("XDG_DATA_HOME")
+    /// Roots of a normal user install, in search order. Only these can run
+    /// their `steam.sh` or Proton from outside a sandbox.
+    pub(super) fn linux_plain_roots(
+        home: &std::path::Path,
+        data_home: Option<&std::path::Path>,
+    ) -> Vec<PathBuf> {
+        let data_home = data_home
             .map(PathBuf::from)
-            .unwrap_or_else(|| {
-                std::env::var_os("HOME")
-                    .map(|h| PathBuf::from(h).join(".local").join("share"))
-                    .unwrap_or_default()
-            });
-        let native = base.join("Steam");
-        if native.join("steam.sh").exists()
-            || native.join("steamapps").join("libraryfolders.vdf").exists()
-        {
-            return Some(native);
-        }
-        None
+            .unwrap_or_else(|| home.join(".local").join("share"));
+        vec![
+            data_home.join("Steam"),
+            home.join(".steam").join("steam"),
+            home.join(".steam").join("debian-installation"),
+        ]
+    }
+
+    /// Every root a Steam client may keep its data under: the plain ones,
+    /// then Flatpak and Snap layouts (unconfirmed on a machine here, kept in
+    /// one list so a wrong one is a one-line fix). Duplicates removed.
+    pub(super) fn linux_steam_roots(
+        home: &std::path::Path,
+        data_home: Option<&std::path::Path>,
+    ) -> Vec<PathBuf> {
+        let mut roots = linux_plain_roots(home, data_home);
+        roots.extend([
+            home.join(".var/app/com.valvesoftware.Steam/.local/share/Steam"),
+            home.join(".var/app/com.valvesoftware.Steam/.steam/steam"),
+            home.join(".var/app/com.valvesoftware.Steam/data/Steam"),
+            home.join("snap/steam/common/.local/share/Steam"),
+        ]);
+        let mut seen = std::collections::HashSet::new();
+        roots.retain(|root| seen.insert(root.clone()));
+        roots
+    }
+
+    /// The roots from `list` that actually exist as a Steam root on this machine.
+    fn existing(
+        list: fn(&std::path::Path, Option<&std::path::Path>) -> Vec<PathBuf>,
+    ) -> Vec<PathBuf> {
+        let Some(home) = home_dir() else {
+            return Vec::new();
+        };
+        let data_home = std::env::var_os("XDG_DATA_HOME").map(PathBuf::from);
+        list(&home, data_home.as_deref())
+            .into_iter()
+            .filter(|root| is_steam_root(root))
+            .collect()
+    }
+
+    fn is_steam_root(root: &std::path::Path) -> bool {
+        root.join("steam.sh").exists() || root.join("steamapps").join("libraryfolders.vdf").exists()
+    }
+
+    fn home_dir() -> Option<PathBuf> {
+        std::env::var_os("HOME").map(PathBuf::from)
     }
 
     fn find_in_path(name: &str) -> Option<PathBuf> {
@@ -192,6 +267,12 @@ mod imp {
         }
         None
     }
+}
+
+/// Steam paths Proton can run from: on Linux only a plain-home install.
+#[cfg(target_os = "linux")]
+pub fn find_native_steam_paths() -> Option<SteamPaths> {
+    imp::find_native_steam_paths()
 }
 
 /// Discover the Steam, DayZ and workshop directories for this platform.
@@ -300,5 +381,48 @@ mod tests {
         touch(&root.join("extra"), "steamapps/common/DayZ");
         let paths = resolve_paths(&root.join("steam"), &[root.join("extra")]).unwrap();
         assert_eq!(paths.dayz_install, root.join("extra/steamapps/common/DayZ"));
+    }
+
+    /// A Steam root that exists but holds no game must not hide another
+    /// install, whether that is a packaged Steam's data directory or a second
+    /// plain-home root.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_packaged_steam_holding_dayz_is_found_when_the_native_root_is_empty() {
+        for holding in [
+            ".var/app/com.valvesoftware.Steam/.local/share/Steam",
+            ".steam/debian-installation",
+        ] {
+            let home = ScratchDir::new();
+            touch(&home, ".local/share/Steam/steam.sh");
+            touch(&home, &format!("{holding}/steamapps/common/DayZ"));
+            touch(
+                &home,
+                &format!("{holding}/steamapps/appmanifest_221100.acf"),
+            );
+
+            let roots: Vec<PathBuf> = imp::linux_steam_roots(&home, None)
+                .into_iter()
+                .filter(|root| root.exists())
+                .collect();
+            let paths = paths_from_first_root(&roots).expect("no Steam install found");
+
+            assert_eq!(paths.steam_install, home.join(holding), "root: {holding}");
+            // Proton only runs from a plain-home Steam, never from a sandboxed one.
+            let native: Vec<PathBuf> = imp::linux_plain_roots(&home, None)
+                .into_iter()
+                .filter(|root| root.exists())
+                .collect();
+            assert_eq!(
+                paths_from_first_root(&native).is_some(),
+                holding == ".steam/debian-installation",
+                "root: {holding}"
+            );
+            assert_eq!(
+                paths.dayz_install,
+                home.join(holding).join("steamapps/common/DayZ"),
+                "root: {holding}"
+            );
+        }
     }
 }

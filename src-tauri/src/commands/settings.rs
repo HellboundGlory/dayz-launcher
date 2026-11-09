@@ -482,13 +482,7 @@ pub fn open_data_folder(app: AppHandle) -> Result<(), String> {
     let dir = crate::paths::data_root(&app);
     std::fs::create_dir_all(&dir)
         .map_err(|e| format!("Could not create {}: {e}", dir.display()))?;
-    #[cfg(target_os = "windows")]
-    let mut cmd = std::process::Command::new("explorer");
-    #[cfg(not(target_os = "windows"))]
-    let mut cmd = std::process::Command::new("xdg-open");
-    cmd.arg(&dir)
-        .spawn()
-        .map(|_| ())
+    tetra_launch::spawn::open_with_desktop(dir.as_os_str())
         .map_err(|e| format!("Could not open {}: {e}", dir.display()))
 }
 

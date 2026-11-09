@@ -389,6 +389,7 @@ pub async fn reinstall_subscribed_mod(
     tokio::task::spawn_blocking(move || {
         let folder = steam.mod_folder(id).map_err(|e| e.to_string())?;
         if let Some(folder) = folder {
+            let folder = workshop_item_dir(&folder, id)?;
             // Best-effort: if delete fails, leave the item alone rather than half-repair it.
             if folder.exists() && std::fs::remove_dir_all(&folder).is_err() {
                 return Err(format!(
@@ -432,43 +433,95 @@ pub async fn update_subscribed_mods(
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
-/// Reveal a mod's install folder in the system file manager. Constrained to
-/// resolve inside the Steam Workshop content directory — defence in depth
-/// against the webview passing an arbitrary path.
+/// Reveal a mod's install folder in the system file manager. Steam says where
+/// the item is installed (or, offline, DayZ's own library); the folder's shape
+/// is verified here, and no path comes from the WebView.
 #[tauri::command]
-pub fn open_mod_folder(folder: String) -> Result<(), String> {
-    let workshop_root = tetra_launch::registry_discovery::find_steam_paths()
-        .ok_or("Could not locate the Steam Workshop folder")?
-        .workshop_dir
-        .canonicalize()
-        .map_err(|e| format!("Could not resolve the Steam Workshop folder: {e}"))?;
-
-    let path = PathBuf::from(&folder);
-    let candidate = if path.exists() {
-        &path
-    } else {
-        path.parent().unwrap_or(&path)
+pub async fn open_mod_folder(
+    state: State<'_, AppState>,
+    workshop_id: String,
+) -> Result<(), String> {
+    let id = crate::commands::steam::parse_workshop_id(&workshop_id)?;
+    let folder = match live_steam(&state) {
+        Some(steam) => tokio::task::spawn_blocking(move || steam.mod_folder(id))
+            .await
+            .map_err(|e| format!("Task join error: {e}"))?
+            .map_err(|e| format!("Steam query failed: {e}"))?,
+        // Steam is down: fall back to the item's folder in DayZ's own library.
+        None => tetra_launch::registry_discovery::find_steam_paths()
+            .map(|paths| paths.workshop_dir.join(id.to_string())),
     };
-    let target = candidate
-        .canonicalize()
-        .map_err(|e| format!("Could not open {}: {e}", candidate.display()))?;
-    if !target.starts_with(&workshop_root) {
-        return Err("Refusing to open a path outside the Steam Workshop folder".into());
+    let folder = folder.ok_or("That mod is not installed")?;
+
+    let target = workshop_item_dir(&folder, id)?;
+    tetra_launch::spawn::open_with_desktop(target.as_os_str())
+        .map_err(|e| format!("Could not open {}: {e}", target.display()))
+}
+
+/// The item's folder, once the path Steam reported is shaped like this item's
+/// Workshop content folder. The shape is checked before symlinks are resolved,
+/// so a library reached through a symlink still counts.
+fn workshop_item_dir(folder: &std::path::Path, id: u64) -> Result<PathBuf, String> {
+    let refuse = || "Refusing to open a folder outside a Steam Workshop library".to_string();
+    if folder.components().any(|c| {
+        matches!(
+            c,
+            std::path::Component::ParentDir | std::path::Component::CurDir
+        )
+    }) {
+        return Err(refuse());
     }
 
+    let id = id.to_string();
+    let app_id = tetra_steam::DAYZ_APP_ID.to_string();
+    let expected = [
+        "steamapps",
+        "workshop",
+        "content",
+        app_id.as_str(),
+        id.as_str(),
+    ];
+    let actual: Vec<std::ffi::OsString> = folder
+        .components()
+        .rev()
+        .take(expected.len())
+        .map(|component| component.as_os_str().to_owned())
+        .collect();
+    let matches = actual.len() == expected.len()
+        && expected
+            .iter()
+            .rev()
+            .zip(&actual)
+            .all(|(want, got)| same_name(want, got));
+    if !matches {
+        return Err(refuse());
+    }
+
+    let target = folder
+        .canonicalize()
+        .map_err(|e| format!("Could not open {}: {e}", folder.display()))?;
+    if !target.is_dir() {
+        return Err(refuse());
+    }
+    Ok(target)
+}
+
+/// Windows paths are case-insensitive, so the segment names compare that way there.
+fn same_name(expected: &str, actual: &std::ffi::OsStr) -> bool {
     #[cfg(target_os = "windows")]
-    let mut cmd = std::process::Command::new("explorer");
+    {
+        actual.to_string_lossy().eq_ignore_ascii_case(expected)
+    }
     #[cfg(not(target_os = "windows"))]
-    let mut cmd = std::process::Command::new("xdg-open");
-    cmd.arg(&target)
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| format!("Could not open {}: {e}", target.display()))
+    {
+        actual == std::ffi::OsStr::new(expected)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::atomic_write::test_support::ScratchDir;
 
     #[test]
     fn a_drift_check_that_could_not_run_leaves_the_snapshot_untrusted() {
@@ -477,5 +530,58 @@ mod tests {
         assert!(!snapshot_current(None, cached.clone()));
         assert!(snapshot_current(Some(cached.clone()), cached.clone()));
         assert!(!snapshot_current(Some([100].into_iter().collect()), cached));
+    }
+
+    /// A library whose `steamapps` is a symlink to a differently named folder
+    /// is still a Workshop library: the shape is checked on Steam's own path.
+    #[cfg(unix)]
+    #[test]
+    fn a_workshop_item_behind_a_symlinked_library_is_revealed() {
+        let root = ScratchDir::new();
+        let real = root.join("disk/steam_data/workshop/content/221100/123");
+        std::fs::create_dir_all(&real).unwrap();
+        std::fs::create_dir_all(root.join("lib")).unwrap();
+        std::os::unix::fs::symlink(root.join("disk/steam_data"), root.join("lib/steamapps"))
+            .unwrap();
+
+        let reported = root.join("lib/steamapps/workshop/content/221100/123");
+        assert_eq!(
+            workshop_item_dir(&reported, 123).unwrap(),
+            real.canonicalize().unwrap()
+        );
+        let escaping = root.join("lib/steamapps/workshop/content/221100/../221100/123");
+        assert!(workshop_item_dir(&escaping, 123).is_err());
+    }
+
+    /// Only a folder shaped like `steamapps/workshop/content/221100/<id>` is
+    /// opened, in whichever library Steam installed the item.
+    #[test]
+    fn only_a_workshop_item_folder_is_revealed() {
+        let root = ScratchDir::new();
+        let item = root.join("lib/steamapps/workshop/content/221100/123");
+        let other_item = root.join("lib2/steamapps/workshop/content/221100/123");
+        let plain = root.join("other/123");
+        let missing = root.join("missing/123");
+        for dir in [&item, &other_item, &plain] {
+            std::fs::create_dir_all(dir).unwrap();
+        }
+        let file_item = root.join("lib/steamapps/workshop/content/221100/77");
+        std::fs::write(&file_item, b"").unwrap();
+
+        let cases: &[(&std::path::Path, u64, bool)] = &[
+            (&item, 123, true),
+            (&item, 456, false),
+            (&plain, 123, false),
+            (&missing, 123, false),
+            (&other_item, 123, true),
+            (&file_item, 77, false),
+        ];
+        for (folder, id, ok) in cases {
+            let result = workshop_item_dir(folder, *id);
+            assert_eq!(result.is_ok(), *ok, "folder: {folder:?}, id: {id}");
+            if *ok {
+                assert_eq!(result.unwrap(), folder.canonicalize().unwrap());
+            }
+        }
     }
 }
