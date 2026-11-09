@@ -18,7 +18,6 @@ import type { FilterFacets } from "@/lib/tauri";
 import { useFilterFacets } from "@/hooks/use-filter-facets";
 import type { ElementNode } from "../renderer/types";
 import { useViewportWidth } from "../renderer/use-viewport-width";
-import { cn } from "@/lib/utils";
 import { useAnchoredPopup } from "../interaction/use-anchored-popup";
 import { usePopupKeyboard } from "../interaction/popup-keyboard";
 import { useElementContext } from "./context";
@@ -155,7 +154,7 @@ function Group({
   children: ReactNode;
 }) {
   return (
-    <section data-el={element} data-part="group" className={cn("grid gap-2.5 px-4 py-3", className)} style={style}>
+    <section data-el={element} data-part="group" className={className ?? "grid gap-2.5 px-4 py-3"} style={style}>
       <h3 data-part="heading" className="m-0 [font-size:var(--t-type-micro-size)] font-semibold uppercase [letter-spacing:0.1em] text-muted">
         {heading}
       </h3>
@@ -563,7 +562,9 @@ function FilterModsGroup({ className, style }: GroupProps) {
   const setFilter = useServerStore((s) => s.setFilter);
   const { close } = useContext(FilterMenuDataContext);
   const { openModFilter } = useElementContext();
-  const picked = filter.mod_ids.length + filter.mod_ids_exclude.length;
+  const included = filter.mod_ids.length;
+  const excluded = filter.mod_ids_exclude.length;
+  const picked = included + excluded;
 
   return (
     <Group element="popup.filterMods" heading="Mods" className={className} style={style}>
@@ -587,7 +588,7 @@ function FilterModsGroup({ className, style }: GroupProps) {
       >
         <span className="flex-1 truncate">Mods…</span>
         <span data-part="count" className="[font-family:var(--t-type-family-data)] text-muted">
-          {picked === 0 ? "none picked" : modsFilterValue(filter.mod_ids.length, filter.mod_ids_exclude.length)}
+          {picked === 0 ? "none picked" : modsFilterValue(included, excluded)}
         </span>
         <ChevronRight data-part="chevron" className="size-3 shrink-0 text-muted2" />
       </button>
@@ -646,7 +647,7 @@ function FilterFooter({ className, style }: GroupProps) {
     <div
       data-el="popup.filterFooter"
       data-part="footer"
-      className={cn("flex flex-none items-center justify-between border-t border-line px-4 py-2 text-muted2", className)}
+      className={className ?? "flex flex-none items-center justify-between border-t border-line px-4 py-2 text-muted2"}
       style={style}
     >
       <span data-part="total">

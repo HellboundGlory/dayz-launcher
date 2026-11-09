@@ -219,7 +219,7 @@ export function PopupMapOptions({
           {status}
         </div>
       )}
-      <div ref={listRef} role="listbox" aria-multiselectable>
+      <div ref={listRef} role="listbox" aria-label="Maps" aria-multiselectable>
         {official.map(option)}
         {official.length > 0 && rest.length > 0 && <PopupSeparator />}
         {rest.map(option)}

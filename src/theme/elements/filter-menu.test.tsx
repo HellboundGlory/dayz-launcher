@@ -374,6 +374,17 @@ describe("themed element placement", () => {
     expect(html).toContain("margin-top:4px");
     expect(html).not.toContain('<div class="theme-group">');
   });
+
+  it("uses the theme's class instead of the default classes", () => {
+    for (const element of ["popup.filterPlayers", "popup.filterFooter"]) {
+      const html = renderToStaticMarkup(
+        <ElementContextProvider value={{}}>
+          {renderFilterMenuElement({ element }, { className: "theme-group" })}
+        </ElementContextProvider>,
+      );
+      expect(html).toMatch(new RegExp(`data-el="${element.replace(".", "\\.")}"[^>]*class="theme-group"`));
+    }
+  });
 });
 
 describe("PopupMapOptions counts", () => {
@@ -382,6 +393,12 @@ describe("PopupMapOptions counts", () => {
     const html = renderToStaticMarkup(<PopupMapOptions counts={{ chernarusplus: 8412 }} />);
     expect(html).toContain('data-part="count"');
     expect(html).toContain("8,412");
+  });
+
+  it("names its list of maps", () => {
+    mockStore.maps = [["chernarusplus", "Chernarus"]];
+    const html = renderToStaticMarkup(<PopupMapOptions />);
+    expect(html).toMatch(/role="listbox"[^>]*aria-label="Maps"/);
   });
 
   it("shows no count at all while the counts are still unknown", () => {
