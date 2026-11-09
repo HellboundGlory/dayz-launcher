@@ -30,6 +30,7 @@ permissions = [
     "allow-take-pending-connect",
     "allow-discover-steam-paths",
     "allow-validate-dayz-path",
+    "allow-get-installed-dayz-version",
     "allow-open-steam",
     "allow-dayz-running",
     "allow-open-workshop-in-steam",

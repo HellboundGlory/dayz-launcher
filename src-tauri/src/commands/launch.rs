@@ -563,6 +563,22 @@ pub fn validate_dayz_path(path: String) -> bool {
     dayz_exe_in(&path).is_ok()
 }
 
+/// The installed DayZ build in the form servers report it, or `None` when the
+/// install or its version resource can't be read.
+#[tauri::command]
+pub async fn get_installed_dayz_version(dayz_path_override: Option<String>) -> Option<String> {
+    tokio::task::spawn_blocking(move || {
+        let dayz_dir = match dayz_path_override {
+            Some(dir) => dayz_exe_in(&dir).ok()?.parent()?.to_path_buf(),
+            None => tetra_launch::registry_discovery::find_steam_paths()?.dayz_install,
+        };
+        tetra_launch::exe_version::installed_dayz_version(&dayz_dir)
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
 /// Whether a DayZ session is running right now. Called once on mount for an
 /// immediate answer; day-to-day updates arrive via the `dayz-running` event
 /// (see [`start_dayz_watcher`]) instead of polling this. Enumerates every

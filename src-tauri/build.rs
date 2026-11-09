@@ -29,6 +29,7 @@ const COMMANDS: &[&str] = &[
     "take_pending_connect",
     "discover_steam_paths",
     "validate_dayz_path",
+    "get_installed_dayz_version",
     "open_steam",
     "dayz_running",
     "open_workshop_in_steam",

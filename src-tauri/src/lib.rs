@@ -157,6 +157,7 @@ pub fn run() {
             protocol::take_pending_connect,
             commands::launch::discover_steam_paths,
             commands::launch::validate_dayz_path,
+            commands::launch::get_installed_dayz_version,
             commands::launch::open_steam,
             commands::launch::dayz_running,
             commands::launch::open_workshop_in_steam,

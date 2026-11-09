@@ -8,6 +8,7 @@
 //! `-mod=` is passed as a single argument, never through a shell.
 
 pub mod error;
+pub mod exe_version;
 pub mod modline;
 pub mod protocol;
 pub mod registry_discovery;
