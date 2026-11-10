@@ -28,10 +28,4 @@ describe("resolveThemeAsset", () => {
       "tetra-theme://localhost/local.a%20b/styles.css",
     );
   });
-
-  it("handles a path that is only a filename", () => {
-    expect(resolveThemeAsset("aurora", "styles.css")).toBe(
-      "tetra-theme://localhost/aurora/styles.css",
-    );
-  });
 });

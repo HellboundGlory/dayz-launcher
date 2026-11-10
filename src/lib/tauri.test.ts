@@ -1,17 +1,17 @@
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import {
   copyAddress,
   copyServerAddress,
-  checkServerMods,
-  getUniqueModsSummary,
-  unsubscribeUniqueMods,
+  getInstalledDayzVersion,
+  getMemoryMapStatus,
   getFilterFacets,
   getSearchSuggestions,
-  getInstalledDayzVersion,
   passwordStatus,
   forgetPassword,
   launchGame,
-  getMemoryMapStatus,
   type FilterParams,
 } from "./tauri";
 import { invoke } from "@tauri-apps/api/core";
@@ -49,35 +49,42 @@ describe("copyAddress and copyServerAddress", () => {
   });
 });
 
-describe("server mods tauri command wrappers", () => {
-  it("checkServerMods invokes check_server_mods with addr and queryPort", async () => {
-    vi.mocked(invoke).mockResolvedValueOnce({ stale: false, mods: [] });
-    const res = await checkServerMods("127.0.0.1", 27016);
-    expect(invoke).toHaveBeenCalledWith("check_server_mods", {
-      addr: "127.0.0.1",
-      queryPort: 27016,
-    });
-    expect(res).toEqual({ stale: false, mods: [] });
-  });
+describe("command names", () => {
+  const rustCommands = (): string[] => {
+    const source = readFileSync(new URL("../../src-tauri/src/lib.rs", import.meta.url), "utf8");
+    const handler = /generate_handler!\[([\s\S]*?)\]/.exec(source);
+    if (handler === null) throw new Error("no generate_handler! list in lib.rs");
+    return handler[1]
+      .split(",")
+      .map((entry) => entry.trim().split("::").pop() ?? "")
+      .filter(Boolean);
+  };
 
-  it("getUniqueModsSummary invokes get_unique_mods_summary", async () => {
-    vi.mocked(invoke).mockResolvedValueOnce({ count: 3, total_size_bytes: 12345 });
-    const res = await getUniqueModsSummary("127.0.0.1", 27016);
-    expect(invoke).toHaveBeenCalledWith("get_unique_mods_summary", {
-      addr: "127.0.0.1",
-      queryPort: 27016,
-    });
-    expect(res).toEqual({ count: 3, total_size_bytes: 12345 });
-  });
+  const invokedCommands = (): { names: string[]; sites: number } => {
+    const names: string[] = [];
+    let sites = 0;
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (/\.tsx?$/.test(entry.name) && !entry.name.includes(".test.")) {
+          const source = readFileSync(path, "utf8");
+          sites += source.match(/\binvoke\s*[<(]/g)?.length ?? 0;
+          for (const match of source.matchAll(/invoke(?:<.*?>)?\(\s*"([a-z0-9_]+)"/g)) {
+            names.push(match[1]);
+          }
+        }
+      }
+    };
+    walk(fileURLToPath(new URL("..", import.meta.url)));
+    return { names, sites };
+  };
 
-  it("unsubscribeUniqueMods invokes unsubscribe_unique_mods", async () => {
-    vi.mocked(invoke).mockResolvedValueOnce({ count: 2, total_size_bytes: 9999 });
-    const res = await unsubscribeUniqueMods("127.0.0.1", 27016);
-    expect(invoke).toHaveBeenCalledWith("unsubscribe_unique_mods", {
-      addr: "127.0.0.1",
-      queryPort: 27016,
-    });
-    expect(res).toEqual({ count: 2, total_size_bytes: 9999 });
+  it("only invokes commands the Rust side registers", () => {
+    const registered = new Set(rustCommands());
+    const { names, sites } = invokedCommands();
+    expect(names).toHaveLength(sites);
+    expect([...new Set(names)].filter((name) => !registered.has(name))).toEqual([]);
   });
 });
 

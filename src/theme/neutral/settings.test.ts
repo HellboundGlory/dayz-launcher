@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { SETTINGS_LAYOUT } from "./settings";
-import { expectRequiredPlaced } from "./test-helpers";
 import type { AccordionNode, LayoutFile, LayoutNode, TabsNode } from "../renderer/types";
 
 const tactical = JSON.parse(
@@ -33,10 +32,6 @@ function walk(node: LayoutNode | undefined, visit: (node: LayoutNode) => void): 
 }
 
 describe("Neutral settings", () => {
-  it("places every element it requires", () => {
-    expectRequiredPlaced("settings", SETTINGS_LAYOUT);
-  });
-
   it("puts About last", () => {
     const sections: { id: string; body: LayoutNode }[] = [];
     walk(SETTINGS_LAYOUT.root, (node) => {

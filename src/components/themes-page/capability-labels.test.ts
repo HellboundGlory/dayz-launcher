@@ -4,6 +4,7 @@
  * already drifted, so these pin the mapping rather than the markup. */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import type { ThemeFile } from "@/types/theme";
 import { capabilityLabel, capabilityLabels } from "./capability-labels";
 import { packagedFiles } from "./export-theme-dialog";
 
@@ -82,53 +83,34 @@ describe("capabilityLabel", () => {
 });
 
 describe("packagedFiles", () => {
-  it("always names the manifest and tokens", () => {
-    expect(packagedFiles({ layouts: undefined, capabilities: [] })).toEqual([
-      "theme.json",
-      "tokens.json",
-    ]);
-  });
-
-  it("names each layout file the theme ships", () => {
-    expect(
-      packagedFiles({
-        layouts: {
-          "layout/shell.json": { schemaVersion: 2 },
-          "layout/views/mods.json": { schemaVersion: 2 },
-        },
+  const cases: { case: string; theme: Pick<ThemeFile, "layouts" | "capabilities">; files: string[] }[] = [
+    { case: "no layouts and no capabilities", theme: { layouts: undefined, capabilities: [] }, files: ["theme.json", "tokens.json"] },
+    {
+      case: "the layout files it ships",
+      theme: {
+        layouts: { "layout/shell.json": { schemaVersion: 2 }, "layout/views/mods.json": { schemaVersion: 2 } },
         capabilities: ["tokens", "layout"],
-      }),
-    ).toEqual([
-      "theme.json",
-      "tokens.json",
-      "layout/shell.json",
-      "layout/views/mods.json",
-    ]);
-  });
+      },
+      files: ["theme.json", "tokens.json", "layout/shell.json", "layout/views/mods.json"],
+    },
+    {
+      case: "the extra files its capabilities imply",
+      theme: { layouts: {}, capabilities: ["tokens", "css", "fonts"] },
+      files: ["theme.json", "tokens.json", "Custom CSS", "Fonts"],
+    },
+    {
+      case: "the settings schema it declares",
+      theme: { layouts: {}, capabilities: ["tokens", "settings"] },
+      files: ["theme.json", "tokens.json", "Settings"],
+    },
+    {
+      case: "layout files instead of a second layout capability",
+      theme: { layouts: { "layout/shell.json": { schemaVersion: 2 } }, capabilities: ["layout", "css"] },
+      files: ["theme.json", "tokens.json", "layout/shell.json", "Custom CSS"],
+    },
+  ];
 
-  it("names the extra files a theme's capabilities imply", () => {
-    expect(packagedFiles({ layouts: {}, capabilities: ["tokens", "css", "fonts"] })).toEqual([
-      "theme.json",
-      "tokens.json",
-      "Custom CSS",
-      "Fonts",
-    ]);
-  });
-
-  it("names the settings schema a theme declares", () => {
-    expect(packagedFiles({ layouts: {}, capabilities: ["tokens", "settings"] })).toEqual([
-      "theme.json",
-      "tokens.json",
-      "Settings",
-    ]);
-  });
-
-  it("does not name the layout capability twice when the theme ships layout files", () => {
-    expect(
-      packagedFiles({
-        layouts: { "layout/shell.json": { schemaVersion: 2 } },
-        capabilities: ["layout", "css"],
-      }),
-    ).toEqual(["theme.json", "tokens.json", "layout/shell.json", "Custom CSS"]);
+  it.each(cases)("with $case it names the files the export packages", ({ theme, files }) => {
+    expect(packagedFiles(theme)).toEqual(files);
   });
 });

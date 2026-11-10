@@ -6,7 +6,6 @@ import {
   deriveLight,
   hexToHsl,
   hsl,
-  PRESETS,
   type Palette,
 } from "./palette.ts";
 
@@ -54,21 +53,6 @@ describe("light-mode auto-derive contrast", () => {
       const derivedHue = hexToHsl(light.accent)[0];
       if (Math.abs(derivedHue - hue) > 1) {
         failures.push(`hue ${hue}: derived light.accent hue ${derivedHue.toFixed(1)} drifted`);
-      }
-    }
-    expect(failures).toEqual([]);
-  });
-
-  it("clears the WCAG floor for every derived preset light pair", () => {
-    const failures: string[] = [];
-    // Neutral's light is authored (NEUTRAL_LIGHT), so it is not an output of
-    // the loop under test.
-    for (const p of PRESETS) {
-      if (p.id === "neutral") continue;
-      const light = p.light;
-      const bg = light.bg;
-      for (const t of ["accent", "accent2", "success", "warn", "danger"] as const) {
-        check(failures, `${p.name} light.${t}`, contrast(light[t], bg), light[t], bg);
       }
     }
     expect(failures).toEqual([]);

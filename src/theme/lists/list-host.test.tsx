@@ -403,71 +403,78 @@ describe("sameColumns", () => {
 });
 
 describe("keyboard navigation", () => {
-  it("navigates down and up, bounds correctly, and prevents Enter launch", () => {
+  const itemCount = 5;
+
+  it.each([
+    { key: "ArrowDown", from: 0, selects: 1 },
+    { key: "ArrowDown", from: 4, selects: 4 },
+    { key: "ArrowDown", from: -1, selects: 0 },
+    { key: "ArrowUp", from: 0, selects: 0 },
+    { key: "ArrowUp", from: -1, selects: 4 },
+    { key: "Home", from: 3, selects: 0 },
+    { key: "End", from: 0, selects: 4 },
+  ])("$key from $from selects row $selects", ({ key, from, selects }) => {
     const onSelectIndex = vi.fn();
+    const ev = { key, preventDefault: vi.fn() } as unknown as KeyboardEvent<HTMLElement>;
+
+    handleListKeyDown({
+      event: ev,
+      itemCount,
+      selectedIndex: from,
+      onSelectIndex,
+      onClearSelection: vi.fn(),
+    });
+
+    expect(ev.preventDefault).toHaveBeenCalled();
+    expect(onSelectIndex).toHaveBeenCalledWith(selects);
+  });
+
+  it("prevents Enter from launching", () => {
+    const onSelectIndex = vi.fn();
+    const ev = { key: "Enter", preventDefault: vi.fn() } as unknown as KeyboardEvent<HTMLElement>;
+
+    handleListKeyDown({
+      event: ev,
+      itemCount,
+      selectedIndex: 2,
+      onSelectIndex,
+      onClearSelection: vi.fn(),
+    });
+
+    expect(ev.preventDefault).toHaveBeenCalled();
+    expect(onSelectIndex).not.toHaveBeenCalled();
+  });
+
+  it("clears the selection on Escape", () => {
     const onClearSelection = vi.fn();
+    const ev = { key: "Escape", preventDefault: vi.fn() } as unknown as KeyboardEvent<HTMLElement>;
 
-    const makeEvent = (key: string) =>
-      ({
-        key,
-        preventDefault: vi.fn(),
-      }) as unknown as KeyboardEvent<HTMLElement>;
-
-    // ArrowDown from 0
-    let ev = makeEvent("ArrowDown");
     handleListKeyDown({
       event: ev,
-      itemCount: 5,
-      selectedIndex: 0,
-      onSelectIndex,
-      onClearSelection,
-    });
-    expect(ev.preventDefault).toHaveBeenCalled();
-    expect(onSelectIndex).toHaveBeenCalledWith(1);
-
-    // ArrowUp from 0
-    ev = makeEvent("ArrowUp");
-    handleListKeyDown({
-      event: ev,
-      itemCount: 5,
-      selectedIndex: 0,
-      onSelectIndex,
-      onClearSelection,
-    });
-    expect(onSelectIndex).toHaveBeenCalledWith(0);
-
-    // End
-    ev = makeEvent("End");
-    handleListKeyDown({
-      event: ev,
-      itemCount: 5,
-      selectedIndex: 0,
-      onSelectIndex,
-      onClearSelection,
-    });
-    expect(onSelectIndex).toHaveBeenCalledWith(4);
-
-    // Escape
-    ev = makeEvent("Escape");
-    handleListKeyDown({
-      event: ev,
-      itemCount: 5,
+      itemCount,
       selectedIndex: 2,
-      onSelectIndex,
+      onSelectIndex: vi.fn(),
       onClearSelection,
     });
-    expect(onClearSelection).toHaveBeenCalled();
 
-    // Enter prevented
-    ev = makeEvent("Enter");
+    expect(ev.preventDefault).toHaveBeenCalled();
+    expect(onClearSelection).toHaveBeenCalledOnce();
+  });
+
+  it.each([{ key: "ArrowDown" }, { key: "End" }])("does nothing on $key in an empty list", ({ key }) => {
+    const onSelectIndex = vi.fn();
+    const ev = { key, preventDefault: vi.fn() } as unknown as KeyboardEvent<HTMLElement>;
+
     handleListKeyDown({
       event: ev,
-      itemCount: 5,
-      selectedIndex: 2,
+      itemCount: 0,
+      selectedIndex: -1,
       onSelectIndex,
-      onClearSelection,
+      onClearSelection: vi.fn(),
     });
-    expect(ev.preventDefault).toHaveBeenCalled();
+
+    expect(ev.preventDefault).not.toHaveBeenCalled();
+    expect(onSelectIndex).not.toHaveBeenCalled();
   });
 
   it.each<{ label: string; key: string; shiftKey?: boolean }>([

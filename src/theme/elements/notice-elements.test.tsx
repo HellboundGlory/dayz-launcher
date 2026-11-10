@@ -95,14 +95,26 @@ afterEach(() => {
 });
 
 describe("ServerActionNotice", () => {
-  it("renders nothing when there is no notice or result for this server", () => {
-    const html = render({ contextName: "row", selectedServer: moddedServer });
-    expect(html).toBe("");
-  });
-
-  it.each(["W02", "E01"] as const)("renders nothing in a row context for a %s notice", (code) => {
-    setNotice(moddedServer.addr, { kind: "code", code });
-    expect(render({ contextName: "row", selectedServer: moddedServer })).toBe("");
+  it.each<{ case: string; contextName: "row" | "selection"; notice?: [string, Notice] }>([
+    { case: "no notice or result for this server", contextName: "row" },
+    {
+      case: "a W02 notice in a row context",
+      contextName: "row",
+      notice: [moddedServer.addr, { kind: "code", code: "W02" }],
+    },
+    {
+      case: "an E01 notice in a row context",
+      contextName: "row",
+      notice: [moddedServer.addr, { kind: "code", code: "E01" }],
+    },
+    {
+      case: "a notice tagged with a different server's addr",
+      contextName: "selection",
+      notice: [otherServer.addr, { kind: "code", code: "W02" }],
+    },
+  ])("renders nothing for $case", ({ contextName, notice }) => {
+    if (notice) setNotice(notice[0], notice[1]);
+    expect(render({ contextName, selectedServer: moddedServer })).toBe("");
   });
 
   it.each([
@@ -234,12 +246,6 @@ describe("notice toasts", () => {
     expect(html).toContain('data-actions="Update*|Later"');
   });
 
-  it("says nothing about an update that was dismissed", () => {
-    expect(
-      renderToasts({ updateAvailable: { version: "2.7.0" }, updateBannerDismissed: true }),
-    ).not.toContain("2.7.0");
-  });
-
   it("names the server on a join warning and keeps the code's detail", () => {
     serverState.servers = [moddedServer];
     setNotice(moddedServer.addr, { kind: "code", code: "W02" });
@@ -369,8 +375,11 @@ describe("notice toasts", () => {
     expect(unnamed).toContain('data-actions="Updating…!"');
   });
 
-  it("says nothing when no notice applies", () => {
-    expect(renderToasts()).toBe("<div></div>");
+  it.each([
+    { case: "no notice applies", value: {} },
+    { case: "the update banner was dismissed", value: { updateAvailable: { version: "2.7.0" }, updateBannerDismissed: true } },
+  ])("renders no toast when $case", ({ value }) => {
+    expect(renderToasts(value)).toBe("<div></div>");
   });
 });
 

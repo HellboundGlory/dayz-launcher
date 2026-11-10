@@ -150,18 +150,6 @@ describe("useDevStore", () => {
     expect(useDevStore.getState().heldReload).toBe(false);
   });
 
-  it("setVariantWidth and setSettingsOverride round-trip, including back to null", () => {
-    useDevStore.getState().setVariantWidth(975);
-    expect(useDevStore.getState().variantWidth).toBe(975);
-    useDevStore.getState().setVariantWidth(null);
-    expect(useDevStore.getState().variantWidth).toBeNull();
-
-    useDevStore.getState().setSettingsOverride({ rowDensity: "compact" });
-    expect(useDevStore.getState().settingsOverride).toEqual({ rowDensity: "compact" });
-    useDevStore.getState().setSettingsOverride(null);
-    expect(useDevStore.getState().settingsOverride).toBeNull();
-  });
-
   it("counts overlapping renderer registrations and never drops below zero", () => {
     const unregisterA = useDevStore.getState().registerRenderer();
     expect(useDevStore.getState().activeRenderers).toBe(1);

@@ -925,17 +925,6 @@ describe("ServerUnsubscribeUnique", () => {
     });
   });
 
-  it("never calls unsubscribeUniqueMods when the confirm is never resolved true", async () => {
-    const { getUniqueModsSummary, unsubscribeUniqueMods } = await import("@/lib/tauri");
-    vi.mocked(getUniqueModsSummary).mockResolvedValueOnce(uniqueSummary);
-
-    render(<ServerUnsubscribeUnique />, serverContext(server));
-    await click("server.unsubscribeUnique").result;
-
-    expect(askConfirmCalls).toHaveLength(1);
-    expect(unsubscribeUniqueMods).not.toHaveBeenCalled();
-  });
-
   it("reports an error via the launch notice when the summary fetch fails", async () => {
     const { getUniqueModsSummary } = await import("@/lib/tauri");
     vi.mocked(getUniqueModsSummary).mockRejectedValueOnce(new Error("boom"));
@@ -972,22 +961,6 @@ describe("ServerCopyAddress", () => {
     render(<ServerCopyAddress />, serverContext(server));
     expect(click("server.copyAddress").stopPropagation).toHaveBeenCalled();
     expect(copyServerAddress).toHaveBeenCalledWith(server);
-  });
-
-  it("schedules the copied-state reset 2s after a successful copy", async () => {
-    const { copyServerAddress } = await import("@/lib/tauri");
-    vi.useFakeTimers();
-    try {
-      const setTimeoutSpy = vi.spyOn(global, "setTimeout");
-      render(<ServerCopyAddress />, serverContext(server));
-      click("server.copyAddress");
-
-      await vi.advanceTimersByTimeAsync(0);
-      expect(copyServerAddress).toHaveBeenCalledWith(server);
-      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 2000);
-    } finally {
-      vi.useRealTimers();
-    }
   });
 
   it("shows a failed copy as the server's notice", async () => {

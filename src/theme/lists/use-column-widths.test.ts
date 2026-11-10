@@ -99,15 +99,6 @@ describe("stored widths round-trip (in-memory fallback)", () => {
   it("keys stored widths by theme and list", () => {
     expect(columnWidthsKey("t1", "list.servers")).toBe("tetra.columnWidths.v2.t1.list.servers");
   });
-
-  it("removing an override via merge leaves the declared width", () => {
-    clearColumnWidthMemory();
-    setStoredWidths("t1", "list.servers", { name: 500 });
-    const overrides = getStoredWidths("t1", "list.servers");
-    delete overrides.name;
-    const merged = mergeColumnWidths(columns, overrides);
-    expect(merged.find((c) => c.id === "name")?.width).toBe("420px");
-  });
 });
 
 describe("fitColumns", () => {

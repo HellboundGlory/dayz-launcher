@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import type { ReactNode } from "react";
 import type { ServerFilter } from "@/types/filters";
 import type * as AddServerModule from "@/stores/add-server-store";
 import { useAddServerStore } from "@/stores/add-server-store";
@@ -227,42 +228,70 @@ describe("FilterSearch", () => {
   });
 });
 
-describe("FilterMap", () => {
-  it("is active only while maps are selected", () => {
-    const none = renderToStaticMarkup(<FilterMap />);
-    expect(none).toContain('data-el="filter.map"');
-    expect(none).not.toContain('data-state="active"');
+const ACTIVE_ONLY: {
+  el: string;
+  render: () => ReactNode;
+  activate: () => void;
+  detail?: RegExp;
+}[] = [
+  {
+    el: "filter.map",
+    render: () => <FilterMap />,
+    activate: () => {
+      mockStore.filter.maps = ["chernarusplus"];
+      mockStore.maps = [["chernarusplus", "Chernarus"]];
+    },
+  },
+  {
+    el: "filter.tags",
+    render: () => <FilterTags />,
+    activate: () => {
+      mockStore.filter.official = true;
+      mockStore.filter.modded = false;
+    },
+    detail: /data-part="value"[^>]*>2 tags</,
+  },
+  {
+    el: "filter.region",
+    render: () => <FilterRegion />,
+    activate: () => {
+      mockStore.filter.countries = ["EU", "NA"];
+    },
+  },
+  {
+    el: "filter.maxPing",
+    render: () => <FilterMaxPing />,
+    activate: () => {
+      mockStore.filter.max_ping = 250;
+    },
+  },
+  {
+    el: "filter.mods",
+    render: () => <FilterMods />,
+    activate: () => {
+      mockStore.filter = makeFilter({ mod_ids: ["1", "2"] });
+    },
+    detail: /data-part="value"[^>]*>2 mods</,
+  },
+];
 
-    mockStore.filter.maps = ["chernarusplus"];
-    mockStore.maps = [["chernarusplus", "Chernarus"]];
-    expect(renderToStaticMarkup(<FilterMap />)).toContain('data-state="active"');
-  });
-});
+describe("filter buttons read active only while their filter is set", () => {
+  it.each(ACTIVE_ONLY)("$el", ({ el, render, activate, detail }) => {
+    const idle = renderToStaticMarkup(render());
+    expect(idle).toContain(`data-el="${el}"`);
+    expect(idle).not.toContain('data-state="active"');
 
-describe("FilterTags", () => {
-  it("is active only while a tag filter is set", () => {
-    const none = renderToStaticMarkup(<FilterTags />);
-    expect(none).toContain('data-el="filter.tags"');
-    expect(none).not.toContain('data-state="active"');
-
-    mockStore.filter.official = true;
-    mockStore.filter.modded = false;
-    const html = renderToStaticMarkup(<FilterTags />);
-    expect(html).toContain('data-state="active"');
-    expect(html).toContain("2 tags");
+    activate();
+    const active = renderToStaticMarkup(render());
+    expect(active).toContain('data-state="active"');
+    if (detail) {
+      expect(idle).toContain('data-part="value"');
+      expect(active).toMatch(detail);
+    }
   });
 });
 
 describe("FilterRegion", () => {
-  it("is active only while regions are selected", () => {
-    const none = renderToStaticMarkup(<FilterRegion />);
-    expect(none).toContain('data-el="filter.region"');
-    expect(none).not.toContain('data-state="active"');
-
-    mockStore.filter.countries = ["EU", "NA"];
-    expect(renderToStaticMarkup(<FilterRegion />)).toContain('data-state="active"');
-  });
-
   it("honours a label option override", () => {
     const html = renderToStaticMarkup(<FilterRegion options={{ label: "Country" }} />);
     expect(html).toContain(">Country<");
@@ -295,17 +324,6 @@ describe("FilterSort", () => {
 
     const custom = renderToStaticMarkup(<FilterSort options={{ label: "ORDER" }} />);
     expect(custom).toContain(">ORDER<");
-  });
-});
-
-describe("FilterMaxPing", () => {
-  it("is active only with a ping limit", () => {
-    const unset = renderToStaticMarkup(<FilterMaxPing />);
-    expect(unset).toContain('data-el="filter.maxPing"');
-    expect(unset).not.toContain('data-state="active"');
-
-    mockStore.filter.max_ping = 250;
-    expect(renderToStaticMarkup(<FilterMaxPing />)).toContain('data-state="active"');
   });
 });
 
@@ -395,18 +413,6 @@ describe("modsFilterValue", () => {
 });
 
 describe("FilterMods", () => {
-  it("is active only while mods are filtered", () => {
-    const none = renderToStaticMarkup(<FilterMods />);
-    expect(none).toContain('data-el="filter.mods"');
-    expect(none).not.toContain('data-state="active"');
-    expect(none).toContain('data-part="value"');
-
-    mockStore.filter = makeFilter({ mod_ids: ["1", "2"] });
-    const selected = renderToStaticMarkup(<FilterMods />);
-    expect(selected).toContain('data-state="active"');
-    expect(selected).toMatch(/data-part="value"[^>]*>2 mods</);
-  });
-
   it("reflects modFilterOpen through aria-expanded", () => {
     const open = renderToStaticMarkup(
       <ElementContextProvider value={{ modFilterOpen: true }}>

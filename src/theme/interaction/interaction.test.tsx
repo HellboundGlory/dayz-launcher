@@ -19,7 +19,7 @@ import { handleResizeKey, parseLengthPx, reseedRegionSize, ResizableHandle } fro
 import { nextTabIndex } from "./tabs";
 import { ModalHost } from "./modal-host";
 import { PopupHost } from "./popup-host";
-import { isBackdropRootMousedown, SettingsHost, SettingsRegionPortal } from "./settings-host";
+import { isBackdropRootMousedown, SettingsHost } from "./settings-host";
 
 
 const file = (root: LayoutNode): LayoutFile => ({ schemaVersion: 2, root });
@@ -393,51 +393,15 @@ describe("theme interaction and presentation", () => {
       expect(horizontalHtml).toContain('aria-valuenow="150"');
     });
 
-    it("calculates 8px keyboard steps and clamps to limits", () => {
-      const stepRight = handleResizeKey({
-        key: "ArrowRight",
-        edge: "right",
-        current: 200,
-        min: 160,
-        max: 400,
-      });
-      expect(stepRight).toBe(208);
-
-      const stepLeft = handleResizeKey({
-        key: "ArrowLeft",
-        edge: "right",
-        current: 200,
-        min: 160,
-        max: 400,
-      });
-      expect(stepLeft).toBe(192);
-
-      const homeKey = handleResizeKey({
-        key: "Home",
-        edge: "right",
-        current: 200,
-        min: 160,
-        max: 400,
-      });
-      expect(homeKey).toBe(160);
-
-      const endKey = handleResizeKey({
-        key: "End",
-        edge: "right",
-        current: 200,
-        min: 160,
-        max: 400,
-      });
-      expect(endKey).toBe(400);
-
-      const clampMax = handleResizeKey({
-        key: "ArrowRight",
-        edge: "right",
-        current: 398,
-        min: 160,
-        max: 400,
-      });
-      expect(clampMax).toBe(400);
+    it.each([
+      { label: "ArrowRight", key: "ArrowRight", current: 200, expected: 208 },
+      { label: "ArrowLeft", key: "ArrowLeft", current: 200, expected: 192 },
+      { label: "Home", key: "Home", current: 200, expected: 160 },
+      { label: "End", key: "End", current: 200, expected: 400 },
+      { label: "ArrowRight at the maximum", key: "ArrowRight", current: 398, expected: 400 },
+      { label: "ArrowLeft at the minimum", key: "ArrowLeft", current: 162, expected: 160 },
+    ])("$label gives $expected", ({ key, current, expected }) => {
+      expect(handleResizeKey({ key, edge: "right", current, min: 160, max: 400 })).toBe(expected);
     });
 
     it("applies persisted size to container width/height", () => {
@@ -673,55 +637,6 @@ describe("theme interaction and presentation", () => {
       it("does not close without a host element", () => {
         expect(isBackdropRootMousedown(fakeElement(), null)).toBe(false);
       });
-    });
-  });
-
-  describe("SettingsRegionPortal", () => {
-    // No DOM is available to resolve a target region in these tests (they run
-    // under react-dom/server, which never fires effects), so every case here
-    // exercises the required path: an overlay/panel whose region can't be
-    // found renders nothing instead of covering the window.
-    it.each([
-      { mode: "overlay" as const, region: "r-main" },
-      { mode: "panel" as const, region: "r-side" },
-    ])("renders nothing for $mode presentation until its region resolves", ({ mode, region }) => {
-      const html = renderToStaticMarkup(
-        <SettingsRegionPortal
-          file={{
-            schemaVersion: 2,
-            presentation: { mode, region },
-            root: { type: "text", value: "Settings" },
-          }}
-        />,
-      );
-      expect(html).toBe("");
-    });
-
-    it("stays inactive for view presentation — the caller owns that mode", () => {
-      const html = renderToStaticMarkup(
-        <SettingsRegionPortal
-          file={{
-            schemaVersion: 2,
-            presentation: { mode: "view" },
-            root: { type: "text", value: "View Settings" },
-          }}
-        />,
-      );
-      expect(html).toBe("");
-    });
-
-    it("renders nothing when isOpen is false", () => {
-      const html = renderToStaticMarkup(
-        <SettingsRegionPortal
-          file={{
-            schemaVersion: 2,
-            presentation: { mode: "overlay", region: "r-main" },
-            root: { type: "text", value: "Overlay Settings" },
-          }}
-          isOpen={false}
-        />,
-      );
-      expect(html).toBe("");
     });
   });
 });

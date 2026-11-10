@@ -23,6 +23,7 @@ import type { ThemeFile, ThemeSettings, ThemeSummary, ValidationIssue } from "@/
 import { NEUTRAL_TOKENS, parseTokens } from "./tokens";
 import { getNeutralLayout } from "./neutral";
 import type { LayoutFile } from "./renderer/types";
+import { type SettingsField } from "./settings-schema";
 import { nextDuplicateName } from "@/components/themes-page/theme-grid";
 
 const backend = vi.hoisted(() => ({
@@ -296,15 +297,6 @@ describe("hydrate legacy migration", () => {
 });
 
 describe("hydrate incompatible fallback", () => {
-  it("falls back to neutral when the stored active theme is reported incompatible", async () => {
-    storage.set("tetra.themeActive", JSON.stringify({ activeId: "local.old" }));
-    backend.installed = [{ id: "local.old", name: "Old", incompatible: true }];
-
-    await useThemeStore.getState().hydrate();
-
-    expect(useThemeStore.getState().activeId).toBe("neutral");
-  });
-
   it("records the switched-off theme and persists the switch to neutral", async () => {
     storage.set("tetra.themeActive", JSON.stringify({ activeId: "local.old" }));
     backend.installed = [{ id: "local.old", name: "Old Timer", incompatible: true }];
@@ -717,69 +709,40 @@ describe("settings values", () => {
     return id;
   };
 
-  it("fills every field from the schema's own default, letting a tuned value win", () => {
-    const fields = [
-      { id: "accentHue", type: "number" as const, label: "Accent hue", min: 0, max: 360, default: 210 },
-      { id: "compactRows", type: "boolean" as const, label: "Compact rows", default: false },
-      {
-        id: "fontMode",
-        type: "choice" as const,
-        label: "Font Mode",
-        options: [
-          { value: "sans", label: "Sans-Serif" },
-          { value: "mono", label: "Monospace" },
-        ],
-        default: "sans",
-      },
-      { id: "primaryColor", type: "color" as const, label: "Primary Color", default: "#123456" },
-    ];
+  const mergeFields: SettingsField[] = [
+    { id: "accentHue", type: "number" as const, label: "Accent hue", min: 0, max: 360, default: 210 },
+    { id: "compactRows", type: "boolean" as const, label: "Compact rows", default: false },
+    {
+      id: "fontMode",
+      type: "choice" as const,
+      label: "Font Mode",
+      options: [
+        { value: "sans", label: "Sans-Serif" },
+        { value: "mono", label: "Monospace" },
+      ],
+      default: "sans",
+    },
+    { id: "primaryColor", type: "color" as const, label: "Primary Color", default: "#123456" },
+  ];
 
-    expect(
-      mergeSettingsValues(fields, {
-        accentHue: 300,
-        compactRows: true,
-        fontMode: "mono",
-        primaryColor: "#ff0000",
-      }),
-    ).toEqual({
-      accentHue: 300,
-      compactRows: true,
-      fontMode: "mono",
-      primaryColor: "#ff0000",
-    });
-  });
-
-  it("treats wrong-typed, out-of-bounds, or invalid option values as untuned", () => {
-    const fields = [
-      { id: "accentHue", type: "number" as const, label: "Accent hue", min: 0, max: 360, default: 210 },
-      { id: "compactRows", type: "boolean" as const, label: "Compact rows", default: false },
-      {
-        id: "fontMode",
-        type: "choice" as const,
-        label: "Font Mode",
-        options: [
-          { value: "sans", label: "Sans-Serif" },
-          { value: "mono", label: "Monospace" },
-        ],
-        default: "sans",
-      },
-      { id: "primaryColor", type: "color" as const, label: "Primary Color", default: "#123456" },
-    ];
-
-    expect(
-      mergeSettingsValues(fields, {
-        accentHue: 400,
-        compactRows: "true",
-        fontMode: "serif",
-        primaryColor: "invalid",
-        gone: 1,
-      }),
-    ).toEqual({
-      accentHue: 210,
-      compactRows: false,
-      fontMode: "sans",
-      primaryColor: "#123456",
-    });
+  it.each([
+    {
+      case: "every field tuned",
+      tuned: { accentHue: 300, compactRows: true, fontMode: "mono", primaryColor: "#ff0000" },
+      values: { accentHue: 300, compactRows: true, fontMode: "mono", primaryColor: "#ff0000" },
+    },
+    {
+      case: "nothing tuned",
+      tuned: {},
+      values: { accentHue: 210, compactRows: false, fontMode: "sans", primaryColor: "#123456" },
+    },
+    {
+      case: "wrong-typed, out-of-bounds or unknown values",
+      tuned: { accentHue: 400, compactRows: "true", fontMode: "serif", primaryColor: "invalid", gone: 1 },
+      values: { accentHue: 210, compactRows: false, fontMode: "sans", primaryColor: "#123456" },
+    },
+  ])("takes tuned values and the schema default for the rest: $case", ({ tuned, values }) => {
+    expect(mergeSettingsValues(mergeFields, tuned)).toEqual(values);
   });
 
   it("paints a picked theme's tuned values on the activation itself", async () => {
@@ -1047,31 +1010,6 @@ describe("hot reload listener", () => {
   });
 });
 
-describe("getThemeOwnedLayout", () => {
-  it("returns the active theme's own file", () => {
-    const modal: LayoutFile = { schemaVersion: 1, root: { type: "stack", children: [] } };
-    useThemeStore.setState({
-      activeId: "local.aurora",
-      themeFiles: {
-        "local.aurora": {
-          layouts: { "layout/modals/serverInfo.json": modal },
-        } as unknown as ThemeFile,
-      },
-    });
-
-    expect(getThemeOwnedLayout("layout/modals/serverInfo.json")).toBe(modal);
-  });
-
-  it("returns undefined when the active theme doesn't ship the file", () => {
-    useThemeStore.setState({
-      activeId: "local.aurora",
-      themeFiles: { "local.aurora": { layouts: {} } as unknown as ThemeFile },
-    });
-
-    expect(getThemeOwnedLayout("layout/modals/serverInfo.json")).toBeUndefined();
-  });
-});
-
 describe("per-file fallbacks", () => {
   const FILE: LayoutFile = { schemaVersion: 2, root: { type: "stack", children: [] } };
   const brokenBrowser: ValidationIssue = {
@@ -1127,13 +1065,17 @@ describe("per-file fallbacks", () => {
   });
 
   it("getThemeOwnedLayout returns undefined for a dropped file", async () => {
-    backend.layoutsById["local.aurora"] = { "layout/views/mods.json": FILE };
+    backend.layoutsById["local.aurora"] = {
+      "layout/views/browser.json": FILE,
+      "layout/views/mods.json": FILE,
+    };
     backend.fallbacksById["local.aurora"] = [brokenBrowser];
 
     await pickAurora();
 
     expect(getThemeOwnedLayout("layout/views/browser.json")).toBeUndefined();
     expect(getThemeOwnedLayout("layout/views/mods.json")).toBe(FILE);
+    expect(getThemeOwnedLayout("layout/modals/update.json")).toBeUndefined();
   });
 
   it("Neutral owns no shell, browser or Mods file", () => {

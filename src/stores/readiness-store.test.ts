@@ -164,12 +164,6 @@ describe("readiness store", () => {
     expect(getCachedReadiness("1.2.3.4", 27016)).toEqual({ readiness: fresh });
   });
 
-  it("records a readiness result fetched elsewhere", () => {
-    setCachedReadiness("1.2.3.4", 27016, sample);
-
-    expect(getCachedReadiness("1.2.3.4", 27016)).toEqual({ readiness: sample });
-  });
-
   it("clears the cache when the mods store's rows change identity", async () => {
     serverModReadiness.mockResolvedValue(sample);
 

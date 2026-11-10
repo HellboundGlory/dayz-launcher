@@ -1,21 +1,15 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { applyTheme, DEFAULT_EXTRAS } from "./apply";
-import { NEUTRAL_DARK, rgba } from "./palette";
+import { NEUTRAL_DARK } from "./palette";
 
-const GLOW_STEPS = [0, 0.25, 0.5, 0.75, 1];
+const GLOW_DARK =
+  "0 0 3px rgba(143,163,189, 0.95),0 0 8px rgba(143,163,189, 0.75),0 0 18px rgba(143,163,189, 0.5)," +
+  "0 0 34px rgba(143,163,189, 0.3),0 0 60px rgba(143,163,189, 0.16)";
 
-function legacyGlow(accent: string, scheme: "dark" | "light", bloom: number): string {
-  const A = (a: number) => (scheme === "light" ? a * 0.6 : a);
-  const r = (px: number) => `${Math.round(px * bloom * 100) / 100}px`;
-  return (
-    `0 0 ${r(3)} ${rgba(accent, A(0.95))},` +
-    `0 0 ${r(8)} ${rgba(accent, A(0.75))},` +
-    `0 0 ${r(18)} ${rgba(accent, A(0.5))},` +
-    `0 0 ${r(34)} ${rgba(accent, A(0.3))},` +
-    `0 0 ${r(60)} ${rgba(accent, A(0.16))}`
-  );
-}
+const GLOW_LIGHT =
+  "0 0 3px rgba(143,163,189, 0.57),0 0 8px rgba(143,163,189, 0.44999999999999996)," +
+  "0 0 18px rgba(143,163,189, 0.3),0 0 34px rgba(143,163,189, 0.18),0 0 60px rgba(143,163,189, 0.096)";
 
 function render(scheme: "dark" | "light", glowIntensity: number): Record<string, string> {
   const props: Record<string, string> = {};
@@ -29,16 +23,20 @@ function render(scheme: "dark" | "light", glowIntensity: number): Record<string,
 }
 
 describe("glow regression across glowIntensity", () => {
-  it.each(GLOW_STEPS)("bloom %s: --bloom and --glow follow the legacy dark formula", (glowIntensity) => {
-    const props = render("dark", glowIntensity);
-    expect(props["--bloom"]).toBe(String(glowIntensity));
-    expect(props["--glow"]).toBe(legacyGlow(NEUTRAL_DARK.accent, "dark", glowIntensity));
+  it.each([
+    { scheme: "dark" as const, glow: GLOW_DARK },
+    { scheme: "light" as const, glow: GLOW_LIGHT },
+  ])("at full bloom the $scheme glow is the pinned five-layer shadow", ({ scheme, glow }) => {
+    const props = render(scheme, 1);
+    expect(props["--bloom"]).toBe("1");
+    expect(props["--glow"]).toBe(glow);
   });
 
-  it.each(GLOW_STEPS)("bloom %s: the light-mode glow keeps its dimming factor", (glowIntensity) => {
-    const light = render("light", glowIntensity);
-    expect(light["--glow"]).toBe(legacyGlow(NEUTRAL_DARK.accent, "light", glowIntensity));
-    expect(light["--glow"]).not.toBe(render("dark", glowIntensity)["--glow"]);
+  it("scales every glow radius by the bloom", () => {
+    const props = render("dark", 0.5);
+    expect(props["--bloom"]).toBe("0.5");
+    expect(props["--glow"]).toContain("0 0 1.5px ");
+    expect(props["--glow"]).toContain("0 0 30px ");
   });
 });
 
