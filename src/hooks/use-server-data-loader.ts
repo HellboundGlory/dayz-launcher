@@ -30,26 +30,11 @@ interface ServerQuery {
 export function filterParamsFor(filter: ServerFilter): FilterParams {
   const source = isSavedTab(filter) ? DEFAULT_FILTER : filter;
   return {
-    maps: source.maps,
-    countries: source.countries,
-    hide_empty: source.hide_empty,
-    hide_full: source.hide_full,
-    hide_locked: source.hide_locked,
-    hide_offline: source.hide_offline,
-    max_ping: source.max_ping,
+    ...source,
     search: filter.search,
     favourites_only: filter.favourites_only,
     recent_only: filter.recent_only,
     lan_addrs: filter.lan_addrs,
-    official: source.official,
-    modded: source.modded,
-    first_person: source.first_person,
-    mod_ids: source.mod_ids,
-    mod_match: source.mod_match,
-    mod_ids_exclude: source.mod_ids_exclude,
-    version: source.version,
-    time_of_day: source.time_of_day,
-    battleye: source.battleye,
   };
 }
 

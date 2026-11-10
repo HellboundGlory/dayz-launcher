@@ -49,8 +49,7 @@ import {
 } from "./theme/elements/context";
 import { ModsViewHost } from "./theme/elements/mods-view-host";
 import { LayoutRenderer } from "./theme/renderer";
-import { useServerDataLoader } from "./hooks/use-server-data-loader";
-import { useAddressLookup } from "./hooks/use-address-lookup";
+import { ServerDataEffects } from "./components/server-data-effects";
 import type { Server } from "./types/server";
 import { takeSettingsRecovered, watchActiveTheme, stopWatchingTheme, appMenuStatus, addToAppMenu } from "./lib/tauri";
 import { getVersion } from "@tauri-apps/api/app";
@@ -238,8 +237,6 @@ export function App() {
   const modsRows = useModsStore((s) => s.rows);
   const selectedModId = useModsStore((s) => s.selectedModId);
   const selectedModRow = modsRows.find((r) => r.workshop_id === selectedModId) ?? null;
-  useServerDataLoader();
-  useAddressLookup();
   useLayoutSubscription();
 
   // Each screen's file: the active theme's own, else Neutral's.
@@ -480,6 +477,7 @@ export function App() {
 
   return (
     <ElementContextProvider value={elementContextValue}>
+      <ServerDataEffects />
       <div className="relative flex h-screen flex-col overflow-hidden [border-radius:var(--t-radius-window)] border border-line bg-bg">
         <WindowResizeHandles />
 

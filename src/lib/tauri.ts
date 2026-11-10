@@ -15,32 +15,11 @@ import type {
   ThemeSummary,
   ValidationIssue,
 } from "@/types/theme";
+import type { ServerFilter } from "@/types/filters";
 
 // ── Server Commands ──
 
-export interface FilterParams {
-  maps: string[];
-  countries: string[];
-  hide_empty: boolean;
-  hide_full: boolean;
-  hide_locked: boolean;
-  hide_offline: boolean;
-  max_ping: number | null;
-  search: string | null;
-  favourites_only: boolean;
-  recent_only: boolean;
-  /** The LAN tab's addresses, or null for every other tab. */
-  lan_addrs: string[] | null;
-  official: boolean | null;
-  modded: boolean | null;
-  first_person: boolean | null;
-  mod_ids: string[];
-  mod_match: "any" | "all";
-  mod_ids_exclude: string[];
-  version: string | null;
-  time_of_day: "day" | "night" | null;
-  battleye: boolean | null;
-}
+export type FilterParams = ServerFilter;
 
 export interface PageParams {
   sort_key: string;
@@ -361,13 +340,13 @@ export interface AppSettingsDto {
   launchParams: string[];
   /** The close button hides the launcher to the tray instead of quitting. */
   closeToTray: boolean;
-  /** The minimise button hides to the tray instead of the taskbar. */
+  /** The minimise button hides to the tray instead of the taskbar. Independent of `closeToTray` — two buttons, two questions. */
   minimiseToTray: boolean;
-  /** Interface scale, as a webview zoom factor. 1.0–1.5. */
+  /** Interface scale, as a webview zoom factor (keeps layout/scroll coordinates in one space). 1.0–1.5. */
   uiScale: number;
   /** Seconds between automatic refreshes of the first 5,000 servers in the list. `0` is off. */
   autoRefreshIntervalSecs: number;
-  /** Register the launcher to start with Windows. No-op in debug builds. */
+  /** Register the launcher to start with Windows. No-op in debug builds — test against a release build. */
   startWithWindows: boolean;
   /** Start hidden in the tray. Only applies when Windows did the starting. */
   startMinimised: boolean;

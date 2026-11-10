@@ -276,6 +276,25 @@ describe("patchServers", () => {
     expect(selectedServer).toBe(bFresh);
   });
 
+  it("keeps the servers array when a patch matches every loaded row, and replaces only a changed row", () => {
+    const a = { addr: "a", ping: 40 } as Server;
+    const b = { addr: "b", players: 2 } as Server;
+    const servers = [a, undefined, b];
+    useServerStore.setState({ servers, selectedServer: null });
+
+    useServerStore.getState().patchServers([{ ...a }, { ...b }]);
+    expect(useServerStore.getState().servers).toBe(servers);
+
+    const bFresh = { ...b, players: 9 };
+    useServerStore.getState().patchServers([bFresh]);
+
+    const patched = useServerStore.getState().servers;
+    expect(patched).not.toBe(servers);
+    expect(patched[0]).toBe(a);
+    expect(patched[1]).toBeUndefined();
+    expect(patched[2]).toBe(bFresh);
+  });
+
   it("keeps the mod a search matched through when a refresh brings the row back", () => {
     const a = { addr: "a", ping: 40, matched_mod: "Expansion Core" } as Server;
     useServerStore.setState({ servers: [a], selectedServer: a });
@@ -285,6 +304,29 @@ describe("patchServers", () => {
     const { servers, selectedServer } = useServerStore.getState();
     expect(servers[0]).toEqual({ addr: "a", ping: 30, matched_mod: "Expansion Core" });
     expect(selectedServer?.matched_mod).toBe("Expansion Core");
+  });
+});
+
+describe("toggleFavourite", () => {
+  it("keeps the servers array for an address that is not loaded", () => {
+    const servers = [{ addr: "a", favourite: false } as Server, undefined];
+    useServerStore.setState({ servers, selectedServer: null });
+
+    useServerStore.getState().toggleFavourite("elsewhere");
+
+    expect(useServerStore.getState().servers).toBe(servers);
+  });
+
+  it("flips every loaded row with that address", () => {
+    const rows = [
+      { addr: "a", query_port: 1, favourite: false } as Server,
+      { addr: "a", query_port: 2, favourite: false } as Server,
+    ];
+    useServerStore.setState({ servers: rows, selectedServer: null });
+
+    useServerStore.getState().toggleFavourite("a");
+
+    expect(useServerStore.getState().servers.map((s) => s?.favourite)).toEqual([true, true]);
   });
 });
 

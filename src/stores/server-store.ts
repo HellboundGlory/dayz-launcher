@@ -203,7 +203,8 @@ export const useServerStore = create<ServerState>((set, get) => ({
   // A new total pads or truncates the array; rows already loaded are kept.
   setServerPage: (offset, rows, total) =>
     set((state) => {
-      const servers = Array.from({ length: total }, (_, i) => state.servers[i]);
+      const servers = state.servers.slice();
+      if (servers.length !== total) servers.length = total;
       rows.forEach((row, i) => {
         servers[offset + i] = row;
       });
@@ -226,14 +227,23 @@ export const useServerStore = create<ServerState>((set, get) => ({
         const row = fresh.get(old.addr);
         return row && old.matched_mod && !row.matched_mod ? { ...row, matched_mod: old.matched_mod } : row;
       };
-      const servers = state.servers.map((s) => (s && merged(s)) || s);
+      let servers: (Server | undefined)[] | null = null;
+      state.servers.forEach((old, i) => {
+        if (!old) return;
+        const row = merged(old);
+        if (!row || sameRow(row, old)) return;
+        servers ??= state.servers.slice();
+        servers[i] = row;
+      });
       const selected = state.selectedServer;
       const next = selected ? merged(selected) : undefined;
-      if (!selected || !next || sameRow(next, selected)) return { servers };
-      return { servers, selectedServer: next };
+      if (selected && next && !sameRow(next, selected)) {
+        return { servers: servers ?? state.servers, selectedServer: next };
+      }
+      return servers ? { servers } : state;
     }),
   clearRows: () =>
-    set((state) => ({ servers: state.servers.map(() => undefined) })),
+    set((state) => ({ servers: new Array(state.servers.length) })),
   setVisibleRange: (start, end) =>
     set((state) =>
       state.visibleRange.start === start && state.visibleRange.end === end
@@ -296,15 +306,19 @@ export const useServerStore = create<ServerState>((set, get) => ({
       return { modPending };
     }),
   toggleFavourite: (addr) =>
-    set((state) => ({
-      servers: state.servers.map((s) =>
-        s?.addr === addr ? { ...s, favourite: !s.favourite } : s,
-      ),
-      selectedServer:
-        state.selectedServer?.addr === addr
-          ? { ...state.selectedServer, favourite: !state.selectedServer.favourite }
-          : state.selectedServer,
-    })),
+    set((state) => {
+      const selected = state.selectedServer;
+      const nextSelected =
+        selected?.addr === addr ? { ...selected, favourite: !selected.favourite } : selected;
+      let servers: (Server | undefined)[] | null = null;
+      state.servers.forEach((row, i) => {
+        if (row?.addr !== addr) return;
+        servers ??= state.servers.slice();
+        servers[i] = { ...row, favourite: !row.favourite };
+      });
+      if (!servers) return nextSelected === selected ? state : { selectedServer: nextSelected };
+      return { servers, selectedServer: nextSelected };
+    }),
   triggerReload: () => set((state) => ({ loadVersion: state.loadVersion + 1 })),
   requestReload: (delayMs, onFire) => {
     if (reloadTimer !== undefined) return;
