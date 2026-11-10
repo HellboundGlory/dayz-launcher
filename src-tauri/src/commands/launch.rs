@@ -1,3 +1,4 @@
+use crate::commands::server::mod_readiness::rules_error;
 use crate::commands::settings::OnJoin;
 use crate::credentials::SecretStore;
 use crate::state::AppState;
@@ -9,12 +10,6 @@ use tetra_launch::modline::build_mod_string;
 use tetra_launch::protocol::register_dzsa_protocol;
 use tetra_launch::spawn::{build_launch_args, find_dayz_exe, spawn_dayz};
 use tetra_steam::workshop::ModState;
-
-/// Whether an A2S_RULES failure means the server started answering and then
-/// stopped, rather than never responding at all.
-fn stalled_mid_response(e: &tetra_net::NetError) -> bool {
-    matches!(e, tetra_net::NetError::ExchangeTimedOut { .. })
-}
 
 /// Turn the blocked mods into one message that says what to actually do,
 /// grouped by cause ("not installed" vs "needs updating" want different actions).
@@ -260,19 +255,16 @@ pub async fn launch_game(
         };
 
         // Unqueued: one query on a click, must not wait behind a refresh's thousands.
-        let rules_payload = prober.rules_unqueued(query_addr).await.map_err(|e| {
-            if stalled_mid_response(&e) {
-                format!(
-                    "{addr}:{game_port} started answering but stopped responding \
-                     part-way through its mod list. Try again in a moment."
+        let rules_payload = prober
+            .rules_unqueued(query_addr)
+            .await
+            .map_err(|e| {
+                rules_error(
+                    format!("{addr}:{game_port}"),
+                    "Could not query server rules at",
+                    &e,
                 )
-            } else {
-                format!(
-                    "Could not query server rules at {addr}:{game_port}. \
-                     The server may be offline or behind a firewall."
-                )
-            }
-        })?;
+            })?;
 
         let mods = rules_payload.mods;
         let verification = tokio::task::spawn_blocking(move || verify_mods(&steam, &mods))
@@ -458,19 +450,10 @@ pub async fn verify_server_mods(
     };
 
     // Unqueued, same reason as launch_game: one query on a click.
-    let rules = prober.rules_unqueued(query_addr).await.map_err(|e| {
-        if stalled_mid_response(&e) {
-            format!(
-                "{query_addr} started answering but stopped responding \
-                 part-way through its mod list. Try again in a moment."
-            )
-        } else {
-            format!(
-                "Could not read the mod list from {query_addr}. \
-                 The server may be offline or behind a firewall."
-            )
-        }
-    })?;
+    let rules = prober
+        .rules_unqueued(query_addr)
+        .await
+        .map_err(|e| rules_error(query_addr, "Could not read the mod list from", &e))?;
     let declared = rules.mods;
 
     let server_hashes: std::collections::HashMap<u64, u32> = declared

@@ -1,4 +1,5 @@
 use std::net::Ipv4Addr;
+use tetra_core::a2s::info::ServerInfo;
 use tetra_core::PingKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -18,7 +19,7 @@ impl Default for ServerKey {
 
 /// A server as a writer sees it. `map_normalised`, `in_game_time`, and the
 /// tag booleans are absent — the writer derives them from `map`/`keywords`.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ServerRow {
     pub key: ServerKey,
     pub game_port: u16,
@@ -46,6 +47,42 @@ pub struct ServerRow {
     /// Populated automatically by the writer during upsert; callers should
     /// leave this `None`.
     pub country_code: Option<String>,
+}
+
+impl ServerRow {
+    /// The row for a live A2S_INFO answer. `ping_ms` is `None` when the server
+    /// was never pinged, which stores `0` and reads back as measured. A caller
+    /// with a wider number caps it before passing it in.
+    pub fn from_info(
+        key: ServerKey,
+        info: ServerInfo,
+        ping_ms: Option<i32>,
+        ping_kind: PingKind,
+    ) -> ServerRow {
+        ServerRow {
+            key,
+            game_port: info.game_port.unwrap_or(0),
+            name: info.name,
+            map: info.map,
+            players: i32::from(info.players),
+            max_players: i32::from(info.max_players),
+            bots: i32::from(info.bots),
+            ping_ms: ping_ms.unwrap_or(0),
+            ping_kind,
+            locked: info.visibility != 0,
+            vac: info.vac != 0,
+            version: Some(info.version),
+            keywords: info.keywords,
+            description: None,
+            // Owned exclusively by `upsert_server_mods`; writing `None` here
+            // would clobber a stored count through its COALESCE fallback.
+            mod_count: None,
+            last_played: None,
+            responded: true,
+            responded_at: None,
+            country_code: None,
+        }
+    }
 }
 
 /// A stored server as an exporter sees it: every field a browser renders,

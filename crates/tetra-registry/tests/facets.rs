@@ -8,29 +8,6 @@ use tetra_registry::{
     FacetCount, ModMatch, Registry, ServerFilter, ServerKey, ServerRow, Suggestion, SuggestionKind,
 };
 
-fn row(
-    key: ServerKey,
-    name: &str,
-    map: &str,
-    version: Option<&str>,
-    country: &str,
-    players: i32,
-) -> ServerRow {
-    ServerRow {
-        key,
-        game_port: 2302,
-        name: name.into(),
-        map: map.into(),
-        players,
-        max_players: 60,
-        version: version.map(str::to_string),
-        country_code: Some(country.into()),
-        ping_ms: 30,
-        responded: true,
-        ..Default::default()
-    }
-}
-
 fn mods(list: &[(&str, u64)]) -> Vec<ServerMod> {
     list.iter()
         .map(|&(name, workshop_id)| ServerMod {
@@ -45,14 +22,14 @@ async fn seed(registry: &Registry) {
     let writer = registry.writer();
     writer
         .upsert_servers(vec![
-            row(key(1), "Alpha", "chernarusplus", Some("1.29.100"), "EU", 10),
-            row(key(2), "Bravo", "chernarusplus", Some("1.29.100"), "EU", 0),
-            row(key(3), "Charlie", "chernarusplus", Some("1.28.50"), "NA", 5),
-            row(key(4), "Delta", "enoch", Some("1.29.100"), "EU", 20),
-            row(key(5), "Echo", "livonia", Some("1.29.100"), "NA", 0),
-            row(key(6), "Foxtrot", "namalsk", Some("1.28.50"), "OC", 7),
-            row(key(7), "Golf", "chernarusplusgloom", None, "EU", 3),
-            row(key(8), "Hotel", "DeerIsle", Some("1.29.100"), "AS", 2),
+            listed(key(1), "Alpha", "chernarusplus", Some("1.29.100"), "EU", 10),
+            listed(key(2), "Bravo", "chernarusplus", Some("1.29.100"), "EU", 0),
+            listed(key(3), "Charlie", "chernarusplus", Some("1.28.50"), "NA", 5),
+            listed(key(4), "Delta", "enoch", Some("1.29.100"), "EU", 20),
+            listed(key(5), "Echo", "livonia", Some("1.29.100"), "NA", 0),
+            listed(key(6), "Foxtrot", "namalsk", Some("1.28.50"), "OC", 7),
+            listed(key(7), "Golf", "chernarusplusgloom", None, "EU", 3),
+            listed(key(8), "Hotel", "DeerIsle", Some("1.29.100"), "AS", 2),
         ])
         .await
         .expect("servers");
@@ -90,7 +67,7 @@ fn listed(
     key: ServerKey,
     name: &str,
     map: &str,
-    version: &str,
+    version: Option<&str>,
     country: &str,
     players: i32,
 ) -> ServerRow {
@@ -101,7 +78,7 @@ fn listed(
         map: map.into(),
         players,
         max_players: 60,
-        version: Some(version.into()),
+        version: version.map(str::to_string),
         country_code: Some(country.into()),
         ping_ms: 30,
         responded: true,
@@ -118,29 +95,43 @@ async fn contract_seed(registry: &Registry) {
     let writer = registry.writer();
     writer
         .upsert_servers(vec![
-            listed(key(1), "Alpha", "chernarusplus", "1.29", "EU", 10),
-            listed(key(2), "Bravo", "chernarusplus", "1.29.100", "EU", 0),
-            listed(key(3), "Charlie", "chernarusplus", "1.29.100", "NA", 5),
-            listed(key(4), "Delta", "enoch", "1.29.100", "EU", 20),
-            listed(key(5), "Echo", "livonia", "1.28.50", "NA", 0),
-            listed(key(6), "Foxtrot", "namalsk", "1.28.50", "OC", 7),
+            listed(key(1), "Alpha", "chernarusplus", Some("1.29"), "EU", 10),
+            listed(key(2), "Bravo", "chernarusplus", Some("1.29.100"), "EU", 0),
+            listed(
+                key(3),
+                "Charlie",
+                "chernarusplus",
+                Some("1.29.100"),
+                "NA",
+                5,
+            ),
+            listed(key(4), "Delta", "enoch", Some("1.29.100"), "EU", 20),
+            listed(key(5), "Echo", "livonia", Some("1.28.50"), "NA", 0),
+            listed(key(6), "Foxtrot", "namalsk", Some("1.28.50"), "OC", 7),
             ServerRow {
                 responded_at: Some(tetra_core::unix_now() - 3 * 86_400),
-                ..listed(key(7), "Golf", "chernarusplus", "1.29.100", "EU", 3)
+                ..listed(key(7), "Golf", "chernarusplus", Some("1.29.100"), "EU", 3)
             },
-            listed(key(8), "", "chernarusplus", "1.29.100", "EU", 2),
+            listed(key(8), "", "chernarusplus", Some("1.29.100"), "EU", 2),
             ServerRow {
                 responded_at: Some(tetra_core::unix_now() - 3 * 86_400),
-                ..listed(key(9), "Hotel", "deerisle", "1.29.100", "AS", 2)
+                ..listed(key(9), "Hotel", "deerisle", Some("1.29.100"), "AS", 2)
             },
-            listed(key(10), "India", &long_map, "1.29.100", "EU", 1),
-            listed(key(11), "Juliet", "chernarusplus", "1.29.100", "EU", 1),
-            listed(key(12), "Kilo", "chernarusplus", "1.29.100", "EU", 1),
-            listed(key(13), "Lima", "enoch", "1.29.rc1", "EU", 1),
-            listed(key(14), "Mike", "enoch", "1.29.RC1.5", "EU", 1),
-            listed(key(15), "November", "enoch", "1.29.1_a", "EU", 1),
-            listed(key(16), "Oscar", "enoch", &long_version, "EU", 1),
-            listed(key(17), "Papa", "enoch", "1.29.100", "EU", 1),
+            listed(key(10), "India", &long_map, Some("1.29.100"), "EU", 1),
+            listed(
+                key(11),
+                "Juliet",
+                "chernarusplus",
+                Some("1.29.100"),
+                "EU",
+                1,
+            ),
+            listed(key(12), "Kilo", "chernarusplus", Some("1.29.100"), "EU", 1),
+            listed(key(13), "Lima", "enoch", Some("1.29.rc1"), "EU", 1),
+            listed(key(14), "Mike", "enoch", Some("1.29.RC1.5"), "EU", 1),
+            listed(key(15), "November", "enoch", Some("1.29.1_a"), "EU", 1),
+            listed(key(16), "Oscar", "enoch", Some(&long_version), "EU", 1),
+            listed(key(17), "Papa", "enoch", Some("1.29.100"), "EU", 1),
         ])
         .await
         .expect("servers");
@@ -369,7 +360,7 @@ async fn a_mod_suggestion_finds_word_starts_past_other_matches() {
             key(1),
             "Alpha",
             "chernarusplus",
-            "1.29.100",
+            Some("1.29.100"),
             "EU",
             1,
         )])
@@ -421,7 +412,7 @@ async fn a_mod_suggestion_finds_word_starts_after_punctuation() {
                 key(1),
                 "Alpha",
                 "chernarusplus",
-                "1.29.100",
+                Some("1.29.100"),
                 "EU",
                 1,
             )])
@@ -790,7 +781,7 @@ async fn suggestions_complete_what_was_typed() {
             maps.iter()
                 .enumerate()
                 .map(|(i, map)| {
-                    row(
+                    listed(
                         key(i as u8 + 20),
                         &format!("S{i}"),
                         map,
@@ -819,8 +810,8 @@ async fn suggestions_complete_what_was_typed() {
         .expect("capped mods");
     writer
         .upsert_servers(vec![
-            row(key(30), "V7.2", "zz One", Some("7.2"), "EU", 1),
-            row(key(31), "V7.3", "zz One", Some("7.3"), "EU", 1),
+            listed(key(30), "V7.2", "zz One", Some("7.2"), "EU", 1),
+            listed(key(31), "V7.3", "zz One", Some("7.3"), "EU", 1),
         ])
         .await
         .expect("more servers");

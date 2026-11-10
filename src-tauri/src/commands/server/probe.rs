@@ -34,30 +34,9 @@ pub(super) fn info_row(
     info: tetra_core::a2s::info::ServerInfo,
     ping: Option<tetra_net::PingReading>,
 ) -> tetra_registry::rows::ServerRow {
-    tetra_registry::rows::ServerRow {
-        key,
-        game_port: info.game_port.unwrap_or(0),
-        name: info.name,
-        map: info.map,
-        players: info.players as i32,
-        max_players: info.max_players as i32,
-        bots: info.bots as i32,
-        ping_ms: ping.map(|p| p.ms.min(i32::MAX as u32) as i32).unwrap_or(0),
-        ping_kind: ping.map(|p| p.kind).unwrap_or_default(),
-        locked: info.visibility != 0,
-        vac: info.vac != 0,
-        version: Some(info.version),
-        keywords: info.keywords,
-        description: None,
-        // `mod_count` is owned exclusively by `upsert_server_mods`.
-        // Never set it from here or the value gets clobbered with None's
-        // COALESCE fallback on every info refresh.
-        mod_count: None,
-        last_played: None,
-        responded: true,
-        responded_at: None,
-        country_code: None,
-    }
+    let ping_ms = ping.map(|p| p.ms.min(i32::MAX as u32) as i32);
+    let ping_kind = ping.map(|p| p.kind).unwrap_or_default();
+    tetra_registry::rows::ServerRow::from_info(key, info, ping_ms, ping_kind)
 }
 
 /// Says once a session that ICMP is blocked here, so pings are estimates.

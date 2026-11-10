@@ -127,7 +127,8 @@ pub fn collapse_own_server(found: Vec<SocketAddr>, own_ips: &[Ipv4Addr]) -> Vec<
 
 /// Ask every target's subnet for servers on `ports` and collect the addresses
 /// that answered. All targets listen at once, on one deadline. A target that
-/// cannot send is skipped rather than failing the scan.
+/// cannot open a socket is skipped, and so is a single port that cannot be
+/// sent to; neither fails the scan.
 pub async fn broadcast_scan(
     targets: &[LanTarget],
     ports: &[u16],
@@ -165,13 +166,11 @@ async fn scan_target(target: LanTarget, ports: &[u16], listen: Duration) -> Vec<
 
     let packet = info_request();
     for &port in ports {
-        if sock
+        // A refused send (firewall, unreachable route) says nothing about the
+        // other ports, so it costs one port rather than the interface.
+        let _ = sock
             .send_to(&packet, SocketAddr::from((target.dest, port)))
-            .await
-            .is_err()
-        {
-            return Vec::new();
-        }
+            .await;
     }
 
     let deadline = tokio::time::Instant::now() + listen;
@@ -435,6 +434,18 @@ mod tests {
             );
             server.abort();
         }
+    }
+
+    #[tokio::test]
+    async fn a_port_that_cannot_be_sent_to_does_not_end_the_scan() {
+        let (port, server) = fixture(vec![0xff, 0xff, 0xff, 0xff, 0x49, 17]).await;
+
+        // Port 0 is not a valid destination, so the first send fails.
+        let found =
+            broadcast_scan(&loopback_target(), &[0, port], Duration::from_millis(300)).await;
+
+        assert_eq!(found, addrs(&[&format!("127.0.0.1:{port}")]));
+        server.abort();
     }
 
     #[tokio::test]

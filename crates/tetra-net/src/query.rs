@@ -153,12 +153,6 @@ pub struct TimedInfo {
     pub challenged: bool,
 }
 
-pub async fn query_info_raw(addr: SocketAddr, timeout: Duration) -> Result<Vec<u8>, NetError> {
-    Ok(request(addr, A2S_INFO, INFO_PAYLOAD, timeout)
-        .await?
-        .payload)
-}
-
 pub async fn query_rules_raw(addr: SocketAddr, timeout: Duration) -> Result<Vec<u8>, NetError> {
     Ok(request(addr, A2S_RULES, &[0xff, 0xff, 0xff, 0xff], timeout)
         .await?

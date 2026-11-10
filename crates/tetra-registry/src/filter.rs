@@ -430,7 +430,7 @@ fn push_search_term(term: &str, clauses: &mut Vec<String>, binds: &mut Vec<Value
     clauses.push(format!("({})", parts.join(" OR ")));
 }
 
-/// Day is in-game hour 5 through 19; night is every other hour. A row without a
+/// Day is in-game hour 6 through 19; night is every other hour. A row without a
 /// readable clock matches neither. The `instr > 1` guard keeps a stray string
 /// with no `:` (which would cast to 0) from counting as night.
 fn time_of_day_sql(t: TimeOfDay) -> &'static str {
@@ -438,12 +438,12 @@ fn time_of_day_sql(t: TimeOfDay) -> &'static str {
         TimeOfDay::Day => {
             "(in_game_time IS NOT NULL AND instr(in_game_time, ':') > 1 \
              AND CAST(substr(in_game_time, 1, instr(in_game_time, ':') - 1) AS INTEGER) \
-             BETWEEN 5 AND 19)"
+             BETWEEN 6 AND 19)"
         }
         TimeOfDay::Night => {
             "(in_game_time IS NOT NULL AND instr(in_game_time, ':') > 1 \
              AND CAST(substr(in_game_time, 1, instr(in_game_time, ':') - 1) AS INTEGER) \
-             NOT BETWEEN 5 AND 19)"
+             NOT BETWEEN 6 AND 19)"
         }
     }
 }

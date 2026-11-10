@@ -91,8 +91,8 @@ async fn time_of_day_filter_uses_the_in_game_clock() {
     registry
         .writer()
         .upsert_servers(vec![
-            clocked(1, "Before Dawn", "4:59"),
-            clocked(2, "Dawn", "5:00"),
+            clocked(1, "Before Dawn", "05:30"),
+            clocked(2, "Dawn", "06:00"),
             clocked(3, "Noon", "12:00"),
             clocked(4, "Dusk", "19:59"),
             clocked(5, "Nightfall", "20:00"),

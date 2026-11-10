@@ -54,7 +54,7 @@ mod linux {
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicBool, Ordering};
     use tauri::Manager;
-    use tetra_launch::protocol::desktop_exec_quote;
+    use tetra_launch::protocol::{data_home, desktop_exec_quote};
 
     /// Where the moved AppImage lives.
     const APPS_DIR_NAME: &str = "Applications";
@@ -127,17 +127,6 @@ mod linux {
     /// Whether a desktop file's `Exec` line names this launcher.
     pub(super) fn desktop_entry_names(entry: &str, exec: &str) -> bool {
         entry.lines().any(|line| line == format!("Exec={exec} %u"))
-    }
-
-    /// `$XDG_DATA_HOME` when it is set to an absolute path, else `$HOME/.local/share`.
-    pub(super) fn data_home(env: impl Fn(&str) -> Option<OsString>) -> PathBuf {
-        if let Some(dir) = env("XDG_DATA_HOME").map(PathBuf::from) {
-            if dir.is_absolute() {
-                return dir;
-            }
-        }
-        let home = env("HOME").map(PathBuf::from).unwrap_or_default();
-        home.join(".local").join("share")
     }
 
     /// Move `src` into `dest_dir`, keeping its file name. A copy already there
@@ -430,7 +419,7 @@ mod linux {
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::linux::{
-        apps_dir_from, copy_across, data_home, desktop_entry, desktop_entry_names, install_into,
+        apps_dir_from, copy_across, desktop_entry, desktop_entry_names, install_into,
         move_appimage, status_for, wait_pid_from_args, AppMenuError,
     };
     use crate::atomic_write::test_support::ScratchDir;
@@ -469,28 +458,6 @@ mod tests {
         ] {
             assert!(entry.contains(&format!("{line}\n")), "missing line: {line}");
         }
-    }
-
-    #[test]
-    fn data_home_ignores_a_relative_xdg_data_home() {
-        assert_eq!(
-            data_home(env(&[
-                ("XDG_DATA_HOME", "/srv/data"),
-                ("HOME", "/home/tetra")
-            ])),
-            Path::new("/srv/data")
-        );
-        assert_eq!(
-            data_home(env(&[
-                ("XDG_DATA_HOME", "relative/data"),
-                ("HOME", "/home/tetra")
-            ])),
-            Path::new("/home/tetra/.local/share")
-        );
-        assert_eq!(
-            data_home(env(&[("HOME", "/home/tetra")])),
-            Path::new("/home/tetra/.local/share")
-        );
     }
 
     #[test]

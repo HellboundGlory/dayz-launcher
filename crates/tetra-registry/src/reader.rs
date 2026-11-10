@@ -46,6 +46,14 @@ pub struct Reader {
     conn: Connection,
 }
 
+/// Rows `filter` matches, ignoring any paging.
+pub(crate) fn count(conn: &Connection, filter: &ServerFilter) -> Result<usize, RegistryError> {
+    let (where_sql, binds) = filter::where_clause(filter);
+    let mut stmt = conn.prepare_cached(&format!("SELECT COUNT(*) FROM servers {where_sql}"))?;
+    let total: i64 = stmt.query_row(rusqlite::params_from_iter(binds), |r| r.get(0))?;
+    Ok(total as usize)
+}
+
 /// The first declared mod whose name contains a search word that the row's own
 /// name, map or address did not. Names are compared ASCII-lowercased, as the
 /// search SQL does. Only called for rows a word search already selected.
@@ -173,12 +181,7 @@ impl Reader {
 
     /// How many rows `filter` matches, ignoring any paging.
     pub fn count(&self, filter: &ServerFilter) -> Result<usize, RegistryError> {
-        let (where_sql, binds) = filter::where_clause(filter);
-        let mut stmt = self
-            .conn
-            .prepare_cached(&format!("SELECT COUNT(*) FROM servers {where_sql}"))?;
-        let total: i64 = stmt.query_row(rusqlite::params_from_iter(binds), |r| r.get(0))?;
-        Ok(total as usize)
+        count(&self.conn, filter)
     }
 
     /// The total, the counts for each map, version, country and mod, and the

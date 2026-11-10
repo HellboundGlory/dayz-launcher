@@ -420,14 +420,7 @@ fn servers_declaring(
 ) -> Result<usize, RegistryError> {
     let mut picked = filter.clone();
     picked.mod_ids = ids.iter().filter_map(|id| id.parse().ok()).collect();
-    count_servers(conn, &picked)
-}
-
-fn count_servers(conn: &Connection, filter: &ServerFilter) -> Result<usize, RegistryError> {
-    let (where_sql, binds) = filter::where_clause(filter);
-    let mut stmt = conn.prepare_cached(&format!("SELECT COUNT(*) FROM servers {where_sql}"))?;
-    let total: i64 = stmt.query_row(rusqlite::params_from_iter(binds), |r| r.get(0))?;
-    Ok(total as usize)
+    crate::reader::count(conn, &picked)
 }
 
 /// The ids in a `GROUP_CONCAT` result. Workshop ids are stored as `i64`, so a

@@ -22,7 +22,5 @@ pub use error::NetError;
 pub use ping::IcmpPinger;
 pub use ping::{estimate_ms, estimate_ping, PingReading, Pinger};
 pub use prober::{IcmpStatus, ProbeOutcome, Prober};
-pub use query::{
-    query_info, query_info_raw, query_info_timed, query_rules, query_rules_raw, TimedInfo,
-};
+pub use query::{query_info, query_info_timed, query_rules, query_rules_raw, TimedInfo};
 pub use retry::{retry_backoff, with_retries, Verdict};

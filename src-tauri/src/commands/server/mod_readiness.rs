@@ -8,6 +8,55 @@ use tetra_steam::workshop::ModState;
 
 use super::{blocking_read, prober, reader, server_key};
 
+/// How long a cached Workshop row is trusted before Steam is asked again.
+const WORKSHOP_CACHE_TTL_SECS: u64 = 24 * 3600;
+
+/// The message for a failed A2S_RULES query. A server that answered and then
+/// went quiet gets its own wording, since retrying may well work; anything
+/// else reads as offline. `could_not` is the caller's opening clause.
+pub(crate) fn rules_error(
+    addr: impl std::fmt::Display,
+    could_not: &str,
+    e: &tetra_net::NetError,
+) -> String {
+    if matches!(e, tetra_net::NetError::ExchangeTimedOut { .. }) {
+        format!(
+            "{addr} started answering but stopped responding \
+             part-way through its mod list. Try again in a moment."
+        )
+    } else {
+        format!("{could_not} {addr}. The server may be offline or behind a firewall.")
+    }
+}
+
+/// A server's unique mods, the Workshop ids among them, and their cached
+/// details. Ids are worked out once, inside the read, so callers do not repeat it.
+async fn unique_mods_with_cache(
+    state: &AppState,
+    key: tetra_registry::rows::ServerKey,
+) -> Result<
+    (
+        Vec<(u64, String)>,
+        Vec<u64>,
+        HashMap<u64, tetra_registry::rows::WorkshopCacheRow>,
+    ),
+    String,
+> {
+    blocking_read(state, move |reader| {
+        let unique_mods = reader.unique_mods_for(key).map_err(|e| e.to_string())?;
+        let valid_ids: Vec<u64> = unique_mods
+            .iter()
+            .map(|(id, _)| *id)
+            .filter(|&id| ModState::is_workshop_id(id))
+            .collect();
+        let cache = reader
+            .get_workshop_cache(&valid_ids, WORKSHOP_CACHE_TTL_SECS)
+            .map_err(|e| e.to_string())?;
+        Ok((unique_mods, valid_ids, cache))
+    })
+    .await
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct ServerModReadiness {
     pub stale: bool,
@@ -165,34 +214,29 @@ pub(crate) async fn server_mod_readiness_impl(
 ) -> Result<ServerModReadiness, String> {
     let key = server_key(&addr, query_port)?;
 
-    let (server_row, mods, unique_ids, initial_cache) = blocking_read(state, move |reader| {
-        let server_row = reader.get(key).map_err(|e| e.to_string())?;
-        let mods = reader.mods_for(key).map_err(|e| e.to_string())?;
-        let unique_ids: HashSet<u64> = reader
-            .unique_mods_for(key)
-            .map_err(|e| e.to_string())?
-            .into_iter()
-            .map(|(id, _)| id)
-            .collect();
-        let valid_ids: Vec<u64> = mods
-            .iter()
-            .map(|m| m.workshop_id)
-            .filter(|&id| ModState::is_workshop_id(id))
-            .collect();
-        let cache = reader
-            .get_workshop_cache(&valid_ids, 24 * 3600)
-            .map_err(|e| e.to_string())?;
-        Ok((server_row, mods, unique_ids, cache))
-    })
-    .await?;
+    let (server_row, mods, unique_ids, valid_ids, initial_cache) =
+        blocking_read(state, move |reader| {
+            let server_row = reader.get(key).map_err(|e| e.to_string())?;
+            let mods = reader.mods_for(key).map_err(|e| e.to_string())?;
+            let unique_ids: HashSet<u64> = reader
+                .unique_mods_for(key)
+                .map_err(|e| e.to_string())?
+                .into_iter()
+                .map(|(id, _)| id)
+                .collect();
+            let valid_ids: Vec<u64> = mods
+                .iter()
+                .map(|m| m.workshop_id)
+                .filter(|&id| ModState::is_workshop_id(id))
+                .collect();
+            let cache = reader
+                .get_workshop_cache(&valid_ids, WORKSHOP_CACHE_TTL_SECS)
+                .map_err(|e| e.to_string())?;
+            Ok((server_row, mods, unique_ids, valid_ids, cache))
+        })
+        .await?;
 
     let stale = server_row.map(|s| !s.online).unwrap_or(true);
-
-    let valid_ids: Vec<u64> = mods
-        .iter()
-        .map(|m| m.workshop_id)
-        .filter(|&id| ModState::is_workshop_id(id))
-        .collect();
 
     let steam = {
         let guard = state.steam.lock().map_err(|e| e.to_string())?;
@@ -317,19 +361,10 @@ pub(crate) async fn check_server_mods_impl(
 
     let prober = prober(state)?;
 
-    let rules = prober.rules_unqueued(query_addr).await.map_err(|e| {
-        if matches!(e, tetra_net::NetError::ExchangeTimedOut { .. }) {
-            format!(
-                "{query_addr} started answering but stopped responding \
-                 part-way through its mod list. Try again in a moment."
-            )
-        } else {
-            format!(
-                "Could not read the mod list from {query_addr}. \
-                 The server may be offline or behind a firewall."
-            )
-        }
-    })?;
+    let rules = prober
+        .rules_unqueued(query_addr)
+        .await
+        .map_err(|e| rules_error(query_addr, "Could not read the mod list from", &e))?;
     let declared = rules.mods;
 
     // The registry keeps only ids and names, so the hashes have to come off
@@ -409,25 +444,7 @@ pub(crate) async fn get_unique_mods_summary_impl(
     query_port: u16,
 ) -> Result<UniqueModsSummary, String> {
     let key = server_key(&addr, query_port)?;
-    let (unique_mods, initial_cache) = blocking_read(state, move |reader| {
-        let unique_mods = reader.unique_mods_for(key).map_err(|e| e.to_string())?;
-        let valid_ids: Vec<u64> = unique_mods
-            .iter()
-            .map(|(id, _)| *id)
-            .filter(|&id| ModState::is_workshop_id(id))
-            .collect();
-        let cache = reader
-            .get_workshop_cache(&valid_ids, 24 * 3600)
-            .map_err(|e| e.to_string())?;
-        Ok((unique_mods, cache))
-    })
-    .await?;
-
-    let valid_ids: Vec<u64> = unique_mods
-        .iter()
-        .map(|(id, _)| *id)
-        .filter(|&id| ModState::is_workshop_id(id))
-        .collect();
+    let (unique_mods, valid_ids, initial_cache) = unique_mods_with_cache(state, key).await?;
 
     let cache = resolve_workshop_cache(state, &valid_ids, initial_cache).await?;
 
@@ -458,25 +475,7 @@ pub(crate) async fn unsubscribe_unique_mods_impl(
     query_port: u16,
 ) -> Result<UnsubscribeOutcome, String> {
     let key = server_key(&addr, query_port)?;
-    let (unique_mods, initial_cache) = blocking_read(state, move |reader| {
-        let unique_mods = reader.unique_mods_for(key).map_err(|e| e.to_string())?;
-        let valid_ids: Vec<u64> = unique_mods
-            .iter()
-            .map(|(id, _)| *id)
-            .filter(|&id| ModState::is_workshop_id(id))
-            .collect();
-        let cache = reader
-            .get_workshop_cache(&valid_ids, 24 * 3600)
-            .map_err(|e| e.to_string())?;
-        Ok((unique_mods, cache))
-    })
-    .await?;
-
-    let valid_ids: Vec<u64> = unique_mods
-        .iter()
-        .map(|(id, _)| *id)
-        .filter(|&id| ModState::is_workshop_id(id))
-        .collect();
+    let (_, valid_ids, initial_cache) = unique_mods_with_cache(state, key).await?;
 
     if valid_ids.is_empty() {
         return Ok(UnsubscribeOutcome {

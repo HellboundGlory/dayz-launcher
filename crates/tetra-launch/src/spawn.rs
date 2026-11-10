@@ -124,7 +124,7 @@ fn spawn_proton(
     let compat_data = steam_root
         .join("steamapps")
         .join("compatdata")
-        .join("221100");
+        .join(DAYZ_APP_ID);
 
     let mut cmd = Command::new(runtime);
     cmd.arg("--")
@@ -143,8 +143,8 @@ fn spawn_proton(
     // Proton needs these or it aborts with a KeyError.
     cmd.env("STEAM_COMPAT_DATA_PATH", &compat_data);
     cmd.env("STEAM_COMPAT_CLIENT_INSTALL_PATH", steam_root);
-    cmd.env("SteamAppId", "221100");
-    cmd.env("SteamGameId", "221100");
+    cmd.env("SteamAppId", DAYZ_APP_ID);
+    cmd.env("SteamGameId", DAYZ_APP_ID);
 
     cmd.spawn().map(|_child| ()).map_err(SpawnError::Launch)
 }

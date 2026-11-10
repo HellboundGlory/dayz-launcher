@@ -4,7 +4,6 @@
 use crate::prober::Prober;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
-use std::time::Duration;
 use tetra_core::a2s::info::ServerInfo;
 
 /// The port a DayZ server listens for players on by default.
@@ -36,7 +35,6 @@ pub fn candidate_ports(typed: Option<u16>) -> Vec<u16> {
 pub struct Answer {
     pub addr: SocketAddr,
     pub info: ServerInfo,
-    pub rtt: Option<Duration>,
 }
 
 /// How much a reply looks like the server the player meant: lower is better.
@@ -78,7 +76,6 @@ pub async fn find_among(
         let answer = Answer {
             addr: outcome.addr,
             info,
-            rtt: outcome.rtt,
         };
         if best.as_ref().is_none_or(|(best_rank, best_position, _)| {
             (found, position) < (*best_rank, *best_position)
@@ -118,6 +115,7 @@ mod tests {
     use super::*;
     use crate::config::ProbeConfig;
     use crate::prober::Prober;
+    use std::time::Duration;
     use tokio::net::UdpSocket;
 
     fn impatient() -> ProbeConfig {
@@ -203,7 +201,6 @@ mod tests {
 
         assert_eq!(answer.addr, loopback(query));
         assert_eq!(answer.info.name, "Wanted");
-        assert!(answer.rtt.is_some());
 
         a.abort();
         b.abort();
