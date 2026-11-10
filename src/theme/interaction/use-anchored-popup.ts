@@ -58,6 +58,50 @@ export function showInTopLayer(popup: HTMLElement): () => void {
   };
 }
 
+const STAY_ON_TOP = "data-stay-on-top";
+
+/**
+ * Ref callback for what must stay above popups and dialogs (window resize edges, the Steam-required screen,
+ * Dev Mode). Stable, so React attaches it once.
+ */
+export function keepOnTop(el: HTMLElement | null): (() => void) | undefined {
+  if (!el) return undefined;
+  el.setAttribute(STAY_ON_TOP, "");
+  const hide = showInTopLayer(el);
+  return () => {
+    hide();
+    el.removeAttribute(STAY_ON_TOP);
+  };
+}
+
+/** Top layer order is show order, so re-show what stays on top after something new, unless it holds that thing. */
+function raiseStayOnTop(shown: HTMLElement) {
+  const selector = `[${STAY_ON_TOP}]:popover-open`;
+  for (const el of Array.from(shown.ownerDocument.querySelectorAll<HTMLElement>(selector))) {
+    if (el.contains(shown)) continue;
+    el.hidePopover();
+    el.showPopover();
+  }
+}
+
+/**
+ * Shows a full-window overlay in the top layer, above any popup already open inside it.
+ * A host its theme places inside a panel stays put; the top layer would move it to the viewport.
+ */
+export function showOverlayInTopLayer(host: HTMLElement): () => void {
+  if (typeof host.showPopover !== "function") return () => {};
+  if (host.ownerDocument.defaultView?.getComputedStyle(host).position !== "fixed") return () => {};
+
+  const hideFromTopLayer = showInTopLayer(host);
+  // A child's layout effect runs before its parent's, so a popup already open inside was shown first.
+  for (const popup of Array.from(host.querySelectorAll<HTMLElement>(":popover-open"))) {
+    popup.hidePopover();
+    popup.showPopover();
+  }
+  raiseStayOnTop(host);
+  return hideFromTopLayer;
+}
+
 export function useAnchoredPopup(
   open: boolean,
   triggerRef: RefObject<HTMLElement | null>,
@@ -85,6 +129,7 @@ export function useAnchoredPopup(
     // Read first: a popup its CSS places absolutely measures its gap against the trigger's container, not the window.
     const natural = naturalLayout(popup);
     const hideFromTopLayer = showInTopLayer(popup);
+    raiseStayOnTop(popup);
     const themeMax = opts.maxHeight ?? natural.maxHeight;
     const capPx = themeMax === "none" ? Infinity : resolveLengthPx(themeMax);
     // A popup its own CSS places absolutely keeps the gap that CSS gives it; anything else takes opts.offset.

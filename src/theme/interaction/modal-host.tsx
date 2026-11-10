@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import type { HostNode, ModalLayoutFile } from "../renderer/types";
 import { positionStyle, type SettingsValues } from "../renderer/props";
 import { LayoutNodeRenderer, RenderContextProvider } from "../renderer/node-renderer";
@@ -6,6 +6,7 @@ import { useLayoutCollapseRules } from "../renderer/layout-renderer";
 import { useResolvedRoot } from "../renderer/use-resolved-root";
 import { useEscapeLayer } from "./escape-layers";
 import { FOCUSABLE, wrapTabWithin } from "./popup-keyboard";
+import { showOverlayInTopLayer } from "./use-anchored-popup";
 
 const PRIMARY = '[data-primary="true"], [data-action="primary"], button[type="submit"]';
 
@@ -39,6 +40,7 @@ export function ModalHost({
   themeId = "",
 }: ModalHostProps) {
   const modalRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
   const placement = file.placement ?? { mode: "center" };
@@ -47,6 +49,12 @@ export function ModalHost({
   useLayoutCollapseRules(root);
 
   useEscapeLayer(isOpen, onClose);
+
+  // Paints above a popup that was still open when this modal appeared.
+  useLayoutEffect(() => {
+    if (!isOpen || !backdropRef.current) return;
+    return showOverlayInTopLayer(backdropRef.current);
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen || typeof document === "undefined") return;
@@ -115,6 +123,7 @@ export function ModalHost({
 
   return (
     <div
+      ref={backdropRef}
       data-modal-host=""
       data-backdrop={backdrop}
       data-placement={placement.mode}

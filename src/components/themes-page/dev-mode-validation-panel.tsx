@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -15,6 +16,7 @@ import { parseTokens, resolveTokens } from "@/theme/tokens";
 import { useDevStore } from "@/theme/dev/dev-store";
 import { useFallbackStore } from "@/theme/fallback/store";
 import type { ValidationIssue } from "@/types/theme";
+import { keepOnTop } from "@/theme/interaction/use-anchored-popup";
 import { DevModeSwitcher } from "./dev-mode-switcher";
 
 type CopyState = { key: string; status: "copied" | "failed" } | null;
@@ -269,6 +271,7 @@ export function DevModeValidationPanel() {
   const copyResetTimer = useRef<number | null>(null);
 
   const panelRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => (panelRef.current ? keepOnTop(panelRef.current) : undefined), []);
   const dragOffset = useRef({ x: 0, y: 0 });
   const hasDraggedRef = useRef(false);
   const [dragPos, setDragPos] = useState<{ top: number; left: number } | null>(null);

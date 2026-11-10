@@ -97,6 +97,7 @@ export function SteamRequiredModal({
     <DialogFrame
       labelledBy={titleId}
       scrimClassName="z-[var(--z-blocking)] p-0 [background-color:var(--t-color-scrimBlocking)] backdrop-blur-xs"
+      stayOnTop
       className="w-[440px]"
     >
       <div className="flex items-start gap-3 px-5 pt-5">
