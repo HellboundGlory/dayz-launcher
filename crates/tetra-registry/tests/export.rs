@@ -101,3 +101,36 @@ async fn a_bulk_write_replaces_mods_and_an_empty_list_records_zero() {
     assert!(export.mod_names.is_empty());
     assert_eq!(reader.get(k).expect("get").expect("row").mod_count, Some(0));
 }
+
+/// The online verdict travels with the time it was written, so a consumer can
+/// weigh it against a probe of its own.
+#[tokio::test]
+async fn export_carries_the_online_verdict_with_its_check_time() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let writer = registry.writer();
+    let (checked, unchecked) = (key(1), key(2));
+    writer
+        .upsert_servers(vec![row(checked), row(unchecked)])
+        .await
+        .expect("servers");
+    // `unchecked` is attempted but gets no verdict, as when a sweep suppresses
+    // its offline marks.
+    writer
+        .mark_probe_attempt(vec![checked, unchecked])
+        .await
+        .expect("attempt");
+    writer
+        .record_online(vec![checked], false)
+        .await
+        .expect("verdict");
+
+    let export = registry.reader().expect("reader").export().expect("export");
+    let find = |k| export.rows.iter().find(|r| r.key == k).expect("row");
+
+    let now = tetra_core::unix_now();
+    assert_eq!(find(checked).online, Some(false));
+    assert!(find(checked)
+        .online_checked_at
+        .is_some_and(|t| (now - 5..=now).contains(&t)));
+    assert_eq!(find(unchecked).online_checked_at, None);
+}

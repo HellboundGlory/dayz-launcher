@@ -473,6 +473,7 @@ mod tests {
             mod_ids: None,
             last_responded: Some(crate::unix_now() - 86_400),
             online: None,
+            online_checked_at: None,
         }
     }
 

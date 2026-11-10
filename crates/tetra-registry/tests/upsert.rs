@@ -757,6 +757,7 @@ async fn a_version_seven_database_reads_its_pings_as_measured() {
         conn.execute_batch(
             "ALTER TABLE servers DROP COLUMN ping_kind;
              ALTER TABLE servers DROP COLUMN country_order;
+             ALTER TABLE servers DROP COLUMN online_checked_at;
              DROP TRIGGER servers_drop_mods;
              PRAGMA user_version = 7;",
         )

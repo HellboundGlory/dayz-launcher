@@ -151,6 +151,7 @@ async fn a_region_code_saved_by_the_old_schema_becomes_a_real_country() {
         conn.execute_batch(
             "UPDATE servers SET country_code = 'EU';
              ALTER TABLE servers DROP COLUMN country_order;
+             ALTER TABLE servers DROP COLUMN online_checked_at;
              DROP TRIGGER servers_drop_mods;
              PRAGMA user_version = 8;",
         )

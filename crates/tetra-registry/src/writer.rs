@@ -21,6 +21,7 @@ pub(crate) enum Job {
     Favourite(ServerKey, bool, Ack<usize>),
     LastPlayed(ServerKey, Ack<usize>),
     SetOnline(Vec<ServerKey>, bool, Ack<()>),
+    RecordOnline(Vec<ServerKey>, bool, Ack<()>),
     SetOfflineUnlessAnsweredSince(Vec<ServerKey>, i64, Ack<()>),
     MarkUnlistedOffline(Vec<ServerKey>, i64, Ack<usize>),
     ProbeAttempt(Vec<ServerKey>, Ack<()>),
@@ -105,6 +106,16 @@ impl Writer {
         online: bool,
     ) -> Result<(), RegistryError> {
         self.send(|ack| Job::SetOnline(keys, online, ack)).await
+    }
+
+    /// Store this machine's own probe verdict and when it was reached, which is
+    /// what a verdict from elsewhere is weighed against.
+    pub async fn record_online(
+        &self,
+        keys: Vec<ServerKey>,
+        online: bool,
+    ) -> Result<(), RegistryError> {
+        self.send(|ack| Job::RecordOnline(keys, online, ack)).await
     }
 
     /// Flip `online` off for servers not answered since `cutoff`. A recent answer
@@ -199,6 +210,9 @@ pub(crate) fn run(conn: Connection, mut rx: mpsc::Receiver<Job>) {
             }
             Job::SetOnline(keys, online, ack) => {
                 let _ = ack.send(set_online(&conn, &keys, online));
+            }
+            Job::RecordOnline(keys, online, ack) => {
+                let _ = ack.send(record_online(&conn, &keys, online));
             }
             Job::SetOfflineUnlessAnsweredSince(keys, cutoff, ack) => {
                 let _ = ack.send(set_offline_unless_answered_since(&conn, &keys, cutoff));
@@ -536,6 +550,16 @@ fn set_online(conn: &Connection, keys: &[ServerKey], online: bool) -> Result<(),
         conn,
         "UPDATE servers SET online = ?3
          WHERE ip = ?1 AND query_port = ?2 AND online != ?3",
+        keys,
+        |stmt, key| stmt.execute(params![key.ip.to_string(), key.query_port, online]),
+    )
+}
+
+fn record_online(conn: &Connection, keys: &[ServerKey], online: bool) -> Result<(), RegistryError> {
+    for_each_key(
+        conn,
+        "UPDATE servers SET online = ?3, online_checked_at = unixepoch()
+         WHERE ip = ?1 AND query_port = ?2",
         keys,
         |stmt, key| stmt.execute(params![key.ip.to_string(), key.query_port, online]),
     )

@@ -156,6 +156,7 @@ fn entry(row: ExportRow) -> ServerEntry {
         mod_ids: row.mod_ids,
         last_responded: row.last_responded,
         online: row.online,
+        online_checked_at: row.online_checked_at,
     }
 }
 

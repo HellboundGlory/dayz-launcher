@@ -52,6 +52,10 @@ const MIGRATIONS: &[Migration] = &[
         version: 10,
         sql: V10,
     },
+    Migration {
+        version: 11,
+        sql: V11,
+    },
 ];
 
 /// Connection-level settings applied to every connection — WAL lets readers run while the
@@ -234,6 +238,12 @@ CREATE TRIGGER servers_drop_mods AFTER DELETE ON servers
 BEGIN
     DELETE FROM server_mods WHERE ip = OLD.ip AND query_port = OLD.query_port;
 END;
+"#;
+
+/// When this database last wrote `online` from a probe of its own. Index verdicts and
+/// listing sweeps leave it alone, so it dates the verdict a newer one may replace.
+const V11: &str = r#"
+ALTER TABLE servers ADD COLUMN online_checked_at INTEGER;
 "#;
 
 /// How long a server may go unresponsive, in days, before it's pruned —
@@ -442,6 +452,7 @@ mod tests {
         let conn = fresh_conn();
         conn.execute_batch(
             "DROP TRIGGER servers_drop_mods;
+             ALTER TABLE servers DROP COLUMN online_checked_at;
              PRAGMA user_version = 9;
              INSERT INTO server_mods (ip, query_port, ordinal, workshop_id, name)
              VALUES ('9.9.9.9', 2302, 0, 1559212036, 'Orphan');",

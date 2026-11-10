@@ -38,7 +38,7 @@ impl From<RegistryError> for SweepError {
 
 /// Rows per write call during a sweep.
 const WRITE_BATCH: usize = 2_000;
-/// Keys per `set_online` / `mark_probe_attempt` call.
+/// Keys per `record_online` / `mark_probe_attempt` call.
 const KEY_BATCH: usize = 4_000;
 
 /// How long a never-answering address is left alone after we last asked, so a
@@ -159,13 +159,13 @@ pub async fn info(
         let _ = writer.upsert_servers(batch_rows).await;
     }
     for chunk in online.chunks(KEY_BATCH) {
-        let _ = writer.set_online(chunk.to_vec(), true).await;
+        let _ = writer.record_online(chunk.to_vec(), true).await;
     }
 
     stats.offline_marks_suppressed = offline_marks_suppressed(stats.answered, stats.failed);
     if !stats.offline_marks_suppressed {
         for chunk in offline.chunks(KEY_BATCH) {
-            let _ = writer.set_online(chunk.to_vec(), false).await;
+            let _ = writer.record_online(chunk.to_vec(), false).await;
         }
     }
 

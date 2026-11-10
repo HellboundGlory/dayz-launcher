@@ -113,6 +113,9 @@ pub struct ExportRow {
     pub last_responded: Option<i64>,
     /// The backend's own verdict; `None` until it has probed the address.
     pub online: Option<bool>,
+    /// When `online` was last written from the backend's own probe; `None`
+    /// until it has probed the address since the column existed.
+    pub online_checked_at: Option<i64>,
 }
 
 /// [`Reader::export`](crate::Reader::export)'s result: rows plus the one copy

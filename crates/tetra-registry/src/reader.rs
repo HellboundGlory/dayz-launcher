@@ -17,7 +17,7 @@ const GET_MANY_CHUNK: usize = 400;
 /// Columns [`Reader::map_export_row`] reads, positionally.
 const EXPORT_COLUMNS: &str = "ip, query_port, game_port, name, map_raw, players, max_players, bots,
      locked, vac, version, keywords, description, mod_count, last_responded,
-     CASE WHEN last_probe_attempt IS NULL THEN NULL ELSE online END";
+     CASE WHEN last_probe_attempt IS NULL THEN NULL ELSE online END, online_checked_at";
 
 /// Collects `query_map` results where `None` marks a row to drop, logging once if any were skipped.
 fn collect_skipping_bad_rows<T>(
@@ -526,6 +526,7 @@ impl Reader {
             mod_ids: probed_for_mods.map(|_| Vec::new()),
             last_responded: r.get(14)?,
             online: r.get(15)?,
+            online_checked_at: r.get(16)?,
         }))
     }
 
