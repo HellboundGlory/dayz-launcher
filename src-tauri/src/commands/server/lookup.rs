@@ -115,13 +115,14 @@ fn is_host_name(text: &str) -> bool {
         })
 }
 
-/// Refuse an address no server can listen on. Private, loopback and link-local
-/// pass: a server on the player's own network is a server they may want.
+/// Refuse an address no server can listen on, with the message the lookup
+/// command reports for it.
 fn check_ip(ip: Ipv4Addr) -> Result<(), String> {
-    if ip.is_unspecified() || ip.is_broadcast() || ip.is_multicast() {
-        return Err(format!("Not a server address: {ip}"));
+    if crate::protocol::is_server_address(ip) {
+        Ok(())
+    } else {
+        Err(format!("Not a server address: {ip}"))
     }
-    Ok(())
 }
 
 /// Store one answered server and read its row back for the frontend.

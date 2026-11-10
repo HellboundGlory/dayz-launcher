@@ -702,6 +702,194 @@ pub fn start_dayz_watcher(app: &AppHandle) {
 mod tests {
     use super::*;
     use crate::atomic_write::test_support::ScratchDir;
+    use tetra_core::a2s::dayz::ServerMod;
+    use tetra_steam::{Command, SteamHandle};
+
+    /// A Steam handle whose actor answers from these tables. `None` states makes
+    /// every state query fail, standing in for an unreachable Steam; an id with
+    /// no state is left out of the answer, as a partial Workshop reply does.
+    fn mock_steam(
+        states: Option<Vec<(u64, u32)>>,
+        folders: Vec<(u64, Option<String>)>,
+    ) -> (SteamHandle, std::thread::JoinHandle<()>) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let actor = std::thread::spawn(move || {
+            while let Ok(command) = rx.recv() {
+                match command {
+                    Command::UGCItemStates(ids, ack) => {
+                        let answer = match &states {
+                            Some(states) => Ok(ids
+                                .iter()
+                                .filter_map(|id| {
+                                    states
+                                        .iter()
+                                        .find(|(got, _)| got == id)
+                                        .map(|(_, bits)| (*id, *bits))
+                                })
+                                .collect()),
+                            None => Err(tetra_steam::SteamError::Closed),
+                        };
+                        let _ = ack.send(answer);
+                    }
+                    Command::UGCInstallInfo(id, ack) => {
+                        let folder = folders
+                            .iter()
+                            .find(|(got, _)| *got == id)
+                            .and_then(|(_, folder)| folder.clone())
+                            .map(|folder| tetra_steam::UgcInstallInfo {
+                                folder,
+                                size_on_disk: 0,
+                            });
+                        let _ = ack.send(Ok(folder));
+                    }
+                    _ => {}
+                }
+            }
+        });
+        (SteamHandle::new_mock(tx), actor)
+    }
+
+    struct GateCase {
+        name: &'static str,
+        /// The server's mod list, in declared order.
+        mods: Vec<(u64, &'static str)>,
+        states: Vec<(u64, u32)>,
+        folders: Vec<(u64, Option<&'static str>)>,
+        ready: Vec<&'static str>,
+        blocked: Vec<(&'static str, ModState)>,
+        checked: usize,
+    }
+
+    /// `SUBSCRIBED | INSTALLED`, the bitmask for a mod that can be run as-is.
+    const READY: u32 = 5;
+
+    /// Every declared Workshop mod is judged, and only a ready one with a
+    /// folder is passed through to the launch line.
+    #[test]
+    fn the_launch_gate_judges_every_declared_mod() {
+        let cases = [
+            GateCase {
+                name: "server-side mods are skipped",
+                mods: vec![(0, "Server-side"), (100, "Map")],
+                states: vec![(100, READY)],
+                folders: vec![(100, Some("/workshop/100"))],
+                ready: vec!["/workshop/100"],
+                blocked: vec![],
+                checked: 1,
+            },
+            GateCase {
+                name: "declared order is kept, not Steam's",
+                mods: vec![(300, "C"), (100, "A"), (200, "B")],
+                states: vec![(100, READY), (200, READY), (300, READY)],
+                folders: vec![
+                    (100, Some("/workshop/100")),
+                    (200, Some("/workshop/200")),
+                    (300, Some("/workshop/300")),
+                ],
+                ready: vec!["/workshop/300", "/workshop/100", "/workshop/200"],
+                blocked: vec![],
+                checked: 3,
+            },
+            GateCase {
+                name: "a ready mod whose folder is missing is blocked",
+                mods: vec![(100, "A")],
+                states: vec![(100, READY)],
+                folders: vec![(100, None)],
+                ready: vec![],
+                blocked: vec![("A", ModState::NotInstalled)],
+                checked: 1,
+            },
+            GateCase {
+                name: "a mod Steam never answered for is not subscribed",
+                mods: vec![(100, "A")],
+                states: vec![],
+                folders: vec![],
+                ready: vec![],
+                blocked: vec![("A", ModState::NotSubscribed)],
+                checked: 1,
+            },
+            GateCase {
+                name: "a mod with a newer version on the Workshop is blocked",
+                mods: vec![(100, "A")],
+                states: vec![(100, 13)],
+                folders: vec![(100, Some("/workshop/100"))],
+                ready: vec![],
+                blocked: vec![("A", ModState::NeedsUpdate)],
+                checked: 1,
+            },
+            GateCase {
+                name: "a ready mod and a blocked one are reported apart",
+                mods: vec![(100, "Ready"), (200, "Broken")],
+                states: vec![(100, READY), (200, 0)],
+                folders: vec![(100, Some("/workshop/100"))],
+                ready: vec!["/workshop/100"],
+                blocked: vec![("Broken", ModState::NotSubscribed)],
+                checked: 2,
+            },
+        ];
+
+        for case in cases {
+            let (steam, actor) = mock_steam(
+                Some(case.states),
+                case.folders
+                    .iter()
+                    .map(|(id, folder)| (*id, folder.map(str::to_string)))
+                    .collect(),
+            );
+            let mods: Vec<ServerMod> = case
+                .mods
+                .iter()
+                .map(|(workshop_id, name)| ServerMod {
+                    workshop_id: *workshop_id,
+                    name: name.to_string(),
+                    hash: None,
+                })
+                .collect();
+
+            let verification = verify_mods(&steam, &mods).expect("verification reports, not fails");
+            let ready: Vec<&str> = verification
+                .ready_paths
+                .iter()
+                .map(String::as_str)
+                .collect();
+            assert_eq!(ready, case.ready, "{}", case.name);
+            let blocked: Vec<(&str, ModState)> = verification
+                .blocked
+                .iter()
+                .map(|(name, state)| (name.as_str(), *state))
+                .collect();
+            assert_eq!(blocked, case.blocked, "{}", case.name);
+            assert_eq!(verification.checked, case.checked, "{}", case.name);
+
+            drop(steam);
+            actor.join().expect("the mock actor must not panic");
+        }
+    }
+
+    /// Steam failing to answer must stop the launch, not wave it through with
+    /// every mod silently missing.
+    #[test]
+    fn a_steam_that_cannot_answer_stops_the_launch() {
+        let (steam, actor) = mock_steam(None, Vec::new());
+        let mods = vec![ServerMod {
+            workshop_id: 100,
+            name: "A".into(),
+            hash: None,
+        }];
+
+        let error = match verify_mods(&steam, &mods) {
+            Ok(_) => panic!("an unanswered check must fail closed"),
+            Err(error) => error,
+        };
+
+        assert!(
+            error.contains("Steam"),
+            "the error should say Steam could not be read, got {error:?}"
+        );
+
+        drop(steam);
+        actor.join().expect("the mock actor must not panic");
+    }
 
     /// A DayZ folder is only accepted when it is absolute, exists, and holds
     /// one of the two executables.

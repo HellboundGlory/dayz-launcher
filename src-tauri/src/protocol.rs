@@ -50,6 +50,12 @@ impl PendingConnect {
     }
 }
 
+/// Whether a server could be listening on this address. Private, loopback and
+/// link-local pass: a server on the player's own network is one they may want.
+pub(crate) fn is_server_address(ip: Ipv4Addr) -> bool {
+    !(ip.is_unspecified() || ip.is_broadcast() || ip.is_multicast())
+}
+
 /// Parse a `dzsa://connect/IP:PORT[?fav=1]` link, `None` if malformed.
 /// IP is parsed as `Ipv4Addr` (not just checked non-empty) since this is the
 /// widest untrusted-input surface in the app — reachable from any web page.
@@ -65,7 +71,13 @@ pub fn parse_connect_link(link: &str) -> Option<ConnectRequest> {
     let (addr, query) = after_connect.split_once('?').unwrap_or((after_connect, ""));
     let (ip, port) = addr.split_once(':')?;
     let ip: Ipv4Addr = ip.parse().ok()?;
+    if !is_server_address(ip) {
+        return None;
+    }
     let query_port: u16 = port.parse().ok()?;
+    if query_port == 0 {
+        return None;
+    }
     let favourite = query
         .split('&')
         .any(|kv| matches!(kv, "fav=1" | "fav=true"));
@@ -200,6 +212,10 @@ mod tests {
             ),
             ("https://connect/1.2.3.4:2302", "foreign scheme"),
             ("dzsa://1.2.3.4:2302", "no connect segment"),
+            ("dzsa://connect/0.0.0.0:2302", "unspecified address"),
+            ("dzsa://connect/1.2.3.4:0", "port zero"),
+            ("dzsa://connect/255.255.255.255:2302", "broadcast address"),
+            ("dzsa://connect/224.0.0.1:2302", "multicast address"),
         ];
         for (link, reason) in cases {
             assert_eq!(parse_connect_link(link), None, "link: {link} ({reason})");

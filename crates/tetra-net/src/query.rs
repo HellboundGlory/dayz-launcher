@@ -277,10 +277,10 @@ mod tests {
             let mut buf = [0u8; 64];
             let (_, client) = server.recv_from(&mut buf).await.expect("recv request");
 
-            // Announce a 3-fragment split response, then never send fragments
-            // 1/2 — just junk well inside each timeout window, well past the
-            // exchange deadline, so a regression here hangs instead of passing.
-            let header = split_header(1234, 3, 0, b"AAA");
+            // Announce the largest split a u8 can carry and then never send
+            // another fragment — the reassembly budget outlasts the exchange
+            // deadline, so only the deadline can end this exchange.
+            let header = split_header(1234, u8::MAX, 0, b"AAA");
             let _ = server.send_to(&header, client).await;
 
             for _ in 0..150 {
@@ -295,13 +295,48 @@ mod tests {
         let elapsed = started.elapsed();
 
         assert!(
-            result.is_err(),
-            "an exchange that never completes reassembly must not succeed"
+            matches!(result, Err(NetError::ExchangeTimedOut { .. })),
+            "a peer that only ever sends junk must end on the exchange deadline, got {result:?}"
         );
         let bound = timeout * (EXCHANGE_TIMEOUT_MULTIPLIER * 2);
         assert!(
             elapsed < bound,
             "exchange ran for {elapsed:?}, expected to give up within roughly {bound:?}"
+        );
+
+        responder.abort();
+    }
+
+    /// A peer that answers every read but never completes the split must be
+    /// cut off by the datagram budget long before the exchange deadline.
+    #[tokio::test]
+    async fn a_peer_that_never_completes_the_split_runs_out_of_datagrams() {
+        let server = UdpSocket::bind("127.0.0.1:0")
+            .await
+            .expect("bind fake server");
+        let server_addr = server.local_addr().expect("local addr");
+
+        let responder = tokio::spawn(async move {
+            let mut buf = [0u8; 64];
+            let (_, client) = server.recv_from(&mut buf).await.expect("recv request");
+
+            // Three fragments announced, only the first ever sent.
+            let header = split_header(1234, 3, 0, b"AAA");
+            let _ = server.send_to(&header, client).await;
+
+            for _ in 0..40 {
+                let _ = server.send_to(&junk_single_packet(), client).await;
+            }
+        });
+
+        let timeout = Duration::from_millis(200);
+        let result = query_rules_raw(server_addr, timeout).await;
+
+        assert!(
+            matches!(&result, Err(NetError::Io(error))
+                if error.kind() == std::io::ErrorKind::InvalidData
+                    && error.to_string().contains("too many datagrams")),
+            "junk that keeps the reads alive must exhaust the reassembly budget, got {result:?}"
         );
 
         responder.abort();

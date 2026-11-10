@@ -1258,19 +1258,21 @@ mod tests {
 
     #[test]
     fn test_css_05_content_and_legacy_constructs() {
-        let css = r#"
-            [data-el="box"]::before { content: "hello"; }
-            [data-el="box"] { width: expression(alert(1)); }
-            [data-el="box"] { -moz-binding: url(evil.xml); }
-            [data-el="box"] { behavior: url(evil.htc); }
-            [data-el="box"] { background: url(javascript:alert(1)); }
-            [data-el="box"] { background: url(vbscript:msgbox(1)); }
-        "#;
-        let issues = validate_css_stylesheet("styles.css", css);
-        assert!(
-            issues.iter().all(|i| i.rule_id == "CSS-05"),
-            "Got issues: {issues:#?}"
-        );
+        let cases: &[(&str, &str)] = &[
+            (r#"::before { content: "hello"; }"#, "content"),
+            ("{ width: expression(alert(1)); }", "width"),
+            ("{ -moz-binding: url(evil.xml); }", "-moz-binding"),
+            ("{ behavior: url(evil.htc); }", "behavior"),
+            ("{ background: url(javascript:alert(1)); }", "background"),
+            ("{ background: url(vbscript:msgbox(1)); }", "background"),
+        ];
+        for (declaration, property) in cases {
+            let css = format!("[data-el=\"box\"] {declaration}");
+            let issues = validate_css_stylesheet("styles.css", &css);
+            assert_eq!(issues.len(), 1, "{declaration}: {issues:#?}");
+            assert_eq!(issues[0].rule_id, "CSS-05", "{declaration}");
+            assert_eq!(issues[0].pointer, *property, "{declaration}");
+        }
     }
 
     #[test]

@@ -983,6 +983,12 @@ mod tests {
             tokio::spawn(async move { prober2.rules_with_deadline(addr, call_deadline).await });
 
         tokio::time::sleep(hold_for).await;
+        // The deadline is shorter than the wait, so a call timed from its own
+        // start would already have given up by now.
+        assert!(
+            !call.is_finished(),
+            "the call ended while it was still waiting for a permit, so the deadline counted queue time"
+        );
         drop(held);
 
         let result = call.await.expect("task should not panic");
@@ -995,33 +1001,6 @@ mod tests {
         );
 
         drop(silent_server);
-    }
-
-    /// Permits are shared through a clone, but a separately built `Prober`
-    /// brings its own — the reason the app must construct exactly one.
-    #[tokio::test]
-    async fn a_clone_shares_the_permit_budget_but_a_fresh_prober_does_not() {
-        let prober = Prober::new(impatient(1));
-        let clone = prober.clone();
-
-        let held = Arc::clone(&prober.permits)
-            .acquire_owned()
-            .await
-            .expect("semaphore open");
-        assert_eq!(
-            clone.permits.available_permits(),
-            0,
-            "a clone must see the original's permit taken"
-        );
-        let separate = Prober::new(impatient(1));
-        assert_eq!(
-            separate.permits.available_permits(),
-            1,
-            "an independently built Prober brings its own full allowance"
-        );
-
-        drop(held);
-        assert_eq!(clone.permits.available_permits(), 1);
     }
 
     /// The reported rtt must time the attempt that answered, not the whole

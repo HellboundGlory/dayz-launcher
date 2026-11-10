@@ -568,6 +568,9 @@ mod tests {
         let file_item = root.join("lib/steamapps/workshop/content/221100/77");
         std::fs::write(&file_item, b"").unwrap();
 
+        // Ends in the right shape, so only the dot-dot rule can refuse it.
+        let via_parent = root.join("lib/../lib/steamapps/workshop/content/221100/123");
+
         let cases: &[(&std::path::Path, u64, bool)] = &[
             (&item, 123, true),
             (&item, 456, false),
@@ -575,6 +578,7 @@ mod tests {
             (&missing, 123, false),
             (&other_item, 123, true),
             (&file_item, 77, false),
+            (&via_parent, 123, false),
         ];
         for (folder, id, ok) in cases {
             let result = workshop_item_dir(folder, *id);
