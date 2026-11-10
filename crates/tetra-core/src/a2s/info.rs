@@ -25,6 +25,22 @@ pub struct ServerInfo {
     pub game_id: Option<u64>,
 }
 
+/// The Steam app id DayZ reports in the extra data field's game id. Its
+/// `app_id` field is 0, so this is the only reliable way to tell it apart from
+/// another game answering A2S on the same port.
+pub const DAYZ_APP_ID: u32 = 221_100;
+
+impl ServerInfo {
+    /// Whether this reply comes from a DayZ server. The game id wins when the
+    /// server sends one; without it the folder is the only clue left.
+    pub fn is_dayz(&self) -> bool {
+        match self.game_id {
+            Some(id) => id == u64::from(DAYZ_APP_ID),
+            None => self.folder.eq_ignore_ascii_case("dayz"),
+        }
+    }
+}
+
 /// Cursor that refuses to read past the end of the buffer.
 struct Reader<'a> {
     buf: &'a [u8],
@@ -244,6 +260,61 @@ mod tests {
             let mut packet = body();
             packet.extend_from_slice(&suffix);
             assert_eq!(parse_info(&packet), Ok(expected), "suffix {suffix:?}");
+        }
+    }
+
+    #[test]
+    fn only_dayz_replies_count_as_dayz() {
+        struct Case {
+            name: &'static str,
+            game_id: Option<u64>,
+            folder: &'static str,
+            app_id: u16,
+            expected: bool,
+        }
+        let cases = [
+            Case {
+                name: "the DayZ app id in the extra data",
+                game_id: Some(221_100),
+                folder: "dayz",
+                app_id: 0,
+                expected: true,
+            },
+            Case {
+                name: "the app id alone decides, whatever the folder says",
+                game_id: Some(221_100),
+                folder: "arma3",
+                app_id: 0,
+                expected: true,
+            },
+            Case {
+                name: "another game's app id beats a dayz folder",
+                game_id: Some(107_410),
+                folder: "dayz",
+                app_id: 0,
+                expected: false,
+            },
+            Case {
+                name: "no extra data, the folder is capitalised",
+                game_id: None,
+                folder: "DayZ",
+                app_id: 1,
+                expected: true,
+            },
+            Case {
+                name: "no extra data, another game's folder; app_id alone is not enough",
+                game_id: None,
+                folder: "tf",
+                app_id: (DAYZ_APP_ID % 65_536) as u16,
+                expected: false,
+            },
+        ];
+        for case in cases {
+            let mut info = info();
+            info.game_id = case.game_id;
+            info.folder = case.folder.into();
+            info.app_id = case.app_id;
+            assert_eq!(info.is_dayz(), case.expected, "case: {}", case.name);
         }
     }
 

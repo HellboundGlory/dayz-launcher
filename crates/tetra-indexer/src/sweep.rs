@@ -77,11 +77,11 @@ pub struct RulesStats {
 /// or `None` when it never answered.
 type RulesAnswer = (ServerKey, Option<(Vec<ServerMod>, String)>);
 
-/// The row for an A2S_INFO answer, with the reply time as the ping when one
-/// was measured.
+/// The row for an A2S_INFO answer. The reply time includes the server's own
+/// tick, so it is stored as an estimated ping.
 fn answered_row(key: ServerKey, info: ServerInfo, rtt: Option<Duration>) -> ServerRow {
     let ping_ms = rtt.map(|d| d.as_millis().min(i32::MAX as u128) as i32);
-    ServerRow::from_info(key, info, ping_ms, tetra_core::PingKind::Measured)
+    ServerRow::from_info(key, info, ping_ms, tetra_core::PingKind::Estimated)
 }
 
 /// A2S_INFO over the least recently probed addresses Steam listed lately, plus
@@ -323,7 +323,7 @@ mod tests {
             max_players: 60,
             bots: 2,
             ping_ms: 42,
-            ping_kind: tetra_core::PingKind::Measured,
+            ping_kind: tetra_core::PingKind::Estimated,
             locked: true,
             vac: true,
             version: Some("1.28".into()),

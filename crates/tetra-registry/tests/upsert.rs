@@ -683,6 +683,58 @@ async fn a_ping_flag_follows_its_number_and_survives_a_row_without_one() {
     assert_eq!(row.ping_kind, PingKind::Measured);
 }
 
+/// A listed row describes a server someone else measured, so its ping is worth
+/// keeping only where this client has none of its own.
+#[tokio::test]
+async fn a_listed_row_fills_an_empty_ping_but_never_replaces_one() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let writer = registry.writer();
+
+    let mut listed = live_row();
+    listed.ping_ms = 80;
+    listed.ping_kind = PingKind::Estimated;
+    writer
+        .upsert_listed_servers(vec![listed])
+        .await
+        .expect("first listing");
+    let row = fetch(&registry).await;
+    assert_eq!(row.ping_ms, 80, "an unprobed server keeps the listed ping");
+    assert_eq!(row.ping_kind, PingKind::Estimated);
+
+    let mut probed = live_row();
+    probed.ping_ms = 30;
+    probed.ping_kind = PingKind::Estimated;
+    writer.upsert_servers(vec![probed]).await.expect("probe");
+    let row = fetch(&registry).await;
+    assert_eq!(row.ping_ms, 30);
+    assert_eq!(row.ping_kind, PingKind::Estimated);
+
+    let mut relisted = live_row();
+    relisted.name = "Survivor Haven EU".into();
+    relisted.players = 57;
+    relisted.ping_ms = 40;
+    relisted.ping_kind = PingKind::Measured;
+    writer
+        .upsert_listed_servers(vec![relisted])
+        .await
+        .expect("relisting");
+    let row = fetch(&registry).await;
+    assert_eq!(
+        row.ping_ms, 30,
+        "a listed ping must not replace a probed one"
+    );
+    assert_eq!(
+        row.ping_kind,
+        PingKind::Estimated,
+        "and the flag follows it"
+    );
+    assert_eq!(
+        row.name, "Survivor Haven EU",
+        "the rest of the row still updates"
+    );
+    assert_eq!(row.players, 57);
+}
+
 /// A database written before the ping flag existed reads every stored ping as
 /// measured, since that is all it could have been.
 #[tokio::test]

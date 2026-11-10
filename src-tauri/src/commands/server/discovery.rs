@@ -257,7 +257,7 @@ pub async fn discover_servers(
                 let server_rows: Vec<tetra_registry::rows::ServerRow> =
                     rows.iter().map(to_server_row).collect();
                 writer
-                    .upsert_servers(server_rows)
+                    .upsert_listed_servers(server_rows)
                     .await
                     .map_err(|e| format!("Registry write error: {e}"))?;
 

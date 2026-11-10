@@ -287,6 +287,9 @@ async fn probe_info(
     let (host_rtt, queried) = tokio::join!(host_echo, query);
 
     let (result, rtt, ping) = match queried {
+        // Another game answering on that port is not an answer, so no ping is
+        // worked out for it.
+        Ok(timed) if !timed.info.is_dayz() => (Err(NetError::NotDayZ { addr }), None, None),
         Ok(timed) => {
             let rtt = timed.reply_time;
             let ping = match host_rtt {
@@ -671,6 +674,55 @@ mod tests {
             requests.load(Ordering::SeqCst),
             1,
             "a protected server must not be sampled again"
+        );
+
+        server.abort();
+    }
+
+    /// Another game answering A2S on that port is not an answer, and its reply
+    /// yields no ping even when the echo came back.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_server_of_another_game_is_not_an_answer() {
+        let mut reply = vec![0xff, 0xff, 0xff, 0xff, 0x49, 17];
+        for field in ["Arma Server", "altis", "Arma3", "Arma 3"] {
+            reply.extend_from_slice(field.as_bytes());
+            reply.push(0);
+        }
+        reply.extend_from_slice(&0u16.to_le_bytes());
+        reply.extend_from_slice(&[0, 60, 0, b'd', b'l', 0, 1]);
+        reply.extend_from_slice(b"1.0\0");
+        reply.push(0x01);
+        reply.extend_from_slice(&107_410u64.to_le_bytes());
+
+        let sock = tokio::net::UdpSocket::bind(SocketAddr::from((bind_v4(host()), 0)))
+            .await
+            .expect("bind fake server");
+        let addr = sock.local_addr().expect("local addr");
+        let server = tokio::spawn(async move {
+            let mut buf = [0u8; 64];
+            loop {
+                let Ok((_, client)) = sock.recv_from(&mut buf).await else {
+                    return;
+                };
+                if sock.send_to(&reply, client).await.is_err() {
+                    return;
+                }
+            }
+        });
+        let prober = Prober::new(patient(4)).with_pinger(Arc::new(FixedPinger::new(
+            Some(Duration::from_millis(1)),
+            Some(Duration::from_millis(30)),
+        )));
+
+        let outcome = prober.refresh(vec![addr]).recv().await.expect("an outcome");
+        assert!(
+            matches!(outcome.result, Err(NetError::NotDayZ { .. })),
+            "an Arma 3 reply is not an answer: {:?}",
+            outcome.result
+        );
+        assert!(
+            outcome.ping.is_none(),
+            "no ping is worked out from another game's reply"
         );
 
         server.abort();

@@ -15,6 +15,7 @@ type Ack<T> = oneshot::Sender<Result<T, RegistryError>>;
 
 pub(crate) enum Job {
     Servers(Vec<ServerRow>, Ack<usize>),
+    ListedServers(Vec<ServerRow>, Ack<usize>),
     ServerMods(ServerKey, Vec<ServerMod>, Ack<()>),
     ServerModsBulk(Vec<(ServerKey, Vec<ServerMod>)>, Ack<()>),
     Favourite(ServerKey, bool, Ack<usize>),
@@ -50,6 +51,16 @@ impl Writer {
 
     pub async fn upsert_servers(&self, rows: Vec<ServerRow>) -> Result<usize, RegistryError> {
         self.send(|ack| Job::Servers(rows, ack)).await
+    }
+
+    /// [`Self::upsert_servers`] for rows from a server list this client did not
+    /// probe itself. Their ping fills an empty one and leaves a measured value
+    /// alone; every other column behaves the same.
+    pub async fn upsert_listed_servers(
+        &self,
+        rows: Vec<ServerRow>,
+    ) -> Result<usize, RegistryError> {
+        self.send(|ack| Job::ListedServers(rows, ack)).await
     }
 
     pub async fn upsert_server_mods(
@@ -169,7 +180,10 @@ pub(crate) fn run(conn: Connection, mut rx: mpsc::Receiver<Job>) {
     while let Some(job) = rx.blocking_recv() {
         match job {
             Job::Servers(rows, ack) => {
-                let _ = ack.send(upsert_servers(&conn, &rows));
+                let _ = ack.send(upsert_servers(&conn, &rows, false));
+            }
+            Job::ListedServers(rows, ack) => {
+                let _ = ack.send(upsert_servers(&conn, &rows, true));
             }
             Job::ServerModsBulk(batch, ack) => {
                 let _ = ack.send(upsert_server_mods_bulk(&conn, &batch));
@@ -254,15 +268,18 @@ ON CONFLICT(ip, query_port) DO UPDATE SET
     -- Ping is the one live field a row can legitimately carry no measurement
     -- for: an index snapshot describes servers someone else probed, and only
     -- this client's own round trip means anything. A zero from such a row must
-    -- not erase a ping this client measured itself.
+    -- not erase a ping this client measured itself. A listed row's number is
+    -- second-hand too, so it only fills an empty one.
     ping_ms        = CASE WHEN excluded.last_responded IS NOT NULL
                            AND excluded.ping_ms > 0
+                           AND (?30 = 0 OR servers.ping_ms = 0)
                           THEN excluded.ping_ms
                           ELSE servers.ping_ms END,
     -- The flag travels with the number, so a row without a fresh measurement
     -- keeps the flag its number was measured under.
     ping_kind      = CASE WHEN excluded.last_responded IS NOT NULL
                            AND excluded.ping_ms > 0
+                           AND (?30 = 0 OR servers.ping_ms = 0)
                           THEN excluded.ping_kind
                           ELSE servers.ping_kind END,
     locked         = CASE WHEN excluded.last_responded IS NOT NULL
@@ -326,7 +343,11 @@ const STAMP_MODS: &str =
 const SERVER_MODS: &str = "SELECT workshop_id, name FROM server_mods
      WHERE ip = ?1 AND query_port = ?2 ORDER BY ordinal";
 
-fn upsert_servers(conn: &Connection, rows: &[ServerRow]) -> Result<usize, RegistryError> {
+fn upsert_servers(
+    conn: &Connection,
+    rows: &[ServerRow],
+    listed: bool,
+) -> Result<usize, RegistryError> {
     let tx = conn.unchecked_transaction()?;
     let mut n = 0;
     {
@@ -411,6 +432,7 @@ fn upsert_servers(conn: &Connection, rows: &[ServerRow]) -> Result<usize, Regist
                 night_multiplier,
                 row.ping_kind.to_db(),
                 order,
+                listed,
             ])?;
         }
     }
