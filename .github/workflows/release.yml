@@ -15,28 +15,47 @@ permissions:
   contents: read
 
 jobs:
-  # Two calls rather than a matrix so the Windows build waits only for its own check.
-  check-windows:
-    uses: ./.github/workflows/rust-check.yml
-    with:
-      os: windows-latest
-
-  check-linux:
-    uses: ./.github/workflows/rust-check.yml
-    with:
-      os: ubuntu-latest
+  # The whole check, both Rust platforms and the frontend: a tag publishes
+  # nothing that a branch push would not have been allowed to merge.
+  check:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/check.yml
 
   # Fails a tag in seconds, not after the builds, when CHANGELOG.md has no section for it.
   changelog:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check CHANGELOG.md has this version
         shell: bash
         run: grep -qE "^## ${GITHUB_REF_NAME//./\\.}([^0-9.]|$)" CHANGELOG.md
 
+  # The tag names the release; the version files name what is inside it. A tag
+  # that disagrees publishes a release whose updater manifest points at another
+  # version, so it stops here.
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check the tag matches the version files
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          package=$(jq -r .version package.json)
+          tauri=$(jq -r .version src-tauri/tauri.conf.json)
+          cargo=$(sed -n '/^\[workspace\.package\]/,/^\[/s/^version = "\([^"]*\)"/\1/p' Cargo.toml)
+          if [[ "$tag" != "$package" || "$tag" != "$tauri" || "$tag" != "$cargo" ]]; then
+            echo "The tag says $tag:"
+            echo "  package.json:                $package"
+            echo "  src-tauri/tauri.conf.json:   $tauri"
+            echo "  Cargo.toml [workspace.package]: $cargo"
+            exit 1
+          fi
+
   release:
-    needs: [check-windows, changelog]
+    needs: [check, changelog, version]
     runs-on: windows-latest
     permissions:
       contents: write
@@ -59,16 +78,16 @@ jobs:
           fi
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        run: rustup toolchain install
 
       - name: Rust cache
-        uses: swatinem/rust-cache@v2
+        uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
 
       - name: Setup Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: lts/*
           cache: npm
@@ -81,7 +100,7 @@ jobs:
 
       # Builds and signs the updater artifacts, then uploads them plus latest.json to the draft.
       - name: Build and upload release
-        uses: tauri-apps/tauri-action@v1
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -115,79 +134,31 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "${{ github.ref_name }}" "Tetra-Launcher-${{ github.ref_name }}-portable.zip" --clobber
 
-  # Linux (AppImage) half of the release: builds, signs with the same key and
-  # uploads onto the same draft. Waits for the Windows job so its latest.json
-  # exists and tauri-action merges this platform's entry into it.
+  # Linux half of the release: builds, signs with the same key and uploads onto
+  # the same draft. Waits for the Windows job so its latest.json exists and
+  # tauri-action merges this platform's entry into it.
   release-linux:
-    needs: [release, check-linux]
+    needs: release
+    permissions:
+      contents: write
+    uses: ./.github/workflows/linux-bundle.yml
+    with:
+      release-id: ${{ needs.release.outputs.id }}
+    secrets:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+  # The in-app changelog reads `notes` from latest.json and the release page needs
+  # a body, and the changelog lives in CHANGELOG.md rather than being duplicated
+  # here. Fails if CHANGELOG.md has no `## v<version>` section.
+  publish:
+    needs: [release, release-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Linux dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            build-essential \
-            curl wget file \
-            libxdo-dev libssl-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-
-      - name: Setup Node
-        uses: actions/setup-node@v7
-        with:
-          node-version: lts/*
-          cache: npm
-
-      - name: Install frontend dependencies
-        run: npm ci
-
-      - name: Build frontend
-        run: npm run build
-
-      # Produces the binary and emits libsteam_api.so (the Steamworks SDK) for the next step to stage.
-      - name: Build Rust binary (release)
-        run: cargo build --locked --release --package tetra-launcher
-        env:
-          TETRA_INDEX_URL: ${{ vars.TETRA_INDEX_URL }}
-
-      # linuxdeploy can't find libsteam_api.so in its hashed build dir; stage a copy
-      # for LD_LIBRARY_PATH or the AppImage build fails with "Could not find dependency: libsteam_api.so".
-      - name: Stage Steamworks library for the bundler
-        run: |
-          mkdir -p target/steamlib
-          find target/release/build -name 'libsteam_api.so' -exec cp {} target/steamlib/ \;
-
-      # NO_STRIP: linuxdeploy's bundled strip chokes on modern (GCC 14 / .relr.dyn)
-      # libraries. The .deb/.rpm installs get no linuxdeploy wrapper, so
-      # tauri.conf.json's bundle.linux.*.files copy the staged libsteam_api.so to
-      # /usr/lib/tetra-launcher/ and src-tauri/build.rs bakes in a matching RPATH.
-      - name: Build and publish Linux AppImage + .deb + .rpm
-        uses: tauri-apps/tauri-action@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          NO_STRIP: "1"
-          LD_LIBRARY_PATH: ${{ github.workspace }}/target/steamlib
-          TETRA_INDEX_URL: ${{ vars.TETRA_INDEX_URL }}
-        with:
-          releaseId: ${{ needs.release.outputs.id }}
-          args: --bundles appimage,deb,rpm -- --locked
-
-      # The in-app changelog reads `notes` from latest.json and the release page needs
-      # a body, and the changelog lives in CHANGELOG.md rather than being duplicated
-      # here. Fails if CHANGELOG.md has no `## v<version>` section.
       - name: Publish the changelog to the release and the updater manifest
         shell: bash
         env:
