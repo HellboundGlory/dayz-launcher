@@ -120,7 +120,7 @@ pub async fn try_index(
         return decline(app, state, &stale_reason(&health, backend_now));
     }
 
-    // The backend rebuilds its snapshot on a full pull; the same stamp means
+    // The backend rebuilds its snapshot on every pull; the same stamp means
     // this list is already in the registry and there is nothing to fetch.
     if let Some((stamp, count)) = state.index.lock().ok().and_then(|s| s.last_ingested) {
         if health.snapshot_generated_at == Some(stamp) {

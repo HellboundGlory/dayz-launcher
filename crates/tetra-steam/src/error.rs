@@ -2,8 +2,8 @@ use std::fmt;
 use thiserror::Error;
 
 /// Why the Steam client could not be reached at startup. Only
-/// [`InitFailure::SteamNotRunning`] and a couple of others resolve by
-/// waiting — see [`Self::resolves_by_waiting`].
+/// [`InitFailure::SteamNotRunning`] and [`InitFailure::SteamNotReady`] resolve
+/// by waiting — see [`Self::resolves_by_waiting`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum InitFailure {
@@ -17,11 +17,6 @@ pub enum InitFailure {
     SteamNotReady,
     /// Our own Steam thread failed to start or died. Not Steam's fault.
     Internal,
-    /// Connection to Steam's backend was lost after a successful init. Only
-    /// fixable by a fresh `SteamAPI_Init()`, i.e. a restart.
-    Disconnected,
-    /// Another `steam_init` call is already in flight on this process.
-    AlreadyInitialising,
 }
 
 impl InitFailure {
@@ -29,9 +24,7 @@ impl InitFailure {
     pub fn resolves_by_waiting(self) -> bool {
         matches!(
             self,
-            InitFailure::SteamNotRunning
-                | InitFailure::SteamNotReady
-                | InitFailure::AlreadyInitialising
+            InitFailure::SteamNotRunning | InitFailure::SteamNotReady
         )
     }
 
@@ -46,10 +39,7 @@ impl InitFailure {
             // Long enough for Steam startup, short enough a missing licence
             // stops polling and reports the real problem.
             InitFailure::SteamNotReady => Some(15),
-            InitFailure::AlreadyInitialising => Some(5),
-            InitFailure::SteamOutOfDate | InitFailure::Internal | InitFailure::Disconnected => {
-                Some(0)
-            }
+            InitFailure::SteamOutOfDate | InitFailure::Internal => Some(0),
         }
     }
 }
@@ -61,8 +51,6 @@ impl fmt::Display for InitFailure {
             InitFailure::SteamOutOfDate => "the Steam client is out of date",
             InitFailure::SteamNotReady => "Steam is not ready to start DayZ",
             InitFailure::Internal => "the launcher's Steam thread failed to start",
-            InitFailure::Disconnected => "the connection to Steam was lost",
-            InitFailure::AlreadyInitialising => "a Steam connection attempt is already in progress",
         };
         f.write_str(s)
     }
@@ -100,14 +88,12 @@ mod tests {
 
     #[test]
     fn only_failures_that_clear_themselves_are_waited_on() {
-        let cases: [(InitFailure, bool, Option<u32>); 6] = [
+        let cases: [(InitFailure, bool, Option<u32>); 4] = [
             (InitFailure::SteamNotRunning, true, None),
             (InitFailure::SteamNotReady, true, Some(15)),
-            (InitFailure::AlreadyInitialising, true, Some(5)),
             // The user has to act, so the retry timer must not spin forever.
             (InitFailure::SteamOutOfDate, false, Some(0)),
             (InitFailure::Internal, false, Some(0)),
-            (InitFailure::Disconnected, false, Some(0)),
         ];
         for (kind, resolves_by_waiting, auto_retry_limit) in cases {
             assert_eq!(kind.resolves_by_waiting(), resolves_by_waiting, "{kind:?}");
@@ -126,7 +112,7 @@ mod tests {
     fn serialises_as_the_snake_case_the_frontend_matches_on() {
         let json = serde_json::to_string(&InitFailure::SteamNotRunning).unwrap();
         assert_eq!(json, "\"steam_not_running\"");
-        let json = serde_json::to_string(&InitFailure::Disconnected).unwrap();
-        assert_eq!(json, "\"disconnected\"");
+        let json = serde_json::to_string(&InitFailure::SteamNotReady).unwrap();
+        assert_eq!(json, "\"steam_not_ready\"");
     }
 }

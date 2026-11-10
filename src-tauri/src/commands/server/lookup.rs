@@ -35,10 +35,9 @@ fn parse_address(addr: &str) -> Result<Option<(Ipv4Addr, u16)>, String> {
     match address_search(addr) {
         None => Err(format!("Not an ip:port address: {addr}")),
         Some((_, None)) => Ok(None),
-        Some((ip, Some(_))) if ip.is_unspecified() || ip.is_broadcast() || ip.is_multicast() => {
-            Err(format!("Not a server address: {addr}"))
-        }
-        Some((ip, Some(port))) => Ok(Some((ip, port))),
+        Some((ip, Some(port))) => check_ip(ip)
+            .map(|()| Some((ip, port)))
+            .map_err(|_| format!("Not a server address: {addr}")),
     }
 }
 
@@ -233,6 +232,13 @@ async fn resolve_host(host: &Host) -> Result<Vec<Ipv4Addr>, String> {
     Ok(ips)
 }
 
+/// Whether a stored row can answer a lookup without a probe. One marked offline
+/// failed its last probe, and a nameless one was only ever listed, never
+/// answered; both are probed again.
+fn stored_row_is_current(row: &tetra_registry::filter::ServerListRow) -> bool {
+    row.online && !row.name.trim().is_empty()
+}
+
 /// Find the server a player typed an address for: a host name or an IPv4
 /// address, with or without a port.
 #[tauri::command]
@@ -244,8 +250,8 @@ pub async fn find_server(
     let ips = resolve_host(&target.host).await?;
     let writer = registry_writer(&state).await?;
 
-    // A server already on the list answers from here without a probe. The
-    // writer wait above also means the registry is open for this read.
+    // A server already on the list and online answers from here without a
+    // probe. The writer wait above also means the registry is open for this read.
     if let Some(port) = target.port {
         let wanted = ips.clone();
         let known = blocking_read(&state, move |reader| {
@@ -253,6 +259,7 @@ pub async fn find_server(
                 if let Some(row) = reader
                     .find_by_address(ip, port)
                     .map_err(|e| e.to_string())?
+                    .filter(stored_row_is_current)
                 {
                     return Ok(Some(row));
                 }
@@ -295,7 +302,7 @@ pub async fn find_server(
 
 #[cfg(test)]
 mod tests {
-    use super::{check_ip, parse_address, parse_target, Host, Target};
+    use super::{check_ip, parse_address, parse_target, stored_row_is_current, Host, Target};
     use std::net::Ipv4Addr;
 
     #[test]
@@ -390,6 +397,70 @@ mod tests {
         for (text, message) in cases {
             assert_eq!(parse_target(text).unwrap_err(), *message, "text: {text:?}");
         }
+    }
+
+    /// A row's own answer decides whether a lookup may skip the probe: the
+    /// online flag is what a failed refresh last wrote.
+    #[tokio::test]
+    async fn a_known_offline_server_is_probed_again() {
+        let registry = tetra_registry::Registry::open_in_memory().expect("registry");
+        let writer = registry.writer();
+        let key = tetra_registry::ServerKey {
+            ip: Ipv4Addr::new(203, 0, 113, 9),
+            query_port: 2302,
+        };
+        writer
+            .upsert_servers(vec![tetra_registry::ServerRow {
+                key,
+                name: "Known".into(),
+                responded: true,
+                ..Default::default()
+            }])
+            .await
+            .expect("row");
+
+        let stored = || {
+            registry
+                .reader()
+                .expect("reader")
+                .find_by_address(key.ip, key.query_port)
+                .expect("find")
+                .expect("a stored row")
+        };
+        assert!(
+            stored_row_is_current(&stored()),
+            "an answering row answers the lookup"
+        );
+
+        writer.set_online(vec![key], false).await.expect("offline");
+
+        assert!(
+            !stored_row_is_current(&stored()),
+            "an offline row must fall through to the probe"
+        );
+
+        let listed = tetra_registry::ServerKey {
+            ip: Ipv4Addr::new(203, 0, 113, 10),
+            query_port: 2302,
+        };
+        writer
+            .upsert_servers(vec![tetra_registry::ServerRow {
+                key: listed,
+                responded: false,
+                ..Default::default()
+            }])
+            .await
+            .expect("listed row");
+        let never_answered = registry
+            .reader()
+            .expect("reader")
+            .find_by_address(listed.ip, listed.query_port)
+            .expect("find")
+            .expect("a stored row");
+        assert!(
+            !stored_row_is_current(&never_answered),
+            "a row that never answered must fall through to the probe"
+        );
     }
 
     #[test]

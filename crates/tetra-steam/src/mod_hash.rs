@@ -116,12 +116,31 @@ mod tests {
         }
     }
 
-    fn scratch_dir(label: &str) -> PathBuf {
-        let dir =
-            std::env::temp_dir().join(format!("tetra-mod-hash-{label}-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).unwrap();
-        dir
+    /// A per-test scratch folder that deletes itself on drop.
+    struct ScratchDir(PathBuf);
+
+    impl ScratchDir {
+        fn new(label: &str) -> Self {
+            let dir =
+                std::env::temp_dir().join(format!("tetra-mod-hash-{label}-{}", std::process::id()));
+            let _ = fs::remove_dir_all(&dir);
+            fs::create_dir_all(&dir).unwrap();
+            Self(dir)
+        }
+    }
+
+    impl std::ops::Deref for ScratchDir {
+        type Target = Path;
+
+        fn deref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for ScratchDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
     }
 
     fn pbo_with_trailer(trailer: [u8; 20]) -> Vec<u8> {
@@ -132,7 +151,7 @@ mod tests {
 
     #[test]
     fn pbo_trailers_come_from_the_hashed_folders_only() {
-        let dir = scratch_dir("trailers");
+        let dir = ScratchDir::new("trailers");
         let a = [0xaa; 20];
         let b = [0xbb; 20];
         fs::create_dir_all(dir.join("Addons")).unwrap();
@@ -159,7 +178,7 @@ mod tests {
 
     #[test]
     fn folder_hash_reads_the_pbos_directly_in_the_mod_folder() {
-        let dir = scratch_dir("folder");
+        let dir = ScratchDir::new("folder");
         fs::create_dir_all(dir.join("addons")).unwrap();
         fs::write(
             dir.join("addons/a.pbo"),
@@ -173,7 +192,7 @@ mod tests {
 
     #[test]
     fn a_pbo_shorter_than_a_trailer_leaves_the_folder_unhashed() {
-        let dir = scratch_dir("short");
+        let dir = ScratchDir::new("short");
         fs::create_dir_all(dir.join("addons")).unwrap();
         fs::write(dir.join("addons/short.pbo"), [0u8; 10]).unwrap();
 
@@ -182,7 +201,7 @@ mod tests {
 
     #[test]
     fn a_folder_without_pbos_or_a_missing_one_is_unhashed() {
-        let dir = scratch_dir("empty");
+        let dir = ScratchDir::new("empty");
         fs::create_dir_all(dir.join("addons")).unwrap();
         assert_eq!(folder_hash(&dir), None);
 

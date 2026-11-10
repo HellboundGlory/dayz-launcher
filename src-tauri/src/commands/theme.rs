@@ -1173,9 +1173,11 @@ fn seed_builtin_themes_now(app: &AppHandle) {
 /// Installs every builtin id that doesn't already load. An already-installed
 /// id is replaced by the bundled copy only when it's unmodified (fingerprint
 /// matches its seed record) and the bundled version is newer; an edited copy,
-/// or one with no seed record, is left alone. A deleted one comes back next
-/// launch. `log` receives one line for every outcome besides a fresh install
-/// or replace, which the caller logs itself from the returned results.
+/// or one with no seed record, is left alone. A folder that no longer loads at
+/// all is moved aside and replaced from the bundle. A deleted one comes
+/// back next launch. `log` receives one line for every outcome besides a fresh
+/// install or replace, which the caller logs itself from the returned results.
+/// A repair is logged here because it is also a fresh install.
 fn seed_from(
     source_root: &Path,
     themes_root: &Path,
@@ -1197,9 +1199,34 @@ fn seed_from(
             }
             continue;
         }
-        results.push(
-            install_builtin_theme(source_root, themes_root, id).map_err(|e| format!("{id}: {e}")),
-        );
+
+        // The folder is there but no longer loads, so `create_dir` would refuse
+        // the install. It is moved aside, not deleted: it may hold the user's
+        // own edits, and a dot folder is never listed as a theme.
+        let broken = themes_root.join(id);
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis());
+        let backup = themes_root.join(format!(".{id}.broken-{stamp}"));
+        let repairing = broken.exists();
+        if repairing {
+            if let Err(e) = std::fs::rename(&broken, &backup) {
+                results.push(Err(format!(
+                    "Could not move {} aside: {e}",
+                    broken.display()
+                )));
+                continue;
+            }
+        }
+        let installed =
+            install_builtin_theme(source_root, themes_root, id).map_err(|e| format!("{id}: {e}"));
+        if repairing && installed.is_ok() {
+            log(&format!(
+                "Repaired builtin theme `{id}`; the broken copy is in {}",
+                backup.display()
+            ));
+        }
+        results.push(installed);
     }
     results
 }
@@ -2141,6 +2168,75 @@ mod builtin_themes {
             files_under(&themes_root.join("builtin.tactical")),
             before,
             "left exactly as it was"
+        );
+    }
+
+    /// A built-in that no longer loads is replaced from the bundle on the next
+    /// seed; a user's own broken theme is not this code's to touch.
+    #[test]
+    fn a_broken_installed_builtin_is_repaired_and_a_broken_user_theme_is_left_alone() {
+        let source_root = shipped();
+        let themes_root = ScratchDir::tagged("repair-broken");
+
+        let first = seed_from(&source_root, &themes_root, |_| {});
+        assert!(first.iter().all(Result::is_ok), "{first:?}");
+        let manifest = themes_root
+            .join("builtin.tactical")
+            .join(theme::MANIFEST_FILE);
+        std::fs::write(&manifest, "{ not json").unwrap();
+
+        let user = themes_root.join("local.broken");
+        std::fs::create_dir_all(&user).unwrap();
+        std::fs::write(user.join(theme::MANIFEST_FILE), "{ not json").unwrap();
+
+        let mut logs = Vec::new();
+        let repaired = seed_from(&source_root, &themes_root, |line| {
+            logs.push(line.to_string())
+        });
+
+        assert_eq!(
+            repaired
+                .iter()
+                .map(|r| r.as_ref().map(String::as_str))
+                .collect::<Vec<_>>(),
+            vec![Ok("builtin.tactical")],
+            "the broken built-in is seeded again: {repaired:?}"
+        );
+        assert!(
+            logs.iter()
+                .any(|l| l.contains("Repaired builtin theme `builtin.tactical`")),
+            "{logs:?}"
+        );
+        theme::get(&themes_root, "builtin.tactical").expect("the repaired theme loads");
+        let backups = || {
+            std::fs::read_dir(&themes_root)
+                .unwrap()
+                .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+                .filter(|n| n.starts_with(".builtin.tactical.broken-"))
+                .collect::<Vec<_>>()
+        };
+        let first_backup = backups();
+        assert_eq!(first_backup.len(), 1, "{first_backup:?}");
+        assert_eq!(
+            std::fs::read(
+                themes_root
+                    .join(&first_backup[0])
+                    .join(theme::MANIFEST_FILE)
+            )
+            .unwrap(),
+            b"{ not json",
+            "the broken copy is kept, since it may hold the user's own edits"
+        );
+
+        // Broken again before the first backup was looked at: both copies stay.
+        std::fs::write(&manifest, "{ still not json").unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        seed_from(&source_root, &themes_root, |_| {});
+        assert_eq!(backups().len(), 2, "{:?}", backups());
+        assert_eq!(
+            std::fs::read(user.join(theme::MANIFEST_FILE)).unwrap(),
+            b"{ not json",
+            "a user theme's broken files are not this code's to replace"
         );
     }
 
