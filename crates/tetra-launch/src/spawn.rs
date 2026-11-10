@@ -532,10 +532,86 @@ mod tests {
         }
     }
 
+    /// The exact argument vector for each launch shape, with `-mod=` last so a
+    /// user parameter cannot be read as part of it. A main-menu launch drops
+    /// the whole connection group, `-password` included, and keeps the rest.
     #[test]
-    fn vanilla_launch_no_extra_params() {
-        let args = build_launch_args(false, "127.0.0.1", 2302, None, "", &[], None);
-        assert_eq!(args, vec!["-connect=127.0.0.1", "-port=2302"]);
+    fn launch_arguments_are_built_in_one_order() {
+        struct Case<'a> {
+            label: &'a str,
+            main_menu: bool,
+            ip: &'a str,
+            port: u16,
+            password: Option<&'a str>,
+            mod_arg: &'a str,
+            extra: &'a [&'a str],
+            name: Option<&'a str>,
+            expected: &'a [&'a str],
+        }
+        let cases = [
+            Case {
+                label: "vanilla server launch",
+                main_menu: false,
+                ip: "127.0.0.1",
+                port: 2302,
+                password: None,
+                mod_arg: "",
+                extra: &[],
+                name: None,
+                expected: &["-connect=127.0.0.1", "-port=2302"],
+            },
+            Case {
+                label: "name, password, mods and a user parameter",
+                main_menu: false,
+                ip: "192.168.1.1",
+                port: 27016,
+                password: Some("hunter2"),
+                mod_arg: "-mod=C:\\mods\\@test",
+                extra: &["-noSplash"],
+                name: Some("Survivor"),
+                expected: &[
+                    "-connect=192.168.1.1",
+                    "-port=27016",
+                    "-password=hunter2",
+                    "-name=Survivor",
+                    "-noSplash",
+                    "-mod=C:\\mods\\@test",
+                ],
+            },
+            Case {
+                label: "main-menu launch keeps mods and user parameters",
+                main_menu: true,
+                ip: "127.0.0.1",
+                port: 2302,
+                password: Some("hunter2"),
+                mod_arg: "-mod=C:\\mods\\@a;C:\\mods\\@b",
+                extra: &["-noSplash"],
+                name: Some("Survivor"),
+                expected: &[
+                    "-name=Survivor",
+                    "-noSplash",
+                    "-mod=C:\\mods\\@a;C:\\mods\\@b",
+                ],
+            },
+        ];
+        for case in &cases {
+            let extra: Vec<String> = case.extra.iter().map(|a| a.to_string()).collect();
+            let expected: Vec<String> = case.expected.iter().map(|a| a.to_string()).collect();
+            assert_eq!(
+                build_launch_args(
+                    case.main_menu,
+                    case.ip,
+                    case.port,
+                    case.password,
+                    case.mod_arg,
+                    &extra,
+                    case.name,
+                ),
+                expected,
+                "{}",
+                case.label
+            );
+        }
     }
 
     /// Every child runs without the AppImage's own environment, or Steam and
@@ -590,65 +666,6 @@ mod tests {
             };
             assert_eq!(stripped, want, "entries: {entries:?}, appdir: {appdir:?}");
         }
-    }
-
-    #[test]
-    fn launch_with_name_and_mods() {
-        let args = build_launch_args(
-            false,
-            "192.168.1.1",
-            27016,
-            Some("hunter2"),
-            "-mod=C:\\mods\\@test",
-            &["-noSplash".into()],
-            Some("Survivor"),
-        );
-        assert_eq!(
-            args,
-            vec![
-                "-connect=192.168.1.1",
-                "-port=27016",
-                "-password=hunter2",
-                "-name=Survivor",
-                "-noSplash",
-                "-mod=C:\\mods\\@test"
-            ]
-        );
-    }
-
-    /// A main-menu launch must not carry any server-connection argument, while
-    /// still loading the mods and the user's launch parameters.
-    #[test]
-    fn main_menu_launch_omits_connection_but_keeps_mods() {
-        let args = build_launch_args(
-            true,
-            "127.0.0.1",
-            2302,
-            Some("hunter2"),
-            "-mod=C:\\mods\\@a;C:\\mods\\@b",
-            &["-noSplash".into()],
-            Some("Survivor"),
-        );
-        assert!(
-            !args.iter().any(|a| a.starts_with("-connect=")),
-            "-connect= must be omitted in main-menu mode"
-        );
-        assert!(
-            !args.iter().any(|a| a.starts_with("-port=")),
-            "-port= must be omitted in main-menu mode"
-        );
-        assert!(
-            !args.iter().any(|a| a.starts_with("-password=")),
-            "-password= must be omitted in main-menu mode"
-        );
-        assert!(
-            args.iter().any(|a| a.starts_with("-mod=")),
-            "-mod= must still be present in main-menu mode"
-        );
-        assert!(
-            args.iter().any(|a| a == "-noSplash"),
-            "user launch parameters must still reach main-menu mode"
-        );
     }
 
     #[cfg(target_os = "linux")]

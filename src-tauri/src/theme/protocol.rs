@@ -300,24 +300,28 @@ mod tests {
         }
     }
 
+    /// An id that names no installed theme, or is not one directory name, is
+    /// refused with a reason saying which — a staging directory's name is not
+    /// an installed theme id, and a staging id is not a path.
     #[test]
-    fn a_theme_that_is_not_installed_is_refused() {
-        // A staging directory's name is not an installed theme id.
-        let root = staged("unknown", "pkg-123");
-
-        for id in ["not.installed", "pkg-123"] {
-            let reason = resolve_asset(&root, id, "main.css").expect_err("must refuse");
-            assert!(reason.contains("No installed theme"), "{id}: {reason}");
-        }
-    }
-
-    #[test]
-    fn a_theme_id_that_is_a_path_is_refused() {
-        let root = installed("id");
-
-        for id in ["..", "../../etc", "aurora.theme/../.."] {
-            let reason = resolve_asset(&root, id, "main.css").expect_err("must refuse");
-            assert!(reason.contains("usable theme id"), "{id}: {reason}");
+    fn an_id_that_names_no_installed_theme_is_refused() {
+        let installed_root = installed("installed-id");
+        let staged_root = staged("staged-id", "pkg-123");
+        let cases: &[(&Path, &str, &str)] = &[
+            (&staged_root, "not.installed", "No installed theme"),
+            // The package exists, but only under `.staging`.
+            (&staged_root, "pkg-123", "No installed theme"),
+            (&installed_root, "..", "usable theme id"),
+            (&installed_root, "../../etc", "usable theme id"),
+            (&installed_root, "aurora.theme/../..", "usable theme id"),
+            (&staged_root, ".staging", "names the staging area itself"),
+            (&staged_root, ".staging/..", "usable staging id"),
+            (&staged_root, ".staging/../../etc", "usable staging id"),
+            (&staged_root, ".staging/a/b", "usable staging id"),
+        ];
+        for (root, id, reason) in cases {
+            let error = resolve_asset(root, id, "main.css").expect_err("must refuse");
+            assert!(error.contains(reason), "`{id}`: {error}");
         }
     }
 
@@ -335,25 +339,6 @@ mod tests {
             resolved,
             package.join("previews/shot.png").canonicalize().unwrap()
         );
-    }
-
-    #[test]
-    fn a_bare_staging_host_with_no_id_is_refused() {
-        let root = staged("staged-bare", "pkg-123");
-
-        let reason = resolve_asset(&root, ".staging", "main.css").expect_err("must refuse");
-
-        assert!(reason.contains("staging"), "{reason}");
-    }
-
-    #[test]
-    fn a_staging_id_that_is_not_usable_is_refused() {
-        let root = staged("staged-bad-id", "pkg-123");
-
-        for id in [".staging/..", ".staging/../../etc", ".staging/a/b"] {
-            let reason = resolve_asset(&root, id, "main.css").expect_err("must refuse");
-            assert!(reason.contains("usable staging id"), "{id}: {reason}");
-        }
     }
 
     /// The link points at a file *inside* the theme, so the canonicalised

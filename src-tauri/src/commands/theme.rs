@@ -1416,44 +1416,39 @@ mod tests {
         std::fs::write(path, content).unwrap();
     }
 
+    /// Every file an installed theme ships is validated through the one entry
+    /// point, so a broken layout, stylesheet or settings schema each comes back
+    /// as an issue naming its own file and rule.
     #[test]
-    fn validate_theme_reports_lay01_for_a_malformed_layout_file() {
-        let (root, dir) = installed("validate-bad-layout", "local.bad-layout");
-        write(&dir, "layout/shell.json", "{ not json");
+    fn validate_theme_reports_each_broken_file_against_its_own_rule() {
+        let cases: &[(&str, &str, &str, &str)] = &[
+            ("broken-layout", "layout/shell.json", "{ not json", "LAY-01"),
+            (
+                "broken-css",
+                theme::STYLES_FILE,
+                "@import \"other.css\";",
+                "CSS-06",
+            ),
+            (
+                "broken-settings",
+                theme::SETTINGS_SCHEMA_FILE,
+                "{ not json",
+                "SET-01",
+            ),
+        ];
+        for (id, file, content, rule_id) in cases {
+            let (root, dir) = installed(id, &format!("local.{id}"));
+            write(&dir, file, content);
 
-        let issues = validate_theme_at(&root, "local.bad-layout").unwrap();
+            let issues = validate_theme_at(&root, &format!("local.{id}")).unwrap();
 
-        assert!(
-            issues
-                .iter()
-                .any(|i| i.rule_id == "LAY-01" && i.file == "layout/shell.json"),
-            "{issues:?}"
-        );
-    }
-
-    #[test]
-    fn validate_theme_refuses_an_at_import_in_styles_css() {
-        let (_root, dir) = installed("validate-css", "local.css");
-        write(&dir, "styles.css", "@import \"other.css\";");
-
-        let issues = validate_theme_styles(&dir).unwrap();
-
-        assert!(issues.iter().any(|i| i.file == "styles.css"), "{issues:?}");
-    }
-
-    #[test]
-    fn validate_theme_reports_set01_for_a_malformed_settings_schema() {
-        let (_root, dir) = installed("validate-bad-settings", "local.bad-settings");
-        write(&dir, theme::SETTINGS_SCHEMA_FILE, "{ not json");
-
-        let (_, issues) = validate_theme_settings(&dir).unwrap();
-
-        assert!(
-            issues
-                .iter()
-                .any(|i| i.rule_id == "SET-01" && i.file == theme::SETTINGS_SCHEMA_FILE),
-            "{issues:?}"
-        );
+            assert!(
+                issues
+                    .iter()
+                    .any(|i| i.rule_id == *rule_id && i.file == *file),
+                "{id}: {issues:?}"
+            );
+        }
     }
 
     #[test]

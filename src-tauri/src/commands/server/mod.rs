@@ -512,29 +512,50 @@ mod tests {
         assert_eq!(early.await.expect("task"), Ok(()));
     }
 
-    /// Pins the wire convention: `addr` already carries `"IP:query_port"`, so
-    /// appending the port again would build an invalid double-port string.
+    /// `addr` already carries `"IP:query_port"`, and the separate port is
+    /// authoritative over the embedded one, so the two never become a
+    /// double-port string. Anything that is not an IP is refused.
     #[test]
-    fn an_address_already_carrying_a_port_is_not_given_a_second_one() {
-        let key = server_key("172.111.51.137:27022", 27022).expect("should parse");
-        assert_eq!(key.ip.to_string(), "172.111.51.137");
-        assert_eq!(key.query_port, 27022);
-
-        let socket = std::net::SocketAddr::from((key.ip, key.query_port));
-        assert_eq!(socket.to_string(), "172.111.51.137:27022");
-    }
-
-    /// `query_port` is authoritative over the port embedded in the string.
-    #[test]
-    fn the_separate_query_port_wins_over_the_one_in_the_string() {
-        let key = server_key("1.2.3.4:9999", 2303).expect("should parse");
-        assert_eq!(key.query_port, 2303);
-    }
-
-    #[test]
-    fn a_malformed_address_is_rejected_rather_than_guessed_at() {
-        assert!(server_key("not-an-ip:2303", 2303).is_err());
-        assert!(server_key("", 2303).is_err());
+    fn an_address_carrying_a_port_parses_to_one_key() {
+        struct Case {
+            addr: &'static str,
+            query_port: u16,
+            // The key the address must parse to, or `None` for a refusal.
+            expected: Option<(&'static str, u16)>,
+        }
+        let cases = [
+            Case {
+                addr: "172.111.51.137:27022",
+                query_port: 27022,
+                expected: Some(("172.111.51.137", 27022)),
+            },
+            Case {
+                addr: "1.2.3.4:9999",
+                query_port: 2303,
+                expected: Some(("1.2.3.4", 2303)),
+            },
+            Case {
+                addr: "not-an-ip:2303",
+                query_port: 2303,
+                expected: None,
+            },
+            Case {
+                addr: "",
+                query_port: 2303,
+                expected: None,
+            },
+        ];
+        for case in &cases {
+            let addr = case.addr;
+            match case.expected {
+                Some((ip, port)) => {
+                    let key = server_key(addr, case.query_port).expect("should parse");
+                    assert_eq!(key.ip.to_string(), ip, "{addr}");
+                    assert_eq!(key.query_port, port, "{addr}");
+                }
+                None => assert!(server_key(addr, case.query_port).is_err(), "{addr}"),
+            }
+        }
     }
 
     #[test]

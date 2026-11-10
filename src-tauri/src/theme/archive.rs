@@ -1390,6 +1390,8 @@ mod tests {
 
     #[test]
     fn invalid_manifest_metadata_is_refused() {
+        let running = semver::Version::parse(env!("CARGO_PKG_VERSION")).unwrap();
+        let ahead = format!("{}.0.0", running.major + 1);
         let cases = [
             (
                 "id",
@@ -1417,6 +1419,14 @@ mod tests {
                 serde_json::json!("invalid"),
                 "MAN-04",
             ),
+            // A launcher older than the theme requires is refused rather than
+            // loading content it does not understand.
+            (
+                "minimumLauncherVersion",
+                serde_json::json!(ahead),
+                "or newer",
+            ),
+            ("themeApi", serde_json::json!("3.0"), "MAN-05"),
             (
                 "capabilities",
                 serde_json::json!(["tokens", "assets"]),
@@ -1425,12 +1435,13 @@ mod tests {
         ];
         for (field, value, expected) in cases {
             let root = ScratchDir::tagged("metadata");
+            let label = format!("{field} = {value}");
             let mut json = serde_json::to_value(manifest()).unwrap();
             json[field] = value;
             let changed: ThemeManifest = serde_json::from_value(json).unwrap();
             let package = fixture_with_manifest(&root, "invalid", &changed);
             let error = stage_for_preview(&root, &package, &[]).unwrap_err();
-            assert!(error.contains(expected), "{field}: {error}");
+            assert!(error.contains(expected), "{label}: {error}");
         }
     }
 
@@ -2270,46 +2281,128 @@ mod tests {
         }
     }
 
+    /// The bytes are the claim's evidence: an extension only ever pins the
+    /// format, so a renamed file, a real image or font under another format's
+    /// extension, a corrupt body, and a container whose tables do not parse are
+    /// all refused before anything is staged. `.otf` and `.ttf` are one sfnt
+    /// container, so they are not mismatched with each other.
     #[test]
-    fn a_renamed_extension_on_non_image_bytes_is_refused() {
-        for (extension, body) in [
-            ("png", "this is definitely not a png"),
-            ("webp", "this is definitely not a webp"),
-            ("jpg", "this is definitely not a jpeg"),
-            ("jpeg", "this is definitely not a jpeg"),
-        ] {
-            let root = ScratchDir::tagged("fake-image");
-            let name = format!("images/logo.{extension}");
-            let zip_path = fixture(&root, "fake-image", &[Entry::file(&name, body)]);
+    fn asset_bytes_that_do_not_match_their_extension_are_refused() {
+        let cases: Vec<(&str, &str, Vec<u8>, &str)> = vec![
+            (
+                "renamed png",
+                "images/logo.png",
+                b"this is definitely not a png".to_vec(),
+                "images/logo.png",
+            ),
+            (
+                "renamed webp",
+                "images/logo.webp",
+                b"this is definitely not a webp".to_vec(),
+                "images/logo.webp",
+            ),
+            (
+                "renamed jpg",
+                "images/logo.jpg",
+                b"this is definitely not a jpeg".to_vec(),
+                "images/logo.jpg",
+            ),
+            (
+                "renamed jpeg",
+                "images/logo.jpeg",
+                b"this is definitely not a jpeg".to_vec(),
+                "images/logo.jpeg",
+            ),
+            // `image` would happily decode the PNG as a PNG, so this only fails
+            // if the decoder is pinned to the extension.
+            (
+                "png bytes under a jpg name",
+                "images/logo.jpg",
+                encode_image(image::ImageFormat::Png, 8, 8),
+                "images/logo.jpg",
+            ),
+            (
+                "truncated png body",
+                "images/broken.png",
+                {
+                    // Header intact so the size check passes; the body is gone.
+                    let good = encode_image(image::ImageFormat::Png, 32, 32);
+                    good[..40].to_vec()
+                },
+                "images/broken.png",
+            ),
+            (
+                "renamed ttf",
+                "fonts/icon.ttf",
+                b"not a font".to_vec(),
+                "fonts/icon.ttf",
+            ),
+            (
+                "renamed otf",
+                "fonts/icon.otf",
+                b"not a font".to_vec(),
+                "fonts/icon.otf",
+            ),
+            (
+                "renamed woff",
+                "fonts/icon.woff",
+                b"not a font".to_vec(),
+                "fonts/icon.woff",
+            ),
+            (
+                "renamed woff2",
+                "fonts/icon.woff2",
+                b"not a font".to_vec(),
+                "fonts/icon.woff2",
+            ),
+            (
+                "woff2 under a woff name",
+                "fonts/icon.woff",
+                build_woff2(&minimal_font_tables()),
+                "fonts/icon.woff",
+            ),
+            (
+                "woff under a woff2 name",
+                "fonts/icon.woff2",
+                build_woff(&minimal_font_tables()),
+                "fonts/icon.woff2",
+            ),
+            (
+                "woff under a ttf name",
+                "fonts/icon.ttf",
+                build_woff(&minimal_font_tables()),
+                "fonts/icon.ttf",
+            ),
+            (
+                "woff2 under an otf name",
+                "fonts/icon.otf",
+                build_woff2(&minimal_font_tables()),
+                "fonts/icon.otf",
+            ),
+            (
+                "font tables that do not parse",
+                "fonts/icon.ttf",
+                {
+                    let mut tables = minimal_font_tables();
+                    // A `head` table too short for any parser to accept.
+                    tables[0].1.truncate(20);
+                    build_sfnt(0x0001_0000, &tables)
+                },
+                "not a readable font",
+            ),
+        ];
+        for (label, name, body, expected) in cases {
+            let root = ScratchDir::tagged("mismatched-asset");
+            let zip_path = fixture(&root, "mismatched-asset", &[Entry::bytes(name, body)]);
 
             let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
 
-            assert!(error.contains(&name), "message was: {error}");
+            assert!(error.contains(expected), "{label}: {error}");
             assert!(
                 !root.join(STAGING_DIR).read_dir().unwrap().next().is_some(),
-                "nothing may stay staged for a refused package"
+                "{label}: nothing may stay staged for a refused package"
             );
         }
-    }
-
-    /// The polyglot that matters most: a real image of one format wearing
-    /// another's extension. `image` would happily decode the PNG as a PNG, so
-    /// this only fails if the decoder is pinned to the extension.
-    #[test]
-    fn an_image_declared_as_the_wrong_format_is_refused() {
-        let root = ScratchDir::tagged("mismatched-image");
-        let zip_path = fixture(
-            &root,
-            "mismatched-image",
-            &[Entry::bytes(
-                "images/logo.jpg",
-                encode_image(image::ImageFormat::Png, 8, 8),
-            )],
-        );
-
-        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-
-        assert!(error.contains("images/logo.jpg"), "message was: {error}");
     }
 
     /// A baseline JPEG whose headers declare `width`x`height` but which carries
@@ -2388,57 +2481,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn a_corrupt_image_body_at_an_allowed_size_is_refused() {
-        let root = ScratchDir::tagged("corrupt-image");
-        let good = encode_image(image::ImageFormat::Png, 32, 32);
-        // Header intact so the size check passes; the body is gone.
-        let zip_path = fixture(
-            &root,
-            "corrupt-image",
-            &[Entry::bytes("images/broken.png", &good[..40])],
-        );
-
-        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-
-        assert!(error.contains("images/broken.png"), "message was: {error}");
-    }
-
-    #[test]
-    fn a_renamed_extension_on_non_font_bytes_is_refused() {
-        for extension in ["ttf", "otf", "woff", "woff2"] {
-            let root = ScratchDir::tagged("fake-font");
-            let name = format!("fonts/icon.{extension}");
-            let zip_path = fixture(&root, "fake-font", &[Entry::file(&name, "not a font")]);
-
-            let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-
-            assert!(error.contains(&name), "message was: {error}");
-        }
-    }
-
-    /// Each container is identified from its own magic, so neither web format
-    /// can be smuggled in under the other's extension, nor a wrapped font under
-    /// the sfnt extensions. (`.otf` and `.ttf` are one container — both hold
-    /// either outline flavour — so they are not mismatched with each other.)
-    #[test]
-    fn a_font_container_under_the_wrong_extension_is_refused() {
-        for (extension, body) in [
-            ("woff", build_woff2(&minimal_font_tables())),
-            ("woff2", build_woff(&minimal_font_tables())),
-            ("ttf", build_woff(&minimal_font_tables())),
-            ("otf", build_woff2(&minimal_font_tables())),
-        ] {
-            let root = ScratchDir::tagged("wrong-font-container");
-            let name = format!("fonts/icon.{extension}");
-            let zip_path = fixture(&root, "wrong-font-container", &[Entry::bytes(&name, body)]);
-
-            let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-
-            assert!(error.contains(&name), "message was: {error}");
-        }
-    }
-
     /// `.otf` and `.ttf` are the same sfnt container, and an `.otf` typically
     /// holds CFF outlines (`OTTO`) rather than TrueType ones — so the extension
     /// must accept both flavours rather than pinning either.
@@ -2462,76 +2504,30 @@ mod tests {
         }
     }
 
-    /// A container whose bytes are a valid font *elsewhere* still has to fail:
-    /// the tables the reader picks up must be the ones the container names.
+    /// An SVG may only reference itself, and may not carry script or embedded
+    /// web content: whatever attribute or element an attempt arrives in, it is
+    /// refused. A document that will not parse, or is not an `<svg>`, is not a
+    /// theme image either.
     #[test]
-    fn a_font_whose_tables_do_not_parse_is_refused() {
-        let root = ScratchDir::tagged("bad-font-tables");
-        let mut tables = minimal_font_tables();
-        // A `head` table too short for any parser to accept.
-        tables[0].1.truncate(20);
-        let zip_path = fixture(
-            &root,
-            "bad-font-tables",
-            &[Entry::bytes(
-                "fonts/icon.ttf",
-                build_sfnt(0x0001_0000, &tables),
-            )],
-        );
-
-        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-
-        assert!(
-            error.contains("not a readable font"),
-            "message was: {error}"
-        );
-    }
-
-    #[test]
-    fn an_svg_containing_a_script_element_is_refused() {
-        let root = ScratchDir::tagged("svg-script");
-        let zip_path = fixture(
-            &root,
-            "svg-script",
-            &[Entry::file(
-                "images/evil.svg",
-                r#"<svg xmlns="http://www.w3.org/2000/svg"><SCRIPT>alert(1)</SCRIPT></svg>"#,
-            )],
-        );
-
-        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-
-        assert!(error.contains("images/evil.svg"), "message was: {error}");
-        assert!(error.contains("<script>"), "message was: {error}");
-    }
-
-    #[test]
-    fn an_svg_with_an_event_handler_attribute_is_refused() {
-        for attribute in ["onload=\"alert(1)\"", "ONCLICK=\"alert(1)\""] {
-            let root = ScratchDir::tagged("svg-handler");
-            let body = format!(
-                r#"<svg xmlns="http://www.w3.org/2000/svg" {attribute}><rect width="4" height="4"/></svg>"#
-            );
-            let zip_path = fixture(
-                &root,
-                "svg-handler",
-                &[Entry::file("images/evil.svg", body)],
-            );
-
-            let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-
-            assert!(
-                error.contains("event handler attribute"),
-                "message was: {error}"
-            );
-        }
-    }
-
-    /// An SVG may only reference itself: embedded web content and links to
-    /// other files are refused, whatever attribute carries the link.
-    #[test]
-    fn an_svg_with_embedded_content_or_an_outside_link_is_refused() {
+    fn an_svg_that_scripts_or_links_outside_itself_is_refused() {
         for (body, expected) in [
+            (
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><SCRIPT>alert(1)</SCRIPT></svg>"#,
+                "<script>",
+            ),
+            (
+                r#"<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><rect width="4" height="4"/></svg>"#,
+                "event handler attribute",
+            ),
+            (
+                r#"<svg xmlns="http://www.w3.org/2000/svg" ONCLICK="alert(1)"><rect width="4" height="4"/></svg>"#,
+                "event handler attribute",
+            ),
+            (
+                r#"<svg xmlns="http://www.w3.org/2000/svg"><rect width="4">"#,
+                "well-formed",
+            ),
+            ("<html><body>hi</body></html>", "not `<svg>`"),
             (
                 r#"<svg xmlns="http://www.w3.org/2000/svg"><foreignObject width="4" height="4"/></svg>"#,
                 "foreignObject",
@@ -2593,12 +2589,17 @@ mod tests {
                 "unknown reference",
             ),
         ] {
-            let root = ScratchDir::tagged("svg-link");
-            let zip_path = fixture(&root, "svg-link", &[Entry::file("images/evil.svg", body)]);
+            let root = ScratchDir::tagged("svg-refused");
+            let zip_path = fixture(
+                &root,
+                "svg-refused",
+                &[Entry::file("images/evil.svg", body)],
+            );
 
             let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
 
-            assert!(error.contains(expected), "message was: {error}");
+            assert!(error.contains("images/evil.svg"), "{body}: {error}");
+            assert!(error.contains(expected), "{body}: {error}");
         }
     }
 
@@ -2637,41 +2638,6 @@ mod tests {
             stage_for_preview(&root, &zip_path, &[]).expect("escaped text must not read as markup");
 
         assert_eq!(preview.file_count, 3);
-    }
-
-    #[test]
-    fn a_malformed_svg_is_refused() {
-        let root = ScratchDir::tagged("svg-malformed");
-        let zip_path = fixture(
-            &root,
-            "svg-malformed",
-            &[Entry::file(
-                "images/broken.svg",
-                r#"<svg xmlns="http://www.w3.org/2000/svg"><rect width="4">"#,
-            )],
-        );
-
-        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-
-        assert!(error.contains("well-formed"), "message was: {error}");
-    }
-
-    /// A non-SVG XML document is not a theme image, whatever it is named.
-    #[test]
-    fn xml_that_is_not_svg_is_refused() {
-        let root = ScratchDir::tagged("not-svg");
-        let zip_path = fixture(
-            &root,
-            "not-svg",
-            &[Entry::file(
-                "images/logo.svg",
-                "<html><body>hi</body></html>",
-            )],
-        );
-
-        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-
-        assert!(error.contains("not `<svg>`"), "message was: {error}");
     }
 
     /// The same stylesheet gate runs here too — a theme cannot smuggle
@@ -2802,96 +2768,64 @@ mod tests {
         }
     }
 
+    /// A package is judged by what it holds before anything is staged: no
+    /// manifest or a malformed one, or a palette that is not the token object
+    /// a theme ships.
     #[test]
-    fn an_unknown_theme_api_is_refused() {
-        let root = ScratchDir::tagged("api");
-        let mut future = manifest();
-        future.theme_api = "3.0".to_string();
-        let zip_path = fixture_with_manifest(&root, "api", &future);
+    fn a_package_that_is_not_a_theme_is_refused() {
+        type Case = (&'static str, fn() -> Vec<Entry>, &'static str);
+        let cases: &[Case] = &[
+            (
+                "no manifest",
+                || vec![Entry::file(TOKENS_FILE, tokens_json())],
+                "not a Tetra theme",
+            ),
+            (
+                "manifest is not json",
+                || {
+                    vec![
+                        Entry::file(MANIFEST_FILE, "{ not json"),
+                        Entry::file(TOKENS_FILE, tokens_json()),
+                    ]
+                },
+                "not a valid manifest",
+            ),
+            (
+                "no palette",
+                || {
+                    vec![Entry::file(
+                        MANIFEST_FILE,
+                        serde_json::to_string(&manifest()).unwrap(),
+                    )]
+                },
+                "MAN-07",
+            ),
+            (
+                "palette is not a token object",
+                || {
+                    vec![
+                        Entry::file(MANIFEST_FILE, serde_json::to_string(&manifest()).unwrap()),
+                        // Valid JSON, no `schemaVersion` — the same rule an
+                        // installed theme's palette is held to.
+                        Entry::file(TOKENS_FILE, r#"{"dark":{}}"#),
+                    ]
+                },
+                "schemaVersion",
+            ),
+        ];
+        for (label, entries, expected) in cases {
+            let root = ScratchDir::tagged("not-a-theme");
+            let package = root.join("not-a-theme.zip");
+            build_zip(&package, &entries());
 
-        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
+            let error = stage_for_preview(&root, &package, &[]).unwrap_err();
 
-        assert!(error.contains("MAN-05"), "message was: {error}");
-    }
-
-    #[test]
-    fn a_minimum_launcher_version_ahead_of_this_build_is_refused() {
-        let root = ScratchDir::tagged("minver");
-        let running = semver::Version::parse(env!("CARGO_PKG_VERSION")).unwrap();
-        let mut future = manifest();
-        future.minimum_launcher_version = format!("{}.0.0", running.major + 1);
-        let zip_path = fixture_with_manifest(&root, "minver", &future);
-
-        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-
-        assert!(error.contains("or newer"), "message was: {error}");
-    }
-
-    #[test]
-    fn a_package_with_no_manifest_is_refused() {
-        let root = ScratchDir::tagged("nomanifest");
-        let zip_path = root.join("nomanifest.zip");
-        build_zip(&zip_path, &[Entry::file(TOKENS_FILE, tokens_json())]);
-
-        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-
-        assert!(error.contains("not a Tetra theme"), "message was: {error}");
-    }
-
-    #[test]
-    fn a_package_with_no_palette_is_refused() {
-        let root = ScratchDir::tagged("nopalette");
-        let zip_path = root.join("nopalette.zip");
-        build_zip(
-            &zip_path,
-            &[Entry::file(
-                MANIFEST_FILE,
-                serde_json::to_string(&manifest()).unwrap(),
-            )],
-        );
-
-        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-
-        assert!(error.contains("MAN-07"), "message was: {error}");
-    }
-
-    #[test]
-    fn a_palette_that_is_not_a_token_object_is_refused() {
-        let root = ScratchDir::tagged("badtokens");
-        let zip_path = root.join("badtokens.zip");
-        build_zip(
-            &zip_path,
-            &[
-                Entry::file(MANIFEST_FILE, serde_json::to_string(&manifest()).unwrap()),
-                // Valid JSON, no `schemaVersion` — the same rule an installed
-                // theme's palette is held to.
-                Entry::file(TOKENS_FILE, r#"{"dark":{}}"#),
-            ],
-        );
-
-        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-
-        assert!(error.contains("schemaVersion"), "message was: {error}");
-    }
-
-    #[test]
-    fn a_manifest_that_is_not_json_is_refused() {
-        let root = ScratchDir::tagged("badmanifest");
-        let zip_path = root.join("badmanifest.zip");
-        build_zip(
-            &zip_path,
-            &[
-                Entry::file(MANIFEST_FILE, "{ not json"),
-                Entry::file(TOKENS_FILE, tokens_json()),
-            ],
-        );
-
-        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-
-        assert!(
-            error.contains("not a valid manifest"),
-            "message was: {error}"
-        );
+            assert!(error.contains(expected), "{label}: {error}");
+            assert!(
+                !root.join(STAGING_DIR).read_dir().unwrap().next().is_some(),
+                "{label}: a refused package must leave no staging directory"
+            );
+        }
     }
 
     #[test]
