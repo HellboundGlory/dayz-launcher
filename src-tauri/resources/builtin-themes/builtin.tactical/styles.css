@@ -217,153 +217,6 @@
   margin: 0;
 }
 
-/* Banners */
-[data-el="notice.update"] {
-  gap: 12px;
-  padding: 6px 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
-  background-color: color-mix(in srgb, var(--accent) 10%, transparent);
-}
-
-[data-el="notice.update"] [data-part="title"] {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--accent);
-}
-
-[data-el="notice.update"] [data-part="message"] {
-  font-size: 11px;
-  color: var(--text);
-}
-
-[data-el="notice.update"] [data-part="update"] {
-  background-color: var(--accent);
-  padding: 2px 10px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--bg);
-}
-
-[data-el="notice.update"] [data-part="update"]:hover {
-  background-color: var(--accent2);
-}
-
-[data-el="notice.update"] [data-part="later"] {
-  padding: 2px 8px;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-[data-el="notice.update"] [data-part="later"]:hover {
-  color: var(--text);
-}
-
-[data-el="notice.storage"] {
-  gap: 8px;
-  padding: 6px 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
-  background-color: color-mix(in srgb, var(--warn) 5%, transparent);
-}
-
-[data-el="notice.storage"] [data-part="tag"] {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: var(--warn);
-}
-
-[data-el="notice.storage"] [data-part="message"] {
-  font-size: 11px;
-  color: var(--text);
-}
-
-[data-el="notice.error"] {
-  gap: 8px;
-  padding: 6px 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
-  background-color: color-mix(in srgb, var(--danger) 5%, transparent);
-}
-
-[data-el="notice.error"] [data-part="tag"] {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: var(--danger);
-}
-
-[data-el="notice.error"] [data-part="message"] {
-  font-size: 11px;
-  color: var(--text);
-}
-
-[data-el="notice.error"] [data-part="dismiss"] {
-  font-size: 10px;
-  color: var(--muted);
-}
-
-[data-el="notice.error"] [data-part="dismiss"]:hover {
-  color: var(--text);
-}
-
-[data-el="notice.launch"] {
-  gap: 8px;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--warn-line);
-  background-color: var(--warn-soft);
-}
-
-[data-el="notice.launch"][data-state~="error"] {
-  border-bottom-color: color-mix(in srgb, var(--danger) 30%, transparent);
-  background-color: color-mix(in srgb, var(--danger) 5%, transparent);
-}
-
-[data-el="notice.launch"] [data-part="tag"] {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: var(--warn);
-}
-
-[data-el="notice.launch"][data-state~="error"] [data-part="tag"] {
-  color: var(--danger);
-}
-
-[data-el="notice.launch"][data-state~="success"] {
-  border-bottom-color: var(--success-line);
-  background-color: var(--success-soft);
-}
-
-[data-el="notice.launch"][data-state~="success"] [data-part="tag"] {
-  color: var(--success);
-}
-
-[data-el="notice.launch"] [data-part="server"] {
-  max-width: 280px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-[data-el="notice.launch"] [data-part="message"] {
-  font-size: 11px;
-  color: var(--muted2);
-}
-
-[data-el="notice.launch"] [data-part="dismiss"] {
-  font-size: 10px;
-  color: var(--muted);
-}
-
-[data-el="notice.launch"] [data-part="dismiss"]:hover {
-  color: var(--text);
-}
-
 /* Filter bar */
 [data-region="r-filterbar"] {
   padding: 6px 12px;
@@ -1183,7 +1036,6 @@
   opacity: 0.6;
 }
 
-/* notice.launch in the browser view reports these instead. */
 .t-row [data-el="server.actionNotice"] {
   display: none;
 }
@@ -2168,14 +2020,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
 [data-el="mods.refresh"] [data-part="icon"] > :first-child {
   width: 12px;
   height: 12px;
-}
-
-[data-el="notice.modsCached"] {
-  border-bottom-color: color-mix(in srgb, var(--warn) 30%, transparent);
-}
-
-[data-el="notice.modsResult"] {
-  background-color: var(--surface);
 }
 
 /* Mods list */

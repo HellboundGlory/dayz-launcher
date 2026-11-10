@@ -107,7 +107,6 @@ const CONTENT: LayoutNode = {
   grow: 1,
   class: "t-neutral-shell-content",
   children: [
-    { element: "notice.update" },
     {
       type: "box",
       landmark: "main",

@@ -21,9 +21,6 @@ export const BROWSER_LAYOUT: LayoutFile = {
           { element: "servers.refresh", class: "t-neutral-browser-refresh" },
         ],
       },
-      { element: "notice.launch" },
-      { element: "notice.storage" },
-      { element: "notice.error" },
       {
         element: "list.servers",
         options: { header: false, rowGap: "listGap" },

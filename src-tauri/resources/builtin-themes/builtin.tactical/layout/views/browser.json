@@ -48,9 +48,6 @@
             "shrink": 0
           },
           {
-            "element": "notice.launch"
-          },
-          {
             "type": "stack",
             "direction": "row",
             "grow": 1,
@@ -407,9 +404,6 @@
               }
             ],
             "shrink": 0
-          },
-          {
-            "element": "notice.launch"
           },
           {
             "type": "stack",

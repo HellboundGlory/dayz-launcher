@@ -32,9 +32,6 @@ export const MODS_LAYOUT: LayoutFile = {
           { element: "mods.refresh" },
         ],
       },
-      { element: "notice.modsError" },
-      { element: "notice.modsCached" },
-      { element: "notice.modsOutdated" },
       {
         type: "stack",
         direction: "row",
@@ -136,7 +133,6 @@ export const MODS_LAYOUT: LayoutFile = {
         direction: "column",
         class: "t-neutral-mods-actionbar",
         children: [
-          { element: "notice.modsResult" },
           {
             type: "stack",
             direction: "row",

@@ -7,6 +7,7 @@ import { DevModeInspector } from "./components/themes-page/dev-mode-inspector";
 import { DevModeValidationPanel } from "./components/themes-page/dev-mode-validation-panel";
 import { ConfirmDialog } from "./components/confirm-dialog";
 import { PasswordDialog } from "./components/password-dialog";
+import { ToastHost } from "./components/toast-host";
 import { AddServerDialog } from "./components/add-server-dialog";
 import { MemoryMapDialog } from "./components/memory-map-dialog";
 import { StartWindow } from "./components/start-window";
@@ -38,8 +39,6 @@ import {
   getActiveLayout,
 } from "./theme/theme-store";
 import { FallbackNotice } from "./theme/fallback/fallback-notice";
-import { NoticeLaunch } from "./theme/elements/notice-elements";
-import { isElementInLayout } from "./theme/layout-query";
 import { IncompatibleThemeNotice } from "./theme/fallback/incompatible-theme-notice";
 import { useVisibilityCheck } from "./theme/fallback/use-visibility-check";
 import {
@@ -209,7 +208,6 @@ export function App() {
   const serverInfoModal = engineLayout<ModalLayoutFile>("layout/modals/serverInfo.json");
   const modFilterModal = engineLayout<ModalLayoutFile>("layout/modals/modFilter.json");
   const updateModal = engineLayout<ModalLayoutFile>("layout/modals/update.json");
-  const browserPlaces = (element: string) => isElementInLayout(browserLayout, element);
   const settingsMode = settingsLayout.presentation?.mode ?? "overlay";
 
   // Runs the visibility check whenever the screen composition changes.
@@ -447,10 +445,7 @@ export function App() {
           <FallbackNotice themeId={activeId} launcherVersion={launcherVersion} />
         )}
         <IncompatibleThemeNotice />
-
-        {/* Rows never show a join result, so a themed shell without the bar still gets one. */}
-        {!isElementInLayout(shellLayout, "notice.launch") &&
-          !browserPlaces("notice.launch") && <NoticeLaunch />}
+        <ToastHost />
 
         <div className="flex min-h-0 flex-1 flex-col">
           <LayoutRenderer

@@ -27,15 +27,6 @@
         ]
       },
       {
-        "element": "notice.modsError"
-      },
-      {
-        "element": "notice.modsCached"
-      },
-      {
-        "element": "notice.modsOutdated"
-      },
-      {
         "type": "stack",
         "id": "r-mods-body",
         "direction": "row",
@@ -239,9 +230,6 @@
             ]
           }
         ]
-      },
-      {
-        "element": "notice.modsResult"
       },
       {
         "type": "stack",

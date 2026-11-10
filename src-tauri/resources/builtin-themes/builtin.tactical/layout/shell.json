@@ -91,15 +91,6 @@
             "shrink": 0
           },
           {
-            "element": "notice.update"
-          },
-          {
-            "element": "notice.error"
-          },
-          {
-            "element": "notice.storage"
-          },
-          {
             "type": "stack",
             "id": "r-main",
             "direction": "row",
@@ -253,15 +244,6 @@
               }
             ],
             "shrink": 0
-          },
-          {
-            "element": "notice.update"
-          },
-          {
-            "element": "notice.error"
-          },
-          {
-            "element": "notice.storage"
           },
           {
             "type": "stack",

@@ -278,10 +278,21 @@
     }
   }
 
+  /* A quick toast's remaining life, drawn as a bar that empties from full width. */
+  @keyframes toast-life {
+    from {
+      transform: scaleX(1);
+    }
+    to {
+      transform: scaleX(0);
+    }
+  }
+
   /* Overlay stacking order; launcher-internal, not theme tokens. */
   :root {
     --z-settings: 30;
     --z-popup: 40;
+    --z-toast: 45;
     --z-modal: 50;
     --z-window-edge: 50;
     --z-dialog: 60;

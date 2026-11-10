@@ -591,9 +591,7 @@
       "where": [
         "app"
       ],
-      "required": [
-        "views+settings"
-      ],
+      "required": [],
       "multiplicity": "perComposition",
       "options": {},
       "freeLabel": false,
@@ -610,9 +608,7 @@
       "where": [
         "app"
       ],
-      "required": [
-        "views+settings"
-      ],
+      "required": [],
       "multiplicity": "perComposition",
       "options": {},
       "freeLabel": false,
@@ -630,9 +626,7 @@
       "where": [
         "mods"
       ],
-      "required": [
-        "view:mods"
-      ],
+      "required": [],
       "multiplicity": "perComposition",
       "options": {},
       "freeLabel": false,
@@ -648,9 +642,7 @@
       "where": [
         "mods"
       ],
-      "required": [
-        "view:mods"
-      ],
+      "required": [],
       "multiplicity": "perComposition",
       "options": {},
       "freeLabel": false,
@@ -666,9 +658,7 @@
       "where": [
         "mods"
       ],
-      "required": [
-        "view:mods"
-      ],
+      "required": [],
       "multiplicity": "perComposition",
       "options": {},
       "freeLabel": false,

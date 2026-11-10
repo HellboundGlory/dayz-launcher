@@ -25,17 +25,7 @@ import {
   StatusServerTotal,
   StatusSteam,
 } from "./status-elements";
-import {
-  NoticeError,
-  NoticeModsCached,
-  NoticeModsError,
-  NoticeModsOutdated,
-  NoticeModsResult,
-  NoticeStorage,
-  NoticeUpdate,
-  NoticeLaunch,
-  ServerActionNotice,
-} from "./notice-elements";
+import { ServerActionNotice } from "./notice-elements";
 import {
   ServerAddress,
   ServerCancel,
@@ -218,22 +208,17 @@ export function ElementHost({
     case "status.activity":
       return <StatusActivity className={mergedClass} style={style} />;
 
+    // The notice elements are still registered so older layouts validate, but the
+    // launcher reports these as toasts now, so a placement draws nothing.
     case "notice.storage":
-      return <NoticeStorage className={mergedClass} style={style} />;
     case "notice.error":
-      return <NoticeError className={mergedClass} style={style} />;
     case "notice.launch":
-      return <NoticeLaunch className={mergedClass} style={style} />;
     case "notice.update":
-      return <NoticeUpdate className={mergedClass} style={style} />;
     case "notice.modsError":
-      return <NoticeModsError className={mergedClass} style={style} />;
     case "notice.modsCached":
-      return <NoticeModsCached className={mergedClass} style={style} />;
     case "notice.modsResult":
-      return <NoticeModsResult className={mergedClass} style={style} />;
     case "notice.modsOutdated":
-      return <NoticeModsOutdated className={mergedClass} style={style} />;
+      return null;
     case "server.actionNotice":
       return <ServerActionNotice className={mergedClass} style={style} />;
     case "server.modDiffers":

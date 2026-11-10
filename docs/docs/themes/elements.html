@@ -76,7 +76,7 @@
 
         <div class="md"><p>Everything here is theme API 2.0, except the elements that say <strong>since 2.1</strong>.</p>
 <p><strong>Kinds</strong></p>
-<div class="table-wrap"><table><thead><tr><th>Kind</th><th>What it is</th></tr></thead><tbody><tr><td><code>display</code></td><td>Read-only content: text, a number, a thumbnail.</td></tr><tr><td><code>input</code></td><td>A control that holds or writes state.</td></tr><tr><td><code>action</code></td><td>A button.</td></tr><tr><td><code>nav</code></td><td>Moves between views, or opens Settings.</td></tr><tr><td><code>notice</code></td><td>A launcher message.</td></tr><tr><td><code>list</code></td><td>A list, its header and its rows.</td></tr><tr><td><code>block</code></td><td>A launcher-owned block, placed whole.</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Kind</th><th>What it is</th></tr></thead><tbody><tr><td><code>display</code></td><td>Read-only content: text, a number, a thumbnail.</td></tr><tr><td><code>input</code></td><td>A control that holds or writes state.</td></tr><tr><td><code>action</code></td><td>A button.</td></tr><tr><td><code>nav</code></td><td>Moves between views, or opens Settings.</td></tr><tr><td><code>notice</code></td><td>A launcher message. Kept so older layouts still validate; a placement renders nothing, because the launcher shows these as toasts.</td></tr><tr><td><code>list</code></td><td>A list, its header and its rows.</td></tr><tr><td><code>block</code></td><td>A launcher-owned block, placed whole.</td></tr></tbody></table></div>
 <p><strong>Where codes</strong></p>
 <div class="table-wrap"><table><thead><tr><th>Code</th><th>Allowed files and positions</th></tr></thead><tbody><tr><td><code>app</code></td><td><code>layout/shell.json</code>, any view file, or <code>layout/settings.json</code>.</td></tr><tr><td><code>browser</code></td><td><code>layout/views/browser.json</code>.</td></tr><tr><td><code>mods</code></td><td><code>layout/views/mods.json</code>.</td></tr><tr><td><code>settings</code></td><td><code>layout/settings.json</code>.</td></tr><tr><td><code>server</code></td><td>Anywhere a server is the subject: a <code>list.servers</code> row, <code>layout/modals/serverInfo.json</code>, a container with <code>&quot;context&quot;: &quot;selection&quot;</code>, or <code>popup.serverActions</code>.</td></tr><tr><td><code>server-panel</code></td><td>Same as <code>server</code>, minus rows.</td></tr><tr><td><code>mod</code></td><td>A <code>list.mods</code> row, or a container with <code>&quot;context&quot;: &quot;modSelection&quot;</code> in <code>layout/views/mods.json</code>.</td></tr><tr><td><code>mod-panel</code></td><td>A container with <code>&quot;context&quot;: &quot;modSelection&quot;</code>, not a row.</td></tr><tr><td><code>serverMod</code></td><td>A <code>list.serverMods</code> row.</td></tr><tr><td><code>modServer</code></td><td>A <code>list.modServers</code> row.</td></tr><tr><td><code>workshopMod</code></td><td>A <code>list.modFilterResults</code> row, or a container with <code>&quot;context&quot;: &quot;modFilterPreview&quot;</code> in <code>layout/modals/modFilter.json</code>.</td></tr><tr><td><code>modFilter</code></td><td><code>layout/modals/modFilter.json</code>.</td></tr><tr><td><code>update</code></td><td><code>layout/modals/update.json</code>.</td></tr><tr><td><code>modal</code></td><td>Any themeable modal file.</td></tr><tr><td><code>selection</code></td><td>A container with <code>&quot;context&quot;: &quot;selection&quot;</code>, not a row or modal.</td></tr><tr><td><code>popup</code></td><td>Any themeable popup file.</td></tr><tr><td><code>popup:&lt;id&gt;</code></td><td>That popup's file, <code>layout/popups/&lt;id&gt;.json</code>.</td></tr></tbody></table></div>
 <p>Placing an element outside the positions its codes allow is an import error.</p>
@@ -207,37 +207,37 @@
 
 <section class="el-group">
   <h2 id="notice"><code>notice</code> Launcher messages</h2>
-  <div class="md"><p>A notice renders only while its condition holds, and the visibility check measures it only while it is showing. Beyond these elements, three more notices are launcher-owned and never placed by a theme: the theme-fallback notice, the incompatible-theme notice and the Activation Safety Window.</p></div>
+  <div class="md"><p>The launcher shows these messages as toasts in the bottom-right corner, so a <code>notice.*</code> placement renders nothing and can be left out. The elements stay registered so a layout written before toasts still validates. Beyond them, three more notices are launcher-owned and never placed by a theme: the theme-fallback notice, the incompatible-theme notice and the Activation Safety Window.</p></div>
   <section class="el" id="el-notice-launch" data-el="notice.launch">
   <h3><code>notice.launch</code> <span class="el-kind">notice</span> <span class="el-since">SINCE 2.1</span></h3>
   <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Parts</dt><dd><code>tag</code>, <code>server</code>, <code>message</code>, <code>dismiss</code> · States: <code>warning</code>, <code>error</code>, <code>refused</code>, <code>success</code></dd></dl>
-  <div class="md el-notes"><p>A bar naming the server last acted on, carrying the same join warning or launch refusal as that server's <code>server.actionNotice</code>. A successful launch never shows here. Dismissing it clears the notice for <code>server.actionNotice</code> too. A list row never shows <code>server.actionNotice</code>; this bar is where a row's join result appears. A shell that places neither gets the bar drawn above it by the launcher.</p></div>
+  <div class="md el-notes"><p>Renders nothing. The launcher shows the server last acted on as a toast, carrying the same join warning or launch refusal as that server's <code>server.actionNotice</code>, named with the server and the code's tooltip. A successful launch never shows one. Closing it clears the notice for <code>server.actionNotice</code> too. A list row never shows <code>server.actionNotice</code>; the toast is where a row's join result appears.</p></div>
 </section>
   <section class="el" id="el-notice-update" data-el="notice.update">
   <h3><code>notice.update</code> <span class="el-kind">notice</span></h3>
   <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Parts</dt><dd><code>title</code>, <code>message</code>, <code>update</code>, <code>later</code></dd></dl>
-  <div class="md el-notes"><p>&quot;Update&quot; opens the update modal; &quot;Later&quot; dismisses the notice for the session. It is optional, because the update modal and Settings also offer updates.</p></div>
+  <div class="md el-notes"><p>Renders nothing. The launcher shows a toast with the version; &quot;Update&quot; opens the update modal and &quot;Later&quot; hides it for the session. The toast is optional, because the update modal and Settings also offer updates.</p></div>
 </section>
   <section class="el" id="el-notice-storage" data-el="notice.storage">
   <h3><code>notice.storage</code> <span class="el-kind">notice</span></h3>
-  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Required in</dt><dd>as <code>views</code>, plus the composition of the shell with Settings</dd><dt>Parts</dt><dd><code>tag</code>, <code>message</code></dd></dl>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Parts</dt><dd><code>tag</code>, <code>message</code></dd></dl>
 </section>
   <section class="el" id="el-notice-error" data-el="notice.error">
   <h3><code>notice.error</code> <span class="el-kind">notice</span></h3>
-  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Required in</dt><dd>as <code>views</code>, plus the composition of the shell with Settings</dd><dt>Parts</dt><dd><code>tag</code>, <code>message</code>, <code>dismiss</code></dd></dl>
+  <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Parts</dt><dd><code>tag</code>, <code>message</code>, <code>dismiss</code></dd></dl>
 </section>
   <section class="el" id="el-notice-modsError" data-el="notice.modsError">
   <h3><code>notice.modsError</code> <span class="el-kind">notice</span></h3>
-  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Required in</dt><dd>the shell + Mods composition</dd><dt>Parts</dt><dd><code>message</code></dd></dl>
+  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Parts</dt><dd><code>message</code></dd></dl>
 </section>
   <section class="el" id="el-notice-modsCached" data-el="notice.modsCached">
   <h3><code>notice.modsCached</code> <span class="el-kind">notice</span></h3>
-  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Required in</dt><dd>the shell + Mods composition</dd><dt>Parts</dt><dd><code>message</code></dd></dl>
+  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Parts</dt><dd><code>message</code></dd></dl>
 </section>
   <section class="el" id="el-notice-modsResult" data-el="notice.modsResult">
   <h3><code>notice.modsResult</code> <span class="el-kind">notice</span></h3>
-  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Required in</dt><dd>the shell + Mods composition</dd><dt>Parts</dt><dd><code>message</code>, <code>dismiss</code> · States: <code>success</code>, <code>failure</code></dd></dl>
-  <div class="md el-notes"><p>Carries the outcome of verify, unsubscribe, clean-up and select-unique.</p></div>
+  <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Parts</dt><dd><code>message</code>, <code>dismiss</code> · States: <code>success</code>, <code>failure</code></dd></dl>
+  <div class="md el-notes"><p>Renders nothing. The launcher shows the outcome of verify, unsubscribe, clean-up and select-unique as a toast that fades after five seconds, or stays while a removal failed.</p></div>
 </section>
   <section class="el" id="el-notice-modsOutdated" data-el="notice.modsOutdated">
   <h3><code>notice.modsOutdated</code> <span class="el-kind">notice</span></h3>
@@ -1250,7 +1250,7 @@
 
         <h2 id="not-placeable">Not placeable</h2>
         <div class="md"><p>These are launcher-owned and never appear in a layout file:</p>
-<ul><li>the window's resize edges;</li><li>the theme-fallback notice, the incompatible-theme notice and the Activation Safety Window;</li><li>Steam required, first-run setup and the splash;</li><li>the confirmation dialog, and the theme import, export and delete dialogs;</li><li>everything inside <code>settings.themeManagement</code>.</li></ul></div>
+<ul><li>the toasts;</li><li>the window's resize edges;</li><li>the theme-fallback notice, the incompatible-theme notice and the Activation Safety Window;</li><li>Steam required, first-run setup and the splash;</li><li>the confirmation dialog, and the theme import, export and delete dialogs;</li><li>everything inside <code>settings.themeManagement</code>.</li></ul></div>
       </main>
     </div>
 

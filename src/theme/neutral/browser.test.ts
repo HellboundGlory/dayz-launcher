@@ -8,7 +8,9 @@ describe("Neutral browser view", () => {
     expectRequiredPlaced("view:browser", BROWSER_LAYOUT);
   });
 
-  it("places the launch notice", () => {
-    expect(isElementInLayout(BROWSER_LAYOUT, "notice.launch")).toBe(true);
+  it("leaves the notices to the toast host", () => {
+    for (const id of ["notice.launch", "notice.storage", "notice.error"]) {
+      expect(isElementInLayout(BROWSER_LAYOUT, id)).toBe(false);
+    }
   });
 });
