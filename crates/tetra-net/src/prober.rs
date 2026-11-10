@@ -215,18 +215,6 @@ impl Prober {
         .await
     }
 
-    /// One A2S_RULES query, subject to the shared concurrency gate, with no
-    /// deadline beyond `with_retries`' own. For a large refresh with its own
-    /// deadline to enforce, prefer [`Self::rules_with_deadline`] instead.
-    pub async fn rules(&self, addr: SocketAddr) -> Result<PackedPayload, NetError> {
-        let _permit = self
-            .permits
-            .acquire()
-            .await
-            .map_err(|_| std::io::Error::from(std::io::ErrorKind::Other))?;
-        self.rules_via_retries(addr).await
-    }
-
     /// One A2S_RULES query, subject to the shared concurrency gate, bounded
     /// by `deadline` measured from when a permit was actually acquired —
     /// **not** from when this was called, so semaphore queue time is never
@@ -318,6 +306,7 @@ async fn probe_info(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_fixtures::{challenge_response, info_response};
     use std::net::Ipv4Addr;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Mutex;
@@ -348,23 +337,6 @@ mod tests {
     fn dead_addr() -> SocketAddr {
         let sock = std::net::UdpSocket::bind("127.0.0.1:0").expect("bind");
         sock.local_addr().expect("local addr")
-    }
-
-    /// A successful A2S_INFO response a fake server can send back.
-    fn info_response() -> Vec<u8> {
-        let mut v = vec![0xff, 0xff, 0xff, 0xff, 0x49, 17];
-        for s in ["Test", "chernarusplus", "dayz", "DayZ"] {
-            v.extend_from_slice(s.as_bytes());
-            v.push(0);
-        }
-        v.extend_from_slice(&1u16.to_le_bytes());
-        v.extend_from_slice(&[0, 60, 0, b'd', b'l', 0, 1]);
-        v.extend_from_slice(b"1.0\0");
-        v
-    }
-
-    fn challenge_response() -> Vec<u8> {
-        vec![0xff, 0xff, 0xff, 0xff, 0x41, 0xde, 0xad, 0xbe, 0xef]
     }
 
     /// Wait until the next `tick` boundary on a clock offset by `offset`.
@@ -948,7 +920,7 @@ mod tests {
     }
 
     /// The pre-launch mod gate must not queue behind bulk probing: with every
-    /// permit held, `rules` can't start, but `rules_unqueued` still must.
+    /// permit held, a bulk rules query can't start, but `rules_unqueued` still must.
     #[tokio::test]
     async fn an_unqueued_rules_query_runs_with_every_permit_held() {
         let prober = Prober::new(impatient(2));
@@ -966,17 +938,23 @@ mod tests {
         );
 
         // The gated variant must genuinely block, or the assertion above proves nothing.
-        let gated = tokio::time::timeout(Duration::from_millis(300), prober.rules(addr));
+        let gated = tokio::time::timeout(
+            Duration::from_millis(300),
+            prober.rules_with_deadline(addr, Duration::from_secs(1)),
+        );
         assert!(
             gated.await.is_err(),
-            "rules must wait for a permit, or the gate is not doing anything"
+            "a gated rules query must wait for a permit, or the gate is not doing anything"
         );
 
         drop(held);
-        let after = tokio::time::timeout(Duration::from_secs(2), prober.rules(addr));
+        let after = tokio::time::timeout(
+            Duration::from_secs(2),
+            prober.rules_with_deadline(addr, Duration::from_secs(1)),
+        );
         assert!(
             after.await.is_ok(),
-            "rules should proceed once a permit frees"
+            "a gated rules query should proceed once a permit frees"
         );
     }
 
@@ -1100,7 +1078,11 @@ mod tests {
         }
 
         let rules_prober = prober.clone();
-        let mut rules = tokio::spawn(async move { rules_prober.rules(dead_addr()).await });
+        let mut rules = tokio::spawn(async move {
+            rules_prober
+                .rules_with_deadline(dead_addr(), Duration::from_secs(1))
+                .await
+        });
         tokio::task::yield_now().await;
 
         drop(held);

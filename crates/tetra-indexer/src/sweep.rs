@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use tetra_core::a2s::dayz::ServerMod;
 use tetra_core::a2s::info::ServerInfo;
 use tetra_net::{offline_marks_suppressed, Prober};
-use tetra_registry::{Registry, RegistryError, ServerKey, ServerRow, Writer};
+use tetra_registry::{Registry, RegistryError, ServerKey, ServerRow, Writer, ANSWERED_WITHIN_SECS};
 use tokio::task::JoinSet;
 
 #[derive(Debug)]
@@ -53,9 +53,6 @@ const RULES_DEADLINE: Duration = Duration::from_secs(8);
 /// the full TTL.
 const RULES_RETRY_SECS: i64 = 30 * 60;
 
-/// Steam listings older than this are not worth an A2S_INFO probe.
-const INFO_SEEN_WITHIN_SECS: i64 = 86_400;
-
 #[derive(Debug, Default)]
 pub struct InfoStats {
     pub probed: usize,
@@ -97,7 +94,7 @@ pub async fn info(
     let registry = Arc::clone(registry);
     let targets: Vec<ServerKey> = tokio::task::spawn_blocking(move || {
         let reader = registry.reader()?;
-        let fresh = reader.info_targets(batch, INFO_SEEN_WITHIN_SECS)?;
+        let fresh = reader.info_targets(batch, ANSWERED_WITHIN_SECS)?;
         let stale = reader.unresolved(batch / 4, RESOLVE_RETRY_AFTER_SECS)?;
         let mut seen: HashSet<ServerKey> = HashSet::with_capacity(fresh.len() + stale.len());
         let mut keys = Vec::with_capacity(fresh.len() + stale.len());

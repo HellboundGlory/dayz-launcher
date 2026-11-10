@@ -14,6 +14,8 @@ pub mod ping;
 pub mod prober;
 pub mod query;
 pub mod retry;
+#[cfg(test)]
+pub(crate) mod test_fixtures;
 
 pub use config::{ProbeConfig, MAX_IN_FLIGHT, MAX_IN_FLIGHT_CEILING};
 pub use corroboration::offline_marks_suppressed;

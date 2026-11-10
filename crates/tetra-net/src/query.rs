@@ -182,23 +182,7 @@ pub async fn query_rules(addr: SocketAddr, timeout: Duration) -> Result<PackedPa
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// A successful A2S_INFO response.
-    fn info_response() -> Vec<u8> {
-        let mut v = vec![0xff, 0xff, 0xff, 0xff, 0x49, 17];
-        for s in ["Test", "chernarusplus", "dayz", "DayZ"] {
-            v.extend_from_slice(s.as_bytes());
-            v.push(0);
-        }
-        v.extend_from_slice(&1u16.to_le_bytes());
-        v.extend_from_slice(&[0, 60, 0, b'd', b'l', 0, 1]);
-        v.extend_from_slice(b"1.0\0");
-        v
-    }
-
-    fn challenge_response() -> Vec<u8> {
-        vec![0xff, 0xff, 0xff, 0xff, 0x41, 0xde, 0xad, 0xbe, 0xef]
-    }
+    use crate::test_fixtures::{challenge_response, info_response};
 
     /// The challenge round trip is the server's cost of answering, not the
     /// trip being measured, so it must not land in `reply_time`.

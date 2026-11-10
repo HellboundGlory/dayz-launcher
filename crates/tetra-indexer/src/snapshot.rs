@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tetra_core::classify::names::is_default_name;
 use tetra_index::{ServerEntry, Snapshot, FORMAT_VERSION};
-use tetra_registry::{ExportRow, Registry, RegistryError};
+use tetra_registry::{ExportRow, Registry, RegistryError, ANSWERED_WITHIN_SECS};
 use tokio::sync::watch;
 
 #[derive(Debug)]
@@ -38,9 +38,6 @@ impl From<RegistryError> for BuildError {
 /// Floor on time between rebuilds. Every write cycle asks for a rebuild,
 /// and a rebuild is a full table scan serialised and gzipped in one pass.
 const MIN_INTERVAL: Duration = Duration::from_secs(30);
-
-/// Servers that have not answered for longer than this are left out of the served index.
-const EXPORT_MAX_SILENCE_SECS: i64 = 86_400;
 
 /// Rebuild whenever a write cycle says something changed, no more often than
 /// [`MIN_INTERVAL`].
@@ -107,7 +104,7 @@ fn build(registry: &Registry) -> Result<Bodies, BuildError> {
     let mut with_mods = 0usize;
     let mut populated = 0usize;
 
-    let served_since = generated_at - EXPORT_MAX_SILENCE_SECS;
+    let served_since = generated_at - ANSWERED_WITHIN_SECS;
     for row in export.rows {
         let answered_lately = row.last_responded.is_some_and(|at| at >= served_since);
         if !answered_lately || is_default_name(&row.name) {
@@ -205,7 +202,7 @@ mod tests {
             .writer()
             .upsert_servers(vec![
                 answered(1, "Survivor Haven", 3600),
-                answered(2, "Survivor Haven", EXPORT_MAX_SILENCE_SECS + 3600),
+                answered(2, "Survivor Haven", ANSWERED_WITHIN_SECS + 3600),
                 answered(3, "EXAMPLE NAME", 3600),
             ])
             .await

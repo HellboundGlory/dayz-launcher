@@ -1,9 +1,8 @@
 use crate::error::RegistryError;
 use crate::facets::{self, Facet, Facets, Suggestion};
-use crate::filter::{
-    self, ServerFilter, ServerListRow, SortDir, SortKey, ANSWERED_WITHIN_SECS, SERVER_LIST_COLUMNS,
-};
+use crate::filter::{self, ServerFilter, ServerListRow, SortDir, SortKey, SERVER_LIST_COLUMNS};
 use crate::rows::{Export, ExportRow, ServerKey, WorkshopCacheRow};
+use crate::ANSWERED_WITHIN_SECS;
 use rusqlite::{params, Connection};
 use std::net::Ipv4Addr;
 use std::str::FromStr;

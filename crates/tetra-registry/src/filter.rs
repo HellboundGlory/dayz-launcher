@@ -30,8 +30,7 @@ pub enum TimeOfDay {
     Night,
 }
 
-/// How recently a server must have answered to be listed, unless it is a favourite or was played.
-pub(crate) const ANSWERED_WITHIN_SECS: i64 = 86_400;
+use crate::ANSWERED_WITHIN_SECS;
 
 #[derive(Debug, Clone, Default)]
 pub struct ServerFilter {

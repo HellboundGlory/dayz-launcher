@@ -24,6 +24,9 @@ use rusqlite::Connection;
 use std::path::Path;
 use tokio::sync::mpsc;
 
+/// How recently a server must have answered to count as live.
+pub const ANSWERED_WITHIN_SECS: i64 = 86_400;
+
 pub struct Registry {
     uri: String,
     writer: Writer,

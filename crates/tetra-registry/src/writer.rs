@@ -319,8 +319,8 @@ ON CONFLICT(ip, query_port) DO UPDATE SET
                           ELSE servers.country_order END
 "#;
 
-/// Removes a server's mod rows. The schema declares no foreign key, so deleting
-/// a `servers` row does not cascade.
+/// Replaces a server's mod rows; deleting the server itself is handled by the
+/// `servers_drop_mods` trigger.
 const DELETE_SERVER_MODS: &str = "DELETE FROM server_mods WHERE ip = ?1 AND query_port = ?2";
 
 const SELECT_VERSION: &str = "SELECT version FROM servers WHERE ip = ?1 AND query_port = ?2";
@@ -352,7 +352,6 @@ fn upsert_servers(
     let mut n = 0;
     {
         let mut stmt = tx.prepare_cached(UPSERT_SERVER)?;
-        let mut drop_mods = tx.prepare_cached(DELETE_SERVER_MODS)?;
         let mut drop_fake = tx.prepare_cached(DELETE_SERVER)?;
         let mut select_version = tx.prepare_cached(SELECT_VERSION)?;
         for row in rows {
@@ -360,7 +359,6 @@ fn upsert_servers(
             // has to know about them. A row that starts lying after it was
             // stored honestly is deleted rather than left behind.
             if is_fake_listing(&row.name, row.players, row.max_players, row.bots) {
-                drop_mods.execute(params![row.key.ip.to_string(), row.key.query_port])?;
                 drop_fake.execute(params![row.key.ip.to_string(), row.key.query_port])?;
                 continue;
             }
@@ -534,18 +532,13 @@ fn mark_played(conn: &Connection, key: ServerKey) -> Result<usize, RegistryError
 }
 
 fn set_online(conn: &Connection, keys: &[ServerKey], online: bool) -> Result<(), RegistryError> {
-    let tx = conn.unchecked_transaction()?;
-    {
-        let mut stmt = tx.prepare_cached(
-            "UPDATE servers SET online = ?3
-             WHERE ip = ?1 AND query_port = ?2 AND online != ?3",
-        )?;
-        for key in keys {
-            stmt.execute(params![key.ip.to_string(), key.query_port, online])?;
-        }
-    }
-    tx.commit()?;
-    Ok(())
+    for_each_key(
+        conn,
+        "UPDATE servers SET online = ?3
+         WHERE ip = ?1 AND query_port = ?2 AND online != ?3",
+        keys,
+        |stmt, key| stmt.execute(params![key.ip.to_string(), key.query_port, online]),
+    )
 }
 
 fn set_offline_unless_answered_since(
@@ -553,19 +546,14 @@ fn set_offline_unless_answered_since(
     keys: &[ServerKey],
     cutoff: i64,
 ) -> Result<(), RegistryError> {
-    let tx = conn.unchecked_transaction()?;
-    {
-        let mut stmt = tx.prepare_cached(
-            "UPDATE servers SET online = 0
-             WHERE ip = ?1 AND query_port = ?2 AND online != 0
-               AND (last_responded IS NULL OR last_responded < ?3)",
-        )?;
-        for key in keys {
-            stmt.execute(params![key.ip.to_string(), key.query_port, cutoff])?;
-        }
-    }
-    tx.commit()?;
-    Ok(())
+    for_each_key(
+        conn,
+        "UPDATE servers SET online = 0
+         WHERE ip = ?1 AND query_port = ?2 AND online != 0
+           AND (last_responded IS NULL OR last_responded < ?3)",
+        keys,
+        |stmt, key| stmt.execute(params![key.ip.to_string(), key.query_port, cutoff]),
+    )
 }
 
 fn mark_unlisted_offline(
@@ -615,18 +603,13 @@ fn mark_unlisted_offline(
 }
 
 fn mark_probe_attempt(conn: &Connection, keys: &[ServerKey]) -> Result<(), RegistryError> {
-    let tx = conn.unchecked_transaction()?;
-    {
-        let mut stmt = tx.prepare_cached(
-            "UPDATE servers SET last_probe_attempt = unixepoch()
-             WHERE ip = ?1 AND query_port = ?2",
-        )?;
-        for key in keys {
-            stmt.execute(params![key.ip.to_string(), key.query_port])?;
-        }
-    }
-    tx.commit()?;
-    Ok(())
+    for_each_key(
+        conn,
+        "UPDATE servers SET last_probe_attempt = unixepoch()
+         WHERE ip = ?1 AND query_port = ?2",
+        keys,
+        |stmt, key| stmt.execute(params![key.ip.to_string(), key.query_port]),
+    )
 }
 
 fn mark_rules_unanswered(
@@ -634,15 +617,28 @@ fn mark_rules_unanswered(
     keys: &[ServerKey],
     stamp: i64,
 ) -> Result<(), RegistryError> {
+    for_each_key(
+        conn,
+        "UPDATE servers SET mods_updated_at = ?3
+         WHERE ip = ?1 AND query_port = ?2
+           AND (mods_updated_at IS NULL OR mods_updated_at < ?3)",
+        keys,
+        |stmt, key| stmt.execute(params![key.ip.to_string(), key.query_port, stamp]),
+    )
+}
+
+/// Run one prepared statement per key inside one transaction.
+fn for_each_key(
+    conn: &Connection,
+    sql: &str,
+    keys: &[ServerKey],
+    bind: impl Fn(&mut rusqlite::Statement<'_>, &ServerKey) -> rusqlite::Result<usize>,
+) -> Result<(), RegistryError> {
     let tx = conn.unchecked_transaction()?;
     {
-        let mut stmt = tx.prepare_cached(
-            "UPDATE servers SET mods_updated_at = ?3
-             WHERE ip = ?1 AND query_port = ?2
-               AND (mods_updated_at IS NULL OR mods_updated_at < ?3)",
-        )?;
+        let mut stmt = tx.prepare_cached(sql)?;
         for key in keys {
-            stmt.execute(params![key.ip.to_string(), key.query_port, stamp])?;
+            bind(&mut stmt, key)?;
         }
     }
     tx.commit()?;

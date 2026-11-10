@@ -4,7 +4,7 @@ use std::net::Ipv4Addr;
 use tetra_core::classify::country_table::country_order;
 use tetra_core::classify::geoip::country_code;
 
-pub const LATEST_VERSION: u32 = 9;
+pub const LATEST_VERSION: u32 = 10;
 
 struct Migration {
     version: u32,
@@ -47,6 +47,10 @@ const MIGRATIONS: &[Migration] = &[
     Migration {
         version: 9,
         sql: V9,
+    },
+    Migration {
+        version: 10,
+        sql: V10,
     },
 ];
 
@@ -221,6 +225,17 @@ ALTER TABLE servers ADD COLUMN country_order INTEGER;
 UPDATE servers SET country_code = NULL;
 "#;
 
+/// `server_mods` declares no foreign key, so a deleted server's mods are dropped
+/// by trigger, after clearing the ones older versions left behind.
+const V10: &str = r#"
+DELETE FROM server_mods WHERE NOT EXISTS
+    (SELECT 1 FROM servers s WHERE s.ip = server_mods.ip AND s.query_port = server_mods.query_port);
+CREATE TRIGGER servers_drop_mods AFTER DELETE ON servers
+BEGIN
+    DELETE FROM server_mods WHERE ip = OLD.ip AND query_port = OLD.query_port;
+END;
+"#;
+
 /// How long a server may go unresponsive, in days, before it's pruned —
 /// unless the user has favourited or played it. See [`prune_stale`].
 pub const PRUNE_AFTER_DAYS: i64 = 60;
@@ -242,14 +257,6 @@ pub fn prune_stale(conn: &Connection) -> Result<usize, RegistryError> {
         &format!("DELETE FROM servers WHERE {CUTOFF_PREDICATE}"),
         [cutoff_secs],
     )?;
-    if deleted > 0 {
-        // Mods whose server row is gone, including the ones just pruned; nothing else removes them.
-        tx.execute(
-            "DELETE FROM server_mods WHERE NOT EXISTS \
-             (SELECT 1 FROM servers s WHERE s.ip = server_mods.ip AND s.query_port = server_mods.query_port)",
-            [],
-        )?;
-    }
     tx.commit()?;
 
     if deleted > 0 {
@@ -411,16 +418,10 @@ mod tests {
     }
 
     #[test]
-    fn prune_stale_sweeps_mods_of_removed_and_orphaned_servers() {
+    fn deleting_a_server_drops_its_mods() {
         // `server_mods` has no `FOREIGN KEY` on (ip, query_port) — nothing
         // cascades this for free.
         let conn = fresh_conn();
-        conn.execute(
-            "INSERT INTO server_mods (ip, query_port, ordinal, workshop_id, name)
-             VALUES ('9.9.9.9', 2302, 0, 1559212036, 'Orphan')",
-            [],
-        )
-        .unwrap();
         insert_server(&conn, 0, Some(61), false, None);
         conn.execute(
             "INSERT INTO server_mods (ip, query_port, ordinal, workshop_id, name)
@@ -437,19 +438,20 @@ mod tests {
     }
 
     #[test]
-    fn prune_stale_leaves_orphaned_mods_when_it_deletes_no_server() {
+    fn upgrading_drops_mods_an_older_version_left_without_a_server() {
         let conn = fresh_conn();
-        conn.execute(
-            "INSERT INTO server_mods (ip, query_port, ordinal, workshop_id, name)
-             VALUES ('9.9.9.9', 2302, 0, 1559212036, 'Orphan')",
-            [],
+        conn.execute_batch(
+            "DROP TRIGGER servers_drop_mods;
+             PRAGMA user_version = 9;
+             INSERT INTO server_mods (ip, query_port, ordinal, workshop_id, name)
+             VALUES ('9.9.9.9', 2302, 0, 1559212036, 'Orphan');",
         )
         .unwrap();
-        insert_server(&conn, 0, Some(10), false, None);
-        assert_eq!(prune_stale(&conn).unwrap(), 0);
+
+        migrate(&conn).unwrap();
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM server_mods", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(count, 1);
+        assert_eq!(count, 0);
     }
 }
