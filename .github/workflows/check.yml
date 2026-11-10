@@ -1,9 +1,11 @@
 name: Check
 
 # docs/ changes can't affect the Rust workspace or the frontend (mirrors pages.yml's docs/** scope).
+# A branch push no longer starts a run: its pull request already does, on the same commit, and
+# release tags run it through release.yml without a second copy.
 on:
   push:
-    branches: ["**"]
+    branches: ["main"]
     paths-ignore:
       - "docs/**"
   pull_request:
@@ -65,7 +67,7 @@ jobs:
       # The browser binaries are cached; the OS packages they need are not.
       - name: Install headless Chromium
         if: steps.playwright.outputs.cache-hit != 'true'
-        run: npx playwright-core install --with-deps chromium-headless-shell
+        run: npx playwright-core install chromium-headless-shell
 
       - name: Save Playwright browsers
         if: steps.playwright.outputs.cache-hit != 'true'
@@ -74,9 +76,12 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
 
+      # A runner image may already carry the packages, so probe first and only
+      # pay the apt round when the probe reports one missing.
       - name: Install Chromium system dependencies
-        if: steps.playwright.outputs.cache-hit == 'true'
-        run: npx playwright-core install-deps chromium-headless-shell
+        run: |
+          npx playwright-core install-deps --dry-run chromium-headless-shell \
+            || npx playwright-core install-deps chromium-headless-shell
 
       - name: UI harness smoke
         run: npm run harness:smoke
@@ -141,8 +146,12 @@ jobs:
       - name: Install Rust
         run: rustup toolchain install
 
+      # The same key as the check job's Rust cache: this build only needs the
+      # registry and git deps back, and its profile differs from that job's.
       - name: Rust cache
         uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: ${{ runner.os }}-release
 
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

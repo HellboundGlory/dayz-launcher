@@ -6,7 +6,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const OUT = resolve(ROOT, "docs/docs/themes/elements.html");
+const THEMES = resolve(ROOT, "docs/docs/themes");
 
 const WHERE = {
   app: "the shell, any view, or Settings",
@@ -295,67 +295,179 @@ function groupTitle(prefix, notes) {
   return title ? title[0].toUpperCase() + title.slice(1) : prefix;
 }
 
-function sidebar(prefixes, notes) {
-  const groups = prefixes
-    .map(
-      (prefix) =>
-        `<li><a href="#${prefix}"><code>${escapeHtml(prefix)}</code> ${escapeHtml(groupTitle(prefix, notes))}</a></li>`,
-    )
-    .join("\n            ");
-  const sections = ["surfaces", "lists", "modals", "popups", "icons"]
-    .map((key) => `<li><a href="#${key}">${SECTION_LABELS[key]}</a></li>`)
-    .join("\n            ");
-  return `<h2>Guide</h2>
+/** The cross-page links, shared so a new one is a single edit. */
+const GUIDE_PAGE = ["/docs/themes/", "Making a theme"];
+const REFERENCE_PAGES = [
+  ["/docs/themes/elements", "Elements"],
+  ["/docs/themes/reference", "Manifest, tokens and rules"],
+  ["/docs/themes/changelog", "Theme changes"],
+];
+
+/** The guide's sections, as the reference page links back to them. */
+const GUIDE_SECTIONS = [
+  ["overview", "What a theme can change"],
+  ["recolour", "Recolour without code"],
+  ["first-theme", "Your first theme"],
+  ["package", "The package"],
+  ["tokens", "Colours and tokens"],
+  ["css", "Styling with CSS"],
+  ["layout", "Custom layouts"],
+  ["settings", "Theme settings"],
+  ["checking", "Checking your work"],
+  ["limits", "Limits"],
+];
+
+/** The reference page's own sections, between the links to the guide and the changelog. */
+const REFERENCE_SECTIONS = [
+  ["#manifest", "Manifest"],
+  ["#capabilities", "Capabilities"],
+  ["#package", "Package files and limits"],
+  ["#tokens", "Tokens"],
+  ["#layout", "Layout nodes"],
+  ["#lists", "List files"],
+  ["#css", "CSS API"],
+  ["#settings", "Theme settings"],
+  ["#validation", "Validation rules"],
+  ["#icons", "Icons"],
+];
+
+const CHANGELOG_SECTIONS = [
+  ["#v3-1-0", "3.1.0: check your theme"],
+  ["#v3-1-0-new", "3.1.0: new and fixed"],
+  ["#v3-0-0", "3.0.0: check your theme"],
+  ["#v3-0-0-new", "3.0.0: new and fixed"],
+];
+
+function navGroup(title, items) {
+  const links = items.map(([href, label]) => `<li><a href="${href}">${label}</a></li>`).join("\n            ");
+  return `<h2>${title}</h2>
           <ol>
-            <li><a href="/docs/themes/">Making a theme</a></li>
-          </ol>
-          <h2>Reference</h2>
-          <ol>
-            ${groups}
-            ${sections}
-            <li><a href="/docs/themes/reference">Manifest, tokens and rules</a></li>
-            <li><a href="/docs/themes/changelog">Theme changes</a></li>
+            ${links}
           </ol>`;
 }
 
-const PAGE_SCRIPT = [
-  '      if (matchMedia("(max-width: 900px)").matches) {',
-  '        document.querySelector(".docs-nav details").open = false;',
-  "      }",
-  "",
-  '      const links = [...document.querySelectorAll(\'.docs-nav a[href^="#"]\')];',
-  '      const byId = new Map(links.map((a) => [a.getAttribute("href").slice(1), a]));',
-  "      const spy = new IntersectionObserver(",
-  "        (entries) => {",
-  "          for (const entry of entries) {",
-  "            if (!entry.isIntersecting) continue;",
-  '            for (const a of links) a.removeAttribute("aria-current");',
-  '            byId.get(entry.target.id)?.setAttribute("aria-current", "true");',
-  "          }",
-  "        },",
-  '        { rootMargin: "-80px 0px -70% 0px" },',
-  "      );",
-  "      for (const id of byId.keys()) {",
-  "        const heading = document.getElementById(id);",
-  "        if (heading) spy.observe(heading);",
-  "      }",
-  "",
-  '      const search = document.getElementById("el-search");',
-  '      const entries = [...document.querySelectorAll("section.el[data-el]")];',
-  '      const groups = [...document.querySelectorAll("section.el-group")];',
-  '      const noMatch = document.querySelector(".el-search-empty");',
-  '      search.addEventListener("input", () => {',
-  "        const query = search.value.trim().toLowerCase();",
-  "        let shown = 0;",
-  "        for (const entry of entries) {",
-  "          const hit = !query || entry.dataset.el.includes(query);",
-  "          entry.hidden = !hit;",
-  "          if (hit) shown += 1;",
-  "        }",
-  '        for (const group of groups) group.hidden = Boolean(query) && !group.querySelector("section.el[data-el]:not([hidden])");',
-  "        noMatch.hidden = shown > 0;",
-  "      });",
-].join("\n");
+function sidebar(prefixes, notes) {
+  const groups = prefixes.map((prefix) => [
+    `#${prefix}`,
+    `<code>${escapeHtml(prefix)}</code> ${escapeHtml(groupTitle(prefix, notes))}`,
+  ]);
+  const sections = ["surfaces", "lists", "modals", "popups", "icons"].map((key) => [`#${key}`, SECTION_LABELS[key]]);
+  return [
+    navGroup("Guide", [GUIDE_PAGE]),
+    navGroup("Reference", [...groups, ...sections, REFERENCE_PAGES[1], REFERENCE_PAGES[2]]),
+  ];
+}
+
+/** Each page's sidebar, from the shared link lists and that page's own headings. */
+const NAV = {
+  index: [
+    navGroup("Guide", GUIDE_SECTIONS.map(([id, label]) => [`#${id}`, label])),
+    navGroup("Reference", REFERENCE_PAGES),
+  ],
+  reference: [
+    navGroup(
+      "Guide",
+      GUIDE_SECTIONS.filter(([id]) => id !== "recolour").map(([id, label]) => [`/docs/themes/#${id}`, label]),
+    ),
+    navGroup("Reference", [REFERENCE_PAGES[0], ...REFERENCE_SECTIONS, REFERENCE_PAGES[2]]),
+  ],
+  changelog: [
+    navGroup("Guide", [GUIDE_PAGE]),
+    navGroup("Reference", REFERENCE_PAGES.slice(0, 2)),
+    navGroup("Theme changes", CHANGELOG_SECTIONS),
+  ],
+};
+
+/** One page shell: the head, header, sidebar and footer every theme page shares. */
+function renderPage({ title, description, nav, main, scripts = [] }) {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${title}</title>
+    <meta
+      name="description"
+      content="${description}"
+    />
+    <link rel="icon" href="../../assets/tetra-logo.png" />
+    <link rel="stylesheet" href="../../style-v2.css" />
+    <link rel="stylesheet" href="../../docs.css" />
+  </head>
+  <body>
+    <header class="site-nav">
+      <div class="container">
+        <a class="brand" href="/">
+          <img src="../../assets/tetra-logo.png" alt="" />
+          <span><span class="tetra">TETRA</span> <span class="launcher">LAUNCHER</span></span>
+        </a>
+        <nav class="links">
+          <a href="/">Home</a>
+          <a href="/download">Download</a>
+          <a href="/docs/themes/" class="active">Themes</a>
+          <a href="https://github.com/HellboundGlory/dayz-launcher">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <div class="docs">
+      <aside class="docs-nav" aria-label="Theme docs">
+        <details open>
+          <summary>On this page</summary>
+          ${nav.join("\n          ")}
+        </details>
+      </aside>
+
+      <main class="prose">
+${main}
+      </main>
+    </div>
+
+    <footer>
+      <div class="container">
+        <p>
+          TETRA LAUNCHER — free and source-available.
+          <a href="https://github.com/HellboundGlory/dayz-launcher">Source on GitHub</a>.
+          Not affiliated with Bohemia Interactive.
+        </p>
+      </div>
+    </footer>
+
+    <script src="docs.js"></script>${scripts.map((src) => `\n    <script src="${src}"></script>`).join("")}
+  </body>
+</html>
+`;
+}
+
+const MAIN = /<main class="prose">\n([\s\S]*?)\n      <\/main>/;
+
+/** The body of a page, so its hand-written content survives a re-wrap in the shared shell. */
+export function pageMain(html) {
+  const match = MAIN.exec(html);
+  if (!match) throw new Error('no <main class="prose"> body to wrap');
+  return match[1];
+}
+
+/** The three hand-written pages: their own text, wrapped in the shell on every run. */
+const HAND_PAGES = [
+  {
+    file: "index",
+    title: "Making a theme — Tetra Launcher",
+    description:
+      "How to build a Tetra Launcher theme: palettes, CSS, custom layouts and theme settings, with the rules the launcher checks.",
+  },
+  {
+    file: "reference",
+    title: "Theme reference — Tetra Launcher",
+    description:
+      "Lookup reference for Tetra Launcher themes: every manifest field, capability, token, layout node, list key, CSS rule and validation code.",
+  },
+  {
+    file: "changelog",
+    title: "Theme changes — Tetra Launcher",
+    description: "What changed for Tetra Launcher theme authors in each release, and what to do about it.",
+  },
+];
 
 export function renderElementsPage(registry, notes) {
   const prefixes = groupPrefixes(registry, notes);
@@ -389,46 +501,12 @@ export function renderElementsPage(registry, notes) {
     .map(([id, popup]) => `  ${popupEntry(id, popup)}`)
     .join("\n");
 
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Element reference — Tetra Launcher</title>
-    <meta
-      name="description"
-      content="Every element a Tetra Launcher theme can place: where it goes, whether it is required, and its options, parts and states."
-    />
-    <link rel="icon" href="../../assets/tetra-logo.png" />
-    <link rel="stylesheet" href="../../style-v2.css" />
-    <link rel="stylesheet" href="../../docs.css" />
-  </head>
-  <body>
-    <header class="site-nav">
-      <div class="container">
-        <a class="brand" href="/">
-          <img src="../../assets/tetra-logo.png" alt="" />
-          <span><span class="tetra">TETRA</span> <span class="launcher">LAUNCHER</span></span>
-        </a>
-        <nav class="links">
-          <a href="/">Home</a>
-          <a href="/download">Download</a>
-          <a href="/docs/themes/" class="active">Themes</a>
-          <a href="https://github.com/HellboundGlory/dayz-launcher">GitHub</a>
-        </nav>
-      </div>
-    </header>
-
-    <div class="docs">
-      <aside class="docs-nav" aria-label="Theme docs">
-        <details open>
-          <summary>On this page</summary>
-          ${sidebar(prefixes, notes)}
-        </details>
-      </aside>
-
-      <main class="prose">
-        <h1>Element reference</h1>
+  return renderPage({
+    title: "Element reference — Tetra Launcher",
+    description:
+      "Every element a Tetra Launcher theme can place: where it goes, whether it is required, and its options, parts and states.",
+    nav: sidebar(prefixes, notes),
+    main: `        <h1>Element reference</h1>
         <p class="lede">
           Every element a v2 theme can place, with the conditions the launcher checks
           before it accepts it.
@@ -471,36 +549,28 @@ ${popups}
         <p>${chipLine(registry.icons)}</p>
 
         <h2 id="${nonPlaceable.id}">${SECTION_LABELS[nonPlaceable.note]}</h2>
-        <div class="md">${renderMarkdown(notes.sections[nonPlaceable.note])}</div>
-      </main>
-    </div>
-
-    <footer>
-      <div class="container">
-        <p>
-          TETRA LAUNCHER — free and source-available.
-          <a href="https://github.com/HellboundGlory/dayz-launcher">Source on GitHub</a>.
-          Not affiliated with Bohemia Interactive.
-        </p>
-      </div>
-    </footer>
-
-    <script>
-${PAGE_SCRIPT}
-    </script>
-  </body>
-</html>
-`;
+        <div class="md">${renderMarkdown(notes.sections[nonPlaceable.note])}</div>`,
+    scripts: ["elements.js"],
+  });
 }
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
+/** A hand-written theme page wrapped in the shared docs shell. */
+export function renderHandPage({ file, title, description }, body) {
+  return renderPage({ title, description, nav: NAV[file], main: body });
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const registry = readJson(resolve(ROOT, "src/theme/registry.json"));
   const notes = readJson(resolve(ROOT, "tools/docs/element-notes.json"));
-  mkdirSync(dirname(OUT), { recursive: true });
-  writeFileSync(OUT, renderElementsPage(registry, notes));
-  process.stdout.write(`Wrote ${OUT}\n`);
+  mkdirSync(THEMES, { recursive: true });
+  writeFileSync(resolve(THEMES, "elements.html"), renderElementsPage(registry, notes));
+  for (const page of HAND_PAGES) {
+    const path = resolve(THEMES, `${page.file}.html`);
+    writeFileSync(path, renderHandPage(page, pageMain(readFileSync(path, "utf8"))));
+  }
+  process.stdout.write(`Wrote the theme docs to ${THEMES}\n`);
 }

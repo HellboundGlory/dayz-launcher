@@ -31,8 +31,12 @@ jobs:
       - name: Install Rust
         run: rustup toolchain install
 
+      # One key per OS across jobs: the registry and git deps do not depend on the
+      # build profile, so the release builds can restore what this job resolved.
       - name: Rust cache
         uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: ${{ runner.os }}
 
       - name: Format
         if: runner.os == 'Linux'

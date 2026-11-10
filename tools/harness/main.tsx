@@ -58,6 +58,7 @@ const LAYOUTS = [
   "layout/lists/modServers.json",
   "layout/lists/modFilterResults.json",
   "layout/popups/mapFilter.json",
+  "layout/popups/filterMenu.json",
   "layout/popups/modsUnique.json",
   "layout/popups/modsUnsubscribe.json",
   "layout/popups/modsVerify.json",

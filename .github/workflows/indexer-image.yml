@@ -38,13 +38,26 @@ jobs:
             prev=$(git describe --tags --abbrev=0 --match 'v*' "${GITHUB_SHA}^" 2>/dev/null || true)
             if [[ -n "$prev" ]]; then
               build=false
-              paths=$(cargo metadata --format-version 1 --no-deps | jq -r '
+              metadata=$(cargo metadata --format-version 1 --no-deps)
+              # --no-deps lists workspace members only, so a path dependency from outside the
+              # workspace is absent from it and the walk would drop it without a word.
+              graph_filter='
                 .packages as $p
                 | def direct($n): [$p[] | select(.name == $n) | .dependencies[] | select(.path != null and .kind != "dev") | .name];
                 def closure($set): ($set + [$set[] | direct(.)[]] | unique) as $next
                                    | if $next == $set then $set else closure($next) end;
-                closure(["tetra-indexer"])[] as $n | $p[] | select(.name == $n) | .manifest_path | sub("/Cargo.toml$"; "")' \
-                | sed "s|^$PWD/||")
+                closure(["tetra-indexer"])[] as $n
+                | [$p[] | select(.name == $n) | .manifest_path | sub("/Cargo.toml$"; "")] as $found
+                | if ($found | length) == 0 then "missing\t\($n)" else "path\t\($found[])" end'
+              graph=$(jq -r "$graph_filter" <<<"$metadata")
+              unlisted=$(awk -F'\t' '$1 == "missing" { print $2 }' <<<"$graph")
+              if [[ -n "$unlisted" ]]; then
+                echo "tetra-indexer depends on path crates that are not workspace members:" >&2
+                echo "$unlisted" | sed 's/^/  - /' >&2
+                echo "A change to one of them would not rebuild the image. Add it to the workspace." >&2
+                exit 1
+              fi
+              paths=$(awk -F'\t' '$1 == "path" { print $2 }' <<<"$graph" | sed "s|^$PWD/||")
               if ! git diff --quiet "$prev" "$GITHUB_SHA" -- $paths deploy/Dockerfile; then
                 build=true
               fi

@@ -64,8 +64,9 @@ try {
 ```
 
 - `startServer({ mode, port })` → `{ url, port, mode, buildMs?, log, stop() }`.
-  `dev` reuses a Vite already on the port (leaving it running, as `shoot.sh`
-  does) and otherwise spawns `npx vite`; `prod` builds the harness entry with
+  `dev` reuses a Vite already on the port when it serves this checkout
+  (leaving it running, as `shoot.sh` does), else spawns `npx vite` on a free
+  port; `prod` builds the harness entry with
   the repo's own Vite config into `tools/harness/.out/prod`, copies
   `src-tauri/resources/builtin-themes/` beside it — that absolute path is what
   `main.tsx` fetches themes from — and serves it with `vite preview`. Default

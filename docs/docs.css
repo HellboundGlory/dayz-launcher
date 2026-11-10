@@ -117,7 +117,7 @@
 }
 .prose code {
   color: var(--text);
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 /* ── Code blocks ────────────────────────────────────────────────── */
