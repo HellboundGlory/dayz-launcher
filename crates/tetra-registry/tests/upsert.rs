@@ -702,8 +702,12 @@ async fn a_version_seven_database_reads_its_pings_as_measured() {
     }
     {
         let conn = rusqlite::Connection::open(&path).expect("open");
-        conn.execute_batch("ALTER TABLE servers DROP COLUMN ping_kind; PRAGMA user_version = 7;")
-            .expect("downgrade");
+        conn.execute_batch(
+            "ALTER TABLE servers DROP COLUMN ping_kind;
+             ALTER TABLE servers DROP COLUMN country_order;
+             PRAGMA user_version = 7;",
+        )
+        .expect("downgrade");
     }
 
     let registry = Registry::open(&path).expect("reopen");

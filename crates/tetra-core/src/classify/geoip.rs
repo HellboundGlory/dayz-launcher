@@ -1,206 +1,58 @@
-//! Minimal offline IP-to-region lookup.
+//! Offline IPv4-to-country lookup.
 //!
-//! Maps IPv4 addresses to broad region codes (EU, NA, AS, OC, SA) matching the
-//! launcher's region filter dropdown, via a baked-in table of `/8` prefixes
-//! resolved at compile time. Block order matters — later blocks win on
-//! overlap, see the tests below.
+//! The data is DB-IP IP to Country Lite (https://db-ip.com), CC BY 4.0, converted to a compact
+//! range table. A monthly refresh is rare: download `dbip-country-lite-YYYY-MM.csv.gz` from
+//! https://download.db-ip.com/free/ into any scratch folder and run
+//! `cargo run -p tetra-tools -- geoip-table <csv.gz> crates/tetra-core/data/country-ipv4.bin`.
 
+use crate::classify::country_table::{Country, CountryTable};
 use std::net::Ipv4Addr;
+use std::sync::OnceLock;
 
-/// Region codes used by the filter dropdown and stored in the registry.
-pub const REGION_OCEANIA: &str = "OC";
-pub const REGION_ASIA: &str = "AS";
-pub const REGION_EUROPE: &str = "EU";
-pub const REGION_NORTH_AMERICA: &str = "NA";
-pub const REGION_SOUTH_AMERICA: &str = "SA";
+/// Parsed once on first use. A table that fails to parse leaves every lookup without a country.
+static TABLE: OnceLock<Option<CountryTable<'static>>> = OnceLock::new();
 
-/// First-octet blocks per region, applied in this order.
-///
-/// Several octets appear in more than one list. That is inherited, not
-/// accidental, and the later block wins — see the module note and the
-/// `overlapping_prefixes_resolve_to_the_last_block` test.
-const OCEANIA: &[u8] = &[
-    1, 27, 58, 60, 61, 101, 103, 106, 110, 111, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122,
-    123, 124, 125, 126, 144, 147, 149, 150, 153, 155, 167, 168, 175, 180, 194, 200, 202, 203, 210,
-    211, 218, 219, 220, 221,
-];
-const ASIA: &[u8] = &[14, 36, 39, 42, 43, 49, 59, 112, 133, 182, 183, 222, 223];
-const EUROPE: &[u8] = &[
-    51, 54, 178, 5, 88, 176, 185, 188, 193, 194, 195, 212, 217, 31, 57, 77, 80, 81, 82, 83, 90,
-    109, 128, 129, 135, 2, 25, 86, 130, 131, 37, 79, 89, 91, 94, 95, 46, 78, 85, 92, 93, 84, 62,
-    87, 136, 141, 145,
-];
-const NORTH_AMERICA: &[u8] = &[
-    3, 4, 6, 7, 8, 9, 11, 12, 13, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 26, 28, 29, 30, 32, 33,
-    34, 35, 38, 40, 44, 45, 47, 48, 50, 52, 55, 56, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74,
-    75, 76, 96, 97, 98, 99, 100, 104, 107, 108, 137, 138, 139, 140, 142, 143, 144, 146, 147, 148,
-    149, 152, 155, 156, 157, 158, 159, 160, 161, 162, 164, 165, 166, 167, 168, 169, 170, 172, 173,
-    174, 192, 198, 199, 204, 205, 206, 207, 208, 209, 216, 132,
-];
-const SOUTH_AMERICA: &[u8] = &[177, 179, 186, 187, 189, 190, 191, 200, 201];
-/// Resolved at compile time: 256 entries, indexed by the first octet.
-static REGIONS: [Option<&str>; 256] = build_table();
-
-const fn build_table() -> [Option<&'static str>; 256] {
-    let mut table = [None; 256];
-    table = assign(table, OCEANIA, REGION_OCEANIA);
-    table = assign(table, ASIA, REGION_ASIA);
-    table = assign(table, EUROPE, REGION_EUROPE);
-    table = assign(table, NORTH_AMERICA, REGION_NORTH_AMERICA);
-    table = assign(table, SOUTH_AMERICA, REGION_SOUTH_AMERICA);
-    table
-}
-
-const fn assign(
-    mut table: [Option<&'static str>; 256],
-    octets: &[u8],
-    region: &'static str,
-) -> [Option<&'static str>; 256] {
-    let mut i = 0;
-    while i < octets.len() {
-        table[octets[i] as usize] = Some(region);
-        i += 1;
-    }
-    table
-}
-
-/// True for non-globally-routable addresses. Must run before the table
-/// lookup — `172`/`192` map wholesale to NA, which would otherwise mislabel
-/// a LAN server (`172.16.0.0/12`, `192.168.0.0/16`) as North American.
-fn is_non_routable(ip: Ipv4Addr) -> bool {
-    let [a, b, ..] = ip.octets();
-    ip.is_private()
-        || ip.is_loopback()
-        || ip.is_link_local()
-        || ip.is_broadcast()
-        || ip.is_documentation()
-        || ip.is_multicast()
-        || ip.is_unspecified()
-        // Carrier-grade NAT, 100.64.0.0/10 (`is_shared` is still unstable).
-        || (a == 100 && (64..=127).contains(&b))
-        // Reserved for future use, 240.0.0.0/4 (`is_reserved` is unstable).
-        || a >= 240
-}
-
-/// Return the region code (EU, NA, AS, OC, SA) for an IPv4 address,
-/// or `None` if the IP cannot be mapped.
-pub fn region_code(ip: Ipv4Addr) -> Option<&'static str> {
-    if is_non_routable(ip) {
-        return None;
-    }
-    REGIONS[ip.octets()[0] as usize]
+/// The country an IPv4 address belongs to, or `None` for reserved and private ranges.
+pub fn country_code(ip: Ipv4Addr) -> Option<Country> {
+    let table = TABLE
+        .get_or_init(|| CountryTable::parse(include_bytes!("../../data/country-ipv4.bin")).ok());
+    table.as_ref()?.lookup(ip)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::net::Ipv4Addr;
 
     #[test]
-    fn maps_addresses_to_regions() {
-        let cases: &[(&str, Ipv4Addr, &str)] = &[
-            ("hetzner", Ipv4Addr::new(88, 198, 1, 1), REGION_EUROPE),
-            ("ovh france", Ipv4Addr::new(51, 38, 100, 1), REGION_EUROPE),
-            (
-                "the other ovh france range",
-                Ipv4Addr::new(178, 33, 0, 1),
-                REGION_EUROPE,
-            ),
-            ("ovh uk", Ipv4Addr::new(51, 254, 46, 15), REGION_EUROPE),
-            ("us", Ipv4Addr::new(4, 2, 2, 2), REGION_NORTH_AMERICA),
-            (
-                "google dns",
-                Ipv4Addr::new(8, 8, 8, 8),
-                REGION_NORTH_AMERICA,
-            ),
-            ("au", Ipv4Addr::new(1, 1, 1, 1), REGION_OCEANIA),
-            ("br", Ipv4Addr::new(177, 54, 0, 1), REGION_SOUTH_AMERICA),
-            ("cn", Ipv4Addr::new(14, 0, 0, 1), REGION_ASIA),
-            (
-                "top of the asia range",
-                Ipv4Addr::new(223, 255, 0, 1),
-                REGION_ASIA,
-            ),
+    fn the_shipped_table_answers_known_addresses() {
+        let cases: &[(&str, &str, Option<&str>)] = &[
+            ("google dns", "8.8.8.8", Some("US")),
+            ("cloudflare", "1.1.1.1", Some("AU")),
+            ("hetzner", "88.198.1.1", Some("DE")),
+            ("another google range", "172.217.0.1", Some("US")),
+            ("loopback", "127.0.0.1", None),
+            ("private class c", "192.168.1.1", None),
+            ("private class a", "10.0.0.1", None),
+            ("carrier-grade nat", "100.64.0.1", None),
+            ("unspecified", "0.0.0.0", None),
+            ("broadcast", "255.255.255.255", None),
         ];
-        for (name, ip, region) in cases {
-            assert_eq!(region_code(*ip), Some(*region), "{name}");
+        for (name, address, expected) in cases {
+            let ip: Ipv4Addr = address.parse().expect("test address");
+            let got = country_code(ip).map(|c| c.as_str().to_string());
+            assert_eq!(got.as_deref(), *expected, "{name} ({address})");
         }
     }
 
     #[test]
-    fn non_routable_addresses_have_no_region() {
-        let cases: &[(&str, Ipv4Addr)] = &[
-            ("loopback", Ipv4Addr::new(127, 0, 0, 1)),
-            ("private class c", Ipv4Addr::new(192, 168, 1, 1)),
-            ("private class a", Ipv4Addr::new(10, 0, 0, 1)),
-            ("private class b", Ipv4Addr::new(172, 16, 0, 1)),
-            ("link-local", Ipv4Addr::new(169, 254, 1, 1)),
-            ("carrier-grade NAT", Ipv4Addr::new(100, 64, 0, 1)),
-            ("unspecified", Ipv4Addr::new(0, 0, 0, 0)),
-            ("broadcast", Ipv4Addr::new(255, 255, 255, 255)),
-        ];
-        for (name, ip) in cases {
-            assert_eq!(region_code(*ip), None, "{name}");
-        }
-    }
-
-    /// The private guard must not swallow the routable remainder of the same
-    /// `/8`: 172.16/12 is private but 172.217/16 (Google) is not, and both sit
-    /// under the blanket `172.x -> NA` table entry.
-    #[test]
-    fn public_addresses_in_a_partly_private_slash_8_still_resolve() {
-        assert_eq!(
-            region_code(Ipv4Addr::new(172, 217, 0, 1)),
-            Some(REGION_NORTH_AMERICA)
-        );
-        assert_eq!(
-            region_code(Ipv4Addr::new(192, 30, 0, 1)),
-            Some(REGION_NORTH_AMERICA)
-        );
-    }
-
-    /// Pins the overlap-resolution order for the nine `/8`s claimed by two
-    /// region blocks — reordering `build_table`'s blocks would silently move
-    /// these.
-    #[test]
-    fn overlapping_prefixes_resolve_to_the_last_block() {
-        // Oceania, then Germany.
-        assert_eq!(
-            region_code(Ipv4Addr::new(194, 1, 1, 1)),
-            Some(REGION_EUROPE)
-        );
-        // Oceania, then South America.
-        assert_eq!(
-            region_code(Ipv4Addr::new(200, 1, 1, 1)),
-            Some(REGION_SOUTH_AMERICA)
-        );
-        // Oceania, then the United States block.
-        for octet in [144, 147, 149, 155, 167, 168] {
-            assert_eq!(
-                region_code(Ipv4Addr::new(octet, 1, 1, 1)),
-                Some(REGION_NORTH_AMERICA),
-                "{octet}.x should resolve to NA"
-            );
-        }
-        // Claimed only by Oceania, so unaffected by any later block.
-        for octet in [150, 153, 175, 180, 202, 203, 210, 211] {
-            assert_eq!(
-                region_code(Ipv4Addr::new(octet, 1, 1, 1)),
-                Some(REGION_OCEANIA),
-                "{octet}.x should stay OC"
-            );
-        }
-    }
-
-    /// Lookup ignores every octet but the first — a `/8` answers the same
-    /// across its whole range.
-    #[test]
-    fn the_second_octet_never_changes_the_answer() {
-        for second in [0u8, 1, 64, 128, 200, 255] {
-            assert_eq!(
-                region_code(Ipv4Addr::new(88, second, 1, 1)),
-                Some(REGION_EUROPE)
-            );
-        }
+    fn every_country_in_the_shipped_table_has_a_sort_position() {
+        use crate::classify::country_table::{country_order, RECORD_LEN};
+        let bytes = include_bytes!("../../data/country-ipv4.bin");
+        let missing: std::collections::BTreeSet<String> = bytes[8..]
+            .chunks(RECORD_LEN)
+            .map(|record| String::from_utf8_lossy(&record[4..]).into_owned())
+            .filter(|code| code != "ZZ" && country_order(code).is_none())
+            .collect();
+        assert!(missing.is_empty(), "not in COUNTRY_ORDER: {missing:?}");
     }
 }

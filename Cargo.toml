@@ -9,6 +9,7 @@ members = [
     "crates/tetra-discord",
     "crates/tetra-index",
     "crates/tetra-indexer",
+    "crates/tetra-tools",
     "src-tauri",
 ]
 

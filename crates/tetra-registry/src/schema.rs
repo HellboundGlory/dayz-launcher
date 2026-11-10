@@ -1,7 +1,10 @@
 use crate::error::RegistryError;
 use rusqlite::Connection;
+use std::net::Ipv4Addr;
+use tetra_core::classify::country_table::country_order;
+use tetra_core::classify::geoip::country_code;
 
-pub const LATEST_VERSION: u32 = 8;
+pub const LATEST_VERSION: u32 = 9;
 
 struct Migration {
     version: u32,
@@ -40,6 +43,10 @@ const MIGRATIONS: &[Migration] = &[
     Migration {
         version: 8,
         sql: V8,
+    },
+    Migration {
+        version: 9,
+        sql: V9,
     },
 ];
 
@@ -207,6 +214,13 @@ const V8: &str = r#"
 ALTER TABLE servers ADD COLUMN ping_kind INTEGER NOT NULL DEFAULT 0;
 "#;
 
+/// `country_code` used to hold one of five regions. Those values mean a country now — `NA`
+/// is Namibia — so they go; [`backfill_countries`] looks each row up again.
+const V9: &str = r#"
+ALTER TABLE servers ADD COLUMN country_order INTEGER;
+UPDATE servers SET country_code = NULL;
+"#;
+
 /// How long a server may go unresponsive, in days, before it's pruned —
 /// unless the user has favourited or played it. See [`prune_stale`].
 pub const PRUNE_AFTER_DAYS: i64 = 60;
@@ -243,6 +257,43 @@ pub fn prune_stale(conn: &Connection) -> Result<usize, RegistryError> {
     }
 
     Ok(deleted)
+}
+
+/// Look up a country for every row that has none, so a database from before the change shows
+/// countries straight away. Rows whose address is private or reserved stay without one and are
+/// simply looked at again next start.
+pub fn backfill_countries(conn: &Connection) -> Result<usize, RegistryError> {
+    let tx = conn.unchecked_transaction()?;
+    let mut updated = 0;
+    {
+        let mut stmt =
+            tx.prepare("SELECT ip, query_port FROM servers WHERE country_code IS NULL")?;
+        let rows = stmt
+            .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        drop(stmt);
+
+        let mut update = tx.prepare(
+            "UPDATE servers SET country_code = ?3, country_order = ?4
+             WHERE ip = ?1 AND query_port = ?2",
+        )?;
+        for (ip, query_port) in rows {
+            let Ok(ip) = ip.parse::<Ipv4Addr>() else {
+                continue;
+            };
+            let Some(code) = country_code(ip) else {
+                continue;
+            };
+            updated += update.execute(rusqlite::params![
+                ip.to_string(),
+                query_port,
+                code.as_str(),
+                country_order(code.as_str()),
+            ])?;
+        }
+    }
+    tx.commit()?;
+    Ok(updated)
 }
 
 #[cfg(test)]

@@ -3,8 +3,9 @@ use crate::rows::{ServerKey, ServerRow, WorkshopCacheRow};
 use crate::schema;
 use rusqlite::{params, Connection, OptionalExtension};
 use tetra_core::a2s::dayz::ServerMod;
+use tetra_core::classify::country_table::country_order;
 use tetra_core::classify::fake::is_fake_listing;
-use tetra_core::classify::geoip::region_code;
+use tetra_core::classify::geoip::country_code;
 use tetra_core::classify::keywords::parse_keywords;
 use tetra_core::classify::maps::normalise_map;
 use tetra_core::unix_now;
@@ -214,14 +215,14 @@ INSERT INTO servers (
     version, keywords, description, in_game_time, mod_count,
     official, first_person, modded, battleye,
     first_seen, last_seen, last_responded, last_played, country_code,
-    queue, day_multiplier, night_multiplier, ping_kind
+    queue, day_multiplier, night_multiplier, ping_kind, country_order
 ) VALUES (
     ?1, ?2, ?3, ?4, ?5, ?6,
     ?7, ?8, ?9, ?10, ?11, ?12,
     ?13, ?14, ?15, ?16, ?17,
     ?18, ?19, ?20, ?21,
     unixepoch(), unixepoch(), ?22, ?23, ?24,
-    ?25, ?26, ?27, ?28
+    ?25, ?26, ?27, ?28, ?29
 )
 ON CONFLICT(ip, query_port) DO UPDATE SET
     game_port      = CASE WHEN excluded.game_port > 0
@@ -295,7 +296,10 @@ ON CONFLICT(ip, query_port) DO UPDATE SET
                           THEN servers.last_responded
                           ELSE MAX(excluded.last_responded, COALESCE(servers.last_responded, 0)) END,
     last_played    = COALESCE(excluded.last_played,    servers.last_played),
-    country_code   = COALESCE(excluded.country_code,   servers.country_code)
+    country_code   = COALESCE(excluded.country_code,   servers.country_code),
+    country_order  = CASE WHEN excluded.country_code IS NOT NULL
+                          THEN excluded.country_order
+                          ELSE servers.country_order END
 "#;
 
 /// Removes a server's mod rows. The schema declares no foreign key, so deleting
@@ -373,8 +377,9 @@ fn upsert_servers(conn: &Connection, rows: &[ServerRow]) -> Result<usize, Regist
             let cc = row
                 .country_code
                 .as_deref()
-                .or_else(|| region_code(row.key.ip))
-                .map(|s| s.to_string());
+                .map(str::to_string)
+                .or_else(|| country_code(row.key.ip).map(|c| c.as_str().to_string()));
+            let order = cc.as_deref().and_then(country_order);
 
             n += stmt.execute(params![
                 row.key.ip.to_string(),
@@ -405,6 +410,7 @@ fn upsert_servers(conn: &Connection, rows: &[ServerRow]) -> Result<usize, Regist
                 day_multiplier,
                 night_multiplier,
                 row.ping_kind.to_db(),
+                order,
             ])?;
         }
     }

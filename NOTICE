@@ -43,6 +43,14 @@ own `name` table; both fonts are published under the SIL Open Font License 1.1
 (https://openfontlicense.org).
 
 
+IP geolocation data
+-------------------
+
+DB-IP IP to Country Lite, https://db-ip.com
+Licence CC BY 4.0, https://creativecommons.org/licenses/by/4.0/, converted
+to a compact IPv4 range table.
+
+
 Frontend libraries
 ------------------
 

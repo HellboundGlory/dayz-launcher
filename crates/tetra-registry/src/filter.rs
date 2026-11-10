@@ -83,6 +83,8 @@ pub enum SortKey {
     Name,
     Map,
     LastPlayed,
+    /// A to Z by country name in either direction; a row with no country follows the rest.
+    Country,
     /// Not a user-facing sort — the order the *refresh* should work through
     /// servers in. Never-responded rows go first so they rotate through the
     /// probe window instead of being permanently starved by player-count sort.
@@ -100,6 +102,7 @@ impl SortKey {
             SortKey::Name => "name",
             SortKey::Map => "map_normalised",
             SortKey::LastPlayed => "last_played",
+            SortKey::Country => "(country_order IS NULL) ASC, country_order",
             SortKey::RefreshPriority => "(last_responded IS NULL) DESC, players",
         }
     }

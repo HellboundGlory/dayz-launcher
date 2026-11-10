@@ -50,6 +50,7 @@ impl Registry {
         schema::migrate(&conn)?;
         // Best-effort: a prune failure must not stop the registry from opening.
         let _ = schema::prune_stale(&conn);
+        let _ = schema::backfill_countries(&conn);
 
         let (tx, rx) = mpsc::channel(64);
         std::thread::Builder::new()

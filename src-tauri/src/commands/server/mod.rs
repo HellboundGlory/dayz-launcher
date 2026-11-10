@@ -421,6 +421,7 @@ fn sort_from_params(sort_key: &str, sort_dir: &str) -> (SortKey, SortDir) {
         "name" => SortKey::Name,
         "map" => SortKey::Map,
         "last_played" => SortKey::LastPlayed,
+        "country" => SortKey::Country,
         _ => SortKey::Players,
     };
     let dir = match sort_dir {
@@ -755,6 +756,7 @@ mod tests {
             ("name", SortKey::Name),
             ("map", SortKey::Map),
             ("last_played", SortKey::LastPlayed),
+            ("country", SortKey::Country),
         ] {
             assert_eq!(
                 super::sort_from_params(key, "asc"),

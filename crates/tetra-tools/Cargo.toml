@@ -1,0 +1,13 @@
+[package]
+name = "tetra-tools"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+tetra-core = { path = "../tetra-core" }
+flate2.workspace = true
+
+[lints.rust]
+unsafe_code = "forbid"
