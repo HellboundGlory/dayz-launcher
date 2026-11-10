@@ -85,7 +85,7 @@ async fn paging_a_registry_of_ninety_thousand_servers() {
     let rows = (0..90_000u32)
         .map(|n| ServerRow {
             key: ServerKey {
-                ip: Ipv4Addr::from(0x0A00_0000 + n),
+                ip: Ipv4Addr::from(0xCB00_7100u32 + n),
                 query_port: 27016,
             },
             name: format!("Server {n}"),
@@ -120,7 +120,7 @@ async fn paging_a_registry_of_ninety_thousand_servers() {
 
     let keys: Vec<ServerKey> = (0..300u32)
         .map(|n| ServerKey {
-            ip: Ipv4Addr::from(0x0A00_0000 + n * 300),
+            ip: Ipv4Addr::from(0xCB00_7100u32 + n * 300),
             query_port: 27016,
         })
         .collect();

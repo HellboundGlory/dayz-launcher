@@ -22,7 +22,7 @@ pub(super) struct InfoBatchResult {
     pub(super) refreshed: usize,
     failed: usize,
     /// Servers that answered — candidates for an A2S_RULES mod-list probe.
-    rules_candidates: Vec<(ServerKey, SocketAddr)>,
+    pub(super) rules_candidates: Vec<(ServerKey, SocketAddr)>,
     /// Whether offline marks were suppressed as likely a local network blip
     /// — see `tetra_net::offline_marks_suppressed`.
     offline_marks_suppressed: bool,
@@ -220,7 +220,7 @@ fn spawn_rules_task(
 
 /// Phase 2 of a refresh: A2S_RULES for every server phase 1 answered.
 /// Returns writes succeeded, mods per server, and candidates that timed out.
-async fn probe_rules(
+pub(super) async fn probe_rules(
     prober: &Prober,
     candidates: Vec<(ServerKey, SocketAddr)>,
     writer: &tetra_registry::Writer,

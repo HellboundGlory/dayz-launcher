@@ -133,6 +133,8 @@ pub fn run() {
             commands::server::get_server_page,
             commands::server::get_servers_by_addr,
             commands::server::lookup::lookup_server,
+            commands::server::lookup::find_server,
+            commands::server::lan::scan_lan,
             commands::server::mod_readiness::server_mod_readiness,
             commands::server::mod_readiness::check_server_mods,
             commands::server::mod_readiness::get_unique_mods_summary,

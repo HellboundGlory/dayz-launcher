@@ -96,8 +96,9 @@ impl Reader {
     pub fn counts(&self) -> Result<(usize, usize), RegistryError> {
         let (total, populated): (i64, i64) = self.conn.query_row(
             &format!(
-                "SELECT COUNT(*), COUNT(*) FILTER (WHERE players > 0) FROM servers WHERE {}",
-                filter::visible_sql()
+                "SELECT COUNT(*), COUNT(*) FILTER (WHERE players > 0) FROM servers WHERE {} AND {}",
+                filter::visible_sql(),
+                filter::PRIVATE_ADDRESS_SQL
             ),
             [],
             |r| Ok((r.get(0)?, r.get(1)?)),

@@ -9,6 +9,7 @@ use tetra_registry::TimeOfDay;
 
 pub(crate) mod discovery;
 pub(crate) mod facets;
+pub(crate) mod lan;
 pub(crate) mod lookup;
 pub(crate) mod mod_readiness;
 pub(crate) mod probe;
@@ -161,6 +162,10 @@ pub struct FilterParams {
     /// `true` for BattlEye only, `false` for the rest, `null` for both.
     #[serde(default)]
     pub battleye: Option<bool>,
+    /// "ip:query_port" addresses of the servers a LAN scan found. `null` means
+    /// the list is not a LAN tab; an empty list matches no server.
+    #[serde(default)]
+    pub lan_addrs: Option<Vec<String>>,
 }
 
 #[derive(serde::Deserialize)]
@@ -265,6 +270,24 @@ pub async fn get_server_page(
 /// Largest number of addresses one `get_servers_by_addr` call accepts.
 const MAX_ADDRS: usize = 2_000;
 
+/// Largest LAN list a filter accepts. A scan reports at most 64, so this only
+/// bounds a hand-made WebView call.
+const MAX_FILTER_ADDRS: usize = 256;
+
+/// The keys a list of `"ip:query_port"` strings names, skipping the entries
+/// that are not one.
+fn keys_from_addrs(addrs: &[String]) -> Vec<ServerKey> {
+    addrs
+        .iter()
+        .filter_map(|addr| {
+            let (_, port) = addr.rsplit_once(':')?;
+            server_key(addr, port.parse().ok()?).ok()
+        })
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect()
+}
+
 /// Rows for `"ip:query_port"` addresses, in no particular order. An entry
 /// that doesn't parse is skipped; addresses the registry doesn't hold are absent.
 #[tauri::command]
@@ -275,15 +298,7 @@ pub async fn get_servers_by_addr(
     if addrs.len() > MAX_ADDRS {
         return Err("too many addresses".into());
     }
-    let keys: Vec<ServerKey> = addrs
-        .iter()
-        .filter_map(|addr| {
-            let (_, port) = addr.rsplit_once(':')?;
-            server_key(addr, port.parse().ok()?).ok()
-        })
-        .collect::<std::collections::HashSet<_>>()
-        .into_iter()
-        .collect();
+    let keys = keys_from_addrs(&addrs);
     blocking_read(&state, move |reader| {
         let rows = reader.get_many(&keys).map_err(|e| e.to_string())?;
         Ok(rows.iter().map(to_server32).collect())
@@ -392,6 +407,9 @@ fn filter_from_params(p: FilterParams) -> ServerFilter {
             _ => None,
         },
         battleye: p.battleye,
+        only: p
+            .lan_addrs
+            .map(|addrs| keys_from_addrs(&addrs[..addrs.len().min(MAX_FILTER_ADDRS)])),
     }
 }
 
@@ -523,6 +541,7 @@ mod tests {
             version: None,
             time_of_day: None,
             battleye: None,
+            lan_addrs: None,
         }
     }
 
@@ -663,6 +682,66 @@ mod tests {
                 "mod_match {value:?} should mean any"
             );
         }
+    }
+
+    #[test]
+    fn a_lan_address_list_becomes_the_only_filter_and_skips_junk() {
+        let mut params = default_params();
+        params.lan_addrs = Some(vec![
+            "192.168.1.5:27016".into(),
+            "nope".into(),
+            "1.2.3.4:".into(),
+            "1.2.3.4:99999".into(),
+            "10.0.0.7:2303".into(),
+        ]);
+
+        let filter = super::filter_from_params(params);
+        let mut keys: Vec<(String, u16)> = filter
+            .only
+            .expect("an explicit list")
+            .into_iter()
+            .map(|key| (key.ip.to_string(), key.query_port))
+            .collect();
+        keys.sort();
+        assert_eq!(
+            keys,
+            vec![
+                ("10.0.0.7".to_string(), 2303),
+                ("192.168.1.5".to_string(), 27016),
+            ]
+        );
+    }
+
+    #[test]
+    fn only_the_lan_filter_is_capped_at_256_addresses() {
+        let addrs: Vec<String> = (0..300)
+            .map(|i| format!("10.0.{}.{}:27016", i / 256, i % 256))
+            .collect();
+        assert_eq!(super::keys_from_addrs(&addrs).len(), 300);
+
+        let mut params = default_params();
+        params.lan_addrs = Some(addrs);
+        assert_eq!(
+            super::filter_from_params(params).only.map(|k| k.len()),
+            Some(256)
+        );
+    }
+
+    #[test]
+    fn no_lan_addresses_leaves_the_list_unrestricted() {
+        let filter = super::filter_from_params(default_params());
+        assert!(filter.only.is_none());
+    }
+
+    #[test]
+    fn an_empty_lan_address_list_restricts_the_list_to_nothing() {
+        let mut params = default_params();
+        params.lan_addrs = Some(vec![]);
+        assert_eq!(
+            super::filter_from_params(params).only,
+            Some(Vec::new()),
+            "an empty LAN list must not fall back to the whole registry"
+        );
     }
 
     #[test]

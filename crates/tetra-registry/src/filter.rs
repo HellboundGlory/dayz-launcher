@@ -70,6 +70,9 @@ pub struct ServerFilter {
     pub time_of_day: Option<TimeOfDay>,
     /// `Some(true)` keeps only BattlEye servers, `Some(false)` only the rest.
     pub battleye: Option<bool>,
+    /// Restrict the list to exactly these servers, whatever else the filter
+    /// says. `None` adds nothing; `Some(vec![])` matches nothing.
+    pub only: Option<Vec<ServerKey>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -192,6 +195,28 @@ pub(crate) fn where_clause(filter: &ServerFilter) -> (String, Vec<Value>) {
     if filter.recent_only {
         clauses.push("last_played IS NOT NULL".into());
     }
+    match &filter.only {
+        None => {}
+        Some(keys) if keys.is_empty() => clauses.push("1 = 0".into()),
+        Some(keys) => {
+            let mut parts = Vec::with_capacity(keys.len());
+            for key in keys {
+                binds.push(Value::Text(key.ip.to_string()));
+                binds.push(Value::Integer(key.query_port.into()));
+                parts.push("(ip = ? AND query_port = ?)");
+            }
+            clauses.push(format!("({})", parts.join(" OR ")));
+        }
+    }
+    let address = filter.search.as_deref().and_then(address_search);
+    // Servers on a local network belong in LAN, Favourites and Recent only —
+    // in the full list they would be a handful of the user's own machines
+    // among thousands of internet servers. An explicit list, a saved tab or a
+    // typed address replaces this.
+    if filter.only.is_none() && !filter.favourites_only && !filter.recent_only && address.is_none()
+    {
+        clauses.push(PRIVATE_ADDRESS_SQL.into());
+    }
     if let Some(ping) = filter.max_ping_ms {
         clauses.push("ping_ms <= ?".into());
         binds.push(Value::Integer(ping as i64));
@@ -265,8 +290,8 @@ pub(crate) fn where_clause(filter: &ServerFilter) -> (String, Vec<Value>) {
     if filter.hide_unnamed {
         clauses.push("TRIM(name) <> ''".into());
     }
-    let address = filter.search.as_deref().and_then(address_search);
-    if filter.hide_stale && address.is_none() {
+    // A LAN scan just heard these servers, so a stock name must not hide them.
+    if filter.hide_stale && address.is_none() && filter.only.is_none() {
         clauses.push(visible_sql());
     }
     if let Some(text) = &filter.search {
@@ -296,6 +321,13 @@ pub(crate) fn where_clause(filter: &ServerFilter) -> (String, Vec<Value>) {
     };
     (where_sql, binds)
 }
+
+/// Drops every row whose stored address is private, loopback or link-local.
+/// `ip` is dotted text, so the prefixes are matched as text.
+pub(crate) const PRIVATE_ADDRESS_SQL: &str =
+    "NOT (ip GLOB '10.*' OR ip GLOB '127.*' OR ip GLOB '192.168.*' \
+     OR ip GLOB '169.254.*' OR ip GLOB '172.1[6-9].*' OR ip GLOB '172.2[0-9].*' \
+     OR ip GLOB '172.3[01].*')";
 
 /// The rule `hide_stale` applies, also used for the footer counts.
 pub(crate) fn visible_sql() -> String {

@@ -42,7 +42,7 @@ async fn seed(registry: &Registry) {
             row(key(4), "100%_Real", "chernarusplus"),
             row(
                 ServerKey {
-                    ip: Ipv4Addr::new(10, 0, 0, 5),
+                    ip: Ipv4Addr::new(40, 160, 57, 146),
                     query_port: 2302,
                 },
                 "Echo",
@@ -87,8 +87,8 @@ async fn every_search_word_must_match_somewhere() {
         ("framework community", &["Charlie"]),
         ("%", &["100%_Real"]),
         ("_Real", &["100%_Real"]),
-        ("10.0.0", &["Echo"]),
-        ("10.0.0.5:2302", &["Echo"]),
+        ("40.160.57", &["Echo"]),
+        ("40.160.57.146:2302", &["Echo"]),
         ("  alpha   ", &["Alpha"]),
         // Words past the eighth are ignored.
         (
@@ -167,7 +167,7 @@ async fn searching_a_registry_of_twenty_seven_thousand_servers() {
     let rows = (0..SERVERS)
         .map(|n| ServerRow {
             key: ServerKey {
-                ip: Ipv4Addr::from(0x0A00_0000 + n),
+                ip: Ipv4Addr::from(0xCB00_7100u32 + n),
                 query_port: 27016,
             },
             name: format!("Server {n}"),
@@ -205,7 +205,7 @@ async fn searching_a_registry_of_twenty_seven_thousand_servers() {
         writer
             .upsert_server_mods(
                 ServerKey {
-                    ip: Ipv4Addr::from(0x0A00_0000 + n),
+                    ip: Ipv4Addr::from(0xCB00_7100u32 + n),
                     query_port: 27016,
                 },
                 mods.clone(),

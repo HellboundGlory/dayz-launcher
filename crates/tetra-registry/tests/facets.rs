@@ -861,7 +861,7 @@ async fn counting_the_lists_for_twenty_seven_thousand_servers() {
     let rows = (0..SERVERS)
         .map(|n| ServerRow {
             key: ServerKey {
-                ip: std::net::Ipv4Addr::from(0x0A00_0000 + n),
+                ip: std::net::Ipv4Addr::from(0xCB00_7100u32 + n),
                 query_port: 27016,
             },
             name: format!("Server {n}"),
@@ -890,7 +890,7 @@ async fn counting_the_lists_for_twenty_seven_thousand_servers() {
         writer
             .upsert_server_mods(
                 ServerKey {
-                    ip: std::net::Ipv4Addr::from(0x0A00_0000 + n),
+                    ip: std::net::Ipv4Addr::from(0xCB00_7100u32 + n),
                     query_port: 27016,
                 },
                 mods,

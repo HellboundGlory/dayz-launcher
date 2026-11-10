@@ -4,6 +4,8 @@ const COMMANDS: &[&str] = &[
     "get_server_page",
     "get_servers_by_addr",
     "lookup_server",
+    "find_server",
+    "scan_lan",
     "server_mod_readiness",
     "check_server_mods",
     "get_unique_mods_summary",

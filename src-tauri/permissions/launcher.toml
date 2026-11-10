@@ -5,6 +5,8 @@ permissions = [
     "allow-get-server-page",
     "allow-get-servers-by-addr",
     "allow-lookup-server",
+    "allow-find-server",
+    "allow-scan-lan",
     "allow-server-mod-readiness",
     "allow-check-server-mods",
     "allow-get-unique-mods-summary",

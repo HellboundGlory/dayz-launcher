@@ -8,6 +8,8 @@
 pub mod config;
 pub mod corroboration;
 pub mod error;
+pub mod find;
+pub mod lan;
 pub mod ping;
 pub mod prober;
 pub mod query;

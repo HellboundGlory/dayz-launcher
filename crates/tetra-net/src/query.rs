@@ -8,10 +8,10 @@ use tetra_core::a2s::packet::{classify_packet, reassemble_split, PacketKind};
 use tetra_core::CoreError;
 use tokio::net::UdpSocket;
 
-const HEADER: [u8; 4] = [0xff, 0xff, 0xff, 0xff];
-const A2S_INFO: u8 = 0x54;
+pub(crate) const HEADER: [u8; 4] = [0xff, 0xff, 0xff, 0xff];
+pub(crate) const A2S_INFO: u8 = 0x54;
 const A2S_RULES: u8 = 0x56;
-const INFO_PAYLOAD: &[u8] = b"Source Engine Query\0";
+pub(crate) const INFO_PAYLOAD: &[u8] = b"Source Engine Query\0";
 
 /// Ceiling on one whole exchange (challenge round trip + split reassembly),
 /// as a multiple of the per-datagram `timeout` — bounds a peer that keeps
