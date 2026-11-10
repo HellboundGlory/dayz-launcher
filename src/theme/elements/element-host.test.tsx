@@ -161,6 +161,16 @@ describe("ElementHost & Elements", () => {
       );
       expect(html).toBe("<div></div>");
     });
+
+    it("renders nothing for a lan.empty placement; the server list draws it", () => {
+      const html = render(
+        <div>
+          <ElementHost node={{ element: "lan.empty" }} />
+        </div>,
+        {},
+      );
+      expect(html).toBe("<div></div>");
+    });
   });
 
   describe("surfaces & context detail panels", () => {

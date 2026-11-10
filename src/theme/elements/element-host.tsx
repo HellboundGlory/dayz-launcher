@@ -220,6 +220,9 @@ export function ElementHost({
     case "notice.modsResult":
     case "notice.modsOutdated":
       return null;
+    // Registered so themes can style it; `list.servers` draws it on the LAN tab.
+    case "lan.empty":
+      return null;
     case "server.actionNotice":
       return <ServerActionNotice className={mergedClass} style={style} />;
     case "server.modDiffers":

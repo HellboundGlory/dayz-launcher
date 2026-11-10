@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { Download, Eye, EyeOff, Lock } from "lucide-react";
+import { Eye, EyeOff, Lock, Play } from "lucide-react";
 import { usePasswordStore } from "@/stores/password-store";
 import { useEscapeLayer } from "@/theme/interaction/escape-layers";
 import { wrapTabWithin } from "@/theme/interaction/popup-keyboard";
@@ -121,7 +121,7 @@ export function PasswordDialog() {
               disabled={!draft}
               className="flex items-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100"
             >
-              <Download size={13} aria-hidden />
+              <Play size={13} aria-hidden />
               Join
             </button>
           </div>

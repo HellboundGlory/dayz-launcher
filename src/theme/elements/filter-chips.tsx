@@ -7,7 +7,15 @@ import { isSavedTab } from "@/lib/saved-tab";
 import { useViewportWidth } from "../renderer/use-viewport-width";
 import { countryDisplayValue, mapDisplayValue } from "./popup-elements";
 import { modsFilterValue } from "./filter-elements";
-import { NARROW_MENU_WIDTH, resetKeepingSearch } from "./filter-menu";
+import {
+  MODS,
+  NARROW_MENU_WIDTH,
+  PERSPECTIVE,
+  SERVER_TYPE,
+  TIME_OF_DAY,
+  choiceLabel,
+  resetKeepingSearch,
+} from "./filter-menu";
 
 export interface FilterChip {
   key: string;
@@ -47,7 +55,7 @@ export function activeFilterChips(
     chips.push({
       key: "official",
       prefix: "",
-      value: filter.official ? "Official" : "Community",
+      value: choiceLabel(SERVER_TYPE, filter.official),
       clear: { official: null },
     });
   }
@@ -61,7 +69,7 @@ export function activeFilterChips(
     chips.push({
       key: "first_person",
       prefix: "",
-      value: filter.first_person ? "1PP only" : "3PP allowed",
+      value: choiceLabel(PERSPECTIVE, filter.first_person),
       clear: { first_person: null },
     });
   }
@@ -69,12 +77,12 @@ export function activeFilterChips(
     chips.push({
       key: "time_of_day",
       prefix: "Time",
-      value: filter.time_of_day === "day" ? "Day" : "Night",
+      value: choiceLabel(TIME_OF_DAY, filter.time_of_day),
       clear: { time_of_day: null },
     });
   }
   if (filter.modded !== null) {
-    chips.push({ key: "modded", prefix: "", value: filter.modded ? "Modded" : "Vanilla", clear: { modded: null } });
+    chips.push({ key: "modded", prefix: "", value: choiceLabel(MODS, filter.modded), clear: { modded: null } });
   }
   if (filter.mod_ids.length > 0 || filter.mod_ids_exclude.length > 0) {
     chips.push({

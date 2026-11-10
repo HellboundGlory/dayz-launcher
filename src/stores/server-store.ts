@@ -3,6 +3,9 @@ import type { Server } from "@/types/server";
 import type { ServerFilter, SortKey, SortDir } from "@/types/filters";
 import { PING_PRESETS } from "@/types/filters";
 import { legacyRegionCountries } from "@/lib/countries";
+import { DEFAULT_FILTER, resetFilterFor } from "./filter-reset";
+
+export { DEFAULT_FILTER };
 
 export type ServerLookup = { addr: string; state: "asking" | "noanswer" };
 
@@ -66,33 +69,6 @@ function sameRow(a: Server, b: Server): boolean {
 }
 
 const SORT_KEY_STORAGE = "tetra.sort.v1";
-
-// What every launch starts from, and the base "Reset filters" restores.
-// search/favourites_only/recent_only/lan_addrs don't survive a restart — see
-// persistFilter; resetFilter still carries the latter three over so the active
-// tab keeps its scope.
-export const DEFAULT_FILTER: ServerFilter = {
-  maps: [],
-  countries: [],
-  hide_empty: false,
-  hide_full: false,
-  hide_locked: false,
-  hide_offline: false,
-  max_ping: null,
-  search: null,
-  favourites_only: false,
-  recent_only: false,
-  lan_addrs: null,
-  official: null,
-  modded: null,
-  first_person: null,
-  mod_ids: [],
-  mod_match: "any",
-  mod_ids_exclude: [],
-  version: null,
-  time_of_day: null,
-  battleye: null,
-};
 
 /** Persisted filters use their own key — the opposite choice from settings. */
 const FILTER_STORAGE = "tetra.filter.v1";
@@ -294,14 +270,7 @@ export const useServerStore = create<ServerState>((set, get) => ({
   },
   resetFilter: () =>
     set((state) => {
-      // The sidebar tab owns these three, not the filter bar: resetting them
-      // here would silently widen a Favourites/Recent/LAN tab to every server.
-      const next: ServerFilter = {
-        ...DEFAULT_FILTER,
-        favourites_only: state.filter.favourites_only,
-        recent_only: state.filter.recent_only,
-        lan_addrs: state.filter.lan_addrs,
-      };
+      const next = resetFilterFor(state.filter, null);
       persistFilter(next);
       return { filter: next, lookup: keptLookup(state, next.search) };
     }),

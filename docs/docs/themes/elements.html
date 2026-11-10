@@ -40,6 +40,7 @@
           <ol>
             <li><a href="#app"><code>app</code> Window and shell</a></li>
             <li><a href="#nav"><code>nav</code> Views and Settings</a></li>
+            <li><a href="#lan"><code>lan</code> The LAN tab</a></li>
             <li><a href="#status"><code>status</code> Launcher status</a></li>
             <li><a href="#notice"><code>notice</code> Launcher messages</a></li>
             <li><a href="#filter"><code>filter</code> Server browser filters and sorting</a></li>
@@ -171,6 +172,16 @@
 </section>
 
 <section class="el-group">
+  <h2 id="lan"><code>lan</code> The LAN tab</h2>
+  <div class="md"><p>What the browser shows on the LAN tab instead of rows.</p></div>
+  <section class="el" id="el-lan-empty" data-el="lan.empty">
+  <h3><code>lan.empty</code> <span class="el-kind">display</span> <span class="el-since">SINCE 2.1</span></h3>
+  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Parts</dt><dd><code>looking</code>, <code>failed</code>, <code>title</code>, <code>note</code>, <code>again</code> · States: <code>idle</code>, <code>scanning</code>, <code>done</code>, <code>failed</code></dd></dl>
+  <div class="md el-notes"><p>Drawn by <code>list.servers</code>, never placed: a placement of its own renders nothing. It fills the list's place on the LAN tab while no search or address lookup is running. <code>scanning</code> shows a spinner and &quot;Looking on your network…&quot;; <code>failed</code> shows &quot;Could not look on the network.&quot;; otherwise it shows the title &quot;No servers on your network&quot;, a note about other subnets and VPNs, and an <code>again</code> button reading &quot;Look again&quot; that scans once more.</p></div>
+</section>
+</section>
+
+<section class="el-group">
   <h2 id="status"><code>status</code> Launcher status</h2>
   <div class="md"><p>Read-only figures about the launcher and the server list.</p></div>
   <section class="el" id="el-status-steam" data-el="status.steam">
@@ -221,18 +232,22 @@
   <section class="el" id="el-notice-storage" data-el="notice.storage">
   <h3><code>notice.storage</code> <span class="el-kind">notice</span></h3>
   <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Parts</dt><dd><code>tag</code>, <code>message</code></dd></dl>
+  <div class="md el-notes"><p>Renders nothing. The launcher shows a toast tagged &quot;Storage&quot; when the server database could not be opened, saying favourites and recent servers won't be saved this session. It cannot be closed while the trouble lasts.</p></div>
 </section>
   <section class="el" id="el-notice-error" data-el="notice.error">
   <h3><code>notice.error</code> <span class="el-kind">notice</span></h3>
   <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Parts</dt><dd><code>tag</code>, <code>message</code>, <code>dismiss</code></dd></dl>
+  <div class="md el-notes"><p>Renders nothing. The launcher shows the last launcher error as a toast tagged &quot;Error&quot;; its close button clears that error.</p></div>
 </section>
   <section class="el" id="el-notice-modsError" data-el="notice.modsError">
   <h3><code>notice.modsError</code> <span class="el-kind">notice</span></h3>
   <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Parts</dt><dd><code>message</code></dd></dl>
+  <div class="md el-notes"><p>Renders nothing. The launcher shows a mods-page error as a toast tagged &quot;Mods&quot;.</p></div>
 </section>
   <section class="el" id="el-notice-modsCached" data-el="notice.modsCached">
   <h3><code>notice.modsCached</code> <span class="el-kind">notice</span></h3>
   <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Parts</dt><dd><code>message</code></dd></dl>
+  <div class="md el-notes"><p>Renders nothing. The launcher shows a toast tagged &quot;Steam&quot; reading &quot;Steam unreachable — showing last known mod list&quot; while the Mods page runs on a cached list.</p></div>
 </section>
   <section class="el" id="el-notice-modsResult" data-el="notice.modsResult">
   <h3><code>notice.modsResult</code> <span class="el-kind">notice</span></h3>
@@ -242,6 +257,7 @@
   <section class="el" id="el-notice-modsOutdated" data-el="notice.modsOutdated">
   <h3><code>notice.modsOutdated</code> <span class="el-kind">notice</span></h3>
   <dl><dt>Placed in</dt><dd>the Mods view · once per composition</dd><dt>Parts</dt><dd><code>message</code>, <code>updateAll</code> · States: <code>busy</code></dd></dl>
+  <div class="md el-notes"><p>Renders nothing. The launcher shows a toast tagged &quot;Mods&quot; counting the subscribed mods that need updating, with an Update all button that is disabled while any mod operation runs.</p></div>
 </section>
 </section>
 

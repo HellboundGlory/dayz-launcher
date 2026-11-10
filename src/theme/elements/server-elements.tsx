@@ -42,7 +42,7 @@ import { usePopupTrigger } from "../interaction/use-popup-trigger";
 import { getActiveLayout, getThemeOwnedLayout, useLayoutSubscription } from "../theme-store";
 import type { PopupLayoutFile } from "../renderer/types";
 import { TriggerPopup, usePopupContext } from "./popup-elements";
-import { displayOption, formatElementTime, parseDisplay } from "./element-utils";
+import { displayOption, formatElementTime, parseDisplay, states } from "./element-utils";
 
 /** Inside the row menu every action is a menu item, so the arrow keys move between them. */
 export function useMenuItemRole(): "menuitem" | undefined {
@@ -59,9 +59,8 @@ export function useServerSubject(): Server | null {
 }
 
 /** Joins a server element's own states with the general `offline` state. */
-function serverStates(offline: boolean, ...states: (string | false | null | undefined)[]): string | undefined {
-  const list = [...states, offline && "offline"].filter(Boolean) as string[];
-  return list.length ? list.join(" ") : undefined;
+function serverStates(offline: boolean, ...own: (string | false | null | undefined)[]): string | undefined {
+  return states(...own, offline && "offline");
 }
 
 /** Interleaves rendered parts with a single space, so joined text content matches the plain-string format. */

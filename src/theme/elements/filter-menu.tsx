@@ -11,7 +11,8 @@ import {
   type RefObject,
 } from "react";
 import { Check, ChevronDown, ChevronRight } from "lucide-react";
-import { DEFAULT_FILTER, useServerStore } from "@/stores/server-store";
+import { useServerStore } from "@/stores/server-store";
+import { resetFilterFor } from "@/stores/filter-reset";
 import { PING_PRESETS, type ServerFilter } from "@/types/filters";
 import { activeFilterCount } from "@/lib/filter-summary";
 import { isSavedTab } from "@/lib/saved-tab";
@@ -46,7 +47,7 @@ interface Choice<V> {
 
 type TriChoice = Choice<boolean | null>;
 
-const SERVER_TYPE: TriChoice[] = [
+export const SERVER_TYPE: TriChoice[] = [
   { label: "Any", value: null },
   { label: "Official", value: true },
   { label: "Community", value: false },
@@ -57,23 +58,28 @@ const PING: Choice<number | null>[] = [
   ...PING_PRESETS.map((limit) => ({ label: `< ${limit}`, value: limit as number | null })),
 ];
 
-const PERSPECTIVE: TriChoice[] = [
+export const PERSPECTIVE: TriChoice[] = [
   { label: "Any", value: null },
   { label: "1PP only", value: true },
   { label: "3PP allowed", value: false },
 ];
 
-const TIME_OF_DAY: Choice<ServerFilter["time_of_day"]>[] = [
+export const TIME_OF_DAY: Choice<ServerFilter["time_of_day"]>[] = [
   { label: "Any", value: null },
   { label: "Day", value: "day" },
   { label: "Night", value: "night" },
 ];
 
-const MODS: TriChoice[] = [
+export const MODS: TriChoice[] = [
   { label: "Any", value: null },
   { label: "Modded", value: true },
   { label: "Vanilla", value: false },
 ];
+
+/** The table's wording for a value; each table lists every value its type allows. */
+export function choiceLabel<V>(choices: Choice<V>[], value: V): string {
+  return choices.find((choice) => choice.value === value)!.label;
+}
 
 interface FilterMenuData {
   facets: FilterFacets | null;
@@ -132,11 +138,9 @@ export function pickVersion(
 
 /** Clears every filter but keeps what was typed in the search box. */
 export function resetKeepingSearch(): void {
-  const { search, favourites_only, recent_only, lan_addrs } = useServerStore.getState().filter;
+  const { filter, setFilter } = useServerStore.getState();
   // One update with the search unchanged, so its lookup survives.
-  useServerStore
-    .getState()
-    .setFilter({ ...DEFAULT_FILTER, search, favourites_only, recent_only, lan_addrs });
+  setFilter(resetFilterFor(filter, filter.search));
 }
 
 function countText(count: number | undefined): string {

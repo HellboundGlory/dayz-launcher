@@ -396,6 +396,31 @@
       "since": "2.0",
       "aliases": []
     },
+    "lan.empty": {
+      "kind": "display",
+      "where": [
+        "browser"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "looking",
+        "failed",
+        "title",
+        "note",
+        "again"
+      ],
+      "states": [
+        "idle",
+        "scanning",
+        "done",
+        "failed"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
     "status.steam": {
       "kind": "display",
       "where": [
