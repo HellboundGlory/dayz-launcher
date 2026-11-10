@@ -16,6 +16,7 @@ import {
   Shield,
   X,
   House,
+  type LucideIcon,
 } from "lucide-react";
 import type { Server } from "@/types/server";
 import { cn, formatBytes, formatMultiplier, gameTimeParts } from "@/lib/utils";
@@ -72,6 +73,71 @@ function joinParts(nodes: ReactNode[]): ReactNode[] {
 function joinAddress(server: Server): string {
   if (server.game_port <= 0) return server.addr;
   return `${server.addr.slice(0, server.addr.lastIndexOf(":"))}:${server.game_port}`;
+}
+
+const ACTION_BUTTON_CLASS =
+  "flex-1 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-size-lg)] leading-4 font-semibold text-center border border-line bg-surface2 hover:border-accent text-ink transition-colors";
+
+/** An action button with icon and label parts; the label becomes the title when its part is hidden. */
+function ElementButton({
+  element,
+  label,
+  state,
+  icon,
+  fallbackIcon,
+  iconClassName = "size-3",
+  showIcon,
+  showLabel,
+  busy = false,
+  disabled = false,
+  role,
+  onClick,
+  className,
+  style,
+  children,
+}: {
+  element: string;
+  label: string;
+  state?: string;
+  icon: unknown;
+  fallbackIcon: LucideIcon;
+  iconClassName?: string;
+  showIcon: boolean;
+  showLabel: boolean;
+  busy?: boolean;
+  disabled?: boolean;
+  role?: "menuitem";
+  onClick: (e: MouseEvent) => void;
+  className?: string;
+  style?: CSSProperties;
+  children?: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      data-el={element}
+      role={role}
+      data-state={state}
+      disabled={disabled}
+      onClick={onClick}
+      aria-label={label}
+      title={showLabel ? undefined : label}
+      className={className}
+      style={style}
+    >
+      {showIcon && (
+        <span data-part="icon">
+          {busy ? (
+            <LoaderCircle className="size-3 animate-spin" />
+          ) : (
+            <OptionIcon icon={icon} fallback={fallbackIcon} className={iconClassName} />
+          )}
+        </span>
+      )}
+      {showLabel && <span data-part="label">{label}</span>}
+      {children}
+    </button>
+  );
 }
 
 export function ServerName({
@@ -602,23 +668,19 @@ export function ServerInfo({
   };
 
   return (
-    <button
-      type="button"
-      data-el="server.info"
+    <ElementButton
+      element="server.info"
       role={role}
+      label={label}
+      icon={options?.icon}
+      fallbackIcon={Info}
+      iconClassName="size-3.5"
+      showIcon={showIcon}
+      showLabel={showLabel}
       onClick={handleClick}
-      aria-label={label}
-      title={showLabel ? undefined : label}
       className={className ?? "text-muted hover:text-ink"}
       style={style}
-    >
-      {showIcon && (
-        <span data-part="icon">
-          <OptionIcon icon={options?.icon} fallback={Info} className="size-3.5" />
-        </span>
-      )}
-      {showLabel && <span data-part="label">{label}</span>}
-    </button>
+    />
   );
 }
 
@@ -752,24 +814,20 @@ export function ServerLoadToMenu({
   };
 
   return (
-    <button
-      type="button"
-      data-el="server.loadToMenu"
-      data-state={serverStates(!server.online, op?.addr === server.addr ? "busy" : disabled && "disabled")}
+    <ElementButton
+      element="server.loadToMenu"
+      label={label}
+      state={serverStates(!server.online, op?.addr === server.addr ? "busy" : disabled && "disabled")}
+      icon={options?.icon}
+      fallbackIcon={House}
+      iconClassName="size-3.5"
+      showIcon={showIcon}
+      showLabel={showLabel}
       disabled={disabled}
       onClick={handleClick}
-      aria-label={label}
-      title={showLabel ? undefined : label}
       className={className ?? "flex items-center gap-1.5 text-muted hover:text-ink"}
       style={style}
-    >
-      {showIcon && (
-        <span data-part="icon">
-          <OptionIcon icon={options?.icon} fallback={House} className="size-3.5" />
-        </span>
-      )}
-      {showLabel && <span data-part="label">{label}</span>}
-    </button>
+    />
   );
 }
 
@@ -797,23 +855,18 @@ export function ServerCancel({
   };
 
   return (
-    <button
-      type="button"
-      data-el="server.cancel"
-      data-state={serverStates(!server.online)}
+    <ElementButton
+      element="server.cancel"
+      label={label}
+      state={serverStates(!server.online)}
+      icon={options?.icon}
+      fallbackIcon={X}
+      showIcon={showIcon}
+      showLabel={showLabel}
       onClick={handleClick}
-      aria-label={label}
-      title={showLabel ? undefined : label}
       className={className ?? "text-muted hover:text-danger"}
       style={style}
-    >
-      {showIcon && (
-        <span data-part="icon">
-          <OptionIcon icon={options?.icon} fallback={X} className="size-3" />
-        </span>
-      )}
-      {showLabel && <span data-part="label">{label}</span>}
-    </button>
+    />
   );
 }
 
@@ -842,24 +895,20 @@ export function ServerManageMods({
   };
 
   return (
-    <button
-      type="button"
-      data-el="server.manageMods"
-      data-state={serverStates(!server.online)}
+    <ElementButton
+      element="server.manageMods"
+      label={label}
+      state={serverStates(!server.online)}
+      icon={options?.icon}
+      fallbackIcon={ExternalLink}
+      showIcon={showIcon}
+      showLabel={showLabel}
       onClick={handleClick}
-      aria-label={label}
-      title={showLabel ? undefined : label}
       className={className ?? "flex items-center gap-1.5 text-accent hover:brightness-110"}
       style={style}
     >
-      {showIcon && (
-        <span data-part="icon">
-          <OptionIcon icon={options?.icon} fallback={ExternalLink} className="size-3" />
-        </span>
-      )}
-      {showLabel && <span data-part="label">{label}</span>}
       {count !== null && <span data-part="count"> · {count} declared</span>}
-    </button>
+    </ElementButton>
   );
 }
 
@@ -1094,24 +1143,20 @@ export function ServerCheckMods({
   };
 
   return (
-    <button
-      type="button"
-      data-el="server.checkMods"
-      data-state={serverStates(!server.online, busy && "busy")}
+    <ElementButton
+      element="server.checkMods"
+      label={label}
+      state={serverStates(!server.online, busy && "busy")}
+      icon={options?.icon}
+      fallbackIcon={RefreshCw}
+      showIcon={showIcon}
+      showLabel={showLabel}
+      busy={busy}
       disabled={disabled}
       onClick={handleClick}
-      aria-label={label}
-      title={showLabel ? undefined : label}
-      className={className ?? "flex-1 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-size-lg)] leading-4 font-semibold text-center border border-line bg-surface2 hover:border-accent text-ink transition-colors"}
+      className={className ?? ACTION_BUTTON_CLASS}
       style={style}
-    >
-      {showIcon && (
-        <span data-part="icon">
-          {busy ? <LoaderCircle className="size-3 animate-spin" /> : <OptionIcon icon={options?.icon} fallback={RefreshCw} className="size-3" />}
-        </span>
-      )}
-      {showLabel && <span data-part="label">{label}</span>}
-    </button>
+    />
   );
 }
 
@@ -1142,25 +1187,21 @@ export function ServerSubscribeAll({
   };
 
   return (
-    <button
-      type="button"
-      data-el="server.subscribeAll"
+    <ElementButton
+      element="server.subscribeAll"
       role={role}
-      data-state={serverStates(!server.online, busy ? "busy" : disabled && "disabled")}
+      label={label}
+      state={serverStates(!server.online, busy ? "busy" : disabled && "disabled")}
+      icon={options?.icon}
+      fallbackIcon={Download}
+      showIcon={showIcon}
+      showLabel={showLabel}
+      busy={busy}
       disabled={disabled}
       onClick={handleClick}
-      aria-label={label}
-      title={showLabel ? undefined : label}
-      className={className ?? "flex-1 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-size-lg)] leading-4 font-semibold text-center border border-line bg-surface2 hover:border-accent text-ink transition-colors"}
+      className={className ?? ACTION_BUTTON_CLASS}
       style={style}
-    >
-      {showIcon && (
-        <span data-part="icon">
-          {busy ? <LoaderCircle className="size-3 animate-spin" /> : <OptionIcon icon={options?.icon} fallback={Download} className="size-3" />}
-        </span>
-      )}
-      {showLabel && <span data-part="label">{label}</span>}
-    </button>
+    />
   );
 }
 
@@ -1224,24 +1265,20 @@ export function ServerUnsubscribeUnique({
   };
 
   return (
-    <button
-      type="button"
-      data-el="server.unsubscribeUnique"
-      data-state={serverStates(!server.online, busy ? "busy" : disabled && "disabled")}
+    <ElementButton
+      element="server.unsubscribeUnique"
+      label={label}
+      state={serverStates(!server.online, busy ? "busy" : disabled && "disabled")}
+      icon={options?.icon}
+      fallbackIcon={Trash}
+      showIcon={showIcon}
+      showLabel={showLabel}
+      busy={busy}
       disabled={disabled}
       onClick={handleClick}
-      aria-label={label}
-      title={showLabel ? undefined : label}
-      className={className ?? "flex-1 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-size-lg)] leading-4 font-semibold text-center border border-line bg-surface2 hover:border-accent text-ink transition-colors"}
+      className={className ?? ACTION_BUTTON_CLASS}
       style={style}
-    >
-      {showIcon && (
-        <span data-part="icon">
-          {busy ? <LoaderCircle className="size-3 animate-spin" /> : <OptionIcon icon={options?.icon} fallback={Trash} className="size-3" />}
-        </span>
-      )}
-      {showLabel && <span data-part="label">{label}</span>}
-    </button>
+    />
   );
 }
 
@@ -1312,24 +1349,19 @@ export function ServerCopyAddress({
   };
 
   return (
-    <button
-      type="button"
-      data-el="server.copyAddress"
+    <ElementButton
+      element="server.copyAddress"
       role={role}
-      data-state={serverStates(!server.online, copied && "copied")}
+      label={label}
+      state={serverStates(!server.online, copied && "copied")}
+      icon={options?.icon}
+      fallbackIcon={copied ? Check : Copy}
+      showIcon={showIcon}
+      showLabel={showLabel}
       onClick={handleClick}
-      aria-label={label}
-      title={showLabel ? undefined : label}
       className={className ?? "flex items-center gap-1.5 text-muted hover:text-ink"}
       style={style}
-    >
-      {showIcon && (
-        <span data-part="icon">
-          <OptionIcon icon={options?.icon} fallback={copied ? Check : Copy} className="size-3" />
-        </span>
-      )}
-      {showLabel && <span data-part="label">{label}</span>}
-    </button>
+    />
   );
 }
 

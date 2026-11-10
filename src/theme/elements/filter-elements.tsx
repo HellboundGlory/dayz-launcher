@@ -8,6 +8,7 @@ import { useSearchSuggestions } from "@/hooks/use-search-suggestions";
 import { useElementContext } from "./context";
 import { OptionIcon } from "./option-icon";
 import { useThemedPopupTrigger } from "./use-themed-popup-trigger";
+import type { PopupLayoutFile } from "../renderer/types";
 import { SearchSuggestions, nextActive, suggestionId, suggestionPatch } from "./search-suggestions";
 import {
   TriggerPopup,
@@ -257,6 +258,40 @@ export function FilterSearch({
   );
 }
 
+const FILTER_POPUP_CLASS =
+  "absolute left-0 top-full mt-1 overflow-y-auto border border-line bg-surface2 shadow-lg [font-size:var(--t-type-size-lg)] leading-4";
+
+/** The anchored popup under a filter trigger; each caller keeps its own width, padding and spacing. */
+function FilterPopupFrame({
+  open,
+  popupId,
+  close,
+  themedPopup,
+  triggerRef,
+  popupRef,
+  popupStyle,
+  className,
+  children,
+}: {
+  open: boolean;
+  popupId: string;
+  close: () => void;
+  themedPopup: PopupLayoutFile | undefined;
+  triggerRef: RefObject<HTMLDivElement | null>;
+  popupRef: RefObject<HTMLDivElement | null>;
+  popupStyle: CSSProperties;
+  className: string;
+  children: ReactNode;
+}) {
+  return (
+    <TriggerPopup open={open} popupId={popupId} close={close} themedPopup={themedPopup} triggerRef={triggerRef}>
+      <div ref={popupRef} style={popupStyle} data-part="popup" className={`${FILTER_POPUP_CLASS} ${className}`}>
+        {children}
+      </div>
+    </TriggerPopup>
+  );
+}
+
 export function FilterMap({
   options,
   className,
@@ -287,24 +322,20 @@ export function FilterMap({
         open={open}
         onClick={() => setOpen(!open)}
       />
-      <TriggerPopup
+      <FilterPopupFrame
         open={open}
         popupId="mapFilter"
         close={close}
         themedPopup={themedPopup}
         triggerRef={ref}
+        popupRef={popupRef}
+        popupStyle={popupStyle}
+        className="max-h-64 min-w-[224px] p-1"
       >
-        <div
-          ref={popupRef}
-          style={popupStyle}
-          data-part="popup"
-          className="absolute left-0 top-full mt-1 max-h-64 min-w-[224px] overflow-y-auto border border-line bg-surface2 p-1 shadow-lg [font-size:var(--t-type-size-lg)] leading-4"
-        >
-          <PopupMapOptions />
-          <PopupSeparator />
-          <PopupClear />
-        </div>
-      </TriggerPopup>
+        <PopupMapOptions />
+        <PopupSeparator />
+        <PopupClear />
+      </FilterPopupFrame>
     </DropdownRoot>
   );
 }
@@ -338,24 +369,20 @@ export function FilterTags({
         open={open}
         onClick={() => setOpen(!open)}
       />
-      <TriggerPopup
+      <FilterPopupFrame
         open={open}
         popupId="tagsFilter"
         close={close}
         themedPopup={themedPopup}
         triggerRef={ref}
+        popupRef={popupRef}
+        popupStyle={popupStyle}
+        className="min-w-[208px] p-1.5 space-y-1"
       >
-        <div
-          ref={popupRef}
-          style={popupStyle}
-          data-part="popup"
-          className="absolute left-0 top-full mt-1 min-w-[208px] overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg [font-size:var(--t-type-size-lg)] leading-4 space-y-1"
-        >
-          <PopupTagOptions />
-          <PopupSeparator />
-          <PopupClear />
-        </div>
-      </TriggerPopup>
+        <PopupTagOptions />
+        <PopupSeparator />
+        <PopupClear />
+      </FilterPopupFrame>
     </DropdownRoot>
   );
 }
@@ -390,25 +417,21 @@ export function FilterRegion({
         onClick={() => setOpen(!open)}
         title="Approximate — based on the server's IP block, not its actual location"
       />
-      <TriggerPopup
+      <FilterPopupFrame
         open={open}
         popupId="regionFilter"
         close={close}
         themedPopup={themedPopup}
         triggerRef={ref}
+        popupRef={popupRef}
+        popupStyle={popupStyle}
+        className="min-w-[176px] max-h-64 p-1.5 space-y-1"
       >
-        <div
-          ref={popupRef}
-          style={popupStyle}
-          data-part="popup"
-          className="absolute left-0 top-full mt-1 min-w-[176px] max-h-64 overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg [font-size:var(--t-type-size-lg)] leading-4 space-y-1"
-        >
-          <PopupRegionOptions />
-          <PopupSeparator />
-          <PopupRegionNote className="px-[var(--t-space-controlCompactX)] pb-[var(--t-space-separatorY)] pt-[var(--t-space-separatorX)] [font-size:var(--t-type-micro-size)] [line-height:var(--t-type-heading-leading)] whitespace-normal text-muted" />
-          <PopupClear />
-        </div>
-      </TriggerPopup>
+        <PopupRegionOptions />
+        <PopupSeparator />
+        <PopupRegionNote className="px-[var(--t-space-controlCompactX)] pb-[var(--t-space-separatorY)] pt-[var(--t-space-separatorX)] [font-size:var(--t-type-micro-size)] [line-height:var(--t-type-heading-leading)] whitespace-normal text-muted" />
+        <PopupClear />
+      </FilterPopupFrame>
     </DropdownRoot>
   );
 }
@@ -739,22 +762,18 @@ export function FilterSort({
           </>
         }
       />
-      <TriggerPopup
+      <FilterPopupFrame
         open={open}
         popupId="sort"
         close={close}
         themedPopup={themedPopup}
         triggerRef={ref}
+        popupRef={popupRef}
+        popupStyle={popupStyle}
+        className="min-w-[176px] p-1.5 space-y-1"
       >
-        <div
-          ref={popupRef}
-          style={popupStyle}
-          data-part="popup"
-          className="absolute left-0 top-full mt-1 min-w-[176px] overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg [font-size:var(--t-type-size-lg)] leading-4 space-y-1"
-        >
-          <PopupSortOptions />
-        </div>
-      </TriggerPopup>
+        <PopupSortOptions />
+      </FilterPopupFrame>
     </DropdownRoot>
   );
 }
