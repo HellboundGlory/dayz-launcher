@@ -145,7 +145,7 @@ the themes that have that element. A `click=` value is a CSS selector,
 `text:<button label>` (first button with that text), `select:<row label>` (the select button of that
 row in the open Filters menu) or `last-visible:<selector>`
 (the last match whose row is fully on screen). A disabled or covered target counts as
-missing (the "mods need updating" toast covers the bottom right at this size, so those rows click its close button first), and after the last click the real pointer rests on its centre so hover
+missing (the "mods need updating" toast covers the top right below the toolbar at this size, so those rows click its close button first), and after the last click the real pointer rests on its centre so hover
 styles show in the shot. Files are `baselines/<theme>/dark-650x413-<scenario>.png`;
 a new shot has no baseline until it is recorded with `record`, so `check`
 reports it as `no baseline`.

@@ -67,7 +67,7 @@ const SERVER_INFO_ROWS = ["modal-serverinfo", "modal-serverinfo-modsmixed"];
 
 /** The smallest window: 975×620 at UI scale 1.5, dark scheme only. */
 const SMALL = { sizes: [[650, 413]], schemes: ["dark"], scale: 1.5 };
-// The "mods need updating" toast covers the bottom-right of the Mods view, the detail panel and the Themes tab at the small size.
+// The "mods need updating" toast covers the top right of the Mods view, the detail panel and the Themes tab at the small size.
 const DISMISS_TOAST = click('[data-part="toast"] [data-part="close"]');
 const FIRST_MOD = '[data-el="mod.select"]';
 const LOAD_MENU = '[data-el="server.menu"] [data-part="trigger"][aria-label^="Load this server"]';

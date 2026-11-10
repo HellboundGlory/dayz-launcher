@@ -1,8 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToastStore, type Toast, type ToastTone } from "@/stores/toast-store";
 import { useNoticeToasts } from "@/theme/elements/notice-toasts";
+import { toastTop, toolbarControls } from "./toast-placement";
 
 const TONE: Record<ToastTone, { stripe: string; tag: string; button: string }> = {
   info: { stripe: "before:bg-accent", tag: "text-accent", button: "bg-accent" },
@@ -40,6 +41,29 @@ export function ToastHost() {
     setPaused(focusInside || pointerInside);
   }, [shown.length, entries, setPaused]);
 
+  // Each theme's toolbar sits at a different height and wraps on narrow windows,
+  // so measure it rather than fixing the offset.
+  const [top, setTop] = useState<number>();
+  const showing = shown.length > 0;
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host || !showing) return;
+    let frame = 0;
+    const measure = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => setTop(toastTop(toolbarControls(host), host.getBoundingClientRect())));
+    };
+    measure();
+    const observer = new MutationObserver(measure);
+    observer.observe(document.body, { childList: true, subtree: true });
+    window.addEventListener("resize", measure);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [showing]);
+
   const hold = (reason: "pointer" | "focus", on: boolean) => {
     held.current[reason] = on;
     setPaused(held.current.pointer || held.current.focus);
@@ -57,7 +81,8 @@ export function ToastHost() {
         // Moving between controls inside the stack never lifts the hold.
         if (!event.currentTarget.contains(event.relatedTarget)) hold("focus", false);
       }}
-      className="fixed right-[14px] bottom-[44px] z-[var(--z-toast)] flex w-[370px] max-w-[calc(100%_-_28px)] flex-col gap-2"
+      style={{ top }}
+      className="fixed top-[48px] right-[14px] z-[var(--z-toast)] flex w-[370px] max-w-[calc(100%_-_28px)] flex-col gap-2"
     >
       {shown.map(({ toast, quick }) => (
         <ToastCard

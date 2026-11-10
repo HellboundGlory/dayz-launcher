@@ -19,7 +19,7 @@
     },
     "notice": {
       "title": "launcher messages",
-      "blurb": "The launcher shows these messages as toasts in the bottom-right corner, so a `notice.*` placement renders nothing and can be left out. The elements stay registered so a layout written before toasts still validates. Beyond them, three more notices are launcher-owned and never placed by a theme: the theme-fallback notice, the incompatible-theme notice and the Activation Safety Window."
+      "blurb": "The launcher shows these messages as toasts in the top-right corner, so a `notice.*` placement renders nothing and can be left out. The elements stay registered so a layout written before toasts still validates. Beyond them, three more notices are launcher-owned and never placed by a theme: the theme-fallback notice, the incompatible-theme notice and the Activation Safety Window."
     },
     "filter": {
       "title": "server browser filters and sorting",
