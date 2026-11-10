@@ -207,7 +207,7 @@ pub async fn launch_game(
                 ip: *v4.ip(),
                 query_port: v4.port(),
             };
-            if let Ok(reader) = crate::commands::server::reader(&state) {
+            if let Ok(reader) = crate::commands::server::open_reader(&state).await {
                 let row = tokio::task::spawn_blocking(move || reader.get(key))
                     .await
                     .ok()
@@ -323,13 +323,9 @@ pub async fn launch_game(
     }
 
     // Only after the process actually started, so a failed gate never shows
-    // up in RECENT. Writer scoped in its own block: the guard is `!Send`
-    // and can't be held across the `.await` below.
+    // up in RECENT.
     if !main_menu {
-        let played_writer = {
-            let guard = state.registry.lock().map_err(|e| e.to_string())?;
-            guard.as_ref().map(|r| r.writer())
-        };
+        let played_writer = crate::commands::server::registry_writer(&state).await.ok();
         if let (Some(writer), SocketAddr::V4(v4)) = (played_writer, query_addr) {
             let key = tetra_registry::rows::ServerKey {
                 ip: *v4.ip(),
@@ -461,10 +457,7 @@ pub async fn verify_server_mods(
         .filter_map(|m| m.hash.map(|hash| (m.workshop_id, hash)))
         .collect();
 
-    let writer = {
-        let guard = state.registry.lock().map_err(|e| e.to_string())?;
-        guard.as_ref().map(|r| r.writer())
-    };
+    let writer = crate::commands::server::registry_writer(&state).await.ok();
     if let Some(writer) = writer {
         if let Err(e) = writer.upsert_server_mods(key, declared.clone()).await {
             crate::log::line(

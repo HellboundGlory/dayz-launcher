@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tauri::State;
 use tetra_steam::workshop::ModState;
 
-use super::{blocking_read, prober, reader, server_key};
+use super::{blocking_read, open_reader, prober, registry_writer, server_key};
 
 /// How long a cached Workshop row is trusted before Steam is asked again.
 const WORKSHOP_CACHE_TTL_SECS: u64 = 24 * 3600;
@@ -295,12 +295,8 @@ pub(crate) async fn resolve_workshop_cache(
             guard.as_ref().map(Arc::clone)
         };
         if let Some(ref steam_handle) = steam {
-            if let Ok(reader_fresh) = reader(state) {
-                let writer_opt = {
-                    let guard = state.registry.lock().map_err(|e| e.to_string())?;
-                    guard.as_ref().map(|r| r.writer())
-                };
-                if let Some(writer) = writer_opt {
+            if let Ok(reader_fresh) = open_reader(state).await {
+                if let Ok(writer) = registry_writer(state).await {
                     let handle = Arc::clone(steam_handle);
                     let missing_ids = missing.clone();
                     let fetched = tokio::task::spawn_blocking(move || {
@@ -374,11 +370,7 @@ pub(crate) async fn check_server_mods_impl(
         .filter_map(|m| m.hash.map(|hash| (m.workshop_id, hash)))
         .collect();
 
-    let writer = {
-        let guard = state.registry.lock().map_err(|e| e.to_string())?;
-        guard.as_ref().map(|r| r.writer())
-    };
-    if let Some(writer) = writer {
+    if let Ok(writer) = registry_writer(state).await {
         let log = |msg: String| {
             if let Some(app) = app {
                 crate::log::log_line(app, "refresh", &msg);
@@ -781,6 +773,7 @@ mod tests {
 
         let app_state = crate::state::AppState::new();
         *app_state.registry.lock().unwrap() = Some(registry);
+        app_state.registry_status.send_replace(Some(false));
 
         let res_online = super::server_mod_readiness_impl(&app_state, "192.0.2.1".into(), 27016)
             .await
@@ -872,6 +865,7 @@ mod tests {
 
         let app_state = crate::state::AppState::new();
         *app_state.registry.lock().unwrap() = Some(registry);
+        app_state.registry_status.send_replace(Some(false));
 
         let res = super::server_mod_readiness_impl(&app_state, "198.51.100.2".into(), 27016)
             .await
@@ -983,6 +977,7 @@ mod tests {
 
         let app_state = crate::state::AppState::new();
         *app_state.registry.lock().unwrap() = Some(registry);
+        app_state.registry_status.send_replace(Some(false));
 
         let prober = tetra_net::Prober::new(tetra_net::ProbeConfig {
             max_in_flight: 4,
@@ -1164,6 +1159,7 @@ mod tests {
 
         let app_state = crate::state::AppState::new();
         *app_state.registry.lock().unwrap() = Some(registry);
+        app_state.registry_status.send_replace(Some(false));
 
         let (tx, rx) = std::sync::mpsc::channel();
         let steam_handle = SteamHandle::new_mock(tx);

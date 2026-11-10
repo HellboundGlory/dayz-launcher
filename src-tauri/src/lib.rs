@@ -253,6 +253,7 @@ pub fn run() {
 
             // Falls back to in-memory on failure rather than bricking the app;
             // `registry_status` lets the frontend warn about the data loss.
+            let mut degraded = false;
             let registry = match Registry::open(&db_path) {
                 Ok(registry) => {
                     eprintln!("[setup] Registry ready at {}", db_path.display());
@@ -268,15 +269,11 @@ pub fn run() {
                             db_path.display()
                         ),
                     );
-                    *state.registry_degraded.lock().unwrap() = true;
+                    degraded = true;
                     Registry::open_in_memory().expect("Failed to open in-memory registry")
                 }
             };
             *state.registry.lock().unwrap() = Some(registry);
-
-            // Tells the frontend when it's safe to retry queries that raced
-            // ahead of setup and got "Registry not initialized".
-            let degraded = *state.registry_degraded.lock().unwrap();
             crate::log::log_line(
                 app.handle(),
                 "setup",
@@ -284,12 +281,6 @@ pub fn run() {
                     "registry ready in {}ms (degraded={degraded})",
                     setup_started.elapsed().as_millis()
                 ),
-            );
-            // Set before the event, so a status query made on its heels agrees with it.
-            let _ = state.registry_ready.set(degraded);
-            let _ = app.handle().emit(
-                "registry-ready",
-                serde_json::json!({ "degraded": degraded }),
             );
 
             // The single process-wide prober, so the concurrency bound applies
@@ -323,8 +314,12 @@ pub fn run() {
                 tetra_net::Prober::new(probe_config)
                     .with_pinger(std::sync::Arc::new(tetra_net::IcmpPinger::new())),
             );
-            // Registry and prober are both set: commands waiting in `registry_writer` may go.
-            state.registry_open.send_replace(true);
+            // Sent before the event, so a status query made on its heels agrees with it.
+            state.registry_status.send_replace(Some(degraded));
+            let _ = app.handle().emit(
+                "registry-ready",
+                serde_json::json!({ "degraded": degraded }),
+            );
 
             let window = app
                 .get_webview_window("main")

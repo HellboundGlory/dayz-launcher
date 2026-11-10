@@ -27,14 +27,21 @@ fn prober(state: &AppState) -> Result<Prober, String> {
 /// How long a command waits for setup to open the registry before giving up.
 const REGISTRY_WAIT: std::time::Duration = std::time::Duration::from_secs(60);
 
-/// The registry's writer, once setup has opened it and made the prober. On
-/// Windows a command can arrive before setup has run.
-pub(crate) async fn registry_writer(state: &AppState) -> Result<tetra_registry::Writer, String> {
-    let mut open = state.registry_open.subscribe();
-    tokio::time::timeout(REGISTRY_WAIT, open.wait_for(|open| *open))
+/// Waits for setup to open the registry and make the prober. On Windows a
+/// command can arrive before setup has run; Linux runs setup first, so this
+/// returns at once there.
+async fn wait_for_registry(state: &AppState) -> Result<(), String> {
+    let mut status = state.registry_status.subscribe();
+    tokio::time::timeout(REGISTRY_WAIT, status.wait_for(|status| status.is_some()))
         .await
         .map_err(|_| "Registry not initialized".to_string())?
         .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// The registry's writer, once setup has opened it.
+pub(crate) async fn registry_writer(state: &AppState) -> Result<tetra_registry::Writer, String> {
+    wait_for_registry(state).await?;
     let guard = state.registry.lock().map_err(|e| e.to_string())?;
     Ok(guard.as_ref().ok_or("Registry not initialized")?.writer())
 }
@@ -43,6 +50,10 @@ pub(crate) async fn registry_writer(state: &AppState) -> Result<tetra_registry::
 /// tight scope matters twice over: the `!Send` guard can't cross an
 /// `.await`, and a `Reader` owning its own connection means handing it to a
 /// blocking task keeps no lock at all.
+///
+/// Commands go through [`blocking_read`] or [`open_reader`] instead, which
+/// wait for setup. The only caller outside those is the Discord poll loop,
+/// where a skipped read while the registry is closed is fine.
 pub(crate) fn reader(state: &AppState) -> Result<tetra_registry::Reader, String> {
     let guard = state.registry.lock().map_err(|e| e.to_string())?;
     guard
@@ -50,6 +61,12 @@ pub(crate) fn reader(state: &AppState) -> Result<tetra_registry::Reader, String>
         .ok_or("Registry not initialized")?
         .reader()
         .map_err(|e| e.to_string())
+}
+
+/// A read connection for a command, waiting for setup to open the registry first.
+pub(crate) async fn open_reader(state: &AppState) -> Result<tetra_registry::Reader, String> {
+    wait_for_registry(state).await?;
+    reader(state)
 }
 
 /// The shared reader `blocking_read` uses, cloning the `Arc` so it can be
@@ -75,6 +92,7 @@ where
     F: FnOnce(&tetra_registry::Reader) -> Result<T, String> + Send + 'static,
     T: Send + 'static,
 {
+    wait_for_registry(state).await?;
     let pool = reader_pool(state)?;
     tokio::task::spawn_blocking(move || {
         let reader = pool.lock().map_err(|e| e.to_string())?;
@@ -317,10 +335,7 @@ pub async fn toggle_favourite(
     favourite: bool,
 ) -> Result<(), String> {
     let key = server_key(&addr, query_port)?;
-    let writer = {
-        let guard = state.registry.lock().map_err(|e| e.to_string())?;
-        guard.as_ref().ok_or("Registry not initialized")?.writer()
-    };
+    let writer = registry_writer(&state).await?;
     let affected = writer
         .set_favourite(key, favourite)
         .await
@@ -434,6 +449,50 @@ fn sort_from_params(sort_key: &str, sort_dir: &str) -> (SortKey, SortDir) {
 #[cfg(test)]
 mod tests {
     use super::server_key;
+    use std::net::Ipv4Addr;
+
+    /// On Windows a command can arrive before setup has opened the registry;
+    /// it must wait for it rather than fail.
+    #[tokio::test]
+    async fn a_read_made_before_setup_waits_for_it() {
+        let state = std::sync::Arc::new(crate::state::AppState::new());
+        let key = tetra_registry::ServerKey {
+            ip: Ipv4Addr::new(203, 0, 113, 7),
+            query_port: 27016,
+        };
+
+        let early = {
+            let state = state.clone();
+            tokio::spawn(async move {
+                super::blocking_read(&state, move |reader| {
+                    reader.get(key).map_err(|e| e.to_string())
+                })
+                .await
+            })
+        };
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        let registry = tetra_registry::Registry::open_in_memory().expect("registry");
+        registry
+            .writer()
+            .upsert_servers(vec![tetra_registry::ServerRow {
+                key,
+                name: "Early Read".into(),
+                responded: true,
+                ..Default::default()
+            }])
+            .await
+            .expect("row");
+        *state.registry.lock().unwrap() = Some(registry);
+        state.registry_status.send_replace(Some(false));
+
+        let row = early
+            .await
+            .expect("task")
+            .expect("read")
+            .expect("the row it asked for");
+        assert_eq!(row.name, "Early Read");
+    }
 
     /// On Windows a command can arrive before setup has opened the registry;
     /// it must wait for it rather than fail.
@@ -448,7 +507,7 @@ mod tests {
 
         *state.registry.lock().unwrap() =
             Some(tetra_registry::Registry::open_in_memory().expect("registry"));
-        state.registry_open.send_replace(true);
+        state.registry_status.send_replace(Some(false));
 
         assert_eq!(early.await.expect("task"), Ok(()));
     }
