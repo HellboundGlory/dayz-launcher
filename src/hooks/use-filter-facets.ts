@@ -3,10 +3,9 @@ import { useServerStore } from "@/stores/server-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { loadInstalledVersion, useLoadedVersion } from "@/stores/installed-version-store";
 import { filterParamsFor } from "@/hooks/use-server-data-loader";
+import { createDebouncedLoader } from "@/hooks/debounced-loader";
 import { getFilterFacets, type FilterFacets } from "@/lib/tauri";
 import type { ServerFilter } from "@/types/filters";
-
-const DEBOUNCE_MS = 250;
 
 export interface FacetResult {
   facets: FilterFacets | null;
@@ -27,51 +26,27 @@ export function createFacetLoader(
   fetcher: (filter: ServerFilter, installedVersion: string | null) => Promise<FilterFacets>,
   onResult: (result: FacetResult) => void,
 ): FacetLoader {
-  let newest = 0;
   let opened = false;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-
-  const clear = () => {
-    if (timer !== undefined) {
-      clearTimeout(timer);
-      timer = undefined;
-    }
-  };
-
-  const run = (filter: ServerFilter, installedVersion: string | null) => {
-    const id = ++newest;
-    fetcher(filter, installedVersion).then(
-      (facets) => {
-        if (id === newest) onResult({ facets, failed: false });
-      },
-      () => {
-        if (id === newest) onResult({ facets: null, failed: true });
-      },
-    );
-  };
+  const loader = createDebouncedLoader<FilterFacets>(
+    (facets) => onResult({ facets, failed: false }),
+    () => onResult({ facets: null, failed: true }),
+  );
 
   return {
     update(open, filter, installedVersion) {
-      clear();
       if (!open) {
         opened = false;
-        newest++;
+        loader.stop();
         onResult({ facets: null, failed: false });
         return;
       }
-      if (!opened) {
-        opened = true;
-        run(filter, installedVersion);
-        return;
-      }
-      timer = setTimeout(() => {
-        timer = undefined;
-        run(filter, installedVersion);
-      }, DEBOUNCE_MS);
+      // An open menu shows its counts at once; later changes wait for the player to stop.
+      const now = !opened;
+      opened = true;
+      loader.request(now, () => fetcher(filter, installedVersion));
     },
     stop() {
-      clear();
-      newest++;
+      loader.stop();
     },
   };
 }

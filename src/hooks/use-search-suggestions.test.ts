@@ -51,28 +51,6 @@ describe("createSuggestionLoader", () => {
     expect(answers).toHaveLength(1);
   });
 
-  it("drops a reply older than the newest request", async () => {
-    vi.useFakeTimers();
-    const pending: ((list: SearchSuggestion[]) => void)[] = [];
-    const fetcher = vi.fn(
-      (_filter: ServerFilter, text: string) =>
-        new Promise<SearchSuggestion[]>((resolve) => pending.push(() => resolve(found(text)))),
-    );
-    const answers: (SearchSuggestion[] | null)[] = [];
-    const loader = createSuggestionLoader(fetcher, (result) => answers.push(result?.list ?? null));
-
-    loader.update(true, true, { ...DEFAULT_FILTER }, "nam");
-    await vi.advanceTimersByTimeAsync(250);
-    loader.update(true, true, { ...DEFAULT_FILTER }, "nama");
-    await vi.advanceTimersByTimeAsync(250);
-    expect(pending).toHaveLength(2);
-
-    pending[1](found("nama"));
-    pending[0](found("nam"));
-    await vi.advanceTimersByTimeAsync(0);
-    expect(answers).toEqual([found("nama")]);
-  });
-
   it("gives no list on an error", async () => {
     vi.useFakeTimers();
     const answers: (SearchSuggestion[] | null)[] = [];

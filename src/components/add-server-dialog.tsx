@@ -1,9 +1,9 @@
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, type ReactNode } from "react";
 import { CircleCheck, LoaderCircle, Plus, Star, X } from "lucide-react";
 import { useAddServerStore, type AddServerState } from "@/stores/add-server-store";
 import { useServerActions } from "@/hooks/use-server-actions";
 import { useEscapeLayer } from "@/theme/interaction/escape-layers";
-import { wrapTabWithin } from "@/theme/interaction/popup-keyboard";
+import { DialogFrame } from "@/components/dialog-frame";
 import type { Server } from "@/types/server";
 
 const SECONDARY =
@@ -45,7 +45,6 @@ export function AddServerBox({
   onJoin,
 }: AddServerBoxProps) {
   const titleId = useId();
-  const wrapRef = useRef<HTMLDivElement>(null);
   const found = state === "found" && server !== null;
 
   let result: ReactNode = null;
@@ -109,99 +108,90 @@ export function AddServerBox({
   );
 
   return (
-    <div
-      className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center p-4 [background-color:var(--t-color-scrim)]"
-      onClick={onCancel}
+    <DialogFrame
+      label="Add server"
+      labelledBy={titleId}
+      onBackdropClick={onCancel}
+      className="flex w-[min(460px,100%)] flex-col"
     >
-      <div
-        ref={wrapRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Add server"
-        aria-labelledby={titleId}
-        onKeyDown={(e) => wrapTabWithin(wrapRef.current, e)}
-        onClick={(e) => e.stopPropagation()}
-        className="flex w-[min(460px,100%)] flex-col [border-radius:var(--t-radius-confirm)] border border-line bg-surface [box-shadow:var(--t-shadow-confirm)]"
-      >
-        <div className="flex items-start gap-3 px-4 pt-4">
-          <h2 id={titleId} data-part="title" className="m-0 flex-1 [font-size:var(--t-type-heading-size)] font-semibold leading-5 text-ink">
-            Add server
-          </h2>
-          <button
-            type="button"
-            data-part="close"
-            aria-label="Close"
-            onClick={onCancel}
-            className="grid size-6 shrink-0 place-items-center text-muted hover:text-ink"
-          >
-            <X aria-hidden className="size-3.5" />
-          </button>
-        </div>
-
-        <div className="grid gap-3 px-4 py-3.5">
-          <label className="grid gap-1.5">
-            <span className="[font-size:var(--t-type-caption-size)] font-semibold uppercase tracking-wider text-muted2">
-              Address
-            </span>
-            <span className="flex items-center gap-2 [border-radius:var(--t-radius-control)] border border-line bg-bg px-2.5 focus-within:border-accent">
-              <Plus aria-hidden className="size-3.5 shrink-0 text-muted" />
-              <input
-                data-part="address"
-                type="text"
-                autoFocus
-                autoComplete="off"
-                spellCheck={false}
-                maxLength={255}
-                value={input}
-                onChange={(e) => onInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    onLookup();
-                  }
-                }}
-                className="min-w-0 flex-1 bg-transparent py-1.5 [font-size:var(--t-type-body-size)] text-ink outline-none"
-              />
-              {input.length > 0 && (
-                <button
-                  type="button"
-                  data-part="clear"
-                  aria-label="Clear address"
-                  onClick={onClear}
-                  className="grid size-5 shrink-0 place-items-center text-muted hover:text-ink"
-                >
-                  <X aria-hidden className="size-3" />
-                </button>
-              )}
-            </span>
-          </label>
-          <p data-part="hint" className="m-0 [font-size:var(--t-type-caption-size)] leading-relaxed text-muted">
-            An IP or a host name. The port is optional: Tetra tries the one you type, the next three, and the usual
-            DayZ ports.
-          </p>
-          {status}
-        </div>
-
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line px-4 py-3">
-          <button type="button" data-part="cancel" onClick={onCancel} className={SECONDARY}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            data-part="favourite"
-            disabled={!found || favourite || busy}
-            onClick={onFavourite}
-            className={SECONDARY}
-          >
-            <Star aria-hidden className="size-3.5" />
-            {favourite ? "In favourites" : "Add to favourites"}
-          </button>
-          <button type="button" data-part="join" disabled={!found || busy} onClick={onJoin} className={PRIMARY}>
-            Join
-          </button>
-        </div>
+      <div className="flex items-start gap-3 px-4 pt-4">
+        <h2 id={titleId} data-part="title" className="m-0 flex-1 [font-size:var(--t-type-heading-size)] font-semibold leading-5 text-ink">
+          Add server
+        </h2>
+        <button
+          type="button"
+          data-part="close"
+          aria-label="Close"
+          onClick={onCancel}
+          className="grid size-6 shrink-0 place-items-center text-muted hover:text-ink"
+        >
+          <X aria-hidden className="size-3.5" />
+        </button>
       </div>
-    </div>
+
+      <div className="grid gap-3 px-4 py-3.5">
+        <label className="grid gap-1.5">
+          <span className="[font-size:var(--t-type-caption-size)] font-semibold uppercase tracking-wider text-muted2">
+            Address
+          </span>
+          <span className="flex items-center gap-2 [border-radius:var(--t-radius-control)] border border-line bg-bg px-2.5 focus-within:border-accent">
+            <Plus aria-hidden className="size-3.5 shrink-0 text-muted" />
+            <input
+              data-part="address"
+              type="text"
+              autoFocus
+              autoComplete="off"
+              spellCheck={false}
+              maxLength={255}
+              value={input}
+              onChange={(e) => onInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  onLookup();
+                }
+              }}
+              className="min-w-0 flex-1 bg-transparent py-1.5 [font-size:var(--t-type-body-size)] text-ink outline-none"
+            />
+            {input.length > 0 && (
+              <button
+                type="button"
+                data-part="clear"
+                aria-label="Clear address"
+                onClick={onClear}
+                className="grid size-5 shrink-0 place-items-center text-muted hover:text-ink"
+              >
+                <X aria-hidden className="size-3" />
+              </button>
+            )}
+          </span>
+        </label>
+        <p data-part="hint" className="m-0 [font-size:var(--t-type-caption-size)] leading-relaxed text-muted">
+          An IP or a host name. The port is optional: Tetra tries the one you type, the next three, and the usual
+          DayZ ports.
+        </p>
+        {status}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line px-4 py-3">
+        <button type="button" data-part="cancel" onClick={onCancel} className={SECONDARY}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          data-part="favourite"
+          disabled={!found || favourite || busy}
+          onClick={onFavourite}
+          className={SECONDARY}
+        >
+          <Star aria-hidden className="size-3.5" />
+          {favourite ? "In favourites" : "Add to favourites"}
+        </button>
+        <button type="button" data-part="join" disabled={!found || busy} onClick={onJoin} className={PRIMARY}>
+          Join
+        </button>
+      </div>
+    </DialogFrame>
   );
 }
 

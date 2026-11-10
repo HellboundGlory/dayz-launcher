@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FilterFacets } from "@/lib/tauri";
-import type { ServerFilter } from "@/types/filters";
 import { DEFAULT_FILTER } from "@/stores/server-store";
 import { createFacetLoader, type FacetResult } from "./use-filter-facets";
 
@@ -68,30 +67,6 @@ describe("createFacetLoader", () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(fetcher).toHaveBeenLastCalledWith({ ...DEFAULT_FILTER, max_ping: 150 }, null);
-  });
-
-  it("drops a reply older than the newest request", async () => {
-    vi.useFakeTimers();
-    const pending: ((found: FilterFacets) => void)[] = [];
-    const onResult = vi.fn();
-    const loader = createFacetLoader(
-      () => new Promise<FilterFacets>((resolve) => pending.push(resolve)),
-      onResult,
-    );
-    const filter: ServerFilter = { ...DEFAULT_FILTER };
-
-    loader.update(true, filter, null);
-    loader.update(true, { ...filter, max_ping: 100 }, null);
-    await vi.advanceTimersByTimeAsync(250);
-    expect(pending).toHaveLength(2);
-
-    pending[0]?.(facets(1));
-    await vi.advanceTimersByTimeAsync(0);
-    expect(onResult).not.toHaveBeenCalled();
-
-    pending[1]?.(facets(2));
-    await vi.advanceTimersByTimeAsync(0);
-    expect(onResult).toHaveBeenCalledWith({ facets: facets(2), failed: false });
   });
 
   it("clears the counts when the menu closes", () => {

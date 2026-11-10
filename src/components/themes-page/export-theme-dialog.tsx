@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { exportTheme, getTheme } from "@/lib/tauri";
 import { resolveThemeAsset } from "@/theme/asset-resolver";
 import { useEscapeLayer } from "@/theme/interaction/escape-layers";
-import { wrapTabWithin } from "@/theme/interaction/popup-keyboard";
+import { DialogFrame } from "@/components/dialog-frame";
 import { resolvedPair } from "@/theme/theme-store";
 import type { ManifestOverrides, ThemeFile } from "@/types/theme";
 import { capabilityLabels, type Capability } from "./capability-labels";
@@ -64,7 +64,6 @@ export function ExportThemeDialog({
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
 
-  const wrapRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -91,10 +90,6 @@ export function ExportThemeDialog({
   }, [id]);
 
   useEscapeLayer(true, onClose);
-
-  function closeIfOutside(e: React.MouseEvent) {
-    if (e.target === e.currentTarget) onClose();
-  }
 
   function addTags(raw: string[]) {
     const next = raw.map((t) => t.trim()).filter(Boolean);
@@ -155,201 +150,194 @@ export function ExportThemeDialog({
   const includedFiles = theme ? packagedFiles(theme) : [];
 
   return (
-    <div
-      className="absolute inset-0 z-[var(--z-dialog)] flex items-center justify-center [background-color:var(--t-color-scrim)]"
-      onMouseDown={closeIfOutside}
+    <DialogFrame
+      label={`Export theme: ${loaded ? theme.name : id}`}
+      onBackdropClick={onClose}
+      scrimClassName="absolute inset-0 z-[var(--z-dialog)] p-0"
+      className="flex max-h-[min(620px,calc(100%-40px))] w-[min(460px,calc(100%-40px))] flex-col overflow-hidden [border-radius:var(--t-radius-modalLarge)] [box-shadow:var(--t-shadow-xl)]"
     >
-      <div
-        ref={wrapRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Export theme: ${loaded ? theme.name : id}`}
-        onKeyDown={(e) => wrapTabWithin(wrapRef.current, e)}
-        className="flex max-h-[min(620px,calc(100%-40px))] w-[min(460px,calc(100%-40px))] flex-col overflow-hidden [border-radius:var(--t-radius-modalLarge)] border border-line bg-surface [box-shadow:var(--t-shadow-xl)]"
-      >
-        <div className="flex shrink-0 items-start justify-between border-b border-line px-4 py-3">
-          <div className="min-w-0">
-            <h3 className="truncate [font-size:var(--t-type-size-xl)] font-extrabold tracking-tight text-ink">
-              {loaded ? `Export Theme: ${name.trim() || id}` : "Export Theme"}
-            </h3>
-            <p className="mt-0.5 flex items-center gap-1.5 truncate font-mono-data [font-size:var(--t-type-label-size)] text-muted">
-              <span className="truncate">{id}</span>
-              {theme && <CapabilityBadge capabilities={theme.capabilities} />}
-            </p>
-            {/* The theme's own preview image when it declares one and it loads;
-                otherwise its tokens are the only preview there is. */}
-            {palette && (
-              <div className="mt-1.5 flex items-center gap-1" aria-hidden="true">
-                {previewSrc && (
-                  <img
-                    src={previewSrc}
-                    alt=""
-                    onError={markPreviewBroken}
-                    className="h-[14px] w-16 [border-radius:var(--t-radius-badge)] object-cover ring-1 ring-line"
-                  />
-                )}
-                {SWATCH_TOKENS.map((t) => (
+      <div className="flex shrink-0 items-start justify-between border-b border-line px-4 py-3">
+        <div className="min-w-0">
+          <h3 className="truncate [font-size:var(--t-type-size-xl)] font-extrabold tracking-tight text-ink">
+            {loaded ? `Export Theme: ${name.trim() || id}` : "Export Theme"}
+          </h3>
+          <p className="mt-0.5 flex items-center gap-1.5 truncate font-mono-data [font-size:var(--t-type-label-size)] text-muted">
+            <span className="truncate">{id}</span>
+            {theme && <CapabilityBadge capabilities={theme.capabilities} />}
+          </p>
+          {/* The theme's own preview image when it declares one and it loads;
+              otherwise its tokens are the only preview there is. */}
+          {palette && (
+            <div className="mt-1.5 flex items-center gap-1" aria-hidden="true">
+              {previewSrc && (
+                <img
+                  src={previewSrc}
+                  alt=""
+                  onError={markPreviewBroken}
+                  className="h-[14px] w-16 [border-radius:var(--t-radius-badge)] object-cover ring-1 ring-line"
+                />
+              )}
+              {SWATCH_TOKENS.map((t) => (
+                <span
+                  key={t}
+                  className="h-[14px] w-9 [border-radius:var(--t-radius-badge)] ring-1 ring-line"
+                  style={{ backgroundColor: palette[t] }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          className="text-muted transition-colors hover:text-ink"
+        >
+          <X className="size-[15px]" />
+        </button>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-4">
+        {!loaded && !error && (
+          <div className="flex items-center justify-center gap-1.5 py-8 [font-size:var(--t-type-body-size)] text-muted">
+            <LoaderCircle className="size-3.5 animate-spin" />
+            <span>Reading the theme…</span>
+          </div>
+        )}
+
+        {loaded && (
+          <>
+            <Field label="Name">
+              <input
+                ref={nameRef}
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className={INPUT_CLASS}
+              />
+            </Field>
+
+            <Field label="Author">
+              <input
+                type="text"
+                value={author}
+                onChange={(e) => setAuthor(e.target.value)}
+                className={INPUT_CLASS}
+              />
+            </Field>
+
+            <Field label="Version">
+              <input
+                type="text"
+                value={version}
+                onChange={(e) => setVersion(e.target.value)}
+                className={cn(INPUT_CLASS, "font-mono-data [font-size:var(--t-type-body-size)]")}
+              />
+            </Field>
+
+            <Field label="Description">
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={2}
+                className={cn(INPUT_CLASS, "resize-y")}
+              />
+            </Field>
+
+            <Field label="Tags">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {tags.map((t) => (
                   <span
                     key={t}
-                    className="h-[14px] w-9 [border-radius:var(--t-radius-badge)] ring-1 ring-line"
-                    style={{ backgroundColor: palette[t] }}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="text-muted transition-colors hover:text-ink"
-          >
-            <X className="size-[15px]" />
-          </button>
-        </div>
-
-        <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-4">
-          {!loaded && !error && (
-            <div className="flex items-center justify-center gap-1.5 py-8 [font-size:var(--t-type-body-size)] text-muted">
-              <LoaderCircle className="size-3.5 animate-spin" />
-              <span>Reading the theme…</span>
-            </div>
-          )}
-
-          {loaded && (
-            <>
-              <Field label="Name">
-                <input
-                  ref={nameRef}
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className={INPUT_CLASS}
-                />
-              </Field>
-
-              <Field label="Author">
-                <input
-                  type="text"
-                  value={author}
-                  onChange={(e) => setAuthor(e.target.value)}
-                  className={INPUT_CLASS}
-                />
-              </Field>
-
-              <Field label="Version">
-                <input
-                  type="text"
-                  value={version}
-                  onChange={(e) => setVersion(e.target.value)}
-                  className={cn(INPUT_CLASS, "font-mono-data [font-size:var(--t-type-body-size)]")}
-                />
-              </Field>
-
-              <Field label="Description">
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={2}
-                  className={cn(INPUT_CLASS, "resize-y")}
-                />
-              </Field>
-
-              <Field label="Tags">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {tags.map((t) => (
-                    <span
-                      key={t}
-                      className="inline-flex items-center gap-1 [border-radius:var(--t-radius-modal)] bg-surface2 px-2 py-[3px] [font-size:var(--t-type-label-size)] text-ink"
+                    className="inline-flex items-center gap-1 [border-radius:var(--t-radius-modal)] bg-surface2 px-2 py-[3px] [font-size:var(--t-type-label-size)] text-ink"
+                  >
+                    {t}
+                    <button
+                      onClick={() => setTags((cur) => cur.filter((x) => x !== t))}
+                      aria-label={`Remove tag ${t}`}
+                      className="text-muted transition-colors hover:text-danger"
                     >
-                      {t}
-                      <button
-                        onClick={() => setTags((cur) => cur.filter((x) => x !== t))}
-                        aria-label={`Remove tag ${t}`}
-                        className="text-muted transition-colors hover:text-danger"
-                      >
-                        <X className="size-2.5" />
-                      </button>
-                    </span>
-                  ))}
-                  <input
-                    type="text"
-                    value={tagInput}
-                    onChange={(e) => onTagTyping(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key !== "Enter") return;
-                      e.preventDefault();
-                      addTags([tagInput]);
-                      setTagInput("");
-                    }}
-                    placeholder="Add tag…"
-                    aria-label="Add tag"
-                    className={cn(INPUT_CLASS, "w-auto min-w-[92px] flex-1 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-label-size)]")}
-                  />
-                </div>
-              </Field>
-
-              <Field label="License">
+                      <X className="size-2.5" />
+                    </button>
+                  </span>
+                ))}
                 <input
                   type="text"
-                  value={license}
-                  onChange={(e) => setLicense(e.target.value)}
-                  placeholder="MIT"
-                  className={INPUT_CLASS}
+                  value={tagInput}
+                  onChange={(e) => onTagTyping(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    e.preventDefault();
+                    addTags([tagInput]);
+                    setTagInput("");
+                  }}
+                  placeholder="Add tag…"
+                  aria-label="Add tag"
+                  className={cn(INPUT_CLASS, "w-auto min-w-[92px] flex-1 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-label-size)]")}
                 />
-              </Field>
-
-              <Field label="Website">
-                <input
-                  type="text"
-                  value={homepage}
-                  onChange={(e) => setHomepage(e.target.value)}
-                  placeholder="https://…"
-                  className={INPUT_CLASS}
-                />
-              </Field>
-
-              <div className="[border-radius:var(--t-radius-popup)] border border-line bg-bg px-3 py-2.5">
-                <p className="[font-size:var(--t-type-compactCaption-size)] font-bold uppercase tracking-wider text-muted2">
-                  Will include
-                </p>
-                <p className="mt-1 font-mono-data [font-size:var(--t-type-label-size)] text-ink">
-                  {includedFiles.join(", ")}
-                </p>
-                <p className="mt-1.5 [font-size:var(--t-type-label-size)] leading-relaxed text-muted">
-                  Will NOT include: settings, favourites, or any personal data.
-                </p>
               </div>
-            </>
-          )}
+            </Field>
 
-          {error && (
-            <div className="[border-radius:var(--t-radius-popup)] bg-danger-soft px-3 py-2 ring-1 ring-danger-line">
-              <p className="[font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider text-danger">
-                {loaded ? "Export failed" : "Could not load theme"}
+            <Field label="License">
+              <input
+                type="text"
+                value={license}
+                onChange={(e) => setLicense(e.target.value)}
+                placeholder="MIT"
+                className={INPUT_CLASS}
+              />
+            </Field>
+
+            <Field label="Website">
+              <input
+                type="text"
+                value={homepage}
+                onChange={(e) => setHomepage(e.target.value)}
+                placeholder="https://…"
+                className={INPUT_CLASS}
+              />
+            </Field>
+
+            <div className="[border-radius:var(--t-radius-popup)] border border-line bg-bg px-3 py-2.5">
+              <p className="[font-size:var(--t-type-compactCaption-size)] font-bold uppercase tracking-wider text-muted2">
+                Will include
               </p>
-              <p className="mt-1 break-words [font-size:var(--t-type-label-size)] leading-relaxed text-ink">{error}</p>
+              <p className="mt-1 font-mono-data [font-size:var(--t-type-label-size)] text-ink">
+                {includedFiles.join(", ")}
+              </p>
+              <p className="mt-1.5 [font-size:var(--t-type-label-size)] leading-relaxed text-muted">
+                Will NOT include: settings, favourites, or any personal data.
+              </p>
             </div>
-          )}
-        </div>
+          </>
+        )}
 
-        <div className="flex shrink-0 items-center justify-end gap-1.5 border-t border-line px-4 py-3">
-          <button
-            onClick={onClose}
-            className="[border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-muted2 transition-colors hover:text-ink"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => void handleExport()}
-            disabled={!loaded || busy}
-            className="flex items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none disabled:hover:brightness-100"
-          >
-            {busy && <LoaderCircle className="size-3.5 animate-spin" />}
-            <span>Export ZIP…</span>
-          </button>
-        </div>
+        {error && (
+          <div className="[border-radius:var(--t-radius-popup)] bg-danger-soft px-3 py-2 ring-1 ring-danger-line">
+            <p className="[font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider text-danger">
+              {loaded ? "Export failed" : "Could not load theme"}
+            </p>
+            <p className="mt-1 break-words [font-size:var(--t-type-label-size)] leading-relaxed text-ink">{error}</p>
+          </div>
+        )}
       </div>
-    </div>
+
+      <div className="flex shrink-0 items-center justify-end gap-1.5 border-t border-line px-4 py-3">
+        <button
+          onClick={onClose}
+          className="[border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-muted2 transition-colors hover:text-ink"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={() => void handleExport()}
+          disabled={!loaded || busy}
+          className="flex items-center justify-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none disabled:hover:brightness-100"
+        >
+          {busy && <LoaderCircle className="size-3.5 animate-spin" />}
+          <span>Export ZIP…</span>
+        </button>
+      </div>
+    </DialogFrame>
   );
 }
 

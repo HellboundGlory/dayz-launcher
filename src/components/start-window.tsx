@@ -6,7 +6,7 @@ import { useStartWindowStore } from "@/stores/start-window-store";
 import { startSteps, noteForStep, type StartStep } from "@/lib/start-steps";
 import { useServerActions } from "@/hooks/use-server-actions";
 import { useEscapeLayer } from "@/theme/interaction/escape-layers";
-import { wrapTabWithin } from "@/theme/interaction/popup-keyboard";
+import { DialogFrame } from "@/components/dialog-frame";
 
 const SLOW_AFTER_MS = 60_000;
 const TICK_MS = 1000;
@@ -53,7 +53,6 @@ export function StartWindow() {
   const hide = useStartWindowStore((s) => s.hide);
   const close = useStartWindowStore((s) => s.close);
   const { cancelWait } = useServerActions();
-  const wrapRef = useRef<HTMLDivElement>(null);
   const hideRef = useRef<HTMLButtonElement>(null);
   const [now, setNow] = useState(() => Date.now());
 
@@ -95,89 +94,80 @@ export function StartWindow() {
   const slow = now - slowSince >= SLOW_AFTER_MS;
 
   return (
-    <div className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center [background-color:var(--t-color-scrim)] p-4">
-      <div
-        ref={wrapRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="start-window-title"
-        onKeyDown={(e) => wrapTabWithin(wrapRef.current, e)}
-        className="flex w-[min(440px,100%)] flex-col [border-radius:var(--t-radius-confirm)] border border-line bg-surface [box-shadow:var(--t-shadow-confirm)]"
-      >
-        <div className="grid gap-0.5 px-4 pt-4">
-          <h2
-            id="start-window-title"
-            data-part="title"
-            className="[font-size:var(--t-type-heading-size)] font-semibold leading-5 text-ink"
-          >
-            Starting DayZ
-          </h2>
-          <p data-part="server" className="[font-size:var(--t-type-size-sm)] text-muted">
-            {op.serverName}
-          </p>
-        </div>
-
-        <ol data-part="steps" className="m-0 grid list-none gap-1 px-4 py-3">
-          {steps.map((step, stepIndex) => (
-            <li
-              key={stepIndex}
-              data-part="step"
-              data-state={step.state}
-              aria-current={stepIndex === index ? "step" : undefined}
-              className="grid grid-cols-[20px_1fr_auto] items-center gap-2.5 [font-size:var(--t-type-body-size)]"
-            >
-              <span
-                data-part="icon"
-                className={`grid size-5 place-items-center ${ICON_TONE[step.state]}`}
-              >
-                <StepIcon state={step.state} />
-              </span>
-              <span data-part="label" className={step.state === "todo" ? "text-muted" : "text-ink"}>
-                {step.label}
-              </span>
-              <span
-                data-part="detail"
-                className="flex items-baseline gap-2 font-mono [font-size:var(--t-type-data-size)] text-muted"
-              >
-                {/* Two elements, not two text nodes: adjacent text merges into one flex item and the gap is lost. */}
-                {step.detail && <span>{step.detail}</span>}
-                {stepIndex === index && <span>{elapsed(stepSince, now)}</span>}
-              </span>
-            </li>
-          ))}
-        </ol>
-
-        {slow && (
-          <div
-            data-part="slow"
-            className="mx-4 mb-3 flex items-start gap-2.5 [border-radius:var(--t-radius-control)] border border-warn-line bg-warn-soft px-3 py-2.5 [font-size:var(--t-type-body-size)] leading-relaxed text-ink"
-          >
-            <Clock className="mt-0.5 size-3.5 shrink-0 text-warn" aria-hidden />
-            <span>{SLOW_TEXT}</span>
-          </div>
-        )}
-
-        <div
-          data-part="footer"
-          className="flex items-center gap-2 border-t border-line px-4 py-3"
+    <DialogFrame labelledBy="start-window-title" className="flex w-[min(440px,100%)] flex-col">
+      <div className="grid gap-0.5 px-4 pt-4">
+        <h2
+          id="start-window-title"
+          data-part="title"
+          className="[font-size:var(--t-type-heading-size)] font-semibold leading-5 text-ink"
         >
-          <span data-part="hint" className="mr-auto [font-size:var(--t-type-caption-size)] text-muted">
-            This window closes when DayZ is running.
-          </span>
-          <button
-            type="button"
-            data-part="cancel"
-            disabled={starting}
-            onClick={cancelWait}
-            className={BUTTON}
-          >
-            Cancel
-          </button>
-          <button ref={hideRef} type="button" data-part="hide" onClick={hide} className={BUTTON}>
-            Hide
-          </button>
-        </div>
+          Starting DayZ
+        </h2>
+        <p data-part="server" className="[font-size:var(--t-type-size-sm)] text-muted">
+          {op.serverName}
+        </p>
       </div>
-    </div>
+
+      <ol data-part="steps" className="m-0 grid list-none gap-1 px-4 py-3">
+        {steps.map((step, stepIndex) => (
+          <li
+            key={stepIndex}
+            data-part="step"
+            data-state={step.state}
+            aria-current={stepIndex === index ? "step" : undefined}
+            className="grid grid-cols-[20px_1fr_auto] items-center gap-2.5 [font-size:var(--t-type-body-size)]"
+          >
+            <span
+              data-part="icon"
+              className={`grid size-5 place-items-center ${ICON_TONE[step.state]}`}
+            >
+              <StepIcon state={step.state} />
+            </span>
+            <span data-part="label" className={step.state === "todo" ? "text-muted" : "text-ink"}>
+              {step.label}
+            </span>
+            <span
+              data-part="detail"
+              className="flex items-baseline gap-2 font-mono [font-size:var(--t-type-data-size)] text-muted"
+            >
+              {/* Two elements, not two text nodes: adjacent text merges into one flex item and the gap is lost. */}
+              {step.detail && <span>{step.detail}</span>}
+              {stepIndex === index && <span>{elapsed(stepSince, now)}</span>}
+            </span>
+          </li>
+        ))}
+      </ol>
+
+      {slow && (
+        <div
+          data-part="slow"
+          className="mx-4 mb-3 flex items-start gap-2.5 [border-radius:var(--t-radius-control)] border border-warn-line bg-warn-soft px-3 py-2.5 [font-size:var(--t-type-body-size)] leading-relaxed text-ink"
+        >
+          <Clock className="mt-0.5 size-3.5 shrink-0 text-warn" aria-hidden />
+          <span>{SLOW_TEXT}</span>
+        </div>
+      )}
+
+      <div
+        data-part="footer"
+        className="flex items-center gap-2 border-t border-line px-4 py-3"
+      >
+        <span data-part="hint" className="mr-auto [font-size:var(--t-type-caption-size)] text-muted">
+          This window closes when DayZ is running.
+        </span>
+        <button
+          type="button"
+          data-part="cancel"
+          disabled={starting}
+          onClick={cancelWait}
+          className={BUTTON}
+        >
+          Cancel
+        </button>
+        <button ref={hideRef} type="button" data-part="hide" onClick={hide} className={BUTTON}>
+          Hide
+        </button>
+      </div>
+    </DialogFrame>
   );
 }

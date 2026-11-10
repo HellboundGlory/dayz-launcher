@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { filterParamsFor } from "@/hooks/use-server-data-loader";
+import { createDebouncedLoader } from "@/hooks/debounced-loader";
 import { isSavedTab } from "@/lib/saved-tab";
 import { getSearchSuggestions, type FilterParams, type SearchSuggestion } from "@/lib/tauri";
 import type { ServerFilter } from "@/types/filters";
 
-const DEBOUNCE_MS = 250;
 const MIN_TEXT = 2;
 
 /** A list and the text it answers. */
@@ -23,45 +23,20 @@ export function createSuggestionLoader(
   fetcher: (params: FilterParams, text: string) => Promise<SearchSuggestion[]>,
   onResult: (result: SuggestionResult | null) => void,
 ): SuggestionLoader {
-  let newest = 0;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-
-  const clear = () => {
-    if (timer !== undefined) {
-      clearTimeout(timer);
-      timer = undefined;
-    }
-  };
-
-  const run = (params: FilterParams, query: string) => {
-    const id = ++newest;
-    fetcher(params, query).then(
-      (list) => {
-        if (id === newest) onResult({ query, list });
-      },
-      () => {
-        if (id === newest) onResult(null);
-      },
-    );
-  };
+  const loader = createDebouncedLoader<SuggestionResult>(onResult, () => onResult(null));
 
   return {
     update(focused, allServers, params, text) {
-      clear();
       const query = text.trim();
       if (!focused || !allServers || query.length < MIN_TEXT) {
-        newest++;
+        loader.stop();
         onResult(null);
         return;
       }
-      timer = setTimeout(() => {
-        timer = undefined;
-        run(params, query);
-      }, DEBOUNCE_MS);
+      loader.request(false, () => fetcher(params, query).then((list) => ({ query, list })));
     },
     stop() {
-      clear();
-      newest++;
+      loader.stop();
     },
   };
 }
