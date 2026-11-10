@@ -137,6 +137,19 @@
     [role="button"]:not(:disabled) {
       cursor: pointer;
     }
+
+    /* Undo the browser's look for a popover so a popup in the top layer looks as it did before. */
+    [popover] {
+      inset: auto;
+      width: auto;
+      height: auto;
+      margin: 0;
+      border-width: 0;
+      padding: 0;
+      overflow: visible;
+      color: inherit;
+      background: transparent;
+    }
   }
 
   /* ── Bundled typefaces (Inter UI + JetBrains Mono data) ─────────── */
@@ -304,13 +317,6 @@
     --z-dev-inspector: 400;
   }
 
-  /* An open popup is placed against the window, so no ancestor may become its containing block. Important
-     because theme CSS is unlayered. transform sits apart from the rule below: the minifier folds it with
-     translate/rotate/scale into a real transform when they share a block or sit next to each other. */
-  [data-popup-ancestor] {
-    transform: none !important;
-  }
-
   /* Modal backdrop and core overlay/accessibility guarantees */
   [data-modal-host] {
     position: fixed;
@@ -395,16 +401,5 @@
   }
   [data-crash] [data-part="reload"]:hover {
     color: #0d0f13;
-  }
-
-  [data-popup-ancestor] {
-    filter: none !important;
-    backdrop-filter: none !important;
-    translate: none !important;
-    rotate: none !important;
-    scale: none !important;
-    perspective: none !important;
-    will-change: auto !important;
-    contain: none !important;
   }
 }

@@ -38,28 +38,23 @@ function naturalLayout(popup: HTMLElement) {
   return layout;
 }
 
-const POPUP_ANCESTOR = "data-popup-ancestor";
-const popupAncestorCounts = new WeakMap<Element, number>();
+/** Shows an open popup in the browser's top layer, which no ancestor can clip or move it out of. */
+export function showInTopLayer(popup: HTMLElement): () => void {
+  if (typeof popup.showPopover !== "function") return () => {};
 
-/** Marks the ancestors of an open popup so the guarantees layer clears what would make one its containing block. */
-export function markPopupAncestors(popup: Element): () => void {
-  const ancestors: Element[] = [];
-  for (let el = popup.parentElement; el; el = el.parentElement) {
-    const count = popupAncestorCounts.get(el) ?? 0;
-    if (count === 0) el.setAttribute(POPUP_ANCESTOR, "");
-    popupAncestorCounts.set(el, count + 1);
-    ancestors.push(el);
+  popup.setAttribute("popover", "manual");
+  try {
+    popup.showPopover();
+  } catch {
+    // showPopover throws on a detached element.
+    popup.removeAttribute("popover");
+    return () => {};
   }
+
   return () => {
-    for (const el of ancestors) {
-      const count = (popupAncestorCounts.get(el) ?? 1) - 1;
-      if (count > 0) {
-        popupAncestorCounts.set(el, count);
-      } else {
-        popupAncestorCounts.delete(el);
-        el.removeAttribute(POPUP_ANCESTOR);
-      }
-    }
+    if (popup.matches(":popover-open")) popup.hidePopover();
+    // Without the attribute the browser stops hiding a closed popup that stays mounted.
+    popup.removeAttribute("popover");
   };
 }
 
@@ -87,8 +82,9 @@ export function useAnchoredPopup(
     const popup = popupRef.current;
     if (!trigger || !popup) return;
 
-    const unmarkAncestors = markPopupAncestors(popup);
+    // Read first: a popup its CSS places absolutely measures its gap against the trigger's container, not the window.
     const natural = naturalLayout(popup);
+    const hideFromTopLayer = showInTopLayer(popup);
     const themeMax = opts.maxHeight ?? natural.maxHeight;
     const capPx = themeMax === "none" ? Infinity : resolveLengthPx(themeMax);
     // A popup its own CSS places absolutely keeps the gap that CSS gives it; anything else takes opts.offset.
@@ -159,7 +155,7 @@ export function useAnchoredPopup(
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", onScroll, true);
       resized?.disconnect();
-      unmarkAncestors();
+      hideFromTopLayer();
     };
   }, [
     open,
