@@ -233,7 +233,7 @@ export function PopupTagOptions({ className, style }: { className?: string; styl
   const indicatorText = (val: boolean | null) => (val === true ? "✓" : val === false ? "✗" : "");
 
   return (
-    <div data-el="popup.tagOptions" role="listbox" aria-multiselectable className={className ?? "space-y-1"} style={style}>
+    <div data-el="popup.tagOptions" role="listbox" aria-multiselectable className={className ?? "flex flex-col gap-1"} style={style}>
       {TAG_OPTIONS.map((opt) => {
         const val = values[opt.field];
         return (
@@ -264,7 +264,7 @@ export function PopupRegionOptions({ className, style }: { className?: string; s
   const toggle = (continentId: string) => setFilter({ countries: toggleContinent(selected, continentId) });
 
   return (
-    <div data-el="popup.regionOptions" role="listbox" aria-multiselectable className={className ?? "space-y-1"} style={style}>
+    <div data-el="popup.regionOptions" role="listbox" aria-multiselectable className={className ?? "flex flex-col gap-1"} style={style}>
       {CONTINENTS.map((continent) => (
         <OptionRow key={continent.id} selected={continentState(selected, continent.id) === "all"} onClick={() => toggle(continent.id)}>
           <span className="truncate">{continent.name}</span>

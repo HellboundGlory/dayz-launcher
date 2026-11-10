@@ -93,7 +93,6 @@
   color: var(--muted);
   border: none;
   background-color: transparent;
-  border-radius: 0;
 }
 
 [data-el="nav.servers"]:hover,
@@ -179,7 +178,6 @@
   padding: 0;
   border: none;
   background-color: transparent;
-  border-radius: 0;
   color: var(--muted);
 }
 
@@ -260,7 +258,6 @@
 [data-el="filter.search"] [data-part="input"] {
   width: 100%;
   min-width: 0;
-  border-radius: 0;
   background-color: var(--surface2);
   padding: 4px 8px 4px 28px;
   font-size: 12px;
@@ -278,7 +275,6 @@
   box-sizing: border-box;
   width: 100%;
   margin: 0;
-  border-radius: 0;
   border: 1px solid var(--border);
   background-color: var(--surface2);
   padding: 4px 8px;
@@ -294,7 +290,6 @@
 [data-el="servers.refresh"] {
   display: flex;
   gap: 4px;
-  border-radius: 0;
   padding: 4px 8px;
   border: none;
   background-color: var(--accent);
@@ -325,7 +320,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0;
   padding: 4px 8px;
   border: none;
   background-color: var(--surface2);
@@ -507,7 +501,6 @@
 }
 
 [data-part="chip"] {
-  border-radius: 0;
   border: 1px solid;
   padding: 0 4px;
   font-size: 8px;
@@ -608,7 +601,6 @@
 .t-row [data-el="server.region"] [data-part="flag"] {
   height: 0.9em;
   width: auto;
-  border-radius: 0;
   border: 1px solid var(--border);
   flex: none;
 }
@@ -701,7 +693,6 @@
 
 .t-row [data-el="server.refresh"] {
   padding: 4px;
-  border-radius: 0;
   background: none;
   border: none;
   color: color-mix(in srgb, var(--border) 70%, var(--muted));
@@ -727,7 +718,6 @@
 
 .t-row [data-el="server.join"] {
   padding: 2px 6px;
-  border-radius: 0;
   border: none;
   background-color: var(--accent);
   color: var(--bg);
@@ -1019,7 +1009,6 @@
 }
 
 [data-region="r-actions"] [data-el="server.actionNotice"][data-state~="refused"] {
-  border-radius: 0;
   background-color: color-mix(in srgb, var(--danger) 10%, transparent);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger) 30%, transparent);
   padding: 8px 12px;
@@ -1043,7 +1032,6 @@
   min-width: 0;
   justify-content: center;
   gap: 8px;
-  border-radius: 0;
   border: none;
   background-color: var(--accent);
   padding: 8px 16px;
@@ -1106,7 +1094,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0;
   background-color: var(--accent);
   padding: 8px;
   color: var(--bg);
@@ -1132,7 +1119,6 @@
   right: 0;
   top: calc(100% + 4px);
   width: 224px;
-  border-radius: 0;
   border: 1px solid var(--border);
   background-color: var(--surface);
   padding: 4px;
@@ -1141,7 +1127,6 @@
 
 [data-el="server.menu"] [data-part="item"] {
   width: 100%;
-  border-radius: 0;
   padding: 8px 12px;
   font-size: 12px;
   font-weight: 700;
@@ -1178,7 +1163,6 @@
   align-items: center;
   gap: 6px;
   white-space: nowrap;
-  border-radius: 0;
   border: 1px solid var(--border);
   background-color: var(--surface2);
   padding: 4px 10px;
@@ -1263,7 +1247,6 @@
   width: 96px;
   height: 4px;
   appearance: none;
-  border-radius: 0;
   background-color: var(--border);
   accent-color: var(--accent);
 }
@@ -1379,7 +1362,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   width: 100%;
   border: none;
   background: none;
-  border-radius: 0;
   padding: 8px 10px;
   color: var(--muted2);
 }
@@ -1545,7 +1527,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   height: 14px;
   margin-top: 2px;
   border: 1px solid var(--muted);
-  border-radius: 0;
   background-color: transparent;
 }
 
@@ -1568,7 +1549,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   gap: 10px;
   margin: 0 -8px;
   padding: 8px;
-  border-radius: 0;
 }
 
 [data-region="r-settings-body"] :is([data-el="settings.minimiseToTray"], [data-el="settings.closeToTray"], [data-el="settings.discordPresence"]):hover {
@@ -1880,7 +1860,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
 
 .t-mod-name-line [data-el="mod.disabledBadge"] {
   flex-shrink: 0;
-  border-radius: 0;
   border: 1px solid color-mix(in srgb, var(--muted) 50%, transparent);
   padding: 0 4px;
   font-size: 8px;
@@ -1919,7 +1898,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 0;
   background-color: var(--surface);
   box-shadow: 0 0 0 1px var(--border);
   overflow: hidden;
@@ -1941,14 +1919,12 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   width: 6px;
   height: 6px;
   flex-shrink: 0;
-  border-radius: 0;
   background-color: currentColor;
 }
 
 [data-el="mod.status"] [data-part="progress"] {
   display: block;
   height: 4px;
-  border-radius: 0;
   background-color: currentColor;
 }
 
@@ -1999,7 +1975,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   top: 8px;
   right: 8px;
   padding: 4px;
-  border-radius: 0;
   border: none;
   background-color: rgba(0, 0, 0, 0.6);
   color: var(--muted2);
@@ -2039,7 +2014,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   position: absolute;
   top: 8px;
   left: 8px;
-  border-radius: 0;
   border: 1px solid color-mix(in srgb, var(--muted) 60%, transparent);
   background-color: rgba(0, 0, 0, 0.6);
   padding: 2px 6px;
@@ -2082,7 +2056,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   font-weight: 400;
   line-height: normal;
   text-transform: none;
-  border-radius: 0;
   background-color: var(--border);
   padding: 2px 6px;
   font-size: 9px;
@@ -2147,7 +2120,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
 [data-el="mod.openInSteam"] {
   justify-content: center;
   gap: 6px;
-  border-radius: 0;
   background-color: var(--surface2);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
   padding: 6px 12px;
@@ -2176,7 +2148,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
 [data-el="mod.reinstall"] {
   justify-content: center;
   gap: 6px;
-  border-radius: 0;
   background-color: var(--surface2);
   box-shadow: 0 0 0 1px var(--border);
   padding: 6px 8px;
@@ -2207,7 +2178,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
 [data-el="mod.update"] {
   justify-content: center;
   gap: 6px;
-  border-radius: 0;
   background-color: var(--warn-soft);
   box-shadow: 0 0 0 1px var(--warn-line);
   padding: 6px 12px;
@@ -2399,7 +2369,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   display: block;
   width: 28px;
   height: 28px;
-  border-radius: 0;
   overflow: hidden;
   background-color: var(--surface2);
   box-shadow: 0 0 0 1px var(--border);
@@ -2421,7 +2390,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
 
 [data-el="serverMod.unique"] {
   flex-shrink: 0;
-  border-radius: 0;
   padding: 0 4px;
   font-size: 9px;
   font-weight: 700;
@@ -2455,7 +2423,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   flex: 1 1 auto;
   min-width: 60px;
   height: 4px;
-  border-radius: 0;
   background-color: var(--surface2);
   overflow: hidden;
 }
@@ -2535,7 +2502,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   display: block;
   max-height: 320px;
   overflow-y: auto;
-  border-radius: 0;
   border: 1px solid var(--border);
   background-color: var(--surface2);
   padding: 10px 12px;
@@ -2584,7 +2550,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   display: block;
   height: 4px;
   min-width: 4px;
-  border-radius: 0;
   background-color: var(--accent);
 }
 
@@ -2608,7 +2573,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
 }
 
 [data-region="r-update-footer"] [data-el="update.later"] {
-  border-radius: 0;
   border: 1px solid var(--border);
   background-color: var(--surface2);
   padding: 8px 16px;
@@ -2633,7 +2597,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border-radius: 0;
   border: none;
   background-color: var(--accent);
   padding: 8px 16px;
@@ -2705,7 +2668,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
 }
 
 [data-el="modFilter.source"] [data-part="tab"] {
-  border-radius: 0;
   padding: 6px 10px;
   font-size: 11px;
   font-weight: 700;
@@ -2743,7 +2705,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
 [data-el="modFilter.search"] [data-part="input"] {
   width: 100%;
   min-width: 0;
-  border-radius: 0;
   border: 1px solid var(--border);
   background-color: var(--surface2);
   padding: 6px 10px 6px 28px;
@@ -2804,7 +2765,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   display: block;
   width: 32px;
   height: 32px;
-  border-radius: 0;
   overflow: hidden;
   background-color: var(--surface2);
   box-shadow: 0 0 0 1px var(--border);
@@ -2852,7 +2812,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   justify-content: center;
   width: 15px;
   height: 15px;
-  border-radius: 0;
   border: 1.5px solid var(--muted);
   color: transparent;
 }
@@ -2906,7 +2865,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   display: block;
   width: 100%;
   height: 84px;
-  border-radius: 0;
   overflow: hidden;
   background-color: color-mix(in srgb, var(--bg) 65%, var(--surface2));
   flex-shrink: 0;
@@ -2966,7 +2924,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
 }
 
 [data-context="modFilterPreview"] [data-el="workshopMod.tags"] [data-part="chip"] {
-  border-radius: 0;
   background-color: var(--border);
   padding: 2px 6px;
   font-size: 9px;
@@ -2986,7 +2943,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
 
 [data-context="modFilterPreview"] [data-el="workshopMod.serverNote"] {
   display: block;
-  border-radius: 0;
   border: 1px solid var(--border);
   background-color: var(--surface2);
   padding: 8px 10px;
@@ -3007,7 +2963,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   align-items: center;
   justify-content: center;
   gap: 6px;
-  border-radius: 0;
   border: 1px solid var(--border);
   padding: 8px 12px;
   font-size: 11px;
@@ -3092,7 +3047,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   width: 18px;
   height: 18px;
   margin-left: -6px;
-  border-radius: 0;
   border: 1.5px solid var(--surface);
   background-color: var(--surface2);
   font-size: 8px;
@@ -3124,7 +3078,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
 [data-el="modFilter.matchMode"] {
   display: flex;
   overflow: hidden;
-  border-radius: 0;
   border: 1px solid var(--border);
 }
 
@@ -3141,7 +3094,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
 }
 
 [data-region="r-modfilter-footer"] [data-el="modFilter.cancel"] {
-  border-radius: 0;
   border: 1px solid var(--border);
   background-color: var(--surface2);
   padding: 8px 16px;
@@ -3157,7 +3109,6 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
 }
 
 [data-region="r-modfilter-footer"] [data-el="modFilter.apply"] {
-  border-radius: 0;
   border: none;
   background-color: var(--accent);
   padding: 8px 16px;
@@ -3552,7 +3503,6 @@ the smallest window the launcher can compose. */
   max-width: 260px;
   border: none;
   padding: 0 2px 0 8px;
-  border-radius: 0;
   background-color: var(--surface2);
   box-shadow: 0 0 0 1px var(--border);
   font-size: 10px;
@@ -3598,7 +3548,6 @@ the smallest window the launcher can compose. */
   flex: none;
   height: 24px;
   padding: 0 8px;
-  border-radius: 0;
   border: 1px solid var(--accent);
   background-color: transparent;
   font-size: 10px;
@@ -3661,7 +3610,6 @@ the smallest window the launcher can compose. */
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-radius: 0;
   border: 1px solid var(--border);
   background-color: var(--surface);
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
@@ -3729,7 +3677,6 @@ the smallest window the launcher can compose. */
   width: 100%;
   min-height: 32px;
   border: none;
-  border-radius: 0;
   background-color: color-mix(in srgb, var(--bg) 75%, var(--surface2));
   box-shadow: 0 0 0 1px var(--border);
   padding: 7px 10px;
@@ -3761,7 +3708,6 @@ the smallest window the launcher can compose. */
   gap: 10px;
   margin: 0 -8px;
   padding: 8px;
-  border-radius: 0;
   align-items: center;
 }
 

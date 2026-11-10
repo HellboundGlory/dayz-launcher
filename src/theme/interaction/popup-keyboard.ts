@@ -60,6 +60,41 @@ export function isTextEntry(el: { tagName: string; type?: string; isContentEdita
   }
 }
 
+/** Composite widgets that move focus with their own key handler. Deliberately not
+ * `role="listbox"` or `role="menu"`: an option list is one, and it relies on this hook. */
+const SELF_KEYED_WIDGET = '[data-tabs], [data-accordion], [role="grid"]';
+
+interface KeyTarget {
+  tagName: string;
+  type?: string;
+  isContentEditable?: boolean;
+  getAttribute(name: string): string | null;
+  hasAttribute(name: string): boolean;
+  closest(selector: string): Element | null;
+}
+
+/** True when the focused element owns these keys: text entry, or a widget within the
+ * popup that moves its own focus. A widget holding the popup from outside it does not count. */
+export function handlesOwnArrowKeys(el: KeyTarget, popup: Element): boolean {
+  if (isTextEntry(el)) return true;
+  const widget = el.closest(SELF_KEYED_WIDGET);
+  if (widget && popup.contains(widget)) return true;
+  // A resize handle moves on arrow keys by itself and carries no widget around it.
+  return el.getAttribute("role") === "separator" && el.hasAttribute("tabindex");
+}
+
+/** The item index an arrow key moves focus to inside an open popup, or `null` to leave the key alone. */
+export function popupFocusMove(
+  el: KeyTarget,
+  popup: Element,
+  key: string,
+  current: number,
+  count: number,
+): number | null {
+  if (handlesOwnArrowKeys(el, popup)) return null;
+  return popupKeyTarget(key, current, count);
+}
+
 export function usePopupKeyboard(
   open: boolean,
   popupRef: RefObject<HTMLElement | null>,
@@ -94,9 +129,10 @@ export function usePopupKeyboard(
       }
 
       const target = e.target as Element | null;
-      if (!target || !popup.contains(target) || isTextEntry(target)) return;
+      if (!target || !popup.contains(target)) return;
 
       if (e.key === "Enter") {
+        if (isTextEntry(target as unknown as KeyTarget)) return;
         e.stopPropagation();
         if (target instanceof HTMLInputElement && target.type === "checkbox") {
           e.preventDefault();
@@ -105,8 +141,15 @@ export function usePopupKeyboard(
         return;
       }
 
+      // A text box types, and a widget in the popup moves its own focus: leave their keys alone.
       const items = Array.from(popup.querySelectorAll<HTMLElement>(FOCUSABLE));
-      const next = popupKeyTarget(e.key, items.indexOf(target as HTMLElement), items.length);
+      const next = popupFocusMove(
+        target as unknown as KeyTarget,
+        popup,
+        e.key,
+        items.indexOf(target as HTMLElement),
+        items.length,
+      );
       if (next === null) return;
 
       e.preventDefault();

@@ -63,6 +63,9 @@ export function ServerListHost({
 
   useLayoutSubscription();
   const listLayout = (getActiveLayout("layout/lists/servers.json") ?? SERVERS_LIST) as LayoutFile;
+  // The theme's own `empty` block only stands in for "nothing matches"; every other
+  // state keeps the launcher's wording.
+  const nothingMatches = hasLoad && !lookup;
   return (
     <div data-el="list.servers" data-state={servers.length === 0 ? "empty" : undefined} className={className ?? "flex-1 min-h-0 w-full"} style={style}>
       <ListHost<Server>
@@ -70,6 +73,7 @@ export function ServerListHost({
         items={servers}
         getItemKey={serverAddr}
         onRangeChange={setVisibleRange}
+        emptyNode={nothingMatches ? listLayout?.empty : undefined}
         emptyText={emptyServersText(hasLoad, lookup)}
         emptySlot={onLanTab && !searching && !lookup ? <LanEmpty /> : undefined}
         {...listHostOptions(options)}
@@ -324,6 +328,9 @@ export function ModsListHost({
   const listLayout = (getActiveLayout("layout/lists/mods.json") ?? MODS_LIST) as LayoutFile;
   const filtered = !!search || statusFilter !== "all";
   const listState = mods.length === 0 ? (loading ? "loading" : filtered ? "empty filtered" : "empty") : undefined;
+  // Same as the server list: the theme's `empty` block speaks for a filter that matches
+  // nothing, never for a list that is still loading or simply has no mods.
+  const nothingMatches = !loading && mods.length === 0 && filtered;
 
   return (
     <div data-el="list.mods" data-state={listState} className={className ?? "flex-1 min-h-0 w-full"} style={style}>
@@ -332,6 +339,7 @@ export function ModsListHost({
         items={mods}
         loading={loading}
         loadingText="Loading subscribed mods…"
+        emptyNode={nothingMatches ? listLayout?.empty : undefined}
         emptyText={filtered ? "No mods match the current filter." : "You have no subscribed DayZ Workshop mods."}
         {...listHostOptions(options)}
         columns={listLayout?.columns}

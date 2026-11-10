@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Server } from "@/types/server";
 import type { ListHostProps } from "../lists/list-host";
+import type { LayoutFile } from "../renderer/types";
 import type * as ServerStoreModule from "@/stores/server-store";
 import { useServerStore } from "@/stores/server-store";
 import { ServerListHost } from "./list-elements";
@@ -20,6 +21,7 @@ vi.mock("@/stores/server-store", async (importOriginal) => {
 // against — unavailable under `renderToStaticMarkup`. Stub it so this file
 // exercises only what `ServerListHost` hands it.
 let lastProps: ListHostProps<Server> | undefined;
+let listLayout: LayoutFile | undefined;
 vi.mock("../lists/list-host", () => ({
   ListHost: (props: ListHostProps<Server>) => {
     lastProps = props;
@@ -30,11 +32,12 @@ vi.mock("../lists/list-host", () => ({
 
 vi.mock("../theme-store", () => ({
   useLayoutSubscription: () => {},
-  getActiveLayout: () => undefined,
+  getActiveLayout: (path: string) => (path === "layout/lists/servers.json" ? listLayout : undefined),
 }));
 
 beforeEach(() => {
   lastProps = undefined;
+  listLayout = undefined;
   useServerStore.setState({ servers: [] });
   useServerStore.getState().setFilter({ lan_addrs: null });
 });
@@ -60,5 +63,35 @@ describe("ServerListHost", () => {
 
     expect(lastProps?.emptySlot).toBeUndefined();
     expect(lastProps?.emptyText).toBeTruthy();
+  });
+
+  it("hands the layout's empty node to a loaded list with no matches", () => {
+    const emptyNode = { type: "text", value: "Nothing here" } as const;
+    listLayout = { schemaVersion: 2, empty: emptyNode };
+    useServerStore.setState({ hasLoadedOnce: true });
+
+    renderToStaticMarkup(<ServerListHost />);
+
+    expect(lastProps?.emptyNode).toEqual(emptyNode);
+  });
+
+  it("keeps the launcher text for no matches when the theme has no empty block", () => {
+    useServerStore.setState({ hasLoadedOnce: true });
+
+    renderToStaticMarkup(<ServerListHost />);
+
+    expect(lastProps?.emptyNode).toBeUndefined();
+    expect(lastProps?.emptyText).toBe("No servers match the current filters.");
+  });
+
+  it("keeps the launcher's empty text while the list is still loading", () => {
+    const emptyNode = { type: "text", value: "Nothing here" } as const;
+    listLayout = { schemaVersion: 2, empty: emptyNode };
+    useServerStore.setState({ hasLoadedOnce: false });
+
+    renderToStaticMarkup(<ServerListHost />);
+
+    expect(lastProps?.emptyNode).toBeUndefined();
+    expect(lastProps?.emptyText).toContain("No servers yet");
   });
 });
