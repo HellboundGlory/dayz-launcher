@@ -178,7 +178,11 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
       values: [key],
     })),
     versions: [{ name: "1.29.163709", count: servers.length, values: ["1.29.163709"] }],
-    countries: [],
+    countries: [...new Set(servers.map((s) => s.country_code).filter(Boolean))].map((code) => ({
+      name: code,
+      count: servers.filter((s) => s.country_code === code).length,
+      values: [code],
+    })),
     mods: [],
     same_as_mine: servers.length,
   }),
@@ -306,7 +310,8 @@ const waitFor = (selector: string) =>
   waitUntil(() => document.querySelector<HTMLElement>(selector), selector);
 
 /**
- * A `click=` target: a CSS selector, `text:<button label>`, or `last-visible:<selector>` (the last match on screen).
+ * A `click=` target: a CSS selector, `text:<button label>`, `select:<row label>` (the select button of the
+ * Filters menu row with that label) or `last-visible:<selector>` (the last match on screen).
  * A disabled target is missing: clicking it does nothing, so its shot would show the wrong state.
  */
 function clickTarget(spec: string): HTMLElement | null {
@@ -314,6 +319,14 @@ function clickTarget(spec: string): HTMLElement | null {
   if (spec.startsWith("text:")) {
     const label = spec.slice("text:".length);
     return [...document.querySelectorAll<HTMLElement>("button")].find((el) => el.textContent?.trim() === label && enabled(el)) ?? null;
+  }
+  if (spec.startsWith("select:")) {
+    const label = spec.slice("select:".length);
+    const row = [...document.querySelectorAll<HTMLElement>('[aria-label="Filters"] [data-part="row"]')].find(
+      (el) => el.querySelector('[data-part="label"]')?.textContent?.trim() === label,
+    );
+    const button = row?.querySelector<HTMLElement>('[data-part="select"]') ?? null;
+    return button && enabled(button) ? button : null;
   }
   if (spec.startsWith("last-visible:")) {
     const shown = [...document.querySelectorAll<HTMLElement>(spec.slice("last-visible:".length))].filter(
@@ -448,7 +461,7 @@ async function runScenario() {
     scrollIntoWindow(target);
     if (!reachable(target)) {
       missing.push(spec);
-      console.warn(`[harness] cut off sideways: ${spec}`);
+      console.warn(`[harness] covered or cut off: ${spec}`);
       continue;
     }
     target.click();

@@ -32,6 +32,16 @@ const SIZES = [
   [975, 620],
 ];
 
+const click = (selector) => `click=${encodeURIComponent(selector)}`;
+const trigger = (el) => `[data-el="${el}"] [data-part="trigger"]`;
+
+/** The Filters menu's select rows that open a list of their own. */
+const FILTER_PANELS = [
+  { id: "map", label: "Map" },
+  { id: "version", label: "Game version" },
+  { id: "country", label: "Country" },
+];
+
 /** The matrix, one row per scenario. */
 const SCENARIOS = [
   { id: "browser", query: "" },
@@ -43,9 +53,8 @@ const SCENARIOS = [
   { id: "view-mods", query: "view=mods" },
   { id: "view-mods-selectmod0", query: "view=mods&selectMod=0" },
   { id: "settings", query: "settings=1" },
-  { id: "popup-map", query: "popup=map" },
-  { id: "popup-tags", query: "popup=tags" },
-  { id: "popup-region", query: "popup=region" },
+  { id: "popup-filters", query: "popup=menu" },
+  ...FILTER_PANELS.map(({ id, label }) => ({ id: `popup-filters-${id}`, query: `popup=menu&${click(`select:${label}`)}` })),
   { id: "modal-serverinfo", query: "modal=serverInfo" },
   { id: "modal-modfilter", query: "modal=modFilter" },
   { id: "modal-update", query: "modal=update" },
@@ -58,8 +67,8 @@ const SERVER_INFO_ROWS = ["modal-serverinfo", "modal-serverinfo-modsmixed"];
 
 /** The smallest window: 975×620 at UI scale 1.5, dark scheme only. */
 const SMALL = { sizes: [[650, 413]], schemes: ["dark"], scale: 1.5 };
-const click = (selector) => `click=${encodeURIComponent(selector)}`;
-const trigger = (el) => `[data-el="${el}"] [data-part="trigger"]`;
+// The "mods need updating" toast covers the bottom-right of the Mods view, the detail panel and the Themes tab at the small size.
+const DISMISS_TOAST = click('[data-part="toast"] [data-part="close"]');
 const FIRST_MOD = '[data-el="mod.select"]';
 const LOAD_MENU = '[data-el="server.menu"] [data-part="trigger"][aria-label^="Load this server"]';
 const cardMenu = (name) => `[aria-label="${name} options"]`;
@@ -67,9 +76,12 @@ const THEME_SECTION = '[data-section="theme"] button';
 
 /** Popups and menus opened at the small size. `themes` limits a row to the themes that have that element. */
 const SMALL_POPUP_ROWS = [
-  { ...SMALL, id: "popup-map", query: click(trigger("filter.map")) },
-  { ...SMALL, id: "popup-tags", query: click(trigger("filter.tags")) },
-  { ...SMALL, id: "popup-region", query: click(trigger("filter.region")) },
+  { ...SMALL, id: "popup-filters", query: `${DISMISS_TOAST}&${click(trigger("filter.menu"))}` },
+  ...FILTER_PANELS.map(({ id, label }) => ({
+    ...SMALL,
+    id: `popup-filters-${id}`,
+    query: `${DISMISS_TOAST}&${click(trigger("filter.menu"))}&${click(`select:${label}`)}`,
+  })),
   { ...SMALL, id: "popup-sort", query: click(trigger("filter.sort")), themes: ["neutral"] },
   {
     ...SMALL,
@@ -77,10 +89,10 @@ const SMALL_POPUP_ROWS = [
     query: click('last-visible:[data-el="server.menu"] [data-part="trigger"]'),
     themes: ["neutral"],
   },
-  { ...SMALL, id: "mods-unsubscribe", query: `view=mods&${click(FIRST_MOD)}&${click(trigger("mods.unsubscribeMenu"))}` },
-  { ...SMALL, id: "mods-verify", query: `view=mods&${click(FIRST_MOD)}&${click(trigger("mods.verifyMenu"))}` },
+  { ...SMALL, id: "mods-unsubscribe", query: `view=mods&${DISMISS_TOAST}&${click(FIRST_MOD)}&${click(trigger("mods.unsubscribeMenu"))}` },
+  { ...SMALL, id: "mods-verify", query: `view=mods&${DISMISS_TOAST}&${click(FIRST_MOD)}&${click(trigger("mods.verifyMenu"))}` },
   { ...SMALL, id: "serverinfo-load", query: `modal=serverInfo&${click(LOAD_MENU)}`, themes: ["neutral"] },
-  { ...SMALL, id: "select3-load", query: `select=3&${click(LOAD_MENU)}`, themes: ["builtin.tactical"] },
+  { ...SMALL, id: "select3-load", query: `select=3&${DISMISS_TOAST}&${click(LOAD_MENU)}`, themes: ["builtin.tactical"] },
   {
     ...SMALL,
     id: "theme-card-menu",
@@ -96,7 +108,7 @@ const SMALL_POPUP_ROWS = [
   {
     ...SMALL,
     id: "theme-customiser",
-    query: `settings=1&settingsTab=themes&${click("text:Customize tokens")}&${click(".theme-trigger")}`,
+    query: `settings=1&settingsTab=themes&${DISMISS_TOAST}&${click("text:Customize tokens")}&${click(".theme-trigger")}`,
     themes: ["builtin.tactical"],
   },
   {
