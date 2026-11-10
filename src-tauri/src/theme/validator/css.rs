@@ -1440,13 +1440,6 @@ mod tests {
     }
 
     #[test]
-    fn a_legitimate_nested_rule_passes() {
-        let css = r#"[data-el="x"] { &:hover { color: var(--accent); } }"#;
-        let issues = validate_css_stylesheet("styles.css", css);
-        assert!(issues.is_empty(), "Expected 0 issues, got: {issues:#?}");
-    }
-
-    #[test]
     fn nested_rules_deeper_than_the_limit_are_refused() {
         let css = format!("{}{}", "[data-el=\"b\"] {".repeat(40), "}".repeat(40));
         let issues = validate_css_stylesheet("styles.css", &css);

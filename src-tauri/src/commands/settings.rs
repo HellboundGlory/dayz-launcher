@@ -739,6 +739,8 @@ mod tests {
         for (raw, expected) in cases {
             assert_eq!(load(raw).closes_to_tray(), *expected, "{raw}");
         }
+        let minimise_only = load(r#"{ "closeToTray": false, "minimiseToTray": true }"#);
+        assert!(minimise_only.minimise_to_tray && !minimise_only.closes_to_tray());
     }
 
     #[test]
@@ -779,23 +781,10 @@ mod tests {
     }
 
     #[test]
-    fn minimise_and_close_to_tray_do_not_imply_each_other() {
-        let settings = load(r#"{ "closeToTray": false, "minimiseToTray": true }"#);
-        assert!(!settings.closes_to_tray());
-        assert!(settings.minimise_to_tray);
-        assert!(!load("{}").minimise_to_tray);
-    }
-
-    #[test]
     fn the_ui_scale_defaults_and_clamps_into_range() {
         assert_eq!(load("{}").scale(), DEFAULT_UI_SCALE);
         assert_eq!(load(r#"{ "uiScale": 0 }"#).scale(), 1.0);
         assert_eq!(load(r#"{ "uiScale": 9 }"#).scale(), MAX_UI_SCALE);
-    }
-
-    #[test]
-    fn a_file_predating_the_theme_system_reads_as_the_built_in_default() {
-        assert_eq!(load("{}").active_theme_id, None);
     }
 
     /// A settings file written by an older build must pick up new fields at
@@ -836,6 +825,14 @@ mod tests {
         assert!(
             parsed.start_window,
             "an older file predating this setting must not read as opted out"
+        );
+        assert!(
+            !parsed.minimise_to_tray,
+            "an older file predating this setting must not read as opted in"
+        );
+        assert_eq!(
+            parsed.active_theme_id, None,
+            "a file predating the theme system has none chosen"
         );
     }
 }

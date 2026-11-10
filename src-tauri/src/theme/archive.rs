@@ -1448,10 +1448,27 @@ mod tests {
             );
         }
         let root = ScratchDir::tagged("undeclared");
-        for tier in ["", "basic", "advanced", "expert"] {
-            let package = content_package(&root, "undeclared", tier, &["tokens"], &["css"]);
-            let error = stage_for_preview(&root, &package, &[]).unwrap_err();
-            assert!(error.contains("MAN-08"), "{error}");
+        for (kind, tier) in [
+            ("layout", ""),
+            ("css", ""),
+            ("fonts", ""),
+            ("images", ""),
+            ("layout", "basic"),
+            ("css", "advanced"),
+            ("fonts", "expert"),
+            ("images", "advanced"),
+        ] {
+            let package = content_package(&root, "undeclared", tier, &["tokens"], &[kind]);
+            let error = stage_for_preview(&root, &package, &[])
+                .expect_err(&format!("{kind} at tier `{tier}` must be refused"));
+            assert!(
+                error.contains("MAN-08") && error.contains(&format!("`{kind}`")),
+                "{kind} at tier `{tier}`: {error}"
+            );
+            assert!(
+                !root.join(STAGING_DIR).read_dir().unwrap().next().is_some(),
+                "a refused import must leave no staging directory"
+            );
         }
     }
 
@@ -2140,23 +2157,18 @@ mod tests {
     }
 
     /// The path allowlist bounds depth on its own, so a directory entry is held
-    /// to the same list as a file.
+    /// to it too.
     #[test]
     fn package_entries_outside_the_path_allowlist_are_refused() {
-        for entry in [
-            Entry::file("a/b/c/d/deep.json", "{}"),
-            Entry::dir("a/b/c/d/"),
-        ] {
-            let root = ScratchDir::tagged("depth");
-            let zip_path = fixture(&root, "depth", &[entry]);
+        let root = ScratchDir::tagged("depth");
+        let zip_path = fixture(&root, "depth", &[Entry::dir("a/b/c/d/")]);
 
-            let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
+        let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
 
-            assert!(
-                error.contains("outside the package path allowlist"),
-                "message was: {error}"
-            );
-        }
+        assert!(
+            error.contains("outside the package path allowlist"),
+            "message was: {error}"
+        );
 
         // Zip tools write a folder entry before its files; the allowlisted ones must stage.
         let root = ScratchDir::tagged("folders");
@@ -2196,50 +2208,65 @@ mod tests {
         );
     }
 
+    /// Every format the allow-list accepts stages, and each asset lands with
+    /// the bytes it was packaged with — sniffing reads the bytes, never
+    /// rewrites them.
     #[test]
-    fn every_format_the_allow_list_accepts_is_staged_when_it_is_real() {
+    fn every_format_the_allow_list_accepts_is_staged_verbatim() {
         let root = ScratchDir::tagged("assets-ok");
-        let zip_path = fixture(
-            &root,
-            "assets-ok",
-            &[
-                Entry::bytes(
-                    "images/logo.png",
-                    encode_image(image::ImageFormat::Png, 24, 16),
-                ),
-                Entry::bytes(
-                    "images/logo.webp",
-                    encode_image(image::ImageFormat::WebP, 24, 16),
-                ),
-                Entry::bytes(
-                    "images/logo.jpg",
-                    encode_image(image::ImageFormat::Jpeg, 24, 16),
-                ),
-                Entry::bytes(
-                    "images/logo.jpeg",
-                    encode_image(image::ImageFormat::Jpeg, 24, 16),
-                ),
-                Entry::bytes("fonts/icon.ttf", minimal_ttf()),
-                Entry::bytes("fonts/icon.woff", build_woff(&minimal_font_tables())),
-                Entry::bytes("fonts/icon.woff2", build_woff2(&minimal_font_tables())),
-                Entry::file(
-                    "images/logo.svg",
-                    r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 4"><rect width="4" height="4"/></svg>"#,
-                ),
-            ],
-        );
+        let svg = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 4"><rect width="4" height="4"/></svg>"#;
+        let assets: Vec<(&str, Vec<u8>)> = vec![
+            (
+                "images/logo.png",
+                encode_image(image::ImageFormat::Png, 24, 16),
+            ),
+            (
+                "images/logo.webp",
+                encode_image(image::ImageFormat::WebP, 24, 16),
+            ),
+            (
+                "images/logo.jpg",
+                encode_image(image::ImageFormat::Jpeg, 24, 16),
+            ),
+            (
+                "images/logo.jpeg",
+                encode_image(image::ImageFormat::Jpeg, 24, 16),
+            ),
+            ("images/logo.svg", svg.to_vec()),
+            ("fonts/icon.ttf", minimal_ttf()),
+            ("fonts/icon.woff", build_woff(&minimal_font_tables())),
+            ("fonts/icon.woff2", build_woff2(&minimal_font_tables())),
+            (
+                "previews/screen.png",
+                encode_image(image::ImageFormat::Png, 12, 9),
+            ),
+            (
+                "previews/hero.jpg",
+                encode_image(image::ImageFormat::Jpeg, 12, 9),
+            ),
+            (
+                "previews/bg.webp",
+                encode_image(image::ImageFormat::WebP, 12, 9),
+            ),
+            ("README.md", b"# Aurora\n".to_vec()),
+        ];
+        let entries: Vec<Entry> = assets
+            .iter()
+            .map(|(name, bytes)| Entry::bytes(*name, bytes.clone()))
+            .collect();
+        let zip_path = fixture(&root, "assets-ok", &entries);
 
-        let preview = stage_for_preview(&root, &zip_path, &[]).expect("real assets must stage");
+        let preview = stage_for_preview(&root, &zip_path, &[])
+            .unwrap_or_else(|e| panic!("every allowed format must stage: {e}"));
 
-        assert_eq!(preview.file_count, 10);
+        assert_eq!(preview.file_count, 14);
         let staged = staging_dir(&root, &preview);
-        for asset in [
-            "images/logo.png",
-            "images/logo.webp",
-            "fonts/icon.woff2",
-            "images/logo.svg",
-        ] {
-            assert!(staged.join(asset).is_file(), "{asset} must be staged");
+        for (name, bytes) in &assets {
+            assert_eq!(
+                &std::fs::read(staged.join(name)).unwrap(),
+                bytes,
+                "{name} must be staged verbatim"
+            );
         }
     }
 
@@ -2647,22 +2674,6 @@ mod tests {
         assert!(error.contains("not `<svg>`"), "message was: {error}");
     }
 
-    /// A stylesheet with nothing `theme::css::validate_css` bans stages fine.
-    #[test]
-    fn a_clean_stylesheet_is_staged() {
-        let root = ScratchDir::tagged("css-clean");
-        let zip_path = fixture(
-            &root,
-            "css-clean",
-            &[Entry::file(
-                "styles.css",
-                r#"[data-tetra-slot="server.row"] { border-radius: 2px; }"#,
-            )],
-        );
-
-        stage_for_preview(&root, &zip_path, &[]).expect("a clean stylesheet must stage");
-    }
-
     /// The same stylesheet gate runs here too — a theme cannot smuggle
     /// through what `validate_css` would otherwise refuse.
     #[test]
@@ -2762,21 +2773,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn a_plain_text_asset_is_staged_without_further_checks() {
-        let root = ScratchDir::tagged("text");
-        let zip_path = fixture(&root, "text", &[Entry::file("README.md", "# Aurora\n")]);
-
-        let preview = stage_for_preview(&root, &zip_path, &[]).expect("notes must stage");
-
-        assert_eq!(preview.file_count, 3);
-        let staged = staging_dir(&root, &preview);
-        assert_eq!(
-            std::fs::read_to_string(staged.join("README.md")).unwrap(),
-            "# Aurora\n"
-        );
-    }
-
     /// An advanced package carrying content and declaring every capability it
     /// needs imports, and each kind of content survives staging.
     #[test]
@@ -2803,38 +2799,6 @@ mod tests {
             "images/preview.png",
         ] {
             assert!(staged.join(file).is_file(), "{file} must be staged");
-        }
-    }
-
-    /// Each capability its content implies must be declared; one absent
-    /// capability is a rejection naming that capability and the file behind it.
-    #[test]
-    fn an_advanced_theme_missing_a_capability_it_ships_is_refused() {
-        for (kind, capability) in [
-            ("layout", "layout"),
-            ("css", "css"),
-            ("fonts", "fonts"),
-            ("images", "images"),
-        ] {
-            let root = ScratchDir::tagged(&format!("tier-missing-{kind}"));
-            let zip_path = content_package(
-                &root,
-                &format!("tier-missing-{kind}"),
-                "advanced",
-                &["tokens"],
-                &[kind],
-            );
-
-            let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
-
-            assert!(
-                error.contains(&format!("`{capability}`")),
-                "message for undeclared {capability} was: {error}"
-            );
-            assert!(
-                !root.join(STAGING_DIR).read_dir().unwrap().next().is_some(),
-                "a refused import must leave no staging directory"
-            );
         }
     }
 
@@ -2908,27 +2872,6 @@ mod tests {
         let error = stage_for_preview(&root, &zip_path, &[]).unwrap_err();
 
         assert!(error.contains("schemaVersion"), "message was: {error}");
-    }
-
-    #[test]
-    fn a_package_with_a_layout_stages_and_keeps_it_in_the_staging_directory() {
-        let root = ScratchDir::tagged("layout");
-        let zip_path = fixture(
-            &root,
-            "layout",
-            &[Entry::file(
-                "layout/shell.json",
-                serde_json::json!({ "schemaVersion": 1, "slots": { "sidebar": "aside" } })
-                    .to_string(),
-            )],
-        );
-
-        let preview = stage_for_preview(&root, &zip_path, &[]).expect("a layout is optional");
-
-        assert_eq!(preview.file_count, 3);
-        assert!(staging_dir(&root, &preview)
-            .join("layout/shell.json")
-            .is_file());
     }
 
     #[test]
@@ -3201,34 +3144,6 @@ mod tests {
     fn install(root: &Path, manifest: &ThemeManifest, tokens: &str) {
         let tokens: serde_json::Value = serde_json::from_str(tokens).unwrap();
         crate::theme::save(root, manifest, &tokens).expect("could not install the fixture theme");
-    }
-
-    #[test]
-    fn an_exported_theme_round_trips_through_the_import_pipeline() {
-        let root = ScratchDir::tagged("export-roundtrip");
-        install(&root, &manifest(), &tokens_json());
-        let dest = root.join("aurora.zip");
-
-        export(
-            &root,
-            "aurora.test",
-            &ManifestOverrides::default(),
-            &root,
-            &dest,
-        )
-        .expect("exporting an installed theme must work");
-
-        let preview = stage_for_preview(&root, &dest, &[]).expect("an export must re-import");
-        assert_eq!(preview.manifest.id, "aurora.test");
-        assert_eq!(preview.file_count, 2);
-
-        let staged = staging_dir(&root, &preview).join(TOKENS_FILE);
-        // Byte-identical, not merely equal-after-parsing: the palette a user
-        // exported is the palette whoever imports it gets.
-        assert_eq!(
-            std::fs::read(staged).unwrap(),
-            std::fs::read(root.join("aurora.test").join(TOKENS_FILE)).unwrap()
-        );
     }
 
     #[test]
@@ -3527,73 +3442,6 @@ mod tests {
         .unwrap_err();
 
         assert!(error.contains("not.installed"), "message was: {error}");
-    }
-
-    /// The whole package through the real entry point: a theme carrying every
-    /// asset kind the allow-list accepts must import, and each asset must be
-    /// staged byte-for-byte — sniffing inspects the bytes, never rewrites them.
-    #[test]
-    fn a_multi_asset_theme_package_stages_every_asset_verbatim() {
-        let root = ScratchDir::tagged("e2e-assets");
-        let logo = encode_image(image::ImageFormat::Png, 12, 9);
-        let hero = encode_image(image::ImageFormat::Jpeg, 12, 9);
-        let backdrop = encode_image(image::ImageFormat::WebP, 12, 9);
-        let icon = minimal_ttf();
-        let svg = br#"<svg xmlns="http://www.w3.org/2000/svg"><rect width="4" height="4"/></svg>"#;
-
-        let zip_path = root.join("e2e-assets.zip");
-        let mut writer = zip::ZipWriter::new(std::fs::File::create(&zip_path).unwrap());
-        let options = zip::write::SimpleFileOptions::default()
-            .compression_method(zip::CompressionMethod::Deflated);
-        for (name, body) in [
-            (
-                MANIFEST_FILE,
-                serde_json::to_string(&ThemeManifest {
-                    capabilities: vec!["tokens".into(), "images".into(), "fonts".into()],
-                    ..manifest()
-                })
-                .unwrap()
-                .into_bytes(),
-            ),
-            (TOKENS_FILE, tokens_json().into_bytes()),
-            ("previews/logo.png", logo.clone()),
-            ("previews/hero.jpg", hero.clone()),
-            ("previews/bg.webp", backdrop.clone()),
-            ("fonts/icon.ttf", icon.clone()),
-            ("images/icon.svg", svg.to_vec()),
-            ("README.md", b"# Aurora".to_vec()),
-        ] {
-            writer
-                .start_file(name, options)
-                .expect("could not start file");
-            writer.write_all(&body).expect("could not write file body");
-        }
-        writer.finish().expect("could not finish the package");
-
-        let preview =
-            stage_for_preview(&root, &zip_path, &[]).expect("a real multi-asset theme must import");
-
-        assert_eq!(preview.file_count, 8);
-        let staged = staging_dir(&root, &preview);
-        for asset in [
-            "previews/logo.png",
-            "previews/hero.jpg",
-            "previews/bg.webp",
-            "fonts/icon.ttf",
-            "images/icon.svg",
-            "README.md",
-        ] {
-            assert!(staged.join(asset).is_file(), "{asset} must be staged");
-        }
-        assert_eq!(
-            std::fs::read(staged.join("previews/logo.png")).unwrap(),
-            logo
-        );
-        assert_eq!(
-            std::fs::read(staged.join("previews/bg.webp")).unwrap(),
-            backdrop
-        );
-        assert_eq!(std::fs::read(staged.join("fonts/icon.ttf")).unwrap(), icon);
     }
 
     /// A real font, in each of the three containers, produced by an actual

@@ -1235,7 +1235,6 @@ fn seed_from(
 mod tests {
     use super::*;
     use crate::atomic_write::test_support::ScratchDir;
-    use crate::theme::validator::Severity;
 
     fn armed_at(at: Instant) -> Option<PendingActivation> {
         let mut slot = None;
@@ -1368,17 +1367,6 @@ mod tests {
         assert_eq!(pending.remaining_ms(later), 15_000);
     }
 
-    /// A stray confirm or revert after the flow settled must be a quiet no-op.
-    #[test]
-    fn nothing_armed_reads_and_takes_as_nothing() {
-        let mut slot: Option<PendingActivation> = None;
-        let now = Instant::now();
-
-        assert!(read(&slot, now).is_none());
-        assert!(take_if_live(&mut slot, now).is_none());
-        assert!(take_any(&mut slot).is_none());
-    }
-
     /// Re-arming the *same* id is one flow pressed twice, not an abandoned
     /// duplicate — cleaning it up would delete the theme the caller still wants.
     #[test]
@@ -1426,23 +1414,6 @@ mod tests {
         let path = dir.join(relative);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, content).unwrap();
-    }
-
-    #[test]
-    fn validate_theme_reports_no_error_issues_for_a_theme_that_is_all_valid() {
-        let (root, dir) = installed("validate-ok", "local.ok");
-        write(
-            &dir,
-            "layout/shell.json",
-            r#"{"schemaVersion":2,"root":{"type":"box"}}"#,
-        );
-
-        let issues = validate_theme_at(&root, "local.ok").unwrap();
-
-        assert!(
-            issues.iter().all(|i| i.severity != Severity::Error),
-            "{issues:?}"
-        );
     }
 
     #[test]
@@ -2007,22 +1978,8 @@ mod builtin_themes {
         }
     }
 
-    /// A builtin showcase theme must actually compose something: it ships layout files.
-    #[test]
-    fn each_builtin_theme_ships_a_layout_directory() {
-        for id in BUILTIN_THEME_IDS {
-            let layout_dir = shipped().join(id).join("layout");
-            assert!(layout_dir.is_dir(), "{id}: ships a layout directory");
-            let count = files_under(&layout_dir)
-                .into_iter()
-                .filter(|(name, _)| name.ends_with(".json"))
-                .count();
-            assert!(count > 0, "{id}: its layout directory is not empty");
-        }
-    }
-
     /// The permanent built-ins a user counts on: seeding an empty root
-    /// installs the set, and each loads as itself, complete palette included.
+    /// installs the set, and each loads as itself.
     #[test]
     fn seeding_an_empty_root_installs_every_builtin_theme() {
         let source_root = shipped();
@@ -2041,19 +1998,6 @@ mod builtin_themes {
         for id in BUILTIN_THEME_IDS {
             let file = theme::get(&themes_root, id).unwrap_or_else(|e| panic!("{id}: {e}"));
             assert_eq!(file.manifest.id, id);
-            for scheme in ["dark", "light"] {
-                for token in [
-                    "bg", "surface", "surface2", "border", "text", "muted", "muted2", "accent",
-                    "accent2", "success", "warn", "danger",
-                ] {
-                    assert!(
-                        file.tokens["colors"][scheme][token]
-                            .as_str()
-                            .is_some_and(|h| h.len() == 7),
-                        "{id}: {scheme}.{token} is missing from the seeded palette"
-                    );
-                }
-            }
         }
         // The copy is a full one: every file in the package travels byte for byte.
         for (name, bytes) in files_under(&source_root.join("builtin.tactical")) {

@@ -72,16 +72,6 @@ pub enum SteamError {
     Closed,
 }
 
-impl SteamError {
-    /// The classified init failure, for errors that are one.
-    pub fn init_failure(&self) -> Option<InitFailure> {
-        match self {
-            SteamError::Init(kind, _) => Some(*kind),
-            _ => None,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -99,13 +89,6 @@ mod tests {
             assert_eq!(kind.resolves_by_waiting(), resolves_by_waiting, "{kind:?}");
             assert_eq!(kind.auto_retry_limit(), auto_retry_limit, "{kind:?}");
         }
-    }
-
-    #[test]
-    fn init_failure_is_recoverable_from_the_error() {
-        let e = SteamError::Init(InitFailure::SteamNotRunning, "no client".into());
-        assert_eq!(e.init_failure(), Some(InitFailure::SteamNotRunning));
-        assert_eq!(SteamError::Timeout.init_failure(), None);
     }
 
     #[test]

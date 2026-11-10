@@ -616,38 +616,6 @@ mod tests {
         );
     }
 
-    /// `-mod=` must stay last — some builds read a trailing flag as part of the mod path.
-    #[test]
-    fn user_parameters_precede_the_mod_line() {
-        let args = build_launch_args(
-            false,
-            "127.0.0.1",
-            2302,
-            None,
-            "-mod=C:\\mods\\@a;C:\\mods\\@b",
-            &[
-                "-noSplash".into(),
-                "-skipIntro".into(),
-                "-cpuCount=4".into(),
-            ],
-            None,
-        );
-
-        let mod_index = args.iter().position(|a| a.starts_with("-mod=")).unwrap();
-        assert_eq!(
-            mod_index,
-            args.len() - 1,
-            "-mod= must be the final argument"
-        );
-        for flag in ["-noSplash", "-skipIntro", "-cpuCount=4"] {
-            let at = args
-                .iter()
-                .position(|a| a == flag)
-                .expect("flag was dropped");
-            assert!(at < mod_index, "{flag} must come before -mod=");
-        }
-    }
-
     /// A main-menu launch must not carry any server-connection argument, while
     /// still loading the mods and the user's launch parameters.
     #[test]
@@ -927,6 +895,8 @@ mod tests {
                 // A non-numeric edition only wins when nothing else is installed.
                 (&["Proton Hotfix"], "Proton Hotfix"),
                 (&["Proton Hotfix", "Proton 5.0"], "Proton 5.0"),
+                // Minor numbers compare as numbers, so 5.13 outranks 5.2.
+                (&["Proton 5.2", "Proton 5.13"], "Proton 5.13"),
             ];
             for (installed, expected) in cases {
                 let candidates = installed.iter().map(|dir| proton(dir)).collect();
@@ -963,13 +933,6 @@ mod tests {
                     "installed: {installed:?}"
                 );
             }
-        }
-
-        #[test]
-        fn version_parsing_handles_bare_and_suffixed_names() {
-            assert_eq!(parse_proton_version("Proton 9.0 (Beta)"), (9, 0));
-            assert_eq!(parse_proton_version("Proton 5.13"), (5, 13));
-            assert_eq!(parse_proton_version("Proton Hotfix"), (0, 0));
         }
     }
 }

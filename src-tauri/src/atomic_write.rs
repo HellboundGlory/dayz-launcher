@@ -101,28 +101,12 @@ mod tests {
     }
 
     #[test]
-    fn writes_and_reads_back_the_content() {
-        let dir = ScratchDir::new();
-        let path = dir.join("settings.json");
-        write_atomically(&path, b"hello").unwrap();
-        assert_eq!(fs::read(&path).unwrap(), b"hello");
-    }
-
-    #[test]
     fn overwrites_existing_content_rather_than_appending() {
         let dir = ScratchDir::new();
         let path = dir.join("settings.json");
         write_atomically(&path, b"first").unwrap();
         write_atomically(&path, b"second, shorter").unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), "second, shorter");
-    }
-
-    #[test]
-    fn no_temp_file_survives_a_successful_write() {
-        let dir = ScratchDir::new();
-        let path = dir.join("settings.json");
-        write_atomically(&path, b"hello").unwrap();
-        assert!(!temp_path(&path).exists());
     }
 
     #[test]

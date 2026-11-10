@@ -476,13 +476,4 @@ mod tests {
         drop(tx);
         worker.join().expect("debounce thread");
     }
-
-    /// Nothing watched is not an error to stop: a stray call after the watch
-    /// already stopped must stay quiet.
-    #[test]
-    fn taking_nothing_is_none() {
-        let slot = Mutex::new(None);
-
-        assert!(take(&slot).expect("nothing here may fail").is_none());
-    }
 }

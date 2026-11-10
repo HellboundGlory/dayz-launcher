@@ -688,41 +688,54 @@ mod tests {
         assert_eq!(rows[0].name, "Vertex PvP");
     }
 
+    /// Map one field in isolation, so a swap between two of them fails here.
+    fn mapped(set: impl FnOnce(&mut super::FilterParams)) -> tetra_registry::filter::ServerFilter {
+        let mut p = default_params();
+        set(&mut p);
+        super::filter_from_params(p)
+    }
+
     #[test]
     fn filter_params_map_onto_the_registry_filter() {
-        let mut p = default_params();
-        p.search = Some("pvp".into());
-        p.maps = vec!["chernarus".into(), "livonia".into()];
-        p.countries = vec!["DE".into()];
-        p.max_ping = Some(120);
-        p.hide_empty = true;
-        p.hide_full = true;
-        p.hide_locked = true;
-        p.hide_offline = true;
-        p.favourites_only = true;
-        p.recent_only = true;
-        p.official = Some(true);
-        p.modded = Some(false);
-        p.first_person = Some(true);
-        p.mod_ids = vec!["123".into(), "456".into(), "not-a-number".into()];
-        p.mod_ids_exclude = vec!["789".into(), "bad".into()];
-
-        let f = super::filter_from_params(p);
-
-        assert_eq!(f.search.as_deref(), Some("pvp"));
-        assert_eq!(f.maps, vec!["chernarus", "livonia"]);
-        assert_eq!(f.countries, vec!["DE"]);
-        assert_eq!(f.max_ping_ms, Some(120));
-        assert!(f.hide_empty && f.hide_full && f.hide_locked && f.hide_offline);
-        assert!(f.favourites_only && f.recent_only);
-        assert_eq!(f.official, Some(true));
-        assert_eq!(f.modded, Some(false));
-        assert_eq!(f.first_person, Some(true));
-        assert_eq!(f.mod_ids, vec![123, 456]);
-        assert_eq!(f.mod_ids_exclude, vec![789]);
-        // A never-probed row has nothing to show, so the list always hides it.
-        assert!(f.hide_unnamed);
-        assert!(f.hide_stale);
+        assert_eq!(
+            mapped(|p| p.search = Some("pvp".into())).search.as_deref(),
+            Some("pvp")
+        );
+        assert_eq!(
+            mapped(|p| p.maps = vec!["chernarus".into(), "livonia".into()]).maps,
+            vec!["chernarus", "livonia"]
+        );
+        assert_eq!(
+            mapped(|p| p.countries = vec!["DE".into()]).countries,
+            vec!["DE"]
+        );
+        assert_eq!(mapped(|p| p.max_ping = Some(120)).max_ping_ms, Some(120));
+        assert!(mapped(|p| p.hide_empty = true).hide_empty);
+        assert!(mapped(|p| p.hide_full = true).hide_full);
+        assert!(mapped(|p| p.hide_locked = true).hide_locked);
+        assert!(mapped(|p| p.hide_offline = true).hide_offline);
+        assert!(mapped(|p| p.favourites_only = true).favourites_only);
+        assert!(mapped(|p| p.recent_only = true).recent_only);
+        assert_eq!(mapped(|p| p.official = Some(true)).official, Some(true));
+        assert_eq!(mapped(|p| p.modded = Some(false)).modded, Some(false));
+        assert_eq!(
+            mapped(|p| p.first_person = Some(true)).first_person,
+            Some(true)
+        );
+        assert_eq!(
+            mapped(|p| p.mod_ids = vec!["123".into(), "not-a-number".into()]).mod_ids,
+            vec![123],
+            "an id that is not a number is dropped"
+        );
+        assert_eq!(
+            mapped(|p| p.mod_ids_exclude = vec!["789".into(), "bad".into()]).mod_ids_exclude,
+            vec![789],
+            "an id that is not a number is dropped"
+        );
+        // A never-probed row has nothing to show, so the list always hides it,
+        // and a server that has gone quiet is not listed as if it were up.
+        let f = mapped(|_| {});
+        assert!(f.hide_unnamed && f.hide_stale);
     }
 
     #[test]

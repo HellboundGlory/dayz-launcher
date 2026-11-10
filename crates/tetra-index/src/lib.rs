@@ -79,14 +79,6 @@ pub struct ServerEntry {
     pub online: Option<bool>,
 }
 
-impl ServerEntry {
-    /// Whether this entry's live fields are measurements rather than the
-    /// structural zeroes of an address nobody has reached.
-    pub fn responded(&self) -> bool {
-        self.last_responded.is_some()
-    }
-}
-
 /// Crawler freshness. A client gates on this rather than on HTTP 200: a
 /// backend that is up but hasn't crawled in an hour is worse than no backend,
 /// because its player counts are confidently wrong.
@@ -244,14 +236,6 @@ mod tests {
 
         assert_eq!(never.mod_ids, None);
         assert_eq!(vanilla.mod_ids, Some(vec![]));
-    }
-
-    #[test]
-    fn a_never_answered_entry_is_not_reported_as_responded() {
-        let mut e = entry();
-        e.last_responded = None;
-        assert!(!e.responded());
-        assert!(entry().responded());
     }
 
     #[test]
