@@ -258,6 +258,41 @@
                         }
                       ]
                     }
+                  },
+                  {
+                    "id": "about",
+                    "label": {
+                      "type": "stack",
+                      "direction": "row",
+                      "align": "center",
+                      "class": "t-settings-tab",
+                      "children": [
+                        {
+                          "element": "settings.sectionIcon",
+                          "options": {
+                            "section": "about"
+                          },
+                          "class": "t-settings-tab-icon"
+                        },
+                        {
+                          "element": "settings.sectionTitle",
+                          "options": {
+                            "section": "about"
+                          },
+                          "class": "t-settings-tab-label"
+                        }
+                      ]
+                    },
+                    "content": {
+                      "type": "scroll",
+                      "axis": "y",
+                      "class": "t-settings-pane",
+                      "children": [
+                        {
+                          "element": "settings.about"
+                        }
+                      ]
+                    }
                   }
                 ]
               }

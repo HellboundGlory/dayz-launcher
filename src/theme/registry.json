@@ -4736,6 +4736,28 @@
       "since": "2.0",
       "aliases": []
     },
+    "settings.about": {
+      "kind": "display",
+      "where": [
+        "settings"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "links",
+        "version",
+        "button",
+        "badge",
+        "status",
+        "whatsnew",
+        "credits"
+      ],
+      "states": [],
+      "since": "2.1",
+      "aliases": []
+    },
     "settings.title": {
       "kind": "display",
       "where": [
@@ -4765,7 +4787,8 @@
           "values": [
             "game",
             "launcher",
-            "theme"
+            "theme",
+            "about"
           ]
         }
       },
@@ -4790,7 +4813,8 @@
           "values": [
             "game",
             "launcher",
-            "theme"
+            "theme",
+            "about"
           ]
         }
       },
@@ -4815,7 +4839,8 @@
           "values": [
             "game",
             "launcher",
-            "theme"
+            "theme",
+            "about"
           ]
         },
         "icon": {

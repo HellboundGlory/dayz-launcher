@@ -2040,6 +2040,73 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   border-top: 1px solid var(--border);
 }
 
+[data-el="settings.about"] {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+[data-el="settings.about"] [data-part="version"] {
+  font-size: 13px;
+  color: var(--text);
+}
+
+[data-el="settings.about"] [data-part="links"] {
+  gap: 6px;
+}
+
+[data-el="settings.about"] [data-part="button"],
+[data-el="settings.about"] [data-part="whatsnew"] {
+  padding: 6px 12px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+[data-el="settings.about"] [data-part="button"] {
+  color: var(--muted2);
+}
+
+[data-el="settings.about"] [data-part="button"]:not(:disabled):hover {
+  color: var(--text);
+}
+
+[data-el="settings.about"] [data-part="button"][data-state="update"] {
+  border-color: var(--accent);
+  background-color: var(--accent);
+  color: var(--bg);
+}
+
+[data-el="settings.about"] [data-part="button"][data-state="update"]:not(:disabled):hover {
+  border-color: var(--accent2);
+  background-color: var(--accent2);
+}
+
+[data-el="settings.about"] [data-part="whatsnew"] {
+  color: var(--muted2);
+}
+
+[data-el="settings.about"] [data-part="whatsnew"]:hover {
+  color: var(--text);
+}
+
+[data-el="settings.about"] [data-part="status"] {
+  font-size: 10px;
+  color: color-mix(in srgb, var(--muted) 50%, var(--muted2));
+}
+
+[data-el="settings.about"] [data-part="credits"] {
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted2);
+}
+
+[data-el="settings.about"] [data-part="credits"] > :last-child {
+  font-size: 10px;
+  color: color-mix(in srgb, var(--muted) 50%, var(--muted2));
+}
+
 [data-el="settings.done"] {
   background-color: var(--accent);
   padding: 6px 20px;

@@ -1,7 +1,10 @@
 import { useEffect, useId, useState, type CSSProperties } from "react";
-import { Check, ChevronLeft, Folder } from "lucide-react";
+import { Check, ChevronLeft, Code, Download, Folder, Globe, RefreshCw } from "lucide-react";
+import { getVersion } from "@tauri-apps/api/app";
 import { cn } from "@/lib/utils";
 import { LAUNCH_TOGGLES, hasLaunchFlag, setLaunchFlag } from "@/lib/launch-toggles";
+import { openExternalUrl } from "@/lib/external-link";
+import { useUpdateStore } from "@/stores/update-store";
 import { OptionIcon } from "./option-icon";
 import { useSettingsStore } from "@/stores/settings-store";
 import { discoverSteamPaths, dataFolderPath, openDataFolder } from "@/lib/tauri";
@@ -560,6 +563,149 @@ export function SettingsThemeManagement({ className, style }: Omit<ElementProps,
   return (
     <div data-el="settings.themeManagement" className={className} style={style}>
       <ThemesSection devMode={devMode} onDevModeChange={onDevModeChange} />
+    </div>
+  );
+}
+
+const WEBSITE_URL = "https://tetralauncher.com";
+const SOURCE_URL = "https://github.com/HellboundGlory/dayz-launcher";
+const DOWNLOAD_URL = "https://tetralauncher.com/download";
+
+export function SettingsAbout({ className, style }: Omit<ElementProps, "options">) {
+  const [version, setVersion] = useState<string | null>(null);
+  const installed = useUpdateStore((s) => s.installed);
+  const checking = useUpdateStore((s) => s.checking);
+  const checked = useUpdateStore((s) => s.checked);
+  const available = useUpdateStore((s) => s.available);
+  const installing = useUpdateStore((s) => s.installing);
+  const progress = useUpdateStore((s) => s.progress);
+  const error = useUpdateStore((s) => s.error);
+  const checkNow = useUpdateStore((s) => s.checkNow);
+  const install = useUpdateStore((s) => s.install);
+
+  useEffect(() => {
+    getVersion()
+      .then(setVersion)
+      .catch(() => {});
+  }, []);
+
+  const open = (url: string) => void openExternalUrl(url).catch((e) => console.error(e));
+
+  const onUpdate = () => {
+    // Only a copy known to be portable goes to the download page.
+    if (installed === false) open(DOWNLOAD_URL);
+    else void install();
+  };
+
+  const status = installing
+    ? progress?.total
+      ? `Downloading… ${Math.round((progress.downloaded / progress.total) * 100)}%`
+      : "Downloading…"
+    : checking
+      ? "Checking…"
+      : error
+        ? `${available ? "Couldn't update" : "Couldn't check"}: ${error}`
+        : !available && checked
+          ? "You're up to date."
+          : null;
+
+  return (
+    <div data-el="settings.about" className={className ?? "flex flex-col gap-5"} style={style}>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <span className="[font-size:var(--t-type-label-size)] font-semibold uppercase tracking-[0.09em] text-muted">
+            Version
+          </span>
+          <span data-part="links" className="ml-auto flex items-center gap-1.5">
+            <button
+              type="button"
+              aria-label="Website"
+              title="Website: tetralauncher.com"
+              onClick={() => open(WEBSITE_URL)}
+              className="grid size-[26px] place-items-center [border-radius:var(--t-radius-control)] border border-line text-muted2 transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:border-accent-line hover:text-ink"
+            >
+              <Globe className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              aria-label="Source code on GitHub"
+              title="Source code on GitHub"
+              onClick={() => open(SOURCE_URL)}
+              className="grid size-[26px] place-items-center [border-radius:var(--t-radius-control)] border border-line text-muted2 transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:border-accent-line hover:text-ink"
+            >
+              <Code className="size-3.5" />
+            </button>
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <span data-part="version" className="[font-size:var(--t-type-size-xl)] text-ink">
+            Tetra Launcher{version && <span className="ml-1.5 font-mono">{version}</span>}
+          </span>
+          <span className="relative inline-flex" title={available ? `Version ${available.version} is available` : undefined}>
+            <button
+              type="button"
+              data-part="button"
+              data-state={available ? "update" : undefined}
+              disabled={checking || installing}
+              aria-label={available && !installing ? `Update to version ${available.version}` : undefined}
+              onClick={() => (available ? onUpdate() : void checkNow())}
+              className={cn(
+                "flex shrink-0 items-center gap-1.5 [border-radius:var(--t-radius-control)] px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider transition-colors [transition-duration:var(--t-motion-hover-duration)] disabled:opacity-50",
+                available
+                  ? "border border-accent bg-accent text-bg hover:brightness-110"
+                  : "border border-line bg-surface2 text-muted2 hover:text-ink",
+              )}
+            >
+              {available ? <Download className="size-3" /> : <RefreshCw className="size-3" />}
+              <span data-part="label">
+                {installing ? "Updating…" : available ? "Update" : "Check for updates"}
+              </span>
+            </button>
+            {available && (
+              <span
+                data-part="badge"
+                aria-hidden
+                className="pointer-events-none absolute -right-1 -top-1 size-2.5 [border-radius:var(--t-radius-pill)] bg-success shadow-[0_0_0_2px_var(--surface)]"
+              />
+            )}
+          </span>
+          {status ? (
+            <span data-part="status" role="status" className="[font-size:var(--t-type-caption-size)] text-muted">
+              {status}
+            </span>
+          ) : (
+            available && (
+              <button
+                type="button"
+                data-part="whatsnew"
+                onClick={() =>
+                  open(`https://github.com/HellboundGlory/dayz-launcher/releases/tag/v${encodeURIComponent(available.version)}`)
+                }
+                className="flex shrink-0 items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface2 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-semibold uppercase tracking-wider text-muted2 transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:text-ink"
+              >
+                <span data-part="label">See what&apos;s new</span>
+              </button>
+            )
+          )}
+        </div>
+      </div>
+      <div className="flex flex-col gap-2 border-t border-line pt-3">
+        <span className="[font-size:var(--t-type-label-size)] font-semibold uppercase tracking-[0.09em] text-muted">
+          Credits
+        </span>
+        <div data-part="credits" className="flex flex-col gap-1.5">
+          <p className="m-0 [font-size:var(--t-type-size-lg)] leading-relaxed text-muted2">
+            IP geolocation by DB-IP (https://db-ip.com), CC BY 4.0
+            (https://creativecommons.org/licenses/by/4.0/), converted to a compact IPv4 range table
+          </p>
+          <p className="m-0 [font-size:var(--t-type-size-lg)] leading-relaxed text-muted2">
+            Flag icons: country-flag-icons by catamphetamine, MIT licence
+          </p>
+          <p className="m-0 [font-size:var(--t-type-caption-size)] text-muted">
+            Full licence texts are in the NOTICE file that comes with Tetra.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

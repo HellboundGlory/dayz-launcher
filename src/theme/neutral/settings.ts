@@ -140,6 +140,11 @@ export const SETTINGS_LAYOUT: SettingsLayoutFile = {
                   children: [{ element: "settings.themeManagement" }],
                 },
               },
+              {
+                id: "about",
+                header: sectionHeader("about"),
+                body: { element: "settings.about" },
+              },
             ],
           },
         ],

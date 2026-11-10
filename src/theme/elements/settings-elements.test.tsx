@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ElementContextProvider } from "./context";
+import { SECS } from "./settings-controls";
+import { useUpdateStore } from "@/stores/update-store";
 import {
+  SettingsAbout,
   SettingsBack,
   SettingsDone,
   SettingsTitle,
@@ -60,15 +63,41 @@ vi.mock("@/components/themes-page/themes-section", () => ({
   ),
 }));
 
+const openLinkMock = vi.fn();
+vi.mock("@/lib/external-link", () => ({
+  openExternalUrl: (url: string) => {
+    openLinkMock(url);
+    return Promise.resolve();
+  },
+}));
+
+// SSR takes zustand's initial-state snapshot, so route the hooks through the live state.
+function liveHook<T extends { getState: () => S }, S>(store: T) {
+  return Object.assign(<R,>(sel: (s: S) => R) => sel(store.getState()), store);
+}
+
+vi.mock("@/stores/update-store", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/stores/update-store")>();
+  return { ...actual, useUpdateStore: liveHook(actual.useUpdateStore) };
+});
+
 // Captures props by data-part since renderToStaticMarkup drops event handlers.
 const captured: Record<string, Record<string, unknown>> = {};
+const capturedClicks: Record<string, () => void> = {};
 vi.mock("react/jsx-dev-runtime", async (importOriginal) => {
   const actual = await importOriginal<Record<string, (...args: unknown[]) => unknown>>();
   return {
     ...actual,
     jsxDEV: (type: unknown, props: Record<string, unknown>, ...rest: unknown[]) => {
       const part = props?.["data-part"];
-      if (typeof part === "string") captured[part] = props;
+      if (typeof part === "string") {
+        captured[part] = props;
+        if (typeof props.onClick === "function") capturedClicks[part] = props.onClick as () => void;
+      }
+      const label = props?.["aria-label"];
+      if (typeof label === "string" && typeof props.onClick === "function") {
+        capturedClicks[label] = props.onClick as () => void;
+      }
       return actual.jsxDEV(type, props, ...rest);
     },
   };
@@ -89,7 +118,9 @@ function reset() {
   storeState.discordRichPresence = true;
   storeState.startWindow = true;
   storeState.setSetting.mockClear();
+  openLinkMock.mockClear();
   for (const key of Object.keys(captured)) delete captured[key];
+  for (const key of Object.keys(capturedClicks)) delete capturedClicks[key];
 }
 
 afterEach(reset);
@@ -369,5 +400,168 @@ describe("SettingsGroupTitle", () => {
 
   it("renders nothing for an unknown group", () => {
     expect(render(<SettingsGroupTitle options={{ group: "nope" }} />)).toBe("");
+  });
+});
+
+describe("SettingsAbout", () => {
+  const withUpdateStore = <T,>(overrides: Record<string, unknown>, fn: () => T): T => {
+    const prior = useUpdateStore.getState();
+    useUpdateStore.setState({ ...prior, ...overrides });
+    try {
+      return fn();
+    } finally {
+      useUpdateStore.setState(prior, true);
+    }
+  };
+
+  it("renders both credit lines once each", () => {
+    const html = render(<SettingsAbout />);
+    expect(html).toContain('data-el="settings.about"');
+    const lines = [
+      "IP geolocation by DB-IP (https://db-ip.com), CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), converted to a compact IPv4 range table",
+      "Flag icons: country-flag-icons by catamphetamine, MIT licence",
+    ];
+    for (const line of lines) {
+      expect(html.split(line)).toHaveLength(2);
+    }
+  });
+
+  it("offers Check for updates, disabled while checking, with the status line", () => {
+    const idle = withUpdateStore({ checking: false, checked: true, error: null, available: null }, () =>
+      render(<SettingsAbout />),
+    );
+    expect(idle).toContain("Check for updates");
+    expect(idle).toContain("You&#x27;re up to date.<");
+
+    const unchecked = withUpdateStore({ checking: false, checked: false, error: null, available: null }, () =>
+      render(<SettingsAbout />),
+    );
+    expect(unchecked).not.toContain('data-part="status"');
+
+    const checking = withUpdateStore({ checking: true, error: null, available: null }, () =>
+      render(<SettingsAbout />),
+    );
+    expect(checking).toContain("disabled=\"\"");
+    expect(checking).toContain("Checking…");
+  });
+
+  it("shows the failure reason in the status line", () => {
+    const html = withUpdateStore({ checking: false, error: "network error", available: null }, () =>
+      render(<SettingsAbout />),
+    );
+    expect(html).toContain("Couldn&#x27;t check: network error");
+    expect(html).not.toContain("disabled=\"\"");
+  });
+
+  it("names the version on the Update button and its wrapper, and announces the status", () => {
+    const html = withUpdateStore(
+      { installed: true, available: { version: "3.2.0" }, error: null, checking: false, installing: false },
+      () => render(<SettingsAbout />),
+    );
+    expect(html).toContain('aria-label="Update to version 3.2.0"');
+    expect(html).toMatch(/data-part="button" data-state="update"/);
+    const idle = withUpdateStore({ checking: false, error: null, available: null }, () => render(<SettingsAbout />));
+    expect(idle).not.toContain('data-state="update"');
+    expect(html).toMatch(/<span class="relative inline-flex" title="Version 3.2.0 is available">/);
+    const checking = withUpdateStore({ checking: true, error: null, available: null }, () => render(<SettingsAbout />));
+    expect(checking).toMatch(/data-part="status"[^>]*role="status"/);
+  });
+
+  it("says an install failed rather than a check when an update is waiting", () => {
+    const html = withUpdateStore(
+      { installed: true, available: { version: "3.2.0" }, error: "disk full", checking: false, installing: false },
+      () => render(<SettingsAbout />),
+    );
+    expect(html).toContain("Couldn&#x27;t update: disk full");
+  });
+
+  it("installs when it is not yet known whether this copy is installed, and encodes the version in the link", () => {
+    const install = vi.fn();
+    withUpdateStore(
+      { installed: null, available: { version: "3.2.0+a/b" }, error: null, checking: false, installing: false, install },
+      () => render(<SettingsAbout />),
+    );
+    capturedClicks["button"]();
+    expect(install).toHaveBeenCalledTimes(1);
+    capturedClicks["whatsnew"]();
+    expect(openLinkMock).toHaveBeenLastCalledWith(
+      "https://github.com/HellboundGlory/dayz-launcher/releases/tag/v3.2.0%2Ba%2Fb",
+    );
+  });
+
+  it("calls checkNow from Check for updates", () => {
+    const checkNow = vi.fn();
+    withUpdateStore({ checking: false, error: null, available: null, checkNow }, () =>
+      render(<SettingsAbout />),
+    );
+    capturedClicks["button"]();
+    expect(checkNow).toHaveBeenCalledTimes(1);
+  });
+
+  it("turns the button into Update with the badge and See what's new, installing on an installed copy", () => {
+    const install = vi.fn();
+    const html = withUpdateStore(
+      { installed: true, available: { version: "3.2.0" }, error: null, checking: false, install },
+      () => render(<SettingsAbout />),
+    );
+    expect(html).toContain(">Update<");
+    expect(html).toContain('data-part="badge"');
+    expect(html).toContain('title="Version 3.2.0 is available"');
+    expect(html).toContain("See what&#x27;s new");
+    expect(html).not.toContain("Check for updates");
+
+    capturedClicks["button"]();
+    expect(install).toHaveBeenCalledTimes(1);
+
+    capturedClicks["whatsnew"]();
+    expect(openLinkMock).toHaveBeenCalledWith(
+      "https://github.com/HellboundGlory/dayz-launcher/releases/tag/v3.2.0",
+    );
+  });
+
+  it("opens the download page from Update on a portable copy", () => {
+    const install = vi.fn();
+    withUpdateStore(
+      { installed: false, available: { version: "3.2.0" }, error: null, checking: false, install },
+      () => render(<SettingsAbout />),
+    );
+    capturedClicks["button"]();
+    expect(install).not.toHaveBeenCalled();
+    expect(openLinkMock).toHaveBeenCalledWith("https://tetralauncher.com/download");
+  });
+
+  it("shows the download progress while installing", () => {
+    const html = withUpdateStore(
+      {
+        installed: true,
+        available: { version: "3.2.0" },
+        installing: true,
+        progress: { downloaded: 50, total: 100 },
+        error: null,
+        checking: false,
+      },
+      () => render(<SettingsAbout />),
+    );
+    expect(html).toContain("Updating…");
+    expect(html).toContain("Downloading… 50%");
+    expect(html).toContain("disabled=\"\"");
+  });
+
+  it("opens the website and the source code from the two icons", () => {
+    withUpdateStore({ available: null, error: null, checking: false }, () => render(<SettingsAbout />));
+    capturedClicks["Website"]();
+    capturedClicks["Source code on GitHub"]();
+    expect(openLinkMock).toHaveBeenNthCalledWith(1, "https://tetralauncher.com");
+    expect(openLinkMock).toHaveBeenNthCalledWith(
+      2,
+      "https://github.com/HellboundGlory/dayz-launcher",
+    );
+  });
+});
+
+describe("SECS", () => {
+  it("ends with the About section", () => {
+    expect(SECS.map((s) => s.id)).toEqual(["game", "launcher", "theme", "about"]);
+    expect(SECS[3]).toMatchObject({ title: "About", description: "Version, updates, credits" });
   });
 });

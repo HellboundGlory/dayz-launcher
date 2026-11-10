@@ -130,6 +130,7 @@ import {
   SettingsOpenDataFolder,
   SettingsAutoRefresh,
   SettingsThemeManagement,
+  SettingsAbout,
   SettingsSectionTitle,
   SettingsSectionDescription,
   SettingsSectionIcon,
@@ -414,6 +415,8 @@ export function ElementHost({
       return <SettingsAutoRefresh options={node.options} className={mergedClass} style={style} />;
     case "settings.themeManagement":
       return <SettingsThemeManagement className={mergedClass} style={style} />;
+    case "settings.about":
+      return <SettingsAbout className={mergedClass} style={style} />;
     case "settings.sectionTitle":
       return <SettingsSectionTitle options={node.options} className={mergedClass} style={style} />;
     case "settings.sectionDescription":
