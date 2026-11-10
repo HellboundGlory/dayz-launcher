@@ -4648,12 +4648,41 @@
       "parts": [
         "label",
         "hint",
-        "box"
+        "box",
+        "showServer"
       ],
       "states": [
         "checked"
       ],
       "since": "2.0",
+      "aliases": []
+    },
+    "settings.appMenu": {
+      "kind": "input",
+      "where": [
+        "settings"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "showHint": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "title",
+        "label",
+        "hint",
+        "status",
+        "button"
+      ],
+      "states": [
+        "installed",
+        "busy"
+      ],
+      "since": "2.1",
       "aliases": []
     },
     "settings.dataFolder": {
@@ -4858,7 +4887,8 @@
           "values": [
             "window",
             "startup",
-            "discord"
+            "discord",
+            "appMenu"
           ]
         }
       },

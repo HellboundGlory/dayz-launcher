@@ -24,9 +24,12 @@ const CONFIRM_RUNNING_TIMEOUT_SECS: i64 = 180;
 
 /// Seed `AppState` from the saved setting and start the poll loop. Called
 /// once, from `setup`.
-pub fn start(app: &AppHandle, enabled: bool) {
+pub fn start(app: &AppHandle, enabled: bool, show_server: bool) {
     let state = app.state::<crate::state::AppState>();
     state.discord_enabled.store(enabled, Ordering::Relaxed);
+    state
+        .discord_show_server
+        .store(show_server, Ordering::Relaxed);
     if enabled {
         ensure_handle(app);
     }
@@ -160,6 +163,8 @@ async fn poll_once(
         None => false,
     };
 
+    // Read each tick so a change shows within one poll, without touching the session.
+    let show_server = state.discord_show_server.load(Ordering::Relaxed);
     // Block-scoped (not `drop()`) so the `!Send` guard lexically ends before
     // the `.await`s below.
     let (already_idle, send_idle_now) = {
@@ -178,7 +183,7 @@ async fn poll_once(
                     *reported = ReportedState::Verifying;
                 }
                 *confirmed_running = false;
-                handle.set_verifying(server_name);
+                handle.set_verifying(server_name, show_server);
                 false
             }
             // Only a running -> not-running transition counts as a real
@@ -223,7 +228,7 @@ async fn poll_once(
                     send_idle_now = true;
                     true
                 } else {
-                    handle.set_playing(info);
+                    handle.set_playing(info, show_server);
                     false
                 }
             }

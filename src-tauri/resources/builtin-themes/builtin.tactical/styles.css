@@ -1729,7 +1729,8 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
   border-top: none;
 }
 
-[data-el="settings.groupTitle"] [data-part="text"] {
+[data-el="settings.groupTitle"] [data-part="text"],
+[data-el="settings.appMenu"] > [data-part="title"] {
   font-size: 12px;
   font-weight: 500;
   color: var(--text);
@@ -1939,6 +1940,35 @@ floor up so the body, and the panes inside it, shrink to the scrim instead. */
 }
 
 [data-el="settings.about"] [data-part="whatsnew"]:hover {
+  color: var(--text);
+}
+
+[data-el="settings.appMenu"] [data-part="label"] {
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+[data-el="settings.appMenu"] [data-part="hint"],
+[data-el="settings.appMenu"] [data-part="status"] {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted2);
+}
+
+[data-el="settings.appMenu"] [data-part="button"] {
+  flex-shrink: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: none;
+  background-color: var(--surface2);
+  box-shadow: 0 0 0 1px var(--border);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--muted2);
+}
+
+[data-el="settings.appMenu"] [data-part="button"]:not(:disabled):hover {
   color: var(--text);
 }
 

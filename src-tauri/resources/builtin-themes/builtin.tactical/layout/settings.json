@@ -197,6 +197,10 @@
                           ]
                         },
                         {
+                          "element": "settings.appMenu",
+                          "class": "t-settings-group"
+                        },
+                        {
                           "type": "stack",
                           "direction": "row",
                           "align": "start",

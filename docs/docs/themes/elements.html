@@ -912,7 +912,7 @@
 <section class="el-group">
   <h2 id="settings"><code>settings</code> Settings</h2>
   <div class="md"><p>The Settings screen: one control per setting, plus the headings that group them.</p>
-<ul><li><strong>Required controls:</strong> every Settings control is required, and each saves as soon as it changes. They may sit in closed sections, and their labels, hints, placeholders and choices are the launcher's current wording.</li><li><strong>Section and group text:</strong> <code>settings.sectionTitle</code>, <code>settings.sectionDescription</code> and <code>settings.sectionIcon</code> render the wording for the Game, Launcher and Theme sections; <code>settings.groupTitle</code> renders the checkbox group headings Window, Startup and Discord.</li></ul></div>
+<ul><li><strong>Required controls:</strong> every Settings control except <code>settings.appMenu</code> is required, and each saves as soon as it changes. <code>settings.appMenu</code> is optional because it draws nothing outside the Linux AppImage build. They may sit in closed sections, and their labels, hints, placeholders and choices are the launcher's current wording.</li><li><strong>Section and group text:</strong> <code>settings.sectionTitle</code>, <code>settings.sectionDescription</code> and <code>settings.sectionIcon</code> render the wording for the Game, Launcher and Theme sections; <code>settings.groupTitle</code> renders the checkbox group headings Window, Startup and Discord; <code>settings.appMenu</code> draws its own App menu heading (part <code>title</code>).</li></ul></div>
   <section class="el" id="el-settings-back" data-el="settings.back">
   <h3><code>settings.back</code> <span class="el-kind">action</span></h3>
   <dl><dt>Placed in</dt><dd>Settings · once per composition</dd><dt>Required in</dt><dd>the shell + Settings composition</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>label</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
@@ -975,7 +975,12 @@
 </section>
   <section class="el" id="el-settings-discordPresence" data-el="settings.discordPresence">
   <h3><code>settings.discordPresence</code> <span class="el-kind">input</span></h3>
-  <dl><dt>Placed in</dt><dd>Settings · once per composition</dd><dt>Required in</dt><dd>the shell + Settings composition</dd><dt>Parts</dt><dd><code>label</code>, <code>hint</code>, <code>box</code> · States: <code>checked</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showHint</code> (on or off, default on)</li></ul></dd></dl>
+  <dl><dt>Placed in</dt><dd>Settings · once per composition</dd><dt>Required in</dt><dd>the shell + Settings composition</dd><dt>Parts</dt><dd><code>label</code>, <code>hint</code>, <code>box</code>, <code>showServer</code> · States: <code>checked</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showHint</code> (on or off, default on)</li></ul></dd></dl>
+</section>
+  <section class="el" id="el-settings-appMenu" data-el="settings.appMenu">
+  <h3><code>settings.appMenu</code> <span class="el-kind">input</span> <span class="el-since">SINCE 2.1</span></h3>
+  <dl><dt>Placed in</dt><dd>Settings · once per composition</dd><dt>Parts</dt><dd><code>title</code>, <code>label</code>, <code>hint</code>, <code>status</code>, <code>button</code> · States: <code>installed</code>, <code>busy</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showHint</code> (on or off, default on)</li></ul></dd></dl>
+  <div class="md el-notes"><p><strong>Linux AppImage only.</strong> Renders nothing unless this copy is running as an AppImage. Not installed: the note that Tetra isn't in the app menu yet, with an <strong>Add to app menu</strong> button that reads &quot;Adding…&quot; and is disabled while it works, and any failure under it in <code>status</code>. Installed: &quot;Tetra is in your app menu.&quot; and no button.</p></div>
 </section>
   <section class="el" id="el-settings-dataFolder" data-el="settings.dataFolder">
   <h3><code>settings.dataFolder</code> <span class="el-kind">display</span></h3>
@@ -1013,7 +1018,7 @@
 </section>
   <section class="el" id="el-settings-groupTitle" data-el="settings.groupTitle">
   <h3><code>settings.groupTitle</code> <span class="el-kind">display</span></h3>
-  <dl><dt>Placed in</dt><dd>Settings · any number of times</dd><dt>Parts</dt><dd><code>text</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>group</code> (one of <code>window</code>, <code>startup</code>, <code>discord</code>)</li></ul></dd></dl>
+  <dl><dt>Placed in</dt><dd>Settings · any number of times</dd><dt>Parts</dt><dd><code>text</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>group</code> (one of <code>window</code>, <code>startup</code>, <code>discord</code>, <code>appMenu</code>)</li></ul></dd></dl>
 </section>
 </section>
 

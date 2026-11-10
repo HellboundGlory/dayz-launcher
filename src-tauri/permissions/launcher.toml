@@ -81,4 +81,6 @@ permissions = [
     "allow-is-installed-copy",
     "allow-open-external-url",
     "allow-fetch-release-notes",
+    "allow-app-menu-status",
+    "allow-add-to-app-menu",
 ]

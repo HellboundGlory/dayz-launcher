@@ -143,6 +143,8 @@ mod tests {
             (&["tetra-launcher.exe"], None),
             // The ordinary autostart launch must not look like a join request.
             (&["tetra-launcher.exe", "--autostart"], None),
+            // Nor must the arguments a reopened copy is handed.
+            (&["tetra-launcher.AppImage", "--wait-pid", "4242"], None),
         ];
         for (args, expected) in cases {
             let args = argv(args);

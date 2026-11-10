@@ -184,6 +184,7 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
   }),
   get_installed_dayz_version: () => "1.29.163709",
   password_status: () => ({ saved: params.get("pw") === "saved", keyring: true }),
+  app_menu_status: () => ({ available: params.has("appmenu"), installed: params.get("appmenu") === "installed" }),
   get_memory_map_status: () =>
     memoryMapLow ? { current: 65530, recommended: 1048576 } : null,
   get_search_suggestions: () => [

@@ -115,6 +115,7 @@ export const SETTINGS_LAYOUT: SettingsLayoutFile = {
                       },
                     ]),
                     group([groupTitle("discord"), { element: "settings.discordPresence" }]),
+                    { element: "settings.appMenu", class: "t-neutral-settings-group" },
                     group([
                       {
                         type: "stack",

@@ -58,9 +58,48 @@ pub enum DiscordSession {
 #[derive(Clone, PartialEq)]
 enum Command {
     Idle(Option<usize>),
-    Verifying(String),
-    Playing(PresenceInfo),
+    Verifying {
+        server_name: String,
+        show_server: bool,
+    },
+    Playing {
+        info: PresenceInfo,
+        show_server: bool,
+    },
     Clear,
+}
+
+impl Command {
+    /// A private session drops what it hides, so a hidden change (player count,
+    /// a different server) is not sent to Discord again.
+    fn playing(info: PresenceInfo, show_server: bool) -> Self {
+        let info = if show_server {
+            info
+        } else {
+            PresenceInfo {
+                server_name: String::new(),
+                map: None,
+                players: 0,
+                max_players: 0,
+                started_at: info.started_at,
+                in_game_time: None,
+                ip: String::new(),
+                query_port: 0,
+            }
+        };
+        Command::Playing { info, show_server }
+    }
+
+    fn verifying(server_name: String, show_server: bool) -> Self {
+        Command::Verifying {
+            server_name: if show_server {
+                server_name
+            } else {
+                String::new()
+            },
+            show_server,
+        }
+    }
 }
 
 /// Handle to the Discord presence thread. Cheap to clone; every method is
@@ -88,14 +127,16 @@ impl DiscordHandle {
         let _ = self.tx.send(Command::Idle(server_count));
     }
 
-    /// The pre-launch mod gate is running for `server_name`.
-    pub fn set_verifying(&self, server_name: String) {
-        let _ = self.tx.send(Command::Verifying(server_name));
+    /// The pre-launch mod gate is running for `server_name`. `show_server` off
+    /// hides the server, leaving only that DayZ is being checked.
+    pub fn set_verifying(&self, server_name: String, show_server: bool) {
+        let _ = self.tx.send(Command::verifying(server_name, show_server));
     }
 
-    /// A session the launcher started is live.
-    pub fn set_playing(&self, info: PresenceInfo) {
-        let _ = self.tx.send(Command::Playing(info));
+    /// A session the launcher started is live. `show_server` off hides the
+    /// server name, map, player count and join button.
+    pub fn set_playing(&self, info: PresenceInfo, show_server: bool) {
+        let _ = self.tx.send(Command::playing(info, show_server));
     }
 
     /// Remove the activity entirely (used when the user turns the feature
@@ -232,13 +273,18 @@ fn apply(
     match cmd {
         Command::Clear => client.clear_activity(),
         Command::Idle(count) => client.set_activity(idle_activity(*count)),
-        Command::Verifying(server_name) => client.set_activity(verifying_activity(server_name)),
-        Command::Playing(info) => client.set_activity(playing_activity(info)),
+        Command::Verifying {
+            server_name,
+            show_server,
+        } => client.set_activity(verifying_activity(server_name, *show_server)),
+        Command::Playing { info, show_server } => {
+            client.set_activity(playing_activity(info, *show_server))
+        }
     }
 }
 
-/// Shared across every activity: the assets block (logo, plus a day/night
-/// badge for the caller to add) and the `Details` field.
+/// Shared across every activity: the assets block (the logo) and the
+/// `Details` field. Buttons belong to the caller.
 fn base_activity<'a>(state: &'a str, details: String) -> Activity<'a> {
     Activity::new()
         .state(state)
@@ -248,41 +294,106 @@ fn base_activity<'a>(state: &'a str, details: String) -> Activity<'a> {
                 .large_image(LOGO_ASSET_KEY)
                 .large_text("Tetra Launcher"),
         )
-        .buttons(vec![Button::new("Get Tetra Launcher", DOWNLOAD_URL)])
         // Compact one-line summary shown in space-constrained spots; `Details`
         // is the only field that differs between players.
         .status_display_type(StatusDisplayType::Details)
 }
 
-fn idle_activity<'a>(server_count: Option<usize>) -> Activity<'a> {
+fn download_button() -> Button<'static> {
+    Button::new("Get Tetra Launcher", DOWNLOAD_URL)
+}
+
+fn idle_activity(server_count: Option<usize>) -> Activity<'static> {
     let details = match server_count {
         Some(n) => format!("{n} servers"),
         None => "servers".to_string(),
     };
-    base_activity("Browsing", details)
+    activity_from(PresenceText {
+        state: "Browsing",
+        details,
+        started_at_ms: None,
+        party: None,
+        join_url: None,
+        badge: None,
+    })
 }
 
-fn verifying_activity(server_name: &str) -> Activity<'_> {
-    base_activity("Checking mods", server_name.to_string())
+/// The visible text of a presence, built without a Discord connection so the
+/// full and private forms can be compared in tests.
+#[derive(Debug, PartialEq)]
+struct PresenceText {
+    state: &'static str,
+    details: String,
+    /// Unix milliseconds, as Discord wants them.
+    started_at_ms: Option<i64>,
+    party: Option<[i32; 2]>,
+    join_url: Option<String>,
+    /// The day/night badge: its asset key and hover text.
+    badge: Option<(&'static str, &'static str)>,
 }
 
-fn playing_activity(info: &PresenceInfo) -> Activity<'_> {
-    let mut activity = base_activity("Playing", details_text(info))
-        // Discord wants milliseconds; `PresenceInfo::started_at` is seconds.
-        .timestamps(Timestamps::new().start(info.started_at * 1000))
-        .buttons(vec![
-            Button::new("Join via Tetra Launcher", join_url(info)),
-            Button::new("Get Tetra Launcher", DOWNLOAD_URL),
-        ]);
-    if let Some([current, max]) = party_size(info) {
+fn verifying_presence(server_name: &str, show_server: bool) -> PresenceText {
+    PresenceText {
+        state: "Checking mods",
+        details: if show_server {
+            server_name.to_string()
+        } else {
+            "DayZ".to_string()
+        },
+        started_at_ms: None,
+        party: None,
+        join_url: None,
+        badge: None,
+    }
+}
+
+fn playing_presence(info: &PresenceInfo, show_server: bool) -> PresenceText {
+    let started_at_ms = Some(info.started_at * 1000);
+    if !show_server {
+        return PresenceText {
+            state: "Playing",
+            details: "DayZ".to_string(),
+            started_at_ms,
+            party: None,
+            join_url: None,
+            badge: None,
+        };
+    }
+    PresenceText {
+        state: "Playing",
+        details: details_text(info),
+        started_at_ms,
+        party: party_size(info),
+        join_url: Some(join_url(info)),
+        badge: info
+            .in_game_time
+            .as_deref()
+            .and_then(day_or_night)
+            .map(|is_day| {
+                if is_day {
+                    (DAYTIME_ASSET_KEY, "Daytime")
+                } else {
+                    (NIGHTTIME_ASSET_KEY, "Night")
+                }
+            }),
+    }
+}
+
+fn activity_from(presence: PresenceText) -> Activity<'static> {
+    let mut activity = base_activity(presence.state, presence.details);
+    if let Some(start) = presence.started_at_ms {
+        activity = activity.timestamps(Timestamps::new().start(start));
+    }
+    let mut buttons = Vec::with_capacity(2);
+    if let Some(url) = presence.join_url {
+        buttons.push(Button::new("Join via Tetra Launcher", url));
+    }
+    buttons.push(download_button());
+    activity = activity.buttons(buttons);
+    if let Some([current, max]) = presence.party {
         activity = activity.party(Party::new().size([current, max]));
     }
-    if let Some(is_day) = info.in_game_time.as_deref().and_then(day_or_night) {
-        let (key, text) = if is_day {
-            (DAYTIME_ASSET_KEY, "Daytime")
-        } else {
-            (NIGHTTIME_ASSET_KEY, "Night")
-        };
+    if let Some((key, text)) = presence.badge {
         activity = activity.assets(
             Assets::new()
                 .large_image(LOGO_ASSET_KEY)
@@ -292,6 +403,14 @@ fn playing_activity(info: &PresenceInfo) -> Activity<'_> {
         );
     }
     activity
+}
+
+fn verifying_activity(server_name: &str, show_server: bool) -> Activity<'static> {
+    activity_from(verifying_presence(server_name, show_server))
+}
+
+fn playing_activity(info: &PresenceInfo, show_server: bool) -> Activity<'static> {
+    activity_from(playing_presence(info, show_server))
 }
 
 /// "Server Name — Map", or just the name if the map is blank.
@@ -437,29 +556,90 @@ mod tests {
 
     #[test]
     fn only_a_changed_command_is_reapplied() {
+        let playing = |info| Command::Playing {
+            info,
+            show_server: true,
+        };
         let cases: [(&str, Option<Command>, Command, bool); 4] = [
             (
                 "unchanged",
-                Some(Command::Playing(info(12, 60))),
-                Command::Playing(info(12, 60)),
+                Some(playing(info(12, 60))),
+                playing(info(12, 60)),
                 false,
             ),
             (
                 "changed field",
-                Some(Command::Playing(info(12, 60))),
-                Command::Playing(info(13, 60)),
+                Some(playing(info(12, 60))),
+                playing(info(13, 60)),
                 true,
             ),
             ("nothing applied yet", None, Command::Idle(None), true),
             (
                 "different kind",
                 Some(Command::Idle(Some(5))),
-                Command::Verifying("GulagZ".into()),
+                Command::Verifying {
+                    server_name: "GulagZ".into(),
+                    show_server: true,
+                },
                 true,
             ),
         ];
         for (label, before, after, expected) in cases {
             assert_eq!(needs_apply(&before, &after), expected, "{label}");
         }
+    }
+
+    #[test]
+    fn switching_show_server_on_the_same_session_counts_as_changed() {
+        let before = Command::Playing {
+            info: info(12, 60),
+            show_server: true,
+        };
+        let after = Command::Playing {
+            info: info(12, 60),
+            show_server: false,
+        };
+        assert!(needs_apply(&Some(before), &after));
+    }
+
+    #[test]
+    fn a_private_presence_is_not_resent_when_only_hidden_details_change() {
+        assert!(!needs_apply(
+            &Some(Command::playing(info(12, 60), false)),
+            &Command::playing(info(13, 60), false)
+        ));
+        assert!(!needs_apply(
+            &Some(Command::verifying("GulagZ".into(), false)),
+            &Command::verifying("Namalsk".into(), false)
+        ));
+        assert!(needs_apply(
+            &Some(Command::playing(info(12, 60), true)),
+            &Command::playing(info(13, 60), true)
+        ));
+    }
+
+    #[test]
+    fn a_private_playing_presence_names_only_the_game() {
+        let shown = playing_presence(&info(12, 60), true);
+        assert_eq!(shown.details, "GulagZ — Chernarus");
+        assert_eq!(shown.party, Some([12, 60]));
+        assert!(shown.join_url.is_some());
+
+        let private = playing_presence(&info(12, 60), false);
+        assert_eq!(private.state, "Playing");
+        assert_eq!(private.details, "DayZ");
+        assert_eq!(private.party, None);
+        assert_eq!(private.join_url, None);
+        assert_eq!(private.badge, None);
+        assert_eq!(private.started_at_ms, shown.started_at_ms);
+    }
+
+    #[test]
+    fn a_private_verifying_presence_names_only_the_game() {
+        assert_eq!(verifying_presence("GulagZ", true).details, "GulagZ");
+
+        let private = verifying_presence("GulagZ", false);
+        assert_eq!(private.state, "Checking mods");
+        assert_eq!(private.details, "DayZ");
     }
 }

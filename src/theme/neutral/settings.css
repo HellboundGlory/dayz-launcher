@@ -70,6 +70,10 @@
   @apply mt-2 border-t border-line pt-3;
 }
 
+.t-neutral-settings-group > [data-part="title"] {
+  @apply mb-1 text-xs font-medium text-ink;
+}
+
 .t-neutral-settings-group-title {
   @apply mb-1 text-xs font-medium text-ink;
 }

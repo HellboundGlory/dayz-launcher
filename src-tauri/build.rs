@@ -80,6 +80,8 @@ const COMMANDS: &[&str] = &[
     "is_installed_copy",
     "open_external_url",
     "fetch_release_notes",
+    "app_menu_status",
+    "add_to_app_menu",
 ];
 
 fn main() {

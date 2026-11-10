@@ -379,10 +379,14 @@ export interface AppSettingsDto {
   onboardingDismissed: boolean;
   /** Show "Playing on {server}" / "Browsing servers" in Discord. */
   discordRichPresence: boolean;
+  /** Show the server's name, map, player count and join button in Discord. */
+  discordShowServer: boolean;
   /** Warn before a Join when the Linux memory map limit is too low for DayZ. */
   memoryMapWarning: boolean;
   /** Show the window that lists each step of a join while it runs. */
   startWindow: boolean;
+  /** Set once the first-start offer to add Tetra to the app menu has been shown. */
+  appMenuOffered: boolean;
   /**
    * Which theme is active; `null` is the built-in default. Read-only from the
    * frontend: the settings store never patches it, so a settings save can't
@@ -570,6 +574,22 @@ export async function dataFolderPath(): Promise<string> {
 /** Show the data folder in Explorer. */
 export async function openDataFolder(): Promise<void> {
   return invoke("open_data_folder");
+}
+
+/** Whether this copy can offer a menu entry, and whether it already has one. */
+export interface AppMenuStatus {
+  available: boolean;
+  installed: boolean;
+}
+
+/** Linux AppImage only: everywhere else both fields are false. */
+export async function appMenuStatus(): Promise<AppMenuStatus> {
+  return invoke<AppMenuStatus>("app_menu_status");
+}
+
+/** Moves the AppImage to `~/Applications` and reopens from there; the launcher quits. */
+export async function addToAppMenu(): Promise<void> {
+  return invoke<void>("add_to_app_menu");
 }
 
 /** Whether a DayZ process exists right now — asked of the OS, so also true for a session started outside the launcher. */

@@ -7,7 +7,7 @@ import { openExternalUrl } from "@/lib/external-link";
 import { useUpdateStore } from "@/stores/update-store";
 import { OptionIcon } from "./option-icon";
 import { useSettingsStore } from "@/stores/settings-store";
-import { discoverSteamPaths, dataFolderPath, openDataFolder } from "@/lib/tauri";
+import { discoverSteamPaths, dataFolderPath, openDataFolder, appMenuStatus, addToAppMenu, type AppMenuStatus } from "@/lib/tauri";
 import { ThemesSection } from "@/components/themes-page/themes-section";
 import { SECS, REFRESH_INTERVALS, INPUT_CLASS, BUTTON_CLASS, Field, CheckboxRow } from "./settings-controls";
 import { useElementContext } from "./context";
@@ -442,25 +442,142 @@ export function SettingsStartMinimised({ options, className, style }: ElementPro
 
 export function SettingsDiscordPresence({ options, className, style }: ElementProps) {
   const discordRichPresence = useSettingsStore((s) => s.discordRichPresence);
+  const discordShowServer = useSettingsStore((s) => s.discordShowServer);
   const setSetting = useSettingsStore((s) => s.setSetting);
   const showHint = showHintOption(options);
   const id = useId();
   const hintId = `${id}-hint`;
+  const nestedId = `${id}-server`;
+  const nestedHintId = `${id}-server-hint`;
 
   return (
-    <CheckboxRow
-      dataEl="settings.discordPresence"
-      dataState={discordRichPresence ? "checked" : undefined}
-      id={id}
-      hintId={hintId}
+    <div data-el="settings.discordPresence" data-state={discordRichPresence ? "checked" : undefined} className={className} style={style}>
+      <CheckboxRow
+        id={id}
+        hintId={hintId}
+        showHint={showHint}
+        checked={discordRichPresence}
+        onChange={(v) => setSetting("discordRichPresence", v)}
+        label="Show Rich Presence in Discord"
+        hint="Shows a server you're playing on (or 'Browsing servers') on your Discord profile. Off means the launcher never talks to Discord at all."
+      />
+      <div data-part="showServer" data-state={discordShowServer ? "checked" : undefined} className="ml-[25px]">
+        <CheckboxRow
+          id={nestedId}
+          hintId={nestedHintId}
+          showHint={showHint}
+          checked={discordShowServer}
+          disabled={!discordRichPresence}
+          onChange={(v) => setSetting("discordShowServer", v)}
+          label="Show which server I'm on"
+          hint='Off: Discord shows only "Playing DayZ".'
+        />
+      </div>
+    </div>
+  );
+}
+
+export function SettingsAppMenu({ options, className, style }: ElementProps) {
+  const showHint = showHintOption(options);
+  const [status, setStatus] = useState<AppMenuStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    appMenuStatus()
+      .then(setStatus)
+      .catch(() => {});
+  }, []);
+
+  if (!status?.available) return null;
+
+  const add = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await addToAppMenu();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <AppMenuRow
+      status={status}
+      busy={busy}
+      error={error}
       showHint={showHint}
-      checked={discordRichPresence}
-      onChange={(v) => setSetting("discordRichPresence", v)}
-      label="Show Rich Presence in Discord"
-      hint="Shows a server you're playing on (or 'Browsing servers') on your Discord profile. Off means the launcher never talks to Discord at all."
+      onAdd={() => void add()}
       className={className}
       style={style}
     />
+  );
+}
+
+/** The row itself, drawn from a status the caller already has. */
+export function AppMenuRow({
+  status,
+  busy = false,
+  error = null,
+  showHint = true,
+  onAdd,
+  className,
+  style,
+}: {
+  status: AppMenuStatus;
+  busy?: boolean;
+  error?: string | null;
+  showHint?: boolean;
+  onAdd?: () => void;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  if (!status.available) return null;
+
+  return (
+    <div
+      data-el="settings.appMenu"
+      data-state={[status.installed && "installed", busy && "busy"].filter(Boolean).join(" ") || undefined}
+      className={className}
+      style={style}
+    >
+      {/* Its own heading, so nothing at all shows where the feature is unavailable. */}
+      <div data-part="title">App menu</div>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="min-w-0 flex-1 [font-size:var(--t-type-body-size)] text-ink">
+          {status.installed ? (
+            <span data-part="status">Tetra is in your app menu.</span>
+          ) : (
+            <>
+              <span data-part="label">Tetra isn&apos;t in your app menu yet.</span>
+              {showHint && (
+                <span data-part="hint" className="mt-0.5 block [font-size:var(--t-type-caption-size)] leading-[1.4] text-muted">
+                  Moves Tetra to <span className="font-mono-data">~/Applications</span>, adds a menu
+                  entry with its icon, and reopens from there.
+                </span>
+              )}
+            </>
+          )}
+        </div>
+        {!status.installed && (
+          <button
+            type="button"
+            data-part="button"
+            onClick={onAdd}
+            disabled={busy}
+            className={BUTTON_CLASS}
+          >
+            {busy ? "Adding…" : "Add to app menu"}
+          </button>
+        )}
+      </div>
+      {error && (
+        <p data-part="status" role="alert" className="mt-1.5 [font-size:var(--t-type-caption-size)] text-danger">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 

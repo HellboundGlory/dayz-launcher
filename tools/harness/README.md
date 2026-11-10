@@ -33,6 +33,7 @@ PNG as `<out>.log`; uncaught errors are also painted onto the page.
 | `click=<css selector>` | Click an element; repeatable, run in order |
 | `dayz=1` | Report DayZ as running |
 | `storage=degraded` | Report the registry as degraded, so the storage notice shows |
+| `appmenu=1` | Report a Linux AppImage without a menu entry (`appmenu=installed`: with one) |
 | `mods=mixed\|ready` | Add a declared mod mid-download to the selection's readiness, or mark every mod ready |
 | `join=asking\|checking\|found\|noanswer` | Open the join-link box in that state |
 | `static=1` | Freeze the clock and disable animations, transitions and the caret |

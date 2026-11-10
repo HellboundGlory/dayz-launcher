@@ -298,6 +298,7 @@
     --z-dialog: 60;
     --z-onboarding: 90;
     --z-splash: 100;
+    --z-crash: 100;
     --z-blocking: 200;
     --z-dev-panel: 390;
     --z-dev-inspector: 400;
@@ -315,6 +316,85 @@
     position: fixed;
     inset: 0;
     z-index: var(--z-modal);
+  }
+
+  /* The crash screen wears the plain built-in look and reads no theme tokens, so a
+     broken theme can neither hide it nor restyle it. Values are Neutral's dark
+     palette, fixed here on purpose. */
+  [data-crash] {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-crash);
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: #0d0f13;
+    color: #e7ebf0;
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  [data-crash] > div {
+    display: grid;
+    width: min(560px, 100%);
+    gap: 14px;
+  }
+  [data-crash] [data-part="icon"] {
+    color: #b3564d;
+  }
+  [data-crash] h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+  }
+  [data-crash] p {
+    margin: 0;
+    color: #98a2b2;
+  }
+  [data-crash] [data-part="details"] {
+    margin: 0;
+    max-height: 120px;
+    overflow: auto;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    padding: 10px 12px;
+    border: 1px solid #262b34;
+    border-radius: 4px;
+    background: #12151b;
+    color: #98a2b2;
+    font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+    font-size: 12px;
+  }
+  [data-crash] [data-part="actions"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  [data-crash] button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid #262b34;
+    border-radius: 4px;
+    background: #1a1e26;
+    color: #98a2b2;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  [data-crash] button:hover {
+    color: #e7ebf0;
+  }
+  [data-crash] [data-part="reload"] {
+    border-color: transparent;
+    background: #8fa3bd;
+    color: #0d0f13;
+  }
+  [data-crash] [data-part="reload"]:hover {
+    color: #0d0f13;
   }
 
   [data-popup-ancestor] {

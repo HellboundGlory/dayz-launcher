@@ -560,7 +560,7 @@ pub async fn verify_server_mods(
 }
 
 /// Register the `dzsa://` protocol handler in the OS. Skips debug builds unless `TETRA_FORCE_PROTOCOL_REGISTER=1` is set.
-pub fn register_protocol_handler() -> Result<(), String> {
+pub fn register_protocol_handler(app: &tauri::AppHandle) -> Result<(), String> {
     if cfg!(debug_assertions) && std::env::var_os("TETRA_FORCE_PROTOCOL_REGISTER").is_none() {
         crate::log::line(
             "protocol",
@@ -568,11 +568,26 @@ pub fn register_protocol_handler() -> Result<(), String> {
         );
         return Ok(());
     }
-    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let exe = protocol_handler_path(app)?;
     if tetra_launch::protocol::dzsa_registered_to(&exe) {
         return Ok(());
     }
     register_dzsa_protocol(&exe).map_err(|e| e.to_string())
+}
+
+/// The file the `dzsa://` handler should point at. Inside an AppImage that is
+/// the `.AppImage` itself, not the mount point `current_exe` reports — the
+/// mount is gone once the launcher exits.
+fn protocol_handler_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    #[cfg(target_os = "linux")]
+    {
+        use tauri::Manager;
+        if let Some(appimage) = app.env().appimage {
+            return Ok(std::path::PathBuf::from(appimage));
+        }
+    }
+    let _ = app;
+    std::env::current_exe().map_err(|e| e.to_string())
 }
 
 /// Start the Steam client, for the "Start Steam" button on the startup

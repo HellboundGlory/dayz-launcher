@@ -18,6 +18,8 @@ import {
   SettingsStartWithWindows,
   SettingsStartMinimised,
   SettingsDiscordPresence,
+  SettingsAppMenu,
+  AppMenuRow,
   SettingsDataFolder,
   SettingsOpenDataFolder,
   SettingsAutoRefresh,
@@ -41,6 +43,7 @@ const storeState = {
   startMinimised: false,
   onJoin: "stay" as "stay" | "tray" | "close",
   discordRichPresence: true,
+  discordShowServer: true,
   startWindow: true,
   setSetting: vi.fn((key: string, value: unknown) => {
     (storeState as unknown as Record<string, unknown>)[key] = value;
@@ -55,6 +58,8 @@ vi.mock("@/lib/tauri", () => ({
   discoverSteamPaths: vi.fn(),
   dataFolderPath: vi.fn(() => Promise.resolve("/data/tetra")),
   openDataFolder: vi.fn(() => Promise.resolve()),
+  appMenuStatus: vi.fn(() => Promise.resolve({ available: false, installed: false })),
+  addToAppMenu: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock("@/components/themes-page/themes-section", () => ({
@@ -116,6 +121,7 @@ function reset() {
   storeState.startMinimised = false;
   storeState.onJoin = "stay";
   storeState.discordRichPresence = true;
+  storeState.discordShowServer = true;
   storeState.startWindow = true;
   storeState.setSetting.mockClear();
   openLinkMock.mockClear();
@@ -311,7 +317,71 @@ describe("SettingsDiscordPresence", () => {
     storeState.discordRichPresence = false;
     const html = render(<SettingsDiscordPresence />);
     expect(html).toContain('data-el="settings.discordPresence"');
-    expect(html).not.toContain('data-state="checked"');
+    expect(html).not.toMatch(/data-el="settings.discordPresence"[^>]*data-state="checked"/);
+  });
+
+  it("nests the server-name box under it, disabled while Rich Presence is off", () => {
+    const nested = (html: string) => html.slice(html.indexOf('data-part="showServer"'));
+
+    storeState.discordRichPresence = false;
+    const disabled = nested(render(<SettingsDiscordPresence />));
+    expect(disabled).toContain("Show which server I&#x27;m on");
+    expect(disabled).toContain("Off: Discord shows only &quot;Playing DayZ&quot;.");
+    expect(disabled).toContain('disabled=""');
+
+    storeState.discordRichPresence = true;
+    expect(nested(render(<SettingsDiscordPresence />))).not.toContain('disabled=""');
+  });
+
+  it("writes the nested box through to discordShowServer", () => {
+    render(<SettingsDiscordPresence />);
+    // The nested row is drawn last, so its box is the one captured.
+    (captured["box"]?.onChange as (e: { target: { checked: boolean } }) => void)({
+      target: { checked: false },
+    });
+    expect(storeState.setSetting).toHaveBeenCalledWith("discordShowServer", false);
+  });
+});
+
+describe("SettingsAppMenu", () => {
+  it("renders nothing until the status says it is available", () => {
+    expect(render(<SettingsAppMenu />)).toBe("");
+  });
+
+  it("offers the button, with the move explained", () => {
+    const html = render(<AppMenuRow status={{ available: false, installed: false }} />);
+    expect(html).toBe("");
+
+    const row = render(<AppMenuRow status={{ available: true, installed: false }} />);
+    expect(row).toContain('data-el="settings.appMenu"');
+    expect(row).toMatch(/data-part="title"[^>]*>App menu</);
+    expect(row).toContain("Tetra isn&#x27;t in your app menu yet.");
+    expect(row).toContain("~/Applications");
+    expect(row).toContain('data-part="button"');
+    expect(row).toContain("Add to app menu");
+    expect(row).not.toContain('data-state="installed"');
+  });
+
+  it("says it is there and drops the button once installed", () => {
+    const html = render(<AppMenuRow status={{ available: true, installed: true }} />);
+    expect(html).toContain("Tetra is in your app menu.");
+    expect(html).not.toContain('data-part="button"');
+    expect(html).toContain('data-state="installed"');
+  });
+
+  it("shows Adding… and disables the button while busy", () => {
+    const html = render(<AppMenuRow status={{ available: true, installed: false }} busy />);
+    expect(html).toContain("Adding…");
+    expect(html).toContain('data-state="busy"');
+    expect(html).toContain('disabled=""');
+  });
+
+  it("puts a failure under the button", () => {
+    const html = render(
+      <AppMenuRow status={{ available: true, installed: false }} error="disk full" />,
+    );
+    expect(html).toContain('data-part="status"');
+    expect(html).toContain("disk full");
   });
 });
 

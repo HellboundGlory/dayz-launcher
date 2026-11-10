@@ -63,7 +63,7 @@
     },
     "settings": {
       "title": "Settings",
-      "blurb": "The Settings screen: one control per setting, plus the headings that group them.\n\n- **Required controls:** every Settings control is required, and each saves as soon as it changes. They may sit in closed sections, and their labels, hints, placeholders and choices are the launcher's current wording.\n- **Section and group text:** `settings.sectionTitle`, `settings.sectionDescription` and `settings.sectionIcon` render the wording for the Game, Launcher and Theme sections; `settings.groupTitle` renders the checkbox group headings Window, Startup and Discord."
+      "blurb": "The Settings screen: one control per setting, plus the headings that group them.\n\n- **Required controls:** every Settings control except `settings.appMenu` is required, and each saves as soon as it changes. `settings.appMenu` is optional because it draws nothing outside the Linux AppImage build. They may sit in closed sections, and their labels, hints, placeholders and choices are the launcher's current wording.\n- **Section and group text:** `settings.sectionTitle`, `settings.sectionDescription` and `settings.sectionIcon` render the wording for the Game, Launcher and Theme sections; `settings.groupTitle` renders the checkbox group headings Window, Startup and Discord; `settings.appMenu` draws its own App menu heading (part `title`)."
     },
     "list": {
       "title": "the lists",
@@ -171,7 +171,8 @@
     "popup.close": "Required only where a popup can't be dismissed by clicking outside an anchored panel, so a region or inline popup always has a way out.",
     "serverMod.note": "One line saying the local copy doesn't match the server's and that a join may be refused with a signature error. It renders nothing unless that mod's state is `ready` and its copy differs, so the plain registry read never shows it.",
     "server.modDiffers": "The warning above Join: how many of this server's mods differ, with a Fix and join button that re-downloads them first. It needs a live Check mods to have run (the plain readiness read carries no hashes), and renders nothing in a list row, where readiness is never fetched.",
-    "server.versionWarning": "A small triangle naming both builds, for a server on another DayZ version. It renders nothing when the versions match or the installed one can't be read."
+    "server.versionWarning": "A small triangle naming both builds, for a server on another DayZ version. It renders nothing when the versions match or the installed one can't be read.",
+    "settings.appMenu": "**Linux AppImage only.** Renders nothing unless this copy is running as an AppImage. Not installed: the note that Tetra isn't in the app menu yet, with an **Add to app menu** button that reads \"Adding…\" and is disabled while it works, and any failure under it in `status`. Installed: \"Tetra is in your app menu.\" and no button."
   },
   "sections": {
     "surfaces": "A surface is placed whole. Its elements keep their own ids, states and parts, so CSS still reaches them; only its arrangement is fixed. Placing a surface satisfies the requirements of every required element inside it, and counts as one placement of each element inside it — so placing `surface.filterBar` and a separate `filter.search` in the same composition is a multiplicity error.",

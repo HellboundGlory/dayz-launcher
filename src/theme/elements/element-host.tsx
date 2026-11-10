@@ -116,6 +116,7 @@ import {
   SettingsStartWithWindows,
   SettingsStartMinimised,
   SettingsDiscordPresence,
+  SettingsAppMenu,
   SettingsDataFolder,
   SettingsOpenDataFolder,
   SettingsAutoRefresh,
@@ -392,6 +393,8 @@ export function ElementHost({
       return <SettingsStartMinimised options={node.options} className={mergedClass} style={style} />;
     case "settings.discordPresence":
       return <SettingsDiscordPresence options={node.options} className={mergedClass} style={style} />;
+    case "settings.appMenu":
+      return <SettingsAppMenu options={node.options} className={mergedClass} style={style} />;
     case "settings.dataFolder":
       return <SettingsDataFolder options={node.options} className={mergedClass} style={style} />;
     case "settings.openDataFolder":

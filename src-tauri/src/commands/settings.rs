@@ -81,6 +81,9 @@ pub struct AppSettings {
     /// Show "Playing on {server}" / "Browsing servers" in Discord. `Option`
     /// so `discord_presence_enabled` can tell "never set" from "explicitly off".
     pub discord_rich_presence: Option<bool>,
+    /// Show the server's name, map, player count and join button in Discord.
+    /// `Option` for the same reason; read via [`AppSettings::discord_show_server`].
+    pub discord_show_server: Option<bool>,
     /// The window's size, position and maximised state — see [`crate::window_state`].
     pub window: Option<crate::window_state::WindowState>,
     /// Which theme is active. `Option` so "never chosen" (the built-in
@@ -91,6 +94,9 @@ pub struct AppSettings {
     pub memory_map_warning: bool,
     /// Show the window that lists each step of a join while it runs.
     pub start_window: bool,
+    /// Set once the first-start offer to add Tetra to the app menu has been
+    /// shown, so it never appears again.
+    pub app_menu_offered: bool,
 }
 
 impl Default for AppSettings {
@@ -119,10 +125,12 @@ impl Default for AppSettings {
             onboarding_dismissed: false,
             // `None`, not `Some(true)` — same reasoning as `close_to_tray`.
             discord_rich_presence: None,
+            discord_show_server: None,
             window: None,
             active_theme_id: None,
             memory_map_warning: true,
             start_window: true,
+            app_menu_offered: false,
         }
     }
 }
@@ -141,6 +149,11 @@ impl AppSettings {
         self.discord_rich_presence.unwrap_or(true)
     }
 
+    /// Whether Discord may name the server being played. On by default.
+    pub fn discord_show_server(&self) -> bool {
+        self.discord_show_server.unwrap_or(true)
+    }
+
     /// The zoom factor to actually apply, clamped back into range — a `0` in
     /// the file would otherwise collapse the window.
     pub fn scale(&self) -> f64 {
@@ -157,6 +170,7 @@ impl AppSettings {
         self.on_close = None;
         self.ui_scale = self.scale();
         self.discord_rich_presence = Some(self.discord_presence_enabled());
+        self.discord_show_server = Some(self.discord_show_server());
     }
 }
 
@@ -538,6 +552,11 @@ fn apply_side_effects(app: &AppHandle, settings: &AppSettings, changed: &[String
                 *guard = settings.on_join;
             }
         }
+        if has("discordShowServer") {
+            state
+                .discord_show_server
+                .store(settings.discord_show_server(), Ordering::Relaxed);
+        }
     }
     if has("discordRichPresence") {
         if settings.discord_presence_enabled() {
@@ -736,6 +755,19 @@ mod tests {
     }
 
     #[test]
+    fn discord_shows_the_server_unless_the_file_says_otherwise() {
+        let cases: &[(&str, bool)] = &[
+            (r#"{ "discordShowServer": true }"#, true),
+            (r#"{ "discordShowServer": false }"#, false),
+            // A file predating this setting entirely.
+            ("{}", true),
+        ];
+        for (raw, expected) in cases {
+            assert_eq!(load(raw).discord_show_server(), *expected, "{raw}");
+        }
+    }
+
+    #[test]
     fn the_retired_dropdown_is_not_written_back() {
         let settings = load(r#"{ "onClose": "quit" }"#);
         let json = serde_json::to_string(&settings).expect("serialise");
@@ -795,6 +827,10 @@ mod tests {
         );
         assert!(
             parsed.discord_presence_enabled(),
+            "an older file predating this setting must not read as opted out"
+        );
+        assert!(
+            parsed.discord_show_server(),
             "an older file predating this setting must not read as opted out"
         );
         assert!(

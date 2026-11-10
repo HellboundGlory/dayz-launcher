@@ -31,10 +31,14 @@ export interface AppSettings {
   onboardingDismissed: boolean;
   /** Show "Playing on {server}" / "Browsing servers" in Discord. */
   discordRichPresence: boolean;
+  /** Show the server's name, map, player count and join button in Discord. */
+  discordShowServer: boolean;
   /** Warn before a Join when the Linux memory map limit is too low for DayZ. */
   memoryMapWarning: boolean;
   /** Show the window that lists each step of a join while it runs. */
   startWindow: boolean;
+  /** Set once the first-start offer to add Tetra to the app menu has been shown. */
+  appMenuOffered: boolean;
 }
 
 interface SettingsState extends AppSettings {
@@ -66,8 +70,10 @@ const defaults: AppSettings = {
   onJoin: "stay",
   onboardingDismissed: false,
   discordRichPresence: true,
+  discordShowServer: true,
   memoryMapWarning: true,
   startWindow: true,
+  appMenuOffered: false,
 };
 
 /** Keys changed since the last patch. Only these are sent, so a save never rewrites a field this store did not touch. */

@@ -52,8 +52,9 @@ import { LayoutRenderer } from "./theme/renderer";
 import { useServerDataLoader } from "./hooks/use-server-data-loader";
 import { useAddressLookup } from "./hooks/use-address-lookup";
 import type { Server } from "./types/server";
-import { takeSettingsRecovered, watchActiveTheme, stopWatchingTheme } from "./lib/tauri";
+import { takeSettingsRecovered, watchActiveTheme, stopWatchingTheme, appMenuStatus, addToAppMenu } from "./lib/tauri";
 import { getVersion } from "@tauri-apps/api/app";
+import { showToast, closeToast } from "./stores/toast-store";
 
 const SETTINGS_RESET_MESSAGE =
   "Your settings file was damaged, so default settings are in use. The old file is saved as settings.corrupt.json.";
@@ -63,6 +64,8 @@ const UPDATE_RECHECK_MS = 6 * 60 * 60 * 1000;
 
 /** Catches a subscribe made outside the launcher without reopening the Mods tab. */
 const MODS_RECHECK_MS = 5 * 60 * 1000;
+
+const APP_MENU_OFFER_KEY = "app-menu-offer";
 
 /** Neutral backs every engine path, so the active file is never missing. */
 function engineLayout<T extends LayoutFile = LayoutFile>(path: string): T {
@@ -117,6 +120,45 @@ export function App() {
     }
   }, [settingsLoaded, onboardingDismissed, profileName, dayzPath]);
   const [error, setError] = useState<string | null>(null);
+  const appMenuOffered = useSettingsStore((s) => s.appMenuOffered);
+  const setSetting = useSettingsStore((s) => s.setSetting);
+  const appMenuOfferDecided = useRef(false);
+  useEffect(() => {
+    if (appMenuOfferDecided.current || !settingsLoaded) return;
+    appMenuOfferDecided.current = true;
+    if (appMenuOffered) return;
+    void appMenuStatus()
+      .then((status) => {
+        if (!status.available || status.installed) return;
+        // Once offered, never again — even if the user picked "Not now".
+        setSetting("appMenuOffered", true);
+        showToast({
+          key: APP_MENU_OFFER_KEY,
+          tone: "info",
+          tag: "Linux",
+          message: "Add Tetra to your app menu? It moves to ~/Applications and reopens from there.",
+          actions: [
+            {
+              label: "Add to app menu",
+              primary: true,
+              onClick: () => {
+                closeToast(APP_MENU_OFFER_KEY);
+                void addToAppMenu().catch((e: unknown) => {
+                  showToast({
+                    key: `${APP_MENU_OFFER_KEY}:error`,
+                    tone: "error",
+                    tag: "Linux",
+                    message: e instanceof Error ? e.message : String(e),
+                  });
+                });
+              },
+            },
+            { label: "Not now", onClick: () => closeToast(APP_MENU_OFFER_KEY) },
+          ],
+        });
+      })
+      .catch(() => {});
+  }, [settingsLoaded, appMenuOffered, setSetting]);
   useEffect(() => {
     if (!settingsLoaded) return;
     void takeSettingsRecovered()

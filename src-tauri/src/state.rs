@@ -43,6 +43,8 @@ pub struct AppState {
     pub discord: Mutex<Option<DiscordHandle>>,
     /// Mirror of `AppSettings::discord_rich_presence`, read by the poll loop.
     pub discord_enabled: AtomicBool,
+    /// Mirror of `AppSettings::discord_show_server`, read by the poll loop each tick.
+    pub discord_show_server: AtomicBool,
     /// What `launch_game` is telling Discord right now, if anything.
     pub discord_now_playing: Mutex<Option<DiscordSession>>,
     /// The diagnostic log's open file handle, kept across calls. `None` means not-yet-opened.
@@ -98,6 +100,7 @@ impl AppState {
             window_state: Mutex::new(None),
             discord: Mutex::new(None),
             discord_enabled: AtomicBool::new(true),
+            discord_show_server: AtomicBool::new(true),
             discord_now_playing: Mutex::new(None),
             log_file: Mutex::new(None),
             server_reader: Mutex::new(None),

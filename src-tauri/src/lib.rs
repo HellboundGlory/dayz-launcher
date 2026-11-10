@@ -9,6 +9,7 @@ use tetra_registry::Registry;
 #[cfg(target_os = "windows")]
 use window_vibrancy::apply_acrylic;
 
+mod app_menu;
 mod atomic_write;
 mod commands;
 mod credentials;
@@ -61,6 +62,12 @@ fn reveal_main_window(app: &AppHandle) {
 
 pub fn run() {
     crate::log::install_panic_hook();
+
+    // Before the single-instance plugin takes the D-Bus name, give the copy
+    // this one is replacing time to exit.
+    #[cfg(target_os = "linux")]
+    app_menu::wait_for_previous_process(&std::env::args().collect::<Vec<_>>());
+
     tauri::Builder::default()
         // First, ahead of every other plugin: a duplicate launch must die
         // before it opens the registry or starts a second Steam session.
@@ -209,6 +216,8 @@ pub fn run() {
             commands::update::is_installed_copy,
             commands::update::open_external_url,
             commands::update::fetch_release_notes,
+            app_menu::app_menu_status,
+            app_menu::add_to_app_menu,
         ])
         .setup(|app| {
             crate::log::init(app.handle());
@@ -295,7 +304,11 @@ pub fn run() {
             if let Ok(mut guard) = state.on_join.lock() {
                 *guard = saved.on_join;
             }
-            discord::start(app.handle(), saved.discord_presence_enabled());
+            discord::start(
+                app.handle(),
+                saved.discord_presence_enabled(),
+                saved.discord_show_server(),
+            );
             commands::launch::start_dayz_watcher(app.handle());
             let probe_config = ProbeConfig {
                 max_in_flight: saved
@@ -354,7 +367,7 @@ pub fn run() {
             // what seeds the cache if nobody ever drags it.
             window_state::remember(&window.as_ref().window());
 
-            if let Err(e) = commands::launch::register_protocol_handler() {
+            if let Err(e) = commands::launch::register_protocol_handler(app.handle()) {
                 crate::log::log_line(
                     app.handle(),
                     "setup",
