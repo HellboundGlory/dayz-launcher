@@ -142,6 +142,15 @@ describe("PopupMapOptions", () => {
       labels: ["Chernarus", "Sakhal"],
     },
     {
+      name: "Gloom maps with the rest",
+      maps: [
+        ["chernarusplusgloom", "Chernarus (Gloom)"],
+        ["enochgloom", "Livonia (Gloom)"],
+        ["chernarusplus", "Chernarus"],
+      ],
+      labels: ["Chernarus", "|", "Chernarus (Gloom)", "Livonia (Gloom)"],
+    },
+    {
       name: "no separator when no map is official",
       maps: [["namalsk", "Namalsk"]],
       labels: ["Namalsk"],
@@ -154,6 +163,25 @@ describe("PopupMapOptions", () => {
       (m) => m[1] ?? "|",
     );
     expect(sequence).toEqual(labels);
+  });
+});
+
+describe("PopupMapOptions with counts", () => {
+  it("hides a map no server runs unless it is picked", async () => {
+    const html = await withServerStore(
+      {
+        maps: [
+          ["chernarusplus", "Chernarus"],
+          ["banov", "Banov"],
+          ["alps", "Alps"],
+        ],
+        filter: { maps: ["alps"] },
+      },
+      () => renderToStaticMarkup(<PopupMapOptions counts={{ chernarusplus: 5, banov: 0, alps: 0 }} />),
+    );
+    expect(html).toContain("Chernarus");
+    expect(html).toContain("Alps");
+    expect(html).not.toContain("Banov");
   });
 });
 
