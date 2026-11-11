@@ -31,6 +31,7 @@ COPY crates/tetra-indexer/Cargo.toml crates/tetra-indexer/
 COPY crates/tetra-steam/Cargo.toml crates/tetra-steam/
 COPY crates/tetra-launch/Cargo.toml crates/tetra-launch/
 COPY crates/tetra-discord/Cargo.toml crates/tetra-discord/
+COPY crates/tetra-tools/Cargo.toml crates/tetra-tools/
 COPY src-tauri/Cargo.toml src-tauri/
 RUN for d in crates/* src-tauri; do mkdir -p "$d/src" && touch "$d/src/lib.rs"; done \
  && rm crates/tetra-indexer/src/lib.rs \
