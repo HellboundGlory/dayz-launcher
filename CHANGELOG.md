@@ -1,5 +1,28 @@
 # Changelog
 
+## v3.2.0 — 2026-11-11
+
+A rebuilt server browser and a join that tells you what it is doing.
+
+### New
+
+- **Filters menu**: every filter in one place, with active filters shown as chips.
+- **Search** matches every word across name, map, address and mods, with suggestions.
+- **Country flags** and a Country column, from each server's real location.
+- **LAN tab**: find servers on your network, or add one by address or host name.
+- **Real ping**, with an estimate for servers that block it.
+- **Server passwords** are asked on Join and remembered safely.
+- **Right-click a server** to copy its join link or forget its password.
+- **About** in Settings shows the version and checks for updates.
+
+### Improved
+
+- Joining shows each step as it happens and warns when your mods or game version differ.
+- Launcher notices appear as small pop-ups in every theme.
+- If the launcher hits an error, a recovery screen lets you reload or report the bug.
+
+Theme makers: see [what changed for themes in 3.2.0](https://tetralauncher.com/docs/themes/changelog).
+
 ## v3.1.1 — 2026-10-18
 
 Servers show up again on Windows, and on any PC whose clock is wrong.
