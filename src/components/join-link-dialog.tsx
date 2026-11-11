@@ -116,7 +116,7 @@ export function JoinLinkBox({
   }
 
   return (
-    <DialogFrame labelledBy={titleId} className="flex w-[min(460px,100%)] flex-col">
+    <DialogFrame labelledBy={titleId} onBackdropClick={onCancel} className="flex w-[min(460px,100%)] flex-col">
       <div className="grid gap-0.5 px-4 pt-4">
         <h2 id={titleId} className="[font-size:var(--t-type-heading-size)] font-semibold leading-5 text-ink">
           Join this server?
