@@ -125,6 +125,17 @@ describe("mods store load", () => {
   });
 });
 
+describe("mods store after Steam connects", () => {
+  it("reloads a list that was served from the cache", async () => {
+    useModsStore.setState({ rows: [mod("1")], fromCache: true });
+    tauri.getSubscribedMods.mockResolvedValue({ rows: [mod("1")], from_cache: false });
+
+    await useModsStore.getState().steamConnected();
+
+    expect(useModsStore.getState().fromCache).toBe(false);
+  });
+});
+
 describe("effectiveModState", () => {
   it("defaults to rowState when liveState is absent", () => {
     expect(effectiveModState("ready", undefined)).toBe("ready");

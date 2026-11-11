@@ -282,12 +282,19 @@ describe("notice toasts", () => {
 
   it("reports the mods error and the cached list under their own tags", async () => {
     const html = await withModsStore({ error: "Steam refused.", fromCache: true }, () =>
-      renderToasts(),
+      renderToasts({ activeView: "mods" }),
     );
     expect(html).toContain('data-tag="Mods"');
     expect(html).toContain("Steam refused.");
     expect(html).toContain('data-tag="Steam"');
     expect(html).toContain("Steam unreachable — showing last known mod list");
+  });
+
+  it("keeps the cached mod list notice to the Mods tab", async () => {
+    const html = await withModsStore({ fromCache: true }, () =>
+      renderToasts({ activeView: "servers" }),
+    );
+    expect(html).not.toContain("Steam unreachable");
   });
 
   it("joins a verify result into one success line that clears all three results", async () => {
