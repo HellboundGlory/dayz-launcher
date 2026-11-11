@@ -13,85 +13,39 @@
           {
             "type": "stack",
             "id": "r-filterbar",
-            "direction": "column",
+            "direction": "row",
+            "align": "center",
+            "wrap": true,
+            "minWidth": "0px",
             "children": [
               {
-                "type": "stack",
-                "id": "r-filterbar-top",
-                "direction": "row",
-                "align": "center",
-                "minWidth": "0px",
-                "children": [
-                  {
-                    "element": "filter.search",
-                    "options": {
-                      "showIcon": true
-                    }
-                  },
-                  {
-                    "element": "filter.map"
-                  },
-                  {
-                    "element": "filter.tags"
-                  },
-                  {
-                    "element": "filter.mods"
-                  },
-                  {
-                    "element": "filter.region"
-                  },
-                  {
-                    "element": "filter.maxPing"
-                  }
-                ],
-                "wrap": true
+                "element": "filter.search",
+                "options": {
+                  "showIcon": true
+                }
               },
               {
-                "type": "stack",
-                "id": "r-filterbar-bottom",
-                "direction": "row",
-                "align": "center",
-                "minWidth": "0px",
-                "children": [
-                  {
-                    "type": "stack",
-                    "id": "r-hides",
-                    "direction": "row",
-                    "align": "center",
-                    "children": [
-                      {
-                        "element": "filter.hideEmpty"
-                      },
-                      {
-                        "element": "filter.hideFull"
-                      },
-                      {
-                        "element": "filter.hideLocked"
-                      },
-                      {
-                        "element": "filter.hideOffline"
-                      }
-                    ]
-                  },
-                  {
-                    "element": "filter.reset",
-                    "options": {
-                      "display": "iconLabel"
-                    }
-                  },
-                  {
-                    "element": "servers.refresh",
-                    "options": {
-                      "display": "iconLabel"
-                    }
-                  }
-                ]
+                "element": "filter.menu"
+              },
+              {
+                "element": "filter.chips",
+                "grow": 1,
+                "minWidth": "80px"
+              },
+              {
+                "element": "servers.addServer",
+                "options": {
+                  "display": "icon"
+                }
+              },
+              {
+                "element": "servers.refresh",
+                "options": {
+                  "display": "iconLabel"
+                }
               }
             ],
             "shrink": 0
-          },
-          {
-            "element": "notice.launch"
           },
           {
             "type": "stack",
@@ -284,12 +238,13 @@
                             "children": [
                               {
                                 "type": "text",
-                                "value": "Region",
+                                "value": "Country",
                                 "role": "label",
                                 "class": "t-prop-label"
                               },
                               {
-                                "element": "server.region"
+                                "element": "server.region",
+                                "options": { "format": "name" }
                               }
                             ]
                           },
@@ -367,6 +322,9 @@
                     "direction": "column",
                     "children": [
                       {
+                        "element": "server.modDiffers"
+                      },
+                      {
                         "element": "server.actionNotice"
                       },
                       {
@@ -425,44 +383,17 @@
                 }
               },
               {
-                "element": "filter.map"
+                "element": "filter.menu"
               },
               {
-                "element": "filter.tags"
+                "element": "filter.chips",
+                "grow": 1,
+                "minWidth": "80px"
               },
               {
-                "element": "filter.mods"
-              },
-              {
-                "element": "filter.region"
-              },
-              {
-                "element": "filter.maxPing"
-              },
-              {
-                "type": "stack",
-                "id": "r-hides",
-                "direction": "row",
-                "align": "center",
-                "children": [
-                  {
-                    "element": "filter.hideEmpty"
-                  },
-                  {
-                    "element": "filter.hideFull"
-                  },
-                  {
-                    "element": "filter.hideLocked"
-                  },
-                  {
-                    "element": "filter.hideOffline"
-                  }
-                ]
-              },
-              {
-                "element": "filter.reset",
+                "element": "servers.addServer",
                 "options": {
-                  "display": "iconLabel"
+                  "display": "icon"
                 }
               },
               {
@@ -473,9 +404,6 @@
               }
             ],
             "shrink": 0
-          },
-          {
-            "element": "notice.launch"
           },
           {
             "type": "stack",
@@ -663,12 +591,13 @@
                         "children": [
                           {
                             "type": "text",
-                            "value": "Region",
+                            "value": "Country",
                             "role": "label",
                             "class": "t-prop-label"
                           },
                           {
-                            "element": "server.region"
+                            "element": "server.region",
+                            "options": { "format": "name" }
                           }
                         ]
                       },
@@ -743,6 +672,9 @@
                     "id": "r-actions",
                     "direction": "column",
                     "children": [
+                      {
+                        "element": "server.modDiffers"
+                      },
                       {
                         "element": "server.actionNotice"
                       },

@@ -1,12 +1,53 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import type { Server } from "@/types/server";
-import { refreshTargets } from "./use-refresh-loops";
+import { useServerStore } from "@/stores/server-store";
+import { useLanStore } from "@/stores/lan-store";
+import { refreshTargets, useRefreshLoops } from "./use-refresh-loops";
+
+const { refreshVisibleServers, scanLan } = vi.hoisted(() => ({
+  refreshVisibleServers: vi.fn(async () => {}),
+  scanLan: vi.fn(async () => [] as string[]),
+}));
+
+vi.mock("@/lib/tauri", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/tauri")>();
+  return { ...actual, refreshVisibleServers, scanLan };
+});
 
 const addr = (i: number) => `10.0.0.${i}`;
 const list = (length: number, holes: number[] = []) =>
   Array.from({ length }, (_, i) =>
     holes.includes(i) ? undefined : ({ addr: addr(i) } as Server),
   );
+
+afterEach(() => {
+  refreshVisibleServers.mockClear();
+  scanLan.mockClear();
+  useServerStore.setState({
+    servers: [],
+    filter: { ...useServerStore.getState().filter, lan_addrs: null },
+  });
+  useLanStore.setState({ state: "idle", addrs: [] });
+});
+
+/** Renders the hook and hands back its Refresh, which the element context fires on a click. */
+function refresher() {
+  let refresh: (() => void) | null = null;
+  const Probe = () => {
+    refresh = useRefreshLoops({
+      steamConnected: true,
+      runInitialLoad: vi.fn(async () => {}),
+      setError: vi.fn(),
+      setRefreshing: vi.fn(),
+      setRefreshedAt: vi.fn(),
+    }).handleRefresh;
+    return null;
+  };
+  renderToStaticMarkup(createElement(Probe));
+  return refresh!;
+}
 
 describe("refreshTargets", () => {
   it.each([
@@ -20,3 +61,32 @@ describe("refreshTargets", () => {
     expect(refreshTargets(servers, range, cap).map((s) => s.addr)).toEqual(want.map(addr));
   });
 });
+
+describe("handleRefresh", () => {
+  it("rescans the LAN tab instead of re-asking the rows on screen", async () => {
+    useServerStore.setState({
+      servers: list(4),
+      visibleRange: { start: 0, end: 0 },
+      filter: { ...useServerStore.getState().filter, lan_addrs: [] },
+    });
+
+    refresher()();
+    await vi.waitFor(() => expect(scanLan).toHaveBeenCalled());
+
+    expect(refreshVisibleServers).not.toHaveBeenCalled();
+  });
+
+  it("re-asks the rows on screen on every other tab", async () => {
+    useServerStore.setState({
+      servers: list(4),
+      visibleRange: { start: 0, end: 0 },
+      filter: { ...useServerStore.getState().filter, lan_addrs: null },
+    });
+
+    refresher()();
+    await vi.waitFor(() => expect(refreshVisibleServers).toHaveBeenCalled());
+
+    expect(scanLan).not.toHaveBeenCalled();
+  });
+});
+

@@ -5,6 +5,9 @@ use thiserror::Error;
 pub enum SpawnError {
     #[error("launch process error: {0}")]
     Launch(#[from] std::io::Error),
+    /// A launch the launcher won't attempt, with the reason the player reads.
+    #[error("{0}")]
+    Refused(String),
 }
 
 #[derive(Debug, Error)]

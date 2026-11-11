@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { confirmThemeInstall, discardThemeImport, importThemePreview } from "@/lib/tauri";
 import { resolveThemeAsset } from "@/theme/asset-resolver";
 import { useEscapeLayer } from "@/theme/interaction/escape-layers";
-import { wrapTabWithin } from "@/theme/interaction/popup-keyboard";
+import { DialogFrame } from "@/components/dialog-frame";
 import type { ThemeImportPreview, ThemeManifest, ThemePreview, ThemeSummary } from "@/types/theme";
 import { capabilityLabel, capabilityLabels } from "./capability-labels";
 
@@ -123,7 +123,6 @@ export function ImportThemeDialog({
   const [preview, setPreview] = useState<ThemeImportPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
   const chooseRef = useRef<HTMLButtonElement>(null);
   const installRef = useRef<HTMLButtonElement>(null);
 
@@ -250,190 +249,181 @@ export function ImportThemeDialog({
     (phase === "preview" || phase === "installing");
 
   return (
-    <div
-      className="absolute inset-0 z-[var(--z-dialog)] flex items-center justify-center [background-color:var(--t-color-scrim)]"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) close();
-      }}
+    <DialogFrame
+      label={manifest ? `Import theme: ${manifest.name}` : "Import theme"}
+      onBackdropClick={close}
+      scrimClassName="absolute inset-0 z-[var(--z-dialog)] p-0"
+      className="max-h-[calc(100%-40px)] w-[min(430px,calc(100%-40px))] overflow-y-auto [border-radius:var(--t-radius-modal)] [box-shadow:var(--t-shadow-modal)]"
     >
-      <div
-        ref={wrapRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={manifest ? `Import theme: ${manifest.name}` : "Import theme"}
-        onKeyDown={(e) => wrapTabWithin(wrapRef.current, e)}
-        className="max-h-[calc(100%-40px)] w-[min(430px,calc(100%-40px))] overflow-y-auto [border-radius:var(--t-radius-modal)] border border-line bg-surface [box-shadow:var(--t-shadow-modal)]"
-      >
-        <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
-          <div className="min-w-0">
-            <h2 className="truncate [font-size:var(--t-type-compactHeading-size)] font-bold text-ink">
-              {manifest ? `Import Theme: ${manifest.name}` : "Import Theme"}
-            </h2>
-            <p className="mt-0.5 [font-size:var(--t-type-label-size)] text-muted">
-              {manifest
-                ? "Review the package before installing it"
-                : "Pick a Tetra theme package (.zip)"}
-            </p>
-          </div>
-          <button
-            onClick={close}
-            aria-label="Close"
-            className="shrink-0 text-muted transition-colors hover:text-ink"
-          >
-            <X className="size-4" />
-          </button>
+      <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
+        <div className="min-w-0">
+          <h2 className="truncate [font-size:var(--t-type-compactHeading-size)] font-bold text-ink">
+            {manifest ? `Import Theme: ${manifest.name}` : "Import Theme"}
+          </h2>
+          <p className="mt-0.5 [font-size:var(--t-type-label-size)] text-muted">
+            {manifest
+              ? "Review the package before installing it"
+              : "Pick a Tetra theme package (.zip)"}
+          </p>
         </div>
+        <button
+          onClick={close}
+          aria-label="Close"
+          className="shrink-0 text-muted transition-colors hover:text-ink"
+        >
+          <X className="size-4" />
+        </button>
+      </div>
 
-        <div className="flex flex-col gap-3 p-4">
-          {/* The error state offers only Cancel — the rejection message owns the body. */}
-          {phase !== "error" && (
-            <section className="flex flex-col gap-1.5">
-              <h3 className="[font-size:var(--t-type-compactCaption-size)] font-bold uppercase tracking-wider text-muted2">Step 1</h3>
-              <div
-                className={cn(
-                  "flex flex-col items-center gap-2 [border-radius:var(--t-radius-card)] border border-dashed border-line bg-surface2 px-4 py-5 text-center transition-colors [transition-duration:var(--t-motion-hover-duration)]",
-                  dragOver && "border-accent-line bg-accent-soft",
-                )}
+      <div className="flex flex-col gap-3 p-4">
+        {/* The error state offers only Cancel — the rejection message owns the body. */}
+        {phase !== "error" && (
+          <section className="flex flex-col gap-1.5">
+            <h3 className="[font-size:var(--t-type-compactCaption-size)] font-bold uppercase tracking-wider text-muted2">Step 1</h3>
+            <div
+              className={cn(
+                "flex flex-col items-center gap-2 [border-radius:var(--t-radius-card)] border border-dashed border-line bg-surface2 px-4 py-5 text-center transition-colors [transition-duration:var(--t-motion-hover-duration)]",
+                dragOver && "border-accent-line bg-accent-soft",
+              )}
+            >
+              <FileArchive className="size-5 text-muted" />
+              <p className="[font-size:var(--t-type-compactBody-size)] text-muted">
+                {dragOver ? "Drop to import" : "Drag a .zip here"}
+              </p>
+              <p className="[font-size:var(--t-type-compactCaption-size)] uppercase tracking-wider text-muted-soft">or</p>
+              <button
+                ref={chooseRef}
+                onClick={() => void chooseFile()}
+                disabled={phase === "loading" || busy}
+                className="flex items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-ink transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:border-accent-line hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <FileArchive className="size-5 text-muted" />
-                <p className="[font-size:var(--t-type-compactBody-size)] text-muted">
-                  {dragOver ? "Drop to import" : "Drag a .zip here"}
-                </p>
-                <p className="[font-size:var(--t-type-compactCaption-size)] uppercase tracking-wider text-muted-soft">or</p>
-                <button
-                  ref={chooseRef}
-                  onClick={() => void chooseFile()}
-                  disabled={phase === "loading" || busy}
-                  className="flex items-center gap-1.5 [border-radius:var(--t-radius-control)] border border-line bg-surface px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-ink transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:border-accent-line hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {phase === "loading" ? (
-                    <LoaderCircle className="size-3.5 animate-spin" />
-                  ) : (
-                    <FileArchive className="size-3.5" />
-                  )}
-                  <span>Choose File…</span>
-                </button>
-              </div>
-            </section>
-          )}
-
-          {phase === "loading" && (
-            <div className="flex items-center justify-center gap-1.5 [border-radius:var(--t-radius-card)] border border-line bg-surface2 px-3 py-4 [font-size:var(--t-type-compactBody-size)] text-accent">
-              <LoaderCircle className="size-3.5 shrink-0 animate-spin" />
-              <span>Validating package…</span>
+                {phase === "loading" ? (
+                  <LoaderCircle className="size-3.5 animate-spin" />
+                ) : (
+                  <FileArchive className="size-3.5" />
+                )}
+                <span>Choose File…</span>
+              </button>
             </div>
-          )}
+          </section>
+        )}
 
-          {phase === "error" && (
-            <div className="flex flex-col gap-2.5">
-              <div className="[border-radius:var(--t-radius-card)] border border-danger-line bg-danger-soft px-3 py-2.5 [font-size:var(--t-type-compactBody-size)] leading-relaxed text-danger">
-                <p className="font-bold uppercase tracking-wider">Import failed</p>
-                <p className="mt-1 break-words">{error}</p>
+        {phase === "loading" && (
+          <div className="flex items-center justify-center gap-1.5 [border-radius:var(--t-radius-card)] border border-line bg-surface2 px-3 py-4 [font-size:var(--t-type-compactBody-size)] text-accent">
+            <LoaderCircle className="size-3.5 shrink-0 animate-spin" />
+            <span>Validating package…</span>
+          </div>
+        )}
+
+        {phase === "error" && (
+          <div className="flex flex-col gap-2.5">
+            <div className="[border-radius:var(--t-radius-card)] border border-danger-line bg-danger-soft px-3 py-2.5 [font-size:var(--t-type-compactBody-size)] leading-relaxed text-danger">
+              <p className="font-bold uppercase tracking-wider">Import failed</p>
+              <p className="mt-1 break-words">{error}</p>
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={close}
+                className="[border-radius:var(--t-radius-control)] border border-line bg-surface px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-muted2 transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:text-ink"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showPreview && (
+          <section className="flex flex-col gap-1.5">
+            <h3 className="[font-size:var(--t-type-compactCaption-size)] font-bold uppercase tracking-wider text-muted2">
+              Step 2
+            </h3>
+            <div className="flex flex-col gap-3 [border-radius:var(--t-radius-card)] border border-line bg-surface2 p-3.5">
+              <div>
+                <p className="[font-size:var(--t-type-compactTitle-size)] font-bold text-ink">{manifest.name}</p>
+                <p className="mt-0.5 [font-size:var(--t-type-label-size)] text-muted">
+                  by {manifest.author} · <span className="font-mono-data">v{manifest.version}</span>
+                </p>
+                {manifest.description && (
+                  <p className="mt-1.5 [font-size:var(--t-type-compactBody-size)] leading-relaxed text-muted2">
+                    “{manifest.description}”
+                  </p>
+                )}
               </div>
-              <div className="flex justify-end">
+
+              {manifest.previews && manifest.previews.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto">
+                  {manifest.previews.slice(0, MAX_RENDERED_PREVIEWS).map((p, i) => (
+                    <PreviewThumb key={i} stagingId={preview.stagingId} preview={p} />
+                  ))}
+                </div>
+              )}
+
+              <div>
+                <h4 className="[font-size:var(--t-type-compactCaption-size)] font-bold uppercase tracking-wider text-muted2">
+                  Compatibility
+                </h4>
+                <ul className="mt-1.5 flex flex-col gap-1">
+                  <li className="flex items-center gap-1.5 [font-size:var(--t-type-compactBody-size)] text-muted2">
+                    <CircleCheck className="size-3.5 shrink-0 text-success" />
+                    <span>
+                      Theme API <span className="font-mono-data">{manifest.themeApi}</span>
+                    </span>
+                  </li>
+                  <li className="flex items-center gap-1.5 [font-size:var(--t-type-compactBody-size)] text-muted2">
+                    <CircleCheck className="size-3.5 shrink-0 text-success" />
+                    <span>
+                      Requires Tetra Launcher ≥{" "}
+                      <span className="font-mono-data">{manifest.minimumLauncherVersion}</span>
+                    </span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <p className="flex items-center gap-1.5 [font-size:var(--t-type-label-size)] text-muted">
+                  <CapabilityBadge capabilities={manifest.capabilities} />
+                  <span aria-hidden="true">·</span>
+                  <span className="font-mono-data text-muted2">
+                    {(preview.packageSizeBytes / 1_048_576).toFixed(1)} MB
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span className="font-mono-data text-muted2">{preview.fileCount} files</span>
+                </p>
+
+                {capabilityList.length > 0 && (
+                  <p className="[font-size:var(--t-type-label-size)] text-muted">
+                    Includes: <span className="text-muted2">{capabilityList.join(", ")}</span>
+                  </p>
+                )}
+              </div>
+
+              <p className="[font-size:var(--t-type-compactBody-size)] leading-relaxed text-ink">{copy.line}</p>
+
+              <div className="flex justify-end gap-1.5">
                 <button
                   onClick={close}
-                  className="[border-radius:var(--t-radius-control)] border border-line bg-surface px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-muted2 transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:text-ink"
+                  disabled={busy}
+                  className="[border-radius:var(--t-radius-control)] border border-line bg-surface px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-muted2 transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Cancel
                 </button>
+                <button
+                  ref={installRef}
+                  onClick={() => void install()}
+                  disabled={busy}
+                  className={cn(
+                    "flex items-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110",
+                    "disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:brightness-100",
+                  )}
+                >
+                  {busy && <LoaderCircle className="size-3.5 animate-spin" />}
+                  <span>{busy ? "Installing…" : copy.action}</span>
+                </button>
               </div>
             </div>
-          )}
-
-          {showPreview && (
-            <section className="flex flex-col gap-1.5">
-              <h3 className="[font-size:var(--t-type-compactCaption-size)] font-bold uppercase tracking-wider text-muted2">
-                Step 2
-              </h3>
-              <div className="flex flex-col gap-3 [border-radius:var(--t-radius-card)] border border-line bg-surface2 p-3.5">
-                <div>
-                  <p className="[font-size:var(--t-type-compactTitle-size)] font-bold text-ink">{manifest.name}</p>
-                  <p className="mt-0.5 [font-size:var(--t-type-label-size)] text-muted">
-                    by {manifest.author} · <span className="font-mono-data">v{manifest.version}</span>
-                  </p>
-                  {manifest.description && (
-                    <p className="mt-1.5 [font-size:var(--t-type-compactBody-size)] leading-relaxed text-muted2">
-                      “{manifest.description}”
-                    </p>
-                  )}
-                </div>
-
-                {manifest.previews && manifest.previews.length > 0 && (
-                  <div className="flex gap-2 overflow-x-auto">
-                    {manifest.previews.slice(0, MAX_RENDERED_PREVIEWS).map((p, i) => (
-                      <PreviewThumb key={i} stagingId={preview.stagingId} preview={p} />
-                    ))}
-                  </div>
-                )}
-
-                <div>
-                  <h4 className="[font-size:var(--t-type-compactCaption-size)] font-bold uppercase tracking-wider text-muted2">
-                    Compatibility
-                  </h4>
-                  <ul className="mt-1.5 flex flex-col gap-1">
-                    <li className="flex items-center gap-1.5 [font-size:var(--t-type-compactBody-size)] text-muted2">
-                      <CircleCheck className="size-3.5 shrink-0 text-success" />
-                      <span>
-                        Theme API <span className="font-mono-data">{manifest.themeApi}</span>
-                      </span>
-                    </li>
-                    <li className="flex items-center gap-1.5 [font-size:var(--t-type-compactBody-size)] text-muted2">
-                      <CircleCheck className="size-3.5 shrink-0 text-success" />
-                      <span>
-                        Requires Tetra Launcher ≥{" "}
-                        <span className="font-mono-data">{manifest.minimumLauncherVersion}</span>
-                      </span>
-                    </li>
-                  </ul>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <p className="flex items-center gap-1.5 [font-size:var(--t-type-label-size)] text-muted">
-                    <CapabilityBadge capabilities={manifest.capabilities} />
-                    <span aria-hidden="true">·</span>
-                    <span className="font-mono-data text-muted2">
-                      {(preview.packageSizeBytes / 1_048_576).toFixed(1)} MB
-                    </span>
-                    <span aria-hidden="true">·</span>
-                    <span className="font-mono-data text-muted2">{preview.fileCount} files</span>
-                  </p>
-
-                  {capabilityList.length > 0 && (
-                    <p className="[font-size:var(--t-type-label-size)] text-muted">
-                      Includes: <span className="text-muted2">{capabilityList.join(", ")}</span>
-                    </p>
-                  )}
-                </div>
-
-                <p className="[font-size:var(--t-type-compactBody-size)] leading-relaxed text-ink">{copy.line}</p>
-
-                <div className="flex justify-end gap-1.5">
-                  <button
-                    onClick={close}
-                    disabled={busy}
-                    className="[border-radius:var(--t-radius-control)] border border-line bg-surface px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider text-muted2 transition-colors [transition-duration:var(--t-motion-hover-duration)] hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    ref={installRef}
-                    onClick={() => void install()}
-                    disabled={busy}
-                    className={cn(
-                      "flex items-center gap-1.5 [border-radius:var(--t-radius-control)] bg-accent px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-label-size)] font-bold uppercase tracking-wider [color:var(--t-color-onAccent)] [box-shadow:var(--t-glow-rest)] transition-colors hover:brightness-110",
-                      "disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:brightness-100",
-                    )}
-                  >
-                    {busy && <LoaderCircle className="size-3.5 animate-spin" />}
-                    <span>{busy ? "Installing…" : copy.action}</span>
-                  </button>
-                </div>
-              </div>
-            </section>
-          )}
-        </div>
+          </section>
+        )}
       </div>
-    </div>
+    </DialogFrame>
   );
 }

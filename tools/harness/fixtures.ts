@@ -22,7 +22,7 @@ const NAMES = [
   "Esseker Wasteland",
 ];
 
-const REGIONS = ["EU", "NA", "EU", "AS", "OC", "SA"];
+const COUNTRIES = ["DE", "US", "FR", "GB", "AU", "BR", "PL", "RU"];
 
 export const maps = MAPS;
 
@@ -42,6 +42,7 @@ export function makeServers(count: number): Server[] {
       players,
       max_players: max,
       ping: i % 9 === 0 ? null : 20 + ((i * 37) % 230),
+      ping_estimate: i % 9 === 0 ? null : i % 7 === 3 ? "estimated" : i % 7 === 4 ? "protected" : null,
       locked: i % 13 === 0,
       vac: i % 3 === 0,
       version: "1.29.163709",
@@ -50,7 +51,7 @@ export function makeServers(count: number): Server[] {
       day_multiplier: [1, 2, 4, 6, 12][i % 5],
       night_multiplier: [1, 2, 8][i % 3],
       mod_count: modded ? (i % 6 === 0 ? null : (i * 7) % 90) : 0,
-      country_code: REGIONS[i % REGIONS.length],
+      country_code: COUNTRIES[i % COUNTRIES.length],
       last_played: i % 5 === 0 ? Math.floor(Date.now() / 1000) - i * 3600 : null,
       favourite: i % 8 === 0,
       official: i % 10 === 8,

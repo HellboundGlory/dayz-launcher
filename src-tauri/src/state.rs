@@ -1,5 +1,5 @@
 use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tetra_discord::{DiscordHandle, DiscordSession};
 use tetra_net::prober::Prober;
@@ -18,12 +18,10 @@ pub struct AppState {
     pub discovery_running: AtomicBool,
     /// Set once `RunEvent::Exit` is handled, so in-flight discovery stops pulling.
     pub shutting_down: AtomicBool,
-    /// Set when the on-disk registry failed to open and an in-memory one was substituted.
-    pub registry_degraded: Mutex<bool>,
-    /// Set once setup has opened the registry, to whether it fell back to in-memory.
-    pub registry_ready: OnceLock<bool>,
-    /// Flips to true once `registry` and `prober` are set, for commands that arrive before setup.
-    pub registry_open: tokio::sync::watch::Sender<bool>,
+    /// `None` until setup has opened the registry, then `Some(degraded)`, where
+    /// `degraded` means the on-disk registry failed and an in-memory one replaced
+    /// it. Commands that arrive before setup wait on it.
+    pub registry_status: tokio::sync::watch::Sender<Option<bool>>,
     /// Whether this launch is an OS autostart that starts hidden in the tray.
     pub launched_hidden: AtomicBool,
     /// Whether the close button hides to the tray instead of quitting.
@@ -43,6 +41,8 @@ pub struct AppState {
     pub discord: Mutex<Option<DiscordHandle>>,
     /// Mirror of `AppSettings::discord_rich_presence`, read by the poll loop.
     pub discord_enabled: AtomicBool,
+    /// Mirror of `AppSettings::discord_show_server`, read by the poll loop each tick.
+    pub discord_show_server: AtomicBool,
     /// What `launch_game` is telling Discord right now, if anything.
     pub discord_now_playing: Mutex<Option<DiscordSession>>,
     /// The diagnostic log's open file handle, kept across calls. `None` means not-yet-opened.
@@ -84,9 +84,7 @@ impl AppState {
             steam_attempt: Mutex::new(None),
             discovery_running: AtomicBool::new(false),
             shutting_down: AtomicBool::new(false),
-            registry_degraded: Mutex::new(false),
-            registry_ready: OnceLock::new(),
-            registry_open: tokio::sync::watch::Sender::new(false),
+            registry_status: tokio::sync::watch::Sender::new(None),
             launched_hidden: AtomicBool::new(false),
             // False until `setup` overwrites from the settings file, so a close
             // during startup quits rather than hiding into a tray that may not exist yet.
@@ -98,6 +96,7 @@ impl AppState {
             window_state: Mutex::new(None),
             discord: Mutex::new(None),
             discord_enabled: AtomicBool::new(true),
+            discord_show_server: AtomicBool::new(true),
             discord_now_playing: Mutex::new(None),
             log_file: Mutex::new(None),
             server_reader: Mutex::new(None),

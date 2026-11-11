@@ -1,0 +1,127 @@
+name: Linux bundle
+
+# Builds the Linux bundles in an Ubuntu 22.04 container (glibc 2.35) so the
+# AppImage runs on older distributions than the newest runner image would allow.
+# With a release id it uploads with tauri-action; without one it keeps the
+# AppImage as a workflow artifact for the start check.
+#
+# No permissions block: the calling job decides, so the release job can pass
+# contents: write while the check job stays on read.
+
+on:
+  workflow_call:
+    inputs:
+      release-id:
+        required: false
+        type: string
+        default: ""
+    secrets:
+      TAURI_SIGNING_PRIVATE_KEY:
+        required: false
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD:
+        required: false
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: ubuntu:22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # The image has no git; without it actions/checkout falls back to the REST
+      # API and leaves no .git directory.
+      - name: Install git
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git ca-certificates curl
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The -dev packages carry the query tools the linuxdeploy gtk plugin runs
+      # (pkg-config, dpkg-architecture, gtk-query-immodules-3.0,
+      # gdk-pixbuf-query-loaders); rpm is for the rpm bundle target.
+      - name: Install Linux dependencies
+        run: |
+          apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            wget file xz-utils \
+            libxdo-dev libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            rpm
+
+      - name: Install Rust
+        run: |
+          curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain none
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Install the toolchain
+        run: rustup toolchain install
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      # Produces the binary and emits libsteam_api.so (the Steamworks SDK) for the next step to stage.
+      - name: Build Rust binary (release)
+        run: cargo build --locked --release --package tetra-launcher
+        env:
+          TETRA_INDEX_URL: ${{ vars.TETRA_INDEX_URL }}
+
+      # linuxdeploy can't find libsteam_api.so in its hashed build dir; stage a copy
+      # for LD_LIBRARY_PATH or the AppImage build fails with "Could not find dependency: libsteam_api.so".
+      - name: Stage Steamworks library for the bundler
+        run: |
+          mkdir -p target/steamlib
+          find target/release/build -name 'libsteam_api.so' -exec cp {} target/steamlib/ \;
+          # github.workspace is the host path inside a container job; GITHUB_WORKSPACE is the mounted one.
+          echo "LD_LIBRARY_PATH=$GITHUB_WORKSPACE/target/steamlib" >> "$GITHUB_ENV"
+
+      # NO_STRIP: linuxdeploy's bundled strip chokes on modern (GCC 14 / .relr.dyn)
+      # libraries. The .deb/.rpm installs get no linuxdeploy wrapper, so
+      # tauri.conf.json's bundle.linux.*.files copy the staged libsteam_api.so to
+      # /usr/lib/tetra-launcher/ and src-tauri/build.rs bakes in a matching RPATH.
+      - name: Build and publish Linux AppImage + .deb + .rpm
+        if: inputs.release-id != ''
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          NO_STRIP: "1"
+          TETRA_INDEX_URL: ${{ vars.TETRA_INDEX_URL }}
+        with:
+          releaseId: ${{ inputs.release-id }}
+          args: --bundles appimage,deb,rpm -- --locked
+
+      - name: Build the AppImage
+        if: inputs.release-id == ''
+        run: npx tauri build --bundles appimage --config '{"bundle":{"createUpdaterArtifacts":false}}' -- --locked
+        env:
+          NO_STRIP: "1"
+          TETRA_INDEX_URL: ${{ vars.TETRA_INDEX_URL }}
+
+      - name: Keep the AppImage
+        if: inputs.release-id == ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tetra-launcher-appimage
+          path: target/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
+          retention-days: 1

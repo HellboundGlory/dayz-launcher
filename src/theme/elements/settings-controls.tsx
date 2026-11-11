@@ -1,8 +1,8 @@
 import type { CSSProperties, ReactNode } from "react";
-import { Gamepad2, AppWindow, Palette } from "lucide-react";
+import { Gamepad2, AppWindow, Palette, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type SecId = "game" | "launcher" | "theme";
+export type SecId = "game" | "launcher" | "theme" | "about";
 
 export const SECS: { id: SecId; icon: typeof Gamepad2; title: string; description: string }[] = [
   { id: "game", icon: Gamepad2, title: "Game", description: "DayZ path, launch params, join behaviour" },
@@ -13,6 +13,7 @@ export const SECS: { id: SecId; icon: typeof Gamepad2; title: string; descriptio
     description: "Tray, startup, refresh cadence, Discord presence",
   },
   { id: "theme", icon: Palette, title: "Theme", description: "Palette, bloom, custom skins" },
+  { id: "about", icon: Info, title: "About", description: "Version, updates, credits" },
 ];
 
 /** The auto-refresh choices, in seconds. `0` is off. */

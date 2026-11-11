@@ -20,6 +20,7 @@ fn row(key: ServerKey, name: &str, players: i32, max_players: i32, bots: i32) ->
         max_players,
         bots,
         ping_ms: 35,
+        ping_kind: tetra_core::PingKind::Measured,
         locked: false,
         vac: true,
         version: Some("1.28".into()),
@@ -29,6 +30,8 @@ fn row(key: ServerKey, name: &str, players: i32, max_players: i32, bots: i32) ->
         last_played: None,
         responded: true,
         responded_at: None,
+        online: None,
+        online_checked_at: None,
         country_code: None,
     }
 }
@@ -88,6 +91,7 @@ async fn a_row_that_starts_lying_is_dropped_with_its_mods() {
             vec![ServerMod {
                 workshop_id: MOD_ID,
                 name: "Some Mod".into(),
+                hash: None,
             }],
         )
         .await
@@ -124,6 +128,7 @@ async fn a_row_that_starts_lying_is_dropped_with_its_mods() {
             vec![ServerMod {
                 workshop_id: MOD_ID,
                 name: "Some Mod".into(),
+                hash: None,
             }],
         )
         .await

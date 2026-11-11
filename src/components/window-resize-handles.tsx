@@ -1,5 +1,6 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { logClient } from "@/lib/tauri";
+import { keepOnTop } from "@/theme/interaction/use-anchored-popup";
 
 // Same values `ResizeDirection` resolves to, but the API package does not
 // re-export the type from its module root.
@@ -25,6 +26,7 @@ export function WindowResizeHandles() {
       {HANDLES.map((h) => (
         <div
           key={h.dir}
+          ref={keepOnTop}
           className={`pointer-events-auto fixed z-[var(--z-window-edge)] ${h.className}`}
           onMouseDown={(e) => {
             e.preventDefault();

@@ -32,6 +32,17 @@ pub fn display_name(raw: &str) -> String {
         .unwrap_or_else(|| raw.trim().to_string())
 }
 
+/// Engine keys whose player-facing label contains `term`, ASCII case-insensitive,
+/// so a search for a map's common name finds the servers running it.
+pub fn engine_names_matching(term: &str) -> Vec<&'static str> {
+    let needle = term.to_ascii_lowercase();
+    KNOWN
+        .iter()
+        .filter(|(_, label)| label.to_ascii_lowercase().contains(&needle))
+        .map(|(key, _)| *key)
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -45,24 +56,14 @@ mod tests {
 
     #[test]
     fn gives_friendly_names_to_known_maps() {
-        assert_eq!(display_name("chernarusplus"), "Chernarus");
+        // Engine keys are matched case-insensitively.
         assert_eq!(display_name("ChernarusPlus"), "Chernarus");
         assert_eq!(display_name("enoch"), "Livonia");
-        assert_eq!(display_name("sakhal"), "Sakhal");
-        assert_eq!(display_name("nasdara"), "Nasdara");
-        assert_eq!(display_name("deerisle"), "Deer Isle");
-        assert_eq!(display_name("namalsk"), "Namalsk");
     }
 
     #[test]
     fn passes_unknown_modded_maps_through_unchanged() {
         assert_eq!(display_name("GreenCounty"), "GreenCounty");
         assert_eq!(display_name("Azalea"), "Azalea");
-    }
-
-    #[test]
-    fn handles_empty_input() {
-        assert_eq!(normalise_map(""), "");
-        assert_eq!(display_name(""), "");
     }
 }

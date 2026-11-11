@@ -77,4 +77,74 @@ describe("ConfirmDialog", () => {
     expect(action).not.toHaveBeenCalled();
     expect(useConfirmStore.getState().request).toBeNull();
   });
+
+  it("renders the request's rows under the message", async () => {
+    const { ConfirmDialog } = await import("./confirm-dialog");
+    const { useConfirmStore } = await import("@/stores/confirm-store");
+    useConfirmStore
+      .getState()
+      .ask("Different game version", "They differ.", () => {}, "Join anyway", {
+        rows: [
+          ["Server", "1.28.161464"],
+          ["Yours", "1.29.163709"],
+        ],
+      });
+
+    const html = renderToStaticMarkup(<ConfirmDialog />);
+
+    expect(html).toContain('data-part="rows"');
+    expect(html).toContain('data-part="row-label"');
+    expect(html).toContain('data-part="row-value"');
+    expect(html).toContain("Server");
+    expect(html).toContain("1.28.161464");
+    expect(html).toContain("Yours");
+    expect(html).toContain("1.29.163709");
+  });
+
+  it("puts a warning message in a warning box with a triangle", async () => {
+    const { ConfirmDialog } = await import("./confirm-dialog");
+    const { useConfirmStore } = await import("@/stores/confirm-store");
+    useConfirmStore.getState().ask("Different game version", "They differ.", () => {}, "Join anyway", {
+      warning: true,
+    });
+
+    const html = renderToStaticMarkup(<ConfirmDialog />);
+
+    expect(html).toMatch(/data-part="warning"[^>]*>.*data-part="icon".*They differ\./s);
+  });
+
+  it("runs onCancel from a cancel and not from a confirm", async () => {
+    const { ConfirmDialog } = await import("./confirm-dialog");
+    const { useConfirmStore } = await import("@/stores/confirm-store");
+    const onCancel = vi.fn();
+    useConfirmStore
+      .getState()
+      .ask("Delete it", "Are you sure?", () => {}, "Delete", { onCancel });
+    renderToStaticMarkup(<ConfirmDialog />);
+
+    (captured["cancel"]?.onClick as () => void)();
+    expect(onCancel).toHaveBeenCalledTimes(1);
+
+    useConfirmStore
+      .getState()
+      .ask("Delete it", "Are you sure?", () => {}, "Delete", { onCancel });
+    renderToStaticMarkup(<ConfirmDialog />);
+    (captured["confirm"]?.onClick as () => void)();
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("draws a non-destructive confirm like Cancel", async () => {
+    const { ConfirmDialog } = await import("./confirm-dialog");
+    const { useConfirmStore } = await import("@/stores/confirm-store");
+
+    useConfirmStore.getState().ask("Different game version", "They differ.", () => {}, "Join anyway", {
+      destructive: false,
+    });
+    const plain = renderToStaticMarkup(<ConfirmDialog />);
+    expect(plain).not.toContain("bg-danger");
+
+    useConfirmStore.getState().ask("Delete it", "Are you sure?", () => {});
+    const dangerous = renderToStaticMarkup(<ConfirmDialog />);
+    expect(dangerous).toContain("bg-danger");
+  });
 });

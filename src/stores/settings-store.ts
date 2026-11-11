@@ -1,37 +1,12 @@
 import { create } from "zustand";
-import { getSettings, patchSettings, type OnJoin } from "@/lib/tauri";
+import { getSettings, patchSettings, type AppSettingsDto } from "@/lib/tauri";
 
 /**
- * Field names match the Rust `AppSettings` exactly — it serialises in camelCase
- * for this reason — so a patch can name a field by the key the store uses.
+ * The settings the launcher can write. `activeThemeId` is left out on purpose:
+ * a theme activation is confirmed elsewhere, and a settings save must not
+ * overwrite it.
  */
-export interface AppSettings {
-  profileName: string;
-  steamPath: string | null;
-  dayzPath: string | null;
-  workshopPath: string | null;
-  maxConcurrentQueries: number;
-  queryTimeoutMs: number;
-  launchParams: string[];
-  /** The close button hides the launcher to the tray instead of quitting. */
-  closeToTray: boolean;
-  /** Independent of `closeToTray` — two buttons, two questions. */
-  minimiseToTray: boolean;
-  /** Interface scale, applied as a webview zoom factor (keeps layout/scroll coordinates in one space). */
-  uiScale: number;
-  /** Seconds between automatic refreshes of the first 5,000 servers in the list. `0` is off. */
-  autoRefreshIntervalSecs: number;
-  /** Register the launcher to start with Windows. No-op in debug builds — test against a release build. */
-  startWithWindows: boolean;
-  /** Start hidden in the tray. Only applies when Windows did the starting. */
-  startMinimised: boolean;
-  /** What the launcher does with itself once DayZ is starting. */
-  onJoin: OnJoin;
-  /** Set once the first-launch setup modal is completed or skipped. */
-  onboardingDismissed: boolean;
-  /** Show "Playing on {server}" / "Browsing servers" in Discord. */
-  discordRichPresence: boolean;
-}
+export type AppSettings = Omit<AppSettingsDto, "activeThemeId">;
 
 interface SettingsState extends AppSettings {
   /** False until the on-disk settings have been read, so a save can't race the load. */
@@ -62,6 +37,10 @@ const defaults: AppSettings = {
   onJoin: "stay",
   onboardingDismissed: false,
   discordRichPresence: true,
+  discordShowServer: true,
+  memoryMapWarning: true,
+  startWindow: true,
+  appMenuOffered: false,
 };
 
 /** Keys changed since the last patch. Only these are sent, so a save never rewrites a field this store did not touch. */

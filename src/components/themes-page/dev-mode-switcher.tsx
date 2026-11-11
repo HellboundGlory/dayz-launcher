@@ -4,9 +4,9 @@ import { useThemeStore } from "@/theme/theme-store";
 import { useDevStore } from "@/theme/dev/dev-store";
 import { NEUTRAL_LAYOUTS } from "@/theme/neutral/index";
 
-// 650 is the narrowest CSS width the launcher allows; 1400 is the harness's
-// wide size.
-const FIXED_WIDTHS = [650, 975, 1400];
+// The 1280-pixel minimum window is 853 CSS pixels wide at 150% scale and 1024
+// at the default 125%; 1400 is the harness's wide size.
+const FIXED_WIDTHS = [853, 1024, 1400];
 
 /** Variant min-widths a layout file declares. A theme's own layout files are
  * untrusted JSON, so this reads the shape rather than trusting the type. */

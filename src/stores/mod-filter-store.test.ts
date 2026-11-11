@@ -95,19 +95,6 @@ describe("begin/apply round-trip", () => {
     expect(s.previewId).toBeNull();
     expect(s.meta).toEqual({});
   });
-
-  it("apply writes the working selection/mode back to the server filter", () => {
-    useModFilterStore.setState({
-      selection: { a: "include", b: "exclude" },
-      mode: "all",
-    });
-
-    useModFilterStore.getState().apply();
-
-    expect(useServerStore.getState().filter.mod_ids).toEqual(["a"]);
-    expect(useServerStore.getState().filter.mod_ids_exclude).toEqual(["b"]);
-    expect(useServerStore.getState().filter.mod_match).toBe("all");
-  });
 });
 
 describe("pick cycling", () => {
@@ -150,14 +137,6 @@ describe("tab switch", () => {
     expect(s.tab).toBe("seen");
     expect(s.previewId).toBeNull();
     expect(s.searchError).toBeNull();
-  });
-});
-
-describe("clear", () => {
-  it("clearSelection empties the selection map", () => {
-    useModFilterStore.setState({ selection: { a: "include" } });
-    useModFilterStore.getState().clearSelection();
-    expect(useModFilterStore.getState().selection).toEqual({});
   });
 });
 

@@ -5,10 +5,16 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+icmp = ["dep:ping-async"]
+
 [dependencies]
 tetra-core = { path = "../tetra-core" }
 thiserror.workspace = true
 tokio.workspace = true
+ping-async = { version = "=1.0.2", optional = true }
+# IPv4 interface listing for the LAN scan; sysinfo has no per-interface address.
+if-addrs = "0.15.0"
 
 # The A2S CLI probe. Lives here rather than in tetra-core because the queries it
 # issues are this crate's — tetra-core is parsing only and has no transport.

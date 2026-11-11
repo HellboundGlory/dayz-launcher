@@ -6,7 +6,7 @@ use tauri::{Emitter, Manager, State};
 use tetra_steam::to_server_row;
 
 use super::probe::probe_info;
-use super::{prober, reader};
+use super::{open_reader, prober};
 
 /// How many master-list requests one discovery pass keeps in flight.
 ///
@@ -257,7 +257,7 @@ pub async fn discover_servers(
                 let server_rows: Vec<tetra_registry::rows::ServerRow> =
                     rows.iter().map(to_server_row).collect();
                 writer
-                    .upsert_servers(server_rows)
+                    .upsert_listed_servers(server_rows)
                     .await
                     .map_err(|e| format!("Registry write error: {e}"))?;
 
@@ -375,7 +375,7 @@ async fn resolve_unlisted(
     writer: &tetra_registry::Writer,
     window: &tauri::Window,
 ) {
-    let backlog = reader(state).and_then(|r| {
+    let backlog = open_reader(state).await.and_then(|r| {
         r.silent(RESOLVE_WINDOW, RESOLVE_RETRY_AFTER_SECS)
             .map_err(|e| e.to_string())
     });

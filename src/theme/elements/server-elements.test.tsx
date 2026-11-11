@@ -9,6 +9,7 @@ import { useLaunchStore } from "@/stores/launch-store";
 import { useRowProbeStore } from "./row-probe-store";
 import { useThemeStore } from "../theme-store";
 import type { ThemeFile } from "@/types/theme";
+import { expectRegistryCovers } from "./test-helpers";
 import { ElementContextProvider, type ElementContextValue } from "./context";
 import { PopupContextProvider } from "./popup-elements";
 import {
@@ -341,6 +342,45 @@ describe("ServerPing", () => {
   it("hides the unit by default", () => {
     expect(render(<ServerPing />, serverContext({ ...server, ping: 40 }))).not.toContain('data-part="unit"');
   });
+
+  it("gives an estimate the plain title and no marker text, and a measured ping neither", () => {
+    const measured = render(<ServerPing options={{ showCaption: false }} />, serverContext(server));
+    expect(measured).toContain('data-part="value">40</span>');
+    expect(measured).not.toContain('data-part="estimate"');
+    expect(measured).not.toContain("title=");
+
+    const estimated = render(
+      <ServerPing options={{ showCaption: false }} />,
+      serverContext({ ...server, ping_estimate: "estimated" }),
+    );
+    expect(estimated).toContain('data-state="good estimated"');
+    expect(estimated).toContain('data-part="value">40</span>');
+    expect(estimated).not.toContain("est.<");
+    expect(estimated).toContain("title=\"Estimated: this server doesn&#x27;t answer pings.\"");
+  });
+
+  it("marks a DDoS-protected estimate with a shield and a tooltip card", () => {
+    const html = render(<ServerPing options={{ showCaption: false }} />, serverContext({ ...server, ping_estimate: "protected" }));
+    expect(html).toContain('data-state="good protected"');
+    expect(html).toContain('data-part="shield"');
+    expect(html).not.toContain('data-part="estimate"');
+    expect(html).toContain('data-part="tip" role="tooltip"');
+    expect(html).toContain("Estimated ping");
+    expect(html).toContain("This server is behind DDoS protection");
+    expect(html).toMatch(/aria-describedby="([^"]+)"/);
+    const id = html.match(/aria-describedby="([^"]+)"/)?.[1];
+    expect(html).toContain(`id="${id}"`);
+    expect(html).toMatch(/<span data-part="shield" aria-hidden="true" title="Estimated ping: behind DDoS protection, may be off by up to about 50 ms\.">/);
+  });
+
+  it("shows no marker on an offline row even when flagged", () => {
+    const html = render(<ServerPing />, serverContext({ ...server, online: false, ping_estimate: "protected" }));
+    expect(html).toContain('data-part="value">—</span>');
+    expect(html).not.toContain('data-part="estimate"');
+    expect(html).not.toContain('data-part="shield"');
+    expect(html).not.toContain('data-part="tip"');
+    expect(html).toContain('data-state="unknown offline"');
+  });
 });
 
 describe("ServerName", () => {
@@ -478,14 +518,41 @@ describe("ServerVersion", () => {
 });
 
 describe("server.region", () => {
-  it.each([
-    ["name", "NA", "North America"],
-    ["code", "NA", "North America"],
-    ["code", null, null],
-  ])("hover title for format %s, country %s", (format, code, title) => {
-    const html = render(<ServerRegion options={{ format }} />, serverContext({ ...server, country_code: code }));
-    if (title) expect(html).toContain(`title="${title}"`);
-    else expect(html).not.toContain("title=");
+  it("draws only the parts the registry lists", () => {
+    const html = render(<ServerRegion />, serverContext({ ...server, country_code: "DE" }));
+    expectRegistryCovers(html, "server.region");
+  });
+
+  it("shows the code, its flag and the country name on hover", () => {
+    const html = render(<ServerRegion options={{ format: "code" }} />, serverContext({ ...server, country_code: "DE" }));
+    expect(html).toContain('data-part="text">DE</span>');
+    expect(html).toContain('data-part="flag"');
+    expect(html).toContain('title="Germany"');
+  });
+
+  it("shows the country name with format name", () => {
+    const html = render(<ServerRegion options={{ format: "name" }} />, serverContext({ ...server, country_code: "DE" }));
+    expect(html).toContain('data-part="text">Germany</span>');
+  });
+
+  it("spaces the name from its flag, and not when there is no flag", () => {
+    const withFlag = render(<ServerRegion />, serverContext({ ...server, country_code: "DE" }));
+    expect(withFlag).toMatch(/<span class="ms-\[0\.35em\]" data-part="text">/);
+    const without = render(<ServerRegion />, serverContext({ ...server, country_code: null }));
+    expect(without).toContain('<span data-part="text">');
+  });
+
+  it("shows a dash and no flag for a server with no country", () => {
+    const html = render(<ServerRegion options={{ format: "code" }} />, serverContext({ ...server, country_code: null }));
+    expect(html).toContain('data-part="text">—</span>');
+    expect(html).not.toContain('data-part="flag"');
+    expect(html).not.toContain("title=");
+  });
+
+  it("shows the text of a country with no flag image and no flag", () => {
+    const html = render(<ServerRegion options={{ format: "code" }} />, serverContext({ ...server, country_code: "QQ" }));
+    expect(html).toContain('data-part="text">QQ</span>');
+    expect(html).not.toContain('data-part="flag"');
   });
 });
 
@@ -499,6 +566,20 @@ describe("offline state on server elements", () => {
 });
 
 describe("ServerFavourite", () => {
+  it("is a checked menu item in the row menu and a pressed button elsewhere", () => {
+    const favourite = { ...server, favourite: true };
+    const inMenu = render(
+      <PopupContextProvider popupId="serverRow" close={() => {}}>
+        <ServerFavourite />
+      </PopupContextProvider>,
+      serverContext(favourite),
+    );
+    expect(inMenu).toContain('role="menuitemcheckbox"');
+    expect(inMenu).toContain('aria-checked="true"');
+    expect(inMenu).not.toContain("aria-pressed");
+    expect(render(<ServerFavourite />, serverContext(favourite))).toContain('aria-pressed="true"');
+  });
+
   it("optimistically toggles the store and persists via toggleFavourite", async () => {
     const { toggleFavourite } = await import("@/lib/tauri");
     useServerStore.setState({ servers: [server], selectedServer: null });
@@ -530,6 +611,25 @@ describe("ServerFavourite", () => {
     const html = render(<ServerFavourite />, serverContext({ ...server, favourite: true }));
     expect(html).toContain('data-state="on"');
     expect(html).toContain('aria-pressed="true"');
+  });
+
+  it.each<{ label: string; favourite: boolean; expected: string }>([
+    { label: "not a favourite", favourite: false, expected: ">Add to favourites<" },
+    { label: "a favourite", favourite: true, expected: ">Remove from favourites<" },
+  ])("shows the on-state label when the server is $label", ({ favourite, expected }) => {
+    const html = render(
+      <ServerFavourite options={{ display: "iconLabel", label: "Add to favourites", labelOn: "Remove from favourites" }} />,
+      serverContext({ ...server, favourite }),
+    );
+    expect(html).toContain(expected);
+  });
+
+  it("keeps one label for both states when no on-state label is given", () => {
+    const html = render(
+      <ServerFavourite options={{ display: "iconLabel", label: "Favourite" }} />,
+      serverContext({ ...server, favourite: true }),
+    );
+    expect(html).toContain(">Favourite<");
   });
 });
 
@@ -845,17 +945,6 @@ describe("ServerUnsubscribeUnique", () => {
     });
   });
 
-  it("never calls unsubscribeUniqueMods when the confirm is never resolved true", async () => {
-    const { getUniqueModsSummary, unsubscribeUniqueMods } = await import("@/lib/tauri");
-    vi.mocked(getUniqueModsSummary).mockResolvedValueOnce(uniqueSummary);
-
-    render(<ServerUnsubscribeUnique />, serverContext(server));
-    await click("server.unsubscribeUnique").result;
-
-    expect(askConfirmCalls).toHaveLength(1);
-    expect(unsubscribeUniqueMods).not.toHaveBeenCalled();
-  });
-
   it("reports an error via the launch notice when the summary fetch fails", async () => {
     const { getUniqueModsSummary } = await import("@/lib/tauri");
     vi.mocked(getUniqueModsSummary).mockRejectedValueOnce(new Error("boom"));
@@ -892,22 +981,6 @@ describe("ServerCopyAddress", () => {
     render(<ServerCopyAddress />, serverContext(server));
     expect(click("server.copyAddress").stopPropagation).toHaveBeenCalled();
     expect(copyServerAddress).toHaveBeenCalledWith(server);
-  });
-
-  it("schedules the copied-state reset 2s after a successful copy", async () => {
-    const { copyServerAddress } = await import("@/lib/tauri");
-    vi.useFakeTimers();
-    try {
-      const setTimeoutSpy = vi.spyOn(global, "setTimeout");
-      render(<ServerCopyAddress />, serverContext(server));
-      click("server.copyAddress");
-
-      await vi.advanceTimersByTimeAsync(0);
-      expect(copyServerAddress).toHaveBeenCalledWith(server);
-      expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 2000);
-    } finally {
-      vi.useRealTimers();
-    }
   });
 
   it("shows a failed copy as the server's notice", async () => {

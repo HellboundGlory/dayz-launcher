@@ -9,6 +9,9 @@ pub enum NetError {
     /// from `NoResponse` (nothing came back at all).
     #[error("{addr} stopped responding part-way through a multi-part reply")]
     ExchangeTimedOut { addr: SocketAddr },
+    /// Something answered A2S_INFO, but it was another game on that port.
+    #[error("{addr} is not a DayZ server")]
+    NotDayZ { addr: SocketAddr },
     #[error(transparent)]
     Core(#[from] tetra_core::CoreError),
     #[error("io: {0}")]

@@ -443,3 +443,20 @@ fn all_four_variants_are_checked_at_sixty_four_combinations() {
         .iter()
         .any(|issue| issue.rule_id == "REQ-06" && issue.pointer != "/variants/3/root"));
 }
+
+#[test]
+fn a_popup_opened_by_a_list_takes_that_list_s_rows_as_its_subject() {
+    // `serverRow` is opened by `list.servers`, so its server elements belong there.
+    let file = "layout/popups/serverRow.json";
+    let files = HashMap::from([(file.into(), layout(&["server.copyJoinLink"]))]);
+    assert_eq!(validate_theme_layouts(&files, None), vec![]);
+
+    // A popup with no server subject still refuses one.
+    let files = HashMap::from([(
+        "layout/popups/sort.json".into(),
+        layout(&["server.copyJoinLink"]),
+    )]);
+    assert!(validate_theme_layouts(&files, None)
+        .iter()
+        .any(|issue| issue.rule_id == "ELE-03"));
+}

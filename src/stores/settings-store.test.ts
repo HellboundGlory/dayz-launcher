@@ -26,6 +26,10 @@ const saved: AppSettingsDto = {
   onJoin: "stay",
   onboardingDismissed: false,
   discordRichPresence: true,
+  discordShowServer: true,
+  memoryMapWarning: true,
+  startWindow: true,
+  appMenuOffered: false,
 };
 
 beforeEach(() => {

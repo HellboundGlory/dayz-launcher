@@ -1,5 +1,6 @@
 use crate::error::SpawnError;
-use std::path::PathBuf;
+use std::ffi::{OsStr, OsString};
+use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 
 /// The BattlEye stub the game is launched through, and the game itself.
@@ -53,9 +54,14 @@ pub fn spawn_dayz(exe_path: &std::path::Path, args: &[String]) -> Result<(), Spa
 
 /// Start DayZ on Linux by running the Windows executable under Proton:
 /// `<SteamLinuxRuntime_*>/run -- <Proton>/proton run <dayz_exe> <args...>`
+///
+/// When Proton or its runtime is missing (a Flatpak Steam, or one where DayZ
+/// was never run) the launch is handed to Steam instead, which installs Proton
+/// itself. That route splits values at spaces, so [`check_applaunch_args`] can
+/// refuse it.
 #[cfg(target_os = "linux")]
 pub fn spawn_dayz(exe_path: &std::path::Path, args: &[String]) -> Result<(), SpawnError> {
-    let steam_root = crate::registry_discovery::find_steam_paths()
+    let steam_root = crate::registry_discovery::find_native_steam_paths()
         .map(|p| p.steam_install)
         .unwrap_or_else(|| {
             std::env::var_os("XDG_DATA_HOME")
@@ -70,27 +76,59 @@ pub fn spawn_dayz(exe_path: &std::path::Path, args: &[String]) -> Result<(), Spa
 
     let common = steam_root.join("steamapps").join("common");
 
-    let proton = pick_proton(&common).ok_or_else(|| {
-        SpawnError::Launch(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "no installed Proton build found under Steam steamapps/common",
-        ))
-    })?;
-    let runtime = pick_runtime(&common).ok_or_else(|| {
-        SpawnError::Launch(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "no Steam Linux Runtime found under Steam steamapps/common",
-        ))
-    })?;
+    match choose_route(&common) {
+        LinuxRoute::Proton { proton, runtime } => {
+            spawn_proton(&steam_root, exe_path, args, &proton, &runtime)
+        }
+        LinuxRoute::Steam => {
+            let install = crate::registry_discovery::find_steam_install().ok_or_else(|| {
+                SpawnError::Launch(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "no installed Proton build found under Steam steamapps/common",
+                ))
+            })?;
+            let (program, launch_args) = applaunch_command(&install, args)?;
+            let mut cmd = Command::new(program);
+            cmd.args(launch_args);
+            without_appimage_env(&mut cmd);
+            cmd.spawn().map(|_child| ()).map_err(SpawnError::Launch)
+        }
+    }
+}
 
+/// Which Linux launch path a Steam install allows.
+#[cfg(target_os = "linux")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LinuxRoute {
+    Proton { proton: PathBuf, runtime: PathBuf },
+    Steam,
+}
+
+/// Proton only when both it and its runtime are installed; otherwise Steam runs the game itself.
+#[cfg(target_os = "linux")]
+fn choose_route(common: &std::path::Path) -> LinuxRoute {
+    match (pick_proton(common), pick_runtime(common)) {
+        (Some(proton), Some(runtime)) => LinuxRoute::Proton { proton, runtime },
+        _ => LinuxRoute::Steam,
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn spawn_proton(
+    steam_root: &std::path::Path,
+    exe_path: &std::path::Path,
+    args: &[String],
+    proton: &std::path::Path,
+    runtime: &std::path::Path,
+) -> Result<(), SpawnError> {
     let compat_data = steam_root
         .join("steamapps")
         .join("compatdata")
-        .join("221100");
+        .join(DAYZ_APP_ID);
 
-    let mut cmd = Command::new(&runtime);
+    let mut cmd = Command::new(runtime);
     cmd.arg("--")
-        .arg(&proton)
+        .arg(proton)
         .arg("run")
         .arg(exe_path)
         .args(battleye_args(exe_path))
@@ -100,20 +138,124 @@ pub fn spawn_dayz(exe_path: &std::path::Path, args: &[String]) -> Result<(), Spa
         cmd.current_dir(dir);
     }
 
+    without_appimage_env(&mut cmd);
+
     // Proton needs these or it aborts with a KeyError.
     cmd.env("STEAM_COMPAT_DATA_PATH", &compat_data);
-    cmd.env("STEAM_COMPAT_CLIENT_INSTALL_PATH", &steam_root);
-    cmd.env("SteamAppId", "221100");
-    cmd.env("SteamGameId", "221100");
-
-    // Strip AppImage/leaked Python env vars that break the Steam-runtime child.
-    cmd.env_remove("LD_LIBRARY_PATH");
-    cmd.env_remove("APPIMAGE");
-    cmd.env_remove("APPDIR");
-    cmd.env_remove("PYTHONHOME");
-    cmd.env_remove("PYTHONPATH");
+    cmd.env("STEAM_COMPAT_CLIENT_INSTALL_PATH", steam_root);
+    cmd.env("SteamAppId", DAYZ_APP_ID);
+    cmd.env("SteamGameId", DAYZ_APP_ID);
 
     cmd.spawn().map(|_child| ()).map_err(SpawnError::Launch)
+}
+
+/// App ID of DayZ on Steam.
+#[cfg(target_os = "linux")]
+const DAYZ_APP_ID: &str = "221100";
+
+/// Steam's launch-line limit, in characters, with room to spare.
+#[cfg(target_os = "linux")]
+const APPLAUNCH_LIMIT: usize = 900;
+
+/// The program and argument list for `steam -applaunch`, as a list so no value
+/// is ever re-split by a shell.
+#[cfg(target_os = "linux")]
+fn applaunch_command(
+    install: &crate::registry_discovery::SteamInstall,
+    args: &[String],
+) -> Result<(OsString, Vec<OsString>), SpawnError> {
+    use crate::registry_discovery::SteamInstall;
+
+    check_applaunch_args(args, matches!(install, SteamInstall::Flatpak))?;
+
+    let mut full: Vec<OsString> = Vec::new();
+    let program = match install {
+        SteamInstall::Native(path) => path.as_os_str().to_owned(),
+        SteamInstall::Flatpak => {
+            full.extend(["run".into(), "com.valvesoftware.Steam".into()]);
+            OsString::from("flatpak")
+        }
+    };
+    full.push("-applaunch".into());
+    full.push(DAYZ_APP_ID.into());
+    full.extend(args.iter().map(OsString::from));
+    Ok((program, full))
+}
+
+/// Refuse a launch Steam would split apart or truncate, with advice that fits
+/// the install: native Steam can get the Proton route, Flatpak Steam can't.
+#[cfg(target_os = "linux")]
+fn check_applaunch_args(args: &[String], flatpak: bool) -> Result<(), SpawnError> {
+    let advice = if flatpak {
+        "Tetra can't start Proton inside Flatpak Steam, so remove the space or shorten the mod list, \
+         or install the native Steam package."
+    } else {
+        "Run DayZ once from Steam so it installs Proton, then Join here again; \
+         that route has no such limit."
+    };
+
+    for arg in args {
+        let Some((prefix, value)) = arg.split_once('=') else {
+            if arg.chars().any(char::is_whitespace) {
+                return Err(refused_parameter(arg, arg, advice));
+            }
+            continue;
+        };
+        if !value.chars().any(char::is_whitespace) {
+            continue;
+        }
+        let prefix = prefix.to_ascii_lowercase();
+        if prefix.contains("pass") {
+            return Err(SpawnError::Refused(format!(
+                "Can't start DayZ through Steam: the server password contains a space. \
+                 Steam splits launch values at spaces. {advice}"
+            )));
+        }
+        match prefix.as_str() {
+            "-name" => {
+                return Err(SpawnError::Refused(format!(
+                    "Can't start DayZ through Steam: your in-game name contains a space (\"{value}\"). \
+                     Steam splits launch values at spaces. {advice}"
+                )))
+            }
+            "-profiles" => {
+                return Err(SpawnError::Refused(format!(
+                    "Can't start DayZ through Steam: the profiles folder path contains a space (\"{value}\"). \
+                     Steam splits launch values at spaces. {advice}"
+                )))
+            }
+            "-mod" => {
+                let segment = value
+                    .split(';')
+                    .find(|part| part.chars().any(char::is_whitespace))
+                    .unwrap_or(value);
+                return Err(SpawnError::Refused(format!(
+                    "Can't start DayZ through Steam: a mod path contains a space (\"{segment}\"). \
+                     Steam splits launch values at spaces. {advice}"
+                )));
+            }
+            _ => return Err(refused_parameter(arg, value, advice)),
+        }
+    }
+
+    let line: String = args.join(" ");
+    let length = line.chars().count();
+    if length > APPLAUNCH_LIMIT {
+        return Err(SpawnError::Refused(format!(
+            "Can't start DayZ through Steam: the launch line is {length} characters and Steam's \
+             limit is about {APPLAUNCH_LIMIT} (mostly the mod list). {advice}"
+        )));
+    }
+    Ok(())
+}
+
+/// Arg whose value is shown in quotes: an unrelated parameter that itself has a space.
+#[cfg(target_os = "linux")]
+fn refused_parameter(arg: &str, value: &str, advice: &str) -> SpawnError {
+    SpawnError::Refused(format!(
+        "Can't start DayZ through Steam: the launch parameter `{arg}` contains a space (\"{value}\"). \
+         Steam splits launch values at spaces. {advice}"
+    ))
 }
 
 /// Locate an installed Proton build under `<steam>/steamapps/common`.
@@ -211,22 +353,89 @@ fn runtime_rank(run_binary: &std::path::Path) -> u8 {
     }
 }
 
+/// Remove the environment an AppImage adds, so programs it starts use the
+/// machine's own libraries and data directories instead of the mount point's.
+pub fn without_appimage_env(cmd: &mut Command) -> &mut Command {
+    for name in [
+        "LD_LIBRARY_PATH",
+        "APPIMAGE",
+        "APPDIR",
+        "PYTHONHOME",
+        "PYTHONPATH",
+    ] {
+        cmd.env_remove(name);
+    }
+
+    let appdir = std::env::var_os("APPDIR").filter(|value| !value.is_empty());
+    let appdir_path = appdir.as_deref().map(Path::new);
+    for name in ["PATH", "XDG_DATA_DIRS"] {
+        let Some(value) = std::env::var_os(name) else {
+            continue;
+        };
+        if std::env::split_paths(&value).any(|entry| is_appimage_entry(&entry, appdir_path)) {
+            cmd.env(name, strip_appimage_entries(&value, appdir.as_deref()));
+        }
+    }
+    cmd
+}
+
+/// [`without_appimage_env`] for one `PATH`-style value: drop the entries
+/// under `appdir` and those inside an AppImage mount point.
+fn strip_appimage_entries(value: &OsStr, appdir: Option<&OsStr>) -> OsString {
+    let appdir = appdir.filter(|dir| !dir.is_empty()).map(Path::new);
+    let kept: Vec<PathBuf> = std::env::split_paths(value)
+        .filter(|entry| !is_appimage_entry(entry, appdir))
+        .collect();
+    std::env::join_paths(&kept).unwrap_or_else(|_| value.to_owned())
+}
+
+fn is_appimage_entry(entry: &Path, appdir: Option<&Path>) -> bool {
+    appdir.is_some_and(|dir| entry.starts_with(dir)) || in_appimage_mount(entry)
+}
+
+fn in_appimage_mount(entry: &Path) -> bool {
+    entry.components().any(|component| match component {
+        Component::Normal(name) => name.to_string_lossy().starts_with(".mount_"),
+        _ => false,
+    })
+}
+
 /// Start the Steam client — doesn't wait, since its process stays alive for the whole session.
 pub fn spawn_steam(exe_path: &std::path::Path) -> Result<(), SpawnError> {
-    Command::new(exe_path)
-        .spawn()
-        .map(|_child| ())
-        .map_err(SpawnError::Launch)
+    let mut cmd = Command::new(exe_path);
+    without_appimage_env(&mut cmd);
+    cmd.spawn().map(|_child| ()).map_err(SpawnError::Launch)
 }
 
 /// Start Steam handed a `steam://…` URL to open — a second instance forwards
 /// it to the already-running client rather than starting twice.
 pub fn spawn_steam_with_url(exe_path: &std::path::Path, url: &str) -> Result<(), SpawnError> {
-    Command::new(exe_path)
-        .arg(url)
-        .spawn()
-        .map(|_child| ())
-        .map_err(SpawnError::Launch)
+    let mut cmd = Command::new(exe_path);
+    cmd.arg(url);
+    without_appimage_env(&mut cmd);
+    cmd.spawn().map(|_child| ()).map_err(SpawnError::Launch)
+}
+
+/// Show a file or folder in the desktop's own file manager, without waiting.
+pub fn open_with_desktop(target: &OsStr) -> Result<(), SpawnError> {
+    // The system copy by full path: a bare name is looked up next to the
+    // launcher first, where a planted explorer.exe would run instead.
+    #[cfg(target_os = "windows")]
+    let mut cmd = Command::new(
+        std::env::var_os("SystemRoot")
+            .map(|root| PathBuf::from(root).join("explorer.exe"))
+            .unwrap_or_else(|| PathBuf::from(r"C:\Windows\explorer.exe")),
+    );
+    #[cfg(not(target_os = "windows"))]
+    let mut cmd = Command::new("xdg-open");
+    cmd.arg(target);
+    without_appimage_env(&mut cmd);
+    let mut child = cmd.spawn().map_err(SpawnError::Launch)?;
+    // Reap it in the background so each click leaves no zombie behind.
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
 }
 
 /// Locate the DayZ executable — prefers `DayZ_BE.exe`, falls back to `DayZ_x64.exe`.
@@ -323,101 +532,361 @@ mod tests {
         }
     }
 
+    /// The exact argument vector for each launch shape, with `-mod=` last so a
+    /// user parameter cannot be read as part of it. A main-menu launch drops
+    /// the whole connection group, `-password` included, and keeps the rest.
     #[test]
-    fn vanilla_launch_no_extra_params() {
-        let args = build_launch_args(false, "127.0.0.1", 2302, None, "", &[], None);
-        assert_eq!(args, vec!["-connect=127.0.0.1", "-port=2302"]);
-    }
-
-    #[test]
-    fn launch_with_name_and_mods() {
-        let args = build_launch_args(
-            false,
-            "192.168.1.1",
-            27016,
-            Some("hunter2"),
-            "-mod=C:\\mods\\@test",
-            &["-noSplash".into()],
-            Some("Survivor"),
-        );
-        assert_eq!(
-            args,
-            vec![
-                "-connect=192.168.1.1",
-                "-port=27016",
-                "-password=hunter2",
-                "-name=Survivor",
-                "-noSplash",
-                "-mod=C:\\mods\\@test"
-            ]
-        );
-    }
-
-    /// `-mod=` must stay last — some builds read a trailing flag as part of the mod path.
-    #[test]
-    fn user_parameters_precede_the_mod_line() {
-        let args = build_launch_args(
-            false,
-            "127.0.0.1",
-            2302,
-            None,
-            "-mod=C:\\mods\\@a;C:\\mods\\@b",
-            &[
-                "-noSplash".into(),
-                "-skipIntro".into(),
-                "-cpuCount=4".into(),
-            ],
-            None,
-        );
-
-        let mod_index = args.iter().position(|a| a.starts_with("-mod=")).unwrap();
-        assert_eq!(
-            mod_index,
-            args.len() - 1,
-            "-mod= must be the final argument"
-        );
-        for flag in ["-noSplash", "-skipIntro", "-cpuCount=4"] {
-            let at = args
-                .iter()
-                .position(|a| a == flag)
-                .expect("flag was dropped");
-            assert!(at < mod_index, "{flag} must come before -mod=");
+    fn launch_arguments_are_built_in_one_order() {
+        struct Case<'a> {
+            label: &'a str,
+            main_menu: bool,
+            ip: &'a str,
+            port: u16,
+            password: Option<&'a str>,
+            mod_arg: &'a str,
+            extra: &'a [&'a str],
+            name: Option<&'a str>,
+            expected: &'a [&'a str],
+        }
+        let cases = [
+            Case {
+                label: "vanilla server launch",
+                main_menu: false,
+                ip: "127.0.0.1",
+                port: 2302,
+                password: None,
+                mod_arg: "",
+                extra: &[],
+                name: None,
+                expected: &["-connect=127.0.0.1", "-port=2302"],
+            },
+            Case {
+                label: "name, password, mods and a user parameter",
+                main_menu: false,
+                ip: "192.168.1.1",
+                port: 27016,
+                password: Some("hunter2"),
+                mod_arg: "-mod=C:\\mods\\@test",
+                extra: &["-noSplash"],
+                name: Some("Survivor"),
+                expected: &[
+                    "-connect=192.168.1.1",
+                    "-port=27016",
+                    "-password=hunter2",
+                    "-name=Survivor",
+                    "-noSplash",
+                    "-mod=C:\\mods\\@test",
+                ],
+            },
+            Case {
+                label: "main-menu launch keeps mods and user parameters",
+                main_menu: true,
+                ip: "127.0.0.1",
+                port: 2302,
+                password: Some("hunter2"),
+                mod_arg: "-mod=C:\\mods\\@a;C:\\mods\\@b",
+                extra: &["-noSplash"],
+                name: Some("Survivor"),
+                expected: &[
+                    "-name=Survivor",
+                    "-noSplash",
+                    "-mod=C:\\mods\\@a;C:\\mods\\@b",
+                ],
+            },
+        ];
+        for case in &cases {
+            let extra: Vec<String> = case.extra.iter().map(|a| a.to_string()).collect();
+            let expected: Vec<String> = case.expected.iter().map(|a| a.to_string()).collect();
+            assert_eq!(
+                build_launch_args(
+                    case.main_menu,
+                    case.ip,
+                    case.port,
+                    case.password,
+                    case.mod_arg,
+                    &extra,
+                    case.name,
+                ),
+                expected,
+                "{}",
+                case.label
+            );
         }
     }
 
-    /// A main-menu launch must not carry any server-connection argument, while
-    /// still loading the mods and the user's launch parameters.
+    /// Every child runs without the AppImage's own environment, or Steam and
+    /// the desktop opener try to use the launcher's mount point.
     #[test]
-    fn main_menu_launch_omits_connection_but_keeps_mods() {
-        let args = build_launch_args(
-            true,
-            "127.0.0.1",
-            2302,
-            Some("hunter2"),
-            "-mod=C:\\mods\\@a;C:\\mods\\@b",
-            &["-noSplash".into()],
-            Some("Survivor"),
-        );
-        assert!(
-            !args.iter().any(|a| a.starts_with("-connect=")),
-            "-connect= must be omitted in main-menu mode"
-        );
-        assert!(
-            !args.iter().any(|a| a.starts_with("-port=")),
-            "-port= must be omitted in main-menu mode"
-        );
-        assert!(
-            !args.iter().any(|a| a.starts_with("-password=")),
-            "-password= must be omitted in main-menu mode"
-        );
-        assert!(
-            args.iter().any(|a| a.starts_with("-mod=")),
-            "-mod= must still be present in main-menu mode"
-        );
-        assert!(
-            args.iter().any(|a| a == "-noSplash"),
-            "user launch parameters must still reach main-menu mode"
-        );
+    fn without_appimage_env_clears_the_appimage_variables() {
+        let mut cmd = Command::new("true");
+        without_appimage_env(&mut cmd);
+
+        let envs: Vec<(OsString, Option<OsString>)> = cmd
+            .get_envs()
+            .map(|(key, value)| (key.to_owned(), value.map(OsStr::to_owned)))
+            .collect();
+        for name in [
+            "LD_LIBRARY_PATH",
+            "APPIMAGE",
+            "APPDIR",
+            "PYTHONHOME",
+            "PYTHONPATH",
+        ] {
+            assert!(
+                envs.contains(&(OsString::from(name), None)),
+                "{name} must be removed from the child"
+            );
+        }
+    }
+
+    /// AppImage entries are the mount point's own paths and anything under
+    /// `$APPDIR`; a normal `PATH` is left exactly as it was.
+    #[test]
+    fn strip_appimage_entries_drops_only_the_appimage_paths() {
+        type Case<'a> = (&'a [&'a str], Option<&'a str>, Option<&'a [&'a str]>);
+        let cases: &[Case<'_>] = &[
+            (
+                &["/tmp/.mount_TetraXyz/usr/bin", "/usr/bin", "/bin"],
+                None,
+                Some(&["/usr/bin", "/bin"]),
+            ),
+            (
+                &["/opt/app/usr/lib", "/usr/lib"],
+                Some("/opt/app"),
+                Some(&["/usr/lib"]),
+            ),
+            (&["/usr/bin", "/bin"], Some("/opt/app"), None),
+        ];
+        for (entries, appdir, expected) in cases {
+            let value = std::env::join_paths(entries.iter()).unwrap();
+            let stripped = strip_appimage_entries(&value, appdir.map(OsStr::new));
+            let want = match expected {
+                Some(kept) => std::env::join_paths(kept.iter()).unwrap(),
+                None => value.clone(),
+            };
+            assert_eq!(stripped, want, "entries: {entries:?}, appdir: {appdir:?}");
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    mod steam_applaunch {
+        use super::*;
+        use crate::registry_discovery::SteamInstall;
+
+        #[test]
+        fn the_command_names_the_steam_install_it_goes_through() {
+            let args: Vec<String> = ["-connect=1.2.3.4", "-port=2302", "-mod=Z:\\a\\b"]
+                .iter()
+                .map(|a| a.to_string())
+                .collect();
+            let (program, full) = applaunch_command(
+                &SteamInstall::Native(PathBuf::from("/home/u/.local/share/Steam/steam.sh")),
+                &args,
+            )
+            .expect("no refusal");
+            assert_eq!(
+                program,
+                OsString::from("/home/u/.local/share/Steam/steam.sh")
+            );
+            assert_eq!(
+                full,
+                [
+                    "-applaunch",
+                    "221100",
+                    "-connect=1.2.3.4",
+                    "-port=2302",
+                    "-mod=Z:\\a\\b"
+                ]
+                .map(OsString::from)
+                .to_vec()
+            );
+
+            let (program, full) =
+                applaunch_command(&SteamInstall::Flatpak, &args).expect("no refusal");
+            assert_eq!(program, OsString::from("flatpak"));
+            assert_eq!(
+                full,
+                [
+                    "run",
+                    "com.valvesoftware.Steam",
+                    "-applaunch",
+                    "221100",
+                    "-connect=1.2.3.4",
+                    "-port=2302",
+                    "-mod=Z:\\a\\b"
+                ]
+                .map(OsString::from)
+                .to_vec()
+            );
+        }
+
+        fn refusal(args: &[&str]) -> String {
+            let args: Vec<String> = args.iter().map(|a| a.to_string()).collect();
+            match check_applaunch_args(&args, false) {
+                Err(SpawnError::Refused(message)) => message,
+                other => panic!("expected a refusal, got {other:?}"),
+            }
+        }
+
+        #[test]
+        fn flatpak_steam_gets_advice_it_can_follow() {
+            let args = vec!["-name=Dead Man".to_string()];
+            match check_applaunch_args(&args, true) {
+                Err(SpawnError::Refused(message)) => {
+                    assert!(!message.contains("Run DayZ once from Steam"), "{message}");
+                    assert!(message.contains("native Steam"), "{message}");
+                }
+                other => panic!("expected a refusal, got {other:?}"),
+            }
+        }
+
+        #[test]
+        fn a_hand_typed_password_in_any_case_is_never_shown() {
+            for arg in [
+                "-Password=my pass",
+                "-PASSWORD=my pass",
+                "-serverpassword=my pass",
+            ] {
+                let message = refusal(&[arg]);
+                assert!(!message.contains("my pass"), "{arg}: {message}");
+            }
+        }
+
+        #[test]
+        fn a_value_with_a_space_is_refused_by_name() {
+            let cases: &[(&[&str], &str)] = &[
+                (&["-name=Dead Man"], "your in-game name"),
+                (&["-password=a b"], "the server password"),
+                (&["-profiles=C:\\My Docs"], "the profiles folder path"),
+                (&["-mod=Z:\\a\\b;Z:\\My Mods\\c"], "a mod path"),
+            ];
+            for (args, what) in cases {
+                let message = refusal(args);
+                assert!(
+                    message.contains(&format!("{what} contains a space")),
+                    "{args:?}: {message}"
+                );
+                assert!(message.contains("Run DayZ once from Steam"), "{message}");
+            }
+
+            let message = refusal(&["-name=Dead Man"]);
+            assert!(message.contains("\"Dead Man\""), "{message}");
+
+            let message = refusal(&["-mod=Z:\\a\\b;Z:\\My Mods\\c"]);
+            assert!(message.contains("Z:\\My Mods\\c"), "{message}");
+            assert!(
+                !message.contains("Z:\\a\\b"),
+                "only the spaced segment is named: {message}"
+            );
+        }
+
+        #[test]
+        fn the_password_value_is_never_printed() {
+            let message = refusal(&["-password=hunter two"]);
+            assert!(!message.contains("hunter"), "{message}");
+            assert!(!message.contains("two"), "{message}");
+        }
+
+        #[test]
+        fn an_unknown_parameter_is_refused_as_it_reads() {
+            let message = refusal(&["-cpuCount=4 8"]);
+            assert!(
+                message.contains("the launch parameter `-cpuCount=4 8`"),
+                "{message}"
+            );
+            assert!(message.contains("\"4 8\""), "{message}");
+        }
+
+        #[test]
+        fn a_bare_parameter_with_a_space_is_refused_in_full() {
+            let message = refusal(&["--some flag"]);
+            assert!(
+                message.contains("the launch parameter `--some flag`"),
+                "{message}"
+            );
+            assert!(message.contains("\"--some flag\""), "{message}");
+        }
+
+        #[test]
+        fn any_whitespace_counts_as_a_space() {
+            let message = refusal(&["-name=Dead\tMan"]);
+            assert!(
+                message.contains("your in-game name contains a space"),
+                "{message}"
+            );
+        }
+
+        #[test]
+        fn the_launch_line_limit_counts_characters() {
+            let at_limit = String::from("-connect=") + &"a".repeat(900 - "-connect=".len());
+            assert_eq!(at_limit.chars().count(), 900);
+            assert!(check_applaunch_args(std::slice::from_ref(&at_limit), false).is_ok());
+
+            let over = String::from("-connect=") + &"a".repeat(901 - "-connect=".len());
+            let args = vec![over];
+            match check_applaunch_args(&args, false) {
+                Err(SpawnError::Refused(message)) => {
+                    assert!(message.contains("901 characters"), "{message}");
+                    assert!(message.contains("about 900"), "{message}");
+                }
+                other => panic!("expected a refusal, got {other:?}"),
+            }
+        }
+
+        struct ScratchCommon(PathBuf);
+
+        impl ScratchCommon {
+            fn new() -> Self {
+                use std::sync::atomic::{AtomicU64, Ordering};
+                static N: AtomicU64 = AtomicU64::new(0);
+                let id = N.fetch_add(1, Ordering::Relaxed);
+                let dir = std::env::temp_dir()
+                    .join(format!("tetra-steam-common-{}-{id}", std::process::id()));
+                let _ = std::fs::remove_dir_all(&dir);
+                std::fs::create_dir_all(&dir).expect("could not create scratch folder");
+                Self(dir)
+            }
+
+            fn touch(&self, rel: &str) {
+                let path = self.0.join(rel);
+                std::fs::create_dir_all(path.parent().unwrap()).expect("could not create folder");
+                std::fs::write(path, b"").expect("could not create file");
+            }
+        }
+
+        impl Drop for ScratchCommon {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+
+        #[test]
+        fn a_proton_and_runtime_pair_picks_the_proton_route() {
+            let common = ScratchCommon::new();
+            common.touch("Proton 9.0/proton");
+            common.touch("SteamLinuxRuntime_sniper/run");
+            assert_eq!(
+                choose_route(&common.0),
+                LinuxRoute::Proton {
+                    proton: common.0.join("Proton 9.0/proton"),
+                    runtime: common.0.join("SteamLinuxRuntime_sniper/run"),
+                }
+            );
+        }
+
+        #[test]
+        fn a_missing_proton_or_runtime_picks_the_steam_route() {
+            let empty = ScratchCommon::new();
+            assert_eq!(choose_route(&empty.0), LinuxRoute::Steam);
+
+            let proton_only = ScratchCommon::new();
+            proton_only.touch("Proton 9.0/proton");
+            assert_eq!(choose_route(&proton_only.0), LinuxRoute::Steam);
+
+            let runtime_only = ScratchCommon::new();
+            runtime_only.touch("SteamLinuxRuntime_sniper/run");
+            assert_eq!(choose_route(&runtime_only.0), LinuxRoute::Steam);
+        }
     }
 
     #[cfg(target_os = "linux")]
@@ -443,6 +912,8 @@ mod tests {
                 // A non-numeric edition only wins when nothing else is installed.
                 (&["Proton Hotfix"], "Proton Hotfix"),
                 (&["Proton Hotfix", "Proton 5.0"], "Proton 5.0"),
+                // Minor numbers compare as numbers, so 5.13 outranks 5.2.
+                (&["Proton 5.2", "Proton 5.13"], "Proton 5.13"),
             ];
             for (installed, expected) in cases {
                 let candidates = installed.iter().map(|dir| proton(dir)).collect();
@@ -479,13 +950,6 @@ mod tests {
                     "installed: {installed:?}"
                 );
             }
-        }
-
-        #[test]
-        fn version_parsing_handles_bare_and_suffixed_names() {
-            assert_eq!(parse_proton_version("Proton 9.0 (Beta)"), (9, 0));
-            assert_eq!(parse_proton_version("Proton 5.13"), (5, 13));
-            assert_eq!(parse_proton_version("Proton Hotfix"), (0, 0));
         }
     }
 }

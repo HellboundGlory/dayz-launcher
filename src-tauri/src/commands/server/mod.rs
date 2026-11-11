@@ -5,8 +5,11 @@ use tauri::State;
 use tetra_net::Prober;
 use tetra_registry::filter::{ModMatch, ServerFilter, SortDir, SortKey};
 use tetra_registry::rows::ServerKey;
+use tetra_registry::TimeOfDay;
 
 pub(crate) mod discovery;
+pub(crate) mod facets;
+pub(crate) mod lan;
 pub(crate) mod lookup;
 pub(crate) mod mod_readiness;
 pub(crate) mod probe;
@@ -24,14 +27,21 @@ fn prober(state: &AppState) -> Result<Prober, String> {
 /// How long a command waits for setup to open the registry before giving up.
 const REGISTRY_WAIT: std::time::Duration = std::time::Duration::from_secs(60);
 
-/// The registry's writer, once setup has opened it and made the prober. On
-/// Windows a command can arrive before setup has run.
-pub(crate) async fn registry_writer(state: &AppState) -> Result<tetra_registry::Writer, String> {
-    let mut open = state.registry_open.subscribe();
-    tokio::time::timeout(REGISTRY_WAIT, open.wait_for(|open| *open))
+/// Waits for setup to open the registry and make the prober. On Windows a
+/// command can arrive before setup has run; Linux runs setup first, so this
+/// returns at once there.
+async fn wait_for_registry(state: &AppState) -> Result<(), String> {
+    let mut status = state.registry_status.subscribe();
+    tokio::time::timeout(REGISTRY_WAIT, status.wait_for(|status| status.is_some()))
         .await
         .map_err(|_| "Registry not initialized".to_string())?
         .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// The registry's writer, once setup has opened it.
+pub(crate) async fn registry_writer(state: &AppState) -> Result<tetra_registry::Writer, String> {
+    wait_for_registry(state).await?;
     let guard = state.registry.lock().map_err(|e| e.to_string())?;
     Ok(guard.as_ref().ok_or("Registry not initialized")?.writer())
 }
@@ -40,6 +50,10 @@ pub(crate) async fn registry_writer(state: &AppState) -> Result<tetra_registry::
 /// tight scope matters twice over: the `!Send` guard can't cross an
 /// `.await`, and a `Reader` owning its own connection means handing it to a
 /// blocking task keeps no lock at all.
+///
+/// Commands go through [`blocking_read`] or [`open_reader`] instead, which
+/// wait for setup. The only caller outside those is the Discord poll loop,
+/// where a skipped read while the registry is closed is fine.
 pub(crate) fn reader(state: &AppState) -> Result<tetra_registry::Reader, String> {
     let guard = state.registry.lock().map_err(|e| e.to_string())?;
     guard
@@ -47,6 +61,12 @@ pub(crate) fn reader(state: &AppState) -> Result<tetra_registry::Reader, String>
         .ok_or("Registry not initialized")?
         .reader()
         .map_err(|e| e.to_string())
+}
+
+/// A read connection for a command, waiting for setup to open the registry first.
+pub(crate) async fn open_reader(state: &AppState) -> Result<tetra_registry::Reader, String> {
+    wait_for_registry(state).await?;
+    reader(state)
 }
 
 /// The shared reader `blocking_read` uses, cloning the `Arc` so it can be
@@ -72,6 +92,7 @@ where
     F: FnOnce(&tetra_registry::Reader) -> Result<T, String> + Send + 'static,
     T: Send + 'static,
 {
+    wait_for_registry(state).await?;
     let pool = reader_pool(state)?;
     tokio::task::spawn_blocking(move || {
         let reader = pool.lock().map_err(|e| e.to_string())?;
@@ -93,6 +114,9 @@ pub struct Server32 {
     pub players: i32,
     pub max_players: i32,
     pub ping: Option<i32>,
+    /// Why the number is not a measured ping: `"estimated"` when it comes from
+    /// query replies, `"protected"` when a DDoS service answered for the server.
+    pub ping_estimate: Option<&'static str>,
     pub locked: bool,
     pub vac: bool,
     pub version: String,
@@ -113,6 +137,9 @@ pub struct Server32 {
     /// Day/night time-acceleration multipliers, for the `Nx` shown next to the in-game time.
     pub day_multiplier: Option<f32>,
     pub night_multiplier: Option<f32>,
+    /// The mod whose name made a word search match this row, when no other
+    /// field did. `None` when the search matched the server's own fields.
+    pub matched_mod: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -144,6 +171,19 @@ pub struct FilterParams {
     /// one of these is dropped, independent of `mod_match`.
     #[serde(default)]
     pub mod_ids_exclude: Vec<String>,
+    /// A game version string to match on; `null` (or absent) means any version.
+    #[serde(default)]
+    pub version: Option<String>,
+    /// `"day"` or `"night"`; anything else means any hour.
+    #[serde(default)]
+    pub time_of_day: Option<String>,
+    /// `true` for BattlEye only, `false` for the rest, `null` for both.
+    #[serde(default)]
+    pub battleye: Option<bool>,
+    /// "ip:query_port" addresses of the servers a LAN scan found. `null` means
+    /// the list is not a LAN tab; an empty list matches no server.
+    #[serde(default)]
+    pub lan_addrs: Option<Vec<String>>,
 }
 
 #[derive(serde::Deserialize)]
@@ -174,6 +214,11 @@ fn to_server32(r: &tetra_registry::filter::ServerListRow) -> Server32 {
         players: r.players,
         max_players: r.max_players,
         ping: (r.ping_ms > 0).then_some(r.ping_ms),
+        ping_estimate: match r.ping_kind {
+            tetra_core::PingKind::Measured => None,
+            tetra_core::PingKind::Estimated => Some("estimated"),
+            tetra_core::PingKind::Protected => Some("protected"),
+        },
         locked: r.locked,
         vac: r.vac,
         version: r.version.clone().unwrap_or_default(),
@@ -190,6 +235,7 @@ fn to_server32(r: &tetra_registry::filter::ServerListRow) -> Server32 {
         queue: r.queue,
         day_multiplier: r.day_multiplier,
         night_multiplier: r.night_multiplier,
+        matched_mod: r.matched_mod.clone(),
     }
 }
 
@@ -242,6 +288,24 @@ pub async fn get_server_page(
 /// Largest number of addresses one `get_servers_by_addr` call accepts.
 const MAX_ADDRS: usize = 2_000;
 
+/// Largest LAN list a filter accepts. A scan reports at most 64, so this only
+/// bounds a hand-made WebView call.
+const MAX_FILTER_ADDRS: usize = 256;
+
+/// The keys a list of `"ip:query_port"` strings names, skipping the entries
+/// that are not one.
+fn keys_from_addrs(addrs: &[String]) -> Vec<ServerKey> {
+    addrs
+        .iter()
+        .filter_map(|addr| {
+            let (_, port) = addr.rsplit_once(':')?;
+            server_key(addr, port.parse().ok()?).ok()
+        })
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect()
+}
+
 /// Rows for `"ip:query_port"` addresses, in no particular order. An entry
 /// that doesn't parse is skipped; addresses the registry doesn't hold are absent.
 #[tauri::command]
@@ -252,15 +316,7 @@ pub async fn get_servers_by_addr(
     if addrs.len() > MAX_ADDRS {
         return Err("too many addresses".into());
     }
-    let keys: Vec<ServerKey> = addrs
-        .iter()
-        .filter_map(|addr| {
-            let (_, port) = addr.rsplit_once(':')?;
-            server_key(addr, port.parse().ok()?).ok()
-        })
-        .collect::<std::collections::HashSet<_>>()
-        .into_iter()
-        .collect();
+    let keys = keys_from_addrs(&addrs);
     blocking_read(&state, move |reader| {
         let rows = reader.get_many(&keys).map_err(|e| e.to_string())?;
         Ok(rows.iter().map(to_server32).collect())
@@ -279,10 +335,7 @@ pub async fn toggle_favourite(
     favourite: bool,
 ) -> Result<(), String> {
     let key = server_key(&addr, query_port)?;
-    let writer = {
-        let guard = state.registry.lock().map_err(|e| e.to_string())?;
-        guard.as_ref().ok_or("Registry not initialized")?.writer()
-    };
+    let writer = registry_writer(&state).await?;
     let affected = writer
         .set_favourite(key, favourite)
         .await
@@ -362,6 +415,16 @@ fn filter_from_params(p: FilterParams) -> ServerFilter {
             .iter()
             .filter_map(|id| id.parse().ok())
             .collect(),
+        version: p.version,
+        time_of_day: match p.time_of_day.as_deref() {
+            Some("day") => Some(TimeOfDay::Day),
+            Some("night") => Some(TimeOfDay::Night),
+            _ => None,
+        },
+        battleye: p.battleye,
+        only: p
+            .lan_addrs
+            .map(|addrs| keys_from_addrs(&addrs[..addrs.len().min(MAX_FILTER_ADDRS)])),
     }
 }
 
@@ -373,6 +436,7 @@ fn sort_from_params(sort_key: &str, sort_dir: &str) -> (SortKey, SortDir) {
         "name" => SortKey::Name,
         "map" => SortKey::Map,
         "last_played" => SortKey::LastPlayed,
+        "country" => SortKey::Country,
         _ => SortKey::Players,
     };
     let dir = match sort_dir {
@@ -385,6 +449,50 @@ fn sort_from_params(sort_key: &str, sort_dir: &str) -> (SortKey, SortDir) {
 #[cfg(test)]
 mod tests {
     use super::server_key;
+    use std::net::Ipv4Addr;
+
+    /// On Windows a command can arrive before setup has opened the registry;
+    /// it must wait for it rather than fail.
+    #[tokio::test]
+    async fn a_read_made_before_setup_waits_for_it() {
+        let state = std::sync::Arc::new(crate::state::AppState::new());
+        let key = tetra_registry::ServerKey {
+            ip: Ipv4Addr::new(203, 0, 113, 7),
+            query_port: 27016,
+        };
+
+        let early = {
+            let state = state.clone();
+            tokio::spawn(async move {
+                super::blocking_read(&state, move |reader| {
+                    reader.get(key).map_err(|e| e.to_string())
+                })
+                .await
+            })
+        };
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        let registry = tetra_registry::Registry::open_in_memory().expect("registry");
+        registry
+            .writer()
+            .upsert_servers(vec![tetra_registry::ServerRow {
+                key,
+                name: "Early Read".into(),
+                responded: true,
+                ..Default::default()
+            }])
+            .await
+            .expect("row");
+        *state.registry.lock().unwrap() = Some(registry);
+        state.registry_status.send_replace(Some(false));
+
+        let row = early
+            .await
+            .expect("task")
+            .expect("read")
+            .expect("the row it asked for");
+        assert_eq!(row.name, "Early Read");
+    }
 
     /// On Windows a command can arrive before setup has opened the registry;
     /// it must wait for it rather than fail.
@@ -399,34 +507,98 @@ mod tests {
 
         *state.registry.lock().unwrap() =
             Some(tetra_registry::Registry::open_in_memory().expect("registry"));
-        state.registry_open.send_replace(true);
+        state.registry_status.send_replace(Some(false));
 
         assert_eq!(early.await.expect("task"), Ok(()));
     }
 
-    /// Pins the wire convention: `addr` already carries `"IP:query_port"`, so
-    /// appending the port again would build an invalid double-port string.
+    /// `addr` already carries `"IP:query_port"`, and the separate port is
+    /// authoritative over the embedded one, so the two never become a
+    /// double-port string. Anything that is not an IP is refused.
     #[test]
-    fn an_address_already_carrying_a_port_is_not_given_a_second_one() {
-        let key = server_key("172.111.51.137:27022", 27022).expect("should parse");
-        assert_eq!(key.ip.to_string(), "172.111.51.137");
-        assert_eq!(key.query_port, 27022);
-
-        let socket = std::net::SocketAddr::from((key.ip, key.query_port));
-        assert_eq!(socket.to_string(), "172.111.51.137:27022");
+    fn an_address_carrying_a_port_parses_to_one_key() {
+        struct Case {
+            addr: &'static str,
+            query_port: u16,
+            // The key the address must parse to, or `None` for a refusal.
+            expected: Option<(&'static str, u16)>,
+        }
+        let cases = [
+            Case {
+                addr: "172.111.51.137:27022",
+                query_port: 27022,
+                expected: Some(("172.111.51.137", 27022)),
+            },
+            Case {
+                addr: "1.2.3.4:9999",
+                query_port: 2303,
+                expected: Some(("1.2.3.4", 2303)),
+            },
+            Case {
+                addr: "not-an-ip:2303",
+                query_port: 2303,
+                expected: None,
+            },
+            Case {
+                addr: "",
+                query_port: 2303,
+                expected: None,
+            },
+        ];
+        for case in &cases {
+            let addr = case.addr;
+            match case.expected {
+                Some((ip, port)) => {
+                    let key = server_key(addr, case.query_port).expect("should parse");
+                    assert_eq!(key.ip.to_string(), ip, "{addr}");
+                    assert_eq!(key.query_port, port, "{addr}");
+                }
+                None => assert!(server_key(addr, case.query_port).is_err(), "{addr}"),
+            }
+        }
     }
 
-    /// `query_port` is authoritative over the port embedded in the string.
     #[test]
-    fn the_separate_query_port_wins_over_the_one_in_the_string() {
-        let key = server_key("1.2.3.4:9999", 2303).expect("should parse");
-        assert_eq!(key.query_port, 2303);
-    }
+    fn a_ping_flag_crosses_the_bridge_as_a_marker_name() {
+        use std::net::Ipv4Addr;
+        for (kind, expected) in [
+            (tetra_core::PingKind::Measured, None),
+            (tetra_core::PingKind::Estimated, Some("estimated")),
+            (tetra_core::PingKind::Protected, Some("protected")),
+        ] {
+            let registry = tetra_registry::Registry::open_in_memory().expect("registry");
+            let writer = registry.writer();
+            tokio::runtime::Runtime::new()
+                .expect("runtime")
+                .block_on(async {
+                    writer
+                        .upsert_servers(vec![tetra_registry::ServerRow {
+                            key: tetra_registry::ServerKey {
+                                ip: Ipv4Addr::new(203, 0, 113, 5),
+                                query_port: 27016,
+                            },
+                            name: "Row".into(),
+                            ping_ms: 40,
+                            ping_kind: kind,
+                            responded: true,
+                            ..Default::default()
+                        }])
+                        .await
+                        .expect("row");
+                });
 
-    #[test]
-    fn a_malformed_address_is_rejected_rather_than_guessed_at() {
-        assert!(server_key("not-an-ip:2303", 2303).is_err());
-        assert!(server_key("", 2303).is_err());
+            let reader = registry.reader().expect("reader");
+            let row = reader
+                .get(tetra_registry::ServerKey {
+                    ip: Ipv4Addr::new(203, 0, 113, 5),
+                    query_port: 27016,
+                })
+                .expect("get")
+                .expect("a row");
+            let bridged = super::to_server32(&row);
+            assert_eq!(bridged.ping, Some(40));
+            assert_eq!(bridged.ping_estimate, expected, "{kind:?}");
+        }
     }
 
     fn default_params() -> super::FilterParams {
@@ -447,6 +619,10 @@ mod tests {
             mod_ids: vec![],
             mod_match: String::new(),
             mod_ids_exclude: vec![],
+            version: None,
+            time_of_day: None,
+            battleye: None,
+            lan_addrs: None,
         }
     }
 
@@ -489,6 +665,7 @@ mod tests {
                 vec![ServerMod {
                     workshop_id: 1,
                     name: "CF".into(),
+                    hash: None,
                 }],
             )
             .await
@@ -499,6 +676,7 @@ mod tests {
                 vec![ServerMod {
                     workshop_id: 1,
                     name: "CF".into(),
+                    hash: None,
                 }],
             )
             .await
@@ -531,41 +709,54 @@ mod tests {
         assert_eq!(rows[0].name, "Vertex PvP");
     }
 
+    /// Map one field in isolation, so a swap between two of them fails here.
+    fn mapped(set: impl FnOnce(&mut super::FilterParams)) -> tetra_registry::filter::ServerFilter {
+        let mut p = default_params();
+        set(&mut p);
+        super::filter_from_params(p)
+    }
+
     #[test]
     fn filter_params_map_onto_the_registry_filter() {
-        let mut p = default_params();
-        p.search = Some("pvp".into());
-        p.maps = vec!["chernarus".into(), "livonia".into()];
-        p.countries = vec!["DE".into()];
-        p.max_ping = Some(120);
-        p.hide_empty = true;
-        p.hide_full = true;
-        p.hide_locked = true;
-        p.hide_offline = true;
-        p.favourites_only = true;
-        p.recent_only = true;
-        p.official = Some(true);
-        p.modded = Some(false);
-        p.first_person = Some(true);
-        p.mod_ids = vec!["123".into(), "456".into(), "not-a-number".into()];
-        p.mod_ids_exclude = vec!["789".into(), "bad".into()];
-
-        let f = super::filter_from_params(p);
-
-        assert_eq!(f.search.as_deref(), Some("pvp"));
-        assert_eq!(f.maps, vec!["chernarus", "livonia"]);
-        assert_eq!(f.countries, vec!["DE"]);
-        assert_eq!(f.max_ping_ms, Some(120));
-        assert!(f.hide_empty && f.hide_full && f.hide_locked && f.hide_offline);
-        assert!(f.favourites_only && f.recent_only);
-        assert_eq!(f.official, Some(true));
-        assert_eq!(f.modded, Some(false));
-        assert_eq!(f.first_person, Some(true));
-        assert_eq!(f.mod_ids, vec![123, 456]);
-        assert_eq!(f.mod_ids_exclude, vec![789]);
-        // A never-probed row has nothing to show, so the list always hides it.
-        assert!(f.hide_unnamed);
-        assert!(f.hide_stale);
+        assert_eq!(
+            mapped(|p| p.search = Some("pvp".into())).search.as_deref(),
+            Some("pvp")
+        );
+        assert_eq!(
+            mapped(|p| p.maps = vec!["chernarus".into(), "livonia".into()]).maps,
+            vec!["chernarus", "livonia"]
+        );
+        assert_eq!(
+            mapped(|p| p.countries = vec!["DE".into()]).countries,
+            vec!["DE"]
+        );
+        assert_eq!(mapped(|p| p.max_ping = Some(120)).max_ping_ms, Some(120));
+        assert!(mapped(|p| p.hide_empty = true).hide_empty);
+        assert!(mapped(|p| p.hide_full = true).hide_full);
+        assert!(mapped(|p| p.hide_locked = true).hide_locked);
+        assert!(mapped(|p| p.hide_offline = true).hide_offline);
+        assert!(mapped(|p| p.favourites_only = true).favourites_only);
+        assert!(mapped(|p| p.recent_only = true).recent_only);
+        assert_eq!(mapped(|p| p.official = Some(true)).official, Some(true));
+        assert_eq!(mapped(|p| p.modded = Some(false)).modded, Some(false));
+        assert_eq!(
+            mapped(|p| p.first_person = Some(true)).first_person,
+            Some(true)
+        );
+        assert_eq!(
+            mapped(|p| p.mod_ids = vec!["123".into(), "not-a-number".into()]).mod_ids,
+            vec![123],
+            "an id that is not a number is dropped"
+        );
+        assert_eq!(
+            mapped(|p| p.mod_ids_exclude = vec!["789".into(), "bad".into()]).mod_ids_exclude,
+            vec![789],
+            "an id that is not a number is dropped"
+        );
+        // A never-probed row has nothing to show, so the list always hides it,
+        // and a server that has gone quiet is not listed as if it were up.
+        let f = mapped(|_| {});
+        assert!(f.hide_unnamed && f.hide_stale);
     }
 
     #[test]
@@ -588,6 +779,66 @@ mod tests {
     }
 
     #[test]
+    fn a_lan_address_list_becomes_the_only_filter_and_skips_junk() {
+        let mut params = default_params();
+        params.lan_addrs = Some(vec![
+            "192.168.1.5:27016".into(),
+            "nope".into(),
+            "1.2.3.4:".into(),
+            "1.2.3.4:99999".into(),
+            "10.0.0.7:2303".into(),
+        ]);
+
+        let filter = super::filter_from_params(params);
+        let mut keys: Vec<(String, u16)> = filter
+            .only
+            .expect("an explicit list")
+            .into_iter()
+            .map(|key| (key.ip.to_string(), key.query_port))
+            .collect();
+        keys.sort();
+        assert_eq!(
+            keys,
+            vec![
+                ("10.0.0.7".to_string(), 2303),
+                ("192.168.1.5".to_string(), 27016),
+            ]
+        );
+    }
+
+    #[test]
+    fn only_the_lan_filter_is_capped_at_256_addresses() {
+        let addrs: Vec<String> = (0..300)
+            .map(|i| format!("10.0.{}.{}:27016", i / 256, i % 256))
+            .collect();
+        assert_eq!(super::keys_from_addrs(&addrs).len(), 300);
+
+        let mut params = default_params();
+        params.lan_addrs = Some(addrs);
+        assert_eq!(
+            super::filter_from_params(params).only.map(|k| k.len()),
+            Some(256)
+        );
+    }
+
+    #[test]
+    fn no_lan_addresses_leaves_the_list_unrestricted() {
+        let filter = super::filter_from_params(default_params());
+        assert!(filter.only.is_none());
+    }
+
+    #[test]
+    fn an_empty_lan_address_list_restricts_the_list_to_nothing() {
+        let mut params = default_params();
+        params.lan_addrs = Some(vec![]);
+        assert_eq!(
+            super::filter_from_params(params).only,
+            Some(Vec::new()),
+            "an empty LAN list must not fall back to the whole registry"
+        );
+    }
+
+    #[test]
     fn sort_params_map_every_key_and_direction_with_a_players_desc_fallback() {
         use tetra_registry::filter::{SortDir, SortKey};
 
@@ -598,6 +849,7 @@ mod tests {
             ("name", SortKey::Name),
             ("map", SortKey::Map),
             ("last_played", SortKey::LastPlayed),
+            ("country", SortKey::Country),
         ] {
             assert_eq!(
                 super::sort_from_params(key, "asc"),

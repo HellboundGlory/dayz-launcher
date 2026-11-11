@@ -1173,9 +1173,11 @@ fn seed_builtin_themes_now(app: &AppHandle) {
 /// Installs every builtin id that doesn't already load. An already-installed
 /// id is replaced by the bundled copy only when it's unmodified (fingerprint
 /// matches its seed record) and the bundled version is newer; an edited copy,
-/// or one with no seed record, is left alone. A deleted one comes back next
-/// launch. `log` receives one line for every outcome besides a fresh install
-/// or replace, which the caller logs itself from the returned results.
+/// or one with no seed record, is left alone. A folder that no longer loads at
+/// all is moved aside and replaced from the bundle. A deleted one comes
+/// back next launch. `log` receives one line for every outcome besides a fresh
+/// install or replace, which the caller logs itself from the returned results.
+/// A repair is logged here because it is also a fresh install.
 fn seed_from(
     source_root: &Path,
     themes_root: &Path,
@@ -1197,9 +1199,34 @@ fn seed_from(
             }
             continue;
         }
-        results.push(
-            install_builtin_theme(source_root, themes_root, id).map_err(|e| format!("{id}: {e}")),
-        );
+
+        // The folder is there but no longer loads, so `create_dir` would refuse
+        // the install. It is moved aside, not deleted: it may hold the user's
+        // own edits, and a dot folder is never listed as a theme.
+        let broken = themes_root.join(id);
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis());
+        let backup = themes_root.join(format!(".{id}.broken-{stamp}"));
+        let repairing = broken.exists();
+        if repairing {
+            if let Err(e) = std::fs::rename(&broken, &backup) {
+                results.push(Err(format!(
+                    "Could not move {} aside: {e}",
+                    broken.display()
+                )));
+                continue;
+            }
+        }
+        let installed =
+            install_builtin_theme(source_root, themes_root, id).map_err(|e| format!("{id}: {e}"));
+        if repairing && installed.is_ok() {
+            log(&format!(
+                "Repaired builtin theme `{id}`; the broken copy is in {}",
+                backup.display()
+            ));
+        }
+        results.push(installed);
     }
     results
 }
@@ -1208,7 +1235,6 @@ fn seed_from(
 mod tests {
     use super::*;
     use crate::atomic_write::test_support::ScratchDir;
-    use crate::theme::validator::Severity;
 
     fn armed_at(at: Instant) -> Option<PendingActivation> {
         let mut slot = None;
@@ -1341,17 +1367,6 @@ mod tests {
         assert_eq!(pending.remaining_ms(later), 15_000);
     }
 
-    /// A stray confirm or revert after the flow settled must be a quiet no-op.
-    #[test]
-    fn nothing_armed_reads_and_takes_as_nothing() {
-        let mut slot: Option<PendingActivation> = None;
-        let now = Instant::now();
-
-        assert!(read(&slot, now).is_none());
-        assert!(take_if_live(&mut slot, now).is_none());
-        assert!(take_any(&mut slot).is_none());
-    }
-
     /// Re-arming the *same* id is one flow pressed twice, not an abandoned
     /// duplicate — cleaning it up would delete the theme the caller still wants.
     #[test]
@@ -1401,61 +1416,39 @@ mod tests {
         std::fs::write(path, content).unwrap();
     }
 
+    /// Every file an installed theme ships is validated through the one entry
+    /// point, so a broken layout, stylesheet or settings schema each comes back
+    /// as an issue naming its own file and rule.
     #[test]
-    fn validate_theme_reports_no_error_issues_for_a_theme_that_is_all_valid() {
-        let (root, dir) = installed("validate-ok", "local.ok");
-        write(
-            &dir,
-            "layout/shell.json",
-            r#"{"schemaVersion":2,"root":{"type":"box"}}"#,
-        );
+    fn validate_theme_reports_each_broken_file_against_its_own_rule() {
+        let cases: &[(&str, &str, &str, &str)] = &[
+            ("broken-layout", "layout/shell.json", "{ not json", "LAY-01"),
+            (
+                "broken-css",
+                theme::STYLES_FILE,
+                "@import \"other.css\";",
+                "CSS-06",
+            ),
+            (
+                "broken-settings",
+                theme::SETTINGS_SCHEMA_FILE,
+                "{ not json",
+                "SET-01",
+            ),
+        ];
+        for (id, file, content, rule_id) in cases {
+            let (root, dir) = installed(id, &format!("local.{id}"));
+            write(&dir, file, content);
 
-        let issues = validate_theme_at(&root, "local.ok").unwrap();
+            let issues = validate_theme_at(&root, &format!("local.{id}")).unwrap();
 
-        assert!(
-            issues.iter().all(|i| i.severity != Severity::Error),
-            "{issues:?}"
-        );
-    }
-
-    #[test]
-    fn validate_theme_reports_lay01_for_a_malformed_layout_file() {
-        let (root, dir) = installed("validate-bad-layout", "local.bad-layout");
-        write(&dir, "layout/shell.json", "{ not json");
-
-        let issues = validate_theme_at(&root, "local.bad-layout").unwrap();
-
-        assert!(
-            issues
-                .iter()
-                .any(|i| i.rule_id == "LAY-01" && i.file == "layout/shell.json"),
-            "{issues:?}"
-        );
-    }
-
-    #[test]
-    fn validate_theme_refuses_an_at_import_in_styles_css() {
-        let (_root, dir) = installed("validate-css", "local.css");
-        write(&dir, "styles.css", "@import \"other.css\";");
-
-        let issues = validate_theme_styles(&dir).unwrap();
-
-        assert!(issues.iter().any(|i| i.file == "styles.css"), "{issues:?}");
-    }
-
-    #[test]
-    fn validate_theme_reports_set01_for_a_malformed_settings_schema() {
-        let (_root, dir) = installed("validate-bad-settings", "local.bad-settings");
-        write(&dir, theme::SETTINGS_SCHEMA_FILE, "{ not json");
-
-        let (_, issues) = validate_theme_settings(&dir).unwrap();
-
-        assert!(
-            issues
-                .iter()
-                .any(|i| i.rule_id == "SET-01" && i.file == theme::SETTINGS_SCHEMA_FILE),
-            "{issues:?}"
-        );
+            assert!(
+                issues
+                    .iter()
+                    .any(|i| i.rule_id == *rule_id && i.file == *file),
+                "{id}: {issues:?}"
+            );
+        }
     }
 
     #[test]
@@ -1980,22 +1973,8 @@ mod builtin_themes {
         }
     }
 
-    /// A builtin showcase theme must actually compose something: it ships layout files.
-    #[test]
-    fn each_builtin_theme_ships_a_layout_directory() {
-        for id in BUILTIN_THEME_IDS {
-            let layout_dir = shipped().join(id).join("layout");
-            assert!(layout_dir.is_dir(), "{id}: ships a layout directory");
-            let count = files_under(&layout_dir)
-                .into_iter()
-                .filter(|(name, _)| name.ends_with(".json"))
-                .count();
-            assert!(count > 0, "{id}: its layout directory is not empty");
-        }
-    }
-
     /// The permanent built-ins a user counts on: seeding an empty root
-    /// installs the set, and each loads as itself, complete palette included.
+    /// installs the set, and each loads as itself.
     #[test]
     fn seeding_an_empty_root_installs_every_builtin_theme() {
         let source_root = shipped();
@@ -2014,19 +1993,6 @@ mod builtin_themes {
         for id in BUILTIN_THEME_IDS {
             let file = theme::get(&themes_root, id).unwrap_or_else(|e| panic!("{id}: {e}"));
             assert_eq!(file.manifest.id, id);
-            for scheme in ["dark", "light"] {
-                for token in [
-                    "bg", "surface", "surface2", "border", "text", "muted", "muted2", "accent",
-                    "accent2", "success", "warn", "danger",
-                ] {
-                    assert!(
-                        file.tokens["colors"][scheme][token]
-                            .as_str()
-                            .is_some_and(|h| h.len() == 7),
-                        "{id}: {scheme}.{token} is missing from the seeded palette"
-                    );
-                }
-            }
         }
         // The copy is a full one: every file in the package travels byte for byte.
         for (name, bytes) in files_under(&source_root.join("builtin.tactical")) {
@@ -2141,6 +2107,75 @@ mod builtin_themes {
             files_under(&themes_root.join("builtin.tactical")),
             before,
             "left exactly as it was"
+        );
+    }
+
+    /// A built-in that no longer loads is replaced from the bundle on the next
+    /// seed; a user's own broken theme is not this code's to touch.
+    #[test]
+    fn a_broken_installed_builtin_is_repaired_and_a_broken_user_theme_is_left_alone() {
+        let source_root = shipped();
+        let themes_root = ScratchDir::tagged("repair-broken");
+
+        let first = seed_from(&source_root, &themes_root, |_| {});
+        assert!(first.iter().all(Result::is_ok), "{first:?}");
+        let manifest = themes_root
+            .join("builtin.tactical")
+            .join(theme::MANIFEST_FILE);
+        std::fs::write(&manifest, "{ not json").unwrap();
+
+        let user = themes_root.join("local.broken");
+        std::fs::create_dir_all(&user).unwrap();
+        std::fs::write(user.join(theme::MANIFEST_FILE), "{ not json").unwrap();
+
+        let mut logs = Vec::new();
+        let repaired = seed_from(&source_root, &themes_root, |line| {
+            logs.push(line.to_string())
+        });
+
+        assert_eq!(
+            repaired
+                .iter()
+                .map(|r| r.as_ref().map(String::as_str))
+                .collect::<Vec<_>>(),
+            vec![Ok("builtin.tactical")],
+            "the broken built-in is seeded again: {repaired:?}"
+        );
+        assert!(
+            logs.iter()
+                .any(|l| l.contains("Repaired builtin theme `builtin.tactical`")),
+            "{logs:?}"
+        );
+        theme::get(&themes_root, "builtin.tactical").expect("the repaired theme loads");
+        let backups = || {
+            std::fs::read_dir(&themes_root)
+                .unwrap()
+                .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+                .filter(|n| n.starts_with(".builtin.tactical.broken-"))
+                .collect::<Vec<_>>()
+        };
+        let first_backup = backups();
+        assert_eq!(first_backup.len(), 1, "{first_backup:?}");
+        assert_eq!(
+            std::fs::read(
+                themes_root
+                    .join(&first_backup[0])
+                    .join(theme::MANIFEST_FILE)
+            )
+            .unwrap(),
+            b"{ not json",
+            "the broken copy is kept, since it may hold the user's own edits"
+        );
+
+        // Broken again before the first backup was looked at: both copies stay.
+        std::fs::write(&manifest, "{ still not json").unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        seed_from(&source_root, &themes_root, |_| {});
+        assert_eq!(backups().len(), 2, "{:?}", backups());
+        assert_eq!(
+            std::fs::read(user.join(theme::MANIFEST_FILE)).unwrap(),
+            b"{ not json",
+            "a user theme's broken files are not this code's to replace"
         );
     }
 

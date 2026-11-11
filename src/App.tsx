@@ -6,10 +6,17 @@ import type { LayoutFile, ModalLayoutFile, SettingsLayoutFile } from "./theme/re
 import { DevModeInspector } from "./components/themes-page/dev-mode-inspector";
 import { DevModeValidationPanel } from "./components/themes-page/dev-mode-validation-panel";
 import { ConfirmDialog } from "./components/confirm-dialog";
+import { PasswordDialog } from "./components/password-dialog";
+import { ToastHost } from "./components/toast-host";
+import { AddServerDialog } from "./components/add-server-dialog";
+import { MemoryMapDialog } from "./components/memory-map-dialog";
+import { StartWindow } from "./components/start-window";
 import { OnboardingModal } from "./components/onboarding-modal";
 import { SteamRequiredModal } from "./components/steam-required-modal";
 import { JoinLinkDialog } from "./components/join-link-dialog";
 import { useServerStore } from "./stores/server-store";
+import { filterForView } from "@/lib/saved-tab";
+import { useLanStore } from "./stores/lan-store";
 import { useOverlayStore } from "./stores/overlay-store";
 import { useSettingsStore } from "./stores/settings-store";
 import { useUpdateStore } from "./stores/update-store";
@@ -32,8 +39,6 @@ import {
   getActiveLayout,
 } from "./theme/theme-store";
 import { FallbackNotice } from "./theme/fallback/fallback-notice";
-import { NoticeLaunch } from "./theme/elements/notice-elements";
-import { isElementInLayout } from "./theme/layout-query";
 import { IncompatibleThemeNotice } from "./theme/fallback/incompatible-theme-notice";
 import { useVisibilityCheck } from "./theme/fallback/use-visibility-check";
 import {
@@ -44,11 +49,11 @@ import {
 } from "./theme/elements/context";
 import { ModsViewHost } from "./theme/elements/mods-view-host";
 import { LayoutRenderer } from "./theme/renderer";
-import { useServerDataLoader } from "./hooks/use-server-data-loader";
-import { useAddressLookup } from "./hooks/use-address-lookup";
+import { ServerDataEffects } from "./components/server-data-effects";
 import type { Server } from "./types/server";
-import { takeSettingsRecovered, watchActiveTheme, stopWatchingTheme } from "./lib/tauri";
+import { takeSettingsRecovered, watchActiveTheme, stopWatchingTheme, appMenuStatus, addToAppMenu } from "./lib/tauri";
 import { getVersion } from "@tauri-apps/api/app";
+import { showToast, closeToast } from "./stores/toast-store";
 
 const SETTINGS_RESET_MESSAGE =
   "Your settings file was damaged, so default settings are in use. The old file is saved as settings.corrupt.json.";
@@ -58,6 +63,8 @@ const UPDATE_RECHECK_MS = 6 * 60 * 60 * 1000;
 
 /** Catches a subscribe made outside the launcher without reopening the Mods tab. */
 const MODS_RECHECK_MS = 5 * 60 * 1000;
+
+const APP_MENU_OFFER_KEY = "app-menu-offer";
 
 /** Neutral backs every engine path, so the active file is never missing. */
 function engineLayout<T extends LayoutFile = LayoutFile>(path: string): T {
@@ -77,15 +84,15 @@ export function App() {
   const setFilter = useServerStore((s) => s.setFilter);
   const loadError = useServerStore((s) => s.loadError);
 
-  // Each tab is a filter preset, not just a highlight toggle.
+  // Each tab is a filter preset, not just a highlight toggle. The LAN tab
+  // points the list at its stored addresses at once, then asks the network
+  // again in the background; leaving it hands the list back to All servers.
   const handleViewChange = useCallback(
     (view: ViewId) => {
       setActiveView(view);
       closeOverlay("settings");
-      setFilter({
-        favourites_only: view === "fav",
-        recent_only: view === "recent",
-      });
+      setFilter(filterForView(view, useLanStore.getState().addrs));
+      if (view === "lan") void useLanStore.getState().scan();
     },
     [closeOverlay, setFilter],
   );
@@ -112,6 +119,45 @@ export function App() {
     }
   }, [settingsLoaded, onboardingDismissed, profileName, dayzPath]);
   const [error, setError] = useState<string | null>(null);
+  const appMenuOffered = useSettingsStore((s) => s.appMenuOffered);
+  const setSetting = useSettingsStore((s) => s.setSetting);
+  const appMenuOfferDecided = useRef(false);
+  useEffect(() => {
+    if (appMenuOfferDecided.current || !settingsLoaded) return;
+    appMenuOfferDecided.current = true;
+    if (appMenuOffered) return;
+    void appMenuStatus()
+      .then((status) => {
+        if (!status.available || status.installed) return;
+        // Once offered, never again — even if the user picked "Not now".
+        setSetting("appMenuOffered", true);
+        showToast({
+          key: APP_MENU_OFFER_KEY,
+          tone: "info",
+          tag: "Linux",
+          message: "Add Tetra to your app menu? It moves to ~/Applications and reopens from there.",
+          actions: [
+            {
+              label: "Add to app menu",
+              primary: true,
+              onClick: () => {
+                closeToast(APP_MENU_OFFER_KEY);
+                void addToAppMenu().catch((e: unknown) => {
+                  showToast({
+                    key: `${APP_MENU_OFFER_KEY}:error`,
+                    tone: "error",
+                    tag: "Linux",
+                    message: e instanceof Error ? e.message : String(e),
+                  });
+                });
+              },
+            },
+            { label: "Not now", onClick: () => closeToast(APP_MENU_OFFER_KEY) },
+          ],
+        });
+      })
+      .catch(() => {});
+  }, [settingsLoaded, appMenuOffered, setSetting]);
   useEffect(() => {
     if (!settingsLoaded) return;
     void takeSettingsRecovered()
@@ -191,8 +237,6 @@ export function App() {
   const modsRows = useModsStore((s) => s.rows);
   const selectedModId = useModsStore((s) => s.selectedModId);
   const selectedModRow = modsRows.find((r) => r.workshop_id === selectedModId) ?? null;
-  useServerDataLoader();
-  useAddressLookup();
   useLayoutSubscription();
 
   // Each screen's file: the active theme's own, else Neutral's.
@@ -203,7 +247,6 @@ export function App() {
   const serverInfoModal = engineLayout<ModalLayoutFile>("layout/modals/serverInfo.json");
   const modFilterModal = engineLayout<ModalLayoutFile>("layout/modals/modFilter.json");
   const updateModal = engineLayout<ModalLayoutFile>("layout/modals/update.json");
-  const browserPlaces = (element: string) => isElementInLayout(browserLayout, element);
   const settingsMode = settingsLayout.presentation?.mode ?? "overlay";
 
   // Runs the visibility check whenever the screen composition changes.
@@ -425,11 +468,16 @@ export function App() {
       )}
       <JoinLinkDialog />
       <ConfirmDialog />
+      <PasswordDialog />
+      <AddServerDialog />
+      <MemoryMapDialog />
+      <StartWindow />
     </>
   );
 
   return (
     <ElementContextProvider value={elementContextValue}>
+      <ServerDataEffects />
       <div className="relative flex h-screen flex-col overflow-hidden [border-radius:var(--t-radius-window)] border border-line bg-bg">
         <WindowResizeHandles />
 
@@ -437,10 +485,7 @@ export function App() {
           <FallbackNotice themeId={activeId} launcherVersion={launcherVersion} />
         )}
         <IncompatibleThemeNotice />
-
-        {/* Rows never show a join result, so a themed shell without the bar still gets one. */}
-        {!isElementInLayout(shellLayout, "notice.launch") &&
-          !browserPlaces("notice.launch") && <NoticeLaunch />}
+        <ToastHost />
 
         <div className="flex min-h-0 flex-1 flex-col">
           <LayoutRenderer

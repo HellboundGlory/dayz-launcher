@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { SubscribedMod } from "@/lib/tauri";
-import { SubjectContextProvider } from "./context";
+import { ElementContextProvider, SubjectContextProvider } from "./context";
+import { ElementHost } from "./element-host";
 import { renderModsElement } from "./mods-element-host";
+import { REGISTRY } from "../registry";
 import type { ElementNode } from "../renderer/types";
 
 function liveHook<T extends { getState: () => S }, S>(store: T) {
@@ -83,42 +85,16 @@ function onClickOf(el: string): () => void {
 }
 
 describe("renderModsElement", () => {
-  it("delegates every element it owns to its own component", async () => {
-    const known = [
-      "mod.name",
-      "mod.size",
-      "list.mods",
-      "mods.selectAll",
-      "mods.search",
-      "mods.statusFilter",
-      "mods.refresh",
-      "mods.count",
-      "mods.clearSelection",
-      "mods.cleanupRemoved",
-      "mods.unsubscribe",
-      "mods.unsubscribeMenu",
-      "mods.unsubscribeSelected",
-      "mods.unsubscribeAll",
-      "mods.verify",
-      "mods.verifyMenu",
-      "mods.verifySelected",
-      "mods.verifyAll",
-      "mods.updateOutdated",
-      "mods.selectUnique",
-      "mod.update",
-      "mod.openInSteam",
-      "mod.openFolder",
-      "mod.reinstall",
-      "mod.deselect",
-      "mod.neededBy",
-      "modServer.name",
-      "modServer.address",
-      "modServer.lastPlayed",
-      "list.modServers",
-    ];
-    for (const element of known) {
-      expect(renderModsElement({ element }, {}), element).not.toBeUndefined();
-    }
+  it("renders every registered element through a component of its own", () => {
+    // An unhandled id falls through to a div carrying the node's label.
+    const fallbacks = Object.keys(REGISTRY.elements).filter((element) =>
+      renderToStaticMarkup(
+        <ElementContextProvider value={{ contextName: "row" }}>
+          <ElementHost node={{ element, label: "no renderer" }} />
+        </ElementContextProvider>,
+      ).includes("no renderer"),
+    );
+    expect(fallbacks).toEqual([]);
   });
 
   it("returns undefined for anything it doesn't own", () => {

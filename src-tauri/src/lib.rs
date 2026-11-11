@@ -9,8 +9,10 @@ use tetra_registry::Registry;
 #[cfg(target_os = "windows")]
 use window_vibrancy::apply_acrylic;
 
+mod app_menu;
 mod atomic_write;
 mod commands;
+mod credentials;
 mod discord;
 mod log;
 mod paths;
@@ -59,6 +61,13 @@ fn reveal_main_window(app: &AppHandle) {
 }
 
 pub fn run() {
+    crate::log::install_panic_hook();
+
+    // Before the single-instance plugin takes the D-Bus name, give the copy
+    // this one is replacing time to exit.
+    #[cfg(target_os = "linux")]
+    app_menu::wait_for_previous_process(&std::env::args().collect::<Vec<_>>());
+
     tauri::Builder::default()
         // First, ahead of every other plugin: a duplicate launch must die
         // before it opens the registry or starts a second Steam session.
@@ -68,7 +77,6 @@ pub fn run() {
             protocol::handle_argv(app, &argv);
             reveal_main_window(app);
         }))
-        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -132,12 +140,16 @@ pub fn run() {
             commands::server::get_server_page,
             commands::server::get_servers_by_addr,
             commands::server::lookup::lookup_server,
+            commands::server::lookup::find_server,
+            commands::server::lan::scan_lan,
             commands::server::mod_readiness::server_mod_readiness,
             commands::server::mod_readiness::check_server_mods,
             commands::server::mod_readiness::get_unique_mods_summary,
             commands::server::mod_readiness::unsubscribe_unique_mods,
             commands::server::toggle_favourite,
             commands::server::get_map_list,
+            commands::server::facets::get_filter_facets,
+            commands::server::facets::get_search_suggestions,
             commands::server::get_server_counts,
             commands::startup::registry_status,
             commands::startup::launched_hidden,
@@ -155,9 +167,13 @@ pub fn run() {
             protocol::take_pending_connect,
             commands::launch::discover_steam_paths,
             commands::launch::validate_dayz_path,
+            commands::launch::get_installed_dayz_version,
+            commands::memory_map::get_memory_map_status,
             commands::launch::open_steam,
             commands::launch::dayz_running,
             commands::launch::open_workshop_in_steam,
+            credentials::password_status,
+            credentials::forget_password,
             commands::log::log_client,
             commands::mods::get_subscribed_mods,
             commands::mods::verify_subscribed_mods,
@@ -198,6 +214,10 @@ pub fn run() {
             commands::theme::watch_active_theme,
             commands::theme::stop_watching_theme,
             commands::update::is_installed_copy,
+            commands::update::open_external_url,
+            commands::update::fetch_release_notes,
+            app_menu::app_menu_status,
+            app_menu::add_to_app_menu,
         ])
         .setup(|app| {
             crate::log::init(app.handle());
@@ -233,6 +253,7 @@ pub fn run() {
 
             // Falls back to in-memory on failure rather than bricking the app;
             // `registry_status` lets the frontend warn about the data loss.
+            let mut degraded = false;
             let registry = match Registry::open(&db_path) {
                 Ok(registry) => {
                     eprintln!("[setup] Registry ready at {}", db_path.display());
@@ -248,15 +269,11 @@ pub fn run() {
                             db_path.display()
                         ),
                     );
-                    *state.registry_degraded.lock().unwrap() = true;
+                    degraded = true;
                     Registry::open_in_memory().expect("Failed to open in-memory registry")
                 }
             };
             *state.registry.lock().unwrap() = Some(registry);
-
-            // Tells the frontend when it's safe to retry queries that raced
-            // ahead of setup and got "Registry not initialized".
-            let degraded = *state.registry_degraded.lock().unwrap();
             crate::log::log_line(
                 app.handle(),
                 "setup",
@@ -264,12 +281,6 @@ pub fn run() {
                     "registry ready in {}ms (degraded={degraded})",
                     setup_started.elapsed().as_millis()
                 ),
-            );
-            // Set before the event, so a status query made on its heels agrees with it.
-            let _ = state.registry_ready.set(degraded);
-            let _ = app.handle().emit(
-                "registry-ready",
-                serde_json::json!({ "degraded": degraded }),
             );
 
             // The single process-wide prober, so the concurrency bound applies
@@ -284,7 +295,11 @@ pub fn run() {
             if let Ok(mut guard) = state.on_join.lock() {
                 *guard = saved.on_join;
             }
-            discord::start(app.handle(), saved.discord_presence_enabled());
+            discord::start(
+                app.handle(),
+                saved.discord_presence_enabled(),
+                saved.discord_show_server(),
+            );
             commands::launch::start_dayz_watcher(app.handle());
             let probe_config = ProbeConfig {
                 max_in_flight: saved
@@ -295,9 +310,16 @@ pub fn run() {
                 ),
                 ..ProbeConfig::default()
             };
-            *state.prober.lock().unwrap() = Some(tetra_net::Prober::new(probe_config));
-            // Registry and prober are both set: commands waiting in `registry_writer` may go.
-            state.registry_open.send_replace(true);
+            *state.prober.lock().unwrap() = Some(
+                tetra_net::Prober::new(probe_config)
+                    .with_pinger(std::sync::Arc::new(tetra_net::IcmpPinger::new())),
+            );
+            // Sent before the event, so a status query made on its heels agrees with it.
+            state.registry_status.send_replace(Some(degraded));
+            let _ = app.handle().emit(
+                "registry-ready",
+                serde_json::json!({ "degraded": degraded }),
+            );
 
             let window = app
                 .get_webview_window("main")
@@ -328,9 +350,9 @@ pub fn run() {
 
             // Before the window is revealed, never after — avoids a reflow flash.
             commands::settings::apply_ui_scale(app.handle(), saved.scale());
-            commands::settings::fit_window_to_minimum(app.handle(), saved.scale());
+            commands::settings::fit_window_to_minimum(app.handle());
 
-            // After apply_ui_scale, whose set_min_size would otherwise undo it.
+            // After fit_window_to_minimum, whose resize would otherwise undo it.
             if saved.window.is_some_and(|geometry| geometry.maximized) {
                 window_state::restore_maximized(&window.as_ref().window());
             }
@@ -340,7 +362,7 @@ pub fn run() {
             // what seeds the cache if nobody ever drags it.
             window_state::remember(&window.as_ref().window());
 
-            if let Err(e) = commands::launch::register_protocol_handler() {
+            if let Err(e) = commands::launch::register_protocol_handler(app.handle()) {
                 crate::log::log_line(
                     app.handle(),
                     "setup",

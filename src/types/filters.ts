@@ -9,6 +9,8 @@ export interface ServerFilter {
   search: string | null;
   favourites_only: boolean;
   recent_only: boolean;
+  /** The addresses the LAN tab lists, or null on every other tab. Never restored after a restart. */
+  lan_addrs: string[] | null;
   official: boolean | null;
   modded: boolean | null;
   first_person: boolean | null;
@@ -19,7 +21,16 @@ export interface ServerFilter {
   /** Stringified Workshop ids to keep off the list — a server declaring any
       one of these is dropped, independent of `mod_match`. */
   mod_ids_exclude: string[];
+  /** Game version to match on, e.g. "1.29.161000". Never restored after a restart. */
+  version: string | null;
+  /** In-game hour half of the day; null means any hour. */
+  time_of_day: "day" | "night" | null;
+  /** true = BattlEye only, false = the rest, null = both. */
+  battleye: boolean | null;
 }
 
-export type SortKey = 'players' | 'ping' | 'mod_count' | 'name' | 'map' | 'last_played';
+/** The ping limits the filter menu offers, in ms. */
+export const PING_PRESETS = [50, 100, 150] as const;
+
+export type SortKey = 'players' | 'ping' | 'mod_count' | 'name' | 'map' | 'last_played' | 'country';
 export type SortDir = 'asc' | 'desc';

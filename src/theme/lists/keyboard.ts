@@ -6,16 +6,31 @@ export function handleListKeyDown({
   selectedIndex,
   onSelectIndex,
   onClearSelection,
+  onOpenMenu,
 }: {
   event: KeyboardEvent<HTMLElement>;
   itemCount: number;
   selectedIndex: number;
   onSelectIndex: (index: number) => void;
   onClearSelection: () => void;
+  /** Shift+F10 or the ContextMenu key, on the selected row. */
+  onOpenMenu?: () => void;
 }) {
   if (itemCount === 0) return;
 
   switch (event.key) {
+    case "F10": {
+      if (!event.shiftKey || selectedIndex < 0) break;
+      event.preventDefault();
+      onOpenMenu?.();
+      break;
+    }
+    case "ContextMenu": {
+      if (selectedIndex < 0) break;
+      event.preventDefault();
+      onOpenMenu?.();
+      break;
+    }
     case "ArrowDown": {
       event.preventDefault();
       const next = selectedIndex < 0 ? 0 : Math.min(selectedIndex + 1, itemCount - 1);

@@ -28,16 +28,18 @@ PNG as `<out>.log`; uncaught errors are also painted onto the page.
 | `selectMod=<index>` | Open that mod (by visible-list index) once it's loaded |
 | `settings=1` | Open Settings |
 | `settingsTab=<id>` | Click the Settings tab matching that `data-tab` id or label text (with `settings=1`) |
-| `popup=map\|tags\|region` | Open that filter dropdown |
+| `popup=menu\|sort` | Open the Filters menu (`menu`) or the sort dropdown (`sort`) |
 | `modal=serverInfo\|modFilter\|update` | Open that modal (`serverInfo` uses the selected server, or server 0) |
 | `click=<css selector>` | Click an element; repeatable, run in order |
 | `dayz=1` | Report DayZ as running |
 | `storage=degraded` | Report the registry as degraded, so the storage notice shows |
+| `appmenu=1` | Report a Linux AppImage without a menu entry (`appmenu=installed`: with one) |
 | `mods=mixed\|ready` | Add a declared mod mid-download to the selection's readiness, or mark every mod ready |
 | `join=asking\|checking\|found\|noanswer` | Open the join-link box in that state |
 | `static=1` | Freeze the clock and disable animations, transitions and the caret |
+| `crash=1` | Render the crash screen instead of `App` |
 
-Example: `tools/harness/shoot.sh /tmp/detail.png "select=3&popup=map" 1540 860`
+Example: `tools/harness/shoot.sh /tmp/detail.png "select=3&popup=menu" 1540 860`
 
 ## Driver
 
@@ -63,8 +65,9 @@ try {
 ```
 
 - `startServer({ mode, port })` → `{ url, port, mode, buildMs?, log, stop() }`.
-  `dev` reuses a Vite already on the port (leaving it running, as `shoot.sh`
-  does) and otherwise spawns `npx vite`; `prod` builds the harness entry with
+  `dev` reuses a Vite already on the port when it serves this checkout
+  (leaving it running, as `shoot.sh` does), else spawns `npx vite` on a free
+  port; `prod` builds the harness entry with
   the repo's own Vite config into `tools/harness/.out/prod`, copies
   `src-tauri/resources/builtin-themes/` beside it — that absolute path is what
   `main.tsx` fetches themes from — and serves it with `vite preview`. Default
@@ -127,23 +130,25 @@ old baseline is visible at a glance.
 The matrix is themes `neutral` and `builtin.tactical` × schemes `dark`, `light`
 × 1400×800 and 975×620 at device scale 1 × the `SCENARIOS` table in
 `visual.mjs`: the browser, an empty list, a selected server, each nav view, the
-mods view with a mod open, Settings plus one shot per Settings tab, each filter
-popup, each modal, and the `storage=degraded` / `mods=mixed` fixtures. Files are
+mods view with a mod open, Settings plus one shot per Settings tab, the Filters
+menu and its Map, Game version and Country lists, each modal, and the `storage=degraded` / `mods=mixed` fixtures. Files are
 `baselines/<theme>/<scheme>-<w>x<h>-<scenario>.png`. `--filter <substring>`
 matches that path and `--theme <id>` narrows to one theme. The server ports are
 picked free at runtime (`HARNESS_PORT` still overrides the prod one), so a
 `shoot.sh` Vite left on 1431 does not collide with a run.
 
-Popups also get a small-size pass, the smallest window a player is likely to
-use: 650×413 CSS px at device scale 1.5 (a 975×620 window at UI scale 1.5), dark
-scheme only. It covers the filter popups, the server row ⋯ menu on the last
+Popups also get a small-size pass at 650×413 CSS px and device scale 1.5. That is
+smaller than the app now allows (its 1280×720 minimum is 853×480 at UI scale 1.5),
+kept as a stricter check from when the minimum was 975×620; dark
+scheme only. It covers the Filters menu and its lists, the sort dropdown, the server row ⋯ menu on the last
 fully visible row, the Mods view's Unsubscribe and Verify menus, the server info
 Load menu, and the Settings theme card menu and customiser dropdown. Those rows
 set their own `sizes`, `schemes` and `scale`, and a `themes` list keeps a row to
 the themes that have that element. A `click=` value is a CSS selector,
-`text:<button label>` (first button with that text) or `last-visible:<selector>`
-(the last match whose row is fully on screen). A disabled target counts as
-missing, and after the last click the real pointer rests on its centre so hover
+`text:<button label>` (first button with that text), `select:<row label>` (the select button of that
+row in the open Filters menu) or `last-visible:<selector>`
+(the last match whose row is fully on screen). A disabled or covered target counts as
+missing (the "mods need updating" toast covers the top right below the toolbar at this size, so those rows click its close button first), and after the last click the real pointer rests on its centre so hover
 styles show in the shot. Files are `baselines/<theme>/dark-650x413-<scenario>.png`;
 a new shot has no baseline until it is recorded with `record`, so `check`
 reports it as `no baseline`.

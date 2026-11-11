@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useServerStore } from "@/stores/server-store";
+import { useServerStore, DEFAULT_FILTER } from "@/stores/server-store";
+import type { ServerFilter } from "@/types/filters";
+import { isSavedTab } from "@/lib/saved-tab";
 import {
   getMapList,
   getServerPage,
@@ -18,6 +20,22 @@ interface ServerQuery {
   filterParams: FilterParams;
   sortKey: string;
   sortDir: string;
+}
+
+/**
+ * The filters a query should carry. The Favourites, Recent and LAN tabs list
+ * servers the user saved or looked up, so only the search box narrows them;
+ * every other filter belongs to the All-servers tab and applies there alone.
+ */
+export function filterParamsFor(filter: ServerFilter): FilterParams {
+  const source = isSavedTab(filter) ? DEFAULT_FILTER : filter;
+  return {
+    ...source,
+    search: filter.search,
+    favourites_only: filter.favourites_only,
+    recent_only: filter.recent_only,
+    lan_addrs: filter.lan_addrs,
+  };
 }
 
 /** Pages touching rows `start`..`end` (inclusive), widened by a page each side and clamped to `total`. */
@@ -141,24 +159,7 @@ export function useServerDataLoader() {
     retryTimers.current.clear();
     shortLogged.current.clear();
     queryRef.current = {
-      filterParams: {
-        maps: filter.maps,
-        countries: filter.countries,
-        hide_empty: filter.hide_empty,
-        hide_full: filter.hide_full,
-        hide_locked: filter.hide_locked,
-        hide_offline: filter.hide_offline,
-        max_ping: filter.max_ping,
-        search: filter.search,
-        favourites_only: filter.favourites_only,
-        recent_only: filter.recent_only,
-        official: filter.official,
-        modded: filter.modded,
-        first_person: filter.first_person,
-        mod_ids: filter.mod_ids,
-        mod_match: filter.mod_match,
-        mod_ids_exclude: filter.mod_ids_exclude,
-      },
+      filterParams: filterParamsFor(filter),
       sortKey,
       sortDir,
     };

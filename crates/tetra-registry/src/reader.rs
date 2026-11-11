@@ -1,14 +1,15 @@
 use crate::error::RegistryError;
-use crate::filter::{
-    self, ServerFilter, ServerListRow, SortDir, SortKey, ANSWERED_WITHIN_SECS, SERVER_LIST_COLUMNS,
-};
+use crate::facets::{self, Facet, Facets, Suggestion};
+use crate::filter::{self, ServerFilter, ServerListRow, SortDir, SortKey, SERVER_LIST_COLUMNS};
 use crate::rows::{Export, ExportRow, ServerKey, WorkshopCacheRow};
+use crate::ANSWERED_WITHIN_SECS;
 use rusqlite::{params, Connection};
 use std::net::Ipv4Addr;
 use std::str::FromStr;
 use tetra_core::a2s::dayz::ServerMod;
 use tetra_core::classify::maps::display_name;
 use tetra_core::unix_now;
+use tetra_core::PingKind;
 
 /// Keys per `get_many` statement: two bound parameters each, well under SQLite's limit.
 const GET_MANY_CHUNK: usize = 400;
@@ -16,7 +17,7 @@ const GET_MANY_CHUNK: usize = 400;
 /// Columns [`Reader::map_export_row`] reads, positionally.
 const EXPORT_COLUMNS: &str = "ip, query_port, game_port, name, map_raw, players, max_players, bots,
      locked, vac, version, keywords, description, mod_count, last_responded,
-     CASE WHEN last_probe_attempt IS NULL THEN NULL ELSE online END";
+     CASE WHEN last_probe_attempt IS NULL THEN NULL ELSE online END, online_checked_at";
 
 /// Collects `query_map` results where `None` marks a row to drop, logging once if any were skipped.
 fn collect_skipping_bad_rows<T>(
@@ -40,8 +41,89 @@ fn collect_skipping_bad_rows<T>(
     Ok(out)
 }
 
+/// Why [`Reader::export_each`] stopped: a read failed, or the callback returned an error.
+#[derive(Debug)]
+pub enum ExportError<E> {
+    Registry(RegistryError),
+    Visit(E),
+}
+
+impl<E> From<rusqlite::Error> for ExportError<E> {
+    fn from(e: rusqlite::Error) -> Self {
+        Self::Registry(e.into())
+    }
+}
+
+/// One `server_mods` row as the export walk reads it.
+struct ModRow {
+    ip: String,
+    port: i64,
+    workshop_id: u64,
+    name: String,
+}
+
+fn next_mod(rows: &mut rusqlite::Rows<'_>) -> rusqlite::Result<Option<ModRow>> {
+    let Some(r) = rows.next()? else {
+        return Ok(None);
+    };
+    Ok(Some(ModRow {
+        ip: r.get(0)?,
+        port: r.get(1)?,
+        workshop_id: r.get::<_, i64>(2)? as u64,
+        name: r.get(3)?,
+    }))
+}
+
 pub struct Reader {
     conn: Connection,
+}
+
+/// Rows `filter` matches, ignoring any paging.
+pub(crate) fn count(conn: &Connection, filter: &ServerFilter) -> Result<usize, RegistryError> {
+    let (where_sql, binds) = filter::where_clause(filter);
+    let mut stmt = conn.prepare_cached(&format!("SELECT COUNT(*) FROM servers {where_sql}"))?;
+    let total: i64 = stmt.query_row(rusqlite::params_from_iter(binds), |r| r.get(0))?;
+    Ok(total as usize)
+}
+
+/// The first declared mod whose name contains a search word that the row's own
+/// name, map or address did not. Names are compared ASCII-lowercased, as the
+/// search SQL does. Only called for rows a word search already selected.
+fn matched_mod(
+    row: &ServerListRow,
+    terms: &[String],
+    stmt: &mut rusqlite::Statement<'_>,
+) -> rusqlite::Result<Option<String>> {
+    let name = row.name.to_ascii_lowercase();
+    let map = row.map_display.to_ascii_lowercase();
+    let addr = format!("{}:{}", row.key.ip, row.key.query_port);
+    let mut mod_names: Option<Vec<(String, String)>> = None;
+
+    for term in terms {
+        let term = term.to_ascii_lowercase();
+        if name.contains(&term) || map.contains(&term) || addr.contains(&term) {
+            continue;
+        }
+        let mods = match &mod_names {
+            Some(mods) => mods,
+            None => {
+                let mods = stmt
+                    .query_map(params![row.key.ip.to_string(), row.key.query_port], |r| {
+                        r.get::<_, String>(0)
+                    })?
+                    .collect::<rusqlite::Result<Vec<String>>>()?
+                    .into_iter()
+                    .filter(|name| !name.is_empty())
+                    .map(|name| (name.to_ascii_lowercase(), name))
+                    .collect::<Vec<_>>();
+                mod_names.insert(mods)
+            }
+        };
+        if let Some((_, original)) = mods.iter().find(|(lower, _)| lower.contains(&term)) {
+            return Ok(Some(original.clone()));
+        }
+    }
+    Ok(None)
 }
 
 impl Reader {
@@ -54,8 +136,9 @@ impl Reader {
     pub fn counts(&self) -> Result<(usize, usize), RegistryError> {
         let (total, populated): (i64, i64) = self.conn.query_row(
             &format!(
-                "SELECT COUNT(*), COUNT(*) FILTER (WHERE players > 0) FROM servers WHERE {}",
-                filter::visible_sql()
+                "SELECT COUNT(*), COUNT(*) FILTER (WHERE players > 0) FROM servers WHERE {} AND {}",
+                filter::visible_sql(),
+                filter::PRIVATE_ADDRESS_SQL
             ),
             [],
             |r| Ok((r.get(0)?, r.get(1)?)),
@@ -76,11 +159,40 @@ impl Reader {
         // prepare_cached: this is the hottest read path (fires on every
         // discovery tick), and filter shapes are a small, bounded set.
         let mut stmt = self.conn.prepare_cached(&sql)?;
-        let rows = collect_skipping_bad_rows(
+        let mut rows = collect_skipping_bad_rows(
             stmt.query_map(rusqlite::params_from_iter(binds), Self::map_row)?,
             "page",
         )?;
+        self.fill_matched_mods(filter, &mut rows)?;
         Ok(rows)
+    }
+
+    /// For a word search that is not an exact-address lookup, note on each row
+    /// which declared mod made it match when no cheaper field did. One primary-key
+    /// probe per row, and only for a page the search already narrowed.
+    fn fill_matched_mods(
+        &self,
+        filter: &ServerFilter,
+        rows: &mut [ServerListRow],
+    ) -> Result<(), RegistryError> {
+        let Some(text) = filter.search.as_deref() else {
+            return Ok(());
+        };
+        if filter::address_search(text).is_some() {
+            return Ok(());
+        }
+        let terms = filter::search_terms(text);
+        if terms.is_empty() {
+            return Ok(());
+        }
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT name FROM server_mods WHERE ip = ?1 AND query_port = ?2 ORDER BY ordinal",
+        )?;
+        for row in rows.iter_mut() {
+            let matched = matched_mod(row, &terms, &mut stmt)?;
+            row.matched_mod = matched;
+        }
+        Ok(())
     }
 
     /// One page plus the filter's total, read in one transaction so they agree.
@@ -101,12 +213,51 @@ impl Reader {
 
     /// How many rows `filter` matches, ignoring any paging.
     pub fn count(&self, filter: &ServerFilter) -> Result<usize, RegistryError> {
-        let (where_sql, binds) = filter::where_clause(filter);
-        let mut stmt = self
-            .conn
-            .prepare_cached(&format!("SELECT COUNT(*) FROM servers {where_sql}"))?;
-        let total: i64 = stmt.query_row(rusqlite::params_from_iter(binds), |r| r.get(0))?;
-        Ok(total as usize)
+        count(&self.conn, filter)
+    }
+
+    /// The total, the counts for each map, version, country and mod, and the
+    /// count on `my_version`, all read in one transaction so they agree.
+    pub fn facets(
+        &self,
+        filter: &ServerFilter,
+        my_version: Option<&str>,
+    ) -> Result<Facets, RegistryError> {
+        let tx = self.conn.unchecked_transaction()?;
+        let total = self.count(filter)?;
+        let maps = facets::map_counts(&self.conn, &facets::without(filter, Facet::Maps))?;
+        let versions =
+            facets::version_counts(&self.conn, &facets::without(filter, Facet::Versions))?;
+        let countries =
+            facets::country_counts(&self.conn, &facets::without(filter, Facet::Countries))?;
+        let mods = facets::mod_counts(&self.conn, &facets::without(filter, Facet::Mods))?;
+        let same_as_mine = match my_version.and_then(filter::clean_version) {
+            Some(version) => {
+                let mut on_version = facets::without(filter, Facet::Versions);
+                on_version.version = Some(version);
+                Some(self.count(&on_version)?)
+            }
+            None => None,
+        };
+        tx.commit()?;
+        Ok(Facets {
+            total,
+            maps,
+            versions,
+            countries,
+            mods,
+            same_as_mine,
+        })
+    }
+
+    /// What the search box offers for `text`: up to 3 maps, 4 mods and 2
+    /// versions, in that order.
+    pub fn suggestions(
+        &self,
+        filter: &ServerFilter,
+        text: &str,
+    ) -> Result<Vec<Suggestion>, RegistryError> {
+        facets::suggestions(&self.conn, filter, text)
     }
 
     /// Rows for the `keys` that exist, in no particular order.
@@ -202,6 +353,8 @@ impl Reader {
             queue: r.get(21)?,
             day_multiplier: r.get(22)?,
             night_multiplier: r.get(23)?,
+            ping_kind: PingKind::from_db(r.get(24)?),
+            matched_mod: None,
         }))
     }
 
@@ -333,61 +486,85 @@ impl Reader {
     /// column once per mod row, and the live index has over a million mod
     /// rows against a quarter-million servers.
     pub fn export(&self) -> Result<Export, RegistryError> {
-        let mut stmt = self.conn.prepare_cached(&format!(
-            "SELECT {EXPORT_COLUMNS} FROM servers
-             ORDER BY ip, query_port"
-        ))?;
-        let rows = collect_skipping_bad_rows(stmt.query_map([], Self::map_export_row)?, "export")?;
-
-        let mut by_key: std::collections::HashMap<ServerKey, usize> =
-            std::collections::HashMap::with_capacity(rows.len());
-        let mut rows = rows;
-        for (i, row) in rows.iter().enumerate() {
-            by_key.insert(row.key, i);
-        }
-
-        let mut mod_names: std::collections::HashMap<u64, String> =
-            std::collections::HashMap::new();
-        let mut stmt = self.conn.prepare_cached(
-            "SELECT sm.ip, sm.query_port, sm.workshop_id, sm.name
-             FROM server_mods sm
-             JOIN servers s ON s.ip = sm.ip AND s.query_port = sm.query_port
-             ORDER BY sm.ip, sm.query_port, sm.ordinal",
-        )?;
-        let mut cursor = stmt.query([])?;
-        while let Some(r) = cursor.next()? {
-            let ip: String = r.get(0)?;
-            let Ok(ip) = Ipv4Addr::from_str(&ip) else {
-                continue;
-            };
-            let key = ServerKey {
-                ip,
-                query_port: r.get(1)?,
-            };
-            let id = r.get::<_, i64>(2)? as u64;
-            let name: String = r.get(3)?;
-            if !name.is_empty() {
-                mod_names.entry(id).or_insert(name);
-            }
-            if let Some(&i) = by_key.get(&key) {
-                rows[i].mod_ids.get_or_insert_with(Vec::new).push(id);
-            }
-        }
-
+        let mut rows = Vec::new();
+        let mod_names = self
+            .export_each(|row| {
+                rows.push(row);
+                Ok::<(), std::convert::Infallible>(())
+            })
+            .map_err(|e| match e {
+                ExportError::Registry(e) => e,
+                ExportError::Visit(never) => match never {},
+            })?;
         Ok(Export { rows, mod_names })
     }
 
-    /// Row mapping for [`Self::export`]. `mod_ids` comes back empty here and
-    /// is filled by the caller's mod query; `Some(vec![])` vs `None` is
-    /// decided by `mod_count`, which is the record of whether A2S_RULES ever
-    /// answered.
-    fn map_export_row(r: &rusqlite::Row) -> rusqlite::Result<Option<ExportRow>> {
-        let ip: String = r.get(0)?;
-        let Ok(ip) = Ipv4Addr::from_str(&ip) else {
-            return Ok(None);
-        };
+    /// Streams every server with its declared mods to `on_row`, one row at a
+    /// time, and returns the name of each mod the walk saw.
+    ///
+    /// Two statements rather than a join: a join would repeat every server
+    /// column once per mod row, and the live index has over a million mod
+    /// rows against a quarter-million servers. Both run in `ip, query_port`
+    /// order, so one forward pass pairs each server with its mod rows.
+    pub fn export_each<E>(
+        &self,
+        mut on_row: impl FnMut(ExportRow) -> Result<(), E>,
+    ) -> Result<std::collections::HashMap<u64, String>, ExportError<E>> {
+        // Both cursors stay open for the whole walk while the writer keeps going;
+        // one read transaction keeps them on the same snapshot.
+        let _snapshot = self.conn.unchecked_transaction()?;
+        let mut servers_stmt = self.conn.prepare_cached(&format!(
+            "SELECT {EXPORT_COLUMNS} FROM servers ORDER BY ip, query_port"
+        ))?;
+        let mut mods_stmt = self.conn.prepare_cached(
+            "SELECT ip, query_port, workshop_id, name FROM server_mods
+             ORDER BY ip, query_port, ordinal",
+        )?;
+        let mut servers = servers_stmt.query([])?;
+        let mut mods = mods_stmt.query([])?;
+        let mut pending = next_mod(&mut mods)?;
+        let mut mod_names = std::collections::HashMap::new();
+        let mut skipped = 0usize;
+        while let Some(r) = servers.next()? {
+            let ip_text: String = r.get(0)?;
+            let port: i64 = r.get(1)?;
+            let ip = Ipv4Addr::from_str(&ip_text).ok();
+            let mut workshop_ids = Vec::new();
+            while let Some(m) =
+                pending.take_if(|m| (m.ip.as_str(), m.port) <= (ip_text.as_str(), port))
+            {
+                // Mod rows with no server are dropped; a server whose address
+                // does not parse contributes no names.
+                if ip.is_some() && m.ip == ip_text && m.port == port {
+                    if !m.name.is_empty() {
+                        mod_names.entry(m.workshop_id).or_insert(m.name);
+                    }
+                    workshop_ids.push(m.workshop_id);
+                }
+                pending = next_mod(&mut mods)?;
+            }
+            let Some(ip) = ip else {
+                skipped += 1;
+                continue;
+            };
+            on_row(Self::map_export_row(r, ip, workshop_ids)?).map_err(ExportError::Visit)?;
+        }
+        if skipped > 0 {
+            eprintln!("[registry] export: skipped {skipped} row(s) with an unparseable ip");
+        }
+        Ok(mod_names)
+    }
+
+    /// Row mapping for [`Self::export_each`]. `mod_ids` is `None` when
+    /// `mod_count` is NULL, which is the record of whether A2S_RULES ever
+    /// answered; otherwise it holds the ids the walk collected.
+    fn map_export_row(
+        r: &rusqlite::Row,
+        ip: Ipv4Addr,
+        workshop_ids: Vec<u64>,
+    ) -> rusqlite::Result<ExportRow> {
         let probed_for_mods: Option<i64> = r.get(13)?;
-        Ok(Some(ExportRow {
+        Ok(ExportRow {
             key: ServerKey {
                 ip,
                 query_port: r.get(1)?,
@@ -403,10 +580,11 @@ impl Reader {
             version: r.get(10)?,
             keywords: r.get(11)?,
             description: r.get(12)?,
-            mod_ids: probed_for_mods.map(|_| Vec::new()),
+            mod_ids: probed_for_mods.map(|_| workshop_ids),
             last_responded: r.get(14)?,
             online: r.get(15)?,
-        }))
+            online_checked_at: r.get(16)?,
+        })
     }
 
     pub fn distinct_maps(&self) -> Result<Vec<(String, String)>, RegistryError> {
@@ -437,6 +615,7 @@ impl Reader {
                 Ok(ServerMod {
                     workshop_id: r.get::<_, i64>(0)? as u64,
                     name: r.get(1)?,
+                    hash: None,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;

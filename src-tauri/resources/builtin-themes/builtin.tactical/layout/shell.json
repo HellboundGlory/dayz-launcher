@@ -55,6 +55,12 @@
                     }
                   },
                   {
+                    "element": "nav.lan",
+                    "options": {
+                      "display": "icon"
+                    }
+                  },
+                  {
                     "element": "nav.mods",
                     "options": {
                       "display": "icon"
@@ -83,15 +89,6 @@
               }
             ],
             "shrink": 0
-          },
-          {
-            "element": "notice.update"
-          },
-          {
-            "element": "notice.error"
-          },
-          {
-            "element": "notice.storage"
           },
           {
             "type": "stack",
@@ -216,6 +213,12 @@
                     }
                   },
                   {
+                    "element": "nav.lan",
+                    "options": {
+                      "display": "iconLabel"
+                    }
+                  },
+                  {
                     "element": "nav.mods",
                     "options": {
                       "display": "iconLabel"
@@ -241,15 +244,6 @@
               }
             ],
             "shrink": 0
-          },
-          {
-            "element": "notice.update"
-          },
-          {
-            "element": "notice.error"
-          },
-          {
-            "element": "notice.storage"
           },
           {
             "type": "stack",

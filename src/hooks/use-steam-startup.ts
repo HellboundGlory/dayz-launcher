@@ -3,6 +3,7 @@ import { emit, listen } from "@tauri-apps/api/event";
 // Static import: window-resize-handles already pulls this in statically anyway.
 import { getCurrentWindow, getAllWindows } from "@tauri-apps/api/window";
 import { useServerStore } from "@/stores/server-store";
+import { whenRegistryReady } from "@/lib/registry-ready";
 import {
   steamInit,
   asSteamInitError,
@@ -72,6 +73,8 @@ export function useSteamStartup({
     void logClient("startup", "runInitialLoad: start");
     setDiscoveryStarted(true);
     setDiscovering(true);
+    // The backend cannot open the registry before its own setup has run.
+    await whenRegistryReady();
     try {
       await discoverServers();
     } catch (e) {

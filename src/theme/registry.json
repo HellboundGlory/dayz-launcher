@@ -293,6 +293,41 @@
       "since": "2.0",
       "aliases": []
     },
+    "nav.lan": {
+      "kind": "nav",
+      "where": [
+        "app"
+      ],
+      "required": [
+        "views"
+      ],
+      "multiplicity": "perComposition",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon",
+        "label",
+        "badge"
+      ],
+      "states": [
+        "current"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
     "nav.mods": {
       "kind": "nav",
       "where": [
@@ -359,6 +394,31 @@
         "open"
       ],
       "since": "2.0",
+      "aliases": []
+    },
+    "lan.empty": {
+      "kind": "display",
+      "where": [
+        "browser"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "looking",
+        "failed",
+        "title",
+        "note",
+        "again"
+      ],
+      "states": [
+        "idle",
+        "scanning",
+        "done",
+        "failed"
+      ],
+      "since": "2.1",
       "aliases": []
     },
     "status.steam": {
@@ -556,9 +616,7 @@
       "where": [
         "app"
       ],
-      "required": [
-        "views+settings"
-      ],
+      "required": [],
       "multiplicity": "perComposition",
       "options": {},
       "freeLabel": false,
@@ -575,9 +633,7 @@
       "where": [
         "app"
       ],
-      "required": [
-        "views+settings"
-      ],
+      "required": [],
       "multiplicity": "perComposition",
       "options": {},
       "freeLabel": false,
@@ -595,9 +651,7 @@
       "where": [
         "mods"
       ],
-      "required": [
-        "view:mods"
-      ],
+      "required": [],
       "multiplicity": "perComposition",
       "options": {},
       "freeLabel": false,
@@ -613,9 +667,7 @@
       "where": [
         "mods"
       ],
-      "required": [
-        "view:mods"
-      ],
+      "required": [],
       "multiplicity": "perComposition",
       "options": {},
       "freeLabel": false,
@@ -631,9 +683,7 @@
       "where": [
         "mods"
       ],
-      "required": [
-        "view:mods"
-      ],
+      "required": [],
       "multiplicity": "perComposition",
       "options": {},
       "freeLabel": false,
@@ -688,10 +738,19 @@
       "freeLabel": false,
       "parts": [
         "icon",
-        "input"
+        "input",
+        "clear",
+        "suggestions",
+        "suggestion",
+        "kind",
+        "match",
+        "count",
+        "hint"
       ],
       "states": [
-        "filled"
+        "filled",
+        "open",
+        "active"
       ],
       "since": "2.0",
       "aliases": []
@@ -833,6 +892,65 @@
         "active"
       ],
       "since": "2.0",
+      "aliases": []
+    },
+    "filter.menu": {
+      "kind": "input",
+      "where": [
+        "browser"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "showLabel": {
+          "type": "boolean",
+          "default": true
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "trigger",
+        "label",
+        "badge",
+        "chevron",
+        "note",
+        "popup",
+        "body",
+        "column"
+      ],
+      "states": [
+        "active",
+        "open",
+        "tabNote",
+        "narrow"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
+    "filter.chips": {
+      "kind": "display",
+      "where": [
+        "browser"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "chip",
+        "prefix",
+        "value",
+        "remove",
+        "more",
+        "clearAll"
+      ],
+      "states": [
+        "folded"
+      ],
+      "since": "2.1",
       "aliases": []
     },
     "filter.sort": {
@@ -1109,6 +1227,38 @@
       "since": "2.0",
       "aliases": []
     },
+    "servers.addServer": {
+      "kind": "action",
+      "where": [
+        "browser"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "icon"
+        },
+        "icon": {
+          "type": "icon"
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "open"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
     "server.join": {
       "kind": "action",
       "subject": "server",
@@ -1364,6 +1514,9 @@
         },
         "label": {
           "type": "text"
+        },
+        "labelOn": {
+          "type": "text"
         }
       },
       "freeLabel": true,
@@ -1564,6 +1717,80 @@
       "since": "2.0",
       "aliases": []
     },
+    "server.copyJoinLink": {
+      "kind": "action",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon",
+          "default": "copy"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "offline"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
+    "server.forgetPassword": {
+      "kind": "action",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {
+        "display": {
+          "type": "enum",
+          "values": [
+            "iconLabel",
+            "label",
+            "icon"
+          ],
+          "default": "iconLabel"
+        },
+        "icon": {
+          "type": "icon",
+          "default": "keyRound"
+        },
+        "label": {
+          "type": "text"
+        }
+      },
+      "freeLabel": true,
+      "parts": [
+        "icon",
+        "label"
+      ],
+      "states": [
+        "offline"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
     "server.deselect": {
       "kind": "action",
       "subject": "server",
@@ -1678,6 +1905,7 @@
       },
       "freeLabel": false,
       "parts": [
+        "flag",
         "text"
       ],
       "states": [
@@ -1787,6 +2015,8 @@
       "parts": [
         "value",
         "unit",
+        "shield",
+        "tip",
         "caption"
       ],
       "states": [
@@ -1794,7 +2024,9 @@
         "fair",
         "poor",
         "unknown",
-        "offline"
+        "offline",
+        "estimated",
+        "protected"
       ],
       "since": "2.0",
       "aliases": []
@@ -2166,7 +2398,8 @@
         "downloading",
         "notInstalled",
         "notSubscribed",
-        "serverSide"
+        "serverSide",
+        "differs"
       ],
       "since": "2.0",
       "aliases": []
@@ -4275,9 +4508,17 @@
       "parts": [
         "label",
         "hint",
-        "control"
+        "control",
+        "toggles",
+        "toggles-label",
+        "toggle",
+        "box",
+        "name",
+        "flag"
       ],
-      "states": [],
+      "states": [
+        "checked"
+      ],
       "since": "2.0",
       "aliases": []
     },
@@ -4435,12 +4676,41 @@
       "parts": [
         "label",
         "hint",
-        "box"
+        "box",
+        "showServer"
       ],
       "states": [
         "checked"
       ],
       "since": "2.0",
+      "aliases": []
+    },
+    "settings.appMenu": {
+      "kind": "input",
+      "where": [
+        "settings"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {
+        "showHint": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "freeLabel": false,
+      "parts": [
+        "title",
+        "label",
+        "hint",
+        "status",
+        "button"
+      ],
+      "states": [
+        "installed",
+        "busy"
+      ],
+      "since": "2.1",
       "aliases": []
     },
     "settings.dataFolder": {
@@ -4513,6 +4783,31 @@
       "since": "2.0",
       "aliases": []
     },
+    "settings.about": {
+      "kind": "display",
+      "where": [
+        "settings"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "links",
+        "version",
+        "button",
+        "label",
+        "badge",
+        "status",
+        "whatsnew",
+        "credits"
+      ],
+      "states": [
+        "update"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
     "settings.title": {
       "kind": "display",
       "where": [
@@ -4542,7 +4837,8 @@
           "values": [
             "game",
             "launcher",
-            "theme"
+            "theme",
+            "about"
           ]
         }
       },
@@ -4567,7 +4863,8 @@
           "values": [
             "game",
             "launcher",
-            "theme"
+            "theme",
+            "about"
           ]
         }
       },
@@ -4592,7 +4889,8 @@
           "values": [
             "game",
             "launcher",
-            "theme"
+            "theme",
+            "about"
           ]
         },
         "icon": {
@@ -4620,7 +4918,8 @@
           "values": [
             "window",
             "startup",
-            "discord"
+            "discord",
+            "appMenu"
           ]
         }
       },
@@ -4845,7 +5144,9 @@
         "option",
         "empty",
         "box",
-        "search"
+        "search",
+        "count",
+        "separator"
       ],
       "states": [
         "selected"
@@ -4937,6 +5238,187 @@
       "since": "2.0",
       "aliases": []
     },
+    "popup.filterServer": {
+      "kind": "input",
+      "where": [
+        "popup:filterMenu"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "group",
+        "heading",
+        "row",
+        "label",
+        "select",
+        "value",
+        "chevron",
+        "list",
+        "option",
+        "box",
+        "count",
+        "search",
+        "empty",
+        "separator",
+        "clear",
+        "clearSelection",
+        "flag",
+        "segments",
+        "segment"
+      ],
+      "states": [
+        "selected",
+        "on",
+        "open",
+        "all",
+        "some"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
+    "popup.filterConnection": {
+      "kind": "input",
+      "where": [
+        "popup:filterMenu"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "group",
+        "heading",
+        "row",
+        "label",
+        "segments",
+        "segment",
+        "checkbox",
+        "box"
+      ],
+      "states": [
+        "selected",
+        "on"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
+    "popup.filterGameplay": {
+      "kind": "input",
+      "where": [
+        "popup:filterMenu"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "group",
+        "heading",
+        "row",
+        "label",
+        "segments",
+        "segment"
+      ],
+      "states": [
+        "selected"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
+    "popup.filterMods": {
+      "kind": "input",
+      "where": [
+        "popup:filterMenu"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "group",
+        "heading",
+        "row",
+        "label",
+        "segments",
+        "segment",
+        "select",
+        "count",
+        "chevron"
+      ],
+      "states": [
+        "selected",
+        "on"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
+    "popup.filterAccess": {
+      "kind": "input",
+      "where": [
+        "popup:filterMenu"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "group",
+        "heading",
+        "row",
+        "checkbox",
+        "box"
+      ],
+      "states": [
+        "on"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
+    "popup.filterPlayers": {
+      "kind": "input",
+      "where": [
+        "popup:filterMenu"
+      ],
+      "required": [],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "group",
+        "heading",
+        "row",
+        "checkbox",
+        "box"
+      ],
+      "states": [
+        "on"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
+    "popup.filterFooter": {
+      "kind": "display",
+      "where": [
+        "popup:filterMenu"
+      ],
+      "required": [
+        "popup:filterMenu"
+      ],
+      "multiplicity": "perComposition",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "footer",
+        "total",
+        "count",
+        "reset"
+      ],
+      "states": [],
+      "since": "2.1",
+      "aliases": []
+    },
     "popup.uniqueServerOptions": {
       "kind": "input",
       "where": [
@@ -5002,6 +5484,61 @@
       "states": [],
       "since": "2.0",
       "aliases": []
+    },
+    "serverMod.note": {
+      "kind": "display",
+      "subject": "serverMod",
+      "where": [
+        "serverMod"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "text"
+      ],
+      "states": [],
+      "since": "2.1",
+      "aliases": []
+    },
+    "server.modDiffers": {
+      "kind": "display",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "perContext",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "icon",
+        "text",
+        "fix"
+      ],
+      "states": [
+        "busy"
+      ],
+      "since": "2.1",
+      "aliases": []
+    },
+    "server.versionWarning": {
+      "kind": "display",
+      "subject": "server",
+      "where": [
+        "server"
+      ],
+      "required": [],
+      "multiplicity": "many",
+      "options": {},
+      "freeLabel": false,
+      "parts": [
+        "icon"
+      ],
+      "states": [],
+      "since": "2.1",
+      "aliases": []
     }
   },
   "surfaces": {
@@ -5024,6 +5561,7 @@
         "nav.servers",
         "nav.favourites",
         "nav.recent",
+        "nav.lan",
         "nav.mods",
         "nav.settings",
         "app.collapseToggle"
@@ -5035,6 +5573,8 @@
       ],
       "contains": [
         "filter.search",
+        "filter.menu",
+        "filter.chips",
         "filter.map",
         "filter.tags",
         "filter.mods",
@@ -5046,6 +5586,7 @@
         "filter.hideLocked",
         "filter.hideOffline",
         "filter.reset",
+        "servers.addServer",
         "servers.refresh"
       ]
     },
@@ -5145,7 +5686,8 @@
         "mods",
         "name",
         "map",
-        "lastPlayed"
+        "lastPlayed",
+        "country"
       ],
       "states": [
         "selected",
@@ -5293,6 +5835,10 @@
       "openedBy": "server.menu",
       "requiredContents": []
     },
+    "serverRow": {
+      "openedBy": "list.servers",
+      "requiredContents": []
+    },
     "modsUnsubscribe": {
       "openedBy": "mods.unsubscribeMenu",
       "requiredContents": []
@@ -5305,6 +5851,12 @@
       "openedBy": "mods.selectUnique",
       "requiredContents": [
         "popup.uniqueServerOptions"
+      ]
+    },
+    "filterMenu": {
+      "openedBy": "filter.menu",
+      "requiredContents": [
+        "popup.filterFooter"
       ]
     }
   },
@@ -5340,6 +5892,8 @@
     "globe",
     "inbox",
     "info",
+    "keyRound",
+    "link",
     "listTree",
     "loader",
     "minus",

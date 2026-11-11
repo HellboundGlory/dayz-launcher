@@ -6,6 +6,7 @@
 //! replaceable and the filter semantics testable in one place.
 
 pub mod error;
+pub mod facets;
 pub mod filter;
 pub mod reader;
 pub mod rows;
@@ -13,14 +14,22 @@ pub mod schema;
 pub mod writer;
 
 pub use error::RegistryError;
-pub use filter::{ModMatch, ServerFilter, ServerListRow, SortDir, SortKey};
-pub use reader::Reader;
+pub use facets::{FacetCount, Facets, Suggestion, SuggestionKind};
+pub use filter::{ModMatch, ServerFilter, ServerListRow, SortDir, SortKey, TimeOfDay};
+pub use reader::{ExportError, Reader};
 pub use rows::{Export, ExportRow, ServerKey, ServerRow, WorkshopCacheRow};
 pub use writer::Writer;
 
 use rusqlite::Connection;
 use std::path::Path;
 use tokio::sync::mpsc;
+
+/// How recently a server must have answered to count as live.
+pub const ANSWERED_WITHIN_SECS: i64 = 86_400;
+
+/// How recent an answer has to be for an offline verdict that carries no check
+/// time to yield to it.
+pub const RECENT_ANSWER_SECS: i64 = 600;
 
 pub struct Registry {
     uri: String,
@@ -48,6 +57,7 @@ impl Registry {
         schema::migrate(&conn)?;
         // Best-effort: a prune failure must not stop the registry from opening.
         let _ = schema::prune_stale(&conn);
+        let _ = schema::backfill_countries(&conn);
 
         let (tx, rx) = mpsc::channel(64);
         std::thread::Builder::new()

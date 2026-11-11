@@ -5,6 +5,7 @@ import { useDevStore } from "../dev/dev-store";
 import { REGISTRY } from "../registry";
 import type { LayoutFile, PopupLayoutFile } from "../renderer/types";
 import { getThemeOwnedLayout, useThemeStore } from "../theme-store";
+import { getNeutralLayout } from "../neutral";
 import { isElementInLayout } from "../layout-query";
 import { clearRuntimeFallbacks, isFileFallenBack, markRuntimeFallback } from "./store";
 import { MISSING_ELEMENT_REASON, runVisibilityCheck } from "./visibility";
@@ -151,6 +152,11 @@ export interface ElementAttribution {
   placed: boolean;
 }
 
+/** Whether Neutral lays this context out itself, so a failure there is no theme file's to fix. */
+function isNeutralContext(context: string, active: ActiveContexts): boolean {
+  return layoutPathsForContext(context, active).some((path) => getNeutralLayout(path) !== undefined);
+}
+
 /** The screen to fall back for a failed element, or `undefined` when Neutral owns it. */
 export function attributeElement(
   element: string,
@@ -170,7 +176,9 @@ export function attributeElement(
   for (const path of candidates) {
     if (getThemeOwnedLayout(path)) return { file: path, placed: false };
   }
-  // The context's own file isn't the theme's — blame whichever theme file places it.
+  // Neutral draws a layout of its own here, so the element failing is Neutral's.
+  if (requiredContexts.some((context) => isNeutralContext(context, active))) return undefined;
+  // The launcher draws this context itself — blame whichever theme file places the element.
   const { activeId, themeFiles } = useThemeStore.getState();
   for (const [path, layout] of Object.entries(themeFiles[activeId]?.layouts ?? {})) {
     if (isFileFallenBack(path)) continue;

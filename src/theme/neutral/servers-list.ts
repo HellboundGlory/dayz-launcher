@@ -23,6 +23,7 @@ export const SERVERS_LIST: LayoutFile = {
             children: [
               { element: "server.tags", class: "t-neutral-servers-tags" },
               { element: "server.name", class: "t-neutral-servers-name" },
+              { element: "server.versionWarning", class: "t-neutral-servers-version-warning" },
             ],
           },
           {

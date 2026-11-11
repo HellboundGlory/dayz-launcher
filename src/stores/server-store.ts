@@ -1,6 +1,11 @@
 import { create } from "zustand";
 import type { Server } from "@/types/server";
 import type { ServerFilter, SortKey, SortDir } from "@/types/filters";
+import { PING_PRESETS } from "@/types/filters";
+import { legacyRegionCountries } from "@/lib/countries";
+import { DEFAULT_FILTER, resetFilterFor } from "./filter-reset";
+
+export { DEFAULT_FILTER };
 
 export type ServerLookup = { addr: string; state: "asking" | "noanswer" };
 
@@ -65,39 +70,46 @@ function sameRow(a: Server, b: Server): boolean {
 
 const SORT_KEY_STORAGE = "tetra.sort.v1";
 
-// What every launch starts from, and the base "Reset filters" restores.
-// search/favourites_only/recent_only don't survive a restart — see persistFilter;
-// resetFilter still carries the latter two over so the active tab keeps its scope.
-const DEFAULT_FILTER: ServerFilter = {
-  maps: [],
-  countries: [],
-  hide_empty: false,
-  hide_full: false,
-  hide_locked: false,
-  hide_offline: false,
-  max_ping: null,
-  search: null,
-  favourites_only: false,
-  recent_only: false,
-  official: null,
-  modded: null,
-  first_person: null,
-  mod_ids: [],
-  mod_match: "any",
-  mod_ids_exclude: [],
-};
-
 /** Persisted filters use their own key — the opposite choice from settings. */
 const FILTER_STORAGE = "tetra.filter.v1";
 
+/**
+ * An old slider value as one of the ping presets: the nearest, ties rounding up
+ * to the tighter limit. Over 175 becomes "any", because no preset is close to a
+ * limit that loose and keeping it would filter by something the control cannot show.
+ */
+export function snapPing(v: unknown): number | null {
+  if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) return null;
+  if (v > 175) return null;
+  let best: number = PING_PRESETS[0];
+  for (const preset of PING_PRESETS) {
+    // `<=` so an exactly midway value rounds up to the larger (tighter) limit.
+    if (Math.abs(preset - v) <= Math.abs(best - v)) best = preset;
+  }
+  return best;
+}
+
+// A save from before countries were real country codes holds region codes;
+// expand those so the same part of the world stays selected.
+function loadCountries(saved: unknown, scheme: unknown): string[] {
+  const values = Array.isArray(saved)
+    ? saved.filter((x): x is string => typeof x === "string")
+    : [];
+  if (scheme !== 2) {
+    const codes = values.flatMap((value) => legacyRegionCountries(value));
+    return [...new Set(codes)].sort();
+  }
+  return [...new Set(values.filter((value) => /^[A-Z]{2}$/.test(value)))];
+}
+
 // Validates each field; a corrupt/hand-edited value falls back to defaults
-// rather than crashing the table. search/favourites_only/recent_only are
-// never restored, so the app always opens on the All tab with an empty search.
+// rather than crashing the table. search/favourites_only/recent_only/lan_addrs
+// are never restored, so the app always opens on the All tab with an empty search.
 function loadFilter(): ServerFilter {
   try {
     const raw = localStorage.getItem(FILTER_STORAGE);
     if (!raw) return DEFAULT_FILTER;
-    const saved = JSON.parse(raw) as Partial<ServerFilter>;
+    const saved = JSON.parse(raw) as Partial<ServerFilter> & { country_scheme?: number };
     const bool = (v: unknown, d: boolean) => (typeof v === "boolean" ? v : d);
     const tri = (v: unknown): boolean | null =>
       v === true || v === false ? v : null;
@@ -105,32 +117,41 @@ function loadFilter(): ServerFilter {
       Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
     return {
       maps: strings(saved.maps),
-      countries: strings(saved.countries),
+      countries: loadCountries(saved.countries, saved.country_scheme),
       hide_empty: bool(saved.hide_empty, DEFAULT_FILTER.hide_empty),
       hide_full: bool(saved.hide_full, DEFAULT_FILTER.hide_full),
       hide_locked: bool(saved.hide_locked, DEFAULT_FILTER.hide_locked),
       hide_offline: bool(saved.hide_offline, DEFAULT_FILTER.hide_offline),
-      max_ping: typeof saved.max_ping === "number" ? saved.max_ping : null,
+      max_ping: snapPing(saved.max_ping),
       search: null,
       favourites_only: false,
       recent_only: false,
+      lan_addrs: null,
       official: tri(saved.official),
       modded: tri(saved.modded),
       first_person: tri(saved.first_person),
       mod_ids: strings(saved.mod_ids),
       mod_match: saved.mod_match === "all" ? "all" : "any",
       mod_ids_exclude: strings(saved.mod_ids_exclude),
+      // Not restored: a DayZ update would otherwise silently hide every server.
+      version: null,
+      time_of_day:
+        saved.time_of_day === "day" || saved.time_of_day === "night" ? saved.time_of_day : null,
+      battleye: tri(saved.battleye),
     };
   } catch {
     return DEFAULT_FILTER;
   }
 }
 
-// Strips the transient fields (search, favourites_only, recent_only) before saving.
+// Strips the transient fields (search, favourites_only, recent_only, lan_addrs)
+// and the version, which is re-chosen per session, before saving.
+// `country_scheme` marks `countries` as real country codes, so an older save's
+// regions are not read as countries.
 function persistFilter(filter: ServerFilter) {
-  const { search, favourites_only, recent_only, ...kept } = filter;
+  const { search, favourites_only, recent_only, lan_addrs, version, ...kept } = filter;
   try {
-    localStorage.setItem(FILTER_STORAGE, JSON.stringify(kept));
+    localStorage.setItem(FILTER_STORAGE, JSON.stringify({ ...kept, country_scheme: 2 }));
   } catch {
     // Non-fatal: the filter just won't survive a restart.
   }
@@ -147,7 +168,7 @@ function loadSort(): { sortKey: SortKey; sortDir: SortDir } {
     const raw = localStorage.getItem(SORT_KEY_STORAGE);
     if (!raw) return fallback;
     const saved = JSON.parse(raw) as { sortKey?: string; sortDir?: string };
-    const validKeys = ["players", "ping", "mod_count", "name", "map", "last_played"];
+    const validKeys = ["players", "ping", "mod_count", "name", "map", "last_played", "country"];
     return {
       sortKey: validKeys.includes(saved.sortKey ?? "")
         ? (saved.sortKey as SortKey)
@@ -182,7 +203,8 @@ export const useServerStore = create<ServerState>((set, get) => ({
   // A new total pads or truncates the array; rows already loaded are kept.
   setServerPage: (offset, rows, total) =>
     set((state) => {
-      const servers = Array.from({ length: total }, (_, i) => state.servers[i]);
+      const servers = state.servers.slice();
+      if (servers.length !== total) servers.length = total;
       rows.forEach((row, i) => {
         servers[offset + i] = row;
       });
@@ -200,14 +222,28 @@ export const useServerStore = create<ServerState>((set, get) => ({
   patchServers: (rows) =>
     set((state) => {
       const fresh = new Map(rows.map((row) => [row.addr, row]));
-      const servers = state.servers.map((s) => (s && fresh.get(s.addr)) || s);
+      // A refresh reads rows outside the search, so it can't say which mod matched; keep the old answer.
+      const merged = (old: Server): Server | undefined => {
+        const row = fresh.get(old.addr);
+        return row && old.matched_mod && !row.matched_mod ? { ...row, matched_mod: old.matched_mod } : row;
+      };
+      let servers: (Server | undefined)[] | null = null;
+      state.servers.forEach((old, i) => {
+        if (!old) return;
+        const row = merged(old);
+        if (!row || sameRow(row, old)) return;
+        servers ??= state.servers.slice();
+        servers[i] = row;
+      });
       const selected = state.selectedServer;
-      const next = selected ? fresh.get(selected.addr) : undefined;
-      if (!selected || !next || sameRow(next, selected)) return { servers };
-      return { servers, selectedServer: next };
+      const next = selected ? merged(selected) : undefined;
+      if (selected && next && !sameRow(next, selected)) {
+        return { servers: servers ?? state.servers, selectedServer: next };
+      }
+      return servers ? { servers } : state;
     }),
   clearRows: () =>
-    set((state) => ({ servers: state.servers.map(() => undefined) })),
+    set((state) => ({ servers: new Array(state.servers.length) })),
   setVisibleRange: (start, end) =>
     set((state) =>
       state.visibleRange.start === start && state.visibleRange.end === end
@@ -244,13 +280,7 @@ export const useServerStore = create<ServerState>((set, get) => ({
   },
   resetFilter: () =>
     set((state) => {
-      // The sidebar tab owns these two, not the filter bar: resetting them
-      // here would silently widen a Favourites/Recent tab to every server.
-      const next: ServerFilter = {
-        ...DEFAULT_FILTER,
-        favourites_only: state.filter.favourites_only,
-        recent_only: state.filter.recent_only,
-      };
+      const next = resetFilterFor(state.filter, null);
       persistFilter(next);
       return { filter: next, lookup: keptLookup(state, next.search) };
     }),
@@ -276,15 +306,19 @@ export const useServerStore = create<ServerState>((set, get) => ({
       return { modPending };
     }),
   toggleFavourite: (addr) =>
-    set((state) => ({
-      servers: state.servers.map((s) =>
-        s?.addr === addr ? { ...s, favourite: !s.favourite } : s,
-      ),
-      selectedServer:
-        state.selectedServer?.addr === addr
-          ? { ...state.selectedServer, favourite: !state.selectedServer.favourite }
-          : state.selectedServer,
-    })),
+    set((state) => {
+      const selected = state.selectedServer;
+      const nextSelected =
+        selected?.addr === addr ? { ...selected, favourite: !selected.favourite } : selected;
+      let servers: (Server | undefined)[] | null = null;
+      state.servers.forEach((row, i) => {
+        if (row?.addr !== addr) return;
+        servers ??= state.servers.slice();
+        servers[i] = { ...row, favourite: !row.favourite };
+      });
+      if (!servers) return nextSelected === selected ? state : { selectedServer: nextSelected };
+      return { servers, selectedServer: nextSelected };
+    }),
   triggerReload: () => set((state) => ({ loadVersion: state.loadVersion + 1 })),
   requestReload: (delayMs, onFire) => {
     if (reloadTimer !== undefined) return;

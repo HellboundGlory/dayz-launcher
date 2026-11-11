@@ -7,8 +7,9 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tetra_core::a2s::dayz::ServerMod;
+use tetra_core::a2s::info::ServerInfo;
 use tetra_net::{offline_marks_suppressed, Prober};
-use tetra_registry::{Registry, RegistryError, ServerKey, ServerRow, Writer};
+use tetra_registry::{Registry, RegistryError, ServerKey, ServerRow, Writer, ANSWERED_WITHIN_SECS};
 use tokio::task::JoinSet;
 
 #[derive(Debug)]
@@ -37,7 +38,7 @@ impl From<RegistryError> for SweepError {
 
 /// Rows per write call during a sweep.
 const WRITE_BATCH: usize = 2_000;
-/// Keys per `set_online` / `mark_probe_attempt` call.
+/// Keys per `record_online` / `mark_probe_attempt` call.
 const KEY_BATCH: usize = 4_000;
 
 /// How long a never-answering address is left alone after we last asked, so a
@@ -51,9 +52,6 @@ const RULES_DEADLINE: Duration = Duration::from_secs(8);
 /// Wait before asking a server that did not answer A2S_RULES again, instead of
 /// the full TTL.
 const RULES_RETRY_SECS: i64 = 30 * 60;
-
-/// Steam listings older than this are not worth an A2S_INFO probe.
-const INFO_SEEN_WITHIN_SECS: i64 = 86_400;
 
 #[derive(Debug, Default)]
 pub struct InfoStats {
@@ -76,6 +74,13 @@ pub struct RulesStats {
 /// or `None` when it never answered.
 type RulesAnswer = (ServerKey, Option<(Vec<ServerMod>, String)>);
 
+/// The row for an A2S_INFO answer. The reply time includes the server's own
+/// tick, so it is stored as an estimated ping.
+fn answered_row(key: ServerKey, info: ServerInfo, rtt: Option<Duration>) -> ServerRow {
+    let ping_ms = rtt.map(|d| d.as_millis().min(i32::MAX as u128) as i32);
+    ServerRow::from_info(key, info, ping_ms, tetra_core::PingKind::Estimated)
+}
+
 /// A2S_INFO over the least recently probed addresses Steam listed lately, plus
 /// a rotating batch of the ones that have never answered anybody.
 pub async fn info(
@@ -89,7 +94,7 @@ pub async fn info(
     let registry = Arc::clone(registry);
     let targets: Vec<ServerKey> = tokio::task::spawn_blocking(move || {
         let reader = registry.reader()?;
-        let fresh = reader.info_targets(batch, INFO_SEEN_WITHIN_SECS)?;
+        let fresh = reader.info_targets(batch, ANSWERED_WITHIN_SECS)?;
         let stale = reader.unresolved(batch / 4, RESOLVE_RETRY_AFTER_SECS)?;
         let mut seen: HashSet<ServerKey> = HashSet::with_capacity(fresh.len() + stale.len());
         let mut keys = Vec::with_capacity(fresh.len() + stale.len());
@@ -142,30 +147,7 @@ pub async fn info(
         };
         stats.answered += 1;
         online.push(key);
-        batch_rows.push(ServerRow {
-            key,
-            game_port: info.game_port.unwrap_or(0),
-            name: info.name,
-            map: info.map,
-            players: i32::from(info.players),
-            max_players: i32::from(info.max_players),
-            bots: i32::from(info.bots),
-            ping_ms: outcome
-                .rtt
-                .map(|d| d.as_millis().min(i32::MAX as u128) as i32)
-                .unwrap_or(0),
-            locked: info.visibility != 0,
-            vac: info.vac != 0,
-            version: Some(info.version),
-            keywords: info.keywords,
-            description: None,
-            // Owned exclusively by `upsert_server_mods`.
-            mod_count: None,
-            last_played: None,
-            responded: true,
-            responded_at: None,
-            country_code: None,
-        });
+        batch_rows.push(answered_row(key, info, outcome.rtt));
         if batch_rows.len() >= WRITE_BATCH {
             let rows = std::mem::take(&mut batch_rows);
             let _ = writer.upsert_servers(rows).await;
@@ -177,13 +159,13 @@ pub async fn info(
         let _ = writer.upsert_servers(batch_rows).await;
     }
     for chunk in online.chunks(KEY_BATCH) {
-        let _ = writer.set_online(chunk.to_vec(), true).await;
+        let _ = writer.record_online(chunk.to_vec(), true).await;
     }
 
     stats.offline_marks_suppressed = offline_marks_suppressed(stats.answered, stats.failed);
     if !stats.offline_marks_suppressed {
         for chunk in offline.chunks(KEY_BATCH) {
-            let _ = writer.set_online(chunk.to_vec(), false).await;
+            let _ = writer.record_online(chunk.to_vec(), false).await;
         }
     }
 
@@ -290,5 +272,76 @@ async fn flush_mods(writer: &Writer, batch: Vec<(ServerKey, Vec<ServerMod>)>) {
     }
     if let Err(e) = writer.upsert_server_mods_bulk(batch).await {
         tracing::warn!(error = %e, "mod write batch failed");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::Ipv4Addr;
+
+    fn info() -> ServerInfo {
+        ServerInfo {
+            protocol: 17,
+            name: "Test".into(),
+            map: "chernarusplus".into(),
+            folder: "dayz".into(),
+            game: "DayZ".into(),
+            app_id: 1,
+            players: 10,
+            max_players: 60,
+            bots: 2,
+            server_type: b'd',
+            environment: b'l',
+            visibility: 1,
+            vac: 1,
+            version: "1.28".into(),
+            game_port: Some(2302),
+            steam_id: None,
+            keywords: Some("mod,firstperson".into()),
+            game_id: None,
+        }
+    }
+
+    #[test]
+    fn an_answered_probe_writes_every_row_column() {
+        let key = ServerKey {
+            ip: Ipv4Addr::new(203, 0, 113, 7),
+            query_port: 27016,
+        };
+        let row = answered_row(key, info(), Some(Duration::from_millis(42)));
+
+        let expected = ServerRow {
+            key,
+            game_port: 2302,
+            name: "Test".into(),
+            map: "chernarusplus".into(),
+            players: 10,
+            max_players: 60,
+            bots: 2,
+            ping_ms: 42,
+            ping_kind: tetra_core::PingKind::Estimated,
+            locked: true,
+            vac: true,
+            version: Some("1.28".into()),
+            keywords: Some("mod,firstperson".into()),
+            responded: true,
+            ..Default::default()
+        };
+
+        assert_eq!(row, expected);
+    }
+
+    #[test]
+    fn an_unpinged_answer_stores_zero_and_a_huge_ping_is_capped() {
+        let key = ServerKey {
+            ip: Ipv4Addr::new(203, 0, 113, 7),
+            query_port: 27016,
+        };
+        assert_eq!(answered_row(key, info(), None).ping_ms, 0);
+        assert_eq!(
+            answered_row(key, info(), Some(Duration::from_secs(9_000_000))).ping_ms,
+            i32::MAX
+        );
     }
 }

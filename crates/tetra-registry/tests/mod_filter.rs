@@ -26,6 +26,7 @@ fn dayz_mod(workshop_id: u64, name: &str) -> ServerMod {
     ServerMod {
         workshop_id,
         name: name.into(),
+        hash: None,
     }
 }
 

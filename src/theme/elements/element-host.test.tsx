@@ -146,29 +146,30 @@ describe("ElementHost & Elements", () => {
   });
 
   describe("notice.* elements", () => {
-    it("renders notice.error only with an error", () => {
-      const noError = render(<ElementHost node={{ element: "notice.error" }} />, { error: null });
-      expect(noError).toBe("");
+    it("renders nothing for a notice placement, even with its state set", () => {
+      const html = render(
+        <div>
+          <ElementHost node={{ element: "notice.update" }} />
+          <ElementHost node={{ element: "notice.storage" }} />
+          <ElementHost node={{ element: "notice.error" }} />
+        </div>,
+        {
+          error: "Something broke.",
+          storageDegraded: true,
+          updateAvailable: { version: "2.7.0" },
+        },
+      );
+      expect(html).toBe("<div></div>");
     });
 
-    it("renders notice.storage only when storage is degraded", () => {
-      const normal = render(<ElementHost node={{ element: "notice.storage" }} />, {
-        storageDegraded: false,
-      });
-      expect(normal).toBe("");
-    });
-
-    it("renders notice.update only while an update is available and not dismissed", () => {
-      const none = render(<ElementHost node={{ element: "notice.update" }} />, {
-        updateAvailable: null,
-      });
-      expect(none).toBe("");
-
-      const dismissed = render(<ElementHost node={{ element: "notice.update" }} />, {
-        updateAvailable: { version: "2.7.0" },
-        updateBannerDismissed: true,
-      });
-      expect(dismissed).toBe("");
+    it("renders nothing for a lan.empty placement; the server list draws it", () => {
+      const html = render(
+        <div>
+          <ElementHost node={{ element: "lan.empty" }} />
+        </div>,
+        {},
+      );
+      expect(html).toBe("<div></div>");
     });
   });
 

@@ -84,6 +84,10 @@
   @apply min-w-0 truncate text-ink;
 }
 
+.t-neutral-servers-version-warning {
+  @apply shrink-0 text-warn;
+}
+
 .t-neutral-servers-details {
   @apply mt-0.5 flex items-center gap-2.5 whitespace-nowrap [font-size:var(--t-type-rowMeta-size)] text-muted;
 }
@@ -129,7 +133,27 @@
 }
 
 .t-neutral-servers-ping {
-  @apply text-muted;
+  @apply relative text-muted;
+}
+
+.t-neutral-servers-ping [data-part="shield"] {
+  @apply mr-[3px] inline-flex align-[-2px] text-warn;
+}
+
+.t-neutral-servers-ping [data-part="shield"] svg {
+  @apply size-3;
+}
+
+.t-neutral-servers-ping [data-part="tip"] {
+  @apply invisible absolute right-0 top-full z-10 mt-1.5 w-[280px] rounded-sm border border-line bg-surface2 p-[9px_11px] text-left [font-family:var(--t-type-family-ui)] [font-size:12px] font-normal normal-case leading-[1.45] tracking-normal text-ink opacity-0 [box-shadow:0_10px_26px_rgba(0,0,0,0.35)];
+}
+
+.t-neutral-servers-ping [data-part="tip"] b {
+  @apply mb-0.5 block;
+}
+
+.t-neutral-servers-ping:hover [data-part="tip"] {
+  @apply visible opacity-100;
 }
 
 .t-neutral-servers-ping[data-state~="good"] {

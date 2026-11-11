@@ -101,17 +101,23 @@ mod tests {
         }
     }
 
-    /// Pinned against Steam's wire values — renumbering these silently
-    /// corrupts every mod-state reading in the app.
+    /// Reads the bits off Steam's own `ItemState`, so renumbering either side
+    /// is caught here rather than corrupting every mod-state reading.
     #[test]
     fn flag_values_match_steam() {
-        assert_eq!(ItemFlags::NONE, 0);
-        assert_eq!(ItemFlags::SUBSCRIBED, 1);
-        assert_eq!(ItemFlags::LEGACY_ITEM, 2);
-        assert_eq!(ItemFlags::INSTALLED, 4);
-        assert_eq!(ItemFlags::NEEDS_UPDATE, 8);
-        assert_eq!(ItemFlags::DOWNLOADING, 16);
-        assert_eq!(ItemFlags::DOWNLOAD_PENDING, 32);
+        use steamworks::ItemState;
+
+        for (ours, theirs) in [
+            (ItemFlags::NONE, ItemState::NONE),
+            (ItemFlags::SUBSCRIBED, ItemState::SUBSCRIBED),
+            (ItemFlags::LEGACY_ITEM, ItemState::LEGACY_ITEM),
+            (ItemFlags::INSTALLED, ItemState::INSTALLED),
+            (ItemFlags::NEEDS_UPDATE, ItemState::NEEDS_UPDATE),
+            (ItemFlags::DOWNLOADING, ItemState::DOWNLOADING),
+            (ItemFlags::DOWNLOAD_PENDING, ItemState::DOWNLOAD_PENDING),
+        ] {
+            assert_eq!(ours, theirs.bits(), "{theirs:?}");
+        }
     }
 
     /// Bit combinations Steam actually reports. Order matters: downloading

@@ -9,6 +9,7 @@ license.workspace = true
 tetra-core = { path = "../tetra-core" }
 tetra-registry = { path = "../tetra-registry" }
 steamworks.workspace = true
+sha1.workspace = true
 serde = { workspace = true }
 thiserror.workspace = true
 tracing.workspace = true

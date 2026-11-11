@@ -14,7 +14,10 @@ const GAME_PROCESSES: &[&str] = &["DayZ_x64.exe", "enfMain"];
 /// each call; a caller polling repeatedly should keep a [`ProcessWatch`]
 /// instead so `sysinfo` can diff against the previous snapshot.
 pub fn dayz_is_running() -> bool {
-    let mut system = System::new();
+    // No process table to read: nothing can be reported as running.
+    let Ok(mut system) = System::new() else {
+        return false;
+    };
     dayz_is_running_with(&mut system)
 }
 
@@ -30,15 +33,15 @@ fn dayz_is_running_with(system: &mut System) -> bool {
 }
 
 /// A reusable process-table snapshot for repeated [`dayz_is_running`] checks.
-pub struct ProcessWatch(System);
+pub struct ProcessWatch(Option<System>);
 
 impl ProcessWatch {
     pub fn new() -> Self {
-        Self(System::new())
+        Self(System::new().ok())
     }
 
     pub fn dayz_is_running(&mut self) -> bool {
-        dayz_is_running_with(&mut self.0)
+        self.0.as_mut().is_some_and(dayz_is_running_with)
     }
 }
 
@@ -64,7 +67,9 @@ fn plausibly_this_session(start_time: u64, launched_at: i64) -> bool {
 /// or after `launched_at`, Unix seconds) exists — unlike [`dayz_is_running`],
 /// which also matches a crashed/leftover process from an earlier session.
 pub fn dayz_running_since(launched_at: i64) -> bool {
-    let mut system = System::new();
+    let Ok(mut system) = System::new() else {
+        return false;
+    };
     system.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing());
     GAME_PROCESSES.iter().any(|name| {
         system

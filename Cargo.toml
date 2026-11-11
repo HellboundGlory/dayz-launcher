@@ -9,13 +9,14 @@ members = [
     "crates/tetra-discord",
     "crates/tetra-index",
     "crates/tetra-indexer",
+    "crates/tetra-tools",
     "src-tauri",
 ]
 
 [workspace.package]
 version = "3.1.1"
 edition = "2021"
-# 1.95 is the floor sysinfo 0.39 imposes.
+# 1.95 is the floor sysinfo 0.40 imposes.
 rust-version = "1.95"
 license = "PolyForm-Noncommercial-1.0.0"
 
@@ -25,18 +26,17 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "time", "macros"] }
 tracing = "0.1"
-rusqlite = { version = "0.40", features = ["bundled", "functions"] }
+rusqlite = { version = "0.41", features = ["bundled", "functions"] }
 steamworks = "0.13"
 winreg = "0.56"
 discord-rich-presence = "1.1"
 percent-encoding = "2"
 # Server-index backend and its client. `reqwest` is already in the tree via
 # tauri-plugin-updater; rustls keeps the Linux container free of OpenSSL.
-# Bundled webpki roots rather than the platform store: one TLS behaviour on
-# every Windows box and inside the scratch container.
+# Certificates come from the OS store via rustls-platform-verifier, so the
+# indexer image installs ca-certificates.
 reqwest = { version = "0.13", default-features = false, features = [
     "rustls",
-    "webpki-roots",
     "http2",
     "gzip",
     "json",
@@ -55,3 +55,5 @@ semver = "1"
 # Fingerprints an installed builtin theme so a pristine copy can be told from
 # an edited one. Must stay stable across toolchains, which DefaultHasher is not.
 sha2 = "0.11"
+# The publisher's mod short hash is built on SHA-1 over sorted PBO trailers.
+sha1 = "0.11"

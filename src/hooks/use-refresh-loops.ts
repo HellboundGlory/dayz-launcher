@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useServerStore } from "@/stores/server-store";
+import { useLanStore } from "@/stores/lan-store";
 import { useLaunchStore } from "@/stores/launch-store";
 import { useSettingsStore } from "@/stores/settings-store";
 import { logClient, refreshVisibleServers } from "@/lib/tauri";
@@ -97,7 +98,15 @@ export function useRefreshLoops({
       }
     }
   }, [steamConnected, triggerReload, setRefreshActive, setError, setRefreshing, setRefreshedAt]);
-  const handleRefresh = useCallback(() => runRefresh(true), [runRefresh]);
+  // A Refresh on the LAN tab sweeps the network instead of re-asking rows it did
+  // not list. The timed sweep above is left alone: it re-asks whatever is on screen.
+  const handleRefresh = useCallback(() => {
+    if (useServerStore.getState().filter.lan_addrs !== null) {
+      void useLanStore.getState().scan();
+      return;
+    }
+    void runRefresh(true);
+  }, [runRefresh]);
 
   // Auto-refresh on a timer, with the same guards as a manual refresh.
   useEffect(() => {

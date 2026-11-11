@@ -173,83 +173,55 @@ pub fn parse_registry() -> Result<Registry, serde_json::Error> {
 mod tests {
     use super::*;
     use std::collections::BTreeSet;
+    use std::path::Path;
 
     #[test]
     fn shared_registry_parses_without_losing_fields() {
         let registry = parse_registry().unwrap();
         assert_eq!(registry.registry_version, "2.0");
-        assert_eq!(registry.elements.len(), 184);
+        assert_eq!(registry.elements.len(), 203);
         assert_eq!(
             serde_json::to_value(&registry).unwrap(),
             serde_json::from_str::<serde_json::Value>(REGISTRY_JSON).unwrap()
         );
     }
 
+    /// A theme may name any icon in the registry, so the registry's allowlist
+    /// must be exactly the set the renderer can draw — one entry out either way
+    /// renders nothing or refuses an icon that works.
     #[test]
-    fn includes_every_documented_icon_and_surface() {
+    fn icon_allowlist_matches_what_the_renderer_draws() {
+        let source = std::fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/theme/renderer/leaves.tsx"),
+        )
+        .expect("the renderer's icon table");
+
+        let body = source
+            .split_once("export const ICONS")
+            .and_then(|(_, rest)| rest.split_once('{'))
+            .and_then(|(_, rest)| rest.split_once("\n};"))
+            .map(|(body, _)| body)
+            .expect("the ICONS table");
+        let drawn: BTreeSet<&str> = body
+            .lines()
+            .filter_map(|line| line.trim().split_once(':'))
+            .map(|(name, _)| name)
+            .collect();
         let registry = parse_registry().unwrap();
-        let expected_icons = [
-            "alertTriangle",
-            "appWindow",
-            "arrowRight",
-            "ban",
-            "check",
-            "checkCircle",
-            "chevronDown",
-            "chevronLeft",
-            "chevronRight",
-            "chevronsLeft",
-            "chevronsRight",
-            "clock",
-            "copy",
-            "download",
-            "externalLink",
-            "fileArchive",
-            "fileOutput",
-            "filter",
-            "folder",
-            "folderOpen",
-            "gamepad",
-            "globe",
-            "inbox",
-            "info",
-            "listTree",
-            "loader",
-            "minus",
-            "moon",
-            "moreHorizontal",
-            "package",
-            "palette",
-            "play",
-            "plus",
-            "refresh",
-            "rotateCcw",
-            "search",
-            "settings",
-            "square",
-            "star",
-            "sun",
-            "thumbsUp",
-            "trash",
-            "upload",
-            "users",
-            "x",
-        ];
-        assert_eq!(registry.icons.len(), expected_icons.len());
+        let allowed: BTreeSet<&str> = registry.icons.iter().map(String::as_str).collect();
+
+        assert_eq!(drawn, allowed);
+    }
+
+    /// The layout surfaces a theme may name. Nothing else pins the set, so a
+    /// surface dropped from the registry would silently stop being targetable.
+    #[test]
+    fn every_layout_surface_is_registered() {
+        let registry = parse_registry().unwrap();
+        let surfaces: BTreeSet<&str> = registry.surfaces.keys().map(String::as_str).collect();
+
         assert_eq!(
-            registry
-                .icons
-                .iter()
-                .map(String::as_str)
-                .collect::<BTreeSet<_>>(),
-            BTreeSet::from(expected_icons)
-        );
-        assert_eq!(
-            registry
-                .surfaces
-                .keys()
-                .map(String::as_str)
-                .collect::<BTreeSet<_>>(),
+            surfaces,
             BTreeSet::from([
                 "surface.windowControls",
                 "surface.navRail",

@@ -1,7 +1,7 @@
 import type { CSSProperties, MouseEvent } from "react";
 import { Download, ExternalLink } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { open as openLink } from "@tauri-apps/plugin-shell";
+import { openExternalUrl } from "@/lib/external-link";
 import { useUpdateStore } from "@/stores/update-store";
 import { useElementContext } from "./context";
 import { OptionIcon } from "./option-icon";
@@ -19,7 +19,7 @@ function UpdateChangelogMarkdown({ content }: { content: string }) {
         a: ({ href, children }) => (
           <button
             type="button"
-            onClick={() => href && void openLink(href)}
+            onClick={() => href && void openExternalUrl(href).catch((e) => console.error(e))}
             className="text-accent underline decoration-dotted underline-offset-2 hover:brightness-110"
           >
             {children}
@@ -80,7 +80,7 @@ export function UpdateViewRelease({
     <button
       type="button"
       data-el="update.viewRelease"
-      onClick={() => void openLink(DOWNLOAD_URL)}
+      onClick={() => void openExternalUrl(DOWNLOAD_URL).catch((e) => console.error(e))}
       className={className}
       style={style}
     >

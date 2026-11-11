@@ -221,25 +221,31 @@ describe("ModTags", () => {
   });
 });
 
-describe("ModSize", () => {
-  it("formats the disk size to one decimal place, or shows an em-dash with the unknown state", async () => {
-    const { ModSize } = await import("./mod-elements");
-    const missing = renderWithMod(<ModSize />, makeMod("1", { size_on_disk: "0" }));
+describe("mod facts that may be missing", () => {
+  const cases: {
+    name: "ModSize" | "ModPublishedSize" | "ModSubscribers" | "ModFolder";
+    absent: Partial<SubscribedMod>;
+    present: Partial<SubscribedMod>;
+    shown: string;
+  }[] = [
+    { name: "ModSize", absent: { size_on_disk: "0" }, present: { size_on_disk: "123456" }, shown: formatBytes(123456, 1) },
+    { name: "ModPublishedSize", absent: { file_size: 0 }, present: { file_size: 654321 }, shown: formatBytes(654321, 1) },
+    {
+      name: "ModSubscribers",
+      absent: { num_subscriptions: "0" },
+      present: { num_subscriptions: "1234" },
+      shown: (1234).toLocaleString(),
+    },
+    { name: "ModFolder", absent: { folder: null }, present: { folder: "@MyMod" }, shown: "@MyMod" },
+  ];
+
+  it.each(cases)("$name shows the em-dash and unknown state, or the value", async ({ name, absent, present, shown }) => {
+    const El = (await import("./mod-elements"))[name];
+    const missing = renderWithMod(<El />, makeMod("1", absent));
     expect(missing).toContain("—");
     expect(missing).toContain("unknown");
 
-    expect(renderWithMod(<ModSize />, makeMod("1", { size_on_disk: "123456" }))).toContain(formatBytes(123456, 1));
-  });
-});
-
-describe("ModPublishedSize", () => {
-  it("formats the published Workshop size, or shows an em-dash with the unknown state", async () => {
-    const { ModPublishedSize } = await import("./mod-elements");
-    const missing = renderWithMod(<ModPublishedSize />, makeMod("1", { file_size: 0 }));
-    expect(missing).toContain("—");
-    expect(missing).toContain("unknown");
-
-    expect(renderWithMod(<ModPublishedSize />, makeMod("1", { file_size: 654321 }))).toContain(formatBytes(654321, 1));
+    expect(renderWithMod(<El />, makeMod("1", present))).toContain(shown);
   });
 });
 
@@ -270,19 +276,6 @@ describe("ModUpdated / ModSubscribed / ModCreated", () => {
   });
 });
 
-describe("ModSubscribers", () => {
-  it("localises the count, or shows an em-dash with the unknown state without one", async () => {
-    const { ModSubscribers } = await import("./mod-elements");
-    const missing = renderWithMod(<ModSubscribers />, makeMod("1", { num_subscriptions: "0" }));
-    expect(missing).toContain("—");
-    expect(missing).toContain("unknown");
-
-    expect(renderWithMod(<ModSubscribers />, makeMod("1", { num_subscriptions: "1234" }))).toContain(
-      (1234).toLocaleString(),
-    );
-  });
-});
-
 describe("ModRating", () => {
   it("renders an em-dash with no votes, else the up/down parts", async () => {
     const { ModRating } = await import("./mod-elements");
@@ -300,17 +293,6 @@ describe("ModWorkshopId", () => {
   it("renders the workshop id as text", async () => {
     const { ModWorkshopId } = await import("./mod-elements");
     expect(renderWithMod(<ModWorkshopId />, makeMod("123456789"))).toContain("123456789");
-  });
-});
-
-describe("ModFolder", () => {
-  it("renders the folder name, or an em-dash with the unknown state without one", async () => {
-    const { ModFolder } = await import("./mod-elements");
-    const missing = renderWithMod(<ModFolder />, makeMod("1", { folder: null }));
-    expect(missing).toContain("—");
-    expect(missing).toContain("unknown");
-
-    expect(renderWithMod(<ModFolder />, makeMod("1", { folder: "@MyMod" }))).toContain("@MyMod");
   });
 });
 
@@ -369,7 +351,7 @@ describe("ModOpenInSteam", () => {
 });
 
 describe("ModOpenFolder", () => {
-  it("is disabled without a folder, and opens the mod's folder when present", async () => {
+  it("is disabled without a folder, and opens the mod's folder by workshop id when present", async () => {
     const { ModOpenFolder } = await import("./mod-elements");
     resetCaptured();
     const missing = renderWithMod(<ModOpenFolder />, makeMod("1", { folder: null }));
@@ -381,7 +363,7 @@ describe("ModOpenFolder", () => {
     const present = renderWithMod(<ModOpenFolder />, makeMod("1", { folder: "@MyMod" }));
     expect(present).not.toContain("disabled");
     (captured["mod.openFolder"].onClick as (e: { stopPropagation: () => void }) => void)({ stopPropagation: vi.fn() });
-    expect(tauriMocks.openModFolder).toHaveBeenCalledWith("@MyMod");
+    expect(tauriMocks.openModFolder).toHaveBeenCalledWith("1");
   });
 });
 
@@ -586,6 +568,37 @@ describe("serverMod elements", () => {
 
       const custom = renderWithServerMod(<ServerModState options={{ label: "Ready to go" }} />, { state: "ready" });
       expect(custom).toContain("Ready to go");
+    });
+
+    it("reads Differs for a ready mod whose copy differs", async () => {
+      const { ServerModState } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModState />, { state: "ready", differs: true });
+      expect(html).toContain('data-state="differs"');
+      expect(html).toContain("Differs");
+      expect(html).not.toContain("Ready");
+    });
+
+    it("keeps the plain state for a differing mod that is not ready", async () => {
+      const { ServerModState } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModState />, { state: "needs_update", differs: true });
+      expect(html).toContain('data-state="needsUpdate"');
+      expect(html).toContain("Needs update");
+    });
+  });
+
+  describe("ServerModNote", () => {
+    it("says nothing for a mod that matches the server's copy", async () => {
+      const { ServerModNote } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModNote />, { state: "ready" });
+      expect(html).toBe("");
+    });
+
+    it("explains the signature error when the copy differs", async () => {
+      const { ServerModNote } = await import("./mod-elements");
+      const html = renderWithServerMod(<ServerModNote />, { state: "ready", differs: true });
+      expect(html).toContain('data-el="serverMod.note"');
+      expect(html).toContain("Your copy doesn&#x27;t match the server&#x27;s.");
+      expect(html).toContain("signature error");
     });
   });
 

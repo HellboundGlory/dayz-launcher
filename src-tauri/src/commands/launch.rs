@@ -1,4 +1,6 @@
+use crate::commands::server::mod_readiness::rules_error;
 use crate::commands::settings::OnJoin;
+use crate::credentials::SecretStore;
 use crate::state::AppState;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -8,12 +10,6 @@ use tetra_launch::modline::build_mod_string;
 use tetra_launch::protocol::register_dzsa_protocol;
 use tetra_launch::spawn::{build_launch_args, find_dayz_exe, spawn_dayz};
 use tetra_steam::workshop::ModState;
-
-/// Whether an A2S_RULES failure means the server started answering and then
-/// stopped, rather than never responding at all.
-fn stalled_mid_response(e: &tetra_net::NetError) -> bool {
-    matches!(e, tetra_net::NetError::ExchangeTimedOut { .. })
-}
 
 /// Turn the blocked mods into one message that says what to actually do,
 /// grouped by cause ("not installed" vs "needs updating" want different actions).
@@ -175,6 +171,8 @@ pub async fn launch_game(
     addr: String,
     game_port: u16,
     password: Option<String>,
+    remember: Option<bool>,
+    use_saved: Option<bool>,
     profile_name: Option<String>,
     dayz_path_override: Option<String>,
     launch_params: Option<Vec<String>>,
@@ -194,6 +192,11 @@ pub async fn launch_game(
     let query_addr: SocketAddr = addr
         .parse()
         .map_err(|e| format!("Invalid query address: {e}"))?;
+    let user = query_addr.to_string();
+    if let (false, Some(pw)) = (main_menu, &password) {
+        crate::credentials::validate_password(pw)?;
+    }
+    let typed_password = password.clone();
 
     // Look the row up now so "Checking mods" can appear immediately, and
     // stash it for reuse once the launch succeeds. Best-effort throughout.
@@ -204,7 +207,7 @@ pub async fn launch_game(
                 ip: *v4.ip(),
                 query_port: v4.port(),
             };
-            if let Ok(reader) = crate::commands::server::reader(&state) {
+            if let Ok(reader) = crate::commands::server::open_reader(&state).await {
                 let row = tokio::task::spawn_blocking(move || reader.get(key))
                     .await
                     .ok()
@@ -232,24 +235,18 @@ pub async fn launch_game(
         };
 
         // Discover DayZ install path — use manual override if provided
-        let dayz_dir = if let Some(ref manual_path) = dayz_path_override {
-            let path = std::path::PathBuf::from(manual_path);
-            if !path.exists() {
-                return Err(format!("DayZ path does not exist: {manual_path}"));
-            }
-            path
+        let dayz_exe = if let Some(ref manual_path) = dayz_path_override {
+            dayz_exe_in(manual_path)?
         } else {
             let paths = tetra_launch::registry_discovery::find_steam_paths()
                 .ok_or_else(|| "Could not find Steam/DayZ installation. Check registry or set path manually in Settings.".to_string())?;
-            paths.dayz_install.clone()
+            find_dayz_exe(&paths.dayz_install).ok_or_else(|| {
+                format!(
+                    "DayZ executable not found at {}. Try verifying game files in Steam.",
+                    paths.dayz_install.display()
+                )
+            })?
         };
-
-        let dayz_exe = find_dayz_exe(&dayz_dir).ok_or_else(|| {
-            format!(
-                "DayZ executable not found at {}. Try verifying game files in Steam.",
-                dayz_dir.display()
-            )
-        })?;
 
         // Get the Steam handle for Workshop operations
         let steam = {
@@ -258,19 +255,16 @@ pub async fn launch_game(
         };
 
         // Unqueued: one query on a click, must not wait behind a refresh's thousands.
-        let rules_payload = prober.rules_unqueued(query_addr).await.map_err(|e| {
-            if stalled_mid_response(&e) {
-                format!(
-                    "{addr}:{game_port} started answering but stopped responding \
-                     part-way through its mod list. Try again in a moment."
+        let rules_payload = prober
+            .rules_unqueued(query_addr)
+            .await
+            .map_err(|e| {
+                rules_error(
+                    format!("{addr}:{game_port}"),
+                    "Could not query server rules at",
+                    &e,
                 )
-            } else {
-                format!(
-                    "Could not query server rules at {addr}:{game_port}. \
-                     The server may be offline or behind a firewall."
-                )
-            }
-        })?;
+            })?;
 
         let mods = rules_payload.mods;
         let verification = tokio::task::spawn_blocking(move || verify_mods(&steam, &mods))
@@ -285,11 +279,27 @@ pub async fn launch_game(
 
         // The user's own launchParams go ahead of -mod=, which build_launch_args keeps last.
         let extra_params = launch_params.unwrap_or_default();
+        let resolved_password = if main_menu {
+            None
+        } else {
+            let keyring_user = user.clone();
+            let typed = password.clone();
+            tokio::task::spawn_blocking(move || {
+                crate::credentials::resolve_password(
+                    &crate::credentials::SystemKeyring,
+                    &keyring_user,
+                    typed,
+                    use_saved == Some(true),
+                )
+            })
+            .await
+            .map_err(|e| format!("Task join error: {e}"))??
+        };
         let args = build_launch_args(
             main_menu,
             ip,
             game_port,
-            password.as_deref(),
+            resolved_password.as_deref(),
             &mod_arg,
             &extra_params,
             profile_name.as_deref(),
@@ -313,13 +323,9 @@ pub async fn launch_game(
     }
 
     // Only after the process actually started, so a failed gate never shows
-    // up in RECENT. Writer scoped in its own block: the guard is `!Send`
-    // and can't be held across the `.await` below.
+    // up in RECENT.
     if !main_menu {
-        let played_writer = {
-            let guard = state.registry.lock().map_err(|e| e.to_string())?;
-            guard.as_ref().map(|r| r.writer())
-        };
+        let played_writer = crate::commands::server::registry_writer(&state).await.ok();
         if let (Some(writer), SocketAddr::V4(v4)) = (played_writer, query_addr) {
             let key = tetra_registry::rows::ServerKey {
                 ip: *v4.ip(),
@@ -361,6 +367,24 @@ pub async fn launch_game(
     let on_join = state.on_join.lock().map(|g| *g).unwrap_or_default();
     apply_on_join(&app, on_join);
 
+    // Saved only once the game started, and in the background: a keyring that
+    // waits on an unlock prompt must not hold up the launch. A refusal is
+    // worth a log line, nothing more.
+    let remember_it =
+        crate::credentials::should_save(typed_password.is_some(), remember, main_menu);
+    if let (true, Some(pw)) = (remember_it, typed_password) {
+        let log_app = app.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            if let Err(e) = crate::credentials::SystemKeyring.set(&user, &pw) {
+                crate::log::log_line(
+                    &log_app,
+                    "credentials",
+                    &format!("could not save the password: {}", e.0),
+                );
+            }
+        });
+    }
+
     Ok(LaunchOutcome {
         status: "launched".into(),
         mods_checked,
@@ -396,6 +420,10 @@ pub struct VerifyOutcome {
     /// means `refreshed` is empty because nothing was asked, not because
     /// everything was current.
     pub checked_workshop: bool,
+    /// Workshop ids of ready mods whose local copy hashes differently from the
+    /// server's, stringified for JS. Empty when Steam couldn't be asked.
+    #[serde(default)]
+    pub differing: Vec<String>,
 }
 
 /// Re-read a server's mod list and bring the local copies up to date,
@@ -418,25 +446,18 @@ pub async fn verify_server_mods(
     };
 
     // Unqueued, same reason as launch_game: one query on a click.
-    let rules = prober.rules_unqueued(query_addr).await.map_err(|e| {
-        if stalled_mid_response(&e) {
-            format!(
-                "{query_addr} started answering but stopped responding \
-                 part-way through its mod list. Try again in a moment."
-            )
-        } else {
-            format!(
-                "Could not read the mod list from {query_addr}. \
-                 The server may be offline or behind a firewall."
-            )
-        }
-    })?;
+    let rules = prober
+        .rules_unqueued(query_addr)
+        .await
+        .map_err(|e| rules_error(query_addr, "Could not read the mod list from", &e))?;
     let declared = rules.mods;
 
-    let writer = {
-        let guard = state.registry.lock().map_err(|e| e.to_string())?;
-        guard.as_ref().map(|r| r.writer())
-    };
+    let server_hashes: std::collections::HashMap<u64, u32> = declared
+        .iter()
+        .filter_map(|m| m.hash.map(|hash| (m.workshop_id, hash)))
+        .collect();
+
+    let writer = crate::commands::server::registry_writer(&state).await.ok();
     if let Some(writer) = writer {
         if let Err(e) = writer.upsert_server_mods(key, declared.clone()).await {
             crate::log::line(
@@ -458,19 +479,45 @@ pub async fn verify_server_mods(
     };
 
     // Steam being absent is not a failure — the mod list was still refreshed.
-    let (refreshed, checked_workshop) = match steam {
-        None => (Vec::new(), false),
+    let (refreshed, checked_workshop, differing) = match steam {
+        None => (Vec::new(), false, Vec::new()),
         Some(steam) => {
-            let queued = tokio::task::spawn_blocking(move || steam.refresh_stale(&ids))
+            let refresh_ids = ids.clone();
+            let handle = Arc::clone(&steam);
+            let queued = tokio::task::spawn_blocking(move || handle.refresh_stale(&refresh_ids))
                 .await
                 .map_err(|e| format!("Task join error: {e}"))?;
-            match queued {
+            let (refreshed, checked_workshop) = match queued {
                 Ok(ids) => (ids, true),
                 Err(e) => {
                     crate::log::line("verify", &format!("Workshop freshness check failed: {e}"));
                     (Vec::new(), false)
                 }
-            }
+            };
+
+            let updating = refreshed.clone();
+            let differing = tokio::task::spawn_blocking(move || {
+                let states = match steam.mod_states(&ids) {
+                    Ok(states) => states,
+                    Err(e) => {
+                        crate::log::line("verify", &format!("Reading mod state failed: {e}"));
+                        return Vec::new();
+                    }
+                };
+                crate::commands::server::mod_readiness::differing_ids(
+                    states.into_iter(),
+                    &server_hashes,
+                    &updating,
+                    |id| steam.mod_folder(id).ok().flatten(),
+                )
+            })
+            .await
+            .unwrap_or_else(|e| {
+                crate::log::line("verify", &format!("Comparing mod copies failed: {e}"));
+                Vec::new()
+            });
+
+            (refreshed, checked_workshop, differing)
         }
     };
 
@@ -484,11 +531,12 @@ pub async fn verify_server_mods(
             .collect(),
         refreshed: refreshed.into_iter().map(|id| id.to_string()).collect(),
         checked_workshop,
+        differing: differing.into_iter().map(|id| id.to_string()).collect(),
     })
 }
 
 /// Register the `dzsa://` protocol handler in the OS. Skips debug builds unless `TETRA_FORCE_PROTOCOL_REGISTER=1` is set.
-pub fn register_protocol_handler() -> Result<(), String> {
+pub fn register_protocol_handler(app: &tauri::AppHandle) -> Result<(), String> {
     if cfg!(debug_assertions) && std::env::var_os("TETRA_FORCE_PROTOCOL_REGISTER").is_none() {
         crate::log::line(
             "protocol",
@@ -496,11 +544,26 @@ pub fn register_protocol_handler() -> Result<(), String> {
         );
         return Ok(());
     }
-    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let exe = protocol_handler_path(app)?;
     if tetra_launch::protocol::dzsa_registered_to(&exe) {
         return Ok(());
     }
     register_dzsa_protocol(&exe).map_err(|e| e.to_string())
+}
+
+/// The file the `dzsa://` handler should point at. Inside an AppImage that is
+/// the `.AppImage` itself, not the mount point `current_exe` reports — the
+/// mount is gone once the launcher exits.
+fn protocol_handler_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    #[cfg(target_os = "linux")]
+    {
+        use tauri::Manager;
+        if let Some(appimage) = app.env().appimage {
+            return Ok(std::path::PathBuf::from(appimage));
+        }
+    }
+    let _ = app;
+    std::env::current_exe().map_err(|e| e.to_string())
 }
 
 /// Start the Steam client, for the "Start Steam" button on the startup
@@ -530,13 +593,7 @@ pub fn open_workshop_in_steam(workshop_id: String) -> Result<(), String> {
         "steam",
         "No Steam executable found; falling back to the OS opener",
     );
-    #[cfg(target_os = "windows")]
-    let mut cmd = std::process::Command::new("explorer");
-    #[cfg(not(target_os = "windows"))]
-    let mut cmd = std::process::Command::new("xdg-open");
-    cmd.arg(&url)
-        .spawn()
-        .map(|_| ())
+    tetra_launch::spawn::open_with_desktop(std::ffi::OsStr::new(&url))
         .map_err(|e| format!("Could not open {url}: {e}"))
 }
 
@@ -551,12 +608,44 @@ pub fn discover_steam_paths() -> Result<Option<SteamPaths>, String> {
     }))
 }
 
+/// The DayZ executable in `dir`, requiring an absolute path to an existing
+/// directory: a relative one from the WebView would resolve against the
+/// launcher's own working directory.
+pub(crate) fn dayz_exe_in(dir: &str) -> Result<std::path::PathBuf, String> {
+    let path = std::path::Path::new(dir);
+    if !path.is_absolute() {
+        return Err(format!("DayZ path must be absolute: {dir}"));
+    }
+    if !path.is_dir() {
+        return Err(format!("DayZ path does not exist: {dir}"));
+    }
+    find_dayz_exe(path).ok_or_else(|| {
+        format!("DayZ executable not found at {dir}. Try verifying game files in Steam.")
+    })
+}
+
 /// Whether `path` looks like a real DayZ install — i.e. `find_dayz_exe` would
 /// find something to launch there. Backs the setup modal's inline "found it"
 /// check for both Browse and a hand-pasted path.
 #[tauri::command]
 pub fn validate_dayz_path(path: String) -> bool {
-    find_dayz_exe(std::path::Path::new(&path)).is_some()
+    dayz_exe_in(&path).is_ok()
+}
+
+/// The installed DayZ build in the form servers report it, or `None` when the
+/// install or its version resource can't be read.
+#[tauri::command]
+pub async fn get_installed_dayz_version(dayz_path_override: Option<String>) -> Option<String> {
+    tokio::task::spawn_blocking(move || {
+        let dayz_dir = match dayz_path_override {
+            Some(dir) => dayz_exe_in(&dir).ok()?.parent()?.to_path_buf(),
+            None => tetra_launch::registry_discovery::find_steam_paths()?.dayz_install,
+        };
+        tetra_launch::exe_version::installed_dayz_version(&dayz_dir)
+    })
+    .await
+    .ok()
+    .flatten()
 }
 
 /// Whether a DayZ session is running right now. Called once on mount for an
@@ -607,4 +696,230 @@ pub fn start_dayz_watcher(app: &AppHandle) {
             let _ = app.emit("dayz-running", running);
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::atomic_write::test_support::ScratchDir;
+    use tetra_core::a2s::dayz::ServerMod;
+    use tetra_steam::{Command, SteamHandle};
+
+    /// A Steam handle whose actor answers from these tables. `None` states makes
+    /// every state query fail, standing in for an unreachable Steam; an id with
+    /// no state is left out of the answer, as a partial Workshop reply does.
+    fn mock_steam(
+        states: Option<Vec<(u64, u32)>>,
+        folders: Vec<(u64, Option<String>)>,
+    ) -> (SteamHandle, std::thread::JoinHandle<()>) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let actor = std::thread::spawn(move || {
+            while let Ok(command) = rx.recv() {
+                match command {
+                    Command::UGCItemStates(ids, ack) => {
+                        let answer = match &states {
+                            Some(states) => Ok(ids
+                                .iter()
+                                .filter_map(|id| {
+                                    states
+                                        .iter()
+                                        .find(|(got, _)| got == id)
+                                        .map(|(_, bits)| (*id, *bits))
+                                })
+                                .collect()),
+                            None => Err(tetra_steam::SteamError::Closed),
+                        };
+                        let _ = ack.send(answer);
+                    }
+                    Command::UGCInstallInfo(id, ack) => {
+                        let folder = folders
+                            .iter()
+                            .find(|(got, _)| *got == id)
+                            .and_then(|(_, folder)| folder.clone())
+                            .map(|folder| tetra_steam::UgcInstallInfo {
+                                folder,
+                                size_on_disk: 0,
+                            });
+                        let _ = ack.send(Ok(folder));
+                    }
+                    _ => {}
+                }
+            }
+        });
+        (SteamHandle::new_mock(tx), actor)
+    }
+
+    struct GateCase {
+        name: &'static str,
+        /// The server's mod list, in declared order.
+        mods: Vec<(u64, &'static str)>,
+        states: Vec<(u64, u32)>,
+        folders: Vec<(u64, Option<&'static str>)>,
+        ready: Vec<&'static str>,
+        blocked: Vec<(&'static str, ModState)>,
+        checked: usize,
+    }
+
+    /// `SUBSCRIBED | INSTALLED`, the bitmask for a mod that can be run as-is.
+    const READY: u32 = 5;
+
+    /// Every declared Workshop mod is judged, and only a ready one with a
+    /// folder is passed through to the launch line.
+    #[test]
+    fn the_launch_gate_judges_every_declared_mod() {
+        let cases = [
+            GateCase {
+                name: "server-side mods are skipped",
+                mods: vec![(0, "Server-side"), (100, "Map")],
+                states: vec![(100, READY)],
+                folders: vec![(100, Some("/workshop/100"))],
+                ready: vec!["/workshop/100"],
+                blocked: vec![],
+                checked: 1,
+            },
+            GateCase {
+                name: "declared order is kept, not Steam's",
+                mods: vec![(300, "C"), (100, "A"), (200, "B")],
+                states: vec![(100, READY), (200, READY), (300, READY)],
+                folders: vec![
+                    (100, Some("/workshop/100")),
+                    (200, Some("/workshop/200")),
+                    (300, Some("/workshop/300")),
+                ],
+                ready: vec!["/workshop/300", "/workshop/100", "/workshop/200"],
+                blocked: vec![],
+                checked: 3,
+            },
+            GateCase {
+                name: "a ready mod whose folder is missing is blocked",
+                mods: vec![(100, "A")],
+                states: vec![(100, READY)],
+                folders: vec![(100, None)],
+                ready: vec![],
+                blocked: vec![("A", ModState::NotInstalled)],
+                checked: 1,
+            },
+            GateCase {
+                name: "a mod Steam never answered for is not subscribed",
+                mods: vec![(100, "A")],
+                states: vec![],
+                folders: vec![],
+                ready: vec![],
+                blocked: vec![("A", ModState::NotSubscribed)],
+                checked: 1,
+            },
+            GateCase {
+                name: "a mod with a newer version on the Workshop is blocked",
+                mods: vec![(100, "A")],
+                states: vec![(100, 13)],
+                folders: vec![(100, Some("/workshop/100"))],
+                ready: vec![],
+                blocked: vec![("A", ModState::NeedsUpdate)],
+                checked: 1,
+            },
+            GateCase {
+                name: "a ready mod and a blocked one are reported apart",
+                mods: vec![(100, "Ready"), (200, "Broken")],
+                states: vec![(100, READY), (200, 0)],
+                folders: vec![(100, Some("/workshop/100"))],
+                ready: vec!["/workshop/100"],
+                blocked: vec![("Broken", ModState::NotSubscribed)],
+                checked: 2,
+            },
+        ];
+
+        for case in cases {
+            let (steam, actor) = mock_steam(
+                Some(case.states),
+                case.folders
+                    .iter()
+                    .map(|(id, folder)| (*id, folder.map(str::to_string)))
+                    .collect(),
+            );
+            let mods: Vec<ServerMod> = case
+                .mods
+                .iter()
+                .map(|(workshop_id, name)| ServerMod {
+                    workshop_id: *workshop_id,
+                    name: name.to_string(),
+                    hash: None,
+                })
+                .collect();
+
+            let verification = verify_mods(&steam, &mods).expect("verification reports, not fails");
+            let ready: Vec<&str> = verification
+                .ready_paths
+                .iter()
+                .map(String::as_str)
+                .collect();
+            assert_eq!(ready, case.ready, "{}", case.name);
+            let blocked: Vec<(&str, ModState)> = verification
+                .blocked
+                .iter()
+                .map(|(name, state)| (name.as_str(), *state))
+                .collect();
+            assert_eq!(blocked, case.blocked, "{}", case.name);
+            assert_eq!(verification.checked, case.checked, "{}", case.name);
+
+            drop(steam);
+            actor.join().expect("the mock actor must not panic");
+        }
+    }
+
+    /// Steam failing to answer must stop the launch, not wave it through with
+    /// every mod silently missing.
+    #[test]
+    fn a_steam_that_cannot_answer_stops_the_launch() {
+        let (steam, actor) = mock_steam(None, Vec::new());
+        let mods = vec![ServerMod {
+            workshop_id: 100,
+            name: "A".into(),
+            hash: None,
+        }];
+
+        let error = match verify_mods(&steam, &mods) {
+            Ok(_) => panic!("an unanswered check must fail closed"),
+            Err(error) => error,
+        };
+
+        assert!(
+            error.contains("Steam"),
+            "the error should say Steam could not be read, got {error:?}"
+        );
+
+        drop(steam);
+        actor.join().expect("the mock actor must not panic");
+    }
+
+    /// A DayZ folder is only accepted when it is absolute, exists, and holds
+    /// one of the two executables.
+    #[test]
+    fn a_dayz_folder_must_be_absolute_and_hold_the_exe() {
+        let root = ScratchDir::new();
+        let empty = root.join("empty");
+        let x64 = root.join("x64");
+        let both = root.join("both");
+        let missing = root.join("missing");
+        std::fs::create_dir_all(&empty).unwrap();
+        std::fs::create_dir_all(&x64).unwrap();
+        std::fs::create_dir_all(&both).unwrap();
+        std::fs::write(x64.join("DayZ_x64.exe"), b"").unwrap();
+        std::fs::write(both.join("DayZ_x64.exe"), b"").unwrap();
+        std::fs::write(both.join("DayZ_BE.exe"), b"").unwrap();
+
+        let cases: &[(&std::path::Path, Option<&str>)] = &[
+            (std::path::Path::new("relative/DayZ"), None),
+            (&missing, None),
+            (&empty, None),
+            (&x64, Some("DayZ_x64.exe")),
+            (&both, Some("DayZ_BE.exe")),
+        ];
+        for (dir, expected) in cases {
+            let result = dayz_exe_in(dir.to_str().unwrap());
+            match expected {
+                Some(exe) => assert_eq!(result.unwrap(), dir.join(exe)),
+                None => assert!(result.is_err(), "dir: {dir:?}"),
+            }
+        }
+    }
 }

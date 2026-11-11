@@ -16,61 +16,52 @@ pub fn validate_css(source: &str) -> Result<(), String> {
 mod tests {
     use super::*;
 
-    fn rejects(source: &str, construct: &str) {
-        let error = validate_css(source).expect_err("must be refused");
-        assert!(error.contains(construct), "{error}");
-    }
-
+    /// CSS escapes are decoded before a construct is judged, so an escape cannot
+    /// hide one the rule would otherwise catch.
     #[test]
-    fn a_moz_binding_is_refused() {
-        rejects(
-            "[data-el=\"box\"] { -moz-binding: url(evil.xml#x); }",
-            "-moz-binding",
-        );
-    }
-
-    // CSS escapes are decoded before a construct is judged, so an escape cannot
-    // hide one the rule would otherwise catch.
-    #[test]
-    fn an_escaped_at_import_is_refused() {
-        rejects(r#"@\69 mport "other.css";"#, "@import");
-    }
-
-    #[test]
-    fn an_escaped_remote_url_is_refused() {
-        rejects(
-            r#"[data-el="link"] { background: url("https\3a //evil.example/x.png"); }"#,
-            "https://evil.example/x.png",
-        );
-        rejects(
-            r#"[data-el="link"] { background: url("ht\74 ps://evil.example/x.png"); }"#,
-            "https://evil.example/x.png",
-        );
-    }
-
-    #[test]
-    fn a_scheme_hidden_behind_a_newline_is_refused() {
-        rejects(
-            r#"[data-el="link"] { background: url("java\a script:alert(1)"); }"#,
-            "javascript:",
-        );
-    }
-
-    #[test]
-    fn an_escaped_parent_segment_is_refused() {
-        rejects(
-            r"[data-el=link] { background: url(\2e\2e/secret.png); }",
-            "..",
-        );
-        rejects(
-            r#"[data-el="link"] { background: url("assets\2f ..\2f secret.png"); }"#,
-            "..",
-        );
-    }
-
-    #[test]
-    fn a_separator_hidden_behind_a_backslash_is_refused() {
-        rejects(r"[data-el=link] { background: url(..\\secret.png); }", "..");
+    fn a_banned_construct_is_refused_even_when_it_is_escaped() {
+        let cases: &[(&str, &str, &str)] = &[
+            (
+                "moz binding",
+                "[data-el=\"box\"] { -moz-binding: url(evil.xml#x); }",
+                "-moz-binding",
+            ),
+            ("at import", r#"@\69 mport "other.css";"#, "@import"),
+            (
+                "remote url behind an escaped colon",
+                r#"[data-el="link"] { background: url("https\3a //evil.example/x.png"); }"#,
+                "https://evil.example/x.png",
+            ),
+            (
+                "remote url behind an escaped letter",
+                r#"[data-el="link"] { background: url("ht\74 ps://evil.example/x.png"); }"#,
+                "https://evil.example/x.png",
+            ),
+            (
+                "scheme behind a newline",
+                r#"[data-el="link"] { background: url("java\a script:alert(1)"); }"#,
+                "javascript:",
+            ),
+            (
+                "escaped parent segments",
+                r"[data-el=link] { background: url(\2e\2e/secret.png); }",
+                "..",
+            ),
+            (
+                "parent segments behind escaped separators",
+                r#"[data-el="link"] { background: url("assets\2f ..\2f secret.png"); }"#,
+                "..",
+            ),
+            (
+                "separator behind a backslash",
+                r"[data-el=link] { background: url(..\\secret.png); }",
+                "..",
+            ),
+        ];
+        for (label, source, construct) in cases {
+            let error = validate_css(source).expect_err("must be refused");
+            assert!(error.contains(construct), "{label}: {error}");
+        }
     }
 
     #[test]

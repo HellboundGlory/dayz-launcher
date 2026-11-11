@@ -1,3 +1,4 @@
+pub mod country_table;
 pub mod fake;
 pub mod geoip;
 pub mod keywords;

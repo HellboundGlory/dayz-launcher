@@ -1174,19 +1174,51 @@ mod tests {
         assert!(issues.is_empty(), "Expected 0 issues, got: {issues:#?}");
     }
 
+    /// CSS the validator has no reason to refuse: scrollbar and slider
+    /// pseudo-elements, functions with no URL, strings that only look like
+    /// URLs, and a media rule inside a style rule.
     #[test]
-    fn scrollbar_and_slider_pseudo_elements_pass_bare_or_scoped() {
-        let css = r#"
-            ::-webkit-scrollbar { width: 6px; }
-            ::-webkit-scrollbar-thumb { background: red; }
-            ::-webkit-scrollbar-track { background: transparent; }
-            ::-webkit-scrollbar-corner { background: transparent; }
-            ::-webkit-slider-thumb { background: var(--accent); }
-            ::-webkit-slider-runnable-track { background: var(--border); }
-            [data-list="servers"] ::-webkit-scrollbar { width: 10px; }
-        "#;
-        let issues = validate_css_stylesheet("styles.css", css);
-        assert!(issues.is_empty(), "Expected 0 issues, got: {issues:#?}");
+    fn css_with_nothing_banned_passes() {
+        let cases: &[(&str, &str)] = &[
+            (
+                "scrollbar and slider pseudo-elements, bare or scoped",
+                r#"
+                    ::-webkit-scrollbar { width: 6px; }
+                    ::-webkit-scrollbar-thumb { background: red; }
+                    ::-webkit-scrollbar-track { background: transparent; }
+                    ::-webkit-scrollbar-corner { background: transparent; }
+                    ::-webkit-slider-thumb { background: var(--accent); }
+                    ::-webkit-slider-runnable-track { background: var(--border); }
+                    [data-list="servers"] ::-webkit-scrollbar { width: 10px; }
+                "#,
+            ),
+            (
+                "functions without urls",
+                r#"
+                    [data-el="box"] { background: image-set("images/a.png" 1x, "images/a@2x.png" 2x); }
+                    [data-el="box"] { background: linear-gradient(to right, var(--accent), transparent); }
+                    [data-el="box"] { color: rgb(0 0 0 / 50%); }
+                    [data-el="box"] { background: url(images/a.png); }
+                "#,
+            ),
+            (
+                "strings outside url functions",
+                r#"
+                    @font-face { font-family: "X"; src: url("fonts/x.woff2") format("woff2"); }
+                    @font-face { font-family: "Inter"; src: local("Inter"), url("fonts/x.woff2") format("woff2"); }
+                    [data-el="box"] { font-family: local("Inter"), url("fonts/x.woff2"); }
+                    [data-el="box"] { --label: var(--x, "note:1"); }
+                "#,
+            ),
+            (
+                "declarations in a media rule inside a style rule",
+                r#"[data-el="x"] { @media (max-width: 600px) { color: var(--accent); } }"#,
+            ),
+        ];
+        for (label, css) in cases {
+            let issues = validate_css_stylesheet("styles.css", css);
+            assert!(issues.is_empty(), "{label}: got {issues:#?}");
+        }
     }
 
     #[test]
@@ -1258,19 +1290,21 @@ mod tests {
 
     #[test]
     fn test_css_05_content_and_legacy_constructs() {
-        let css = r#"
-            [data-el="box"]::before { content: "hello"; }
-            [data-el="box"] { width: expression(alert(1)); }
-            [data-el="box"] { -moz-binding: url(evil.xml); }
-            [data-el="box"] { behavior: url(evil.htc); }
-            [data-el="box"] { background: url(javascript:alert(1)); }
-            [data-el="box"] { background: url(vbscript:msgbox(1)); }
-        "#;
-        let issues = validate_css_stylesheet("styles.css", css);
-        assert!(
-            issues.iter().all(|i| i.rule_id == "CSS-05"),
-            "Got issues: {issues:#?}"
-        );
+        let cases: &[(&str, &str)] = &[
+            (r#"::before { content: "hello"; }"#, "content"),
+            ("{ width: expression(alert(1)); }", "width"),
+            ("{ -moz-binding: url(evil.xml); }", "-moz-binding"),
+            ("{ behavior: url(evil.htc); }", "behavior"),
+            ("{ background: url(javascript:alert(1)); }", "background"),
+            ("{ background: url(vbscript:msgbox(1)); }", "background"),
+        ];
+        for (declaration, property) in cases {
+            let css = format!("[data-el=\"box\"] {declaration}");
+            let issues = validate_css_stylesheet("styles.css", &css);
+            assert_eq!(issues.len(), 1, "{declaration}: {issues:#?}");
+            assert_eq!(issues[0].rule_id, "CSS-05", "{declaration}");
+            assert_eq!(issues[0].pointer, *property, "{declaration}");
+        }
     }
 
     #[test]
@@ -1324,67 +1358,11 @@ mod tests {
     }
 
     #[test]
-    fn banned_construct_inside_function_is_refused() {
-        let css = r#"[data-el="box"] { width: calc(expression(alert(1))); }"#;
-        let issues = validate_css_stylesheet("styles.css", css);
-        assert!(
-            issues.iter().any(|i| i.rule_id == "CSS-05"),
-            "Got: {issues:#?}"
-        );
-    }
-
-    #[test]
-    fn functions_without_urls_pass() {
-        let css = r#"
-            [data-el="box"] { background: image-set("images/a.png" 1x, "images/a@2x.png" 2x); }
-            [data-el="box"] { background: linear-gradient(to right, var(--accent), transparent); }
-            [data-el="box"] { color: rgb(0 0 0 / 50%); }
-            [data-el="box"] { background: url(images/a.png); }
-        "#;
-        let issues = validate_css_stylesheet("styles.css", css);
-        assert!(issues.is_empty(), "Expected 0 issues, got: {issues:#?}");
-    }
-
-    #[test]
-    fn strings_outside_url_functions_are_not_urls() {
-        let css = r#"
-            @font-face { font-family: "X"; src: url("fonts/x.woff2") format("woff2"); }
-            @font-face { font-family: "Inter"; src: local("Inter"), url("fonts/x.woff2") format("woff2"); }
-            [data-el="box"] { font-family: local("Inter"), url("fonts/x.woff2"); }
-            [data-el="box"] { --label: var(--x, "note:1"); }
-        "#;
-        let issues = validate_css_stylesheet("styles.css", css);
-        assert!(issues.is_empty(), "Expected 0 issues, got: {issues:#?}");
-    }
-
-    #[test]
     fn important_inside_a_function_is_not_a_declaration_flag() {
         let css = "[data-el=\"box\"] { color: var(--a, important); }";
         let issues = validate_css_stylesheet("styles.css", css);
         assert!(
             issues.iter().all(|i| i.rule_id != "CSS-01"),
-            "Got: {issues:#?}"
-        );
-    }
-
-    #[test]
-    fn a_url_in_a_curly_block_is_refused() {
-        let css = "[data-el=\"box\"] { --x: { url(https://evil.example/p.png) }; }";
-        let issues = validate_css_stylesheet("styles.css", css);
-        assert!(
-            issues.iter().any(|i| i.rule_id == "CSS-07"),
-            "Got: {issues:#?}"
-        );
-    }
-
-    #[test]
-    fn deeply_nested_blocks_are_refused() {
-        let open = "(".repeat(200);
-        let close = ")".repeat(200);
-        let css = format!("[data-el=\"box\"] {{ color: {open}a{close}; }}");
-        let issues = validate_css_stylesheet("styles.css", &css);
-        assert!(
-            issues.iter().any(|i| i.rule_id == "CSS-01"),
             "Got: {issues:#?}"
         );
     }
@@ -1427,44 +1405,6 @@ mod tests {
     }
 
     #[test]
-    fn a_url_inside_nested_rules_is_refused() {
-        let css =
-            r#"[data-el="b"] { [data-el="c"] { .x { background: url(https://evil/p.png) } } }"#;
-        let issues = validate_css_stylesheet("styles.css", css);
-        assert!(
-            issues.iter().any(|i| i.rule_id == "CSS-07"),
-            "Got: {issues:#?}"
-        );
-    }
-
-    #[test]
-    fn a_legitimate_nested_rule_passes() {
-        let css = r#"[data-el="x"] { &:hover { color: var(--accent); } }"#;
-        let issues = validate_css_stylesheet("styles.css", css);
-        assert!(issues.is_empty(), "Expected 0 issues, got: {issues:#?}");
-    }
-
-    #[test]
-    fn nested_rules_deeper_than_the_limit_are_refused() {
-        let css = format!("{}{}", "[data-el=\"b\"] {".repeat(40), "}".repeat(40));
-        let issues = validate_css_stylesheet("styles.css", &css);
-        assert!(
-            issues.iter().any(|i| i.rule_id == "CSS-01"),
-            "Got: {issues:#?}"
-        );
-    }
-
-    #[test]
-    fn a_nested_block_without_a_selector_is_refused() {
-        let css = r#"[data-el="b"] { { color: red; } }"#;
-        let issues = validate_css_stylesheet("styles.css", css);
-        assert!(
-            issues.iter().any(|i| i.rule_id == "CSS-01"),
-            "Got: {issues:#?}"
-        );
-    }
-
-    #[test]
     fn a_media_rule_inside_a_style_rule_still_checks_its_declarations() {
         let cases = [
             (
@@ -1487,13 +1427,6 @@ mod tests {
                 "Expected {expected} for `{css}`, got: {issues:#?}"
             );
         }
-    }
-
-    #[test]
-    fn declarations_in_a_media_rule_inside_a_style_rule_pass() {
-        let css = r#"[data-el="x"] { @media (max-width: 600px) { color: var(--accent); } }"#;
-        let issues = validate_css_stylesheet("styles.css", css);
-        assert!(issues.is_empty(), "Expected 0 issues, got: {issues:#?}");
     }
 
     #[test]
@@ -1530,6 +1463,12 @@ mod tests {
         let deep_media = format!("@media {}hover{} {{}}", "(".repeat(200), ")".repeat(200));
         let deep_font_face = format!("{}{}", "@font-face{".repeat(40), "}".repeat(40));
         let deep_keyframes = format!("{}{}", "@keyframes k{from{".repeat(40), "}".repeat(80));
+        let deep_parens = format!(
+            "[data-el=\"box\"] {{ color: {}a{}; }}",
+            "(".repeat(200),
+            ")".repeat(200)
+        );
+        let deep_rules = format!("{}{}", "[data-el=\"b\"] {".repeat(40), "}".repeat(40));
         let media_at_limit = format!(
             "{}@media (max-width: 1px) {{}}{}",
             "[data-el=\"b\"] {".repeat(32),
@@ -1537,72 +1476,151 @@ mod tests {
         );
         let cases = [
             (
+                "banned construct inside a function",
+                r#"[data-el="box"] { width: calc(expression(alert(1))); }"#,
+                "CSS-05",
+                "banned construct 'expression('",
+            ),
+            (
+                "url inside a curly block",
+                r#"[data-el="box"] { --x: { url(https://evil.example/p.png) }; }"#,
+                "CSS-07",
+                "prohibited scheme",
+            ),
+            (
+                "url inside nested rules",
+                r#"[data-el="b"] { [data-el="c"] { .x { background: url(https://evil/p.png) } } }"#,
+                "CSS-07",
+                "prohibited scheme",
+            ),
+            (
+                "parentheses nested past the limit",
+                deep_parens.as_str(),
+                "CSS-01",
+                "Nesting depth",
+            ),
+            (
+                "style rules nested past the limit",
+                deep_rules.as_str(),
+                "CSS-01",
+                "Nesting depth",
+            ),
+            (
+                "nested block without a selector",
+                r#"[data-el="b"] { { color: red; } }"#,
+                "CSS-01",
+                "Nested block without a selector",
+            ),
+            (
+                "var() inside a url function",
                 r#"[data-el="b"] { --u: "https://e/x.png"; background: image-set(var(--u) 1x); }"#,
                 "CSS-07",
                 "var() is not allowed",
             ),
             (
+                "var() inside cross-fade",
                 r#"[data-el="b"] { background: cross-fade(var(--u), url(b.png), 50%); }"#,
                 "CSS-07",
                 "var() is not allowed",
             ),
             (
+                "prohibited scheme in src()",
                 r#"[data-el="b"] { background: src("https://e/x.png"); }"#,
                 "CSS-07",
                 "prohibited scheme",
             ),
-            ("<!--body { display: none }", "CSS-01", "Tag selector"),
             (
+                "html comment opens a tag selector",
+                "<!--body { display: none }",
+                "CSS-01",
+                "Tag selector",
+            ),
+            (
+                "html comment closes before a tag selector",
                 "-->div, [data-el=\"b\"] { display: none }",
                 "CSS-01",
                 "Tag selector",
             ),
             (
+                "html comment after a declaration",
                 r#"[data-el="b"] { color: red } <!--body { visibility: hidden }"#,
                 "CSS-01",
                 "Tag selector",
             ),
             (
+                "html comment inside an at-rule",
                 "@media all { <!--body { display: none } }",
                 "CSS-01",
                 "Tag selector",
             ),
             (
+                "::part is a pseudo-element",
                 r#"[data-el="b"]::part(x) { color: red }"#,
                 "CSS-01",
                 "pseudo-element",
             ),
             (
+                "::view-transition is a pseudo-element",
                 r#"[data-el="b"]::view-transition-old(root) { color: red }"#,
                 "CSS-01",
                 "pseudo-element",
             ),
-            ("::selection { color: red; }", "CSS-01", "pseudo-element"),
             (
+                "::selection is a pseudo-element",
+                "::selection { color: red; }",
+                "CSS-01",
+                "pseudo-element",
+            ),
+            (
+                "negated media feature",
                 "@media (not (hover)) { [data-el=\"b\"] { color: red } }",
                 "CSS-06",
                 "disallowed feature",
             ),
             (
+                "parenthesised media feature",
                 "[data-el=\"b\"] { @media ((hover)) { color: red } }",
                 "CSS-06",
                 "disallowed feature",
             ),
-            (deep_media.as_str(), "CSS-01", "Nesting depth"),
-            (deep_font_face.as_str(), "CSS-01", "Nesting depth"),
-            (deep_keyframes.as_str(), "CSS-01", "Nesting depth"),
-            (media_at_limit.as_str(), "CSS-01", "Nesting depth"),
             (
+                "deeply nested media prelude",
+                deep_media.as_str(),
+                "CSS-01",
+                "Nesting depth",
+            ),
+            (
+                "deeply nested font-face",
+                deep_font_face.as_str(),
+                "CSS-01",
+                "Nesting depth",
+            ),
+            (
+                "deeply nested keyframes",
+                deep_keyframes.as_str(),
+                "CSS-01",
+                "Nesting depth",
+            ),
+            (
+                "media rule at the nesting limit",
+                media_at_limit.as_str(),
+                "CSS-01",
+                "Nesting depth",
+            ),
+            (
+                "attr() inside a url function",
                 r#"[data-el="b"] { background: image-set(attr(data-src) 1x); }"#,
                 "CSS-07",
                 "not allowed inside a URL function",
             ),
             (
+                "env() inside a url function",
                 r#"[data-el="b"] { background: cross-fade(env(safe-area-inset-top), url(b.png), 50%); }"#,
                 "CSS-07",
                 "not allowed inside a URL function",
             ),
             (
+                "inherit() inside a url function",
                 r#"[data-el="b"] { background: image-set(inherit(--u) 1x); }"#,
                 "CSS-07",
                 "not allowed inside a URL function",
@@ -1610,14 +1628,14 @@ mod tests {
         ];
         let missing: Vec<&str> = cases
             .into_iter()
-            .filter(|(css, rule_id, fragment)| {
+            .filter(|(_, css, rule_id, fragment)| {
                 validate_css_stylesheet("styles.css", css)
                     .iter()
                     .filter(|i| i.rule_id == *rule_id && i.message.contains(fragment))
                     .count()
                     != 1
             })
-            .map(|(css, _, _)| css)
+            .map(|(label, _, _, _)| label)
             .collect();
         assert!(missing.is_empty(), "Not refused exactly once: {missing:#?}");
     }

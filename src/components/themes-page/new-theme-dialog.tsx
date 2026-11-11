@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { useEscapeLayer } from "@/theme/interaction/escape-layers";
-import { wrapTabWithin } from "@/theme/interaction/popup-keyboard";
+import { DialogFrame } from "@/components/dialog-frame";
 import type { ThemeSaveResult } from "@/theme/theme-store";
 import { INPUT_CLASS } from "./export-theme-dialog";
 
@@ -33,52 +33,44 @@ export function NewThemeBox({ name, error, pending, onNameChange, onSubmit, onCa
   const valid = trimmed.length > 0 && trimmed.length <= NAME_MAX;
 
   return (
-    <div className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center p-4 [background-color:var(--t-color-scrim)]">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        onKeyDown={(e) => wrapTabWithin(e.currentTarget, e)}
-        className="w-[min(360px,100%)] [border-radius:var(--t-radius-confirm)] border border-line bg-surface p-4 [box-shadow:var(--t-shadow-confirm)]"
+    <DialogFrame labelledBy={titleId} className="w-[min(360px,100%)] p-4">
+      <form
+        className="grid gap-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (valid && !pending) onSubmit();
+        }}
       >
-        <form
-          className="grid gap-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (valid && !pending) onSubmit();
-          }}
-        >
-          <h2 id={titleId} className="[font-size:var(--t-type-heading-size)] font-semibold leading-5 text-ink">
-            New theme
-          </h2>
-          <div>
-            <label className="mb-1.5 block [font-size:var(--t-type-compactCaption-size)] font-bold uppercase tracking-wider text-muted2">
-              Name
-            </label>
-            <input
-              type="text"
-              autoFocus
-              value={name}
-              onChange={(e) => onNameChange(e.target.value)}
-              className={INPUT_CLASS}
-            />
-          </div>
-          {error && (
-            <p role="alert" className="[font-size:var(--t-type-compactCaption-size)] text-danger">
-              {error}
-            </p>
-          )}
-          <div className="flex justify-end gap-2">
-            <button type="button" onClick={onCancel} className={SECONDARY}>
-              Cancel
-            </button>
-            <button type="submit" disabled={!valid || pending} className={PRIMARY}>
-              Create
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <h2 id={titleId} className="[font-size:var(--t-type-heading-size)] font-semibold leading-5 text-ink">
+          New theme
+        </h2>
+        <div>
+          <label className="mb-1.5 block [font-size:var(--t-type-compactCaption-size)] font-bold uppercase tracking-wider text-muted2">
+            Name
+          </label>
+          <input
+            type="text"
+            autoFocus
+            value={name}
+            onChange={(e) => onNameChange(e.target.value)}
+            className={INPUT_CLASS}
+          />
+        </div>
+        {error && (
+          <p role="alert" className="[font-size:var(--t-type-compactCaption-size)] text-danger">
+            {error}
+          </p>
+        )}
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={onCancel} className={SECONDARY}>
+            Cancel
+          </button>
+          <button type="submit" disabled={!valid || pending} className={PRIMARY}>
+            Create
+          </button>
+        </div>
+      </form>
+    </DialogFrame>
   );
 }
 

@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { ExternalLink, LoaderCircle, RefreshCw, TriangleAlert } from "lucide-react";
 import { openSteam, type SteamInitError, type SteamInitFailure } from "@/lib/tauri";
-import { wrapTabWithin } from "@/theme/interaction/popup-keyboard";
+import { DialogFrame } from "@/components/dialog-frame";
 
 interface SteamRequiredModalProps {
   error: SteamInitError;
@@ -46,12 +46,6 @@ const COPY: Record<SteamInitFailure, Copy> = {
     title: "Steam disconnected",
     body:
       "The connection to Steam was lost while the launcher was running. Mod and download status may be out of date. Restart the launcher to reconnect — Retry won't help here, since the existing connection is still reported as open.",
-  },
-  already_initialising: {
-    title: "Still connecting",
-    body:
-      "A connection attempt is already under way. This clears on its own in a moment — no need to do anything.",
-    patient: true,
   },
 };
 
@@ -100,79 +94,76 @@ export function SteamRequiredModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[var(--z-blocking)] flex items-center justify-center [background-color:var(--t-color-scrimBlocking)] backdrop-blur-xs">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        onKeyDown={(e) => wrapTabWithin(e.currentTarget, e)}
-        className="w-[440px] [border-radius:var(--t-radius-confirm)] border border-line bg-surface [box-shadow:var(--t-shadow-confirm)]"
-      >
-        <div className="flex items-start gap-3 px-5 pt-5">
-          <div
-            className={`mt-0.5 flex size-8 shrink-0 items-center justify-center [border-radius:var(--t-radius-pill)] ${
-              copy.patient ? "bg-accent-soft" : "bg-warn-soft"
-            }`}
-          >
-            {copy.patient ? (
-              <LoaderCircle className="size-4 animate-spin text-accent" />
-            ) : (
-              <TriangleAlert className="size-4 text-warn" />
-            )}
-          </div>
-          <div data-tetra-el="errorCopy">
-            <h2 id={titleId} className="[font-size:var(--t-type-heading-size)] font-semibold leading-5 text-ink">{copy.title}</h2>
-            <p className="mt-1.5 [font-size:var(--t-type-body-size)] leading-relaxed text-muted2">{copy.body}</p>
-          </div>
+    <DialogFrame
+      labelledBy={titleId}
+      scrimClassName="z-[var(--z-blocking)] p-0 [background-color:var(--t-color-scrimBlocking)] backdrop-blur-xs"
+      stayOnTop
+      className="w-[440px]"
+    >
+      <div className="flex items-start gap-3 px-5 pt-5">
+        <div
+          className={`mt-0.5 flex size-8 shrink-0 items-center justify-center [border-radius:var(--t-radius-pill)] ${
+            copy.patient ? "bg-accent-soft" : "bg-warn-soft"
+          }`}
+        >
+          {copy.patient ? (
+            <LoaderCircle className="size-4 animate-spin text-accent" />
+          ) : (
+            <TriangleAlert className="size-4 text-warn" />
+          )}
         </div>
-
-        {error.message && (
-          <p className="mx-5 mt-4 truncate [border-radius:var(--t-radius-chip)] bg-bg px-2 py-1.5 font-mono [font-size:var(--t-type-data-size)] text-muted">
-            {error.message}
-          </p>
-        )}
-
-        {startError && <p className="mx-5 mt-2 [font-size:var(--t-type-size-sm)] text-danger">{startError}</p>}
-
-        <div className="mt-5 flex items-center gap-2 border-t border-line px-5 py-3">
-          {offerStart && (
-            <button
-              data-tetra-el="startSteamAction"
-              onClick={handleStartSteam}
-              className="flex items-center gap-1.5 [border-radius:var(--t-radius-controlSmall)] bg-surface2 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-size-md)] font-semibold text-ink ring-1 ring-line hover:bg-line"
-            >
-              <ExternalLink className="size-3" />
-              Start Steam
-            </button>
-          )}
-
-          <span className="ml-auto [font-size:var(--t-type-size-sm)] text-muted">
-            {checking
-              ? "Connecting…"
-              : polling
-                ? "Checking automatically…"
-                : retryDisconnected
-                  ? "Close the launcher and open it again"
-                  : null}
-          </span>
-
-          {!retryDisconnected && (
-            <button
-              data-tetra-el="retryAction"
-              onClick={onRetry}
-              disabled={checking}
-              className="flex items-center gap-1.5 [border-radius:var(--t-radius-controlSmall)] bg-accent px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-size-md)] font-semibold text-bg hover:brightness-110 disabled:opacity-50"
-            >
-              {checking ? (
-                <LoaderCircle className="size-3 animate-spin" />
-              ) : (
-                <RefreshCw className="size-3" />
-              )}
-              Retry
-            </button>
-          )}
+        <div data-tetra-el="errorCopy">
+          <h2 id={titleId} className="[font-size:var(--t-type-heading-size)] font-semibold leading-5 text-ink">{copy.title}</h2>
+          <p className="mt-1.5 [font-size:var(--t-type-body-size)] leading-relaxed text-muted2">{copy.body}</p>
         </div>
       </div>
-    </div>
+
+      {error.message && (
+        <p className="mx-5 mt-4 truncate [border-radius:var(--t-radius-chip)] bg-bg px-2 py-1.5 font-mono [font-size:var(--t-type-data-size)] text-muted">
+          {error.message}
+        </p>
+      )}
+
+      {startError && <p className="mx-5 mt-2 [font-size:var(--t-type-size-sm)] text-danger">{startError}</p>}
+
+      <div className="mt-5 flex items-center gap-2 border-t border-line px-5 py-3">
+        {offerStart && (
+          <button
+            data-tetra-el="startSteamAction"
+            onClick={handleStartSteam}
+            className="flex items-center gap-1.5 [border-radius:var(--t-radius-controlSmall)] bg-surface2 px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-size-md)] font-semibold text-ink ring-1 ring-line hover:bg-line"
+          >
+            <ExternalLink className="size-3" />
+            Start Steam
+          </button>
+        )}
+
+        <span className="ml-auto [font-size:var(--t-type-size-sm)] text-muted">
+          {checking
+            ? "Connecting…"
+            : polling
+              ? "Checking automatically…"
+              : retryDisconnected
+                ? "Close the launcher and open it again"
+                : null}
+        </span>
+
+        {!retryDisconnected && (
+          <button
+            data-tetra-el="retryAction"
+            onClick={onRetry}
+            disabled={checking}
+            className="flex items-center gap-1.5 [border-radius:var(--t-radius-controlSmall)] bg-accent px-[var(--t-space-controlX)] py-[var(--t-space-controlY)] [font-size:var(--t-type-size-md)] font-semibold text-bg hover:brightness-110 disabled:opacity-50"
+          >
+            {checking ? (
+              <LoaderCircle className="size-3 animate-spin" />
+            ) : (
+              <RefreshCw className="size-3" />
+            )}
+            Retry
+          </button>
+        )}
+      </div>
+    </DialogFrame>
   );
 }

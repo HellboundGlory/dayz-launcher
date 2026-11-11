@@ -4,6 +4,7 @@
 import { spawn } from "node:child_process";
 import { closeSync, openSync } from "node:fs";
 import { cp, mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
+import { createServer } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -85,6 +86,39 @@ async function isUp(url) {
   }
 }
 
+/**
+ * Whether the Vite behind `url` serves this checkout. Vite refuses `/@fs/` paths
+ * outside its own root, so another worktree's dev server answers 403 for this
+ * one's files instead of serving them.
+ */
+async function servesThisCheckout(url) {
+  const root = ROOT.replace(/\\/g, "/");
+  const marker = new URL(`/@fs${root.startsWith("/") ? "" : "/"}${root}/package.json`, url);
+  try {
+    return (await fetch(marker, { signal: AbortSignal.timeout(1000) })).ok;
+  } catch {
+    return false;
+  }
+}
+
+async function freePort() {
+  const probe = createServer();
+  await new Promise((resolve) => probe.listen(0, "127.0.0.1", resolve));
+  const { port } = probe.address();
+  await new Promise((resolve) => probe.close(resolve));
+  return port;
+}
+
+/** Whether nothing else holds `port`; a listener on it fails to bind. */
+async function isPortFree(port) {
+  const probe = createServer();
+  const busy = await new Promise((resolve) => {
+    probe.once("error", () => resolve(true));
+    probe.listen(port, () => probe.close(() => resolve(false)));
+  });
+  return !busy;
+}
+
 async function waitForUrl(url, { child, logPath }, timeoutMs = 30_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -118,11 +152,11 @@ async function stopServer(child) {
 }
 
 /**
- * Serve the harness page. `dev` reuses a running Vite on the port, else spawns
- * one (as shoot.sh does); `prod` builds the harness entry into
- * `tools/harness/.out/prod` with the repo's own Vite config and serves that.
- * Resolves to `{ url, port, mode, buildMs?, log, stop() }` where `url` is the
- * harness document itself, ready to hand to `openScenario`.
+ * Serve the harness page. `dev` reuses a Vite already on the port when it
+ * serves this checkout, else spawns one (as shoot.sh does); `prod` builds the
+ * harness entry into `tools/harness/.out/prod` with the repo's own Vite config
+ * and serves that. Resolves to `{ url, port, mode, buildMs?, log, stop() }`
+ * where `url` is the harness document itself, ready to hand to `openScenario`.
  */
 export async function startServer({ mode = "dev", port } = {}) {
   if (mode !== "dev" && mode !== "prod") throw new Error(`Unknown harness mode "${mode}"`);
@@ -132,11 +166,16 @@ export async function startServer({ mode = "dev", port } = {}) {
   const url = `http://localhost:${listenPort}/${ENTRY}`;
 
   if (mode === "dev") {
-    // A server already on the port is shoot.sh's, shared on purpose — leave it running.
-    if (await isUp(url)) return { url, port: listenPort, mode, log: null, stop: async () => {} };
-    const server = spawnServer(["--port", String(listenPort), "--strictPort"], "vite-dev.log");
-    await waitForUrl(url, server);
-    return { url, port: listenPort, mode, log: server.logPath, stop: () => stopServer(server.child) };
+    // A server already on the port that serves this checkout is shoot.sh's, shared on purpose — leave it running.
+    if (await servesThisCheckout(url)) return { url, port: listenPort, mode, log: null, stop: async () => {} };
+    // Another checkout's server on the default port would serve the wrong tree, so move to
+    // a free one. An explicitly chosen port is honoured, as it is the caller's own server.
+    const chosen = port ?? process.env.HARNESS_PORT;
+    const devPort = chosen !== undefined || (await isPortFree(listenPort)) ? listenPort : await freePort();
+    const devUrl = devPort === listenPort ? url : `http://localhost:${devPort}/${ENTRY}`;
+    const server = spawnServer(["--port", String(devPort), "--strictPort"], "vite-dev.log");
+    await waitForUrl(devUrl, server);
+    return { url: devUrl, port: devPort, mode, log: server.logPath, stop: () => stopServer(server.child) };
   }
 
   await rm(PROD_OUT, { recursive: true, force: true });

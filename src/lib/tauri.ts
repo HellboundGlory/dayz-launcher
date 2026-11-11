@@ -15,27 +15,11 @@ import type {
   ThemeSummary,
   ValidationIssue,
 } from "@/types/theme";
+import type { ServerFilter } from "@/types/filters";
 
 // ── Server Commands ──
 
-export interface FilterParams {
-  maps: string[];
-  countries: string[];
-  hide_empty: boolean;
-  hide_full: boolean;
-  hide_locked: boolean;
-  hide_offline: boolean;
-  max_ping: number | null;
-  search: string | null;
-  favourites_only: boolean;
-  recent_only: boolean;
-  official: boolean | null;
-  modded: boolean | null;
-  first_person: boolean | null;
-  mod_ids: string[];
-  mod_match: "any" | "all";
-  mod_ids_exclude: string[];
-}
+export type FilterParams = ServerFilter;
 
 export interface PageParams {
   sort_key: string;
@@ -79,6 +63,20 @@ export async function lookupServer(addr: string): Promise<Server | null> {
   return invoke<Server | null>("lookup_server", { addr });
 }
 
+/** Sweep the networks this PC is on for DayZ servers; resolves with their `ip:query_port` addresses. */
+export async function scanLan(): Promise<string[]> {
+  return invoke<string[]>("scan_lan");
+}
+
+/**
+ * Find a server by host name or IP, with or without a port. Unlike
+ * {@link lookupServer}, a host name is accepted here; a name that does not
+ * resolve or answer rejects with the command's message.
+ */
+export async function findServer(input: string): Promise<Server | null> {
+  return invoke<Server | null>("find_server", { input });
+}
+
 /** A `dzsa://` link that started this process, for the frontend to pick up once it can listen. */
 export async function takePendingConnect(): Promise<DzsaConnect | null> {
   return invoke<DzsaConnect | null>("take_pending_connect");
@@ -116,6 +114,73 @@ export interface ModsPendingEntry {
 
 export async function getMapList(): Promise<[string, string][]> {
   return invoke<[string, string][]>("get_map_list");
+}
+
+export interface FacetCount {
+  name: string;
+  count: number;
+  values: string[];
+}
+
+export interface FilterFacets {
+  total: number;
+  maps: FacetCount[];
+  versions: FacetCount[];
+  countries: FacetCount[];
+  mods: FacetCount[];
+  same_as_mine: number | null;
+}
+
+export interface SearchSuggestion {
+  kind: "map" | "mod" | "version";
+  label: string;
+  count: number;
+  values: string[];
+}
+
+/** The installed DayZ build's version string, or null when the folder can't be read. */
+export async function getInstalledDayzVersion(
+  dayzPathOverride: string | null,
+): Promise<string | null> {
+  try {
+    return await invoke<string | null>("get_installed_dayz_version", { dayzPathOverride });
+  } catch {
+    return null;
+  }
+}
+
+export interface MemoryMapStatus {
+  current: number;
+  recommended: number;
+}
+
+/** The Linux `vm.max_map_count` limit when it is too low for DayZ, else null. */
+export async function getMemoryMapStatus(): Promise<MemoryMapStatus | null> {
+  try {
+    return await invoke<MemoryMapStatus | null>("get_memory_map_status");
+  } catch {
+    return null;
+  }
+}
+
+export async function getFilterFacets(
+  filter: FilterParams,
+  myVersion: string | null = null,
+): Promise<FilterFacets> {
+  return invoke<FilterFacets>("get_filter_facets", {
+    filterParams: filter,
+    myVersion,
+  });
+}
+
+export async function getSearchSuggestions(
+  filter: FilterParams,
+  text: string,
+): Promise<SearchSuggestion[]> {
+  return invoke<SearchSuggestion[]>("get_search_suggestions", {
+    filterParams: filter,
+    text,
+  });
 }
 
 export interface ServerCounts {
@@ -165,9 +230,7 @@ export type SteamInitFailure =
   /** Our own Steam thread failed. Nothing the user can act on. */
   | "internal"
   /** Connection lost after a successful init; never auto-retries since polling would just re-report the stale session. */
-  | "disconnected"
-  /** Another connect attempt is already in flight; it settles on its own, so this keeps retrying. */
-  | "already_initialising";
+  | "disconnected";
 
 export interface SteamInitError {
   kind: SteamInitFailure;
@@ -277,13 +340,13 @@ export interface AppSettingsDto {
   launchParams: string[];
   /** The close button hides the launcher to the tray instead of quitting. */
   closeToTray: boolean;
-  /** The minimise button hides to the tray instead of the taskbar. */
+  /** The minimise button hides to the tray instead of the taskbar. Independent of `closeToTray` — two buttons, two questions. */
   minimiseToTray: boolean;
-  /** Interface scale, as a webview zoom factor. 1.0–1.5. */
+  /** Interface scale, as a webview zoom factor (keeps layout/scroll coordinates in one space). 1.0–1.5. */
   uiScale: number;
   /** Seconds between automatic refreshes of the first 5,000 servers in the list. `0` is off. */
   autoRefreshIntervalSecs: number;
-  /** Register the launcher to start with Windows. No-op in debug builds. */
+  /** Register the launcher to start with Windows. No-op in debug builds — test against a release build. */
   startWithWindows: boolean;
   /** Start hidden in the tray. Only applies when Windows did the starting. */
   startMinimised: boolean;
@@ -293,6 +356,14 @@ export interface AppSettingsDto {
   onboardingDismissed: boolean;
   /** Show "Playing on {server}" / "Browsing servers" in Discord. */
   discordRichPresence: boolean;
+  /** Show the server's name, map, player count and join button in Discord. */
+  discordShowServer: boolean;
+  /** Warn before a Join when the Linux memory map limit is too low for DayZ. */
+  memoryMapWarning: boolean;
+  /** Show the window that lists each step of a join while it runs. */
+  startWindow: boolean;
+  /** Set once the first-start offer to add Tetra to the app menu has been shown. */
+  appMenuOffered: boolean;
   /**
    * Which theme is active; `null` is the built-in default. Read-only from the
    * frontend: the settings store never patches it, so a settings save can't
@@ -338,6 +409,8 @@ export interface VerifyOutcome {
   refreshed: string[];
   /** Whether Steam was reachable to check freshness — `false` means unchecked, not "already current". */
   checked_workshop: boolean;
+  /** Workshop ids of ready mods whose local copy differs from the server's. */
+  differing?: string[];
 }
 
 /** Re-reads a server's mod list and refreshes any stale local copy. Does not launch anything. */
@@ -358,6 +431,10 @@ export interface LaunchOutcome {
 
 export interface LaunchOptions {
   password?: string;
+  /** Save the typed password in the OS keyring once the game starts. */
+  rememberPassword?: boolean;
+  /** Launch with the password saved for this server (Rust reads it; it never comes here). */
+  useSavedPassword?: boolean;
   profileName?: string;
   dayzPath?: string;
   /** Extra DayZ command-line flags, e.g. `-noSplash`. Placed before `-mod=`. */
@@ -379,11 +456,28 @@ export async function launchGame(
     addr,
     gamePort,
     password: options.password ?? null,
+    remember: options.rememberPassword ?? null,
+    useSaved: options.useSavedPassword ?? null,
     profileName: options.profileName ?? null,
     dayzPathOverride: options.dayzPath ?? null,
     launchParams: options.launchParams ?? null,
     mainMenu: options.mainMenu ?? null,
   });
+}
+
+export interface PasswordStatus {
+  saved: boolean;
+  keyring: boolean;
+}
+
+/** Whether this server's password is saved, and whether a keyring exists at all. */
+export async function passwordStatus(addr: string): Promise<PasswordStatus> {
+  return invoke<PasswordStatus>("password_status", { addr });
+}
+
+/** Drop this server's saved password. Nothing happens when none was saved. */
+export async function forgetPassword(addr: string): Promise<void> {
+  return invoke<void>("forget_password", { addr });
 }
 
 export async function serverModReadiness(
@@ -457,6 +551,22 @@ export async function dataFolderPath(): Promise<string> {
 /** Show the data folder in Explorer. */
 export async function openDataFolder(): Promise<void> {
   return invoke("open_data_folder");
+}
+
+/** Whether this copy can offer a menu entry, and whether it already has one. */
+export interface AppMenuStatus {
+  available: boolean;
+  installed: boolean;
+}
+
+/** Linux AppImage only: everywhere else both fields are false. */
+export async function appMenuStatus(): Promise<AppMenuStatus> {
+  return invoke<AppMenuStatus>("app_menu_status");
+}
+
+/** Moves the AppImage to `~/Applications` and reopens from there; the launcher quits. */
+export async function addToAppMenu(): Promise<void> {
+  return invoke<void>("add_to_app_menu");
 }
 
 /** Whether a DayZ process exists right now — asked of the OS, so also true for a session started outside the launcher. */
@@ -643,9 +753,10 @@ export async function openWorkshopInSteam(workshopId: string): Promise<void> {
   return invoke<void>("open_workshop_in_steam", { workshopId: workshopId });
 }
 
-/** Reveal a mod's install folder in the system file manager. */
-export async function openModFolder(folder: string): Promise<void> {
-  return invoke<void>("open_mod_folder", { folder: folder });
+/** Reveal a mod's install folder in the system file manager, looked up by
+    Workshop id. */
+export async function openModFolder(workshopId: string): Promise<void> {
+  return invoke<void>("open_mod_folder", { workshopId: workshopId });
 }
 
 /** Append a line from the frontend to `tetra-launcher.log` (see `crate::log`).

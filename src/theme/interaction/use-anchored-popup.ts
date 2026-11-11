@@ -38,29 +38,68 @@ function naturalLayout(popup: HTMLElement) {
   return layout;
 }
 
-const POPUP_ANCESTOR = "data-popup-ancestor";
-const popupAncestorCounts = new WeakMap<Element, number>();
+/** Shows an open popup in the browser's top layer, which no ancestor can clip or move it out of. */
+export function showInTopLayer(popup: HTMLElement): () => void {
+  if (typeof popup.showPopover !== "function") return () => {};
 
-/** Marks the ancestors of an open popup so the guarantees layer clears what would make one its containing block. */
-export function markPopupAncestors(popup: Element): () => void {
-  const ancestors: Element[] = [];
-  for (let el = popup.parentElement; el; el = el.parentElement) {
-    const count = popupAncestorCounts.get(el) ?? 0;
-    if (count === 0) el.setAttribute(POPUP_ANCESTOR, "");
-    popupAncestorCounts.set(el, count + 1);
-    ancestors.push(el);
+  popup.setAttribute("popover", "manual");
+  try {
+    popup.showPopover();
+  } catch {
+    // showPopover throws on a detached element.
+    popup.removeAttribute("popover");
+    return () => {};
   }
+
   return () => {
-    for (const el of ancestors) {
-      const count = (popupAncestorCounts.get(el) ?? 1) - 1;
-      if (count > 0) {
-        popupAncestorCounts.set(el, count);
-      } else {
-        popupAncestorCounts.delete(el);
-        el.removeAttribute(POPUP_ANCESTOR);
-      }
-    }
+    if (popup.matches(":popover-open")) popup.hidePopover();
+    // Without the attribute the browser stops hiding a closed popup that stays mounted.
+    popup.removeAttribute("popover");
   };
+}
+
+const STAY_ON_TOP = "data-stay-on-top";
+
+/**
+ * Ref callback for what must stay above popups and dialogs (window resize edges, the Steam-required screen,
+ * Dev Mode). Stable, so React attaches it once.
+ */
+export function keepOnTop(el: HTMLElement | null): (() => void) | undefined {
+  if (!el) return undefined;
+  el.setAttribute(STAY_ON_TOP, "");
+  const hide = showInTopLayer(el);
+  return () => {
+    hide();
+    el.removeAttribute(STAY_ON_TOP);
+  };
+}
+
+/** Top layer order is show order, so re-show what stays on top after something new, unless it holds that thing. */
+function raiseStayOnTop(shown: HTMLElement) {
+  const selector = `[${STAY_ON_TOP}]:popover-open`;
+  for (const el of Array.from(shown.ownerDocument.querySelectorAll<HTMLElement>(selector))) {
+    if (el.contains(shown)) continue;
+    el.hidePopover();
+    el.showPopover();
+  }
+}
+
+/**
+ * Shows a full-window overlay in the top layer, above any popup already open inside it.
+ * A host its theme places inside a panel stays put; the top layer would move it to the viewport.
+ */
+export function showOverlayInTopLayer(host: HTMLElement): () => void {
+  if (typeof host.showPopover !== "function") return () => {};
+  if (host.ownerDocument.defaultView?.getComputedStyle(host).position !== "fixed") return () => {};
+
+  const hideFromTopLayer = showInTopLayer(host);
+  // A child's layout effect runs before its parent's, so a popup already open inside was shown first.
+  for (const popup of Array.from(host.querySelectorAll<HTMLElement>(":popover-open"))) {
+    popup.hidePopover();
+    popup.showPopover();
+  }
+  raiseStayOnTop(host);
+  return hideFromTopLayer;
 }
 
 export function useAnchoredPopup(
@@ -87,8 +126,10 @@ export function useAnchoredPopup(
     const popup = popupRef.current;
     if (!trigger || !popup) return;
 
-    const unmarkAncestors = markPopupAncestors(popup);
+    // Read first: a popup its CSS places absolutely measures its gap against the trigger's container, not the window.
     const natural = naturalLayout(popup);
+    const hideFromTopLayer = showInTopLayer(popup);
+    raiseStayOnTop(popup);
     const themeMax = opts.maxHeight ?? natural.maxHeight;
     const capPx = themeMax === "none" ? Infinity : resolveLengthPx(themeMax);
     // A popup its own CSS places absolutely keeps the gap that CSS gives it; anything else takes opts.offset.
@@ -159,7 +200,7 @@ export function useAnchoredPopup(
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", onScroll, true);
       resized?.disconnect();
-      unmarkAncestors();
+      hideFromTopLayer();
     };
   }, [
     open,

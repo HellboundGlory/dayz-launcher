@@ -14,8 +14,11 @@ import {
 } from "./update-elements";
 
 const openLinkMock = vi.fn();
-vi.mock("@tauri-apps/plugin-shell", () => ({
-  open: (...args: unknown[]) => openLinkMock(...args),
+vi.mock("@/lib/external-link", () => ({
+  openExternalUrl: (...args: unknown[]) => {
+    openLinkMock(...args);
+    return Promise.resolve();
+  },
 }));
 
 // SSR takes zustand's initial-state snapshot, so route the hooks through the live state.

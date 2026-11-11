@@ -7,6 +7,8 @@ export interface Server {
   players: number;
   max_players: number;
   ping: number | null;
+  /** Why `ping` is not a measured ping: estimated from query replies, or a DDoS service's answer. */
+  ping_estimate?: "estimated" | "protected" | null;
   locked: boolean;
   vac: boolean;
   version: string;
@@ -27,6 +29,8 @@ export interface Server {
   battleye: boolean;
   /** `false` only after a targeted REFRESH misses this server. */
   online: boolean;
+  /** The mod whose name made a word search match this row, when no other field did. */
+  matched_mod?: string | null;
 }
 
 export interface ServerModReadiness {
@@ -46,6 +50,8 @@ export interface ModReadinessEntry {
   is_unique: boolean;
   downloaded_bytes: number | null;
   total_bytes: number | null;
+  /** The local copy differs from the server's; only a live check can tell. */
+  differs?: boolean;
 }
 
 export interface UniqueModsSummary {

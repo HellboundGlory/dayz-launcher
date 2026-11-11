@@ -13,6 +13,8 @@ export interface ListRowProps {
   /** Already-joined state list, or an array of states to join. */
   states?: string | readonly string[];
   onSelect?: (item: unknown) => void;
+  /** A right-click on a row whose kind can open a menu; the list selects the row itself. */
+  onContextMenu?: (item: unknown, event: MouseEvent<HTMLDivElement>) => void;
 }
 
 /**
@@ -29,6 +31,7 @@ export function listRowPropsEqual(prev: ListRowProps, next: ListRowProps): boole
     prev.columns === next.columns &&
     prev.subjectKind === next.subjectKind &&
     prev.onSelect === next.onSelect &&
+    prev.onContextMenu === next.onContextMenu &&
     join(prev.states) === join(next.states)
   );
 }
@@ -40,6 +43,7 @@ function ListRowBase({
   subjectKind,
   states = [],
   onSelect,
+  onContextMenu,
 }: ListRowProps) {
   const handleClick = (e: MouseEvent<HTMLDivElement>) => {
     // Only select the row if the click didn't land on an interactive control
@@ -48,6 +52,12 @@ function ListRowBase({
       return;
     }
     onSelect?.(item);
+  };
+
+  const handleContextMenu = (e: MouseEvent<HTMLDivElement>) => {
+    if (subjectKind !== "server" || !onContextMenu) return;
+    e.preventDefault();
+    onContextMenu(item, e);
   };
 
   const stateAttr = (typeof states === "string" ? states : states.join(" ")) || undefined;
@@ -79,6 +89,7 @@ function ListRowBase({
       data-state={stateAttr}
       role="row"
       onClick={handleClick}
+      onContextMenu={handleContextMenu}
       className="grid w-full items-center border-b border-line px-[var(--t-space-rowX)] py-[var(--t-space-rowY)] transition-colors hover:bg-surface2"
       style={{ gridTemplateColumns: gridTemplate }}
     >
@@ -104,6 +115,7 @@ function ListRowBase({
         data-state={stateAttr}
         role="row"
         onClick={handleClick}
+        onContextMenu={handleContextMenu}
         className="w-full transition-colors hover:bg-surface2"
       >
         <ListColumnsContext.Provider value={columns}>

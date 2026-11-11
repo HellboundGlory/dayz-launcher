@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Screenshot one harness scenario headlessly.
 # Usage: tools/harness/shoot.sh <out.png> ["query string"] [css-width] [css-height]
-# e.g.   tools/harness/shoot.sh /tmp/panel.png "select=3&popup=map"
+# e.g.   tools/harness/shoot.sh /tmp/panel.png "select=3&popup=menu"
 set -euo pipefail
 
 OUT=${1:?output png path}

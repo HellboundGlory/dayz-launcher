@@ -1,6 +1,7 @@
 pub mod index;
 pub mod launch;
 pub mod log;
+pub mod memory_map;
 pub mod mods;
 
 pub mod server;

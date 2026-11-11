@@ -4,6 +4,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useServerStore } from "@/stores/server-store";
 import { useModsStore } from "@/stores/mods-store";
 import { OFFICIAL_MAP_IDS } from "@/lib/official-maps";
+import { CONTINENTS, continentState, toggleContinent } from "@/lib/countries";
 import { cn } from "@/lib/utils";
 import type { ServerFilter, SortDir, SortKey } from "@/types/filters";
 import type { ElementNode, PopupLayoutFile } from "../renderer/types";
@@ -89,19 +90,7 @@ export function cycleTagValue(cur: boolean | null): boolean | null {
   return cur === null ? true : cur === true ? false : null;
 }
 
-export const REGIONS: { code: string; label: string }[] = [
-  { code: "EU", label: "Europe" },
-  { code: "NA", label: "North America" },
-  { code: "AS", label: "Asia" },
-  { code: "OC", label: "Oceania" },
-  { code: "SA", label: "South America" },
-];
-
-export function regionDisplayValue(selected: string[]): string {
-  if (selected.length === 0) return "Any";
-  if (selected.length === 1) return REGIONS.find((r) => r.code === selected[0])?.label ?? selected[0];
-  return `${selected.length} regions`;
-}
+export { CONTINENTS, countryDisplayValue } from "@/lib/countries";
 
 /** `last_played` is a valid sort key but the sort popup doesn't offer it. */
 export const SORT_OPTIONS: { key: SortKey; label: string }[] = [
@@ -110,6 +99,7 @@ export const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: "mod_count", label: "Mods" },
   { key: "name", label: "Name" },
   { key: "map", label: "Map" },
+  { key: "country", label: "Country" },
 ];
 
 export function sortValueLabel(key: SortKey): string {
@@ -122,7 +112,7 @@ export function nextSortDir(currentKey: SortKey, currentDir: SortDir, picked: So
 }
 
 /** A filter option: the check column, then its label. Shared by the map, tag, region and sort popups. */
-function OptionRow({
+export function OptionRow({
   selected,
   mark,
   state,
@@ -166,7 +156,16 @@ export function PopupSeparator() {
   return <div data-part="separator" aria-hidden className="mx-[var(--t-space-separatorX)] my-[var(--t-space-separatorY)] h-[var(--t-border-hairline)] bg-line" />;
 }
 
-export function PopupMapOptions({ className, style }: { className?: string; style?: CSSProperties }) {
+export function PopupMapOptions({
+  className,
+  style,
+  counts,
+}: {
+  className?: string;
+  style?: CSSProperties;
+  /** Server counts per map key, shown on the right when given. */
+  counts?: Record<string, number>;
+}) {
   const filter = useServerStore((s) => s.filter);
   const setFilter = useServerStore((s) => s.setFilter);
   const maps = useServerStore((s) => s.maps);
@@ -183,6 +182,11 @@ export function PopupMapOptions({ className, style }: { className?: string; styl
   const option = ([norm, disp]: [string, string]) => (
     <OptionRow key={norm} selected={selected.includes(norm)} onClick={() => toggle(norm)}>
       <span className="truncate">{disp}</span>
+      {counts && (
+        <span data-part="count" className="[font-family:var(--t-type-family-data)] text-muted">
+          {(counts[norm] ?? 0).toLocaleString("en")}
+        </span>
+      )}
     </OptionRow>
   );
 
@@ -205,7 +209,7 @@ export function PopupMapOptions({ className, style }: { className?: string; styl
           {status}
         </div>
       )}
-      <div ref={listRef} role="listbox" aria-multiselectable>
+      <div ref={listRef} role="listbox" aria-label="Maps" aria-multiselectable>
         {official.map(option)}
         {official.length > 0 && rest.length > 0 && <PopupSeparator />}
         {rest.map(option)}
@@ -229,7 +233,7 @@ export function PopupTagOptions({ className, style }: { className?: string; styl
   const indicatorText = (val: boolean | null) => (val === true ? "✓" : val === false ? "✗" : "");
 
   return (
-    <div data-el="popup.tagOptions" role="listbox" aria-multiselectable className={className ?? "space-y-1"} style={style}>
+    <div data-el="popup.tagOptions" role="listbox" aria-multiselectable className={className ?? "flex flex-col gap-1"} style={style}>
       {TAG_OPTIONS.map((opt) => {
         const val = values[opt.field];
         return (
@@ -257,13 +261,13 @@ export function PopupRegionOptions({ className, style }: { className?: string; s
   const filter = useServerStore((s) => s.filter);
   const setFilter = useServerStore((s) => s.setFilter);
   const selected = filter.countries ?? [];
-  const toggle = (code: string) => setFilter({ countries: toggleInList(selected, code) });
+  const toggle = (continentId: string) => setFilter({ countries: toggleContinent(selected, continentId) });
 
   return (
-    <div data-el="popup.regionOptions" role="listbox" aria-multiselectable className={className ?? "space-y-1"} style={style}>
-      {REGIONS.map((region) => (
-        <OptionRow key={region.code} selected={selected.includes(region.code)} onClick={() => toggle(region.code)}>
-          <span className="truncate">{region.label}</span>
+    <div data-el="popup.regionOptions" role="listbox" aria-multiselectable className={className ?? "flex flex-col gap-1"} style={style}>
+      {CONTINENTS.map((continent) => (
+        <OptionRow key={continent.id} selected={continentState(selected, continent.id) === "all"} onClick={() => toggle(continent.id)}>
+          <span className="truncate">{continent.name}</span>
         </OptionRow>
       ))}
     </div>

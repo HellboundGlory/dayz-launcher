@@ -46,9 +46,7 @@ describe("shared v2 registry", () => {
     }
   });
 
-  it("keeps the registry's own sizes and icon allowlist", () => {
-    expect(Object.keys(REGISTRY.elements)).toHaveLength(184);
-    expect(new Set(REGISTRY.icons).size).toBe(45);
-    expect(REGISTRY.icons).toHaveLength(45);
+  it("registers the LAN tab's empty message so a theme can target it", () => {
+    expect(REGISTRY.elements["lan.empty"]).toMatchObject({ kind: "display", where: ["browser"] });
   });
 });

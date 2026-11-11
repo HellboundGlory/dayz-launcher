@@ -1,10 +1,12 @@
 use crate::error::RegistryError;
 use crate::rows::{ServerKey, ServerRow, WorkshopCacheRow};
 use crate::schema;
-use rusqlite::{params, Connection};
+use crate::RECENT_ANSWER_SECS;
+use rusqlite::{params, Connection, OptionalExtension};
 use tetra_core::a2s::dayz::ServerMod;
+use tetra_core::classify::country_table::country_order;
 use tetra_core::classify::fake::is_fake_listing;
-use tetra_core::classify::geoip::region_code;
+use tetra_core::classify::geoip::country_code;
 use tetra_core::classify::keywords::parse_keywords;
 use tetra_core::classify::maps::normalise_map;
 use tetra_core::unix_now;
@@ -14,12 +16,12 @@ type Ack<T> = oneshot::Sender<Result<T, RegistryError>>;
 
 pub(crate) enum Job {
     Servers(Vec<ServerRow>, Ack<usize>),
+    ListedServers(Vec<ServerRow>, Ack<usize>),
     ServerMods(ServerKey, Vec<ServerMod>, Ack<()>),
     ServerModsBulk(Vec<(ServerKey, Vec<ServerMod>)>, Ack<()>),
     Favourite(ServerKey, bool, Ack<usize>),
     LastPlayed(ServerKey, Ack<usize>),
-    SetOnline(Vec<ServerKey>, bool, Ack<()>),
-    SetOfflineUnlessAnsweredSince(Vec<ServerKey>, i64, Ack<()>),
+    RecordOnline(Vec<ServerKey>, bool, Ack<()>),
     MarkUnlistedOffline(Vec<ServerKey>, i64, Ack<usize>),
     ProbeAttempt(Vec<ServerKey>, Ack<()>),
     RulesUnanswered(Vec<ServerKey>, i64, Ack<()>),
@@ -49,6 +51,16 @@ impl Writer {
 
     pub async fn upsert_servers(&self, rows: Vec<ServerRow>) -> Result<usize, RegistryError> {
         self.send(|ack| Job::Servers(rows, ack)).await
+    }
+
+    /// [`Self::upsert_servers`] for rows from a server list this client did not
+    /// probe itself. Their ping fills an empty one and leaves a measured value
+    /// alone; every other column behaves the same.
+    pub async fn upsert_listed_servers(
+        &self,
+        rows: Vec<ServerRow>,
+    ) -> Result<usize, RegistryError> {
+        self.send(|ack| Job::ListedServers(rows, ack)).await
     }
 
     pub async fn upsert_server_mods(
@@ -86,24 +98,14 @@ impl Writer {
         self.send(|ack| Job::LastPlayed(key, ack)).await
     }
 
-    /// Flip `online` for a batch of servers; rows already at that value are left untouched.
-    pub async fn set_online(
+    /// Store this machine's own probe verdict and when it was reached, which is
+    /// what a verdict from elsewhere is weighed against.
+    pub async fn record_online(
         &self,
         keys: Vec<ServerKey>,
         online: bool,
     ) -> Result<(), RegistryError> {
-        self.send(|ack| Job::SetOnline(keys, online, ack)).await
-    }
-
-    /// Flip `online` off for servers not answered since `cutoff`. A recent answer
-    /// outranks a verdict that comes from somewhere else.
-    pub async fn set_offline_unless_answered_since(
-        &self,
-        keys: Vec<ServerKey>,
-        cutoff: i64,
-    ) -> Result<(), RegistryError> {
-        self.send(|ack| Job::SetOfflineUnlessAnsweredSince(keys, cutoff, ack))
-            .await
+        self.send(|ack| Job::RecordOnline(keys, online, ack)).await
     }
 
     /// Flip `online` off for servers outside `listed` not answered since
@@ -168,7 +170,10 @@ pub(crate) fn run(conn: Connection, mut rx: mpsc::Receiver<Job>) {
     while let Some(job) = rx.blocking_recv() {
         match job {
             Job::Servers(rows, ack) => {
-                let _ = ack.send(upsert_servers(&conn, &rows));
+                let _ = ack.send(upsert_servers(&conn, &rows, false));
+            }
+            Job::ListedServers(rows, ack) => {
+                let _ = ack.send(upsert_servers(&conn, &rows, true));
             }
             Job::ServerModsBulk(batch, ack) => {
                 let _ = ack.send(upsert_server_mods_bulk(&conn, &batch));
@@ -182,11 +187,8 @@ pub(crate) fn run(conn: Connection, mut rx: mpsc::Receiver<Job>) {
             Job::LastPlayed(key, ack) => {
                 let _ = ack.send(mark_played(&conn, key));
             }
-            Job::SetOnline(keys, online, ack) => {
-                let _ = ack.send(set_online(&conn, &keys, online));
-            }
-            Job::SetOfflineUnlessAnsweredSince(keys, cutoff, ack) => {
-                let _ = ack.send(set_offline_unless_answered_since(&conn, &keys, cutoff));
+            Job::RecordOnline(keys, online, ack) => {
+                let _ = ack.send(record_online(&conn, &keys, online));
             }
             Job::MarkUnlistedOffline(listed, answered_since, ack) => {
                 let _ = ack.send(mark_unlisted_offline(&conn, &listed, answered_since));
@@ -214,14 +216,15 @@ INSERT INTO servers (
     version, keywords, description, in_game_time, mod_count,
     official, first_person, modded, battleye,
     first_seen, last_seen, last_responded, last_played, country_code,
-    queue, day_multiplier, night_multiplier
+    queue, day_multiplier, night_multiplier, ping_kind, country_order, online
 ) VALUES (
     ?1, ?2, ?3, ?4, ?5, ?6,
     ?7, ?8, ?9, ?10, ?11, ?12,
     ?13, ?14, ?15, ?16, ?17,
     ?18, ?19, ?20, ?21,
     unixepoch(), unixepoch(), ?22, ?23, ?24,
-    ?25, ?26, ?27
+    ?25, ?26, ?27, ?28, ?29,
+    COALESCE(?31, 1)
 )
 ON CONFLICT(ip, query_port) DO UPDATE SET
     game_port      = CASE WHEN excluded.game_port > 0
@@ -253,11 +256,20 @@ ON CONFLICT(ip, query_port) DO UPDATE SET
     -- Ping is the one live field a row can legitimately carry no measurement
     -- for: an index snapshot describes servers someone else probed, and only
     -- this client's own round trip means anything. A zero from such a row must
-    -- not erase a ping this client measured itself.
+    -- not erase a ping this client measured itself. A listed row's number is
+    -- second-hand too, so it only fills an empty one.
     ping_ms        = CASE WHEN excluded.last_responded IS NOT NULL
                            AND excluded.ping_ms > 0
+                           AND (?30 = 0 OR servers.ping_ms = 0)
                           THEN excluded.ping_ms
                           ELSE servers.ping_ms END,
+    -- The flag travels with the number, so a row without a fresh measurement
+    -- keeps the flag its number was measured under.
+    ping_kind      = CASE WHEN excluded.last_responded IS NOT NULL
+                           AND excluded.ping_ms > 0
+                           AND (?30 = 0 OR servers.ping_ms = 0)
+                          THEN excluded.ping_kind
+                          ELSE servers.ping_kind END,
     locked         = CASE WHEN excluded.last_responded IS NOT NULL
                           THEN excluded.locked
                           ELSE servers.locked END,
@@ -289,12 +301,42 @@ ON CONFLICT(ip, query_port) DO UPDATE SET
                           THEN servers.last_responded
                           ELSE MAX(excluded.last_responded, COALESCE(servers.last_responded, 0)) END,
     last_played    = COALESCE(excluded.last_played,    servers.last_played),
-    country_code   = COALESCE(excluded.country_code,   servers.country_code)
+    country_code   = COALESCE(excluded.country_code,   servers.country_code),
+    country_order  = CASE WHEN excluded.country_code IS NOT NULL
+                          THEN excluded.country_order
+                          ELSE servers.country_order END,
+    -- A verdict only lands when it is newer than the one stored here, so an
+    -- index check that predates this PC's own probe leaves the row alone; an
+    -- answer newer than an offline check outranks it too, since a Steam pass
+    -- records answers without a verdict. A backend too old to send a check
+    -- time falls back to the answer clock, and `online_checked_at` itself is
+    -- only ever written by `record_online`.
+    online         = CASE
+                         WHEN ?31 IS NULL THEN servers.online
+                         WHEN ?32 IS NOT NULL THEN
+                             CASE WHEN ?32 > COALESCE(servers.online_checked_at, 0)
+                                   AND (?31 != 0
+                                        OR ?32 >= COALESCE(MAX(excluded.last_responded,
+                                                               servers.last_responded),
+                                                           excluded.last_responded,
+                                                           servers.last_responded, 0))
+                                  THEN ?31 ELSE servers.online END
+                         WHEN ?31 != 0 THEN 1
+                         WHEN (CASE WHEN excluded.last_responded IS NULL
+                                    THEN servers.last_responded
+                                    ELSE MAX(excluded.last_responded,
+                                             COALESCE(servers.last_responded, 0)) END)
+                              >= unixepoch() - ?33
+                         THEN servers.online
+                         ELSE 0
+                     END
 "#;
 
-/// Removes a server's mod rows. The schema declares no foreign key, so deleting
-/// a `servers` row does not cascade.
+/// Replaces a server's mod rows; deleting the server itself is handled by the
+/// `servers_drop_mods` trigger.
 const DELETE_SERVER_MODS: &str = "DELETE FROM server_mods WHERE ip = ?1 AND query_port = ?2";
+
+const SELECT_VERSION: &str = "SELECT version FROM servers WHERE ip = ?1 AND query_port = ?2";
 
 /// Removes a row that turned out to be a spoofed listing.
 const DELETE_SERVER: &str = "DELETE FROM servers WHERE ip = ?1 AND query_port = ?2";
@@ -314,29 +356,50 @@ const STAMP_MODS: &str =
 const SERVER_MODS: &str = "SELECT workshop_id, name FROM server_mods
      WHERE ip = ?1 AND query_port = ?2 ORDER BY ordinal";
 
-fn upsert_servers(conn: &Connection, rows: &[ServerRow]) -> Result<usize, RegistryError> {
+fn upsert_servers(
+    conn: &Connection,
+    rows: &[ServerRow],
+    listed: bool,
+) -> Result<usize, RegistryError> {
     let tx = conn.unchecked_transaction()?;
     let mut n = 0;
     {
         let mut stmt = tx.prepare_cached(UPSERT_SERVER)?;
-        let mut drop_mods = tx.prepare_cached(DELETE_SERVER_MODS)?;
         let mut drop_fake = tx.prepare_cached(DELETE_SERVER)?;
+        let mut select_version = tx.prepare_cached(SELECT_VERSION)?;
         for row in rows {
             // Spoofed listings are dropped at the boundary, so no read path
             // has to know about them. A row that starts lying after it was
             // stored honestly is deleted rather than left behind.
             if is_fake_listing(&row.name, row.players, row.max_players, row.bots) {
-                drop_mods.execute(params![row.key.ip.to_string(), row.key.query_port])?;
                 drop_fake.execute(params![row.key.ip.to_string(), row.key.query_port])?;
                 continue;
             }
-            let kw = row.keywords.as_deref().map(parse_keywords);
+            // Whitespace-only keywords say nothing, and on 1.30 an absent
+            // `no3rd` would otherwise read as first person.
+            let kw = row
+                .keywords
+                .as_deref()
+                .filter(|k| !k.trim().is_empty())
+                .map(parse_keywords);
             let in_game_time = kw.as_ref().and_then(|k| k.in_game_time.clone());
             let queue = kw.as_ref().and_then(|k| k.queue).map(i64::from);
             let day_multiplier = kw.as_ref().and_then(|k| k.day_multiplier).map(f64::from);
             let night_multiplier = kw.as_ref().and_then(|k| k.night_multiplier).map(f64::from);
             let official = kw.as_ref().is_some_and(|k| k.official);
-            let first_person = kw.as_ref().is_some_and(|k| k.first_person_only);
+            // `no3rd` means the opposite from 1.30 on, so a row that carries
+            // keywords without a version is read against the stored version.
+            let stored_version: Option<String> = match (&kw, &row.version) {
+                (Some(_), None) => select_version
+                    .query_row(params![row.key.ip.to_string(), row.key.query_port], |r| {
+                        r.get(0)
+                    })
+                    .optional()?
+                    .flatten(),
+                _ => None,
+            };
+            let version = row.version.as_deref().or(stored_version.as_deref());
+            let first_person = kw.as_ref().is_some_and(|k| k.first_person_only(version));
             let modded = kw.as_ref().is_some_and(|k| k.modded);
             let battleye = kw.as_ref().is_some_and(|k| k.battleye);
             let responded_at: Option<i64> = row
@@ -346,8 +409,9 @@ fn upsert_servers(conn: &Connection, rows: &[ServerRow]) -> Result<usize, Regist
             let cc = row
                 .country_code
                 .as_deref()
-                .or_else(|| region_code(row.key.ip))
-                .map(|s| s.to_string());
+                .map(str::to_string)
+                .or_else(|| country_code(row.key.ip).map(|c| c.as_str().to_string()));
+            let order = cc.as_deref().and_then(country_order);
 
             n += stmt.execute(params![
                 row.key.ip.to_string(),
@@ -377,6 +441,12 @@ fn upsert_servers(conn: &Connection, rows: &[ServerRow]) -> Result<usize, Regist
                 queue,
                 day_multiplier,
                 night_multiplier,
+                row.ping_kind.to_db(),
+                order,
+                listed,
+                row.online.map(|online| online as i64),
+                row.online_checked_at,
+                RECENT_ANSWER_SECS,
             ])?;
         }
     }
@@ -419,6 +489,7 @@ fn upsert_server_mods_bulk(
                         Ok(ServerMod {
                             workshop_id: r.get::<_, i64>(0)? as u64,
                             name: r.get(1)?,
+                            hash: None,
                         })
                     })?
                     .collect::<Result<_, _>>()?;
@@ -476,39 +547,14 @@ fn mark_played(conn: &Connection, key: ServerKey) -> Result<usize, RegistryError
     Ok(n)
 }
 
-fn set_online(conn: &Connection, keys: &[ServerKey], online: bool) -> Result<(), RegistryError> {
-    let tx = conn.unchecked_transaction()?;
-    {
-        let mut stmt = tx.prepare_cached(
-            "UPDATE servers SET online = ?3
-             WHERE ip = ?1 AND query_port = ?2 AND online != ?3",
-        )?;
-        for key in keys {
-            stmt.execute(params![key.ip.to_string(), key.query_port, online])?;
-        }
-    }
-    tx.commit()?;
-    Ok(())
-}
-
-fn set_offline_unless_answered_since(
-    conn: &Connection,
-    keys: &[ServerKey],
-    cutoff: i64,
-) -> Result<(), RegistryError> {
-    let tx = conn.unchecked_transaction()?;
-    {
-        let mut stmt = tx.prepare_cached(
-            "UPDATE servers SET online = 0
-             WHERE ip = ?1 AND query_port = ?2 AND online != 0
-               AND (last_responded IS NULL OR last_responded < ?3)",
-        )?;
-        for key in keys {
-            stmt.execute(params![key.ip.to_string(), key.query_port, cutoff])?;
-        }
-    }
-    tx.commit()?;
-    Ok(())
+fn record_online(conn: &Connection, keys: &[ServerKey], online: bool) -> Result<(), RegistryError> {
+    for_each_key(
+        conn,
+        "UPDATE servers SET online = ?3, online_checked_at = unixepoch()
+         WHERE ip = ?1 AND query_port = ?2",
+        keys,
+        |stmt, key| stmt.execute(params![key.ip.to_string(), key.query_port, online]),
+    )
 }
 
 fn mark_unlisted_offline(
@@ -558,18 +604,13 @@ fn mark_unlisted_offline(
 }
 
 fn mark_probe_attempt(conn: &Connection, keys: &[ServerKey]) -> Result<(), RegistryError> {
-    let tx = conn.unchecked_transaction()?;
-    {
-        let mut stmt = tx.prepare_cached(
-            "UPDATE servers SET last_probe_attempt = unixepoch()
-             WHERE ip = ?1 AND query_port = ?2",
-        )?;
-        for key in keys {
-            stmt.execute(params![key.ip.to_string(), key.query_port])?;
-        }
-    }
-    tx.commit()?;
-    Ok(())
+    for_each_key(
+        conn,
+        "UPDATE servers SET last_probe_attempt = unixepoch()
+         WHERE ip = ?1 AND query_port = ?2",
+        keys,
+        |stmt, key| stmt.execute(params![key.ip.to_string(), key.query_port]),
+    )
 }
 
 fn mark_rules_unanswered(
@@ -577,15 +618,28 @@ fn mark_rules_unanswered(
     keys: &[ServerKey],
     stamp: i64,
 ) -> Result<(), RegistryError> {
+    for_each_key(
+        conn,
+        "UPDATE servers SET mods_updated_at = ?3
+         WHERE ip = ?1 AND query_port = ?2
+           AND (mods_updated_at IS NULL OR mods_updated_at < ?3)",
+        keys,
+        |stmt, key| stmt.execute(params![key.ip.to_string(), key.query_port, stamp]),
+    )
+}
+
+/// Run one prepared statement per key inside one transaction.
+fn for_each_key(
+    conn: &Connection,
+    sql: &str,
+    keys: &[ServerKey],
+    bind: impl Fn(&mut rusqlite::Statement<'_>, &ServerKey) -> rusqlite::Result<usize>,
+) -> Result<(), RegistryError> {
     let tx = conn.unchecked_transaction()?;
     {
-        let mut stmt = tx.prepare_cached(
-            "UPDATE servers SET mods_updated_at = ?3
-             WHERE ip = ?1 AND query_port = ?2
-               AND (mods_updated_at IS NULL OR mods_updated_at < ?3)",
-        )?;
+        let mut stmt = tx.prepare_cached(sql)?;
         for key in keys {
-            stmt.execute(params![key.ip.to_string(), key.query_port, stamp])?;
+            bind(&mut stmt, key)?;
         }
     }
     tx.commit()?;

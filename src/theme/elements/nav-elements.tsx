@@ -1,8 +1,33 @@
 import type { CSSProperties, KeyboardEvent } from "react";
-import { Globe, Star, Clock, Package, Settings, type LucideIcon } from "lucide-react";
+import { useState } from "react";
+import { Globe, Star, Clock, Network, Package, Settings, type LucideIcon } from "lucide-react";
 import { useElementContext, type ViewId } from "./context";
 import { OptionIcon } from "./option-icon";
 import { parseDisplay } from "./element-utils";
+
+/** The LAN tab's "New" tag stays until the tab has been opened once. */
+const LAN_SEEN_KEY = "tetra.lan.seen";
+
+/**
+ * Whether the LAN tab has been opened before. A storage that cannot be read
+ * reports "not seen", so the tag still shows; a write that fails just means the
+ * tag comes back next launch.
+ */
+export function lanSeen(): boolean {
+  try {
+    return localStorage.getItem(LAN_SEEN_KEY) !== null;
+  } catch {
+    return false;
+  }
+}
+
+export function markLanSeen(): void {
+  try {
+    localStorage.setItem(LAN_SEEN_KEY, "1");
+  } catch {
+    // Non-fatal: the tag simply shows again next launch.
+  }
+}
 
 export function onNavKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
   const container = e.currentTarget.closest('nav, [data-landmark="navigation"]');
@@ -34,6 +59,10 @@ interface NavItemProps {
   options?: Record<string, unknown>;
   className?: string;
   style?: CSSProperties;
+  /** A tag drawn after the label, e.g. the LAN tab's "New". */
+  badge?: React.ReactNode;
+  /** Runs when the item opens its view. */
+  onActivate?: () => void;
 }
 
 function NavItem({
@@ -43,6 +72,8 @@ function NavItem({
   options,
   className,
   style,
+  badge,
+  onActivate,
 }: NavItemProps) {
   const { activeView, onViewChange, settingsOpen, onOpenSettings, onCloseSettings } =
     useElementContext();
@@ -52,6 +83,7 @@ function NavItem({
     "nav.servers": "servers",
     "nav.favourites": "fav",
     "nav.recent": "recent",
+    "nav.lan": "lan",
     "nav.mods": "mods",
   };
   const targetView = viewMap[id];
@@ -67,6 +99,7 @@ function NavItem({
       onViewChange(targetView);
       if (settingsOpen) onCloseSettings();
     }
+    onActivate?.();
   };
 
   const state = isSettings ? (isActive ? "open" : undefined) : isActive ? "current" : undefined;
@@ -93,6 +126,7 @@ function NavItem({
         </span>
       )}
       {showLabel && <span data-part="label" className="truncate">{label}</span>}
+      {badge}
     </button>
   );
 }
@@ -108,6 +142,24 @@ export const NavFavourites = (props: Omit<NavItemProps, "id" | "label" | "defaul
 export const NavRecent = (props: Omit<NavItemProps, "id" | "label" | "defaultIcon">) => (
   <NavItem id="nav.recent" label="Recent" defaultIcon={Clock} {...props} />
 );
+
+export const NavLan = (props: Omit<NavItemProps, "id" | "label" | "defaultIcon">) => {
+  const [seen, setSeen] = useState(lanSeen);
+  return (
+    <NavItem
+      id="nav.lan"
+      label="LAN"
+      defaultIcon={Network}
+      {...props}
+      badge={seen ? undefined : <span data-part="badge">New</span>}
+      onActivate={() => {
+        markLanSeen();
+        setSeen(true);
+        props.onActivate?.();
+      }}
+    />
+  );
+};
 
 export const NavMods = (props: Omit<NavItemProps, "id" | "label" | "defaultIcon">) => (
   <NavItem id="nav.mods" label="Mods" defaultIcon={Package} {...props} />

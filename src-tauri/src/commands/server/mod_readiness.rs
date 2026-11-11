@@ -1,11 +1,61 @@
 use crate::state::AppState;
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::State;
 use tetra_steam::workshop::ModState;
 
-use super::{blocking_read, prober, reader, server_key};
+use super::{blocking_read, open_reader, prober, registry_writer, server_key};
+
+/// How long a cached Workshop row is trusted before Steam is asked again.
+const WORKSHOP_CACHE_TTL_SECS: u64 = 24 * 3600;
+
+/// The message for a failed A2S_RULES query. A server that answered and then
+/// went quiet gets its own wording, since retrying may well work; anything
+/// else reads as offline. `could_not` is the caller's opening clause.
+pub(crate) fn rules_error(
+    addr: impl std::fmt::Display,
+    could_not: &str,
+    e: &tetra_net::NetError,
+) -> String {
+    if matches!(e, tetra_net::NetError::ExchangeTimedOut { .. }) {
+        format!(
+            "{addr} started answering but stopped responding \
+             part-way through its mod list. Try again in a moment."
+        )
+    } else {
+        format!("{could_not} {addr}. The server may be offline or behind a firewall.")
+    }
+}
+
+/// A server's unique mods, the Workshop ids among them, and their cached
+/// details. Ids are worked out once, inside the read, so callers do not repeat it.
+async fn unique_mods_with_cache(
+    state: &AppState,
+    key: tetra_registry::rows::ServerKey,
+) -> Result<
+    (
+        Vec<(u64, String)>,
+        Vec<u64>,
+        HashMap<u64, tetra_registry::rows::WorkshopCacheRow>,
+    ),
+    String,
+> {
+    blocking_read(state, move |reader| {
+        let unique_mods = reader.unique_mods_for(key).map_err(|e| e.to_string())?;
+        let valid_ids: Vec<u64> = unique_mods
+            .iter()
+            .map(|(id, _)| *id)
+            .filter(|&id| ModState::is_workshop_id(id))
+            .collect();
+        let cache = reader
+            .get_workshop_cache(&valid_ids, WORKSHOP_CACHE_TTL_SECS)
+            .map_err(|e| e.to_string())?;
+        Ok((unique_mods, valid_ids, cache))
+    })
+    .await
+}
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct ServerModReadiness {
@@ -26,6 +76,10 @@ pub struct ModReadinessEntry {
     pub is_unique: bool,
     pub downloaded_bytes: Option<u64>,
     pub total_bytes: Option<u64>,
+    /// The local copy's short hash differs from the server's. Only
+    /// `check_server_mods` can tell, since the registry holds no hashes.
+    #[serde(default)]
+    pub differs: bool,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
@@ -89,9 +143,59 @@ pub(crate) fn build_mod_readiness_entries(
                 is_unique,
                 downloaded_bytes,
                 total_bytes,
+                differs: false,
             }
         })
         .collect()
+}
+
+/// The ids of `Ready` mods whose local copy hashes differently from what the
+/// server sent. Anything that can't be read is left out: an unreadable folder
+/// must never warn.
+pub(crate) fn differing_ids(
+    states: impl Iterator<Item = (u64, ModState)>,
+    server_hashes: &HashMap<u64, u32>,
+    updating: &[u64],
+    folder_of: impl Fn(u64) -> Option<PathBuf>,
+) -> Vec<u64> {
+    let mut differing = Vec::new();
+    for (id, state) in states {
+        // A mod Steam was just asked to update still reads Ready for a moment.
+        if state != ModState::Ready || updating.contains(&id) {
+            continue;
+        }
+        let Some(&server_hash) = server_hashes.get(&id) else {
+            continue;
+        };
+        let Some(folder) = folder_of(id) else {
+            continue;
+        };
+        if tetra_steam::mod_hash::folder_hash(&folder).is_some_and(|local| local != server_hash) {
+            differing.push(id);
+        }
+    }
+    differing
+}
+
+/// Marks the `Ready` entries whose local copy hashes differently from what the
+/// server sent. Anything that can't be read stays unmarked: an unreadable
+/// folder must never warn.
+pub(crate) fn mark_differing(
+    entries: &mut [ModReadinessEntry],
+    server_hashes: &HashMap<u64, u32>,
+    folder_of: impl Fn(u64) -> Option<PathBuf>,
+) {
+    let states = entries
+        .iter()
+        .filter_map(|e| e.workshop_id.parse::<u64>().ok().map(|id| (id, e.state)));
+    let flagged = differing_ids(states, server_hashes, &[], folder_of);
+    for entry in entries.iter_mut() {
+        entry.differs = entry
+            .workshop_id
+            .parse::<u64>()
+            .map(|id| flagged.contains(&id))
+            .unwrap_or(false);
+    }
 }
 
 #[tauri::command]
@@ -110,34 +214,29 @@ pub(crate) async fn server_mod_readiness_impl(
 ) -> Result<ServerModReadiness, String> {
     let key = server_key(&addr, query_port)?;
 
-    let (server_row, mods, unique_ids, initial_cache) = blocking_read(state, move |reader| {
-        let server_row = reader.get(key).map_err(|e| e.to_string())?;
-        let mods = reader.mods_for(key).map_err(|e| e.to_string())?;
-        let unique_ids: HashSet<u64> = reader
-            .unique_mods_for(key)
-            .map_err(|e| e.to_string())?
-            .into_iter()
-            .map(|(id, _)| id)
-            .collect();
-        let valid_ids: Vec<u64> = mods
-            .iter()
-            .map(|m| m.workshop_id)
-            .filter(|&id| ModState::is_workshop_id(id))
-            .collect();
-        let cache = reader
-            .get_workshop_cache(&valid_ids, 24 * 3600)
-            .map_err(|e| e.to_string())?;
-        Ok((server_row, mods, unique_ids, cache))
-    })
-    .await?;
+    let (server_row, mods, unique_ids, valid_ids, initial_cache) =
+        blocking_read(state, move |reader| {
+            let server_row = reader.get(key).map_err(|e| e.to_string())?;
+            let mods = reader.mods_for(key).map_err(|e| e.to_string())?;
+            let unique_ids: HashSet<u64> = reader
+                .unique_mods_for(key)
+                .map_err(|e| e.to_string())?
+                .into_iter()
+                .map(|(id, _)| id)
+                .collect();
+            let valid_ids: Vec<u64> = mods
+                .iter()
+                .map(|m| m.workshop_id)
+                .filter(|&id| ModState::is_workshop_id(id))
+                .collect();
+            let cache = reader
+                .get_workshop_cache(&valid_ids, WORKSHOP_CACHE_TTL_SECS)
+                .map_err(|e| e.to_string())?;
+            Ok((server_row, mods, unique_ids, valid_ids, cache))
+        })
+        .await?;
 
     let stale = server_row.map(|s| !s.online).unwrap_or(true);
-
-    let valid_ids: Vec<u64> = mods
-        .iter()
-        .map(|m| m.workshop_id)
-        .filter(|&id| ModState::is_workshop_id(id))
-        .collect();
 
     let steam = {
         let guard = state.steam.lock().map_err(|e| e.to_string())?;
@@ -196,12 +295,8 @@ pub(crate) async fn resolve_workshop_cache(
             guard.as_ref().map(Arc::clone)
         };
         if let Some(ref steam_handle) = steam {
-            if let Ok(reader_fresh) = reader(state) {
-                let writer_opt = {
-                    let guard = state.registry.lock().map_err(|e| e.to_string())?;
-                    guard.as_ref().map(|r| r.writer())
-                };
-                if let Some(writer) = writer_opt {
+            if let Ok(reader_fresh) = open_reader(state).await {
+                if let Ok(writer) = registry_writer(state).await {
                     let handle = Arc::clone(steam_handle);
                     let missing_ids = missing.clone();
                     let fetched = tokio::task::spawn_blocking(move || {
@@ -262,26 +357,20 @@ pub(crate) async fn check_server_mods_impl(
 
     let prober = prober(state)?;
 
-    let rules = prober.rules_unqueued(query_addr).await.map_err(|e| {
-        if matches!(e, tetra_net::NetError::ExchangeTimedOut { .. }) {
-            format!(
-                "{query_addr} started answering but stopped responding \
-                 part-way through its mod list. Try again in a moment."
-            )
-        } else {
-            format!(
-                "Could not read the mod list from {query_addr}. \
-                 The server may be offline or behind a firewall."
-            )
-        }
-    })?;
+    let rules = prober
+        .rules_unqueued(query_addr)
+        .await
+        .map_err(|e| rules_error(query_addr, "Could not read the mod list from", &e))?;
     let declared = rules.mods;
 
-    let writer = {
-        let guard = state.registry.lock().map_err(|e| e.to_string())?;
-        guard.as_ref().map(|r| r.writer())
-    };
-    if let Some(writer) = writer {
+    // The registry keeps only ids and names, so the hashes have to come off
+    // this live reply before it is stored.
+    let server_hashes: HashMap<u64, u32> = declared
+        .iter()
+        .filter_map(|m| m.hash.map(|hash| (m.workshop_id, hash)))
+        .collect();
+
+    if let Ok(writer) = registry_writer(state).await {
         let log = |msg: String| {
             if let Some(app) = app {
                 crate::log::log_line(app, "refresh", &msg);
@@ -292,7 +381,7 @@ pub(crate) async fn check_server_mods_impl(
                 "check_server_mods: storing the mod list failed: {e}"
             ));
         }
-        if let Err(e) = writer.set_online(vec![key], true).await {
+        if let Err(e) = writer.record_online(vec![key], true).await {
             log(format!(
                 "check_server_mods: marking the server online failed: {e}"
             ));
@@ -301,6 +390,34 @@ pub(crate) async fn check_server_mods_impl(
 
     let mut readiness = server_mod_readiness_impl(state, addr, query_port).await?;
     readiness.stale = false;
+
+    let steam = {
+        let guard = state.steam.lock().map_err(|e| e.to_string())?;
+        guard.as_ref().map(Arc::clone)
+    };
+    if let Some(steam) = steam {
+        let mut entries = readiness.mods.clone();
+        let marks = tokio::task::spawn_blocking(move || {
+            mark_differing(&mut entries, &server_hashes, |id| {
+                steam.mod_folder(id).ok().flatten()
+            });
+            entries
+        })
+        .await;
+        match marks {
+            Ok(entries) => readiness.mods = entries,
+            Err(e) => {
+                if let Some(app) = app {
+                    crate::log::log_line(
+                        app,
+                        "refresh",
+                        &format!("check_server_mods: hashing the mod folders failed: {e}"),
+                    );
+                }
+            }
+        }
+    }
+
     Ok(readiness)
 }
 
@@ -319,25 +436,7 @@ pub(crate) async fn get_unique_mods_summary_impl(
     query_port: u16,
 ) -> Result<UniqueModsSummary, String> {
     let key = server_key(&addr, query_port)?;
-    let (unique_mods, initial_cache) = blocking_read(state, move |reader| {
-        let unique_mods = reader.unique_mods_for(key).map_err(|e| e.to_string())?;
-        let valid_ids: Vec<u64> = unique_mods
-            .iter()
-            .map(|(id, _)| *id)
-            .filter(|&id| ModState::is_workshop_id(id))
-            .collect();
-        let cache = reader
-            .get_workshop_cache(&valid_ids, 24 * 3600)
-            .map_err(|e| e.to_string())?;
-        Ok((unique_mods, cache))
-    })
-    .await?;
-
-    let valid_ids: Vec<u64> = unique_mods
-        .iter()
-        .map(|(id, _)| *id)
-        .filter(|&id| ModState::is_workshop_id(id))
-        .collect();
+    let (unique_mods, valid_ids, initial_cache) = unique_mods_with_cache(state, key).await?;
 
     let cache = resolve_workshop_cache(state, &valid_ids, initial_cache).await?;
 
@@ -368,25 +467,7 @@ pub(crate) async fn unsubscribe_unique_mods_impl(
     query_port: u16,
 ) -> Result<UnsubscribeOutcome, String> {
     let key = server_key(&addr, query_port)?;
-    let (unique_mods, initial_cache) = blocking_read(state, move |reader| {
-        let unique_mods = reader.unique_mods_for(key).map_err(|e| e.to_string())?;
-        let valid_ids: Vec<u64> = unique_mods
-            .iter()
-            .map(|(id, _)| *id)
-            .filter(|&id| ModState::is_workshop_id(id))
-            .collect();
-        let cache = reader
-            .get_workshop_cache(&valid_ids, 24 * 3600)
-            .map_err(|e| e.to_string())?;
-        Ok((unique_mods, cache))
-    })
-    .await?;
-
-    let valid_ids: Vec<u64> = unique_mods
-        .iter()
-        .map(|(id, _)| *id)
-        .filter(|&id| ModState::is_workshop_id(id))
-        .collect();
+    let (_, valid_ids, initial_cache) = unique_mods_with_cache(state, key).await?;
 
     if valid_ids.is_empty() {
         return Ok(UnsubscribeOutcome {
@@ -431,6 +512,9 @@ pub(crate) async fn unsubscribe_unique_mods_impl(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+
     #[test]
     fn test_mod_readiness_mixed_states_mapping() {
         use std::collections::{HashMap, HashSet};
@@ -442,22 +526,27 @@ mod tests {
             ServerMod {
                 workshop_id: 100,
                 name: "Ready Mod".into(),
+                hash: None,
             },
             ServerMod {
                 workshop_id: 200,
                 name: "Not Installed Mod".into(),
+                hash: None,
             },
             ServerMod {
                 workshop_id: 300,
                 name: "Needs Update Mod".into(),
+                hash: None,
             },
             ServerMod {
                 workshop_id: 400,
                 name: "Downloading Mod".into(),
+                hash: None,
             },
             ServerMod {
                 workshop_id: 0,
                 name: "Server Mod".into(),
+                hash: None,
             },
         ];
 
@@ -580,14 +669,17 @@ mod tests {
             ServerMod {
                 workshop_id: 100,
                 name: "Uncached Mod".into(),
+                hash: None,
             },
             ServerMod {
                 workshop_id: 200,
                 name: "Zero Size Update Mod".into(),
+                hash: None,
             },
             ServerMod {
                 workshop_id: 300,
                 name: "Zero Size Not Installed Mod".into(),
+                hash: None,
             },
         ];
 
@@ -675,12 +767,13 @@ mod tests {
             .await
             .expect("upsert servers");
         writer
-            .set_online(vec![offline_key], false)
+            .record_online(vec![offline_key], false)
             .await
             .expect("set offline");
 
         let app_state = crate::state::AppState::new();
         *app_state.registry.lock().unwrap() = Some(registry);
+        app_state.registry_status.send_replace(Some(false));
 
         let res_online = super::server_mod_readiness_impl(&app_state, "192.0.2.1".into(), 27016)
             .await
@@ -745,6 +838,7 @@ mod tests {
                 vec![ServerMod {
                     workshop_id: 1001,
                     name: "Shared Mod".into(),
+                    hash: None,
                 }],
             )
             .await
@@ -757,10 +851,12 @@ mod tests {
                     ServerMod {
                         workshop_id: 1001,
                         name: "Shared Mod".into(),
+                        hash: None,
                     },
                     ServerMod {
                         workshop_id: 2002,
                         name: "Unique Mod".into(),
+                        hash: None,
                     },
                 ],
             )
@@ -769,6 +865,7 @@ mod tests {
 
         let app_state = crate::state::AppState::new();
         *app_state.registry.lock().unwrap() = Some(registry);
+        app_state.registry_status.send_replace(Some(false));
 
         let res = super::server_mod_readiness_impl(&app_state, "198.51.100.2".into(), 27016)
             .await
@@ -870,6 +967,7 @@ mod tests {
                 vec![ServerMod {
                     workshop_id: 1001,
                     name: "Old Mod".into(),
+                    hash: None,
                 }],
             )
             .await
@@ -879,6 +977,7 @@ mod tests {
 
         let app_state = crate::state::AppState::new();
         *app_state.registry.lock().unwrap() = Some(registry);
+        app_state.registry_status.send_replace(Some(false));
 
         let prober = tetra_net::Prober::new(tetra_net::ProbeConfig {
             max_in_flight: 4,
@@ -891,12 +990,23 @@ mod tests {
         let steam_handle = SteamHandle::new_mock(tx);
         *app_state.steam.lock().unwrap() = Some(Arc::new(steam_handle));
 
+        // The packet's mod hash is 0x44332211; this folder hashes to something else.
+        let (local_dir, local_hash) = pair("check-mods", OTHER_TRAILER);
+        assert_ne!(local_hash, 0x4433_2211);
+        let installed_folder = local_dir.to_string_lossy().into_owned();
+
         let mock_thread = std::thread::spawn(move || {
             while let Ok(cmd) = rx.recv() {
                 match cmd {
                     Command::UGCItemStates(ids, ack) => {
-                        let res = ids.into_iter().map(|id| (id, 0u32)).collect();
+                        let res = ids.into_iter().map(|id| (id, 5u32)).collect();
                         let _ = ack.send(Ok(res));
+                    }
+                    Command::UGCInstallInfo(_id, ack) => {
+                        let _ = ack.send(Ok(Some(tetra_steam::UgcInstallInfo {
+                            folder: installed_folder.clone(),
+                            size_on_disk: 0,
+                        })));
                     }
                     Command::UGCDownloadInfo(_ids, ack) => {
                         let _ = ack.send(Ok(Vec::new()));
@@ -918,6 +1028,10 @@ mod tests {
         assert_eq!(res.mods.len(), 1);
         assert_eq!(res.mods[0].workshop_id, "2002");
         assert_eq!(res.mods[0].name, "New Updated Mod");
+        assert!(
+            res.mods[0].differs,
+            "a ready mod whose folder hashes differently is flagged"
+        );
 
         let current_mods = reader.mods_for(key).expect("mods");
         assert_eq!(current_mods.len(), 1);
@@ -981,6 +1095,7 @@ mod tests {
                 vec![ServerMod {
                     workshop_id: 103,
                     name: "Shared Mod 103".into(),
+                    hash: None,
                 }],
             )
             .await
@@ -993,14 +1108,17 @@ mod tests {
                     ServerMod {
                         workshop_id: 101,
                         name: "Unique Mod 101".into(),
+                        hash: None,
                     },
                     ServerMod {
                         workshop_id: 102,
                         name: "Unique Mod 102".into(),
+                        hash: None,
                     },
                     ServerMod {
                         workshop_id: 103,
                         name: "Shared Mod 103".into(),
+                        hash: None,
                     },
                 ],
             )
@@ -1041,6 +1159,7 @@ mod tests {
 
         let app_state = crate::state::AppState::new();
         *app_state.registry.lock().unwrap() = Some(registry);
+        app_state.registry_status.send_replace(Some(false));
 
         let (tx, rx) = std::sync::mpsc::channel();
         let steam_handle = SteamHandle::new_mock(tx);
@@ -1088,5 +1207,142 @@ mod tests {
 
         assert_eq!(outcome.count, summary.count);
         assert_eq!(outcome.total_size_bytes, summary.total_size_bytes);
+    }
+
+    /// Builds a mod folder whose `addons` holds one PBO ending in `trailer`.
+    fn mod_folder(label: &str, trailer: [u8; 20]) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("tetra-readiness-{label}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("addons")).unwrap();
+        let mut pbo = vec![0u8; 10];
+        pbo.extend_from_slice(&trailer);
+        std::fs::write(dir.join("addons/a.pbo"), pbo).unwrap();
+        dir
+    }
+
+    const TRAILER: [u8; 20] = [0xad; 20];
+    const OTHER_TRAILER: [u8; 20] = [0x0b; 20];
+
+    fn pair(label: &str, trailer: [u8; 20]) -> (PathBuf, u32) {
+        (
+            mod_folder(label, trailer),
+            tetra_steam::mod_hash::short_hash(&[trailer]),
+        )
+    }
+
+    fn ready_entry(id: u64) -> super::ModReadinessEntry {
+        super::ModReadinessEntry {
+            workshop_id: id.to_string(),
+            name: format!("Mod {id}"),
+            state: tetra_steam::workshop::ModState::Ready,
+            size_bytes: None,
+            size_is_upper_bound: false,
+            preview_url: None,
+            is_unique: false,
+            downloaded_bytes: None,
+            total_bytes: None,
+            differs: false,
+        }
+    }
+
+    #[test]
+    fn mark_differing_flags_only_a_ready_mod_whose_folder_hash_does_not_match() {
+        use tetra_steam::workshop::ModState;
+
+        let (same_dir, same_hash) = pair("same", TRAILER);
+        let (_, other_hash) = pair("other", OTHER_TRAILER);
+        let (short_dir, _) = pair("short", TRAILER);
+        std::fs::write(short_dir.join("addons/a.pbo"), [0u8; 10]).unwrap();
+        let missing_dir = same_dir.join("gone");
+
+        let mut entries = vec![
+            ready_entry(1),
+            ready_entry(2),
+            ready_entry(3),
+            ready_entry(4),
+            ready_entry(5),
+            ready_entry(6),
+        ];
+        entries[3].state = ModState::NeedsUpdate;
+        entries[4].state = ModState::NotInstalled;
+
+        let mut server_hashes = HashMap::new();
+        server_hashes.insert(1, same_hash);
+        server_hashes.insert(2, other_hash);
+        server_hashes.insert(3, same_hash);
+        server_hashes.insert(4, same_hash);
+        server_hashes.insert(5, same_hash);
+        // id 6 gets no server hash at all.
+
+        super::mark_differing(&mut entries, &server_hashes, |id| match id {
+            1 => Some(same_dir.clone()),
+            2 => Some(same_dir.clone()),
+            3 => Some(short_dir.clone()),
+            4 => Some(missing_dir.clone()),
+            5 => None,
+            _ => Some(same_dir.clone()),
+        });
+
+        let flagged: Vec<bool> = entries.iter().map(|e| e.differs).collect();
+        assert_eq!(
+            flagged,
+            vec![false, true, false, false, false, false],
+            "only the ready mod whose folder hashes differently is marked"
+        );
+    }
+
+    #[test]
+    fn mark_differing_leaves_a_list_whose_folders_cannot_be_read_unmarked() {
+        let (dir, hash) = pair("unreadable", TRAILER);
+        let mut entries = vec![ready_entry(1)];
+        let mut server_hashes = HashMap::new();
+        server_hashes.insert(1, hash);
+
+        super::mark_differing(&mut entries, &server_hashes, |_| Some(dir.join("missing")));
+
+        assert!(!entries[0].differs);
+    }
+
+    #[test]
+    fn differing_ids_lists_only_ready_mods_whose_folder_hash_does_not_match() {
+        use tetra_steam::workshop::ModState;
+
+        let (dir, hash) = pair("ids", TRAILER);
+        let (_, other_hash) = pair("ids-other", OTHER_TRAILER);
+
+        let mut server_hashes = HashMap::new();
+        server_hashes.insert(1, other_hash);
+        server_hashes.insert(2, hash);
+        server_hashes.insert(3, other_hash);
+
+        let states = vec![
+            (1, ModState::Ready),
+            (2, ModState::Ready),
+            (3, ModState::NeedsUpdate),
+        ];
+        let found = super::differing_ids(states.into_iter(), &server_hashes, &[], |_| {
+            Some(dir.clone())
+        });
+
+        assert_eq!(found, vec![1], "only the ready mod with another hash");
+    }
+
+    #[test]
+    fn a_mod_steam_is_already_updating_is_not_listed_as_differing() {
+        use tetra_steam::workshop::ModState;
+
+        let (dir, _) = pair("ids-updating", TRAILER);
+        let (_, other_hash) = pair("ids-updating-other", OTHER_TRAILER);
+        let server_hashes = HashMap::from([(1, other_hash)]);
+
+        let found = super::differing_ids(
+            vec![(1, ModState::Ready)].into_iter(),
+            &server_hashes,
+            &[1],
+            |_| Some(dir.clone()),
+        );
+
+        assert!(found.is_empty());
     }
 }

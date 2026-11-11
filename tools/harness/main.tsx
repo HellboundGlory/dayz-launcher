@@ -18,6 +18,10 @@ const mixedMods = params.get("mods") === "mixed";
 const readyMods = params.get("mods") === "ready";
 // `join=asking|checking|found|noanswer` opens the join-link box in that state.
 const joinState = params.get("join");
+// `mmc=1` makes the Join ask for the memory map fix first.
+const memoryMapLow = params.get("mmc") === "1";
+// A join held at its mod check (`check`) or mid-download (`dl`), for the starting window.
+const startState = params.get("start");
 
 // `static=1` (the visual harness): pin the clock and kill motion and the caret,
 // so two shots of the same tree are byte-identical. Midday so a ±12h timezone
@@ -50,9 +54,11 @@ const LAYOUTS = [
   "layout/lists/servers.json",
   "layout/lists/mods.json",
   "layout/lists/serverMods.json",
+  "layout/popups/serverRow.json",
   "layout/lists/modServers.json",
   "layout/lists/modFilterResults.json",
   "layout/popups/mapFilter.json",
+  "layout/popups/filterMenu.json",
   "layout/popups/modsUnique.json",
   "layout/popups/modsUnsubscribe.json",
   "layout/popups/modsVerify.json",
@@ -97,9 +103,17 @@ async function themeFile(id: string) {
   };
 }
 
+// The LAN tab's addresses, and the server Add server finds, both taken from
+// the fixture list so the shots show real rows.
+const lanRows = servers.slice(0, 3);
+const lanAddrs = lanRows.map((s) => s.addr);
+const addServerResult = servers[1] ?? servers[0];
+
 function serverList(filter: Record<string, unknown> | undefined): Server[] {
   if (filter?.favourites_only) return servers.filter((s) => s.favourite);
   if (filter?.recent_only) return servers.filter((s) => s.last_played !== null);
+  const lan = filter?.lan_addrs as string[] | null | undefined;
+  if (Array.isArray(lan)) return lanRows.filter((row) => lan.includes(row.addr));
   return servers;
 }
 
@@ -143,6 +157,7 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     onJoin: "tray",
     onboardingDismissed: true,
     discordRichPresence: true,
+    memoryMapWarning: true,
     activeThemeId: themeId === "neutral" ? null : themeId,
   }),
   steam_init: () => null,
@@ -156,11 +171,55 @@ const handlers: Record<string, (args: Record<string, unknown>) => unknown> = {
     return { total: rows.length, rows: rows.slice(page.offset, page.offset + page.limit) };
   },
   get_map_list: () => maps,
+  get_filter_facets: () => ({
+    total: servers.length,
+    maps: maps.map(([key, name]) => ({
+      name,
+      count: servers.filter((s) => s.map_display === name).length,
+      values: [key],
+    })),
+    versions: [{ name: "1.29.163709", count: servers.length, values: ["1.29.163709"] }],
+    countries: [...new Set(servers.map((s) => s.country_code).filter(Boolean))].map((code) => ({
+      name: code,
+      count: servers.filter((s) => s.country_code === code).length,
+      values: [code],
+    })),
+    mods: [],
+    same_as_mine: servers.length,
+  }),
+  get_installed_dayz_version: () => "1.29.163709",
+  password_status: () => ({ saved: params.get("pw") === "saved", keyring: true }),
+  app_menu_status: () => ({ available: params.has("appmenu"), installed: params.get("appmenu") === "installed" }),
+  get_memory_map_status: () =>
+    memoryMapLow ? { current: 65530, recommended: 1048576 } : null,
+  get_search_suggestions: () => [
+    { kind: "map", label: "Namalsk", count: Math.max(1, Math.round(servers.length / 3)), values: ["namalsk"] },
+    { kind: "mod", label: "Namalsk Survival", count: Math.max(1, Math.round(servers.length / 4)), values: ["1"] },
+    { kind: "mod", label: "Namalsk Island", count: Math.max(1, Math.round(servers.length / 5)), values: ["2"] },
+  ],
   get_server_counts: () => ({ total: servers.length, populated: servers.filter((s) => s.players > 0).length }),
   server_list_source: () => "steam",
+  // `lan=empty` looks on a network with nothing on it.
+  scan_lan: () => (params.get("lan") === "empty" ? [] : lanAddrs),
+  find_server: (args) => {
+    const input = String(args.input ?? "");
+    if (input === "nothing.example.com") return null;
+    if (input === "bad address") throw "That is not an address";
+    return addServerResult;
+  },
   server_mod_readiness: () => (joinState === "checking" ? new Promise(() => {}) : readiness),
-  steam_mod_states: () => [],
-  steam_download_progress: () => [],
+  verify_server_mods: () =>
+    startState === "check"
+      ? new Promise(() => {})
+      : { mods: [{ workshop_id: "1", name: "CF" }, { workshop_id: "2", name: "Trader" }], checked_workshop: true, refreshed: [], differing: [] },
+  steam_mod_states: (args) =>
+    startState === "dl"
+      ? ((args.workshopIds ?? args.ids ?? ["1", "2"]) as string[]).map((id) => ({ workshop_id: id, state: "downloading" }))
+      : [],
+  steam_download_progress: (args) =>
+    startState === "dl"
+      ? ((args.workshopIds ?? args.ids ?? ["1", "2"]) as string[]).map((id) => ({ workshop_id: id, downloaded: "734003200", total: "1503238553" }))
+      : [],
   dayz_running: () => dayzRunning,
   list_installed_themes: async () => (themeId === "neutral" ? [] : [await themeSummary(themeId)]),
   get_theme: async (args) => themeFile(String(args.id)),
@@ -252,7 +311,8 @@ const waitFor = (selector: string) =>
   waitUntil(() => document.querySelector<HTMLElement>(selector), selector);
 
 /**
- * A `click=` target: a CSS selector, `text:<button label>`, or `last-visible:<selector>` (the last match on screen).
+ * A `click=` target: a CSS selector, `text:<button label>`, `select:<row label>` (the select button of the
+ * Filters menu row with that label) or `last-visible:<selector>` (the last match on screen).
  * A disabled target is missing: clicking it does nothing, so its shot would show the wrong state.
  */
 function clickTarget(spec: string): HTMLElement | null {
@@ -260,6 +320,14 @@ function clickTarget(spec: string): HTMLElement | null {
   if (spec.startsWith("text:")) {
     const label = spec.slice("text:".length);
     return [...document.querySelectorAll<HTMLElement>("button")].find((el) => el.textContent?.trim() === label && enabled(el)) ?? null;
+  }
+  if (spec.startsWith("select:")) {
+    const label = spec.slice("select:".length);
+    const row = [...document.querySelectorAll<HTMLElement>('[aria-label="Filters"] [data-part="row"]')].find(
+      (el) => el.querySelector('[data-part="label"]')?.textContent?.trim() === label,
+    );
+    const button = row?.querySelector<HTMLElement>('[data-part="select"]') ?? null;
+    return button && enabled(button) ? button : null;
   }
   if (spec.startsWith("last-visible:")) {
     const shown = [...document.querySelectorAll<HTMLElement>(spec.slice("last-visible:".length))].filter(
@@ -394,7 +462,7 @@ async function runScenario() {
     scrollIntoWindow(target);
     if (!reachable(target)) {
       missing.push(spec);
-      console.warn(`[harness] cut off sideways: ${spec}`);
+      console.warn(`[harness] covered or cut off: ${spec}`);
       continue;
     }
     target.click();
@@ -448,10 +516,33 @@ harness.visibilityCheck = () => {
 // Awaited so a `scheme=` override still precedes the first render.
 await useThemeStore.getState().hydrate();
 if (scheme === "dark" || scheme === "light") useThemeStore.getState().setScheme(scheme);
-const { App } = await import("@/App");
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
-void runScenario();
+
+if (params.get("crash") === "1") {
+  const { CrashScreen } = await import("@/components/crash-screen");
+  const details = [
+    "TypeError: Cannot read properties of undefined (reading 'map')",
+    "    at ServerList (server-list.tsx:212:31)",
+    "    at renderWithHooks (react-dom.development.js:15486:18)",
+    "Component stack:",
+    "    at ServerList",
+    "    at BrowserView",
+    "    at App",
+  ].join("\n");
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <CrashScreen details={details} />
+    </React.StrictMode>,
+  );
+  // No scenario runs here, so report readiness on the next frame instead.
+  requestAnimationFrame(() => {
+    document.body.dataset.harnessReady = "1";
+  });
+} else {
+  const { App } = await import("@/App");
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  );
+  void runScenario();
+}

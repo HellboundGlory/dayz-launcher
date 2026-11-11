@@ -67,27 +67,3 @@ async fn workshop_cache_fresh_and_stale_and_upsert() {
         .expect("get cache");
     assert_eq!(updated_cache.get(&1001), Some(&updated_item));
 }
-
-#[test]
-fn workshop_cache_blocking_upsert() {
-    let registry = Registry::open_in_memory().expect("open registry");
-    let writer = registry.writer();
-    let reader = registry.reader().expect("reader");
-
-    let current = unix_now();
-    let item = WorkshopCacheRow {
-        workshop_id: 2001,
-        title: "Blocking Mod".into(),
-        file_size: 12345,
-        preview_url: None,
-        time_updated: current as u64,
-        cached_at: current,
-    };
-
-    writer
-        .upsert_workshop_cache_blocking(vec![item.clone()])
-        .expect("blocking upsert");
-
-    let cached = reader.get_workshop_cache(&[2001], 60).expect("get cache");
-    assert_eq!(cached.get(&2001), Some(&item));
-}

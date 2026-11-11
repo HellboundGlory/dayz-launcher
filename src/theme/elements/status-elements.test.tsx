@@ -1,8 +1,27 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import type * as ServerStoreModule from "@/stores/server-store";
+import { useServerStore } from "@/stores/server-store";
+import type * as LanStoreModule from "@/stores/lan-store";
+import { useLanStore } from "@/stores/lan-store";
 import { StatusActivity, StatusLastRefreshed, StatusListSource, StatusPopulated, StatusServerTotal } from "./status-elements";
 import { AppUiScale } from "./app-elements";
 import { ElementContextProvider, type ElementContextValue } from "./context";
+
+// SSR reads zustand's initial snapshot, so route the hook through the live state.
+function liveHook<T extends { getState: () => S }, S>(store: T) {
+  return Object.assign(<R,>(sel: (s: S) => R) => sel(store.getState()), store);
+}
+
+vi.mock("@/stores/server-store", async (importOriginal) => {
+  const actual = await importOriginal<typeof ServerStoreModule>();
+  return { ...actual, useServerStore: liveHook(actual.useServerStore) };
+});
+
+vi.mock("@/stores/lan-store", async (importOriginal) => {
+  const actual = await importOriginal<typeof LanStoreModule>();
+  return { ...actual, useLanStore: liveHook(actual.useLanStore) };
+});
 
 const render = (node: React.ReactNode, value: Partial<ElementContextValue> = {}) =>
   renderToStaticMarkup(
@@ -59,6 +78,29 @@ describe("StatusListSource", () => {
     const html = render(<StatusListSource />, { steamConnected: true, listSource: source });
     expect(html).toContain(`title="${title}"`);
     expect(html).toContain(`via <span data-part="label">${word}</span>`);
+  });
+});
+
+describe("StatusServerTotal", () => {
+  const counted = { steamConnected: true, serverCounts: { total: 27418, populated: 3 } };
+
+  it("counts the LAN tab's own rows and says so in place of the total", () => {
+    useServerStore.getState().setFilter({ lan_addrs: ["10.0.0.2:27016", "10.0.0.3:27016"] });
+    useLanStore.setState({ addrs: ["10.0.0.2:27016", "10.0.0.3:27016"] });
+    const html = render(<StatusServerTotal />, counted);
+
+    expect(html).toContain("2");
+    expect(html).toContain("on your network");
+    expect(html).not.toContain("27,418");
+  });
+
+  it("reads the world total on every other tab", () => {
+    useServerStore.getState().setFilter({ lan_addrs: null });
+    const html = render(<StatusServerTotal />, counted);
+
+    expect(html).toContain("27,418");
+    expect(html).toContain("servers");
+    expect(html).not.toContain("on your network");
   });
 });
 

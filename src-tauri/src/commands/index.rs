@@ -14,7 +14,7 @@ use tetra_core::a2s::dayz::ServerMod;
 use tetra_index::{
     Health, IndexClient, ServerEntry, Snapshot, HEALTH_BACKOFF_SECS, MAX_CRAWL_AGE_SECS,
 };
-use tetra_registry::{ServerKey, ServerRow, Writer};
+use tetra_registry::{ServerKey, ServerRow, Writer, RECENT_ANSWER_SECS};
 
 /// How stale the backend's snapshot may be and still be preferred over asking
 /// Steam ourselves. The backend rebuilds it after every sweep, so a snapshot
@@ -28,9 +28,6 @@ const SERVER_BATCH: usize = 4000;
 /// Servers per `upsert_server_mods_bulk` call. Smaller than [`SERVER_BATCH`]
 /// because each entry carries a whole mod list.
 const MODS_BATCH: usize = 500;
-
-/// A server answered this recently stays online whatever the index says.
-const RECENT_ANSWER_SECS: i64 = 600;
 
 /// Which source served the list the browser is currently showing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -120,7 +117,7 @@ pub async fn try_index(
         return decline(app, state, &stale_reason(&health, backend_now));
     }
 
-    // The backend rebuilds its snapshot on a full pull; the same stamp means
+    // The backend rebuilds its snapshot on every pull; the same stamp means
     // this list is already in the registry and there is nothing to fetch.
     if let Some((stamp, count)) = state.index.lock().ok().and_then(|s| s.last_ingested) {
         if health.snapshot_generated_at == Some(stamp) {
@@ -160,7 +157,7 @@ pub async fn try_index(
     };
 
     let ms = started.elapsed().as_millis();
-    let stored = ingested.complete.then_some((stamp, ingested.servers));
+    let stored = matches!(ingested.end, IngestEnd::Complete).then_some((stamp, ingested.servers));
     succeed(state, window, ingested.servers, ms, stored);
     crate::log::log_line(
         app,
@@ -250,8 +247,15 @@ pub struct Ingested {
     pub skipped: usize,
     /// Servers the snapshot no longer lists, marked offline.
     pub marked_offline: usize,
-    /// False when a shutdown stopped the run part-way through.
-    pub complete: bool,
+    pub end: IngestEnd,
+}
+
+/// Whether an ingest reached the end of the snapshot.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum IngestEnd {
+    Complete,
+    #[default]
+    Cancelled,
 }
 
 /// Write a snapshot into the registry, in batches.
@@ -279,18 +283,13 @@ where
     let mut out = Ingested::default();
     let mut rows: Vec<ServerRow> = Vec::with_capacity(SERVER_BATCH.min(servers.len()));
     let mut mods: Vec<(ServerKey, Vec<ServerMod>)> = Vec::new();
-    let mut verdicts: Vec<(ServerKey, bool)> = Vec::new();
     let mut listed: Vec<ServerKey> = Vec::new();
 
     for entry in servers {
-        let verdict = entry.online;
         let Some((row, mod_ids)) = to_row(entry, now, clock_offset) else {
             out.skipped += 1;
             continue;
         };
-        if let Some(online) = verdict {
-            verdicts.push((row.key, online));
-        }
         // `None` means the backend never got an A2S_RULES answer, which must
         // leave a mod list this client probed itself alone.
         if let Some(ids) = mod_ids {
@@ -302,7 +301,6 @@ where
         if rows.len() >= SERVER_BATCH {
             // Mod lists are skipped for servers without a row, so the rows go first.
             out.servers += flush_rows(writer, &mut rows).await?;
-            flush_online(writer, &mut verdicts).await?;
             out.with_mods += flush_mods(writer, &mut mods).await?;
             progress(out.servers);
             if cancelled() {
@@ -312,7 +310,6 @@ where
     }
 
     out.servers += flush_rows(writer, &mut rows).await?;
-    flush_online(writer, &mut verdicts).await?;
     out.with_mods += flush_mods(writer, &mut mods).await?;
     out.marked_offline = writer
         .mark_unlisted_offline(listed, crate::unix_now() - RECENT_ANSWER_SECS)
@@ -320,7 +317,7 @@ where
         .map_err(|e| e.to_string())?;
 
     progress(out.servers);
-    out.complete = true;
+    out.end = IngestEnd::Complete;
     Ok(out)
 }
 
@@ -332,6 +329,7 @@ fn named_mods(ids: Vec<u64>, names: &std::collections::HashMap<u64, String>) -> 
         .map(|workshop_id| ServerMod {
             workshop_id,
             name: names.get(&workshop_id).cloned().unwrap_or_default(),
+            hash: None,
         })
         .collect()
 }
@@ -361,30 +359,6 @@ async fn flush_mods(
     Ok(total)
 }
 
-async fn flush_online(
-    writer: &Writer,
-    verdicts: &mut Vec<(ServerKey, bool)>,
-) -> Result<(), String> {
-    let cutoff = crate::unix_now() - RECENT_ANSWER_SECS;
-    let (up, down): (Vec<_>, Vec<_>) = verdicts.drain(..).partition(|(_, online)| *online);
-    let keys = |batch: Vec<(ServerKey, bool)>| -> Vec<ServerKey> {
-        batch.into_iter().map(|(key, _)| key).collect()
-    };
-    if !up.is_empty() {
-        writer
-            .set_online(keys(up), true)
-            .await
-            .map_err(|e| e.to_string())?;
-    }
-    if !down.is_empty() {
-        writer
-            .set_offline_unless_answered_since(keys(down), cutoff)
-            .await
-            .map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
 /// `"ip:query_port"` — both halves required, IPv4 only, since that is what a
 /// `ServerKey` is. A row whose address doesn't parse is dropped, never
 /// defaulted: a `0.0.0.0` key would collide with every other bad address.
@@ -406,16 +380,21 @@ fn to_row(
     clock_offset: i64,
 ) -> Option<(ServerRow, Option<Vec<u64>>)> {
     let key = parse_key(&entry.addr)?;
-    // Answers are stamped on the backend's clock. One from the future or older
+    // Both stamps are on the backend's clock. One from the future or older
     // than the prune window counts as none, so a bad stamp can't pin a row
     // online or have it pruned and re-added.
     let oldest = now - tetra_registry::schema::PRUNE_AFTER_DAYS * 86_400;
     // A few seconds of slack: the offset is only good to about a second.
-    let responded_at = entry
-        .last_responded
-        .map(|t| t.saturating_add(clock_offset))
-        .filter(|t| (oldest..=now + 5).contains(t))
-        .map(|t| t.min(now));
+    let on_local_clock = |t: i64| {
+        let t = t.saturating_add(clock_offset);
+        (oldest..=now + 5).contains(&t).then(|| t.min(now))
+    };
+    let responded_at = entry.last_responded.and_then(on_local_clock);
+    // A check time is the time of its verdict, so one without a verdict says
+    // nothing. Without a usable check time the writer falls back to the answer
+    // clock, which is the rule a backend that predates the field gets.
+    let online = entry.online;
+    let online_checked_at = online.and(entry.online_checked_at).and_then(on_local_clock);
     let row = ServerRow {
         key,
         game_port: entry.game_port,
@@ -427,6 +406,7 @@ fn to_row(
         // Someone else's round trip says nothing about this user's; the
         // upsert refuses to overwrite a measured ping with this zero.
         ping_ms: 0,
+        ping_kind: tetra_core::PingKind::Measured,
         locked: entry.locked,
         vac: entry.vac,
         version: entry.version,
@@ -436,6 +416,8 @@ fn to_row(
         last_played: None,
         responded: responded_at.is_some(),
         responded_at,
+        online,
+        online_checked_at,
         // Filled in by the writer's GeoIP lookup.
         country_code: None,
     };
@@ -471,6 +453,7 @@ mod tests {
             mod_ids: None,
             last_responded: Some(crate::unix_now() - 86_400),
             online: None,
+            online_checked_at: None,
         }
     }
 
@@ -610,6 +593,7 @@ mod tests {
                 vec![ServerMod {
                     workshop_id: 1559212036,
                     name: "CF".into(),
+                    hash: None,
                 }],
             )
             .await
@@ -720,6 +704,89 @@ mod tests {
         up.online = Some(true);
         write(&writer, snapshot(vec![up], HashMap::new())).await;
         assert!(online());
+    }
+
+    /// A verdict from the backend counts only when its check is newer than the
+    /// one this PC reached itself, and a check time it cannot believe leaves
+    /// the old rule in force.
+    #[tokio::test]
+    async fn an_index_verdict_is_weighed_against_this_pcs_own_probe() {
+        let registry = Registry::open_in_memory().expect("registry");
+        let writer = registry.writer();
+        let reader = registry.reader().expect("reader");
+        let now = crate::unix_now();
+        let online = |key: ServerKey| reader.get(key).expect("get").expect("row").online;
+        let checked = |key: ServerKey| {
+            reader
+                .export()
+                .expect("export")
+                .rows
+                .into_iter()
+                .find(|r| r.key == key)
+                .expect("row")
+                .online_checked_at
+        };
+
+        writer
+            .upsert_servers(vec![ServerRow {
+                key: KEY,
+                name: "Test Server".into(),
+                responded: true,
+                ..Default::default()
+            }])
+            .await
+            .expect("seed row");
+        writer
+            .record_online(vec![KEY], false)
+            .await
+            .expect("own probe");
+        let own_check = checked(KEY).expect("the probe's check time");
+
+        let mut stale = entry("203.0.113.10:27016");
+        stale.online = Some(true);
+        stale.online_checked_at = Some(now - 3600);
+        write(&writer, snapshot(vec![stale], HashMap::new())).await;
+
+        assert!(
+            !online(KEY),
+            "a check older than this PC's own verdict must not overrule it"
+        );
+        assert_eq!(
+            checked(KEY),
+            Some(own_check),
+            "only a probe of ours may write the check time"
+        );
+
+        let fresh = ServerKey {
+            ip: Ipv4Addr::new(203, 0, 113, 11),
+            query_port: 27016,
+        };
+        writer
+            .upsert_servers(vec![ServerRow {
+                key: fresh,
+                name: "Test Server".into(),
+                responded: true,
+                responded_at: Some(now - 60),
+                ..Default::default()
+            }])
+            .await
+            .expect("seed answered row");
+
+        let mut unbelievable = entry("203.0.113.11:27016");
+        unbelievable.online = Some(false);
+        unbelievable.online_checked_at = Some(now + 86_400);
+        unbelievable.last_responded = Some(now - 60);
+        write(&writer, snapshot(vec![unbelievable], HashMap::new())).await;
+
+        assert!(
+            online(fresh),
+            "a check time a day ahead is refused, so the recent answer keeps it online"
+        );
+        assert_eq!(
+            checked(fresh),
+            None,
+            "the index never writes the check time"
+        );
     }
 
     /// A server the backend last reached a day ago must not look freshly answered,

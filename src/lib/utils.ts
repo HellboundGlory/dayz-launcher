@@ -90,20 +90,6 @@ export function formatGameTime(
   return `${p.icon} ${p.time}${accel}`;
 }
 
-/** Region code (EU/NA/OC/SA/AS) to a full name for tooltips. */
-export function regionName(code: string | null): string {
-  if (!code) return "—";
-  return (
-    {
-      EU: "Europe",
-      NA: "North America",
-      SA: "South America",
-      AS: "Asia",
-      OC: "Oceania",
-    }[code] ?? code
-  );
-}
-
 /** Byte count as a human-readable size, 1024-based (KB/MB/GB) to match Steam/Windows. */
 export function formatBytes(bytes: number, decimals = 2): string {
   const UNITS = ["bytes", "KB", "MB", "GB", "TB", "PB"];

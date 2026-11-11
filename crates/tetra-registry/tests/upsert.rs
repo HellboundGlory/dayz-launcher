@@ -9,6 +9,7 @@ mod common;
 use common::key;
 use std::net::Ipv4Addr;
 use tetra_core::a2s::dayz::ServerMod;
+use tetra_core::PingKind;
 use tetra_registry::{Registry, ServerFilter, ServerKey, ServerRow, SortDir, SortKey};
 
 /// A fully-populated row as a successful A2S_INFO probe would produce.
@@ -22,6 +23,7 @@ fn live_row() -> ServerRow {
         max_players: 60,
         bots: 0,
         ping_ms: 35,
+        ping_kind: PingKind::Measured,
         locked: false,
         vac: true,
         version: Some("1.28".into()),
@@ -33,6 +35,8 @@ fn live_row() -> ServerRow {
         last_played: None,
         responded: true,
         responded_at: None,
+        online: None,
+        online_checked_at: None,
         country_code: None,
     }
 }
@@ -120,10 +124,12 @@ async fn mod_probe_sets_mod_count_without_touching_live_fields() {
                 ServerMod {
                     workshop_id: 1559212036,
                     name: "CF".into(),
+                    hash: None,
                 },
                 ServerMod {
                     workshop_id: 2545327648,
                     name: "Dabs Framework".into(),
+                    hash: None,
                 },
             ],
         )
@@ -166,6 +172,7 @@ async fn an_info_refresh_does_not_clear_an_existing_mod_count() {
             vec![ServerMod {
                 workshop_id: 1559212036,
                 name: "CF".into(),
+                hash: None,
             }],
         )
         .await
@@ -222,6 +229,59 @@ async fn classification_flags_reach_the_list_row() {
     assert!(row.first_person, "keywords declared no3rd");
     assert!(!row.official);
     assert_eq!(row.version.as_deref(), Some("1.28"));
+}
+
+/// DayZ 1.30 servers send `no3rd` backwards: official "1st Person Only"
+/// servers leave it out and third-person ones send it.
+#[tokio::test]
+async fn no3rd_reads_backwards_from_dayz_1_30() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let writer = registry.writer();
+    for (version, keywords, first_person) in [
+        ("1.30.164289", "battleye,shard0,privHive,no3rd", false),
+        ("1.30.164289", "battleye,shard0,privHive", true),
+    ] {
+        let mut row = live_row();
+        row.version = Some(version.into());
+        row.keywords = Some(keywords.into());
+        writer.upsert_servers(vec![row]).await.expect("upsert");
+        assert_eq!(
+            fetch(&registry).await.first_person,
+            first_person,
+            "{version} {keywords}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn no3rd_without_a_version_uses_the_stored_one() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let writer = registry.writer();
+    let mut row = live_row();
+    row.version = Some("1.30.164289".into());
+    row.keywords = Some("battleye".into());
+    writer
+        .upsert_servers(vec![row.clone()])
+        .await
+        .expect("first");
+    row.version = None;
+    row.keywords = Some("battleye,no3rd".into());
+    writer
+        .upsert_servers(vec![row])
+        .await
+        .expect("keywords only");
+    assert!(!fetch(&registry).await.first_person);
+}
+
+#[tokio::test]
+async fn empty_keywords_on_1_30_are_not_first_person() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let writer = registry.writer();
+    let mut row = live_row();
+    row.version = Some("1.30.164289".into());
+    row.keywords = Some(" ".into());
+    writer.upsert_servers(vec![row]).await.expect("upsert");
+    assert!(!fetch(&registry).await.first_person);
 }
 
 /// Never-probed servers must be first in line for the next refresh —
@@ -493,6 +553,32 @@ async fn favouriting_or_marking_played_an_unknown_key_reports_zero_affected_rows
 }
 
 #[tokio::test]
+async fn mods_read_back_from_the_registry_carry_no_server_hash() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let writer = registry.writer();
+    writer.upsert_servers(vec![live_row()]).await.expect("seed");
+    writer
+        .upsert_server_mods(
+            key(10),
+            vec![ServerMod {
+                workshop_id: 1,
+                name: "Expansion".into(),
+                hash: Some(0x4433_2211),
+            }],
+        )
+        .await
+        .expect("named");
+
+    let stored = registry
+        .reader()
+        .expect("reader")
+        .mods_for(key(10))
+        .expect("mods");
+    assert_eq!(stored.len(), 1);
+    assert_eq!(stored[0].hash, None);
+}
+
+#[tokio::test]
 async fn an_unchanged_mod_list_keeps_resolved_names_and_still_learns_new_ones() {
     let registry = Registry::open_in_memory().expect("registry");
     let writer = registry.writer();
@@ -502,6 +588,7 @@ async fn an_unchanged_mod_list_keeps_resolved_names_and_still_learns_new_ones() 
             .map(|&(workshop_id, name)| ServerMod {
                 workshop_id,
                 name: name.into(),
+                hash: None,
             })
             .collect::<Vec<_>>()
     };
@@ -543,4 +630,272 @@ async fn an_unchanged_mod_list_keeps_resolved_names_and_still_learns_new_ones() 
         ["Expansion", "Core"],
         "stored blank names are replaced when the pull has them"
     );
+}
+
+#[tokio::test]
+async fn a_ping_flag_follows_its_number_and_survives_a_row_without_one() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let writer = registry.writer();
+
+    let mut estimated = live_row();
+    estimated.ping_ms = 55;
+    estimated.ping_kind = PingKind::Estimated;
+    writer
+        .upsert_servers(vec![estimated])
+        .await
+        .expect("estimated");
+    let row = fetch(&registry).await;
+    assert_eq!(row.ping_ms, 55);
+    assert_eq!(row.ping_kind, PingKind::Estimated);
+
+    // Neither a miss nor a row that carries no measurement may touch either.
+    writer
+        .upsert_servers(vec![ServerRow {
+            key: key(10),
+            responded: false,
+            ..Default::default()
+        }])
+        .await
+        .expect("unanswered");
+    let row = fetch(&registry).await;
+    assert_eq!(row.ping_ms, 55, "a miss must keep the last ping");
+    assert_eq!(row.ping_kind, PingKind::Estimated, "and its flag");
+
+    writer
+        .upsert_servers(vec![ServerRow {
+            key: key(10),
+            responded: true,
+            ..Default::default()
+        }])
+        .await
+        .expect("no measurement");
+    let row = fetch(&registry).await;
+    assert_eq!(row.ping_ms, 55, "a zero ping leaves the number alone");
+    assert_eq!(row.ping_kind, PingKind::Estimated, "and its flag");
+
+    let mut measured = live_row();
+    measured.ping_ms = 30;
+    measured.ping_kind = PingKind::Measured;
+    writer
+        .upsert_servers(vec![measured])
+        .await
+        .expect("measured");
+    let row = fetch(&registry).await;
+    assert_eq!(row.ping_ms, 30);
+    assert_eq!(row.ping_kind, PingKind::Measured);
+}
+
+/// A listed row describes a server someone else measured, so its ping is worth
+/// keeping only where this client has none of its own.
+#[tokio::test]
+async fn a_listed_row_fills_an_empty_ping_but_never_replaces_one() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let writer = registry.writer();
+
+    let mut listed = live_row();
+    listed.ping_ms = 80;
+    listed.ping_kind = PingKind::Estimated;
+    writer
+        .upsert_listed_servers(vec![listed])
+        .await
+        .expect("first listing");
+    let row = fetch(&registry).await;
+    assert_eq!(row.ping_ms, 80, "an unprobed server keeps the listed ping");
+    assert_eq!(row.ping_kind, PingKind::Estimated);
+
+    let mut probed = live_row();
+    probed.ping_ms = 30;
+    probed.ping_kind = PingKind::Estimated;
+    writer.upsert_servers(vec![probed]).await.expect("probe");
+    let row = fetch(&registry).await;
+    assert_eq!(row.ping_ms, 30);
+    assert_eq!(row.ping_kind, PingKind::Estimated);
+
+    let mut relisted = live_row();
+    relisted.name = "Survivor Haven EU".into();
+    relisted.players = 57;
+    relisted.ping_ms = 40;
+    relisted.ping_kind = PingKind::Measured;
+    writer
+        .upsert_listed_servers(vec![relisted])
+        .await
+        .expect("relisting");
+    let row = fetch(&registry).await;
+    assert_eq!(
+        row.ping_ms, 30,
+        "a listed ping must not replace a probed one"
+    );
+    assert_eq!(
+        row.ping_kind,
+        PingKind::Estimated,
+        "and the flag follows it"
+    );
+    assert_eq!(
+        row.name, "Survivor Haven EU",
+        "the rest of the row still updates"
+    );
+    assert_eq!(row.players, 57);
+}
+
+/// A verdict arriving with a row is weighed against the one this PC reached
+/// by probing: the newer check wins, and a verdict with no check time falls
+/// back to how recently the server answered.
+#[tokio::test]
+async fn an_incoming_verdict_lands_only_when_its_check_is_the_newer_one() {
+    struct Case {
+        name: &'static str,
+        /// What this PC's own probe concluded, and when; `None` for no probe.
+        own: Option<bool>,
+        verdict: Option<bool>,
+        check_at: Option<i64>,
+        answered_ago: Option<i64>,
+        expected: bool,
+    }
+
+    let now = tetra_core::unix_now();
+    let cases = [
+        Case {
+            name: "a newer check offline overrules an older own verdict",
+            own: Some(true),
+            verdict: Some(false),
+            check_at: Some(now + 5),
+            answered_ago: None,
+            expected: false,
+        },
+        Case {
+            name: "an older check online yields to a newer own verdict",
+            own: Some(false),
+            verdict: Some(true),
+            check_at: Some(now - 5),
+            answered_ago: None,
+            expected: false,
+        },
+        Case {
+            name: "a check applies when this PC has no verdict yet",
+            own: None,
+            verdict: Some(false),
+            check_at: Some(now - 60),
+            answered_ago: None,
+            expected: false,
+        },
+        Case {
+            name: "an offline check older than an answer this PC saw yields to it",
+            own: None,
+            verdict: Some(false),
+            check_at: Some(now - 600),
+            answered_ago: Some(60),
+            expected: true,
+        },
+        Case {
+            name: "an absent verdict leaves the stored flag alone",
+            own: Some(true),
+            verdict: None,
+            check_at: None,
+            answered_ago: None,
+            expected: true,
+        },
+        Case {
+            name: "online with no check time applies",
+            own: Some(false),
+            verdict: Some(true),
+            check_at: None,
+            answered_ago: None,
+            expected: true,
+        },
+        Case {
+            name: "offline with no check time yields to a recent answer",
+            own: Some(true),
+            verdict: Some(false),
+            check_at: None,
+            answered_ago: Some(60),
+            expected: true,
+        },
+        Case {
+            name: "offline with no check time applies to a stale answer",
+            own: Some(true),
+            verdict: Some(false),
+            check_at: None,
+            answered_ago: Some(3600),
+            expected: false,
+        },
+    ];
+
+    for case in cases {
+        let registry = Registry::open_in_memory().expect("registry");
+        let writer = registry.writer();
+        let seeded = || ServerRow {
+            key: key(10),
+            name: "Survivor Haven".into(),
+            responded: true,
+            responded_at: Some(now - 7200),
+            ..Default::default()
+        };
+        writer.upsert_servers(vec![seeded()]).await.expect("seed");
+        if let Some(own) = case.own {
+            writer
+                .record_online(vec![key(10)], own)
+                .await
+                .expect("own verdict");
+        }
+        let reader = registry.reader().expect("reader");
+        let checked_before = reader.export().expect("export").rows[0].online_checked_at;
+
+        writer
+            .upsert_servers(vec![ServerRow {
+                responded: case.answered_ago.is_some(),
+                responded_at: case.answered_ago.map(|age| now - age),
+                online: case.verdict,
+                online_checked_at: case.check_at,
+                ..seeded()
+            }])
+            .await
+            .expect("verdict row");
+
+        let reader = registry.reader().expect("reader");
+        let row = reader.get(key(10)).expect("get").expect("row");
+        assert_eq!(row.online, case.expected, "case: {}", case.name);
+        assert_eq!(
+            reader.export().expect("export").rows[0].online_checked_at,
+            checked_before,
+            "case: {} — only a probe of ours may write the check time",
+            case.name
+        );
+    }
+}
+
+/// A database written before the ping flag existed reads every stored ping as
+/// measured, since that is all it could have been.
+#[tokio::test]
+async fn a_version_seven_database_reads_its_pings_as_measured() {
+    let dir = std::env::temp_dir().join(format!("tetra-ping-kind-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let path = dir.join("registry.sqlite");
+
+    {
+        let registry = Registry::open(&path).expect("registry");
+        registry
+            .writer()
+            .upsert_servers(vec![live_row()])
+            .await
+            .expect("live");
+    }
+    {
+        let conn = rusqlite::Connection::open(&path).expect("open");
+        conn.execute_batch(
+            "ALTER TABLE servers DROP COLUMN ping_kind;
+             ALTER TABLE servers DROP COLUMN country_order;
+             ALTER TABLE servers DROP COLUMN online_checked_at;
+             DROP TRIGGER servers_drop_mods;
+             PRAGMA user_version = 7;",
+        )
+        .expect("downgrade");
+    }
+
+    let registry = Registry::open(&path).expect("reopen");
+    let row = fetch(&registry).await;
+    assert_eq!(row.ping_ms, 35, "the stored ping survives the migration");
+    assert_eq!(row.ping_kind, PingKind::Measured);
+
+    let _ = std::fs::remove_dir_all(&dir);
 }

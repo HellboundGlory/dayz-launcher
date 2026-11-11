@@ -2,7 +2,20 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ModReadinessEntry, Server, ServerModReadiness } from "@/types/server";
 import { setCachedReadiness } from "@/stores/readiness-store";
+import type { DialogFrameProps } from "@/components/dialog-frame";
 import { JoinLinkBox } from "./join-link-dialog";
+
+const frame = vi.hoisted(() => ({ props: null as DialogFrameProps | null }));
+
+vi.mock("@/components/dialog-frame", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/components/dialog-frame")>();
+  return {
+    DialogFrame: (props: DialogFrameProps) => {
+      frame.props = props;
+      return actual.DialogFrame(props);
+    },
+  };
+});
 
 const request = { ip: "40.160.57.146", port: 2402, favourite: false };
 
@@ -58,5 +71,16 @@ describe("JoinLinkBox", () => {
     expect(noAnswer).toContain("40.160.57.146:2402 did not answer");
     expect(noAnswer).toContain("Try again");
     expect(noAnswer).not.toContain("Download");
+  });
+
+  it("cancels on a press on the backdrop", () => {
+    const onCancel = vi.fn();
+    renderToStaticMarkup(
+      <JoinLinkBox request={request} phase="asking" server={null} readiness={null} checking={false} dayzRunning={false} {...handlers} onCancel={onCancel} />,
+    );
+
+    frame.props?.onBackdropClick?.();
+
+    expect(onCancel).toHaveBeenCalledOnce();
   });
 });

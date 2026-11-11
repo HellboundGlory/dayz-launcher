@@ -3,6 +3,8 @@ import "./main.css";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { App } from "./App";
+import { CrashBoundary, installCrashLogging } from "./components/crash-screen";
+import { logClient } from "./lib/tauri";
 import { useThemeStore } from "./theme/theme-store";
 
 // Paint the active theme before first render.
@@ -13,8 +15,13 @@ useThemeStore.getState().hydrate();
 // stopPropagation() on its trigger to opt out.
 document.addEventListener("contextmenu", (e) => e.preventDefault());
 
+// Render-independent failures never reach the boundary; log them all the same.
+installCrashLogging(window, (level, message) => void logClient(level, message));
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    <CrashBoundary>
+      <App />
+    </CrashBoundary>
   </React.StrictMode>,
 );

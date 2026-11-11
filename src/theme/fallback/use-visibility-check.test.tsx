@@ -271,6 +271,29 @@ describe("attributeElement", () => {
     expect(attributeElement("filter.search", ["view:browser"], active)).toBeUndefined();
   });
 
+  it("leaves an element in a context Neutral owns to Neutral", () => {
+    installTheme("local.test", { [BROWSER]: layoutWith("app.close") });
+    const neutralOwned: ActiveContexts = {
+      contexts: ["views", "views+settings"],
+      openModals: [],
+      openPopups: [],
+    };
+    expect(attributeElement("app.close", ["views"], neutralOwned)).toBeUndefined();
+  });
+
+  it("still blames a theme file for an element in a context only the theme draws", () => {
+    installTheme("local.test", { [MAP_POPUP]: popupWith("popup.mapOptions", "region") });
+    const themePopup: ActiveContexts = {
+      contexts: ["popup:mapFilter"],
+      openModals: [],
+      openPopups: [{ id: "sort", mode: "anchored" }],
+    };
+    expect(attributeElement("popup.mapOptions", ["popup:mapFilter"], themePopup)).toEqual({
+      file: MAP_POPUP,
+      placed: true,
+    });
+  });
+
   it("never marks a file that already fell back", () => {
     installTheme("local.test", { ...shellOnly, [BROWSER]: layoutWith("filter.search") });
     useFallbackStore.setState({ fallbackFiles: { [BROWSER]: true } });

@@ -21,7 +21,7 @@ function railContent(collapsed: boolean): LayoutNode[] {
       direction: "column",
       landmark: "navigation",
       class: "t-neutral-shell-nav",
-      children: [item("nav.servers"), item("nav.favourites"), item("nav.recent"), item("nav.mods")],
+      children: [item("nav.servers"), item("nav.favourites"), item("nav.recent"), item("nav.lan"), item("nav.mods")],
     },
     {
       type: "stack",
@@ -107,7 +107,6 @@ const CONTENT: LayoutNode = {
   grow: 1,
   class: "t-neutral-shell-content",
   children: [
-    { element: "notice.update" },
     {
       type: "box",
       landmark: "main",

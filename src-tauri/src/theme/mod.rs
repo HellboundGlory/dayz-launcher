@@ -98,6 +98,7 @@ pub const LAYOUT_ALLOWLIST: &[&str] = &[
     "layout/lists/serverMods.json",
     "layout/lists/modServers.json",
     "layout/popups/mapFilter.json",
+    "layout/popups/filterMenu.json",
     "layout/popups/modsUnique.json",
     "layout/popups/modsUnsubscribe.json",
     "layout/popups/modsVerify.json",
@@ -106,6 +107,7 @@ pub const LAYOUT_ALLOWLIST: &[&str] = &[
     "layout/popups/tagsFilter.json",
     "layout/popups/serverActions.json",
     "layout/popups/serverLoad.json",
+    "layout/popups/serverRow.json",
 ];
 
 /// One theme, fully: its manifest flattened with its optional content —
@@ -240,13 +242,49 @@ fn read_layout_files(dir: &Path) -> Result<(HashMap<String, Value>, Vec<Validati
         let content = std::fs::read_to_string(&file)
             .map_err(|e| format!("Could not read {}: {e}", file.display()))?;
         match serde_json::from_str(&content) {
-            Ok(value) => {
+            Ok(mut value) => {
+                drop_notice_placements(&mut value);
                 parsed.insert((*rel_path).to_string(), value);
             }
             Err(_) => issues.extend(validator::validate_layout_file(rel_path, &content)),
         }
     }
     Ok((parsed, issues))
+}
+
+/// The `notice.*` elements render nothing, so every array loses the objects
+/// that place one. A notice that is an array's only entry stays: the layout
+/// keeps its shape, and an empty container is no better than a silent one.
+/// The file on disk is left alone.
+fn drop_notice_placements(value: &mut Value) {
+    match value {
+        Value::Array(items) => {
+            let kept: Vec<Value> = items
+                .iter()
+                .filter(|item| !places_notice(item))
+                .cloned()
+                .collect();
+            if !kept.is_empty() {
+                *items = kept;
+            }
+            for item in items.iter_mut() {
+                drop_notice_placements(item);
+            }
+        }
+        Value::Object(map) => {
+            for (_, child) in map.iter_mut() {
+                drop_notice_placements(child);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn places_notice(value: &Value) -> bool {
+    value
+        .get("element")
+        .and_then(Value::as_str)
+        .is_some_and(|element| element.starts_with("notice."))
 }
 
 /// The theme's layouts and every issue they carry: parse issues first, then the
@@ -901,6 +939,51 @@ mod tests {
 
         assert!(layouts.contains_key("layout/views/mods.json"));
         assert!(fallbacks.is_empty(), "{fallbacks:?}");
+    }
+
+    /// Older themes still place the notice elements, which render nothing now,
+    /// so a read drops those placements rather than leaving a gap where they sat.
+    #[test]
+    fn notice_placements_are_dropped_from_a_loaded_layout() {
+        let root = ScratchDir::tagged("notice-strip");
+        save(&root, &manifest("dev.notices"), &tokens()).expect("save");
+        write_layout(
+            &root.join("dev.notices"),
+            "layout/shell.json",
+            r#"{"schemaVersion":2,"root":{"type":"stack","children":[
+                {"element":"notice.update"},
+                {"element":"status.steam"},
+                {"type":"stack","children":[{"element":"notice.error"},{"element":"nav.mods"}]}
+            ]}}"#,
+        );
+
+        let loaded = get(&root, "dev.notices").expect("get");
+
+        assert_eq!(
+            loaded.layouts["layout/shell.json"],
+            serde_json::json!({"schemaVersion":2,"root":{"type":"stack","children":[
+                {"element":"status.steam"},
+                {"type":"stack","children":[{"element":"nav.mods"}]}
+            ]}})
+        );
+    }
+
+    /// A stack holding nothing but a notice keeps it: an empty container is no
+    /// better than one whose only child draws nothing.
+    #[test]
+    fn a_notice_that_is_a_stacks_only_child_is_left_in_place() {
+        let root = ScratchDir::tagged("notice-alone");
+        save(&root, &manifest("dev.alone"), &tokens()).expect("save");
+        let shell = serde_json::json!({"schemaVersion":2,"root":{"type":"stack","children":[{"element":"notice.error"}]}});
+        write_layout(
+            &root.join("dev.alone"),
+            "layout/shell.json",
+            &shell.to_string(),
+        );
+
+        let loaded = get(&root, "dev.alone").expect("get");
+
+        assert_eq!(loaded.layouts["layout/shell.json"], shell);
     }
 
     /// The shipped builtin is real content: it must not need the fallback path.

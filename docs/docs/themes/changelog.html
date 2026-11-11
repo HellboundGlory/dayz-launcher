@@ -43,6 +43,8 @@
           </ol>
           <h2>Theme changes</h2>
           <ol>
+            <li><a href="#v3-2-0">3.2.0: check your theme</a></li>
+            <li><a href="#v3-2-0-new">3.2.0: new and fixed</a></li>
             <li><a href="#v3-1-0">3.1.0: check your theme</a></li>
             <li><a href="#v3-1-0-new">3.1.0: new and fixed</a></li>
             <li><a href="#v3-0-0">3.0.0: check your theme</a></li>
@@ -57,6 +59,59 @@
           What changed for theme authors in each release, newest first. Each release
           starts with what you may need to do; the rest needs nothing from you.
         </p>
+
+        <h2 id="v3-2-0">3.2.0: check your theme</h2>
+        <p>Installed themes keep loading. If a row matches your theme, do what the right column says.</p>
+        <div class="table-wrap">
+          <table class="checks">
+            <thead>
+              <tr><th>If your theme…</th><th>Do this</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>ships its own <code>layout/shell.json</code>, or places the nav items in a view, without <a href="/docs/themes/elements#el-nav-lan"><code>nav.lan</code></a></td><td>Add <code>nav.lan</code> beside the other nav items. It is required in every view, so until it is placed the server browser and Mods screens fall back to Neutral's and Dev Mode names it. A theme that places <code>surface.navRail</code> already has it.</td></tr>
+              <tr><td>places a new element from the list below</td><td>Set <code>minimumLauncherVersion</code> to <code>3.2.0</code>. Older launchers don't know these elements, so a file that places one falls back to Neutral's there (<code>ELE-01</code>).</td></tr>
+              <tr><td>places or styles the <code>notice.*</code> bars</td><td>Nothing breaks, but those placements render nothing now: every launcher message is a toast in the top-right corner, which the launcher owns. The elements stay registered, so you can leave the placements in or remove them, and drop their CSS.</td></tr>
+              <tr><td>styles <a href="/docs/themes/elements#el-server-region"><code>server.region</code></a> or sizes the column that holds it</td><td>It shows the country now, not the region: a <code>flag</code> image, then the country name or its two-letter code. Check the column width, and style or hide <code>[data-part="flag"]</code>.</td></tr>
+              <tr><td>styles <a href="/docs/themes/elements#el-settings-discordPresence"><code>settings.discordPresence</code></a></td><td>It is a wrapper now, holding the Rich Presence row and a second row, <code>showServer</code>. Your class lands on the wrapper, and a selector such as <code>[data-el="settings.discordPresence"] [data-part="box"]</code> matches both boxes. Reach the first row with <code>[data-el="settings.discordPresence"] &gt; label</code> and the second with <code>[data-part="showServer"]</code>.</td></tr>
+              <tr><td>places <a href="/docs/themes/elements#el-server-ping"><code>server.ping</code></a></td><td>A server behind DDoS protection now shows a <code>shield</code> and carries a <code>tip</code> paragraph. The tip stays hidden and out of the layout unless your CSS shows it, for example on <code>:hover</code>; the shield's title carries the same text.</td></tr>
+              <tr><td>works around popups pausing transforms or filters, or targets <code>[data-popup-ancestor]</code></td><td>Drop the workaround. Anchored popups now show in the browser's top layer (they carry <code>popover</code>), so the elements around them keep their transforms and filters, and the attribute is gone. They paint above toasts.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="v3-2-0-new">3.2.0: new and fixed</h2>
+        <p>Nothing here needs a change, but you may want to use it.</p>
+        <h3>Server browser</h3>
+        <ul>
+          <li><a href="/docs/themes/elements#el-filter-menu"><code>filter.menu</code></a> opens one grouped Filters menu (popup <code>filterMenu</code>), and <a href="/docs/themes/elements#el-filter-chips"><code>filter.chips</code></a> shows a chip for each filter that is on. Both built-in themes now place only search, Filters, chips, Add server and Refresh (and Neutral its Sort); the older filter controls still work wherever a theme places them.</li>
+          <li>The Filters menu's groups are themeable elements: <code>popup.filterServer</code>, <code>filterConnection</code>, <code>filterGameplay</code>, <code>filterMods</code>, <code>filterAccess</code>, <code>filterPlayers</code> and <code>popup.filterFooter</code>. A theme's own <code>layout/popups/filterMenu.json</code> may place the groups and must place the footer.</li>
+          <li><code>filter.region</code> filters by country: each continent in its popup, now with Africa as a sixth, picks all of that continent's countries, and only a fully picked continent shows as <code>selected</code>. Filters saved with region codes load as the matching countries.</li>
+          <li><code>filter.search</code> has a <code>clear</code> button and a suggestions list (the <code>suggestions</code>, <code>suggestion</code>, <code>kind</code>, <code>match</code>, <code>count</code> and <code>hint</code> parts, an <code>open</code> state, and <code>active</code> on the highlighted suggestion).</li>
+          <li>A LAN tab: <code>nav.lan</code>, and <code>lan.empty</code>, which <code>list.servers</code> draws in place of rows on that tab (a placement of its own renders nothing). On the LAN tab <code>status.serverTotal</code> counts the LAN servers, labelled " on your network".</li>
+          <li><code>servers.addServer</code> opens the Add server dialog.</li>
+          <li>Right-click on a server row, or Shift+F10 or the Menu key on the selected one, opens a row menu at the pointer or the row. A theme can ship <code>layout/popups/serverRow.json</code> for it, with the new <code>server.copyJoinLink</code> and <code>server.forgetPassword</code> actions; without one the launcher's menu is used. Items in it are menu items, and <code>server.favourite</code> a checkable one.</li>
+          <li><code>list.servers</code> sorts by <code>country</code>.</li>
+        </ul>
+        <h3>Servers and mods</h3>
+        <ul>
+          <li><code>server.ping</code> gains the <code>estimated</code> and <code>protected</code> states: a host that blocks ping is timed from its query replies, and one behind DDoS protection says so.</li>
+          <li><code>server.modDiffers</code> warns above Join when a local mod copy differs from the server's, with a Fix and join button; <code>serverMod.state</code> gains <code>differs</code>, and <code>serverMod.note</code> explains it in the mod row.</li>
+          <li><code>server.versionWarning</code> shows a small triangle when the server runs another DayZ version.</li>
+          <li><code>server.favourite</code> takes <code>labelOn</code>, its label while the server is a favourite.</li>
+        </ul>
+        <h3>Settings</h3>
+        <ul>
+          <li>An About section: <code>settings.about</code>, with <code>"about"</code> as a <code>section</code> for the section title, description and icon.</li>
+          <li><code>settings.launchParams</code> has a row of launch toggles (the <code>toggles</code> parts, <code>checked</code> on each).</li>
+          <li><code>settings.appMenu</code>, with the <code>appMenu</code> group title, adds Tetra to the Linux app menu. It is optional and draws nothing outside the AppImage build.</li>
+        </ul>
+        <h3>Popups and lists</h3>
+        <ul>
+          <li>A dialog opened while a popup is open paints above it, and so do the window's resize edges and Dev Mode.</li>
+          <li>A list's <code>empty</code> block from a theme shows when nothing matches.</li>
+          <li>Arrow keys in a popup are left to tabs, accordions, grids and resize handles inside it, which move on their own.</li>
+          <li>Two more icons: <code>keyRound</code> and <code>link</code>.</li>
+        </ul>
 
         <h2 id="v3-1-0">3.1.0: check your theme</h2>
         <p>Installed themes keep loading. If a row matches your theme, do what the right column says.</p>
@@ -181,27 +236,6 @@
       </div>
     </footer>
 
-    <script>
-      if (matchMedia("(max-width: 900px)").matches) {
-        document.querySelector(".docs-nav details").open = false;
-      }
-
-      const links = [...document.querySelectorAll('.docs-nav a[href^="#"]')];
-      const byId = new Map(links.map((a) => [a.getAttribute("href").slice(1), a]));
-      const spy = new IntersectionObserver(
-        (entries) => {
-          for (const e of entries) {
-            if (!e.isIntersecting) continue;
-            for (const a of links) a.removeAttribute("aria-current");
-            byId.get(e.target.id)?.setAttribute("aria-current", "true");
-          }
-        },
-        { rootMargin: "-80px 0px -70% 0px" },
-      );
-      for (const id of byId.keys()) {
-        const h = document.getElementById(id);
-        if (h) spy.observe(h);
-      }
-    </script>
+    <script src="docs.js"></script>
   </body>
 </html>

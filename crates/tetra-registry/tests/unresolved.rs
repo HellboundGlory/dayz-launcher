@@ -25,6 +25,7 @@ fn unreachable_row(key: ServerKey) -> ServerRow {
         max_players: 0,
         bots: 0,
         ping_ms: 0,
+        ping_kind: tetra_core::PingKind::Measured,
         locked: false,
         vac: false,
         version: None,
@@ -34,6 +35,8 @@ fn unreachable_row(key: ServerKey) -> ServerRow {
         last_played: None,
         responded: false,
         responded_at: None,
+        online: None,
+        online_checked_at: None,
         country_code: None,
     }
 }

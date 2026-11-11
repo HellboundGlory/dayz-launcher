@@ -77,14 +77,10 @@ pub struct ServerEntry {
     /// never probed this address, or predates the field.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub online: Option<bool>,
-}
-
-impl ServerEntry {
-    /// Whether this entry's live fields are measurements rather than the
-    /// structural zeroes of an address nobody has reached.
-    pub fn responded(&self) -> bool {
-        self.last_responded.is_some()
-    }
+    /// When the backend last wrote `online` from a probe of its own, on its
+    /// clock. Absent from backends that predate it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub online_checked_at: Option<i64>,
 }
 
 /// Crawler freshness. A client gates on this rather than on HTTP 200: a
@@ -195,6 +191,7 @@ mod tests {
             mod_ids: Some(vec![1559212036]),
             last_responded: Some(1_757_000_000),
             online: Some(true),
+            online_checked_at: Some(1_757_000_000),
         }
     }
 
@@ -247,11 +244,14 @@ mod tests {
     }
 
     #[test]
-    fn a_never_answered_entry_is_not_reported_as_responded() {
-        let mut e = entry();
-        e.last_responded = None;
-        assert!(!e.responded());
-        assert!(entry().responded());
+    fn an_entry_from_an_older_backend_has_no_check_time() {
+        let mut body = serde_json::to_value(entry()).expect("serialise");
+        body.as_object_mut()
+            .expect("object")
+            .remove("onlineCheckedAt");
+        let parsed: ServerEntry = serde_json::from_value(body).expect("parse");
+        assert_eq!(parsed.online_checked_at, None);
+        assert_eq!(parsed.online, Some(true));
     }
 
     #[test]

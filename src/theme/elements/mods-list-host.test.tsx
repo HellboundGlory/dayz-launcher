@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { SubscribedMod } from "@/lib/tauri";
 import type { ListHostProps } from "../lists/list-host";
+import type { LayoutFile } from "../renderer/types";
 
 // SSR takes zustand's initial-state snapshot, so route the hooks through the live state.
 function liveHook<T extends { getState: () => S }, S>(store: T) {
@@ -26,6 +27,12 @@ vi.mock("../lists/list-host", () => ({
       </div>
     );
   },
+}));
+
+let listLayout: LayoutFile | undefined;
+vi.mock("../theme-store", () => ({
+  useLayoutSubscription: () => {},
+  getActiveLayout: (path: string) => (path === "layout/lists/mods.json" ? listLayout : undefined),
 }));
 
 const makeMod = (id: string, overrides: Partial<SubscribedMod> = {}): SubscribedMod => ({
@@ -147,5 +154,34 @@ describe("ModsListHost", () => {
       lastProps?.onSelect?.(bravo);
       expect(useModsStore.getState().selectedModId).toBe("2");
     });
+  });
+
+  it("hands the layout's empty node to a filtered list with no matches", async () => {
+    const { ModsListHost } = await import("./list-elements");
+    const emptyNode = { type: "text", value: "Nothing here" } as const;
+    listLayout = { schemaVersion: 2, empty: emptyNode };
+
+    await withStore({ rows: [makeMod("1", { title: "Alpha" })], search: "zzz" }, () =>
+      renderToStaticMarkup(<ModsListHost />),
+    );
+
+    expect(lastProps?.emptyNode).toEqual(emptyNode);
+  });
+
+  it("keeps the launcher's wording with no filter, and while loading", async () => {
+    const { ModsListHost } = await import("./list-elements");
+    listLayout = { schemaVersion: 2, empty: { type: "text", value: "Nothing here" } };
+
+    await withStore({ rows: [], search: "", statusFilter: "all", loading: false }, () =>
+      renderToStaticMarkup(<ModsListHost />),
+    );
+    expect(lastProps?.emptyNode).toBeUndefined();
+    expect(lastProps?.emptyText).toContain("no subscribed DayZ Workshop mods");
+
+    await withStore({ rows: [], search: "zzz", loading: true }, () =>
+      renderToStaticMarkup(<ModsListHost />),
+    );
+    expect(lastProps?.emptyNode).toBeUndefined();
+    expect(lastProps?.emptyText).toContain("No mods match");
   });
 });

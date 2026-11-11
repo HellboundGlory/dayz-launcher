@@ -3,7 +3,7 @@ import type { Server } from "@/types/server";
 import type { ListSource } from "@/lib/tauri";
 import { getPersistedCollapsed, setPersistedCollapsed } from "../interaction/store";
 
-export type ViewId = "servers" | "fav" | "recent" | "mods";
+export type ViewId = "servers" | "fav" | "recent" | "lan" | "mods";
 export type ContextSubjectKind = "server" | "mod" | "serverMod" | "modServer" | "workshopMod";
 export type ContextName = "row" | "selection" | "modal" | "modSelection" | "modFilterPreview" | "popup" | "listHeader";
 

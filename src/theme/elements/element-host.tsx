@@ -11,6 +11,7 @@ import {
 } from "./app-elements";
 import {
   NavFavourites,
+  NavLan,
   NavMods,
   NavRecent,
   NavServers,
@@ -24,17 +25,7 @@ import {
   StatusServerTotal,
   StatusSteam,
 } from "./status-elements";
-import {
-  NoticeError,
-  NoticeModsCached,
-  NoticeModsError,
-  NoticeModsOutdated,
-  NoticeModsResult,
-  NoticeStorage,
-  NoticeUpdate,
-  NoticeLaunch,
-  ServerActionNotice,
-} from "./notice-elements";
+import { ServerActionNotice } from "./notice-elements";
 import {
   ServerAddress,
   ServerCancel,
@@ -76,8 +67,10 @@ import {
   FilterSort,
   FilterTags,
   ServersRefresh,
+  AddServer,
 } from "./filter-elements";
 import { ModalClose } from "./modal-elements";
+import { ServerCopyJoinLink, ServerForgetPassword } from "./row-menu-elements";
 import {
   UpdateChangelog,
   UpdateInstall,
@@ -90,9 +83,14 @@ import {
 } from "./update-elements";
 import { ServerListHost, ServerModsListHost, ModFilterResultsListHost } from "./list-elements";
 import { renderPopupElement } from "./popup-elements";
+import { FilterMenu, renderFilterMenuElement } from "./filter-menu";
+import { FilterChips } from "./filter-chips";
 import { ServerDownloadSize, ServerReadiness } from "./readiness-elements";
+import { ServerModDiffers } from "./mod-differs";
+import { ServerVersionWarning } from "./version-warning";
 import {
   ServerModName,
+  ServerModNote,
   ServerModOpenInSteam,
   ServerModOrder,
   ServerModProgress,
@@ -118,10 +116,12 @@ import {
   SettingsStartWithWindows,
   SettingsStartMinimised,
   SettingsDiscordPresence,
+  SettingsAppMenu,
   SettingsDataFolder,
   SettingsOpenDataFolder,
   SettingsAutoRefresh,
   SettingsThemeManagement,
+  SettingsAbout,
   SettingsSectionTitle,
   SettingsSectionDescription,
   SettingsSectionIcon,
@@ -154,6 +154,9 @@ export function ElementHost({
   const popupElement = renderPopupElement(node, { className: mergedClass, style });
   if (popupElement !== undefined) return popupElement;
 
+  const menuElement = renderFilterMenuElement(node, { className: mergedClass, style });
+  if (menuElement !== undefined) return menuElement;
+
   switch (node.element) {
     case "app.minimize":
       return <AppMinimize options={node.options} className={mergedClass} style={style} />;
@@ -180,6 +183,8 @@ export function ElementHost({
       return <NavFavourites options={node.options} className={mergedClass} style={style} />;
     case "nav.recent":
       return <NavRecent options={node.options} className={mergedClass} style={style} />;
+    case "nav.lan":
+      return <NavLan options={node.options} className={mergedClass} style={style} />;
     case "nav.mods":
       return <NavMods options={node.options} className={mergedClass} style={style} />;
     case "nav.settings":
@@ -204,24 +209,26 @@ export function ElementHost({
     case "status.activity":
       return <StatusActivity className={mergedClass} style={style} />;
 
+    // The notice elements are still registered so older layouts validate, but the
+    // launcher reports these as toasts now, so a placement draws nothing.
     case "notice.storage":
-      return <NoticeStorage className={mergedClass} style={style} />;
     case "notice.error":
-      return <NoticeError className={mergedClass} style={style} />;
     case "notice.launch":
-      return <NoticeLaunch className={mergedClass} style={style} />;
     case "notice.update":
-      return <NoticeUpdate className={mergedClass} style={style} />;
     case "notice.modsError":
-      return <NoticeModsError className={mergedClass} style={style} />;
     case "notice.modsCached":
-      return <NoticeModsCached className={mergedClass} style={style} />;
     case "notice.modsResult":
-      return <NoticeModsResult className={mergedClass} style={style} />;
     case "notice.modsOutdated":
-      return <NoticeModsOutdated className={mergedClass} style={style} />;
+      return null;
+    // Registered so themes can style it; `list.servers` draws it on the LAN tab.
+    case "lan.empty":
+      return null;
     case "server.actionNotice":
       return <ServerActionNotice className={mergedClass} style={style} />;
+    case "server.modDiffers":
+      return <ServerModDiffers className={mergedClass} style={style} />;
+    case "server.versionWarning":
+      return <ServerVersionWarning className={mergedClass} style={style} />;
 
     case "server.name":
       return <ServerName options={node.options} className={mergedClass} style={style} />;
@@ -275,6 +282,10 @@ export function ElementHost({
       return <ServerDownloadSize className={mergedClass} style={style} />;
     case "server.copyAddress":
       return <ServerCopyAddress options={node.options} className={mergedClass} style={style} />;
+    case "server.copyJoinLink":
+      return <ServerCopyJoinLink options={node.options} className={mergedClass} style={style} />;
+    case "server.forgetPassword":
+      return <ServerForgetPassword options={node.options} className={mergedClass} style={style} />;
     case "server.modUpdate":
       return <ServerModUpdate options={node.options} className={mergedClass} style={style} />;
 
@@ -300,10 +311,16 @@ export function ElementHost({
       return <FilterHideOffline options={node.options} className={mergedClass} style={style} />;
     case "servers.refresh":
       return <ServersRefresh options={node.options} className={mergedClass} style={style} />;
+    case "servers.addServer":
+      return <AddServer options={node.options} className={mergedClass} style={style} />;
     case "filter.reset":
       return <FilterReset options={node.options} className={mergedClass} style={style} />;
     case "filter.mods":
       return <FilterMods options={node.options} className={mergedClass} style={style} />;
+    case "filter.menu":
+      return <FilterMenu options={node.options} className={mergedClass} style={style} />;
+    case "filter.chips":
+      return <FilterChips className={mergedClass} style={style} />;
 
     case "modal.close":
       return <ModalClose options={node.options} className={mergedClass} style={style} />;
@@ -346,6 +363,8 @@ export function ElementHost({
       return <ServerModProgress className={mergedClass} style={style} />;
     case "serverMod.unique":
       return <ServerModUnique options={node.options} className={mergedClass} style={style} />;
+    case "serverMod.note":
+      return <ServerModNote className={mergedClass} style={style} />;
     case "serverMod.openInSteam":
       return <ServerModOpenInSteam options={node.options} className={mergedClass} style={style} />;
 
@@ -377,6 +396,8 @@ export function ElementHost({
       return <SettingsStartMinimised options={node.options} className={mergedClass} style={style} />;
     case "settings.discordPresence":
       return <SettingsDiscordPresence options={node.options} className={mergedClass} style={style} />;
+    case "settings.appMenu":
+      return <SettingsAppMenu options={node.options} className={mergedClass} style={style} />;
     case "settings.dataFolder":
       return <SettingsDataFolder options={node.options} className={mergedClass} style={style} />;
     case "settings.openDataFolder":
@@ -385,6 +406,8 @@ export function ElementHost({
       return <SettingsAutoRefresh options={node.options} className={mergedClass} style={style} />;
     case "settings.themeManagement":
       return <SettingsThemeManagement className={mergedClass} style={style} />;
+    case "settings.about":
+      return <SettingsAbout className={mergedClass} style={style} />;
     case "settings.sectionTitle":
       return <SettingsSectionTitle options={node.options} className={mergedClass} style={style} />;
     case "settings.sectionDescription":

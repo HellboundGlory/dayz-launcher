@@ -1,7 +1,20 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import type { ReactNode } from "react";
 import type { ServerFilter } from "@/types/filters";
+import type * as AddServerModule from "@/stores/add-server-store";
+import { useAddServerStore } from "@/stores/add-server-store";
 import { ElementContextProvider } from "./context";
+
+// SSR takes zustand's initial snapshot, so route the hook through the live state.
+function liveHook<T extends { getState: () => S }, S>(store: T) {
+  return Object.assign(<R,>(sel: (s: S) => R) => sel(store.getState()), store);
+}
+
+vi.mock("@/stores/add-server-store", async (importOriginal) => {
+  const actual = await importOriginal<typeof AddServerModule>();
+  return { ...actual, useAddServerStore: liveHook(actual.useAddServerStore) };
+});
 
 function makeFilter(overrides: Partial<ServerFilter> = {}): ServerFilter {
   return {
@@ -15,12 +28,16 @@ function makeFilter(overrides: Partial<ServerFilter> = {}): ServerFilter {
     search: null,
     favourites_only: false,
     recent_only: false,
+    lan_addrs: null,
     official: null,
     modded: null,
     first_person: null,
     mod_ids: [],
     mod_match: "any",
     mod_ids_exclude: [],
+    version: null,
+    time_of_day: null,
+    battleye: null,
     ...overrides,
   };
 }
@@ -51,6 +68,7 @@ vi.mock("../theme-store", () => ({
 // discards event handlers from its HTML output.
 let capturedProps: Record<string, unknown> | null = null;
 let captureDataEl: string | null = null;
+const capturedParts = new Map<string, Record<string, unknown>[]>();
 
 vi.mock("react/jsx-dev-runtime", async (importOriginal) => {
   const actual = await importOriginal<Record<string, (...args: unknown[]) => unknown>>();
@@ -60,6 +78,11 @@ vi.mock("react/jsx-dev-runtime", async (importOriginal) => {
       if (captureDataEl && props["data-el"] === captureDataEl) {
         capturedProps = props;
       }
+      const part = props?.["data-part"];
+      if (typeof part === "string") {
+        if (!capturedParts.has(part)) capturedParts.set(part, []);
+        capturedParts.get(part)!.push(props);
+      }
       return actual.jsxDEV(type, props, ...rest);
     },
   };
@@ -67,6 +90,7 @@ vi.mock("react/jsx-dev-runtime", async (importOriginal) => {
 
 import {
   FilterSearch,
+  syncedSearchText,
   FilterMap,
   FilterTags,
   FilterRegion,
@@ -79,11 +103,12 @@ import {
   FilterHideOffline,
   FilterReset,
   ServersRefresh,
-  REGIONS,
+  AddServer,
+  CONTINENTS,
+  countryDisplayValue,
   mapDisplayValue,
   tagsDisplayValue,
   cycleTagValue,
-  regionDisplayValue,
   toggleInList,
   pingDisplayValue,
   pingSliderValue,
@@ -98,6 +123,7 @@ beforeEach(() => {
   mockStore.sortDir = "desc";
   capturedProps = null;
   captureDataEl = null;
+  useAddServerStore.setState({ open: false });
 });
 
 describe("mapDisplayValue", () => {
@@ -128,23 +154,23 @@ describe("tagsDisplayValue and cycleTagValue", () => {
   });
 });
 
-describe("regionDisplayValue and toggleInList", () => {
-  it("uses EU/NA/AS/OC/SA region codes, not country codes", () => {
-    expect(REGIONS.map((r) => r.code)).toEqual(["EU", "NA", "AS", "OC", "SA"]);
+describe("countryDisplayValue and toggleInList", () => {
+  it("lists the six continents", () => {
+    expect(CONTINENTS.map((c) => c.id)).toEqual(["EU", "NA", "AS", "OC", "SA", "AF"]);
   });
 
   it.each([
     { selected: [] as string[], value: "Any" },
-    { selected: ["EU"], value: "Europe" },
-    { selected: ["EU", "NA"], value: "2 regions" },
+    { selected: ["DE"], value: "Germany" },
+    { selected: ["DE", "FR"], value: "2 countries" },
   ])("reads $value with $selected.length selected", ({ selected, value }) => {
-    expect(regionDisplayValue(selected)).toBe(value);
+    expect(countryDisplayValue(selected)).toBe(value);
   });
 
   it("toggles a code into and out of the list", () => {
-    expect(toggleInList([], "EU")).toEqual(["EU"]);
-    expect(toggleInList(["EU"], "EU")).toEqual([]);
-    expect(toggleInList(["EU"], "NA")).toEqual(["EU", "NA"]);
+    expect(toggleInList([], "DE")).toEqual(["DE"]);
+    expect(toggleInList(["DE"], "DE")).toEqual([]);
+    expect(toggleInList(["DE"], "FR")).toEqual(["DE", "FR"]);
   });
 });
 
@@ -160,6 +186,12 @@ describe("ping helpers", () => {
 });
 
 describe("FilterSearch", () => {
+  it("keeps a trailing space the debounced search dropped", () => {
+    expect(syncedSearchText("dead ", "dead")).toBe("dead ");
+    expect(syncedSearchText("dead", null)).toBe("");
+    expect(syncedSearchText("", "namalsk")).toBe("namalsk");
+  });
+
   it("renders the icon and input parts, and the filled state with a search term", () => {
     const empty = renderToStaticMarkup(<FilterSearch />);
     expect(empty).toContain('data-el="filter.search"');
@@ -177,44 +209,89 @@ describe("FilterSearch", () => {
 
     expect(renderToStaticMarkup(<FilterSearch options={{ icon: "globe" }} />)).toContain("lucide-globe");
   });
-});
 
-describe("FilterMap", () => {
-  it("is active only while maps are selected", () => {
-    const none = renderToStaticMarkup(<FilterMap />);
-    expect(none).toContain('data-el="filter.map"');
-    expect(none).not.toContain('data-state="active"');
+  it("shows the clear button only while the box has text", () => {
+    expect(renderToStaticMarkup(<FilterSearch />)).not.toContain('data-part="clear"');
 
-    mockStore.filter.maps = ["chernarusplus"];
-    mockStore.maps = [["chernarusplus", "Chernarus"]];
-    expect(renderToStaticMarkup(<FilterMap />)).toContain('data-state="active"');
+    mockStore.filter.search = "namalsk";
+    expect(renderToStaticMarkup(<FilterSearch />)).toContain('data-part="clear"');
+  });
+
+  it("empties the box and sets the search to null at once when cleared", () => {
+    mockStore.filter.search = "namalsk";
+    capturedParts.clear();
+    renderToStaticMarkup(<FilterSearch />);
+    const clear = capturedParts.get("clear")?.[0];
+    expect(clear).toBeDefined();
+    (clear!.onClick as () => void)();
+    expect(mockStore.setFilter).toHaveBeenCalledWith({ search: null });
   });
 });
 
-describe("FilterTags", () => {
-  it("is active only while a tag filter is set", () => {
-    const none = renderToStaticMarkup(<FilterTags />);
-    expect(none).toContain('data-el="filter.tags"');
-    expect(none).not.toContain('data-state="active"');
+const ACTIVE_ONLY: {
+  el: string;
+  render: () => ReactNode;
+  activate: () => void;
+  detail?: RegExp;
+}[] = [
+  {
+    el: "filter.map",
+    render: () => <FilterMap />,
+    activate: () => {
+      mockStore.filter.maps = ["chernarusplus"];
+      mockStore.maps = [["chernarusplus", "Chernarus"]];
+    },
+  },
+  {
+    el: "filter.tags",
+    render: () => <FilterTags />,
+    activate: () => {
+      mockStore.filter.official = true;
+      mockStore.filter.modded = false;
+    },
+    detail: /data-part="value"[^>]*>2 tags</,
+  },
+  {
+    el: "filter.region",
+    render: () => <FilterRegion />,
+    activate: () => {
+      mockStore.filter.countries = ["EU", "NA"];
+    },
+  },
+  {
+    el: "filter.maxPing",
+    render: () => <FilterMaxPing />,
+    activate: () => {
+      mockStore.filter.max_ping = 250;
+    },
+  },
+  {
+    el: "filter.mods",
+    render: () => <FilterMods />,
+    activate: () => {
+      mockStore.filter = makeFilter({ mod_ids: ["1", "2"] });
+    },
+    detail: /data-part="value"[^>]*>2 mods</,
+  },
+];
 
-    mockStore.filter.official = true;
-    mockStore.filter.modded = false;
-    const html = renderToStaticMarkup(<FilterTags />);
-    expect(html).toContain('data-state="active"');
-    expect(html).toContain("2 tags");
+describe("filter buttons read active only while their filter is set", () => {
+  it.each(ACTIVE_ONLY)("$el", ({ el, render, activate, detail }) => {
+    const idle = renderToStaticMarkup(render());
+    expect(idle).toContain(`data-el="${el}"`);
+    expect(idle).not.toContain('data-state="active"');
+
+    activate();
+    const active = renderToStaticMarkup(render());
+    expect(active).toContain('data-state="active"');
+    if (detail) {
+      expect(idle).toContain('data-part="value"');
+      expect(active).toMatch(detail);
+    }
   });
 });
 
 describe("FilterRegion", () => {
-  it("is active only while regions are selected", () => {
-    const none = renderToStaticMarkup(<FilterRegion />);
-    expect(none).toContain('data-el="filter.region"');
-    expect(none).not.toContain('data-state="active"');
-
-    mockStore.filter.countries = ["EU", "NA"];
-    expect(renderToStaticMarkup(<FilterRegion />)).toContain('data-state="active"');
-  });
-
   it("honours a label option override", () => {
     const html = renderToStaticMarkup(<FilterRegion options={{ label: "Country" }} />);
     expect(html).toContain(">Country<");
@@ -247,17 +324,6 @@ describe("FilterSort", () => {
 
     const custom = renderToStaticMarkup(<FilterSort options={{ label: "ORDER" }} />);
     expect(custom).toContain(">ORDER<");
-  });
-});
-
-describe("FilterMaxPing", () => {
-  it("is active only with a ping limit", () => {
-    const unset = renderToStaticMarkup(<FilterMaxPing />);
-    expect(unset).toContain('data-el="filter.maxPing"');
-    expect(unset).not.toContain('data-state="active"');
-
-    mockStore.filter.max_ping = 250;
-    expect(renderToStaticMarkup(<FilterMaxPing />)).toContain('data-state="active"');
   });
 });
 
@@ -347,18 +413,6 @@ describe("modsFilterValue", () => {
 });
 
 describe("FilterMods", () => {
-  it("is active only while mods are filtered", () => {
-    const none = renderToStaticMarkup(<FilterMods />);
-    expect(none).toContain('data-el="filter.mods"');
-    expect(none).not.toContain('data-state="active"');
-    expect(none).toContain('data-part="value"');
-
-    mockStore.filter = makeFilter({ mod_ids: ["1", "2"] });
-    const selected = renderToStaticMarkup(<FilterMods />);
-    expect(selected).toContain('data-state="active"');
-    expect(selected).toMatch(/data-part="value"[^>]*>2 mods</);
-  });
-
   it("reflects modFilterOpen through aria-expanded", () => {
     const open = renderToStaticMarkup(
       <ElementContextProvider value={{ modFilterOpen: true }}>
@@ -431,5 +485,25 @@ describe("ServersRefresh", () => {
       </ElementContextProvider>,
     );
     expect(html).toContain("lucide-check");
+  });
+});
+
+describe("AddServer", () => {
+  it("renders an icon button named Add server and opens the dialog when clicked", () => {
+    captureDataEl = "servers.addServer";
+    const html = renderToStaticMarkup(<AddServer />);
+
+    expect(html).toContain('data-el="servers.addServer"');
+    expect(html).toContain('aria-label="Add server"');
+    expect(html).toContain('title="Add server"');
+    expect(html).toContain("lucide-plus");
+
+    (capturedProps?.onClick as () => void)();
+    expect(useAddServerStore.getState().open).toBe(true);
+  });
+
+  it("reads open while the dialog is up", () => {
+    useAddServerStore.setState({ open: true });
+    expect(renderToStaticMarkup(<AddServer />)).toContain('data-state="open"');
   });
 });

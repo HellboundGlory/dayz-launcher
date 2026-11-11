@@ -4,6 +4,7 @@
 @import "./theme/neutral/shell.css" layer(neutral);
 @import "./theme/neutral/browser.css" layer(neutral);
 @import "./theme/neutral/filter-popups.css" layer(neutral);
+@import "./theme/neutral/filter-menu.css" layer(neutral);
 @import "./theme/neutral/mods.css" layer(neutral);
 @import "./theme/neutral/settings.css" layer(neutral);
 @import "./theme/neutral/server-info.css" layer(neutral);
@@ -135,6 +136,26 @@
     button:not(:disabled),
     [role="button"]:not(:disabled) {
       cursor: pointer;
+    }
+
+    /* Undo the browser's look for a popover so a popup in the top layer looks as it did before. */
+    [popover] {
+      inset: auto;
+      width: auto;
+      height: auto;
+      margin: 0;
+      border-width: 0;
+      padding: 0;
+      overflow: visible;
+      color: inherit;
+      background: transparent;
+    }
+
+    /* A theme that styles no hover card for the ping tip would print it inline; the shield's title
+       carries the same text. */
+    [data-el="server.ping"] [data-part="tip"] {
+      position: absolute;
+      visibility: hidden;
     }
   }
 
@@ -277,25 +298,30 @@
     }
   }
 
+  /* A quick toast's remaining life, drawn as a bar that empties from full width. */
+  @keyframes toast-life {
+    from {
+      transform: scaleX(1);
+    }
+    to {
+      transform: scaleX(0);
+    }
+  }
+
   /* Overlay stacking order; launcher-internal, not theme tokens. */
   :root {
     --z-settings: 30;
     --z-popup: 40;
+    --z-toast: 45;
     --z-modal: 50;
     --z-window-edge: 50;
     --z-dialog: 60;
     --z-onboarding: 90;
     --z-splash: 100;
+    --z-crash: 100;
     --z-blocking: 200;
     --z-dev-panel: 390;
     --z-dev-inspector: 400;
-  }
-
-  /* An open popup is placed against the window, so no ancestor may become its containing block. Important
-     because theme CSS is unlayered. transform sits apart from the rule below: the minifier folds it with
-     translate/rotate/scale into a real transform when they share a block or sit next to each other. */
-  [data-popup-ancestor] {
-    transform: none !important;
   }
 
   /* Modal backdrop and core overlay/accessibility guarantees */
@@ -305,14 +331,155 @@
     z-index: var(--z-modal);
   }
 
-  [data-popup-ancestor] {
-    filter: none !important;
-    backdrop-filter: none !important;
-    translate: none !important;
-    rotate: none !important;
-    scale: none !important;
-    perspective: none !important;
-    will-change: auto !important;
-    contain: none !important;
+  /* The crash screen wears the plain built-in look and reads no theme tokens, so a
+     broken theme can neither hide it nor restyle it. Values are Neutral's dark
+     palette, fixed here on purpose. */
+  [data-crash] {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-crash);
+    display: grid;
+    grid-template-rows: 32px minmax(0, 1fr);
+    /* Read by the global focus ring, which a broken theme could leave unset. */
+    --accent-line: #8fa3bd;
+    background: #0d0f13;
+    color: #e7ebf0;
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  [data-crash] [data-part="titlebar"] {
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid #262b34;
+    background: #0d0f13;
+    cursor: grab;
+    user-select: none;
+  }
+  [data-crash] [data-part="name"] {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 7px;
+    padding: 0 12px;
+    color: #5d6675;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  [data-crash] [data-part="name"] i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #b3564d;
+  }
+  [data-crash] [data-part="titlebar"] button {
+    display: grid;
+    place-items: center;
+    width: 46px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #98a2b2;
+    cursor: default;
+  }
+  [data-crash] [data-part="titlebar"] button:hover {
+    background: #1a1e26;
+    color: #e7ebf0;
+  }
+  [data-crash] [data-part="titlebar"] button[data-part="close"]:hover {
+    background: #c42b1c;
+    color: #fff;
+  }
+  [data-crash] [data-part="titlebar"] svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+  }
+  [data-crash] [data-part="body"] {
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    overflow: auto;
+  }
+  [data-crash] [data-part="body"] > div {
+    display: grid;
+    width: min(560px, 100%);
+    gap: 14px;
+  }
+  [data-crash] [data-part="grip"] {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 14px;
+    height: 14px;
+    background: linear-gradient(135deg, transparent 50%, #262b34 50%);
+    pointer-events: none;
+  }
+  [data-crash][data-maximized] [data-part="grip"] {
+    display: none;
+  }
+  [data-crash] [data-part="hint"] {
+    font-size: 12px;
+  }
+  [data-crash] [data-part="icon"] {
+    color: #b3564d;
+  }
+  [data-crash] h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+  }
+  [data-crash] p {
+    margin: 0;
+    color: #98a2b2;
+  }
+  [data-crash] [data-part="details"] {
+    margin: 0;
+    max-height: 120px;
+    overflow: auto;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    padding: 10px 12px;
+    border: 1px solid #262b34;
+    border-radius: 4px;
+    background: #12151b;
+    color: #98a2b2;
+    font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+    font-size: 12px;
+  }
+  [data-crash] [data-part="actions"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  [data-crash] [data-part="actions"] button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid #262b34;
+    border-radius: 4px;
+    background: #1a1e26;
+    color: #98a2b2;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  [data-crash] [data-part="actions"] button:hover {
+    color: #e7ebf0;
+  }
+  [data-crash] [data-part="actions"] [data-part="reload"] {
+    border-color: transparent;
+    background: #8fa3bd;
+    color: #0d0f13;
+  }
+  [data-crash] [data-part="actions"] [data-part="reload"]:hover {
+    color: #0d0f13;
   }
 }

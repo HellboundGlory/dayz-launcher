@@ -19,7 +19,6 @@ tauri = { version = "2", features = ["tray-icon"] }
 # registered here (and permissioned in capabilities/default.json) without
 # a single call site: settings are read/written by commands::settings through
 # std::fs.
-tauri-plugin-shell = "2"
 tauri-plugin-process = "2"
 # The first-launch setup modal's Browse button — everywhere else, path
 # discovery still goes through commands::launch, not a dialog.
@@ -40,6 +39,8 @@ tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
 serde = { workspace = true }
 serde_json = { workspace = true }
+# Release-notes fetch from the GitHub API.
+reqwest = { workspace = true }
 tokio = { workspace = true }
 # Reading a theme `.zip` for import — validation and staging only, never
 # extraction into the themes directory (see `theme::archive`).
@@ -80,7 +81,7 @@ brotli = { version = "9", default-features = false, features = ["std"] }
 # Well-formedness and element/attribute inspection for the SVG sniff.
 quick-xml = "0.42"
 tetra-core = { path = "../crates/tetra-core" }
-tetra-net = { path = "../crates/tetra-net" }
+tetra-net = { path = "../crates/tetra-net", features = ["icmp"] }
 tetra-registry = { path = "../crates/tetra-registry" }
 tetra-index = { path = "../crates/tetra-index", features = ["client"] }
 tetra-steam = { path = "../crates/tetra-steam" }
@@ -89,7 +90,17 @@ tetra-discord = { path = "../crates/tetra-discord" }
 # Only used for `_exit` on Linux: terminate without glibc's atexit/dlclose pass
 # (see `RunEvent::Exit` in lib.rs).
 libc = "0.2"
+# Saved server passwords live in the OS keyring. The platform store that
+# keyring-core talks to is chosen per OS below; without one there is no keyring
+# and the launcher simply asks every time.
+keyring-core = "1.0.1"
 
 # Windows/macOS-only acrylic compositing. Linux has no equivalent effect.
 [target.'cfg(windows)'.dependencies]
 window-vibrancy = "0.8"
+windows-native-keyring-store = { version = "1.1.0", default-features = false }
+
+# Secret Service (GNOME Keyring, KWallet and the like) over D-Bus. The Rust
+# crypto avoids pulling in OpenSSL, matching the rest of the tree.
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus-secret-service-keyring-store = { version = "1.0.1", features = ["crypto-rust"] }

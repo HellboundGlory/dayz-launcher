@@ -1,10 +1,15 @@
-import { useEffect, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
-import { Search, RefreshCw, RotateCcw, ChevronDown, Check } from "lucide-react";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import { Search, RefreshCw, RotateCcw, ChevronDown, Check, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useServerStore } from "@/stores/server-store";
+import { useAddServerStore } from "@/stores/add-server-store";
+import type { SearchSuggestion } from "@/lib/tauri";
+import { useSearchSuggestions } from "@/hooks/use-search-suggestions";
 import { useElementContext } from "./context";
 import { OptionIcon } from "./option-icon";
 import { useThemedPopupTrigger } from "./use-themed-popup-trigger";
+import type { PopupLayoutFile } from "../renderer/types";
+import { SearchSuggestions, nextActive, suggestionId, suggestionPatch } from "./search-suggestions";
 import {
   TriggerPopup,
   PopupClear,
@@ -14,17 +19,17 @@ import {
   PopupSeparator,
   PopupSortOptions,
   PopupTagOptions,
+  countryDisplayValue,
   mapDisplayValue,
-  regionDisplayValue,
   sortValueLabel,
   tagsDisplayValue,
 } from "./popup-elements";
 
 export {
-  REGIONS,
+  CONTINENTS,
+  countryDisplayValue,
   cycleTagValue,
   mapDisplayValue,
-  regionDisplayValue,
   tagsDisplayValue,
   toggleInList,
 } from "./popup-elements";
@@ -102,6 +107,11 @@ function DropdownRoot({
   );
 }
 
+/** The box's text after the store's search changes; the store drops a trailing space the box still holds. */
+export function syncedSearchText(current: string, search: string | null): string {
+  return current.trim() === (search ?? "") ? current : search ?? "";
+}
+
 export function FilterSearch({
   options,
   className,
@@ -114,10 +124,17 @@ export function FilterSearch({
   const filter = useServerStore((s) => s.filter);
   const setFilter = useServerStore((s) => s.setFilter);
   const [text, setText] = useState(filter.search ?? "");
+  const [focused, setFocused] = useState(false);
+  const [active, setActive] = useState(-1);
+  const [dismissed, setDismissed] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const showIcon = options?.showIcon !== false;
+  const suggestions = useSearchSuggestions(filter, text, focused && !dismissed);
+  const open = !dismissed && focused && (suggestions?.length ?? 0) > 0;
 
   useEffect(() => {
-    setText((current) => (current === (filter.search ?? "") ? current : filter.search ?? ""));
+    setText((current) => syncedSearchText(current, filter.search));
   }, [filter.search]);
 
   useEffect(() => {
@@ -128,12 +145,68 @@ export function FilterSearch({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text]);
 
+  useEffect(() => {
+    setActive(-1);
+    setDismissed(false);
+  }, [text]);
+
+  useEffect(() => {
+    setActive(-1);
+  }, [suggestions]);
+
   const filled = text.trim().length > 0;
+  const rows = suggestions ?? [];
+
+  const clear = () => {
+    setText("");
+    setFilter({ search: null });
+    setFocused(true);
+    inputRef.current?.focus();
+  };
+
+  const pick = (suggestion: SearchSuggestion) => {
+    setFilter(suggestionPatch(filter, suggestion));
+    setText("");
+    setDismissed(true);
+    setActive(-1);
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (!open || event.nativeEvent.isComposing) return;
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      setActive(nextActive(active, event.key, rows.length));
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (active >= 0 && rows[active]) pick(rows[active]);
+      else setDismissed(true);
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setDismissed(true);
+      setActive(-1);
+    }
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (rootRef.current?.contains(target) || target.closest?.('[data-part="suggestions"]')) return;
+      setDismissed(true);
+    };
+    window.addEventListener("mousedown", onDown, true);
+    return () => window.removeEventListener("mousedown", onDown, true);
+  }, [open]);
 
   return (
     <div
+      ref={rootRef}
       data-el="filter.search"
-      data-state={filled ? "filled" : undefined}
+      data-state={[filled && "filled", open && "open"].filter(Boolean).join(" ") || undefined}
       className={className ?? "flex items-center gap-2 border border-line bg-surface2 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] [font-size:var(--t-type-size-2xl)] leading-5 text-ink"}
       style={style}
     >
@@ -143,15 +216,79 @@ export function FilterSearch({
         </span>
       )}
       <input
+        ref={inputRef}
         data-part="input"
         type="text"
+        role="combobox"
         placeholder="Search servers…"
         aria-label="Search servers"
+        aria-expanded={open}
+        aria-controls={open ? "filter-search-suggestions" : undefined}
+        aria-autocomplete="list"
+        aria-activedescendant={open && active >= 0 ? suggestionId(active) : undefined}
         value={text}
         onChange={(e) => setText(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onKeyDown={onKeyDown}
         className="bg-transparent outline-hidden text-ink placeholder:text-muted min-w-[180px] [font-size:var(--t-type-size-lg)] leading-4"
       />
+      {filled && (
+        <button
+          type="button"
+          data-part="clear"
+          aria-label="Clear search"
+          onClick={clear}
+          className="grid size-4 shrink-0 place-items-center text-muted"
+        >
+          <X aria-hidden="true" className="size-3" />
+        </button>
+      )}
+      {open && (
+        <SearchSuggestions
+          id="filter-search-suggestions"
+          triggerRef={rootRef}
+          text={text}
+          suggestions={rows}
+          activeIndex={active}
+          onPick={pick}
+        />
+      )}
     </div>
+  );
+}
+
+const FILTER_POPUP_CLASS =
+  "absolute left-0 top-full mt-1 overflow-y-auto border border-line bg-surface2 shadow-lg [font-size:var(--t-type-size-lg)] leading-4";
+
+/** The anchored popup under a filter trigger; each caller keeps its own width, padding and spacing. */
+function FilterPopupFrame({
+  open,
+  popupId,
+  close,
+  themedPopup,
+  triggerRef,
+  popupRef,
+  popupStyle,
+  className,
+  children,
+}: {
+  open: boolean;
+  popupId: string;
+  close: () => void;
+  themedPopup: PopupLayoutFile | undefined;
+  triggerRef: RefObject<HTMLDivElement | null>;
+  popupRef: RefObject<HTMLDivElement | null>;
+  popupStyle: CSSProperties;
+  className: string;
+  children: ReactNode;
+}) {
+  return (
+    <TriggerPopup open={open} popupId={popupId} close={close} themedPopup={themedPopup} triggerRef={triggerRef}>
+      <div ref={popupRef} style={popupStyle} data-part="popup" className={`${FILTER_POPUP_CLASS} ${className}`}>
+        {children}
+      </div>
+    </TriggerPopup>
   );
 }
 
@@ -185,24 +322,20 @@ export function FilterMap({
         open={open}
         onClick={() => setOpen(!open)}
       />
-      <TriggerPopup
+      <FilterPopupFrame
         open={open}
         popupId="mapFilter"
         close={close}
         themedPopup={themedPopup}
         triggerRef={ref}
+        popupRef={popupRef}
+        popupStyle={popupStyle}
+        className="max-h-64 min-w-[224px] p-1"
       >
-        <div
-          ref={popupRef}
-          style={popupStyle}
-          data-part="popup"
-          className="absolute left-0 top-full mt-1 max-h-64 min-w-[224px] overflow-y-auto border border-line bg-surface2 p-1 shadow-lg [font-size:var(--t-type-size-lg)] leading-4"
-        >
-          <PopupMapOptions />
-          <PopupSeparator />
-          <PopupClear />
-        </div>
-      </TriggerPopup>
+        <PopupMapOptions />
+        <PopupSeparator />
+        <PopupClear />
+      </FilterPopupFrame>
     </DropdownRoot>
   );
 }
@@ -236,24 +369,20 @@ export function FilterTags({
         open={open}
         onClick={() => setOpen(!open)}
       />
-      <TriggerPopup
+      <FilterPopupFrame
         open={open}
         popupId="tagsFilter"
         close={close}
         themedPopup={themedPopup}
         triggerRef={ref}
+        popupRef={popupRef}
+        popupStyle={popupStyle}
+        className="min-w-[208px] p-1.5 space-y-1"
       >
-        <div
-          ref={popupRef}
-          style={popupStyle}
-          data-part="popup"
-          className="absolute left-0 top-full mt-1 min-w-[208px] overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg [font-size:var(--t-type-size-lg)] leading-4 space-y-1"
-        >
-          <PopupTagOptions />
-          <PopupSeparator />
-          <PopupClear />
-        </div>
-      </TriggerPopup>
+        <PopupTagOptions />
+        <PopupSeparator />
+        <PopupClear />
+      </FilterPopupFrame>
     </DropdownRoot>
   );
 }
@@ -273,7 +402,7 @@ export function FilterRegion({
   const { themedPopup, open, setOpen, close, ref, popupRef, popupStyle } = useThemedPopupTrigger("regionFilter", { side: "bottom", align: "start" });
 
   const selected = filter.countries ?? [];
-  const value = regionDisplayValue(selected);
+  const value = countryDisplayValue(selected);
   const active = selected.length > 0;
 
   const states = [active && "active", open && "open"].filter(Boolean) as string[];
@@ -288,25 +417,21 @@ export function FilterRegion({
         onClick={() => setOpen(!open)}
         title="Approximate — based on the server's IP block, not its actual location"
       />
-      <TriggerPopup
+      <FilterPopupFrame
         open={open}
         popupId="regionFilter"
         close={close}
         themedPopup={themedPopup}
         triggerRef={ref}
+        popupRef={popupRef}
+        popupStyle={popupStyle}
+        className="min-w-[176px] max-h-64 p-1.5 space-y-1"
       >
-        <div
-          ref={popupRef}
-          style={popupStyle}
-          data-part="popup"
-          className="absolute left-0 top-full mt-1 min-w-[176px] max-h-64 overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg [font-size:var(--t-type-size-lg)] leading-4 space-y-1"
-        >
-          <PopupRegionOptions />
-          <PopupSeparator />
-          <PopupRegionNote className="px-[var(--t-space-controlCompactX)] pb-[var(--t-space-separatorY)] pt-[var(--t-space-separatorX)] [font-size:var(--t-type-micro-size)] [line-height:var(--t-type-heading-leading)] whitespace-normal text-muted" />
-          <PopupClear />
-        </div>
-      </TriggerPopup>
+        <PopupRegionOptions />
+        <PopupSeparator />
+        <PopupRegionNote className="px-[var(--t-space-controlCompactX)] pb-[var(--t-space-separatorY)] pt-[var(--t-space-separatorX)] [font-size:var(--t-type-micro-size)] [line-height:var(--t-type-heading-leading)] whitespace-normal text-muted" />
+        <PopupClear />
+      </FilterPopupFrame>
     </DropdownRoot>
   );
 }
@@ -510,6 +635,46 @@ export function ServersRefresh({
   );
 }
 
+export function AddServer({
+  options,
+  className,
+  style,
+}: {
+  options?: Record<string, unknown>;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const open = useAddServerStore((s) => s.open);
+  const show = useAddServerStore((s) => s.show);
+  const { showIcon, showLabel } = parseDisplay(options, "icon");
+
+  return (
+    <button
+      type="button"
+      data-el="servers.addServer"
+      data-state={open ? "open" : undefined}
+      onClick={show}
+      aria-label="Add server"
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      title="Add server"
+      className={className ?? "flex items-center gap-1.5 px-[var(--t-space-controlCompactX)] py-[var(--t-space-controlCompactY)] border border-line bg-surface2 hover:border-accent text-muted hover:text-ink transition-colors"}
+      style={style}
+    >
+      {showIcon && (
+        <span data-part="icon">
+          <OptionIcon icon={options?.icon} fallback={Plus} className="size-3.5" />
+        </span>
+      )}
+      {showLabel && (
+        <span data-part="label" className="[font-size:var(--t-type-size-sm)] font-semibold uppercase">
+          Add server
+        </span>
+      )}
+    </button>
+  );
+}
+
 export function modsFilterValue(included: number, excluded: number): string {
   if (included === 0 && excluded === 0) return "Any";
   if (excluded === 0) return `${included} mod${included === 1 ? "" : "s"}`;
@@ -597,22 +762,18 @@ export function FilterSort({
           </>
         }
       />
-      <TriggerPopup
+      <FilterPopupFrame
         open={open}
         popupId="sort"
         close={close}
         themedPopup={themedPopup}
         triggerRef={ref}
+        popupRef={popupRef}
+        popupStyle={popupStyle}
+        className="min-w-[176px] p-1.5 space-y-1"
       >
-        <div
-          ref={popupRef}
-          style={popupStyle}
-          data-part="popup"
-          className="absolute left-0 top-full mt-1 min-w-[176px] overflow-y-auto border border-line bg-surface2 p-1.5 shadow-lg [font-size:var(--t-type-size-lg)] leading-4 space-y-1"
-        >
-          <PopupSortOptions />
-        </div>
-      </TriggerPopup>
+        <PopupSortOptions />
+      </FilterPopupFrame>
     </DropdownRoot>
   );
 }

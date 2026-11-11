@@ -1,7 +1,10 @@
 use crate::error::RegistryError;
 use rusqlite::Connection;
+use std::net::Ipv4Addr;
+use tetra_core::classify::country_table::country_order;
+use tetra_core::classify::geoip::country_code;
 
-pub const LATEST_VERSION: u32 = 7;
+pub const LATEST_VERSION: u32 = 10;
 
 struct Migration {
     version: u32,
@@ -36,6 +39,22 @@ const MIGRATIONS: &[Migration] = &[
     Migration {
         version: 7,
         sql: V7,
+    },
+    Migration {
+        version: 8,
+        sql: V8,
+    },
+    Migration {
+        version: 9,
+        sql: V9,
+    },
+    Migration {
+        version: 10,
+        sql: V10,
+    },
+    Migration {
+        version: 11,
+        sql: V11,
     },
 ];
 
@@ -196,6 +215,37 @@ CREATE TABLE workshop_cache (
 );
 "#;
 
+/// Where a row's `ping_ms` came from: 0 measured, 1 estimated, 2 estimated
+/// behind DDoS protection. Every row written before this carried a measured
+/// ping, so the default fits.
+const V8: &str = r#"
+ALTER TABLE servers ADD COLUMN ping_kind INTEGER NOT NULL DEFAULT 0;
+"#;
+
+/// `country_code` used to hold one of five regions. Those values mean a country now — `NA`
+/// is Namibia — so they go; [`backfill_countries`] looks each row up again.
+const V9: &str = r#"
+ALTER TABLE servers ADD COLUMN country_order INTEGER;
+UPDATE servers SET country_code = NULL;
+"#;
+
+/// `server_mods` declares no foreign key, so a deleted server's mods are dropped
+/// by trigger, after clearing the ones older versions left behind.
+const V10: &str = r#"
+DELETE FROM server_mods WHERE NOT EXISTS
+    (SELECT 1 FROM servers s WHERE s.ip = server_mods.ip AND s.query_port = server_mods.query_port);
+CREATE TRIGGER servers_drop_mods AFTER DELETE ON servers
+BEGIN
+    DELETE FROM server_mods WHERE ip = OLD.ip AND query_port = OLD.query_port;
+END;
+"#;
+
+/// When this database last wrote `online` from a probe of its own. Index verdicts and
+/// listing sweeps leave it alone, so it dates the verdict a newer one may replace.
+const V11: &str = r#"
+ALTER TABLE servers ADD COLUMN online_checked_at INTEGER;
+"#;
+
 /// How long a server may go unresponsive, in days, before it's pruned —
 /// unless the user has favourited or played it. See [`prune_stale`].
 pub const PRUNE_AFTER_DAYS: i64 = 60;
@@ -217,14 +267,6 @@ pub fn prune_stale(conn: &Connection) -> Result<usize, RegistryError> {
         &format!("DELETE FROM servers WHERE {CUTOFF_PREDICATE}"),
         [cutoff_secs],
     )?;
-    if deleted > 0 {
-        // Mods whose server row is gone, including the ones just pruned; nothing else removes them.
-        tx.execute(
-            "DELETE FROM server_mods WHERE NOT EXISTS \
-             (SELECT 1 FROM servers s WHERE s.ip = server_mods.ip AND s.query_port = server_mods.query_port)",
-            [],
-        )?;
-    }
     tx.commit()?;
 
     if deleted > 0 {
@@ -232,6 +274,43 @@ pub fn prune_stale(conn: &Connection) -> Result<usize, RegistryError> {
     }
 
     Ok(deleted)
+}
+
+/// Look up a country for every row that has none, so a database from before the change shows
+/// countries straight away. Rows whose address is private or reserved stay without one and are
+/// simply looked at again next start.
+pub fn backfill_countries(conn: &Connection) -> Result<usize, RegistryError> {
+    let tx = conn.unchecked_transaction()?;
+    let mut updated = 0;
+    {
+        let mut stmt =
+            tx.prepare("SELECT ip, query_port FROM servers WHERE country_code IS NULL")?;
+        let rows = stmt
+            .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        drop(stmt);
+
+        let mut update = tx.prepare(
+            "UPDATE servers SET country_code = ?3, country_order = ?4
+             WHERE ip = ?1 AND query_port = ?2",
+        )?;
+        for (ip, query_port) in rows {
+            let Ok(ip) = ip.parse::<Ipv4Addr>() else {
+                continue;
+            };
+            let Some(code) = country_code(ip) else {
+                continue;
+            };
+            updated += update.execute(rusqlite::params![
+                ip.to_string(),
+                query_port,
+                code.as_str(),
+                country_order(code.as_str()),
+            ])?;
+        }
+    }
+    tx.commit()?;
+    Ok(updated)
 }
 
 #[cfg(test)]
@@ -349,16 +428,10 @@ mod tests {
     }
 
     #[test]
-    fn prune_stale_sweeps_mods_of_removed_and_orphaned_servers() {
+    fn deleting_a_server_drops_its_mods() {
         // `server_mods` has no `FOREIGN KEY` on (ip, query_port) — nothing
         // cascades this for free.
         let conn = fresh_conn();
-        conn.execute(
-            "INSERT INTO server_mods (ip, query_port, ordinal, workshop_id, name)
-             VALUES ('9.9.9.9', 2302, 0, 1559212036, 'Orphan')",
-            [],
-        )
-        .unwrap();
         insert_server(&conn, 0, Some(61), false, None);
         conn.execute(
             "INSERT INTO server_mods (ip, query_port, ordinal, workshop_id, name)
@@ -375,19 +448,21 @@ mod tests {
     }
 
     #[test]
-    fn prune_stale_leaves_orphaned_mods_when_it_deletes_no_server() {
+    fn upgrading_drops_mods_an_older_version_left_without_a_server() {
         let conn = fresh_conn();
-        conn.execute(
-            "INSERT INTO server_mods (ip, query_port, ordinal, workshop_id, name)
-             VALUES ('9.9.9.9', 2302, 0, 1559212036, 'Orphan')",
-            [],
+        conn.execute_batch(
+            "DROP TRIGGER servers_drop_mods;
+             ALTER TABLE servers DROP COLUMN online_checked_at;
+             PRAGMA user_version = 9;
+             INSERT INTO server_mods (ip, query_port, ordinal, workshop_id, name)
+             VALUES ('9.9.9.9', 2302, 0, 1559212036, 'Orphan');",
         )
         .unwrap();
-        insert_server(&conn, 0, Some(10), false, None);
-        assert_eq!(prune_stale(&conn).unwrap(), 0);
+
+        migrate(&conn).unwrap();
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM server_mods", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(count, 1);
+        assert_eq!(count, 0);
     }
 }
