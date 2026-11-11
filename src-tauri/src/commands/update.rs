@@ -36,7 +36,10 @@ fn checked_external_url(raw: &str) -> Result<String, String> {
     }
     let allowed = match url.host_str() {
         // Only this project's own pages on GitHub, not any repo or login page.
-        Some("github.com") => url.path().starts_with(REPO_PATH),
+        Some("github.com") => url
+            .path()
+            .strip_prefix(REPO_PATH)
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with('/')),
         Some(host) => ALLOWED_HOSTS.contains(&host),
         None => false,
     };
@@ -180,6 +183,10 @@ mod tests {
                 "https://github.com/HellboundGlory/dayz-launcher/releases/tag/v3.1.1",
                 "https://github.com/HellboundGlory/dayz-launcher/releases/tag/v3.1.1",
             ),
+            (
+                "https://github.com/HellboundGlory/dayz-launcher",
+                "https://github.com/HellboundGlory/dayz-launcher",
+            ),
         ];
         for (raw, expected) in allowed {
             assert_eq!(
@@ -196,6 +203,7 @@ mod tests {
             "https://tetralauncher.com.evil.example/",
             "https://evil.example/tetralauncher.com",
             "https://github.com/someone-else/repo",
+            "https://github.com/HellboundGlory/dayz-launcher-evil",
             "https://github.com/login/oauth/authorize?client_id=x",
             "https://github.com./HellboundGlory/dayz-launcher",
             "https://user@tetralauncher.com/",
