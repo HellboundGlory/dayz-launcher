@@ -13,9 +13,9 @@
    {
     "title": "Tetra Launcher",
     "width": 1400,
-    "minWidth": 975,
+    "minWidth": 1280,
     "height": 800,
-    "minHeight": 620,
+    "minHeight": 720,
     "resizable": true,
     "transparent": true,
     "decorations": false,

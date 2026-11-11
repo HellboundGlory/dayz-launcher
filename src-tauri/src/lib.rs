@@ -350,9 +350,9 @@ pub fn run() {
 
             // Before the window is revealed, never after — avoids a reflow flash.
             commands::settings::apply_ui_scale(app.handle(), saved.scale());
-            commands::settings::fit_window_to_minimum(app.handle(), saved.scale());
+            commands::settings::fit_window_to_minimum(app.handle());
 
-            // After apply_ui_scale, whose set_min_size would otherwise undo it.
+            // After fit_window_to_minimum, whose resize would otherwise undo it.
             if saved.window.is_some_and(|geometry| geometry.maximized) {
                 window_state::restore_maximized(&window.as_ref().window());
             }

@@ -34,8 +34,8 @@ pub enum OnClose {
 }
 
 /// Interface scale, as a webview zoom factor. Floor 1.0 (type sizes are
-/// hard-coded pixels, already edge-of-readable at 100%); ceiling 1.5 (beyond
-/// that [`MIN_WINDOW`] stops fitting on a 1080p screen).
+/// hard-coded pixels, already edge-of-readable at 100%); ceiling 1.5, which
+/// still leaves the page 853×480 CSS pixels in a [`MIN_WINDOW`] window.
 pub const MIN_UI_SCALE: f64 = 1.0;
 pub const MAX_UI_SCALE: f64 = 1.5;
 pub const DEFAULT_UI_SCALE: f64 = 1.25;
@@ -358,13 +358,13 @@ pub fn apply_autostart(app: &AppHandle, enabled: bool) {
     }
 }
 
-/// The smallest window the layout is designed to survive, in CSS pixels at
-/// 100% scale. Mirrored by minWidth/minHeight in tauri.conf.json.
-const MIN_WINDOW: (f64, f64) = (975.0, 620.0);
+/// The smallest window, in logical pixels at any interface scale. Mirrored by
+/// minWidth/minHeight in tauri.conf.json.
+const MIN_WINDOW: (f64, f64) = (1280.0, 720.0);
 
-/// Apply the interface scale to the window: zoom the webview, and raise the
-/// minimum window size to match [`MIN_WINDOW`]. No-op when the scale hasn't
-/// changed, so a checkbox toggle can't drop a maximised window out of maximised.
+/// Apply the interface scale to the window by zooming the webview. No-op when
+/// the scale hasn't changed, so a checkbox toggle can't drop a maximised window
+/// out of maximised.
 pub fn apply_ui_scale(app: &AppHandle, scale: f64) {
     if let Some(state) = app.try_state::<crate::state::AppState>() {
         if let Ok(applied) = state.applied_ui_scale.lock() {
@@ -384,13 +384,6 @@ pub fn apply_ui_scale(app: &AppHandle, scale: f64) {
             &format!("Could not set interface scale to {scale}: {e}"),
         );
     }
-    if let Err(e) = window.set_min_size(Some(minimum_size(scale))) {
-        crate::log::log_line(
-            app,
-            "settings",
-            &format!("Could not raise the minimum window size: {e}"),
-        );
-    }
     eprintln!("[settings] Interface scale {scale}");
 
     if let Some(state) = app.try_state::<crate::state::AppState>() {
@@ -400,42 +393,98 @@ pub fn apply_ui_scale(app: &AppHandle, scale: f64) {
     }
 }
 
-/// The smallest permitted window at a given scale.
-fn minimum_size(scale: f64) -> tauri::LogicalSize<f64> {
-    tauri::LogicalSize::new(MIN_WINDOW.0 * scale, MIN_WINDOW.1 * scale)
+/// [`MIN_WINDOW`], shrunk to fit a screen too small to hold it, such as a
+/// 1080p laptop at 150% display scaling.
+fn minimum_size(work_area: tauri::LogicalSize<f64>) -> tauri::LogicalSize<f64> {
+    tauri::LogicalSize::new(
+        MIN_WINDOW.0.min(work_area.width),
+        MIN_WINDOW.1.min(work_area.height),
+    )
 }
 
-/// Grow the window if the geometry restored from a previous run is smaller
-/// than the current scale allows. Startup only, not part of `apply_ui_scale`.
-pub fn fit_window_to_minimum(app: &AppHandle, scale: f64) {
+/// Set the minimum for the screen the window opens on, and grow a window
+/// restored from a previous run that is smaller than it. Startup only.
+pub fn fit_window_to_minimum(app: &AppHandle) {
     let Some(window) = app.get_webview_window("main") else {
         return;
     };
-    // Nothing to correct on a maximised window, and resizing one un-maximises it.
-    if window.is_maximized().unwrap_or(false) {
-        return;
+    // Without a monitor to measure, the plain minimum from the config stands.
+    let monitor = window.current_monitor().ok().flatten();
+    let min = monitor.as_ref().map_or(
+        tauri::LogicalSize::new(MIN_WINDOW.0, MIN_WINDOW.1),
+        |monitor| {
+            minimum_size(
+                monitor
+                    .work_area()
+                    .size
+                    .to_logical::<f64>(monitor.scale_factor()),
+            )
+        },
+    );
+    if let Err(e) = window.set_min_size(Some(min)) {
+        crate::log::log_line(
+            app,
+            "settings",
+            &format!("Could not set the minimum window size: {e}"),
+        );
     }
     let (Ok(size), Ok(factor)) = (window.inner_size(), window.scale_factor()) else {
         return;
     };
-    let min = minimum_size(scale);
     let current = size.to_logical::<f64>(factor);
     if current.width >= min.width && current.height >= min.height {
         return;
     }
     let grown =
         tauri::LogicalSize::new(current.width.max(min.width), current.height.max(min.height));
-    match window.set_size(grown) {
-        Ok(()) => eprintln!(
-            "[settings] Window was {}x{}, grown to the {}x{} minimum",
-            current.width, current.height, grown.width, grown.height
-        ),
-        Err(e) => crate::log::log_line(
+    if let Err(e) = window.set_size(grown) {
+        crate::log::log_line(
             app,
             "settings",
             &format!("Could not grow the window to the minimum: {e}"),
-        ),
+        );
+        return;
     }
+    eprintln!(
+        "[settings] Window was {}x{}, grown to the {}x{} minimum",
+        current.width, current.height, grown.width, grown.height
+    );
+
+    // Growing keeps the top-left corner, so a window saved near the bottom or
+    // right edge can now hang off the screen.
+    let (Some(monitor), Ok(origin), Ok(outer)) =
+        (monitor, window.outer_position(), window.outer_size())
+    else {
+        return;
+    };
+    let area = monitor.work_area();
+    let moved = kept_on_screen(
+        (origin.x, origin.y),
+        (outer.width, outer.height),
+        (area.position.x, area.position.y),
+        (area.size.width, area.size.height),
+    );
+    if moved != (origin.x, origin.y) {
+        let _ = window.set_position(tauri::PhysicalPosition::new(moved.0, moved.1));
+    }
+}
+
+/// The top-left corner that keeps a window inside the work area, or pins it to
+/// the top-left of the area when it is the larger of the two. Physical pixels.
+fn kept_on_screen(
+    origin: (i32, i32),
+    size: (u32, u32),
+    area_origin: (i32, i32),
+    area_size: (u32, u32),
+) -> (i32, i32) {
+    let axis = |at: i32, len: u32, start: i32, span: u32| {
+        let last = i64::from(start) + i64::from(span) - i64::from(len);
+        i64::from(at).min(last).max(i64::from(start)) as i32
+    };
+    (
+        axis(origin.0, size.0, area_origin.0, area_size.0),
+        axis(origin.1, size.1, area_origin.1, area_size.1),
+    )
 }
 
 /// Apply the interface scale live, from the status-bar slider. Separate
@@ -576,8 +625,8 @@ fn apply_side_effects(app: &AppHandle, settings: &AppSettings, changed: &[String
 #[cfg(test)]
 mod tests {
     use super::{
-        patch_on_disk, read_from_disk, take_settings_recovered, update_on_disk, AppSettings,
-        DEFAULT_UI_SCALE, MAX_UI_SCALE,
+        kept_on_screen, minimum_size, patch_on_disk, read_from_disk, take_settings_recovered,
+        update_on_disk, AppSettings, DEFAULT_UI_SCALE, MAX_UI_SCALE,
     };
     use crate::atomic_write::test_support::ScratchDir;
     use serde_json::json;
@@ -778,6 +827,37 @@ mod tests {
             "the retired field was written back: {json}"
         );
         assert!(json.contains("\"closeToTray\":false"), "{json}");
+    }
+
+    #[test]
+    fn the_minimum_window_is_1280_by_720_unless_the_screen_is_smaller() {
+        let on = |w, h| {
+            let min = minimum_size(tauri::LogicalSize::new(w, h));
+            (min.width, min.height)
+        };
+        assert_eq!(on(1920.0, 1040.0), (1280.0, 720.0));
+        // 1920×1080 at 150% Windows scaling, less the taskbar.
+        assert_eq!(on(1280.0, 680.0), (1280.0, 680.0));
+        // 1366×768 at 125%.
+        assert_eq!(on(1092.8, 583.2), (1092.8, 583.2));
+    }
+
+    #[test]
+    fn a_grown_window_moves_back_inside_the_screen() {
+        // A 1920×1040 work area; the window grew to 1280×720 near the bottom right.
+        let at = |x, y| kept_on_screen((x, y), (1280, 720), (0, 0), (1920, 1040));
+        assert_eq!(at(1000, 700), (640, 320));
+        assert_eq!(at(100, 100), (100, 100));
+        assert_eq!(at(-50, -20), (0, 0));
+    }
+
+    #[test]
+    fn the_window_config_holds_the_same_minimum() {
+        let config: serde_json::Value =
+            serde_json::from_str(include_str!("../../tauri.conf.json")).unwrap();
+        let window = &config["app"]["windows"][0];
+        assert_eq!(window["minWidth"].as_f64(), Some(super::MIN_WINDOW.0));
+        assert_eq!(window["minHeight"].as_f64(), Some(super::MIN_WINDOW.1));
     }
 
     #[test]

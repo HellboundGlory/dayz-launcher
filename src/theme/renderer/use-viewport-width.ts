@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 const DEBOUNCE_MS = 100;
 
 /** The window's CSS width, or 0 where there is no window (SSR, tests). Page zoom
- * is already applied: a 975px window at 1.5x scale reports 650. */
+ * is already applied: a 1280px window at 1.5x scale reports 853. */
 export function readViewportWidth(): number {
   return typeof window === "undefined" ? 0 : window.innerWidth;
 }

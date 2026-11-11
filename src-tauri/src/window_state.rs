@@ -49,8 +49,8 @@ pub fn capture(window: &Window, prev: Option<WindowState>) -> Option<WindowState
 }
 
 /// Apply remembered size/position to a window not yet shown. Maximising is
-/// separate — [`restore_maximized`], called after `apply_ui_scale`'s
-/// `set_min_size` (which would otherwise un-maximise here).
+/// separate — [`restore_maximized`], called after `fit_window_to_minimum`'s
+/// resize (which would otherwise un-maximise here).
 pub fn restore(window: &Window, state: WindowState) {
     if state.width > 0 && state.height > 0 {
         let app = window.app_handle();

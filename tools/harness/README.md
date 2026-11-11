@@ -136,8 +136,9 @@ matches that path and `--theme <id>` narrows to one theme. The server ports are
 picked free at runtime (`HARNESS_PORT` still overrides the prod one), so a
 `shoot.sh` Vite left on 1431 does not collide with a run.
 
-Popups also get a small-size pass, the smallest window a player is likely to
-use: 650×413 CSS px at device scale 1.5 (a 975×620 window at UI scale 1.5), dark
+Popups also get a small-size pass at 650×413 CSS px and device scale 1.5. That is
+smaller than the app now allows (its 1280×720 minimum is 853×480 at UI scale 1.5),
+kept as a stricter check from when the minimum was 975×620; dark
 scheme only. It covers the Filters menu and its lists, the sort dropdown, the server row ⋯ menu on the last
 fully visible row, the Mods view's Unsubscribe and Verify menus, the server info
 Load menu, and the Settings theme card menu and customiser dropdown. Those rows

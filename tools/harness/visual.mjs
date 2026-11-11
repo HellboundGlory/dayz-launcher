@@ -65,7 +65,7 @@ const SCENARIOS = [
 /** Scenarios that open the server info modal, which Tactical drops. */
 const SERVER_INFO_ROWS = ["modal-serverinfo", "modal-serverinfo-modsmixed"];
 
-/** The smallest window: 975×620 at UI scale 1.5, dark scheme only. */
+/** Below the smallest window the app allows (1280×720 at UI scale 1.5 is 853×480), kept as a stricter check; dark scheme only. */
 const SMALL = { sizes: [[650, 413]], schemes: ["dark"], scale: 1.5 };
 // The "mods need updating" toast covers the top right of the Mods view, the detail panel and the Themes tab at the small size.
 const DISMISS_TOAST = click('[data-part="toast"] [data-part="close"]');
