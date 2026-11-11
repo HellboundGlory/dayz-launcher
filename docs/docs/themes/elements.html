@@ -158,8 +158,9 @@
   <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Required in</dt><dd>every composition of the shell with the server browser, and of the shell with Mods</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>current</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
 </section>
   <section class="el" id="el-nav-lan" data-el="nav.lan">
-  <h3><code>nav.lan</code> <span class="el-kind">nav</span></h3>
+  <h3><code>nav.lan</code> <span class="el-kind">nav</span> <span class="el-since">SINCE 2.1</span></h3>
   <dl><dt>Placed in</dt><dd>the shell, any view, or Settings · once per composition</dd><dt>Required in</dt><dd>every composition of the shell with the server browser, and of the shell with Mods</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code>, <code>badge</code> · States: <code>current</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Opens the LAN view, and closes Settings if it is open. Its accessible name is &quot;LAN&quot;. <code>current</code> is set while the LAN view is showing. The <code>badge</code> reads &quot;New&quot; until the tab has been opened once on this machine, then it is gone for good.</p></div>
 </section>
   <section class="el" id="el-nav-mods" data-el="nav.mods">
   <h3><code>nav.mods</code> <span class="el-kind">nav</span></h3>
@@ -269,7 +270,7 @@
 <div class="table-wrap"><table><thead><tr><th>Element</th><th>Value</th></tr></thead><tbody><tr><td>Map</td><td>&quot;Any&quot;, the map name, or &quot;{n} maps&quot;</td></tr><tr><td>Tags</td><td>&quot;Any&quot; or &quot;{n} tag(s)&quot;</td></tr><tr><td>Mods</td><td>&quot;Any&quot;, &quot;{n} mod(s)&quot;, &quot;{n} excluded&quot;, or &quot;{i} in, {e} out&quot;</td></tr><tr><td>Region</td><td>&quot;Any&quot;, the region, or &quot;{n} regions&quot;</td></tr><tr><td>Sort</td><td>&quot;{key}&quot; followed by the direction arrow</td></tr><tr><td>Ping</td><td>&quot;{v}ms&quot; or &quot;Any&quot;</td></tr></tbody></table></div></div>
   <section class="el" id="el-filter-search" data-el="filter.search">
   <h3><code>filter.search</code> <span class="el-kind">input</span></h3>
-  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Required in</dt><dd>the shell + server browser composition</dd><dt>Parts</dt><dd><code>icon</code>, <code>input</code>, <code>clear</code>, <code>suggestions</code>, <code>suggestion</code>, <code>kind</code>, <code>match</code>, <code>count</code>, <code>hint</code> · States: <code>filled</code>, <code>open</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showIcon</code> (on or off, default on)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Required in</dt><dd>the shell + server browser composition</dd><dt>Parts</dt><dd><code>icon</code>, <code>input</code>, <code>clear</code>, <code>suggestions</code>, <code>suggestion</code>, <code>kind</code>, <code>match</code>, <code>count</code>, <code>hint</code> · States: <code>filled</code>, <code>open</code>, <code>active</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showIcon</code> (on or off, default on)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
   <div class="md el-notes"><p>Writes the search filter after a 250 ms trailing debounce. Its placeholder is &quot;Search servers…&quot;.</p>
 <ul><li><strong>Clear:</strong> while the box has text, a <code>clear</code> button empties it and sets the search to null at once, then puts the cursor back in the field.</li><li><strong>Suggestions:</strong> from two characters on, an All-servers tab with the box focused asks for suggestions 250 ms after the typing stops, and a reply older than the newest request is dropped. The list sits under the box and holds up to three maps, four mods and two versions, each with its server count and the typed text marked.</li><li><strong>Keys:</strong> Down and Up move through the list, wrapping at either end; Enter on a row adds it as a filter, Enter with none picked keeps the text as search; Escape closes the list without clearing the text. A list for older text never shows.</li><li><strong>Picking:</strong> a map adds to <code>maps</code>, a mod to <code>mod_ids</code> (only its first id when every mod must match, and off the excluded list), a version replaces <code>version</code>, and the search text clears.</li></ul></div>
 </section>
@@ -291,7 +292,9 @@
 </section>
   <section class="el" id="el-filter-menu" data-el="filter.menu">
   <h3><code>filter.menu</code> <span class="el-kind">input</span> <span class="el-since">SINCE 2.1</span></h3>
-  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Parts</dt><dd><code>trigger</code>, <code>label</code>, <code>badge</code>, <code>chevron</code>, <code>note</code>, <code>popup</code>, <code>body</code>, <code>column</code> · States: <code>active</code>, <code>open</code>, <code>tabNote</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showLabel</code> (on or off, default on)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Parts</dt><dd><code>trigger</code>, <code>label</code>, <code>badge</code>, <code>chevron</code>, <code>note</code>, <code>popup</code>, <code>body</code>, <code>column</code> · States: <code>active</code>, <code>open</code>, <code>tabNote</code>, <code>narrow</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showLabel</code> (on or off, default on)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>The Filters button; clicking <code>trigger</code> opens or closes the <code>filterMenu</code> popup. The <code>label</code> reads &quot;Filters&quot; (the <code>label</code> option changes it, <code>showLabel</code> hides it). The <code>badge</code> shows how many filters are on and is absent at zero; the search text and the tab flags never count. The <code>chevron</code> is always drawn.</p>
+<ul><li><strong>States:</strong> <code>active</code> while any filter is on, <code>open</code> while the popup is showing.</li><li><strong>Tab note:</strong> on Favourites, Recent and LAN the button and popup are replaced by <code>tabNote</code>, a single <code>note</code> reading &quot;Filters only apply to All servers&quot;.</li><li><strong>Popup:</strong> without a theme <code>filterMenu</code> file the default popup is a dialog named &quot;Filters&quot; with the groups Server, Connection, Gameplay, Mods, Access and Players in two columns (one below 720 px wide) and the footer. Its <code>popup</code>, <code>body</code> and <code>column</code> parts exist only in that default popup, and <code>body</code> carries <code>narrow</code> while it shows one column.</li></ul></div>
 </section>
   <section class="el" id="el-filter-chips" data-el="filter.chips">
   <h3><code>filter.chips</code> <span class="el-kind">display</span> <span class="el-since">SINCE 2.1</span></h3>
@@ -338,8 +341,9 @@
   <div class="md el-notes"><p>Re-probes the first 5,000 servers in the list's current order. It reads &quot;Refresh&quot;, or &quot;Refreshing…&quot; while <code>busy</code>, when it is disabled and its icon spins.</p></div>
 </section>
   <section class="el" id="el-servers-addServer" data-el="servers.addServer">
-  <h3><code>servers.addServer</code> <span class="el-kind">action</span></h3>
+  <h3><code>servers.addServer</code> <span class="el-kind">action</span> <span class="el-since">SINCE 2.1</span></h3>
   <dl><dt>Placed in</dt><dd>the server browser view · once per composition</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>open</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>icon</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Opens the Add server dialog, where the user enters a server address. Its accessible name is &quot;Add server&quot;. The <code>label</code> reads &quot;Add server&quot; and shows only when <code>display</code> includes it; the default is the icon alone, with the same text as its title. <code>open</code> is set while the dialog is showing.</p></div>
 </section>
 </section>
 
@@ -385,7 +389,7 @@
   <section class="el" id="el-server-favourite" data-el="server.favourite">
   <h3><code>server.favourite</code> <span class="el-kind">action</span></h3>
   <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>on</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>icon</code>, <code>iconLabel</code>, default <code>icon</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;)</li><li><code>label</code> (text)</li><li><code>labelOn</code> (text)</li></ul></dd></dl>
-  <div class="md el-notes"><p>Reads &quot;Add to favourites&quot; or &quot;Remove from favourites&quot;. The change is applied optimistically and reverted if saving fails.</p></div>
+  <div class="md el-notes"><p>Reads &quot;Add to favourites&quot; or &quot;Remove from favourites&quot; as its accessible name. The visible <code>label</code>, shown with <code>display</code> <code>iconLabel</code>, is &quot;Favourite&quot; or &quot;Favourited&quot; by default; <code>label</code> replaces it, and <code>labelOn</code> replaces it while the server is a favourite. <code>on</code> is set while it is. The change is applied optimistically and reverted if saving fails.</p></div>
 </section>
   <section class="el" id="el-server-refresh" data-el="server.refresh">
   <h3><code>server.refresh</code> <span class="el-kind">action</span> <span class="el-since">SINCE 2.1</span></h3>
@@ -413,12 +417,16 @@
   <div class="md el-notes"><p>Reads &quot;Copy address&quot;, or &quot;Address copied&quot; for 2 s after copying <code>ip:gamePort</code>.</p></div>
 </section>
   <section class="el" id="el-server-copyJoinLink" data-el="server.copyJoinLink">
-  <h3><code>server.copyJoinLink</code> <span class="el-kind">action</span></h3>
-  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;, default <code>link</code>)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <h3><code>server.copyJoinLink</code> <span class="el-kind">action</span> <span class="el-since">SINCE 2.1</span></h3>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;, default <code>copy</code>)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Copy join link&quot; (the <code>label</code> option changes it) and copies a link to this server's page on tetralauncher.com, built from the server's address, query port, name and map. <code>offline</code> is set for an offline server. Clicking it closes the popup it sits in.</p>
+<ul><li><strong>Result:</strong> inside a popup a successful copy shows &quot;Join link copied&quot; as the server's notice; elsewhere nothing confirms it. A failed copy shows the error text.</li></ul></div>
 </section>
   <section class="el" id="el-server-forgetPassword" data-el="server.forgetPassword">
-  <h3><code>server.forgetPassword</code> <span class="el-kind">action</span></h3>
+  <h3><code>server.forgetPassword</code> <span class="el-kind">action</span> <span class="el-since">SINCE 2.1</span></h3>
   <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>label</code> · States: <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>display</code> (one of <code>iconLabel</code>, <code>label</code>, <code>icon</code>, default <code>iconLabel</code>)</li><li><code>icon</code> (icon name, a package image path, or &quot;none&quot;, default <code>keyRound</code>)</li><li><code>label</code> (text)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Forget saved password&quot; (the <code>label</code> option changes it) and deletes the password the launcher saved for this server. It renders nothing until the launcher has found a saved password for the server, and goes away again once it is removed. <code>offline</code> is set for an offline server. Clicking it closes the popup it sits in.</p>
+<ul><li><strong>Result:</strong> the server's notice reads &quot;Saved password removed.&quot;, or &quot;Could not remove the saved password.&quot; if that fails.</li></ul></div>
 </section>
   <section class="el" id="el-server-deselect" data-el="server.deselect">
   <h3><code>server.deselect</code> <span class="el-kind">action</span></h3>
@@ -439,7 +447,8 @@
 </section>
   <section class="el" id="el-server-region" data-el="server.region">
   <h3><code>server.region</code> <span class="el-kind">display</span></h3>
-  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>text</code> · States: <code>unknown</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>format</code> (one of <code>name</code>, <code>code</code>, default <code>name</code>)</li></ul></dd></dl>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>flag</code>, <code>text</code> · States: <code>unknown</code>, <code>offline</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>format</code> (one of <code>name</code>, <code>code</code>, default <code>name</code>)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Shows the server's country: a <code>flag</code> image, then the country name (<code>name</code>) or its two-letter code (<code>code</code>), with the full name on hover. A server with no known country shows a dash and no flag, and is <code>unknown</code>; a country with no flag image shows its text alone.</p></div>
 </section>
   <section class="el" id="el-server-gameTime" data-el="server.gameTime">
   <h3><code>server.gameTime</code> <span class="el-kind">display</span></h3>
@@ -452,6 +461,8 @@
   <section class="el" id="el-server-ping" data-el="server.ping">
   <h3><code>server.ping</code> <span class="el-kind">display</span></h3>
   <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · any number of times</dd><dt>Parts</dt><dd><code>value</code>, <code>unit</code>, <code>shield</code>, <code>tip</code>, <code>caption</code> · States: <code>good</code>, <code>fair</code>, <code>poor</code>, <code>unknown</code>, <code>offline</code>, <code>estimated</code>, <code>protected</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showUnit</code> (on or off, default off)</li><li><code>showCaption</code> (on or off, default on)</li></ul></dd></dl>
+  <div class="md el-notes"><p>The server's ping, read from its last refresh. <code>value</code> is the number in milliseconds, or &quot;—&quot; when there is none. <code>unit</code> (&quot; ms&quot;) shows only with <code>showUnit</code> and a number; <code>caption</code> (&quot; ping&quot;) shows unless <code>showCaption</code> is off.</p>
+<ul><li><strong>Bands:</strong> <code>good</code> is 80 ms or less, <code>fair</code> is up to 120, <code>poor</code> is more. <code>unknown</code> means no ping, and is also set when the server is offline.</li><li><strong>offline:</strong> the server did not answer the last refresh; its title reads &quot;Server did not respond to the last refresh&quot;.</li><li><strong>estimated:</strong> the server doesn't answer pings, so the number is an estimate; its title reads &quot;Estimated: this server doesn't answer pings.&quot;</li><li><strong>protected:</strong> the server is behind DDoS protection and the number may be off by up to about 50 ms. A <code>shield</code> icon (title explains it) comes before <code>value</code>, and <code>tip</code> is a tooltip after it, headed &quot;Estimated ping&quot;. The tip is always in the element, hidden and out of the layout by default; show it from your CSS, for example on <code>:hover</code>.</li><li>A band can combine with <code>estimated</code> or <code>protected</code>, for example <code>fair estimated</code>. Neither is set when the ping is unknown.</li></ul></div>
 </section>
   <section class="el" id="el-server-modCount" data-el="server.modCount">
   <h3><code>server.modCount</code> <span class="el-kind">display</span></h3>
@@ -491,7 +502,7 @@
 </section>
   <section class="el" id="el-server-modDiffers" data-el="server.modDiffers">
   <h3><code>server.modDiffers</code> <span class="el-kind">display</span> <span class="el-since">SINCE 2.1</span></h3>
-  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Parts</dt><dd><code>text</code>, <code>fix</code> · States: <code>busy</code></dd></dl>
+  <dl><dt>Placed in</dt><dd>anywhere a server is the subject: a server row, the server info modal, a selection container, or the server actions popup · once per subject context</dd><dt>Parts</dt><dd><code>icon</code>, <code>text</code>, <code>fix</code> · States: <code>busy</code></dd></dl>
   <div class="md el-notes"><p>The warning above Join: how many of this server's mods differ, with a Fix and join button that re-downloads them first. It needs a live Check mods to have run (the plain readiness read carries no hashes), and renders nothing in a list row, where readiness is never fetched.</p></div>
 </section>
   <section class="el" id="el-server-versionWarning" data-el="server.versionWarning">
@@ -992,6 +1003,8 @@
   <section class="el" id="el-settings-discordPresence" data-el="settings.discordPresence">
   <h3><code>settings.discordPresence</code> <span class="el-kind">input</span></h3>
   <dl><dt>Placed in</dt><dd>Settings · once per composition</dd><dt>Required in</dt><dd>the shell + Settings composition</dd><dt>Parts</dt><dd><code>label</code>, <code>hint</code>, <code>box</code>, <code>showServer</code> · States: <code>checked</code></dd><dt>Options</dt><dd><ul class="el-options"><li><code>showHint</code> (on or off, default on)</li></ul></dd></dl>
+  <div class="md el-notes"><p>Reads &quot;Show Rich Presence in Discord&quot;, with the hint &quot;Shows a server you're playing on (or 'Browsing servers') on your Discord profile. Off means the launcher never talks to Discord at all.&quot; (hidden when <code>showHint</code> is off). <code>checked</code> is set while it is on, and <code>box</code> is the checkbox.</p>
+<ul><li><strong>showServer:</strong> a second checkbox row inside the element, reading &quot;Show which server I'm on&quot; with the hint &quot;Off: Discord shows only \&quot;Playing DayZ\&quot;.&quot; It carries the <code>showServer</code> part and has its own <code>label</code>, <code>hint</code> and <code>box</code>, carries <code>checked</code> while it is on, and is disabled while the main box is off.</li></ul></div>
 </section>
   <section class="el" id="el-settings-appMenu" data-el="settings.appMenu">
   <h3><code>settings.appMenu</code> <span class="el-kind">input</span> <span class="el-since">SINCE 2.1</span></h3>
@@ -1014,7 +1027,9 @@
 </section>
   <section class="el" id="el-settings-about" data-el="settings.about">
   <h3><code>settings.about</code> <span class="el-kind">display</span> <span class="el-since">SINCE 2.1</span></h3>
-  <dl><dt>Placed in</dt><dd>Settings · any number of times</dd><dt>Parts</dt><dd><code>links</code>, <code>version</code>, <code>button</code>, <code>badge</code>, <code>status</code>, <code>whatsnew</code>, <code>credits</code></dd></dl>
+  <dl><dt>Placed in</dt><dd>Settings · any number of times</dd><dt>Parts</dt><dd><code>links</code>, <code>version</code>, <code>button</code>, <code>label</code>, <code>badge</code>, <code>status</code>, <code>whatsnew</code>, <code>credits</code> · States: <code>update</code></dd></dl>
+  <div class="md el-notes"><p>The About block with the version, update check and credits.</p>
+<ul><li><strong>Version:</strong> <code>version</code> reads &quot;Tetra Launcher&quot; and the installed version number. <code>links</code> holds two icon buttons, &quot;Website&quot; and &quot;Source code on GitHub&quot;, that open in the browser.</li><li><strong>Update button:</strong> <code>button</code> reads &quot;Check for updates&quot; in <code>label</code>, and checks once on click. It is disabled while checking or installing. When an update is available it reads &quot;Update&quot; (&quot;Updating…&quot; while installing) and carries <code>data-state=&quot;update&quot;</code>; clicking installs it, or opens the download page for a copy that cannot update itself. A <code>badge</code> dot shows beside it while an update is available.</li><li><strong>Status:</strong> <code>status</code> shows &quot;Checking…&quot;, &quot;Downloading…&quot; with a percentage when known, &quot;You're up to date.&quot; after a check, or the error. When there is no status and an update is available, <code>whatsnew</code> reads &quot;See what's new&quot; and opens that release's notes.</li><li><strong>Credits:</strong> <code>credits</code> holds the IP geolocation, flag icon and licence lines.</li></ul></div>
 </section>
   <section class="el" id="el-settings-title" data-el="settings.title">
   <h3><code>settings.title</code> <span class="el-kind">display</span></h3>
@@ -1066,11 +1081,11 @@
 
 <section class="el-group">
   <h2 id="popup"><code>popup</code> The themeable popups</h2>
-  <div class="md"><p>Each popup has its own file, <code>layout/popups/&lt;id&gt;.json</code>, declaring its placement mode and its contents. A missing file means the launcher's default popup.</p>
+  <div class="md"><p>Each popup has its own file, <code>layout/popups/&lt;id&gt;.json</code>, declaring its placement mode and its contents. A missing file means the launcher's default popup. The <code>serverRow</code> menu is the one exception to placement: it always opens at the pointer, or at the selected row from the keyboard (Shift+F10 or the Menu key), and its file's placement is not read.</p>
 <ul><li><strong>Option lists:</strong> <code>popup.regionOptions</code> and <code>popup.uniqueServerOptions</code> are single lists of <code>role=&quot;option&quot;</code> entries with a check mark on the selected ones. <code>popup.mapOptions</code> has a search box (part <code>search</code>) above its list, which shows the official maps first, then a separator, then the rest. <code>popup.tagOptions</code> cycles Official, Modded and First person through include (✓), exclude (✗) and off. <code>popup.sortOptions</code> lists the server sort keys.</li><li><strong>Empty text:</strong> &quot;Loading maps...&quot; or &quot;No maps match&quot; for maps, and &quot;No favourites or recently played servers yet.&quot; for unique servers.</li><li><strong>Server actions in menus:</strong> <code>popup.serverActions</code> and <code>popup.serverLoad</code> may hold any <code>server.*</code> action, and <code>server.actionNotice</code>. They read the server their trigger belongs to.</li></ul></div>
   <section class="el" id="el-popup-mapOptions" data-el="popup.mapOptions">
   <h3><code>popup.mapOptions</code> <span class="el-kind">input</span></h3>
-  <dl><dt>Placed in</dt><dd>the mapFilter popup · once per composition</dd><dt>Required in</dt><dd>the mapFilter popup</dd><dt>Parts</dt><dd><code>option</code>, <code>empty</code>, <code>box</code>, <code>search</code> · States: <code>selected</code></dd></dl>
+  <dl><dt>Placed in</dt><dd>the mapFilter popup · once per composition</dd><dt>Required in</dt><dd>the mapFilter popup</dd><dt>Parts</dt><dd><code>option</code>, <code>empty</code>, <code>box</code>, <code>search</code>, <code>count</code>, <code>separator</code> · States: <code>selected</code></dd></dl>
 </section>
   <section class="el" id="el-popup-tagOptions" data-el="popup.tagOptions">
   <h3><code>popup.tagOptions</code> <span class="el-kind">input</span></h3>
@@ -1091,31 +1106,41 @@
 </section>
   <section class="el" id="el-popup-filterServer" data-el="popup.filterServer">
   <h3><code>popup.filterServer</code> <span class="el-kind">input</span> <span class="el-since">SINCE 2.1</span></h3>
-  <dl><dt>Placed in</dt><dd>the filterMenu popup · once per composition</dd><dt>Parts</dt><dd><code>group</code>, <code>heading</code>, <code>row</code>, <code>label</code>, <code>select</code>, <code>value</code>, <code>chevron</code>, <code>list</code>, <code>option</code>, <code>box</code>, <code>count</code>, <code>search</code>, <code>empty</code>, <code>separator</code>, <code>clear</code>, <code>segments</code>, <code>segment</code> · States: <code>selected</code>, <code>on</code>, <code>open</code></dd></dl>
+  <dl><dt>Placed in</dt><dd>the filterMenu popup · once per composition</dd><dt>Parts</dt><dd><code>group</code>, <code>heading</code>, <code>row</code>, <code>label</code>, <code>select</code>, <code>value</code>, <code>chevron</code>, <code>list</code>, <code>option</code>, <code>box</code>, <code>count</code>, <code>search</code>, <code>empty</code>, <code>separator</code>, <code>clear</code>, <code>clearSelection</code>, <code>flag</code>, <code>segments</code>, <code>segment</code> · States: <code>selected</code>, <code>on</code>, <code>open</code>, <code>all</code>, <code>some</code></dd></dl>
+  <div class="md el-notes"><p>The Server group in the <code>filterMenu</code> popup, with <code>heading</code> &quot;Server&quot; and four rows: Map, Game version, Country and Server type.</p>
+<ul><li><strong>Selects:</strong> each of the first three is a <code>select</code> button showing its <code>value</code> (&quot;Any&quot; when off) and a <code>chevron</code>. It carries <code>on</code> while that filter is set and <code>open</code> while its <code>list</code> is showing. Escape or a click outside closes the list and returns focus to the <code>select</code>.</li><li><strong>Map list:</strong> a <code>search</code> box (&quot;Search maps&quot;), the official maps, a <code>separator</code>, then the rest, each with a <code>count</code>; <code>empty</code> reads &quot;Loading maps...&quot; or &quot;No maps match&quot;. A <code>clear</code> button empties the map filter.</li><li><strong>Version list:</strong> &quot;All versions&quot;, &quot;Same as mine&quot; with the installed version when known, then each version with its <code>count</code>.</li><li><strong>Country list:</strong> a Continents heading with <code>clearSelection</code> (&quot;Clear selection&quot;), the continents as tri-state options, a Countries heading, then every country A to Z with a <code>flag</code> and <code>count</code>. Options carry <code>selected</code>; a continent with only some countries picked carries <code>some</code>, with all of them <code>all</code>.</li><li><strong>Server type:</strong> <code>segments</code> of <code>segment</code> buttons Any, Official and Community; the picked one carries <code>selected</code>.</li></ul></div>
 </section>
   <section class="el" id="el-popup-filterConnection" data-el="popup.filterConnection">
   <h3><code>popup.filterConnection</code> <span class="el-kind">input</span> <span class="el-since">SINCE 2.1</span></h3>
   <dl><dt>Placed in</dt><dd>the filterMenu popup · once per composition</dd><dt>Parts</dt><dd><code>group</code>, <code>heading</code>, <code>row</code>, <code>label</code>, <code>segments</code>, <code>segment</code>, <code>checkbox</code>, <code>box</code> · States: <code>selected</code>, <code>on</code></dd></dl>
+  <div class="md el-notes"><p>The Connection group in the <code>filterMenu</code> popup, with <code>heading</code> &quot;Connection&quot;.</p>
+<ul><li><strong>Ping (ms):</strong> <code>segments</code> of <code>segment</code> buttons Any, &lt; 50, &lt; 100 and &lt; 150; the picked one carries <code>selected</code>.</li><li><strong>Hide offline servers:</strong> a <code>checkbox</code> row with the note &quot;Servers that stopped answering&quot;. Its <code>box</code> carries <code>on</code> while the filter is on.</li></ul></div>
 </section>
   <section class="el" id="el-popup-filterGameplay" data-el="popup.filterGameplay">
   <h3><code>popup.filterGameplay</code> <span class="el-kind">input</span> <span class="el-since">SINCE 2.1</span></h3>
   <dl><dt>Placed in</dt><dd>the filterMenu popup · once per composition</dd><dt>Parts</dt><dd><code>group</code>, <code>heading</code>, <code>row</code>, <code>label</code>, <code>segments</code>, <code>segment</code> · States: <code>selected</code></dd></dl>
+  <div class="md el-notes"><p>The Gameplay group in the <code>filterMenu</code> popup, with <code>heading</code> &quot;Gameplay&quot; and two rows of <code>segments</code>: Perspective (Any, 1PP only, 3PP allowed) and Time of day (Any, Day, Night). The picked <code>segment</code> in each row carries <code>selected</code>.</p></div>
 </section>
   <section class="el" id="el-popup-filterMods" data-el="popup.filterMods">
   <h3><code>popup.filterMods</code> <span class="el-kind">input</span> <span class="el-since">SINCE 2.1</span></h3>
   <dl><dt>Placed in</dt><dd>the filterMenu popup · once per composition</dd><dt>Parts</dt><dd><code>group</code>, <code>heading</code>, <code>row</code>, <code>label</code>, <code>segments</code>, <code>segment</code>, <code>select</code>, <code>count</code>, <code>chevron</code> · States: <code>selected</code>, <code>on</code></dd></dl>
+  <div class="md el-notes"><p>The Mods group in the <code>filterMenu</code> popup, with <code>heading</code> &quot;Mods&quot;.</p>
+<ul><li><strong>Mods:</strong> <code>segments</code> of <code>segment</code> buttons Any, Modded and Vanilla; the picked one carries <code>selected</code>. Its <code>label</code> is hidden from view and read by screen readers only.</li><li><strong>Mods… button:</strong> a <code>select</code> reading &quot;Mods…&quot; with a <code>count</code> of &quot;none picked&quot; or the mod filter's summary, and a <code>chevron</code>. It carries <code>on</code> while any mod is picked. Clicking it closes the popup and opens the mod filter dialog.</li></ul></div>
 </section>
   <section class="el" id="el-popup-filterAccess" data-el="popup.filterAccess">
   <h3><code>popup.filterAccess</code> <span class="el-kind">input</span> <span class="el-since">SINCE 2.1</span></h3>
   <dl><dt>Placed in</dt><dd>the filterMenu popup · once per composition</dd><dt>Parts</dt><dd><code>group</code>, <code>heading</code>, <code>row</code>, <code>checkbox</code>, <code>box</code> · States: <code>on</code></dd></dl>
+  <div class="md el-notes"><p>The Access group in the <code>filterMenu</code> popup, with <code>heading</code> &quot;Access&quot; and two <code>checkbox</code> rows: &quot;No password&quot; and &quot;BattlEye on&quot; (with the note &quot;The anti-cheat DayZ uses&quot;). The <code>box</code> carries <code>on</code> while the filter is on. Ticking BattlEye on keeps only servers with BattlEye; unticking clears it rather than excluding them.</p></div>
 </section>
   <section class="el" id="el-popup-filterPlayers" data-el="popup.filterPlayers">
   <h3><code>popup.filterPlayers</code> <span class="el-kind">input</span> <span class="el-since">SINCE 2.1</span></h3>
   <dl><dt>Placed in</dt><dd>the filterMenu popup · once per composition</dd><dt>Parts</dt><dd><code>group</code>, <code>heading</code>, <code>row</code>, <code>checkbox</code>, <code>box</code> · States: <code>on</code></dd></dl>
+  <div class="md el-notes"><p>The Players group in the <code>filterMenu</code> popup, with <code>heading</code> &quot;Players&quot; and two <code>checkbox</code> rows: &quot;Hide empty servers&quot; and &quot;Hide full servers&quot;. The <code>box</code> carries <code>on</code> while the filter is on.</p></div>
 </section>
   <section class="el" id="el-popup-filterFooter" data-el="popup.filterFooter">
   <h3><code>popup.filterFooter</code> <span class="el-kind">display</span> <span class="el-since">SINCE 2.1</span></h3>
   <dl><dt>Placed in</dt><dd>the filterMenu popup · once per composition</dd><dt>Required in</dt><dd>the filterMenu popup</dd><dt>Parts</dt><dd><code>footer</code>, <code>total</code>, <code>count</code>, <code>reset</code></dd></dl>
+  <div class="md el-notes"><p>The footer of the <code>filterMenu</code> popup, and required in it. <code>total</code> reads the number of matching servers in <code>count</code> followed by &quot; servers match&quot;; <code>count</code> shows &quot;…&quot; until the number arrives, or &quot;Couldn't count servers&quot; (with no trailing text) if counting failed. <code>reset</code> reads &quot;Reset filters&quot; and clears every filter but keeps the search text.</p></div>
 </section>
   <section class="el" id="el-popup-uniqueServerOptions" data-el="popup.uniqueServerOptions">
   <h3><code>popup.uniqueServerOptions</code> <span class="el-kind">input</span></h3>

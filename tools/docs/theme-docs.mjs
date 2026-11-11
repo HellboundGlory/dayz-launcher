@@ -332,6 +332,8 @@ const REFERENCE_SECTIONS = [
 ];
 
 const CHANGELOG_SECTIONS = [
+  ["#v3-2-0", "3.2.0: check your theme"],
+  ["#v3-2-0-new", "3.2.0: new and fixed"],
   ["#v3-1-0", "3.1.0: check your theme"],
   ["#v3-1-0-new", "3.1.0: new and fixed"],
   ["#v3-0-0", "3.0.0: check your theme"],

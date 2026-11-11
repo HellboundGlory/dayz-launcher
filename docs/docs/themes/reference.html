@@ -690,8 +690,7 @@
         <h3>What every composition must keep</h3>
         <p>
           A few elements have to be somewhere in each composition: the window controls,
-          the drag region, navigation to every view and Settings, both required notices,
-          and, wherever <code>server.join</code> sits outside a list row (modals,
+          the drag region, navigation to every view and Settings, and, wherever <code>server.join</code> sits outside a list row (modals,
           popups, panels), <code>server.actionNotice</code> beside it. The launcher checks that the
           element is placed anywhere in the composition, not in a fixed slot, and it
           checks every variant and every settings combination a user can reach.
@@ -706,12 +705,11 @@
           </p>
         </div>
         <p>
-          <code>notice.launch</code> is an optional app-level notice bar, added in theme
-          API 2.1, for join warnings and launch refusals. It repeats the same content as
-          the server's own action notice, in a bar that names the server. A successful
-          launch never shows here, and dismissing it clears the server's action notice
-          too. List rows never show <code>server.actionNotice</code>, so this bar is where
-          a row's join result appears; a shell that places none gets one drawn above it.
+          Launcher messages, join warnings and launch refusals among them, show as toasts
+          in the top-right corner, which the launcher owns. A <code>notice.*</code>
+          placement renders nothing; the elements stay registered so older layouts still
+          validate. List rows never show <code>server.actionNotice</code>, so a row's join
+          result appears as a toast naming the server.
         </p>
         <p>
           Tab order is file order: keyboard users move through the screen in the order
