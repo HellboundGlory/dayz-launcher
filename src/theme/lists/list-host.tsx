@@ -361,18 +361,13 @@ export function ListHost<T = unknown>({
     [],
   );
 
-  // A right-click on a server row: select it (selecting toggles, so never the selected row again)
-  // and open the menu where the pointer is.
-  const selectedIndexRef = useRef(selectedIndex);
-  selectedIndexRef.current = selectedIndex;
-  const itemsRef = useRef(items);
-  itemsRef.current = items;
+  // A right-click opens the menu where the pointer is and leaves the selection alone: selecting
+  // opens the detail panel in some themes.
   const handleRowContextMenu = useCallback(
     (item: unknown, e: MouseEvent<HTMLDivElement>) => {
-      if (itemsRef.current[selectedIndexRef.current] !== item) handleRowSelect(item);
       openMenuAtRow(item, { x: e.clientX, y: e.clientY });
     },
-    [openMenuAtRow, handleRowSelect],
+    [openMenuAtRow],
   );
 
   // Shift+F10 or the Menu key: the row's spot, a third of the way in and at its middle.
