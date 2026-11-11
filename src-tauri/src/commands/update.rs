@@ -187,6 +187,10 @@ mod tests {
                 "https://github.com/HellboundGlory/dayz-launcher",
                 "https://github.com/HellboundGlory/dayz-launcher",
             ),
+            (
+                "https://github.com/HellboundGlory/dayz-launcher/issues/new?template=bug_report.yml&version=3.1.1",
+                "https://github.com/HellboundGlory/dayz-launcher/issues/new?template=bug_report.yml&version=3.1.1",
+            ),
         ];
         for (raw, expected) in allowed {
             assert_eq!(

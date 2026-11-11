@@ -37,6 +37,7 @@ PNG as `<out>.log`; uncaught errors are also painted onto the page.
 | `mods=mixed\|ready` | Add a declared mod mid-download to the selection's readiness, or mark every mod ready |
 | `join=asking\|checking\|found\|noanswer` | Open the join-link box in that state |
 | `static=1` | Freeze the clock and disable animations, transitions and the caret |
+| `crash=1` | Render the crash screen instead of `App` |
 
 Example: `tools/harness/shoot.sh /tmp/detail.png "select=3&popup=menu" 1540 860`
 

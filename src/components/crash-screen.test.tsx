@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   CrashBoundary,
   CrashScreen,
+  bugReportUrl,
   formatCrashDetails,
   installCrashLogging,
 } from "./crash-screen";
@@ -33,6 +34,20 @@ describe("formatCrashDetails", () => {
   });
 });
 
+describe("bugReportUrl", () => {
+  const base = "https://github.com/HellboundGlory/dayz-launcher/issues/new";
+  const onlyTemplate = `${base}?template=bug_report.yml`;
+  it.each<[string | undefined, string]>([
+    ["3.1.1", `${onlyTemplate}&version=3.1.1`],
+    [undefined, onlyTemplate],
+    ["", onlyTemplate],
+    ["  ", onlyTemplate],
+    ["3.1.1 beta&x=1", `${onlyTemplate}&version=3.1.1+beta%26x%3D1`],
+  ])("builds the bug form link for %j", (version, expected) => {
+    expect(bugReportUrl(version)).toBe(expected);
+  });
+});
+
 describe("CrashBoundary", () => {
   it("holds the details of whatever a child threw", () => {
     const state = CrashBoundary.getDerivedStateFromError(
@@ -58,6 +73,27 @@ describe("CrashScreen", () => {
     for (const label of ["Reload", "Copy details", "Open log folder"]) {
       expect(html).toContain(`>${label}<`);
     }
+  });
+
+  it("puts the window controls in a draggable strip", () => {
+    expect(html).toContain('data-part="titlebar"');
+    expect(html).toContain('data-tauri-drag-region="deep"');
+    expect(html).toContain("Tetra Launcher · crashed");
+    for (const label of ["Minimise", "Maximise", "Close"]) {
+      expect(html).toContain(`aria-label="${label}"`);
+    }
+  });
+
+  it("offers Report on GitHub with the paste hint", () => {
+    expect(html).toContain(">Report on GitHub<");
+    expect(html).toContain(
+      "To report it, copy the details, then press Report on GitHub and paste them into the form.",
+    );
+  });
+
+  it("announces the message, not the window controls", () => {
+    const alert = html.slice(html.indexOf('role="alert"'));
+    expect(alert).not.toContain('aria-label="Close"');
   });
 });
 

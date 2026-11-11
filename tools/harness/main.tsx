@@ -516,10 +516,33 @@ harness.visibilityCheck = () => {
 // Awaited so a `scheme=` override still precedes the first render.
 await useThemeStore.getState().hydrate();
 if (scheme === "dark" || scheme === "light") useThemeStore.getState().setScheme(scheme);
-const { App } = await import("@/App");
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
-void runScenario();
+
+if (params.get("crash") === "1") {
+  const { CrashScreen } = await import("@/components/crash-screen");
+  const details = [
+    "TypeError: Cannot read properties of undefined (reading 'map')",
+    "    at ServerList (server-list.tsx:212:31)",
+    "    at renderWithHooks (react-dom.development.js:15486:18)",
+    "Component stack:",
+    "    at ServerList",
+    "    at BrowserView",
+    "    at App",
+  ].join("\n");
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <CrashScreen details={details} />
+    </React.StrictMode>,
+  );
+  // No scenario runs here, so report readiness on the next frame instead.
+  requestAnimationFrame(() => {
+    document.body.dataset.harnessReady = "1";
+  });
+} else {
+  const { App } = await import("@/App");
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  );
+  void runScenario();
+}

@@ -339,18 +339,91 @@
     inset: 0;
     z-index: var(--z-crash);
     display: grid;
-    place-items: center;
-    padding: 20px;
+    grid-template-rows: 32px minmax(0, 1fr);
+    /* Read by the global focus ring, which a broken theme could leave unset. */
+    --accent-line: #8fa3bd;
     background: #0d0f13;
     color: #e7ebf0;
     font-family: "Inter", "Segoe UI", system-ui, sans-serif;
     font-size: 13px;
     line-height: 1.5;
   }
-  [data-crash] > div {
+  [data-crash] [data-part="titlebar"] {
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid #262b34;
+    background: #0d0f13;
+    cursor: grab;
+    user-select: none;
+  }
+  [data-crash] [data-part="name"] {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 7px;
+    padding: 0 12px;
+    color: #5d6675;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  [data-crash] [data-part="name"] i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #b3564d;
+  }
+  [data-crash] [data-part="titlebar"] button {
+    display: grid;
+    place-items: center;
+    width: 46px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #98a2b2;
+    cursor: default;
+  }
+  [data-crash] [data-part="titlebar"] button:hover {
+    background: #1a1e26;
+    color: #e7ebf0;
+  }
+  [data-crash] [data-part="titlebar"] button[data-part="close"]:hover {
+    background: #c42b1c;
+    color: #fff;
+  }
+  [data-crash] [data-part="titlebar"] svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+  }
+  [data-crash] [data-part="body"] {
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    overflow: auto;
+  }
+  [data-crash] [data-part="body"] > div {
     display: grid;
     width: min(560px, 100%);
     gap: 14px;
+  }
+  [data-crash] [data-part="grip"] {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 14px;
+    height: 14px;
+    background: linear-gradient(135deg, transparent 50%, #262b34 50%);
+    pointer-events: none;
+  }
+  [data-crash][data-maximized] [data-part="grip"] {
+    display: none;
+  }
+  [data-crash] [data-part="hint"] {
+    font-size: 12px;
   }
   [data-crash] [data-part="icon"] {
     color: #b3564d;
@@ -383,7 +456,7 @@
     flex-wrap: wrap;
     gap: 8px;
   }
-  [data-crash] button {
+  [data-crash] [data-part="actions"] button {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -398,15 +471,15 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
-  [data-crash] button:hover {
+  [data-crash] [data-part="actions"] button:hover {
     color: #e7ebf0;
   }
-  [data-crash] [data-part="reload"] {
+  [data-crash] [data-part="actions"] [data-part="reload"] {
     border-color: transparent;
     background: #8fa3bd;
     color: #0d0f13;
   }
-  [data-crash] [data-part="reload"]:hover {
+  [data-crash] [data-part="actions"] [data-part="reload"]:hover {
     color: #0d0f13;
   }
 }
