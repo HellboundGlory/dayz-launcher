@@ -339,6 +339,10 @@ mod tests {
         sock.local_addr().expect("local addr")
     }
 
+    /// Windows wakes timers on a ~15.6 ms tick, so each of a fake server's
+    /// sleeps can land its reply up to one tick late.
+    const SLEEP_SLACK_MS: u32 = if cfg!(windows) { 32 } else { 0 };
+
     /// Wait until the next `tick` boundary on a clock offset by `offset`.
     fn until_next_tick(elapsed: Duration, offset: Duration, tick: Duration) -> Duration {
         let e = elapsed.as_nanos() as i128;
@@ -550,7 +554,7 @@ mod tests {
             let reading = outcome.ping.expect("a ping");
             assert_eq!(reading.kind, PingKind::Estimated, "case: {name}");
             assert!(
-                (20..=60).contains(&reading.ms),
+                (20..=60 + SLEEP_SLACK_MS).contains(&reading.ms),
                 "case: {name}: estimated {}ms, expected 40 +/- 20",
                 reading.ms
             );
@@ -579,7 +583,7 @@ mod tests {
         let reading = outcome.ping.expect("a ping");
         assert_eq!(reading.kind, PingKind::Estimated);
         assert!(
-            (20..=60).contains(&reading.ms),
+            (20..=60 + SLEEP_SLACK_MS).contains(&reading.ms),
             "estimated {}ms, expected 40 +/- 20 and not near the 300ms challenge wait",
             reading.ms
         );
@@ -638,7 +642,7 @@ mod tests {
         let reading = outcome.ping.expect("a ping");
         assert_eq!(reading.kind, PingKind::Protected);
         assert!(
-            (40..=80).contains(&reading.ms),
+            (40..=80 + SLEEP_SLACK_MS).contains(&reading.ms),
             "protected estimate {}ms, expected 60 +/- 20",
             reading.ms
         );
