@@ -164,9 +164,19 @@ pub(crate) fn map_counts(
     Ok(rows)
 }
 
+/// Which versions a version list offers.
+#[derive(Clone, Copy)]
+pub(crate) enum VersionRows {
+    /// The current game build and the one before, for the filter menu.
+    GameBuilds,
+    /// Every clean version, for matching typed text.
+    All,
+}
+
 pub(crate) fn version_counts(
     conn: &Connection,
     filter: &ServerFilter,
+    offered: VersionRows,
 ) -> Result<Vec<FacetCount>, RegistryError> {
     let (where_sql, binds) = filter::where_clause(filter);
     let sql = format!(
@@ -186,24 +196,18 @@ pub(crate) fn version_counts(
     // the row returns, so it follows the filter's own rule: "1.29" includes
     // "1.29.100", and a row's count can exceed the servers stored with exactly
     // that string.
-    let mut rows: Vec<FacetCount> = Vec::new();
-    let mut seen: HashSet<String> = HashSet::new();
-    for (version, _) in &stored {
-        if rows.len() == MAX_VERSION_ROWS {
-            break;
-        }
-        let Some(name) = clean_version(version) else {
-            continue;
-        };
-        if !seen.insert(name.clone()) {
-            continue;
-        }
-        rows.push(FacetCount {
+    let names = match offered {
+        VersionRows::GameBuilds => current_and_previous_build(&stored),
+        VersionRows::All => distinct_clean_versions(&stored),
+    };
+    let mut rows: Vec<FacetCount> = names
+        .into_iter()
+        .map(|name| FacetCount {
             values: vec![name.clone()],
             name,
             count: 0,
-        });
-    }
+        })
+        .collect();
 
     let lowered: Vec<String> = stored.iter().map(|(v, _)| v.to_ascii_lowercase()).collect();
     for row in &mut rows {
@@ -220,6 +224,50 @@ pub(crate) fn version_counts(
     }
     rows.sort_by(|a, b| newest_first(&a.name, &b.name));
     Ok(rows)
+}
+
+fn distinct_clean_versions(stored: &[(String, usize)]) -> Vec<String> {
+    let mut seen: HashSet<String> = HashSet::new();
+    stored
+        .iter()
+        .filter_map(|(v, _)| clean_version(v))
+        .filter(|name| seen.insert(name.clone()))
+        .take(MAX_VERSION_ROWS)
+        .collect()
+}
+
+/// A game build as `1.<minor>.<build>`; anything else a server reports is its own text.
+fn game_build(version: &str) -> Option<(u32, u64)> {
+    let mut parts = version.trim().split('.');
+    let (major, minor, build) = (parts.next()?, parts.next()?, parts.next()?);
+    if parts.next().is_some() || major != "1" {
+        return None;
+    }
+    Some((minor.parse().ok()?, build.parse().ok()?))
+}
+
+/// The build most servers run (the newer one on a tie), and the most-run build older
+/// than it from the same or the previous minor version.
+fn current_and_previous_build(stored: &[(String, usize)]) -> Vec<String> {
+    let mut builds: Vec<(&str, usize, u32, u64)> = stored
+        .iter()
+        .filter_map(|(v, count)| {
+            clean_version(v)
+                .and(game_build(v))
+                .map(|(m, b)| (v.as_str(), *count, m, b))
+        })
+        .collect();
+    builds.sort_by(|a, b| b.1.cmp(&a.1).then(b.3.cmp(&a.3)));
+    let Some(&(current, _, minor, build)) = builds.first() else {
+        return Vec::new();
+    };
+    let previous = builds
+        .iter()
+        .find(|&&(_, _, m, b)| b < build && m <= minor && m >= minor.saturating_sub(1));
+    std::iter::once(current)
+        .chain(previous.map(|&(v, ..)| v))
+        .map(|v| v.trim().to_string())
+        .collect()
 }
 
 pub(crate) fn country_counts(
@@ -518,10 +566,11 @@ pub(crate) fn suggestions(
     }
 
     if text.starts_with(|c: char| c.is_ascii_digit()) {
-        let mut rows: Vec<FacetCount> = version_counts(conn, &without(&base, Facet::Versions))?
-            .into_iter()
-            .filter(|row| row.name.to_ascii_lowercase().starts_with(&lower))
-            .collect();
+        let mut rows: Vec<FacetCount> =
+            version_counts(conn, &without(&base, Facet::Versions), VersionRows::All)?
+                .into_iter()
+                .filter(|row| row.name.to_ascii_lowercase().starts_with(&lower))
+                .collect();
         sort_by_count_then_name(&mut rows);
         for row in rows.into_iter().take(SUGGESTED_VERSIONS) {
             out.push(Suggestion {

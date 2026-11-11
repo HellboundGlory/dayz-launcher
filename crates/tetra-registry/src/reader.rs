@@ -226,8 +226,11 @@ impl Reader {
         let tx = self.conn.unchecked_transaction()?;
         let total = self.count(filter)?;
         let maps = facets::map_counts(&self.conn, &facets::without(filter, Facet::Maps))?;
-        let versions =
-            facets::version_counts(&self.conn, &facets::without(filter, Facet::Versions))?;
+        let versions = facets::version_counts(
+            &self.conn,
+            &facets::without(filter, Facet::Versions),
+            facets::VersionRows::GameBuilds,
+        )?;
         let countries =
             facets::country_counts(&self.conn, &facets::without(filter, Facet::Countries))?;
         let mods = facets::mod_counts(&self.conn, &facets::without(filter, Facet::Mods))?;
