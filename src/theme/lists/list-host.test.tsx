@@ -365,7 +365,7 @@ describe("ServerRowMenu", () => {
       const at = html.indexOf(`data-el="${el}"`);
       expect(at, el).toBeGreaterThan(-1);
       const tagStart = html.lastIndexOf("<button", at);
-      expect(html.slice(tagStart, at + 200), el).toContain('role="menuitem"');
+      expect(html.slice(tagStart, at + 200), el).toMatch(/role="menuitem(checkbox)?"/);
     }
 
     const release = openEscapeLayer(escapeLayer.close!);

@@ -5,6 +5,7 @@ import type { Server } from "@/types/server";
 import type { PasswordStatus } from "@/lib/tauri";
 import { joinLink } from "@/lib/join-link";
 import { ElementContextProvider } from "./context";
+import registry from "../registry.json";
 import { PopupContextProvider } from "./popup-elements";
 import { loadPasswordStatus, ServerCopyJoinLink, ServerForgetPassword } from "./row-menu-elements";
 
@@ -80,6 +81,14 @@ function freshServer(): Server {
 }
 
 describe("ServerForgetPassword", () => {
+  it("marks itself offline for an offline server", async () => {
+    const server = { ...freshServer(), online: false };
+    passwordStatus.mockResolvedValue({ saved: true, keyring: true });
+    await loadPasswordStatus(server.addr);
+    expect(render(<ServerForgetPassword />, server)).toContain('data-state="offline"');
+    expect(render(<ServerForgetPassword />, { ...server, online: true })).not.toContain("data-state");
+  });
+
   it("renders nothing while the saved password is still being looked up", () => {
     const server = freshServer();
     passwordStatus.mockReturnValue(new Promise(() => {}));
@@ -164,6 +173,17 @@ describe("ServerForgetPassword", () => {
 });
 
 describe("ServerCopyJoinLink", () => {
+  it("draws the icon the registry names as its default", () => {
+    expect(registry.elements["server.copyJoinLink"].options.icon.default).toBe("copy");
+    expect(render(<ServerCopyJoinLink />, freshServer())).toContain("lucide-copy");
+  });
+
+  it("marks itself offline for an offline server", () => {
+    const server = { ...freshServer(), online: false };
+    expect(render(<ServerCopyJoinLink />, server)).toContain('data-state="offline"');
+    expect(render(<ServerCopyJoinLink />, { ...server, online: true })).not.toContain("data-state");
+  });
+
   it("copies the server's join link and says so", async () => {
     const server = freshServer();
     const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined);

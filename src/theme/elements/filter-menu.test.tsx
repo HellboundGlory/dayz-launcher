@@ -3,6 +3,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ServerFilter } from "@/types/filters";
 import type { FilterFacets } from "@/lib/tauri";
 import { ElementContextProvider } from "./context";
+import registry from "../registry.json";
+import { expectRegistryCovers } from "./test-helpers";
 
 const makeFilter = (overrides: Partial<ServerFilter> = {}): ServerFilter => ({
   maps: [],
@@ -345,6 +347,14 @@ describe("VersionOptions", () => {
 });
 
 describe("FilterMenuPopup", () => {
+  it("marks a narrow body with a state filter.menu lists", () => {
+    const html = renderToStaticMarkup(
+      <FilterMenuPopup popupRef={{ current: null }} popupStyle={{}} narrow width={300} />,
+    );
+    expect(html).toMatch(/data-part="body" data-state="narrow"/);
+    expect(registry.elements["filter.menu"].states).toContain("narrow");
+  });
+
   it("clips on the element carrying the placement, with the body scrolling and the footer outside", () => {
     const html = renderToStaticMarkup(
       <FilterMenuPopup
@@ -391,10 +401,12 @@ describe("themed element placement", () => {
 
 describe("PopupMapOptions counts", () => {
   it("lists a count for each map when given", () => {
-    mockStore.maps = [["chernarusplus", "Chernarus"]];
+    mockStore.maps = [["chernarusplus", "Chernarus"], ["deerisle", "Deer Isle"]];
     const html = renderToStaticMarkup(<PopupMapOptions counts={{ chernarusplus: 8412 }} />);
+    expect(html).toContain('data-part="separator"');
     expect(html).toContain('data-part="count"');
     expect(html).toContain("8,412");
+    expectRegistryCovers(html, "popup.mapOptions");
   });
 
   it("names its list of maps", () => {
@@ -423,6 +435,10 @@ describe("CountryOptions", () => {
 
   const list = (selected: string[] = [], onChange = vi.fn()) =>
     renderToStaticMarkup(<CountryOptions facets={countryFacets} selected={selected} onChange={onChange} />);
+
+  it("draws only parts and states the registry lists for popup.filterServer", () => {
+    expectRegistryCovers(list(["DE", "BR"]), "popup.filterServer");
+  });
 
   it("lists the six continents, then the countries A to Z", () => {
     const html = list();

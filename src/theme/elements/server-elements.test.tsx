@@ -9,6 +9,7 @@ import { useLaunchStore } from "@/stores/launch-store";
 import { useRowProbeStore } from "./row-probe-store";
 import { useThemeStore } from "../theme-store";
 import type { ThemeFile } from "@/types/theme";
+import { expectRegistryCovers } from "./test-helpers";
 import { ElementContextProvider, type ElementContextValue } from "./context";
 import { PopupContextProvider } from "./popup-elements";
 import {
@@ -517,6 +518,11 @@ describe("ServerVersion", () => {
 });
 
 describe("server.region", () => {
+  it("draws only the parts the registry lists", () => {
+    const html = render(<ServerRegion />, serverContext({ ...server, country_code: "DE" }));
+    expectRegistryCovers(html, "server.region");
+  });
+
   it("shows the code, its flag and the country name on hover", () => {
     const html = render(<ServerRegion options={{ format: "code" }} />, serverContext({ ...server, country_code: "DE" }));
     expect(html).toContain('data-part="text">DE</span>');
@@ -560,6 +566,20 @@ describe("offline state on server elements", () => {
 });
 
 describe("ServerFavourite", () => {
+  it("is a checked menu item in the row menu and a pressed button elsewhere", () => {
+    const favourite = { ...server, favourite: true };
+    const inMenu = render(
+      <PopupContextProvider popupId="serverRow" close={() => {}}>
+        <ServerFavourite />
+      </PopupContextProvider>,
+      serverContext(favourite),
+    );
+    expect(inMenu).toContain('role="menuitemcheckbox"');
+    expect(inMenu).toContain('aria-checked="true"');
+    expect(inMenu).not.toContain("aria-pressed");
+    expect(render(<ServerFavourite />, serverContext(favourite))).toContain('aria-pressed="true"');
+  });
+
   it("optimistically toggles the store and persists via toggleFavourite", async () => {
     const { toggleFavourite } = await import("@/lib/tauri");
     useServerStore.setState({ servers: [server], selectedServer: null });

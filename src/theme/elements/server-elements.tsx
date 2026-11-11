@@ -397,7 +397,7 @@ export function ServerFavourite({
 }) {
   const server = useServerSubject();
   const toggleFavouriteLocal = useServerStore((s) => s.toggleFavourite);
-  const role = useMenuItemRole();
+  const inMenu = useMenuItemRole() !== undefined;
   if (!server) return null;
 
   const on = server.favourite;
@@ -426,11 +426,12 @@ export function ServerFavourite({
     <button
       type="button"
       data-el="server.favourite"
-      role={role}
+      role={inMenu ? "menuitemcheckbox" : undefined}
       data-state={serverStates(!server.online, on && "on")}
       aria-label={accessibleLabel}
       title={showLabel ? undefined : accessibleLabel}
-      aria-pressed={on}
+      aria-pressed={inMenu ? undefined : on}
+      aria-checked={inMenu ? on : undefined}
       onClick={handleClick}
       className={className ?? "flex items-center justify-center text-muted hover:text-warn"}
       style={style}

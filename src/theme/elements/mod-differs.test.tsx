@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactNode } from "react";
 import type { ModReadinessEntry, Server } from "@/types/server";
 import { ElementContextProvider, type ElementContextValue } from "./context";
+import { expectRegistryCovers } from "./test-helpers";
 import { setCachedReadiness } from "@/stores/readiness-store";
 
 const { verifyAndJoin, reinstallSubscribedMod, steamModStates, invalidateReadiness } = vi.hoisted(
@@ -104,6 +105,7 @@ describe("ServerModDiffers", () => {
     const { ServerModDiffers } = await import("./mod-differs");
     const html = render(<ServerModDiffers />);
     expect(html).toContain('data-el="server.modDiffers"');
+    expectRegistryCovers(html, "server.modDiffers");
     expect(html).toContain(
       "1 mod differs from the server&#x27;s copy. Fix and join downloads it again first.",
     );

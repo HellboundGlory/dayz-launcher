@@ -93,6 +93,7 @@ export function ServerCopyJoinLink({
       type="button"
       role={role}
       data-el="server.copyJoinLink"
+      data-state={server.online ? undefined : "offline"}
       onClick={handleClick}
       aria-label={label}
       title={showLabel ? undefined : label}
@@ -151,6 +152,7 @@ export function ServerForgetPassword({
       type="button"
       role={role}
       data-el="server.forgetPassword"
+      data-state={server.online ? undefined : "offline"}
       onClick={handleClick}
       aria-label={label}
       title={showLabel ? undefined : label}

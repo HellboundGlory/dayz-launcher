@@ -325,7 +325,7 @@
       "states": [
         "current"
       ],
-      "since": "2.0",
+      "since": "2.1",
       "aliases": []
     },
     "nav.mods": {
@@ -749,7 +749,8 @@
       ],
       "states": [
         "filled",
-        "open"
+        "open",
+        "active"
       ],
       "since": "2.0",
       "aliases": []
@@ -923,7 +924,8 @@
       "states": [
         "active",
         "open",
-        "tabNote"
+        "tabNote",
+        "narrow"
       ],
       "since": "2.1",
       "aliases": []
@@ -1254,7 +1256,7 @@
       "states": [
         "open"
       ],
-      "since": "2.0",
+      "since": "2.1",
       "aliases": []
     },
     "server.join": {
@@ -1735,7 +1737,7 @@
         },
         "icon": {
           "type": "icon",
-          "default": "link"
+          "default": "copy"
         },
         "label": {
           "type": "text"
@@ -1749,7 +1751,7 @@
       "states": [
         "offline"
       ],
-      "since": "2.0",
+      "since": "2.1",
       "aliases": []
     },
     "server.forgetPassword": {
@@ -1786,7 +1788,7 @@
       "states": [
         "offline"
       ],
-      "since": "2.0",
+      "since": "2.1",
       "aliases": []
     },
     "server.deselect": {
@@ -1903,6 +1905,7 @@
       },
       "freeLabel": false,
       "parts": [
+        "flag",
         "text"
       ],
       "states": [
@@ -4793,12 +4796,15 @@
         "links",
         "version",
         "button",
+        "label",
         "badge",
         "status",
         "whatsnew",
         "credits"
       ],
-      "states": [],
+      "states": [
+        "update"
+      ],
       "since": "2.1",
       "aliases": []
     },
@@ -5138,7 +5144,9 @@
         "option",
         "empty",
         "box",
-        "search"
+        "search",
+        "count",
+        "separator"
       ],
       "states": [
         "selected"
@@ -5255,13 +5263,17 @@
         "empty",
         "separator",
         "clear",
+        "clearSelection",
+        "flag",
         "segments",
         "segment"
       ],
       "states": [
         "selected",
         "on",
-        "open"
+        "open",
+        "all",
+        "some"
       ],
       "since": "2.1",
       "aliases": []
@@ -5501,6 +5513,7 @@
       "options": {},
       "freeLabel": false,
       "parts": [
+        "icon",
         "text",
         "fix"
       ],

@@ -4,6 +4,7 @@ import type { ServerFilter } from "@/types/filters";
 import { DEFAULT_FILTER } from "@/stores/server-store";
 import type { SearchSuggestion } from "@/lib/tauri";
 import { nextActive, SearchSuggestions, splitMatch, suggestionPatch } from "./search-suggestions";
+import { expectRegistryCovers } from "./test-helpers";
 
 const withFilter = (patch: Partial<ServerFilter>): ServerFilter => ({ ...DEFAULT_FILTER, ...patch });
 
@@ -163,6 +164,7 @@ describe("SearchSuggestions", () => {
 
   it("marks only the active row", () => {
     expect(list(1)).toMatch(/data-part="suggestion" data-state="active"/);
+    expectRegistryCovers(list(1), "filter.search");
     expect(list()).not.toContain('data-state="active"');
   });
 

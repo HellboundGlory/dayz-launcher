@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ElementContextProvider } from "./context";
+import { expectRegistryCovers } from "./test-helpers";
 import { SECS } from "./settings-controls";
 import { useUpdateStore } from "@/stores/update-store";
 import {
@@ -530,6 +531,7 @@ describe("SettingsAbout", () => {
     );
     expect(html).toContain('aria-label="Update to version 3.2.0"');
     expect(html).toMatch(/data-part="button" data-state="update"/);
+    expectRegistryCovers(html, "settings.about");
     const idle = withUpdateStore({ checking: false, error: null, available: null }, () => render(<SettingsAbout />));
     expect(idle).not.toContain('data-state="update"');
     expect(html).toMatch(/<span class="relative inline-flex" title="Version 3.2.0 is available">/);
