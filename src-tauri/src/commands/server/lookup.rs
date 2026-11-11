@@ -138,7 +138,7 @@ async fn store_answer(
         .await
         .map_err(|e| e.to_string())?;
     writer
-        .set_online(vec![key], true)
+        .record_online(vec![key], true)
         .await
         .map_err(|e| e.to_string())?;
     blocking_read(state, move |reader| {
@@ -433,7 +433,10 @@ mod tests {
             "an answering row answers the lookup"
         );
 
-        writer.set_online(vec![key], false).await.expect("offline");
+        writer
+            .record_online(vec![key], false)
+            .await
+            .expect("offline");
 
         assert!(
             !stored_row_is_current(&stored()),

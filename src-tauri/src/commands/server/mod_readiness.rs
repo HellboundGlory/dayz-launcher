@@ -381,7 +381,7 @@ pub(crate) async fn check_server_mods_impl(
                 "check_server_mods: storing the mod list failed: {e}"
             ));
         }
-        if let Err(e) = writer.set_online(vec![key], true).await {
+        if let Err(e) = writer.record_online(vec![key], true).await {
             log(format!(
                 "check_server_mods: marking the server online failed: {e}"
             ));
@@ -767,7 +767,7 @@ mod tests {
             .await
             .expect("upsert servers");
         writer
-            .set_online(vec![offline_key], false)
+            .record_online(vec![offline_key], false)
             .await
             .expect("set offline");
 

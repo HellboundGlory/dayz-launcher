@@ -30,6 +30,8 @@ fn row(key: ServerKey, name: &str, players: i32, max_players: i32, bots: i32) ->
         last_played: None,
         responded: true,
         responded_at: None,
+        online: None,
+        online_checked_at: None,
         country_code: None,
     }
 }

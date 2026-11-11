@@ -35,6 +35,8 @@ fn live_row() -> ServerRow {
         last_played: None,
         responded: true,
         responded_at: None,
+        online: None,
+        online_checked_at: None,
         country_code: None,
     }
 }
@@ -733,6 +735,132 @@ async fn a_listed_row_fills_an_empty_ping_but_never_replaces_one() {
         "the rest of the row still updates"
     );
     assert_eq!(row.players, 57);
+}
+
+/// A verdict arriving with a row is weighed against the one this PC reached
+/// by probing: the newer check wins, and a verdict with no check time falls
+/// back to how recently the server answered.
+#[tokio::test]
+async fn an_incoming_verdict_lands_only_when_its_check_is_the_newer_one() {
+    struct Case {
+        name: &'static str,
+        /// What this PC's own probe concluded, and when; `None` for no probe.
+        own: Option<bool>,
+        verdict: Option<bool>,
+        check_at: Option<i64>,
+        answered_ago: Option<i64>,
+        expected: bool,
+    }
+
+    let now = tetra_core::unix_now();
+    let cases = [
+        Case {
+            name: "a newer check offline overrules an older own verdict",
+            own: Some(true),
+            verdict: Some(false),
+            check_at: Some(now + 5),
+            answered_ago: None,
+            expected: false,
+        },
+        Case {
+            name: "an older check online yields to a newer own verdict",
+            own: Some(false),
+            verdict: Some(true),
+            check_at: Some(now - 5),
+            answered_ago: None,
+            expected: false,
+        },
+        Case {
+            name: "a check applies when this PC has no verdict yet",
+            own: None,
+            verdict: Some(false),
+            check_at: Some(now - 60),
+            answered_ago: None,
+            expected: false,
+        },
+        Case {
+            name: "an offline check older than an answer this PC saw yields to it",
+            own: None,
+            verdict: Some(false),
+            check_at: Some(now - 600),
+            answered_ago: Some(60),
+            expected: true,
+        },
+        Case {
+            name: "an absent verdict leaves the stored flag alone",
+            own: Some(true),
+            verdict: None,
+            check_at: None,
+            answered_ago: None,
+            expected: true,
+        },
+        Case {
+            name: "online with no check time applies",
+            own: Some(false),
+            verdict: Some(true),
+            check_at: None,
+            answered_ago: None,
+            expected: true,
+        },
+        Case {
+            name: "offline with no check time yields to a recent answer",
+            own: Some(true),
+            verdict: Some(false),
+            check_at: None,
+            answered_ago: Some(60),
+            expected: true,
+        },
+        Case {
+            name: "offline with no check time applies to a stale answer",
+            own: Some(true),
+            verdict: Some(false),
+            check_at: None,
+            answered_ago: Some(3600),
+            expected: false,
+        },
+    ];
+
+    for case in cases {
+        let registry = Registry::open_in_memory().expect("registry");
+        let writer = registry.writer();
+        let seeded = || ServerRow {
+            key: key(10),
+            name: "Survivor Haven".into(),
+            responded: true,
+            responded_at: Some(now - 7200),
+            ..Default::default()
+        };
+        writer.upsert_servers(vec![seeded()]).await.expect("seed");
+        if let Some(own) = case.own {
+            writer
+                .record_online(vec![key(10)], own)
+                .await
+                .expect("own verdict");
+        }
+        let reader = registry.reader().expect("reader");
+        let checked_before = reader.export().expect("export").rows[0].online_checked_at;
+
+        writer
+            .upsert_servers(vec![ServerRow {
+                responded: case.answered_ago.is_some(),
+                responded_at: case.answered_ago.map(|age| now - age),
+                online: case.verdict,
+                online_checked_at: case.check_at,
+                ..seeded()
+            }])
+            .await
+            .expect("verdict row");
+
+        let reader = registry.reader().expect("reader");
+        let row = reader.get(key(10)).expect("get").expect("row");
+        assert_eq!(row.online, case.expected, "case: {}", case.name);
+        assert_eq!(
+            reader.export().expect("export").rows[0].online_checked_at,
+            checked_before,
+            "case: {} — only a probe of ours may write the check time",
+            case.name
+        );
+    }
 }
 
 /// A database written before the ping flag existed reads every stored ping as

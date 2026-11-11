@@ -43,6 +43,12 @@ pub struct ServerRow {
     pub responded: bool,
     /// The answer time to store when `responded` is `true`; `None` means now.
     pub responded_at: Option<i64>,
+    /// A verdict to store with the row. `None` leaves the stored flag alone;
+    /// an index row carries the backend's, a probe records its own separately.
+    pub online: Option<bool>,
+    /// When `online` was reached, on this PC's clock. Without it, a verdict
+    /// from elsewhere is weighed against the row's last answer instead.
+    pub online_checked_at: Option<i64>,
     /// Two-letter ISO country code derived from the IP address via GeoIP.
     /// Populated automatically by the writer during upsert; callers should
     /// leave this `None`.
@@ -80,6 +86,8 @@ impl ServerRow {
             last_played: None,
             responded: true,
             responded_at: None,
+            online: None,
+            online_checked_at: None,
             country_code: None,
         }
     }

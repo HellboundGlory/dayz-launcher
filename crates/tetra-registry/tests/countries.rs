@@ -27,6 +27,8 @@ fn row(ip: Ipv4Addr, country_code: Option<&str>) -> ServerRow {
         last_played: None,
         responded: true,
         responded_at: None,
+        online: None,
+        online_checked_at: None,
         country_code: country_code.map(str::to_string),
     }
 }

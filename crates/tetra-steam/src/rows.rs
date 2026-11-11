@@ -45,6 +45,8 @@ pub fn to_server_row(g: &GameServerRow) -> ServerRow {
         last_played: g.last_played,
         responded: g.responded,
         responded_at: None,
+        online: None,
+        online_checked_at: None,
         country_code: None,
     }
 }

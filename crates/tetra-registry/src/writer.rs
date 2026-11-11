@@ -1,6 +1,7 @@
 use crate::error::RegistryError;
 use crate::rows::{ServerKey, ServerRow, WorkshopCacheRow};
 use crate::schema;
+use crate::RECENT_ANSWER_SECS;
 use rusqlite::{params, Connection, OptionalExtension};
 use tetra_core::a2s::dayz::ServerMod;
 use tetra_core::classify::country_table::country_order;
@@ -20,9 +21,7 @@ pub(crate) enum Job {
     ServerModsBulk(Vec<(ServerKey, Vec<ServerMod>)>, Ack<()>),
     Favourite(ServerKey, bool, Ack<usize>),
     LastPlayed(ServerKey, Ack<usize>),
-    SetOnline(Vec<ServerKey>, bool, Ack<()>),
     RecordOnline(Vec<ServerKey>, bool, Ack<()>),
-    SetOfflineUnlessAnsweredSince(Vec<ServerKey>, i64, Ack<()>),
     MarkUnlistedOffline(Vec<ServerKey>, i64, Ack<usize>),
     ProbeAttempt(Vec<ServerKey>, Ack<()>),
     RulesUnanswered(Vec<ServerKey>, i64, Ack<()>),
@@ -99,15 +98,6 @@ impl Writer {
         self.send(|ack| Job::LastPlayed(key, ack)).await
     }
 
-    /// Flip `online` for a batch of servers; rows already at that value are left untouched.
-    pub async fn set_online(
-        &self,
-        keys: Vec<ServerKey>,
-        online: bool,
-    ) -> Result<(), RegistryError> {
-        self.send(|ack| Job::SetOnline(keys, online, ack)).await
-    }
-
     /// Store this machine's own probe verdict and when it was reached, which is
     /// what a verdict from elsewhere is weighed against.
     pub async fn record_online(
@@ -116,17 +106,6 @@ impl Writer {
         online: bool,
     ) -> Result<(), RegistryError> {
         self.send(|ack| Job::RecordOnline(keys, online, ack)).await
-    }
-
-    /// Flip `online` off for servers not answered since `cutoff`. A recent answer
-    /// outranks a verdict that comes from somewhere else.
-    pub async fn set_offline_unless_answered_since(
-        &self,
-        keys: Vec<ServerKey>,
-        cutoff: i64,
-    ) -> Result<(), RegistryError> {
-        self.send(|ack| Job::SetOfflineUnlessAnsweredSince(keys, cutoff, ack))
-            .await
     }
 
     /// Flip `online` off for servers outside `listed` not answered since
@@ -208,14 +187,8 @@ pub(crate) fn run(conn: Connection, mut rx: mpsc::Receiver<Job>) {
             Job::LastPlayed(key, ack) => {
                 let _ = ack.send(mark_played(&conn, key));
             }
-            Job::SetOnline(keys, online, ack) => {
-                let _ = ack.send(set_online(&conn, &keys, online));
-            }
             Job::RecordOnline(keys, online, ack) => {
                 let _ = ack.send(record_online(&conn, &keys, online));
-            }
-            Job::SetOfflineUnlessAnsweredSince(keys, cutoff, ack) => {
-                let _ = ack.send(set_offline_unless_answered_since(&conn, &keys, cutoff));
             }
             Job::MarkUnlistedOffline(listed, answered_since, ack) => {
                 let _ = ack.send(mark_unlisted_offline(&conn, &listed, answered_since));
@@ -243,14 +216,15 @@ INSERT INTO servers (
     version, keywords, description, in_game_time, mod_count,
     official, first_person, modded, battleye,
     first_seen, last_seen, last_responded, last_played, country_code,
-    queue, day_multiplier, night_multiplier, ping_kind, country_order
+    queue, day_multiplier, night_multiplier, ping_kind, country_order, online
 ) VALUES (
     ?1, ?2, ?3, ?4, ?5, ?6,
     ?7, ?8, ?9, ?10, ?11, ?12,
     ?13, ?14, ?15, ?16, ?17,
     ?18, ?19, ?20, ?21,
     unixepoch(), unixepoch(), ?22, ?23, ?24,
-    ?25, ?26, ?27, ?28, ?29
+    ?25, ?26, ?27, ?28, ?29,
+    COALESCE(?31, 1)
 )
 ON CONFLICT(ip, query_port) DO UPDATE SET
     game_port      = CASE WHEN excluded.game_port > 0
@@ -330,7 +304,32 @@ ON CONFLICT(ip, query_port) DO UPDATE SET
     country_code   = COALESCE(excluded.country_code,   servers.country_code),
     country_order  = CASE WHEN excluded.country_code IS NOT NULL
                           THEN excluded.country_order
-                          ELSE servers.country_order END
+                          ELSE servers.country_order END,
+    -- A verdict only lands when it is newer than the one stored here, so an
+    -- index check that predates this PC's own probe leaves the row alone; an
+    -- answer newer than an offline check outranks it too, since a Steam pass
+    -- records answers without a verdict. A backend too old to send a check
+    -- time falls back to the answer clock, and `online_checked_at` itself is
+    -- only ever written by `record_online`.
+    online         = CASE
+                         WHEN ?31 IS NULL THEN servers.online
+                         WHEN ?32 IS NOT NULL THEN
+                             CASE WHEN ?32 > COALESCE(servers.online_checked_at, 0)
+                                   AND (?31 != 0
+                                        OR ?32 >= COALESCE(MAX(excluded.last_responded,
+                                                               servers.last_responded),
+                                                           excluded.last_responded,
+                                                           servers.last_responded, 0))
+                                  THEN ?31 ELSE servers.online END
+                         WHEN ?31 != 0 THEN 1
+                         WHEN (CASE WHEN excluded.last_responded IS NULL
+                                    THEN servers.last_responded
+                                    ELSE MAX(excluded.last_responded,
+                                             COALESCE(servers.last_responded, 0)) END)
+                              >= unixepoch() - ?33
+                         THEN servers.online
+                         ELSE 0
+                     END
 "#;
 
 /// Replaces a server's mod rows; deleting the server itself is handled by the
@@ -445,6 +444,9 @@ fn upsert_servers(
                 row.ping_kind.to_db(),
                 order,
                 listed,
+                row.online.map(|online| online as i64),
+                row.online_checked_at,
+                RECENT_ANSWER_SECS,
             ])?;
         }
     }
@@ -545,16 +547,6 @@ fn mark_played(conn: &Connection, key: ServerKey) -> Result<usize, RegistryError
     Ok(n)
 }
 
-fn set_online(conn: &Connection, keys: &[ServerKey], online: bool) -> Result<(), RegistryError> {
-    for_each_key(
-        conn,
-        "UPDATE servers SET online = ?3
-         WHERE ip = ?1 AND query_port = ?2 AND online != ?3",
-        keys,
-        |stmt, key| stmt.execute(params![key.ip.to_string(), key.query_port, online]),
-    )
-}
-
 fn record_online(conn: &Connection, keys: &[ServerKey], online: bool) -> Result<(), RegistryError> {
     for_each_key(
         conn,
@@ -562,21 +554,6 @@ fn record_online(conn: &Connection, keys: &[ServerKey], online: bool) -> Result<
          WHERE ip = ?1 AND query_port = ?2",
         keys,
         |stmt, key| stmt.execute(params![key.ip.to_string(), key.query_port, online]),
-    )
-}
-
-fn set_offline_unless_answered_since(
-    conn: &Connection,
-    keys: &[ServerKey],
-    cutoff: i64,
-) -> Result<(), RegistryError> {
-    for_each_key(
-        conn,
-        "UPDATE servers SET online = 0
-         WHERE ip = ?1 AND query_port = ?2 AND online != 0
-           AND (last_responded IS NULL OR last_responded < ?3)",
-        keys,
-        |stmt, key| stmt.execute(params![key.ip.to_string(), key.query_port, cutoff]),
     )
 }
 

@@ -27,6 +27,10 @@ use tokio::sync::mpsc;
 /// How recently a server must have answered to count as live.
 pub const ANSWERED_WITHIN_SECS: i64 = 86_400;
 
+/// How recent an answer has to be for an offline verdict that carries no check
+/// time to yield to it.
+pub const RECENT_ANSWER_SECS: i64 = 600;
+
 pub struct Registry {
     uri: String,
     writer: Writer,

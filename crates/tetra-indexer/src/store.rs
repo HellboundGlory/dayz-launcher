@@ -94,6 +94,8 @@ fn to_row(row: SteamServer) -> Option<ServerRow> {
         last_played: None,
         responded: false,
         responded_at: None,
+        online: None,
+        online_checked_at: None,
         country_code: None,
     })
 }

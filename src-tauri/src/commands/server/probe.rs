@@ -76,7 +76,10 @@ async fn flush_answered(
         }
     }
     if !online_keys.is_empty() {
-        if let Err(e) = writer.set_online(std::mem::take(online_keys), true).await {
+        if let Err(e) = writer
+            .record_online(std::mem::take(online_keys), true)
+            .await
+        {
             log(format!("marking servers online failed: {e}"));
         }
     }
@@ -149,7 +152,7 @@ pub(super) async fn probe_info(
     let offline_marks_suppressed = mark_offline && offline_marks_suppressed(refreshed, failed);
 
     if !offline_marks_suppressed && !offline_keys.is_empty() {
-        if let Err(e) = writer.set_online(offline_keys, false).await {
+        if let Err(e) = writer.record_online(offline_keys, false).await {
             log(format!("marking servers offline failed: {e}"));
         }
     }
