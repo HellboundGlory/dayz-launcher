@@ -16,7 +16,7 @@ pub mod writer;
 pub use error::RegistryError;
 pub use facets::{FacetCount, Facets, Suggestion, SuggestionKind};
 pub use filter::{ModMatch, ServerFilter, ServerListRow, SortDir, SortKey, TimeOfDay};
-pub use reader::Reader;
+pub use reader::{ExportError, Reader};
 pub use rows::{Export, ExportRow, ServerKey, ServerRow, WorkshopCacheRow};
 pub use writer::Writer;
 

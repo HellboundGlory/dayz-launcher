@@ -41,6 +41,39 @@ fn collect_skipping_bad_rows<T>(
     Ok(out)
 }
 
+/// Why [`Reader::export_each`] stopped: a read failed, or the callback returned an error.
+#[derive(Debug)]
+pub enum ExportError<E> {
+    Registry(RegistryError),
+    Visit(E),
+}
+
+impl<E> From<rusqlite::Error> for ExportError<E> {
+    fn from(e: rusqlite::Error) -> Self {
+        Self::Registry(e.into())
+    }
+}
+
+/// One `server_mods` row as the export walk reads it.
+struct ModRow {
+    ip: String,
+    port: i64,
+    workshop_id: u64,
+    name: String,
+}
+
+fn next_mod(rows: &mut rusqlite::Rows<'_>) -> rusqlite::Result<Option<ModRow>> {
+    let Some(r) = rows.next()? else {
+        return Ok(None);
+    };
+    Ok(Some(ModRow {
+        ip: r.get(0)?,
+        port: r.get(1)?,
+        workshop_id: r.get::<_, i64>(2)? as u64,
+        name: r.get(3)?,
+    }))
+}
+
 pub struct Reader {
     conn: Connection,
 }
@@ -453,61 +486,85 @@ impl Reader {
     /// column once per mod row, and the live index has over a million mod
     /// rows against a quarter-million servers.
     pub fn export(&self) -> Result<Export, RegistryError> {
-        let mut stmt = self.conn.prepare_cached(&format!(
-            "SELECT {EXPORT_COLUMNS} FROM servers
-             ORDER BY ip, query_port"
-        ))?;
-        let rows = collect_skipping_bad_rows(stmt.query_map([], Self::map_export_row)?, "export")?;
-
-        let mut by_key: std::collections::HashMap<ServerKey, usize> =
-            std::collections::HashMap::with_capacity(rows.len());
-        let mut rows = rows;
-        for (i, row) in rows.iter().enumerate() {
-            by_key.insert(row.key, i);
-        }
-
-        let mut mod_names: std::collections::HashMap<u64, String> =
-            std::collections::HashMap::new();
-        let mut stmt = self.conn.prepare_cached(
-            "SELECT sm.ip, sm.query_port, sm.workshop_id, sm.name
-             FROM server_mods sm
-             JOIN servers s ON s.ip = sm.ip AND s.query_port = sm.query_port
-             ORDER BY sm.ip, sm.query_port, sm.ordinal",
-        )?;
-        let mut cursor = stmt.query([])?;
-        while let Some(r) = cursor.next()? {
-            let ip: String = r.get(0)?;
-            let Ok(ip) = Ipv4Addr::from_str(&ip) else {
-                continue;
-            };
-            let key = ServerKey {
-                ip,
-                query_port: r.get(1)?,
-            };
-            let id = r.get::<_, i64>(2)? as u64;
-            let name: String = r.get(3)?;
-            if !name.is_empty() {
-                mod_names.entry(id).or_insert(name);
-            }
-            if let Some(&i) = by_key.get(&key) {
-                rows[i].mod_ids.get_or_insert_with(Vec::new).push(id);
-            }
-        }
-
+        let mut rows = Vec::new();
+        let mod_names = self
+            .export_each(|row| {
+                rows.push(row);
+                Ok::<(), std::convert::Infallible>(())
+            })
+            .map_err(|e| match e {
+                ExportError::Registry(e) => e,
+                ExportError::Visit(never) => match never {},
+            })?;
         Ok(Export { rows, mod_names })
     }
 
-    /// Row mapping for [`Self::export`]. `mod_ids` comes back empty here and
-    /// is filled by the caller's mod query; `Some(vec![])` vs `None` is
-    /// decided by `mod_count`, which is the record of whether A2S_RULES ever
-    /// answered.
-    fn map_export_row(r: &rusqlite::Row) -> rusqlite::Result<Option<ExportRow>> {
-        let ip: String = r.get(0)?;
-        let Ok(ip) = Ipv4Addr::from_str(&ip) else {
-            return Ok(None);
-        };
+    /// Streams every server with its declared mods to `on_row`, one row at a
+    /// time, and returns the name of each mod the walk saw.
+    ///
+    /// Two statements rather than a join: a join would repeat every server
+    /// column once per mod row, and the live index has over a million mod
+    /// rows against a quarter-million servers. Both run in `ip, query_port`
+    /// order, so one forward pass pairs each server with its mod rows.
+    pub fn export_each<E>(
+        &self,
+        mut on_row: impl FnMut(ExportRow) -> Result<(), E>,
+    ) -> Result<std::collections::HashMap<u64, String>, ExportError<E>> {
+        // Both cursors stay open for the whole walk while the writer keeps going;
+        // one read transaction keeps them on the same snapshot.
+        let _snapshot = self.conn.unchecked_transaction()?;
+        let mut servers_stmt = self.conn.prepare_cached(&format!(
+            "SELECT {EXPORT_COLUMNS} FROM servers ORDER BY ip, query_port"
+        ))?;
+        let mut mods_stmt = self.conn.prepare_cached(
+            "SELECT ip, query_port, workshop_id, name FROM server_mods
+             ORDER BY ip, query_port, ordinal",
+        )?;
+        let mut servers = servers_stmt.query([])?;
+        let mut mods = mods_stmt.query([])?;
+        let mut pending = next_mod(&mut mods)?;
+        let mut mod_names = std::collections::HashMap::new();
+        let mut skipped = 0usize;
+        while let Some(r) = servers.next()? {
+            let ip_text: String = r.get(0)?;
+            let port: i64 = r.get(1)?;
+            let ip = Ipv4Addr::from_str(&ip_text).ok();
+            let mut workshop_ids = Vec::new();
+            while let Some(m) =
+                pending.take_if(|m| (m.ip.as_str(), m.port) <= (ip_text.as_str(), port))
+            {
+                // Mod rows with no server are dropped; a server whose address
+                // does not parse contributes no names.
+                if ip.is_some() && m.ip == ip_text && m.port == port {
+                    if !m.name.is_empty() {
+                        mod_names.entry(m.workshop_id).or_insert(m.name);
+                    }
+                    workshop_ids.push(m.workshop_id);
+                }
+                pending = next_mod(&mut mods)?;
+            }
+            let Some(ip) = ip else {
+                skipped += 1;
+                continue;
+            };
+            on_row(Self::map_export_row(r, ip, workshop_ids)?).map_err(ExportError::Visit)?;
+        }
+        if skipped > 0 {
+            eprintln!("[registry] export: skipped {skipped} row(s) with an unparseable ip");
+        }
+        Ok(mod_names)
+    }
+
+    /// Row mapping for [`Self::export_each`]. `mod_ids` is `None` when
+    /// `mod_count` is NULL, which is the record of whether A2S_RULES ever
+    /// answered; otherwise it holds the ids the walk collected.
+    fn map_export_row(
+        r: &rusqlite::Row,
+        ip: Ipv4Addr,
+        workshop_ids: Vec<u64>,
+    ) -> rusqlite::Result<ExportRow> {
         let probed_for_mods: Option<i64> = r.get(13)?;
-        Ok(Some(ExportRow {
+        Ok(ExportRow {
             key: ServerKey {
                 ip,
                 query_port: r.get(1)?,
@@ -523,11 +580,11 @@ impl Reader {
             version: r.get(10)?,
             keywords: r.get(11)?,
             description: r.get(12)?,
-            mod_ids: probed_for_mods.map(|_| Vec::new()),
+            mod_ids: probed_for_mods.map(|_| workshop_ids),
             last_responded: r.get(14)?,
             online: r.get(15)?,
             online_checked_at: r.get(16)?,
-        }))
+        })
     }
 
     pub fn distinct_maps(&self) -> Result<Vec<(String, String)>, RegistryError> {
