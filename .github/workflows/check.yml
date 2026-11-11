@@ -109,10 +109,12 @@ jobs:
           name: tetra-launcher-appimage
           path: appimage
 
-      - name: Install Xvfb
+      # The AppImage leaves GL and font libraries to the host, as a desktop has them.
+      - name: Install Xvfb and the host libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb
+          sudo apt-get install -y xvfb libegl1 libgl1 libgbm1 \
+            libfontconfig1 libfribidi0 libharfbuzz0b
 
       # Alive after 20 s is the pass: a launcher that cannot start its windows
       # exits within that. The log is where a startup failure explains itself.
