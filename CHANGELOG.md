@@ -1,5 +1,21 @@
 # Changelog
 
+## v3.2.1 — 2026-11-11
+
+Favourites and recent servers save again, and the filter menu is tidier.
+
+### Fixed
+
+- Favourites and recent servers are saved again after the first start of 3.2.0.
+- Right-clicking a server opens its menu without opening the detail panel.
+- "Steam unreachable" no longer shows while Steam is connected, and only on the Mods tab.
+- Country flags in the filter menu are flag-sized and sit at the start of each row.
+
+### Improved
+
+- Game version filter lists the current and previous game build instead of every value servers report.
+- Map filter leaves out maps no server runs, and the Gloom maps are no longer pinned.
+
 ## v3.2.0 — 2026-11-11
 
 A rebuilt server browser and a join that tells you what it is doing.
