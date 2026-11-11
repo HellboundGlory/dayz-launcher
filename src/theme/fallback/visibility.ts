@@ -30,8 +30,9 @@ export interface VisibilityCheckOptions {
 const OPEN_POPUP_SELECTOR = '[data-popup-host], [data-part="popup"]';
 // Themed popups are `role="dialog" aria-modal="false"`; only real modals isolate the page.
 const MODAL_SELECTOR = '[data-modal-host], [aria-modal="true"]';
-// Dev Mode's own floating panels; a theme can't keep clear of them.
-const DEV_TOOLING_SELECTOR = "[data-dev-panel], [data-dev-inspector]";
+// Dev Mode's floating panels and the toast stack float over the page and a
+// theme can't keep clear of them; covering an element isn't a layout fault.
+const FLOATING_OVERLAY_SELECTOR = "[data-dev-panel], [data-dev-inspector], [data-toast-host]";
 
 interface CheckedStyle {
   display?: string;
@@ -76,7 +77,7 @@ function centreOccluded(container: HTMLElement, cx: number, cy: number): boolean
   }
   const hit = document.elementFromPoint(cx, cy);
   if (!hit || hit === container || container.contains(hit)) return false;
-  if (typeof hit.closest === "function" && hit.closest(DEV_TOOLING_SELECTOR)) return false;
+  if (typeof hit.closest === "function" && hit.closest(FLOATING_OVERLAY_SELECTOR)) return false;
 
   // An open popup paints over the page, so the page beneath it isn't occluded.
   const popup = typeof hit.closest === "function" ? hit.closest(OPEN_POPUP_SELECTOR) : null;

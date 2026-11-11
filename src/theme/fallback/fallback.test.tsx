@@ -605,6 +605,25 @@ describe("Theme fallback and visibility", () => {
       expect(result.passed).toBe(true);
     });
 
+    it("passes an element a toast covers", () => {
+      const container = document.createElement("div");
+      const refresh = createMockElement({
+        tag: "button",
+        attributes: { "data-el": "servers.refresh" },
+      });
+      container.appendChild(refresh);
+
+      const host = createMockElement({ attributes: { "data-toast-host": "" } });
+      const card = createMockElement({});
+      host.appendChild(card);
+      container.appendChild(host);
+      mockDocument.elementFromPoint = vi.fn().mockReturnValue(card);
+
+      const result = runVisibilityCheck({ root: container, requiredElements: ["servers.refresh"] });
+
+      expect(result.passed).toBe(true);
+    });
+
     it("still measures the open popup's own elements", () => {
       const container = document.createElement("div");
       const popup = createMockElement({ attributes: { "data-part": "popup" } });
