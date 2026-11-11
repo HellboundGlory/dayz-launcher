@@ -3,6 +3,7 @@ import { emit, listen } from "@tauri-apps/api/event";
 // Static import: window-resize-handles already pulls this in statically anyway.
 import { getCurrentWindow, getAllWindows } from "@tauri-apps/api/window";
 import { useServerStore } from "@/stores/server-store";
+import { useModsStore } from "@/stores/mods-store";
 import { whenRegistryReady } from "@/lib/registry-ready";
 import {
   steamInit,
@@ -116,6 +117,7 @@ export function useSteamStartup({
         setAutoRetryExhausted(false);
         triggerReload();
         void runInitialLoad();
+        void useModsStore.getState().steamConnected();
       } catch (e) {
         // Fresh object per attempt, so the retry effect re-arms even on an
         // identical failure.

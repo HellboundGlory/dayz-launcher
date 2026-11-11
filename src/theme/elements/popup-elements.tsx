@@ -174,7 +174,10 @@ export function PopupMapOptions({
   const selected = filter.maps ?? [];
   const toggle = (norm: string) => setFilter({ maps: toggleInList(selected, norm) });
 
-  const matching = (entries: [string, string][]) => entries.filter((m) => mapMatchesQuery(query, m));
+  // With counts known, a map no server runs is only noise, unless it is picked and needs unpicking.
+  const listed = ([norm]: [string, string]) => !counts || (counts[norm] ?? 0) > 0 || selected.includes(norm);
+  const matching = (entries: [string, string][]) =>
+    entries.filter((m) => listed(m) && mapMatchesQuery(query, m));
   const official = matching(OFFICIAL_MAP_IDS.flatMap((id) => maps.filter(([norm]) => norm === id)));
   const rest = matching(maps.filter(([norm]) => !OFFICIAL_MAP_IDS.includes(norm)));
   const status = maps.length === 0 ? "Loading maps..." : official.length + rest.length === 0 ? "No maps match" : null;

@@ -340,6 +340,22 @@ describe("row context menu", () => {
   });
 });
 
+describe("ListHost row context menu", () => {
+  it("opens a server row's menu without selecting the row", () => {
+    const onSelect = vi.fn();
+    delete captured["row"];
+    renderToStaticMarkup(
+      <ListHost listId="list.servers" items={[mockServer]} columns={sampleColumns} onSelect={onSelect} />,
+    );
+
+    const event = { preventDefault: vi.fn(), clientX: 40, clientY: 120 };
+    (captured["row"]?.onContextMenu as (e: typeof event) => void)(event);
+
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+});
+
 describe("ServerRowMenu", () => {
   it("labels the menu for the row's server and closes it on Escape", () => {
     const onClose = vi.fn();

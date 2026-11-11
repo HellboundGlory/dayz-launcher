@@ -49,6 +49,7 @@ export function useNoticeToasts(): Toast[] {
     updateBannerDismissed,
     dismissUpdateBanner,
     openUpdateModal,
+    activeView,
   } = useElementContext();
   const {
     error: modsError,
@@ -175,7 +176,8 @@ export function useNoticeToasts(): Toast[] {
     });
   }
 
-  if (fromCache) {
+  // The cached list is only what the Mods tab shows, so the notice stays there.
+  if (fromCache && activeView === "mods") {
     toasts.push({
       key: "notice:modsCached",
       tone: "warning",

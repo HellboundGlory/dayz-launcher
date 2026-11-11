@@ -569,9 +569,9 @@ export function CountryOptions({
           <OptionRow
             key={country.code}
             selected={selected.includes(country.code)}
+            mark={<CountryFlag code={country.code} />}
             onClick={() => onChange(toggleInList(selected, country.code))}
           >
-            <CountryFlag code={country.code} />
             <span className="min-w-0 flex-1 truncate">{country.name}</span>
             <span data-part="count" className="[font-family:var(--t-type-family-data)] text-muted">
               {countText(country.count)}

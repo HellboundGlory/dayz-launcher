@@ -440,6 +440,96 @@ async fn a_mod_suggestion_finds_word_starts_after_punctuation() {
     }
 }
 
+#[tokio::test]
+async fn the_version_list_offers_the_current_build_and_the_one_before() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let versions = [
+        "1.30.164289",
+        "1.30.164289",
+        "1.30.164289",
+        "1.30.164200",
+        "1.30.164200",
+        "1.29.163709",
+        "2636",
+        "2026.04.29",
+        "2.22.154089",
+        "1.64.164250",
+        "1.64.164250",
+    ];
+    let rows = versions
+        .iter()
+        .enumerate()
+        .map(|(n, v)| {
+            listed(
+                key(n as u8 + 1),
+                "Server",
+                "chernarusplus",
+                Some(v),
+                "EU",
+                1,
+            )
+        })
+        .collect();
+    registry
+        .writer()
+        .upsert_servers(rows)
+        .await
+        .expect("servers");
+
+    let facets = registry
+        .reader()
+        .expect("reader")
+        .facets(&ServerFilter::default(), None)
+        .expect("facets");
+
+    assert_eq!(
+        named(&facets.versions),
+        pairs(&[("1.30.164289", 3), ("1.30.164200", 2)])
+    );
+}
+
+#[tokio::test]
+async fn a_tie_for_most_servers_offers_the_newer_build_as_current() {
+    let registry = Registry::open_in_memory().expect("registry");
+    let versions = [
+        "1.29.163709",
+        "1.29.163709",
+        "1.30.164289",
+        "1.30.164289",
+        "1.4294967295.1",
+    ];
+    let rows = versions
+        .iter()
+        .enumerate()
+        .map(|(n, v)| {
+            listed(
+                key(n as u8 + 1),
+                "Server",
+                "chernarusplus",
+                Some(v),
+                "EU",
+                1,
+            )
+        })
+        .collect();
+    registry
+        .writer()
+        .upsert_servers(rows)
+        .await
+        .expect("servers");
+
+    let facets = registry
+        .reader()
+        .expect("reader")
+        .facets(&ServerFilter::default(), None)
+        .expect("facets");
+
+    assert_eq!(
+        named(&facets.versions),
+        pairs(&[("1.30.164289", 2), ("1.29.163709", 2)])
+    );
+}
+
 fn pairs(items: &[(&str, usize)]) -> Vec<(String, usize)> {
     items
         .iter()
@@ -907,10 +997,7 @@ async fn counting_the_lists_for_twenty_seven_thousand_servers() {
         all.maps.iter().map(|row| row.count).sum::<usize>(),
         SERVERS as usize
     );
-    assert_eq!(
-        all.versions.iter().map(|row| row.count).sum::<usize>(),
-        SERVERS as usize
-    );
+    assert!((1..=2).contains(&all.versions.len()));
     assert_eq!(
         all.countries.iter().map(|row| row.count).sum::<usize>(),
         SERVERS as usize

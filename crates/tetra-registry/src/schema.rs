@@ -4,7 +4,7 @@ use std::net::Ipv4Addr;
 use tetra_core::classify::country_table::country_order;
 use tetra_core::classify::geoip::country_code;
 
-pub const LATEST_VERSION: u32 = 10;
+pub const LATEST_VERSION: u32 = MIGRATIONS[MIGRATIONS.len() - 1].version;
 
 struct Migration {
     version: u32,
@@ -323,6 +323,22 @@ mod tests {
         apply_pragmas(&conn).unwrap();
         migrate(&conn).unwrap();
         conn
+    }
+
+    #[test]
+    fn a_migrated_database_opens_again_on_the_next_start() {
+        let conn = fresh_conn();
+        let version: u32 = conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(migrate(&conn).unwrap(), version);
+    }
+
+    #[test]
+    fn migrations_are_numbered_in_order_without_gaps() {
+        for (i, m) in MIGRATIONS.iter().enumerate() {
+            assert_eq!(m.version as usize, i + 1);
+        }
     }
 
     /// `responded_age_days` is `None` for a row Steam listed but that never

@@ -402,7 +402,7 @@ describe("themed element placement", () => {
 describe("PopupMapOptions counts", () => {
   it("lists a count for each map when given", () => {
     mockStore.maps = [["chernarusplus", "Chernarus"], ["deerisle", "Deer Isle"]];
-    const html = renderToStaticMarkup(<PopupMapOptions counts={{ chernarusplus: 8412 }} />);
+    const html = renderToStaticMarkup(<PopupMapOptions counts={{ chernarusplus: 8412, deerisle: 3 }} />);
     expect(html).toContain('data-part="separator"');
     expect(html).toContain('data-part="count"');
     expect(html).toContain("8,412");
@@ -447,6 +447,10 @@ describe("CountryOptions", () => {
     const order = names.map((name) => html.indexOf(name));
     expect(order).toEqual([...order].sort((a, b) => a - b));
     expect(html).toContain('data-part="flag"');
+  });
+
+  it("draws each country's flag in the row's leading column", () => {
+    expect(list()).toMatch(/<span data-part="box"[^>]*><img data-part="flag"/);
   });
 
   it("shows each continent's count as the sum of its countries' counts", () => {

@@ -72,6 +72,8 @@ interface ModsState {
   mutationFailures: [string, string][] | null;
 
   load: (force?: boolean) => Promise<void>;
+  /** Swap a list served from the cache for the live one once Steam is up. */
+  steamConnected: () => Promise<void>;
   setLive: (states: Record<string, ModState>) => void;
   setProgress: (progress: Record<string, { downloaded: string; total: string }>) => void;
   /** Merge fresh details into existing rows (used after a refresh). */
@@ -247,6 +249,10 @@ export const useModsStore = create<ModsState>((set, get) => ({
   op: null,
   verifyResult: null,
   mutationFailures: null,
+
+  steamConnected: async () => {
+    if (get().fromCache) await get().load();
+  },
 
   load: async (force = false) => {
     if (get().op) return;
