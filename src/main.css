@@ -150,6 +150,13 @@
       color: inherit;
       background: transparent;
     }
+
+    /* A theme that styles no hover card for the ping tip would print it inline; the shield's title
+       carries the same text. */
+    [data-el="server.ping"] [data-part="tip"] {
+      position: absolute;
+      visibility: hidden;
+    }
   }
 
   /* ── Bundled typefaces (Inter UI + JetBrains Mono data) ─────────── */
