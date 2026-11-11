@@ -6,7 +6,7 @@ import { useModsStore } from "@/stores/mods-store";
 import { useToastStore, type Toast } from "@/stores/toast-store";
 import { ElementContextProvider, type ElementContextValue } from "@/theme/elements/context";
 import { useNoticeToasts } from "@/theme/elements/notice-toasts";
-import { ToastHost } from "./toast-host";
+import { pointerOver, ToastHost } from "./toast-host";
 
 // SSR takes zustand's initial snapshot, so route every hook through the live state.
 function liveHook<T extends { getState: () => S }, S>(store: T) {
@@ -50,7 +50,7 @@ const cards = (html: string) => html.includes('data-part="toast"');
 interface JsxProps {
   [key: string]: unknown;
   onClick?: () => void;
-  onPointerEnter?: () => void;
+  onPointerEnter?: (event: { clientX: number; clientY: number }) => void;
   onPointerLeave?: () => void;
   onFocus?: () => void;
   onBlur?: () => void;
@@ -183,7 +183,7 @@ describe("ToastHost", () => {
     useToastStore.getState().showToast(pushedToast({ quick: true }));
     draw();
 
-    captured.host!.onPointerEnter!();
+    captured.host!.onPointerEnter!({ clientX: 1200, clientY: 150 });
     vi.advanceTimersByTime(20_000);
     expect(draw()).toContain("Something happened.");
 
@@ -395,5 +395,15 @@ describe("ToastHost", () => {
 
     useModsStore.setState({ op: { kind: "update", note: "UPDATING 1…" } });
     expect(draw()).toContain("UPDATING 1…");
+  });
+});
+
+describe("pointerOver", () => {
+  const stack = { left: 1016, right: 1386, top: 132, bottom: 300 };
+
+  it("lets go once a closed toast leaves the pointer below the shorter stack", () => {
+    expect(pointerOver(stack, { x: 1370, y: 290 })).toBe(true);
+    expect(pointerOver(stack, { x: 1370, y: 330 })).toBe(false);
+    expect(pointerOver(stack, null)).toBe(false);
   });
 });
